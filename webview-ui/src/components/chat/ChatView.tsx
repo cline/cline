@@ -1,32 +1,32 @@
-import { useCallback, useEffect, useMemo } from "react"
-import { useMount } from "react-use"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { useCallback, useEffect, useMemo } from "react"
+import { useMount } from "react-use"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-
+import { Navbar } from "../menu/Navbar"
 // Import utilities and hooks from the new structure
 import {
+	ActionButtons,
+	CHAT_CONSTANTS,
+	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
 	groupMessages,
-	CHAT_CONSTANTS,
-	useChatState,
-	useButtonState,
-	useScrollBehavior,
-	useMessageHandlers,
-	useIsStreaming,
-	ChatLayout,
-	WelcomeSection,
-	TaskSection,
-	MessagesArea,
-	ActionButtons,
 	InputSection,
+	MessagesArea,
+	TaskSection,
+	useButtonState,
+	useChatState,
+	useIsStreaming,
+	useMessageHandlers,
+	useScrollBehavior,
+	WelcomeSection,
 } from "./chat-view"
 
 interface ChatViewProps {
@@ -48,6 +48,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		telemetrySetting,
 		navigateToChat,
 		chatSettings,
+		showNavbar,
 	} = useExtensionState()
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -321,6 +322,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
+			{showNavbar && <Navbar />}
 			{task ? (
 				<TaskSection
 					task={task}

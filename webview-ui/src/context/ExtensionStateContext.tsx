@@ -1,39 +1,37 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import type React from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import "../../../src/shared/webview/types"
-import {
-	StateServiceClient,
-	ModelsServiceClient,
-	UiServiceClient,
-	FileServiceClient,
-	McpServiceClient,
-} from "../services/grpc-client"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { findLastIndex } from "@shared/array"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { type ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
+import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { UpdateSettingsRequest } from "@shared/proto/cline/state"
+import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { type TerminalProfile, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
-import { TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
-import { findLastIndex } from "@shared/array"
 import {
-	ModelInfo,
+	groqDefaultModelId,
+	groqModels,
+	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
-	groqDefaultModelId,
-	groqModels,
-	huggingFaceDefaultModelId,
-	huggingFaceModels,
 } from "../../../src/shared/api"
-import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import {
+	FileServiceClient,
+	McpServiceClient,
+	ModelsServiceClient,
+	StateServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { UserInfo } from "@shared/proto/cline/account"
-import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -57,6 +55,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
+	showNavbar: boolean
 
 	// Setters
 	setShowAnnouncement: (value: boolean) => void
@@ -74,6 +73,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setShowNavbar: (value: boolean) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -219,6 +219,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+
+	// TODO: set this to true for Jetbrains
+	const [showNavbar, setShowNavbar] = useState(false)
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -755,6 +758,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		showNavbar,
+		setShowNavbar,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
