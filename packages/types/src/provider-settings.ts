@@ -238,6 +238,7 @@ const litellmSchema = baseProviderSettingsSchema.extend({
 	litellmBaseUrl: z.string().optional(),
 	litellmApiKey: z.string().optional(),
 	litellmModelId: z.string().optional(),
+	litellmUsePromptCache: z.boolean().optional(),
 })
 
 const defaultSchema = z.object({

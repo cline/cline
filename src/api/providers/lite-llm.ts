@@ -39,10 +39,70 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 	): ApiStream {
 		const { id: modelId, info } = await this.fetchModel()
 
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		const openAiMessages = convertToOpenAiMessages(messages)
+
+		// Prepare messages with cache control if enabled and supported
+		let systemMessage: OpenAI.Chat.ChatCompletionMessageParam
+		let enhancedMessages: OpenAI.Chat.ChatCompletionMessageParam[]
+
+		if (this.options.litellmUsePromptCache && info.supportsPromptCache) {
+			// Create system message with cache control in the proper format
+			systemMessage = {
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: systemPrompt,
+						cache_control: { type: "ephemeral" },
+					} as any,
+				],
+			}
+
+			// Find the last two user messages to apply caching
+			const userMsgIndices = openAiMessages.reduce(
+				(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+				[] as number[],
+			)
+			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+			const secondLastUserMsgIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+			// Apply cache_control to the last two user messages
+			enhancedMessages = openAiMessages.map((message, index) => {
+				if ((index === lastUserMsgIndex || index === secondLastUserMsgIndex) && message.role === "user") {
+					// Handle both string and array content types
+					if (typeof message.content === "string") {
+						return {
+							...message,
+							content: [
+								{
+									type: "text",
+									text: message.content,
+									cache_control: { type: "ephemeral" },
+								} as any,
+							],
+						}
+					} else if (Array.isArray(message.content)) {
+						// Apply cache control to the last content item in the array
+						return {
+							...message,
+							content: message.content.map((content, contentIndex) =>
+								contentIndex === message.content.length - 1
+									? ({
+											...content,
+											cache_control: { type: "ephemeral" },
+										} as any)
+									: content,
+							),
+						}
+					}
+				}
+				return message
+			})
+		} else {
+			// No cache control - use simple format
+			systemMessage = { role: "system", content: systemPrompt }
+			enhancedMessages = openAiMessages
+		}
 
 		// Required by some providers; others default to max tokens allowed
 		let maxTokens: number | undefined = info.maxTokens ?? undefined
@@ -50,7 +110,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 			model: modelId,
 			max_tokens: maxTokens,
-			messages: openAiMessages,
+			messages: [systemMessage, ...enhancedMessages],
 			stream: true,
 			stream_options: {
 				include_usage: true,
@@ -80,20 +140,30 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 			}
 
 			if (lastUsage) {
+				// Extract cache-related information if available
+				// LiteLLM may use different field names for cache tokens
+				const cacheWriteTokens =
+					lastUsage.cache_creation_input_tokens || (lastUsage as any).prompt_cache_miss_tokens || 0
+				const cacheReadTokens =
+					lastUsage.prompt_tokens_details?.cached_tokens ||
+					(lastUsage as any).cache_read_input_tokens ||
+					(lastUsage as any).prompt_cache_hit_tokens ||
+					0
+
 				const usageData: ApiStreamUsageChunk = {
 					type: "usage",
 					inputTokens: lastUsage.prompt_tokens || 0,
 					outputTokens: lastUsage.completion_tokens || 0,
-					cacheWriteTokens: lastUsage.cache_creation_input_tokens || 0,
-					cacheReadTokens: lastUsage.prompt_tokens_details?.cached_tokens || 0,
+					cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
+					cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
 				}
 
 				usageData.totalCost = calculateApiCostOpenAI(
 					info,
 					usageData.inputTokens,
 					usageData.outputTokens,
-					usageData.cacheWriteTokens,
-					usageData.cacheReadTokens,
+					usageData.cacheWriteTokens || 0,
+					usageData.cacheReadTokens || 0,
 				)
 
 				yield usageData
