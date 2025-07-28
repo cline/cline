@@ -1,124 +1,278 @@
-<mode_creation_workflow>
+<mode_management_workflow>
   <overview>
-    This workflow guides you through creating a new custom mode to be used in the Roo Code Software,
-    from initial requirements gathering to final implementation.
+    This workflow guides you through creating new custom modes or editing existing modes
+    for the Roo Code Software, ensuring comprehensive understanding and cohesive implementation.
   </overview>
 
-  <detailed_steps>
+  <initial_determination>
     <step number="1">
-      <title>Gather Requirements</title>
+      <title>Determine User Intent</title>
       <description>
-        Understand what the user wants the mode to accomplish
+        Identify whether the user wants to create a new mode or edit an existing one
       </description>
-      <actions>
-        <action>Ask about the mode's primary purpose and use cases</action>
-        <action>Identify what types of tasks the mode should handle</action>
-        <action>Determine what tools and file access the mode needs</action>
-        <action>Clarify any special behaviors or restrictions</action>
-      </actions>
-      <example>
+      <detection_patterns>
+        <pattern type="edit_existing">
+          <indicators>
+            <indicator>User mentions a specific mode by name or slug</indicator>
+            <indicator>User references a mode directory path (e.g., .roo/rules-[mode-slug])</indicator>
+            <indicator>User asks to modify, update, enhance, or fix an existing mode</indicator>
+            <indicator>User says "edit this mode" or "change this mode"</indicator>
+          </indicators>
+        </pattern>
+        <pattern type="create_new">
+          <indicators>
+            <indicator>User asks to create a new mode</indicator>
+            <indicator>User describes a new capability not covered by existing modes</indicator>
+            <indicator>User says "make a mode for" or "create a mode that"</indicator>
+          </indicators>
+        </pattern>
+      </detection_patterns>
+      <clarification_question>
         <ask_followup_question>
-          <question>What is the primary purpose of this new mode? What types of tasks should it handle?</question>
+          <question>I want to make sure I understand correctly. Are you looking to create a brand new mode or modify an existing one?</question>
           <follow_up>
-            <suggest>A mode for writing and maintaining documentation</suggest>
-            <suggest>A mode for database schema design and migrations</suggest>
-            <suggest>A mode for API endpoint development and testing</suggest>
-            <suggest>A mode for performance optimization and profiling</suggest>
+            <suggest>Create a new mode for a specific purpose</suggest>
+            <suggest>Edit an existing mode to add new capabilities</suggest>
+            <suggest>Fix issues in an existing mode</suggest>
+            <suggest>Enhance an existing mode with better workflows</suggest>
           </follow_up>
         </ask_followup_question>
-      </example>
+      </clarification_question>
     </step>
+  </initial_determination>
 
-    <step number="2">
-      <title>Design Mode Configuration</title>
-      <description>
-        Create the mode definition with all required fields
-      </description>
-      <required_fields>
-        <field name="slug">
-          <description>Unique identifier (lowercase, hyphens allowed)</description>
-          <best_practice>Keep it short and descriptive (e.g., "api-dev", "docs-writer")</best_practice>
-        </field>
-        <field name="name">
-          <description>Display name with optional emoji</description>
-          <best_practice>Use an emoji that represents the mode's purpose</best_practice>
-        </field>
-        <field name="roleDefinition">
-          <description>Detailed description of the mode's role and expertise</description>
-          <best_practice>
-            Start with "You are Roo Code, a [specialist type]..."
-            List specific areas of expertise
-            Mention key technologies or methodologies
-          </best_practice>
-        </field>
-        <field name="groups">
-          <description>Tool groups the mode can access</description>
-          <options>
-            <option name="read">File reading and searching tools</option>
-            <option name="edit">File editing tools (can be restricted by regex)</option>
-            <option name="command">Command execution tools</option>
-            <option name="browser">Browser interaction tools</option>
-            <option name="mcp">MCP server tools</option>
-          </options>
-        </field>
-      </required_fields>
-      <recommended_fields>
-        <field name="whenToUse">
-          <description>Clear description for the Orchestrator</description>
-          <best_practice>Explain specific scenarios and task types</best_practice>
-        </field>
-      </recommended_fields>
-      <important_note>
-        Do not include customInstructions in the .roomodes configuration.
-        All detailed instructions should be placed in XML files within
-        the .roo/rules-[mode-slug]/ directory instead.
-      </important_note>
-    </step>
+  <workflow_branches>
+    <branch name="create_new_mode">
+      <step number="2a">
+        <title>Gather Requirements for New Mode</title>
+        <description>
+          Understand what the user wants the new mode to accomplish
+        </description>
+        <actions>
+          <action>Ask about the mode's primary purpose and use cases</action>
+          <action>Identify what types of tasks the mode should handle</action>
+          <action>Determine what tools and file access the mode needs</action>
+          <action>Clarify any special behaviors or restrictions</action>
+        </actions>
+        <example>
+          <ask_followup_question>
+            <question>What is the primary purpose of this new mode? What types of tasks should it handle?</question>
+            <follow_up>
+              <suggest>A mode for writing and maintaining documentation</suggest>
+              <suggest>A mode for database schema design and migrations</suggest>
+              <suggest>A mode for API endpoint development and testing</suggest>
+              <suggest>A mode for performance optimization and profiling</suggest>
+            </follow_up>
+          </ask_followup_question>
+        </example>
+      </step>
 
-    <step number="3">
-      <title>Implement File Restrictions</title>
-      <description>
-        Configure appropriate file access permissions
-      </description>
-      <example>
-        <comment>Restrict edit access to specific file types</comment>
-        <code>
+      <step number="3a">
+        <title>Design Mode Configuration</title>
+        <description>
+          Create the mode definition with all required fields
+        </description>
+        <required_fields>
+          <field name="slug">
+            <description>Unique identifier (lowercase, hyphens allowed)</description>
+            <best_practice>Keep it short and descriptive (e.g., "api-dev", "docs-writer")</best_practice>
+          </field>
+          <field name="name">
+            <description>Display name with optional emoji</description>
+            <best_practice>Use an emoji that represents the mode's purpose</best_practice>
+          </field>
+          <field name="roleDefinition">
+            <description>Detailed description of the mode's role and expertise</description>
+            <best_practice>
+              Start with "You are Roo Code, a [specialist type]..."
+              List specific areas of expertise
+              Mention key technologies or methodologies
+            </best_practice>
+          </field>
+          <field name="groups">
+            <description>Tool groups the mode can access</description>
+            <options>
+              <option name="read">File reading and searching tools</option>
+              <option name="edit">File editing tools (can be restricted by regex)</option>
+              <option name="command">Command execution tools</option>
+              <option name="browser">Browser interaction tools</option>
+              <option name="mcp">MCP server tools</option>
+            </options>
+          </field>
+        </required_fields>
+        <recommended_fields>
+          <field name="whenToUse">
+            <description>Clear description for the Orchestrator</description>
+            <best_practice>Explain specific scenarios and task types</best_practice>
+          </field>
+        </recommended_fields>
+        <important_note>
+          Do not include customInstructions in the .roomodes configuration.
+          All detailed instructions should be placed in XML files within
+          the .roo/rules-[mode-slug]/ directory instead.
+        </important_note>
+      </step>
+
+      <step number="4a">
+        <title>Implement File Restrictions</title>
+        <description>
+          Configure appropriate file access permissions
+        </description>
+        <example>
+          <comment>Restrict edit access to specific file types</comment>
+          <code>
 groups:
   - read
   - - edit
     - fileRegex: \.(md|txt|rst)$
       description: Documentation files only
   - command
-        </code>
-      </example>
-      <guidelines>
-        <guideline>Use regex patterns to limit file editing scope</guideline>
-        <guideline>Provide clear descriptions for restrictions</guideline>
-        <guideline>Consider the principle of least privilege</guideline>
-      </guidelines>
-    </step>
+          </code>
+        </example>
+        <guidelines>
+          <guideline>Use regex patterns to limit file editing scope</guideline>
+          <guideline>Provide clear descriptions for restrictions</guideline>
+          <guideline>Consider the principle of least privilege</guideline>
+        </guidelines>
+      </step>
 
-    <step number="4">
-      <title>Create XML Instruction Files</title>
+      <step number="5a">
+        <title>Create XML Instruction Files</title>
+        <description>
+          Design structured instruction files in .roo/rules-[mode-slug]/
+        </description>
+        <file_structure>
+          <file name="1_workflow.xml">Main workflow and step-by-step processes</file>
+          <file name="2_best_practices.xml">Guidelines and conventions</file>
+          <file name="3_common_patterns.xml">Reusable code patterns and examples</file>
+          <file name="4_tool_usage.xml">Specific tool usage instructions</file>
+          <file name="5_examples.xml">Complete workflow examples</file>
+        </file_structure>
+        <xml_best_practices>
+          <practice>Use semantic tag names that describe content</practice>
+          <practice>Nest tags hierarchically for better organization</practice>
+          <practice>Include code examples in CDATA sections when needed</practice>
+          <practice>Add comments to explain complex sections</practice>
+        </xml_best_practices>
+      </step>
+    </branch>
+
+    <branch name="edit_existing_mode">
+      <step number="2b">
+        <title>Immerse in Existing Mode</title>
+        <description>
+          Fully understand the existing mode before making any changes
+        </description>
+        <actions>
+          <action>Locate and read the mode configuration in .roomodes</action>
+          <action>Read all XML instruction files in .roo/rules-[mode-slug]/</action>
+          <action>Analyze the mode's current capabilities and limitations</action>
+          <action>Understand the mode's role in the broader ecosystem</action>
+        </actions>
+        <questions_to_ask>
+          <ask_followup_question>
+            <question>What specific aspects of the mode would you like to change or enhance?</question>
+            <follow_up>
+              <suggest>Add new capabilities or tool permissions</suggest>
+              <suggest>Fix issues with current workflows or instructions</suggest>
+              <suggest>Improve the mode's roleDefinition or whenToUse description</suggest>
+              <suggest>Enhance XML instructions for better clarity</suggest>
+            </follow_up>
+          </ask_followup_question>
+        </questions_to_ask>
+      </step>
+
+      <step number="3b">
+        <title>Analyze Change Impact</title>
+        <description>
+          Understand how proposed changes will affect the mode
+        </description>
+        <analysis_areas>
+          <area>Compatibility with existing workflows</area>
+          <area>Impact on file permissions and tool access</area>
+          <area>Consistency with mode's core purpose</area>
+          <area>Integration with other modes</area>
+        </analysis_areas>
+        <validation_questions>
+          <ask_followup_question>
+            <question>I've analyzed the existing mode. Here's what I understand about your requested changes. Is this correct?</question>
+            <follow_up>
+              <suggest>Yes, that's exactly what I want to change</suggest>
+              <suggest>Mostly correct, but let me clarify some details</suggest>
+              <suggest>No, I meant something different</suggest>
+              <suggest>I'd like to add additional changes</suggest>
+            </follow_up>
+          </ask_followup_question>
+        </validation_questions>
+      </step>
+
+      <step number="4b">
+        <title>Plan Modifications</title>
+        <description>
+          Create a detailed plan for modifying the mode
+        </description>
+        <planning_steps>
+          <step>Identify which files need to be modified</step>
+          <step>Determine if new XML instruction files are needed</step>
+          <step>Check for potential conflicts or contradictions</step>
+          <step>Plan the order of changes for minimal disruption</step>
+        </planning_steps>
+      </step>
+
+      <step number="5b">
+        <title>Implement Changes</title>
+        <description>
+          Apply the planned modifications to the mode
+        </description>
+        <implementation_order>
+          <change>Update .roomodes configuration if needed</change>
+          <change>Modify existing XML instruction files</change>
+          <change>Create new XML instruction files if required</change>
+          <change>Update examples and documentation</change>
+        </implementation_order>
+      </step>
+    </branch>
+  </workflow_branches>
+
+  <validation_and_cohesion>
+    <step number="6">
+      <title>Validate Cohesion and Consistency</title>
       <description>
-        Design structured instruction files in .roo/rules-[mode-slug]/
+        Ensure all changes are cohesive and don't contradict each other
       </description>
-      <file_structure>
-        <file name="1_workflow.xml">Main workflow and step-by-step processes</file>
-        <file name="2_best_practices.xml">Guidelines and conventions</file>
-        <file name="3_common_patterns.xml">Reusable code patterns and examples</file>
-        <file name="4_tool_usage.xml">Specific tool usage instructions</file>
-        <file name="5_examples.xml">Complete workflow examples</file>
-      </file_structure>
-      <xml_best_practices>
-        <practice>Use semantic tag names that describe content</practice>
-        <practice>Nest tags hierarchically for better organization</practice>
-        <practice>Include code examples in CDATA sections when needed</practice>
-        <practice>Add comments to explain complex sections</practice>
-      </xml_best_practices>
+      <validation_checks>
+        <check type="configuration">
+          <item>Mode slug follows naming conventions</item>
+          <item>File restrictions align with mode purpose</item>
+          <item>Tool permissions are appropriate</item>
+          <item>whenToUse clearly differentiates from other modes</item>
+        </check>
+        <check type="instructions">
+          <item>All XML files follow consistent structure</item>
+          <item>No contradicting instructions between files</item>
+          <item>Examples align with stated workflows</item>
+          <item>Tool usage matches granted permissions</item>
+        </check>
+        <check type="integration">
+          <item>Mode integrates well with Orchestrator</item>
+          <item>Clear boundaries with other modes</item>
+          <item>Handoff points are well-defined</item>
+        </check>
+      </validation_checks>
+      <cohesion_questions>
+        <ask_followup_question>
+          <question>I've completed the validation checks. Would you like me to review any specific aspect in more detail?</question>
+          <follow_up>
+            <suggest>Review the file permission patterns</suggest>
+            <suggest>Check for workflow contradictions</suggest>
+            <suggest>Verify integration with other modes</suggest>
+            <suggest>Everything looks good, proceed to testing</suggest>
+          </follow_up>
+        </ask_followup_question>
+      </cohesion_questions>
     </step>
 
-    <step number="5">
+    <step number="7">
       <title>Test and Refine</title>
       <description>
         Verify the mode works as intended
@@ -129,14 +283,19 @@ groups:
         <item>Instructions are clear and actionable</item>
         <item>Mode integrates well with Orchestrator</item>
         <item>All examples are accurate and helpful</item>
+        <item>Changes don't break existing functionality (for edits)</item>
+        <item>New capabilities work as expected</item>
       </checklist>
     </step>
-  </detailed_steps>
+  </validation_and_cohesion>
 
   <quick_reference>
     <command>Create mode in .roomodes for project-specific modes</command>
     <command>Create mode in global custom_modes.yaml for system-wide modes</command>
     <command>Use list_files to verify .roo folder structure</command>
     <command>Test file regex patterns with search_files</command>
+    <command>Use codebase_search to find existing mode implementations</command>
+    <command>Read all XML files in a mode directory to understand its structure</command>
+    <command>Always validate changes for cohesion and consistency</command>
   </quick_reference>
-</mode_creation_workflow>
+</mode_management_workflow>

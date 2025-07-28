@@ -1,96 +1,214 @@
-<![CDATA[
-<api_documentation_example>
-  <scenario>
-    Generate OpenAPI documentation for a REST API with user management endpoints
-  </scenario>
+<complete_examples>
+  <example name="mode_editing_enhancement">
+    <scenario>
+      Edit the test mode to add support for performance testing and benchmarking
+    </scenario>
+    
+    <user_request>
+      I want to edit the test mode to add benchmark testing capabilities
+    </user_request>
 
-  <workflow>
-    <step number="1">
-      <description>Discover API endpoints</description>
-      <tool_use><![CDATA[
-<codebase_search>
-<query>express router app.get app.post app.put app.delete @Route @Get @Post</query>
-</codebase_search>
-      ]]></tool_use>
-      <result>Found routes in src/routes/users.ts</result>
-    </step>
+    <workflow>
+      <step number="1">
+        <description>Determine user intent and clarify scope</description>
+        <tool_use><![CDATA[
+<ask_followup_question>
+<question>I understand you want to edit the test mode to add performance testing capabilities. Before we proceed, let me confirm the scope of changes. What specific performance testing features do you need?</question>
+<follow_up>
+<suggest>Add benchmark testing with Vitest's bench API</suggest>
+<suggest>Include performance profiling and memory usage tracking</suggest>
+<suggest>Add load testing capabilities for API endpoints</suggest>
+<suggest>All of the above - comprehensive performance testing suite</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></tool_use>
+        <expected_outcome>User selected: Add benchmark testing with Vitest's bench API</expected_outcome>
+      </step>
 
-    <step number="2">
-      <description>Analyze endpoint implementation</description>
-      <tool_use><![CDATA[
+      <step number="2">
+        <description>Immerse in existing test mode configuration</description>
+        <tool_use><![CDATA[
 <read_file>
-<path>src/routes/users.ts</path>
+<path>.roomodes</path>
 </read_file>
-      ]]></tool_use>
-    </step>
+        ]]></tool_use>
+        <analysis>Found test mode configuration with current roleDefinition and file restrictions</analysis>
+      </step>
 
-    <step number="3">
-      <description>Generate OpenAPI specification</description>
-      <tool_use><![CDATA[
+      <step number="3">
+        <description>Explore existing test mode instructions</description>
+        <tool_use><![CDATA[
+<list_files>
+<path>.roo/rules-test</path>
+<recursive>true</recursive>
+</list_files>
+        ]]></tool_use>
+        <tool_use><![CDATA[
+<read_file>
+<path>.roo/rules-test/1_workflow.xml</path>
+</read_file>
+        ]]></tool_use>
+        <analysis>Understood current test workflows and patterns</analysis>
+      </step>
+
+      <step number="4">
+        <description>Validate changes for cohesion</description>
+        <tool_use><![CDATA[
+<ask_followup_question>
+<question>I've analyzed the test mode. Adding benchmark testing would require:
+1. Updating the roleDefinition to include performance testing expertise
+2. Modifying file restrictions to include .bench.ts files
+3. Adding new workflow instructions for benchmark creation
+4. Including Vitest bench API examples
+
+This aligns well with the existing testing focus. Should I proceed with all these changes?</question>
+<follow_up>
+<suggest>Yes, implement all the changes as described</suggest>
+<suggest>Start with just the roleDefinition and file restrictions</suggest>
+<suggest>Focus only on the workflow instructions first</suggest>
+<suggest>Let me review the specific changes before proceeding</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></tool_use>
+        <expected_outcome>User selected: Yes, implement all the changes as described</expected_outcome>
+      </step>
+
+      <step number="5">
+        <description>Update mode configuration in .roomodes</description>
+        <tool_use><![CDATA[
+<apply_diff>
+<path>.roomodes</path>
+<diff>
+<<<<<<< SEARCH
+    roleDefinition: |-
+      You are Roo, a Vitest testing specialist with deep expertise in: - Writing and maintaining Vitest test suites - Test-driven development (TDD) practices - Mocking and stubbing with Vitest - Integration testing strategies - TypeScript testing patterns - Code coverage analysis - Test performance optimization
+=======
+    roleDefinition: |-
+      You are Roo, a Vitest testing specialist with deep expertise in: - Writing and maintaining Vitest test suites - Test-driven development (TDD) practices - Mocking and stubbing with Vitest - Integration testing strategies - TypeScript testing patterns - Code coverage analysis - Test performance optimization - Benchmark testing with Vitest bench API - Performance profiling and optimization - Memory usage analysis in tests
+>>>>>>> REPLACE
+</diff>
+</apply_diff>
+        ]]></tool_use>
+      </step>
+
+      <step number="6">
+        <description>Update file restrictions to include benchmark files</description>
+        <tool_use><![CDATA[
+<apply_diff>
+<path>.roomodes</path>
+<diff>
+<<<<<<< SEARCH
+        - fileRegex: (__tests__/.*|__mocks__/.*|\.test\.(ts|tsx|js|jsx)$|\.spec\.(ts|tsx|js|jsx)$|/test/.*|vitest\.config\.(js|ts)$|vitest\.setup\.(js|ts)$)
+          description: Test files, mocks, and Vitest configuration
+=======
+        - fileRegex: (__tests__/.*|__mocks__/.*|\.test\.(ts|tsx|js|jsx)$|\.spec\.(ts|tsx|js|jsx)$|\.bench\.(ts|tsx|js|jsx)$|/test/.*|vitest\.config\.(js|ts)$|vitest\.setup\.(js|ts)$)
+          description: Test files, benchmarks, mocks, and Vitest configuration
+>>>>>>> REPLACE
+</diff>
+</apply_diff>
+        ]]></tool_use>
+      </step>
+
+      <step number="7">
+        <description>Create new benchmark workflow instructions</description>
+        <tool_use><![CDATA[
 <write_to_file>
-<path>docs/api/openapi.yaml</path>
+<path>.roo/rules-test/5_benchmark_testing.xml</path>
 <content>
-openapi: 3.0.0
-info:
-  title: User Management API
-  version: 1.0.0
-  description: API for managing user accounts
+<benchmark_testing_guide>
+  <overview>
+    Guidelines for creating and maintaining performance benchmarks using Vitest bench API
+  </overview>
 
-servers:
-  - url: https://api.example.com/v1
-    description: Production server
-  - url: http://localhost:3000/v1
-    description: Development server
+  <benchmark_patterns>
+    <pattern name="basic_benchmark">
+      <description>Basic benchmark structure</description>
+      <example><![CDATA[
+import { bench, describe } from 'vitest';
 
-paths:
-  /users:
-    get:
-      summary: List all users
-      operationId: listUsers
-      tags:
-        - Users
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  users:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/User'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
+describe('Array operations', () => {
+  bench('Array.push', () => {
+    const arr = [];
+    for (let i = 0; i < 1000; i++) {
+      arr.push(i);
+    }
+  });
 
-components:
-  schemas:
-    User:
-      type: object
-      required:
-        - id
-        - email
-      properties:
-        id:
-          type: string
-          format: uuid
-        email:
-          type: string
-          format: email
-        name:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
+  bench('Array spread', () => {
+    let arr = [];
+    for (let i = 0; i < 1000; i++) {
+      arr = [...arr, i];
+    }
+  });
+});
+      ]]></example>
+    </pattern>
+  </benchmark_patterns>
+
+  <best_practices>
+    <practice>Use meaningful benchmark names that describe what's being measured</practice>
+    <practice>Include baseline comparisons when optimizing code</practice>
+    <practice>Run benchmarks in isolation to avoid interference</practice>
+    <practice>Document performance expectations and thresholds</practice>
+  </best_practices>
+</benchmark_testing_guide>
+</content>
+<line_count>38</line_count>
+</write_to_file>
+        ]]></tool_use>
+      </step>
+
+      <step number="8">
+        <description>Validate all changes for consistency</description>
+        <tool_use><![CDATA[
+<ask_followup_question>
+<question>I've completed all the changes to add benchmark testing capabilities to the test mode:
+
+1. ✓ Updated roleDefinition to include benchmark expertise
+2. ✓ Modified file restrictions to include .bench.ts files
+3. ✓ Created new benchmark workflow instructions
+4. ✓ Added Vitest bench API examples
+
+All changes are cohesive and align with the existing test mode structure. Would you like me to test any specific aspect of these changes?</question>
+<follow_up>
+<suggest>Test creating a new benchmark file to verify file permissions</suggest>
+<suggest>Review the complete changes one more time</suggest>
+<suggest>Everything looks good, the mode is ready</suggest>
+<suggest>Create a simple benchmark example to test</suggest>
+</follow_up>
+</ask_followup_question>
+        ]]></tool_use>
+      </step>
+    </workflow>
+
+    <completion><![CDATA[
+<attempt_completion>
+<result>
+I've successfully enhanced the test mode with benchmark testing capabilities:
+
+1. Updated the roleDefinition to include:
+   - Benchmark testing with Vitest bench API
+   - Performance profiling and optimization
+   - Memory usage analysis in tests
+
+2. Modified file restrictions to include .bench.ts files, allowing the mode to create and edit benchmark files
+
+3. Created new workflow instructions at .roo/rules-test/5_benchmark_testing.xml with:
+   - Basic benchmark patterns
+   - Best practices for performance testing
+   - Example code using Vitest's bench API
+
+All changes have been validated for cohesion and consistency with the existing test mode structure. The mode now supports comprehensive performance testing alongside its existing unit and integration testing capabilities.
+</result>
+</attempt_completion>
+    ]]></completion>
+
+    <key_takeaways>
+      <takeaway>Always immerse yourself in the existing mode before making changes</takeaway>
+      <takeaway>Use ask_followup_question aggressively to clarify scope and validate changes</takeaway>
+      <takeaway>Validate all changes for cohesion and consistency</takeaway>
+      <takeaway>Update all relevant parts: configuration, file restrictions, and instructions</takeaway>
+      <takeaway>Test changes to ensure they work as expected</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>

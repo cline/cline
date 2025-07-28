@@ -1,0 +1,201 @@
+<validation_cohesion_checking>
+  <overview>
+    Guidelines for thoroughly validating mode changes to ensure cohesion,
+    consistency, and prevent contradictions across all mode components.
+  </overview>
+
+  <validation_principles>
+    <principle name="comprehensive_review">
+      <description>
+        Every change must be reviewed in context of the entire mode
+      </description>
+      <checklist>
+        <item>Read all existing XML instruction files</item>
+        <item>Verify new changes align with existing patterns</item>
+        <item>Check for duplicate or conflicting instructions</item>
+        <item>Ensure terminology is consistent throughout</item>
+      </checklist>
+    </principle>
+
+    <principle name="aggressive_questioning">
+      <description>
+        Use ask_followup_question extensively to clarify ambiguities
+      </description>
+      <when_to_ask>
+        <scenario>User's intent is unclear</scenario>
+        <scenario>Multiple interpretations are possible</scenario>
+        <scenario>Changes might conflict with existing functionality</scenario>
+        <scenario>Impact on other modes needs clarification</scenario>
+      </when_to_ask>
+      <example><![CDATA[
+<ask_followup_question>
+<question>I notice this change might affect how the mode interacts with file permissions. Should we also update the file regex patterns to match?</question>
+<follow_up>
+<suggest>Yes, update the file regex to include the new file types</suggest>
+<suggest>No, keep the current file restrictions as they are</suggest>
+<suggest>Let me explain what file types I need to work with</suggest>
+<suggest>Show me the current file restrictions first</suggest>
+</follow_up>
+</ask_followup_question>
+      ]]></example>
+    </principle>
+
+    <principle name="contradiction_detection">
+      <description>
+        Actively search for and resolve contradictions
+      </description>
+      <common_contradictions>
+        <contradiction>
+          <type>Permission Mismatch</type>
+          <description>Instructions reference tools the mode doesn't have access to</description>
+          <resolution>Either grant the tool permission or update the instructions</resolution>
+        </contradiction>
+        <contradiction>
+          <type>Workflow Conflicts</type>
+          <description>Different XML files describe conflicting workflows</description>
+          <resolution>Consolidate workflows and ensure single source of truth</resolution>
+        </contradiction>
+        <contradiction>
+          <type>Role Confusion</type>
+          <description>Mode's roleDefinition doesn't match its actual capabilities</description>
+          <resolution>Update roleDefinition to accurately reflect the mode's purpose</resolution>
+        </contradiction>
+      </common_contradictions>
+    </principle>
+  </validation_principles>
+
+  <validation_workflow>
+    <phase name="pre_change_analysis">
+      <description>Before making any changes</description>
+      <steps>
+        <step>Read and understand all existing mode files</step>
+        <step>Create a mental model of current mode behavior</step>
+        <step>Identify potential impact areas</step>
+        <step>Ask clarifying questions about intended changes</step>
+      </steps>
+    </phase>
+
+    <phase name="change_implementation">
+      <description>While making changes</description>
+      <steps>
+        <step>Document each change and its rationale</step>
+        <step>Cross-reference with other files after each change</step>
+        <step>Verify examples still work with new changes</step>
+        <step>Update related documentation immediately</step>
+      </steps>
+    </phase>
+
+    <phase name="post_change_validation">
+      <description>After changes are complete</description>
+      <validation_checklist>
+        <category name="structural_validation">
+          <check>All XML files are well-formed and valid</check>
+          <check>File naming follows established patterns</check>
+          <check>Tag names are consistent across files</check>
+          <check>No orphaned or unused instructions</check>
+        </category>
+
+        <category name="content_validation">
+          <check>roleDefinition accurately describes the mode</check>
+          <check>whenToUse is clear and distinguishable</check>
+          <check>Tool permissions match instruction requirements</check>
+          <check>File restrictions align with mode purpose</check>
+          <check>Examples are accurate and functional</check>
+        </category>
+
+        <category name="integration_validation">
+          <check>Mode boundaries are well-defined</check>
+          <check>Handoff points to other modes are clear</check>
+          <check>No overlap with other modes' responsibilities</check>
+          <check>Orchestrator can correctly route to this mode</check>
+        </category>
+      </validation_checklist>
+    </phase>
+  </validation_workflow>
+
+  <cohesion_patterns>
+    <pattern name="consistent_voice">
+      <description>Maintain consistent tone and terminology</description>
+      <guidelines>
+        <guideline>Use the same terms for the same concepts throughout</guideline>
+        <guideline>Keep instruction style consistent across files</guideline>
+        <guideline>Maintain the same level of detail in similar sections</guideline>
+      </guidelines>
+    </pattern>
+
+    <pattern name="logical_flow">
+      <description>Ensure instructions flow logically</description>
+      <guidelines>
+        <guideline>Prerequisites come before dependent steps</guideline>
+        <guideline>Complex concepts build on simpler ones</guideline>
+        <guideline>Examples follow the explained patterns</guideline>
+      </guidelines>
+    </pattern>
+
+    <pattern name="complete_coverage">
+      <description>Ensure all aspects are covered without gaps</description>
+      <guidelines>
+        <guideline>Every mentioned tool has usage instructions</guideline>
+        <guideline>All workflows have complete examples</guideline>
+        <guideline>Error scenarios are addressed</guideline>
+      </guidelines>
+    </pattern>
+  </cohesion_patterns>
+
+  <validation_questions>
+    <question_set name="before_changes">
+      <ask_followup_question>
+        <question>Before we proceed with changes, I want to ensure I understand the full scope. What is the main goal of these modifications?</question>
+        <follow_up>
+          <suggest>Add new functionality while keeping existing features</suggest>
+          <suggest>Fix issues with current implementation</suggest>
+          <suggest>Refactor for better organization</suggest>
+          <suggest>Expand the mode's capabilities into new areas</suggest>
+        </follow_up>
+      </ask_followup_question>
+    </question_set>
+
+    <question_set name="during_changes">
+      <ask_followup_question>
+        <question>This change might affect other parts of the mode. How should we handle the impact on [specific area]?</question>
+        <follow_up>
+          <suggest>Update all affected areas to maintain consistency</suggest>
+          <suggest>Keep the existing behavior for backward compatibility</suggest>
+          <suggest>Create a migration path from old to new behavior</suggest>
+          <suggest>Let me review the impact first</suggest>
+        </follow_up>
+      </ask_followup_question>
+    </question_set>
+
+    <question_set name="after_changes">
+      <ask_followup_question>
+        <question>I've completed the changes and validation. Which aspect would you like me to test more thoroughly?</question>
+        <follow_up>
+          <suggest>Test the new workflow end-to-end</suggest>
+          <suggest>Verify file permissions work correctly</suggest>
+          <suggest>Check integration with other modes</suggest>
+          <suggest>Review all changes one more time</suggest>
+        </follow_up>
+      </ask_followup_question>
+    </question_set>
+  </validation_questions>
+
+  <red_flags>
+    <flag priority="high">
+      <description>Instructions reference tools not in the mode's groups</description>
+      <action>Either add the tool group or remove the instruction</action>
+    </flag>
+    <flag priority="high">
+      <description>File regex doesn't match described file types</description>
+      <action>Update regex pattern to match intended files</action>
+    </flag>
+    <flag priority="medium">
+      <description>Examples don't follow stated best practices</description>
+      <action>Update examples to demonstrate best practices</action>
+    </flag>
+    <flag priority="medium">
+      <description>Duplicate instructions in different files</description>
+      <action>Consolidate to single location and reference</action>
+    </flag>
+  </red_flags>
+</validation_cohesion_checking>
