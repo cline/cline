@@ -153,8 +153,8 @@ message ApiConfiguration {
   optional string requesty_api_key = 32;
   optional string together_api_key = 33;
   optional string fireworks_api_key = 34;
-  optional int64 fireworks_model_max_completion_tokens = 35;
-  optional int64 fireworks_model_max_tokens = 36;
+  optional int32 fireworks_model_max_completion_tokens = 35;
+  optional int32 fireworks_model_max_tokens = 36;
   optional string qwen_api_key = 37;
   optional string doubao_api_key = 38;
   optional string mistral_api_key = 39;
@@ -178,7 +178,7 @@ message ApiConfiguration {
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
-  optional int64 plan_mode_thinking_budget_tokens = 102;
+  optional int32 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   optional string plan_mode_vscode_lm_model_selector = 104; // JSON string
   optional bool plan_mode_aws_bedrock_custom_selected = 105;
@@ -200,7 +200,7 @@ message ApiConfiguration {
   // Act mode configurations
   optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
-  optional int64 act_mode_thinking_budget_tokens = 202;
+  optional int32 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
   optional string act_mode_vscode_lm_model_selector = 204; // JSON string
   optional bool act_mode_aws_bedrock_custom_selected = 205;
