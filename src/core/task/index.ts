@@ -1746,6 +1746,25 @@ export class Task {
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 		)
 
+		// Handle summarization result if it occurred
+		if (contextManagementMetadata.summaryResult) {
+			// Add a conversation summary message to the ClineMessages
+			const summaryMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "conversation_summary",
+				text: JSON.stringify({
+					cost: contextManagementMetadata.summaryResult.cost,
+					tokensIn: contextManagementMetadata.summaryResult.tokensIn,
+					tokensOut: contextManagementMetadata.summaryResult.tokensOut,
+					cacheReads: contextManagementMetadata.summaryResult.cacheReads,
+					cacheWrites: contextManagementMetadata.summaryResult.cacheWrites,
+				} satisfies ClineApiReqInfo),
+			}
+
+			await this.messageStateHandler.addToClineMessages(summaryMessage)
+		}
+
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
 			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
