@@ -5,7 +5,7 @@ import { clineEnvConfig } from "@/config"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { storeSecret } from "@/core/storage/state"
-import { getAuthHandler } from "./AuthHandler"
+import { getAuthHandler, setAuthHandler } from "./AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
@@ -95,6 +95,9 @@ export class AuthService {
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
 
 		this._context = context
+
+		// TODO: Only set auth handler in non-vs code
+		setAuthHandler()
 	}
 
 	/**
