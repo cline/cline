@@ -1,4 +1,4 @@
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { doubaoDefaultModelId, DoubaoModelId, doubaoModels, ModelInfo } from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
@@ -6,7 +6,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
-interface DoubaoHandlerOptions {
+interface DoubaoHandlerOptions extends CommonApiHandlerOptions {
 	doubaoApiKey?: string
 	apiModelId?: string
 }

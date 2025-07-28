@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToR1Format } from "../transform/r1-format"
 import { bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
@@ -16,7 +16,7 @@ import {
 // Import proper AWS SDK types
 import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
-interface AwsBedrockHandlerOptions {
+interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string

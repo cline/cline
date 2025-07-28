@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
@@ -8,13 +8,7 @@ import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions
 import { withRetry } from "../retry"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 
-interface XAIHandlerOptions {
-	xaiApiKey?: string
-	reasoningEffort?: string
-	apiModelId?: string
-}
-
-interface XAIHandlerOptions {
+interface XAIHandlerOptions extends CommonApiHandlerOptions {
 	xaiApiKey?: string
 	reasoningEffort?: string
 	apiModelId?: string
