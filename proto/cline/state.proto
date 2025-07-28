@@ -6,7 +6,7 @@ option java_multiple_files = true;
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
-  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+  rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
   rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
   rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
@@ -109,11 +109,11 @@ message UpdateSettingsRequest {
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
   optional ChatSettings chat_settings = 7;
-  optional int64 shell_integration_timeout = 8;
+  optional int32 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional string mcp_display_mode = 11;
-  optional int64 terminal_output_line_limit = 12;
+  optional int32 terminal_output_line_limit = 12;
 }
 
 // Complete API Configuration message
@@ -166,7 +166,7 @@ message ApiConfiguration {
   optional string xai_api_key = 45;
   optional string sambanova_api_key = 46;
   optional string cerebras_api_key = 47;
-  optional int64 request_timeout_ms = 48;
+  optional int32 request_timeout_ms = 48;
   optional string sap_ai_core_client_id = 49;
   optional string sap_ai_core_client_secret = 50;
   optional string sap_ai_resource_group = 51;
@@ -227,4 +227,12 @@ message ApiConfiguration {
   optional string aws_bedrock_api_key = 302;
 
   optional string cline_account_id = 303;
+}
+
+message UpdateTerminalConnectionTimeoutRequest {
+  optional int32 timeout_ms = 1;
+}
+
+message UpdateTerminalConnectionTimeoutResponse {
+  optional int32 timeout_ms = 1;
 }
