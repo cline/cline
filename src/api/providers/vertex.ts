@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
 import { ApiStream } from "@api/transform/stream"
 import { GeminiHandler } from "./gemini"
 
-interface VertexHandlerOptions {
+interface VertexHandlerOptions extends CommonApiHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
 	apiModelId?: string
