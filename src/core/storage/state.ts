@@ -168,6 +168,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sambanovaApiKey,
 		cerebrasApiKey,
 		groqApiKey,
+		basetenApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
 		huggingFaceApiKey,
@@ -247,6 +248,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
 		getSecret(context, "groqApiKey") as Promise<string | undefined>,
+		getSecret(context, "basetenApiKey") as Promise<string | undefined>,
 		getSecret(context, "moonshotApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getSecret(context, "huggingFaceApiKey") as Promise<string | undefined>,
@@ -300,6 +302,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeBasetenModelId,
+		planModeBasetenModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
 		// Act mode configurations
@@ -325,6 +329,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeSapAiCoreModelId,
 		actModeGroqModelId,
 		actModeGroqModelInfo,
+		actModeBasetenModelId,
+		actModeBasetenModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
 	] = await Promise.all([
@@ -353,6 +359,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeSapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeGroqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeBasetenModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeBasetenModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
@@ -378,6 +386,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeSapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeGroqModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeBasetenModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeBasetenModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 	])
@@ -470,6 +480,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			cerebrasApiKey,
 			groqApiKey,
+			basetenApiKey,
 			moonshotApiKey,
 			nebiusApiKey,
 			favoritedModelIds,
@@ -503,6 +514,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeSapAiCoreModelId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
+			planModeBasetenModelId,
+			planModeBasetenModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
 			// Act mode configurations
@@ -528,6 +541,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeSapAiCoreModelId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
+			actModeBasetenModelId,
+			actModeBasetenModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
 		},
@@ -606,6 +621,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sambanovaApiKey,
 		cerebrasApiKey,
 		groqApiKey,
+		basetenApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
 		favoritedModelIds,
@@ -669,6 +685,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeBasetenModelId,
+		actModeBasetenModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -724,6 +742,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeBasetenModelId,
+		actModeBasetenModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
@@ -784,6 +804,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sambanovaApiKey,
 		cerebrasApiKey,
 		groqApiKey,
+		basetenApiKey,
 		moonshotApiKey,
 		nebiusApiKey,
 		sapAiCoreClientId,
@@ -830,6 +851,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"sambanovaApiKey",
 		"cerebrasApiKey",
 		"groqApiKey",
+		"basetenApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",

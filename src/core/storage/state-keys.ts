@@ -28,6 +28,7 @@ export type SecretKey =
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
 	| "groqApiKey"
+	| "basetenApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -108,6 +109,8 @@ export type GlobalStateKey =
 	| "planModeSapAiCoreModelId"
 	| "planModeGroqModelId"
 	| "planModeGroqModelInfo"
+	| "planModeBasetenModelId"
+	| "planModeBasetenModelInfo"
 	| "planModeHuggingFaceModelId"
 	| "planModeHuggingFaceModelInfo"
 	// Act mode configurations
@@ -133,6 +136,8 @@ export type GlobalStateKey =
 	| "actModeSapAiCoreModelId"
 	| "actModeGroqModelId"
 	| "actModeGroqModelInfo"
+	| "actModeBasetenModelId"
+	| "actModeBasetenModelInfo"
 	| "actModeHuggingFaceModelId"
 	| "actModeHuggingFaceModelInfo"
 

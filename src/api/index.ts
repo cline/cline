@@ -29,6 +29,7 @@ import { SapAiCoreHandler } from "./providers/sapaicore"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
+import { BasetenHandler } from "./providers/baseten"
 import { Mode } from "../shared/ChatSettings"
 import { HuggingFaceHandler } from "./providers/huggingface"
 
@@ -254,6 +255,13 @@ function createHandlerForProvider(
 				groqApiKey: options.groqApiKey,
 				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
 				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "baseten":
+			return new BasetenHandler({
+				basetenApiKey: options.basetenApiKey,
+				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
+				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "sapaicore":
