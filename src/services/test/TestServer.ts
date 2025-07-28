@@ -270,12 +270,15 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						// Store the API key securely
 						await storeSecret(visibleWebview.controller.context, "clineAccountId", apiKey)
 
-						// Update the API configuration
-						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
+						await visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
 
-						// Update global state to use cline provider
-						await updateGlobalState(visibleWebview.controller.context, "planModeApiProvider", "cline")
-						await updateGlobalState(visibleWebview.controller.context, "actModeApiProvider", "cline")
+						// Update cache service to use cline provider
+						const currentConfig = await visibleWebview.controller.cacheService.getApiConfiguration()
+						await visibleWebview.controller.cacheService.setApiConfiguration({
+							...currentConfig,
+							planModeApiProvider: "cline",
+							actModeApiProvider: "cline",
+						})
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()

@@ -50,6 +50,7 @@ import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
 import { ensureTaskDirectoryExists } from "../storage/disk"
 import { getGlobalState, getWorkspaceState } from "../storage/state"
+import { CacheService } from "../storage/CacheService"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
@@ -85,6 +86,7 @@ export class ToolExecutor {
 		private clineIgnoreController: ClineIgnoreController,
 		private workspaceTracker: WorkspaceTracker,
 		private contextManager: ContextManager,
+		private cacheService: CacheService,
 
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
@@ -1920,10 +1922,8 @@ export class ToolExecutor {
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
-						const apiProvider =
-							currentMode === "plan"
-								? await getGlobalState(this.context, "planModeApiProvider")
-								: await getGlobalState(this.context, "actModeApiProvider")
+						const apiConfig = await this.cacheService.getApiConfiguration()
+						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation

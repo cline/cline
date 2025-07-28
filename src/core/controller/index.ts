@@ -30,6 +30,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
+import { CacheService } from "../storage/CacheService"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -53,6 +54,7 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
+	readonly cacheService: CacheService
 	get latestAnnouncementId(): string {
 		return this.context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
 	}
@@ -62,10 +64,12 @@ export class Controller {
 		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
+		cacheService: CacheService,
 	) {
 		this.id = id
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
+		this.cacheService = cacheService
 
 		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
@@ -113,10 +117,16 @@ export class Controller {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
 			await storeSecret(this.context, "clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await Promise.all([
-				updateGlobalState(this.context, "planModeApiProvider", "openrouter"),
-				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
-			])
+
+			// Update API providers through cache service
+			const apiConfiguration = await this.cacheService.getApiConfiguration()
+			const updatedConfig = {
+				...apiConfiguration,
+				planModeApiProvider: "openrouter" as ApiProvider,
+				actModeApiProvider: "openrouter" as ApiProvider,
+			}
+			await this.cacheService.setApiConfiguration(updatedConfig)
+
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -136,8 +146,11 @@ export class Controller {
 
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+
+		// Get API configuration from cache for immediate access
+		const apiConfiguration = await this.cacheService.getApiConfiguration()
+
 		const {
-			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
 			preferredLanguage,
@@ -187,6 +200,7 @@ export class Controller {
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			await getCwd(getDesktopDir()),
+			this.cacheService,
 			task,
 			images,
 			files,
@@ -254,7 +268,7 @@ export class Controller {
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
-			const { apiConfiguration } = await getAllExtensionState(this.context)
+			const apiConfiguration = await this.cacheService.getApiConfiguration()
 			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
 		}
 
@@ -321,27 +335,26 @@ export class Controller {
 			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
 			const currentMode = await this.getCurrentMode()
 
+			// Get current API configuration from cache
+			const currentApiConfiguration = await this.cacheService.getApiConfiguration()
+
+			let updatedConfig = { ...currentApiConfiguration }
+
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
 				if (currentMode === "plan") {
-					await updateGlobalState(this.context, "planModeApiProvider", clineProvider)
+					updatedConfig.planModeApiProvider = clineProvider
 				} else {
-					await updateGlobalState(this.context, "actModeApiProvider", clineProvider)
+					updatedConfig.actModeApiProvider = clineProvider
 				}
 			} else {
 				// Update both modes to keep them in sync
-				await Promise.all([
-					updateGlobalState(this.context, "planModeApiProvider", clineProvider),
-					updateGlobalState(this.context, "actModeApiProvider", clineProvider),
-				])
+				updatedConfig.planModeApiProvider = clineProvider
+				updatedConfig.actModeApiProvider = clineProvider
 			}
 
-			// Get the updated API configuration (now includes the updated providers)
-			const { apiConfiguration } = await getAllExtensionState(this.context)
-			const updatedConfig = {
-				...apiConfiguration,
-				apiProvider: clineProvider,
-			}
+			// Update the API configuration through cache service
+			await this.cacheService.setApiConfiguration(updatedConfig)
 
 			// Mark welcome view as completed since user has successfully logged in
 			await updateGlobalState(this.context, "welcomeViewCompleted", true)
@@ -503,21 +516,20 @@ export class Controller {
 
 		const openrouter: ApiProvider = "openrouter"
 		const currentMode = await this.getCurrentMode()
-		await Promise.all([
-			updateGlobalState(this.context, "planModeApiProvider", openrouter),
-			updateGlobalState(this.context, "actModeApiProvider", openrouter),
-		])
-		await storeSecret(this.context, "openRouterApiKey", apiKey)
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = await this.cacheService.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: openrouter,
+			actModeApiProvider: openrouter,
+			openRouterApiKey: apiKey,
+		}
+		await this.cacheService.setApiConfiguration(updatedConfig)
+
 		await this.postStateToWebview()
 		if (this.task) {
-			// Get the updated API configuration (now includes the updated providers)
-			const { apiConfiguration } = await getAllExtensionState(this.context)
-			const updatedConfig = {
-				...apiConfiguration,
-				openRouterApiKey: apiKey,
-				taskId: this.task.taskId,
-			}
-			this.task.api = buildApiHandler(updatedConfig, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -691,8 +703,10 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		// Get API configuration from cache for immediate access
+		const apiConfiguration = await this.cacheService.getApiConfiguration()
+
 		const {
-			apiConfiguration,
 			lastShownAnnouncementId,
 			taskHistory,
 			autoApprovalSettings,
@@ -827,18 +841,4 @@ export class Controller {
 		await updateGlobalState(this.context, "taskHistory", history)
 		return history
 	}
-
-	// private async clearState() {
-	// 	this.context.workspaceState.keys().forEach((key) => {
-	// 		this.context.workspaceState.update(key, undefined)
-	// 	})
-	// 	this.context.globalState.keys().forEach((key) => {
-	// 		this.context.globalState.update(key, undefined)
-	// 	})
-	// 	this.context.secrets.delete("apiKey")
-	// }
-
-	// secrets
-
-	// dev
 }

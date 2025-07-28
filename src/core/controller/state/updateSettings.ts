@@ -18,7 +18,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update API configuration
 		if (request.apiConfiguration) {
 			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			await updateApiConfiguration(controller.context, apiConfiguration)
+			await controller.cacheService.setApiConfiguration(apiConfiguration)
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()

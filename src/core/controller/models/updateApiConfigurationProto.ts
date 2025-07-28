@@ -25,7 +25,7 @@ export async function updateApiConfigurationProto(
 		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
 
 		// Update the API configuration in storage
-		await updateApiConfiguration(controller.context, appApiConfiguration)
+		await controller.cacheService.setApiConfiguration(appApiConfiguration)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
