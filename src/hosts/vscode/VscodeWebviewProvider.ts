@@ -6,8 +6,6 @@ import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
-import { WebviewProvider } from "@core/webview"
-import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 import { HostProvider } from "@/hosts/host-provider"
 
 /*
@@ -125,7 +123,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
-			HostProvider.get().logToChannel("Webview view resolved")
+		HostProvider.get().logToChannel("Webview view resolved")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}
