@@ -1,12 +1,12 @@
 import { moonshotModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useState } from "react"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { Mode } from "@shared/ChatSettings"
 
 /**
@@ -25,34 +25,38 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Local state for Chinese API endpoint checkbox
-	const [isChineseEndpoint, setIsChineseEndpoint] = useState(!!apiConfiguration?.moonshotApiLine)
-
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const handleChineseEndpointToggle = (e: any) => {
-		const checked = e.target.checked === true
-		setIsChineseEndpoint(checked)
-		handleFieldChange("moonshotApiLine", checked ? "china" : "")
-	}
-
 	return (
 		<div>
+			<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
+				<label htmlFor="moonshot-entrypoint">
+					<span style={{ fontWeight: 500, marginTop: 5 }}>Moonshot Entrypoint</span>
+				</label>
+				<VSCodeDropdown
+					id="moonshot-entrypoint"
+					value={apiConfiguration?.moonshotApiLine || "international"}
+					onChange={(e) => handleFieldChange("moonshotApiLine", (e.target as any).value)}
+					style={{
+						minWidth: 130,
+						position: "relative",
+					}}>
+					<VSCodeOption value="international">api.moonshot.ai</VSCodeOption>
+					<VSCodeOption value="china">api.moonshot.cn</VSCodeOption>
+				</VSCodeDropdown>
+			</DropdownContainer>
 			<ApiKeyField
 				initialValue={apiConfiguration?.moonshotApiKey || ""}
 				onChange={(value) => handleFieldChange("moonshotApiKey", value)}
 				providerName="Moonshot"
-				signupUrl="https://platform.moonshot.ai/console/api-keys"
+				signupUrl={
+					apiConfiguration?.moonshotApiLine === "china"
+						? "https://platform.moonshot.cn/console/api-keys"
+						: "https://platform.moonshot.ai/console/api-keys"
+				}
 				helpText="This key is stored locally and only used to make API requests from this extension."
 			/>
-
-			<VSCodeCheckbox
-				checked={isChineseEndpoint}
-				onChange={handleChineseEndpointToggle}
-				style={{ marginTop: -3, marginBottom: 10 }}>
-				Use Chinese API endpoint
-			</VSCodeCheckbox>
 
 			{showModelOptions && (
 				<>

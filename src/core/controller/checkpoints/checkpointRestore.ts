@@ -1,8 +1,8 @@
 import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
 import { ClineCheckpointRestore } from "../../../shared/WebviewMessage"
-import { CheckpointRestoreRequest } from "../../../shared/proto/checkpoints"
-import { Empty } from "../../../shared/proto/common"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Empty } from "@shared/proto/cline/common"
 import pWaitFor from "p-wait-for"
 import { ShowMessageType } from "@/shared/proto/index.host"
 

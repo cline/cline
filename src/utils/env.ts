@@ -1,5 +1,6 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { StringRequest, EmptyRequest } from "@/shared/proto/common"
+import { StringRequest, EmptyRequest } from "@shared/proto/cline/common"
+import open from "open"
 
 /**
  * Writes text to the system clipboard
@@ -38,10 +39,6 @@ export async function readTextFromClipboard(): Promise<string> {
  * @throws Error if the operation fails
  */
 export async function openExternal(url: string): Promise<void> {
-	try {
-		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		throw new Error(`Failed to open external URL: ${errorMessage}`)
-	}
+	console.log("Opening browser:", url)
+	await open(url)
 }

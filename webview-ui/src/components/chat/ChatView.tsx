@@ -8,7 +8,7 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 
 // Import utilities and hooks from the new structure
 import {

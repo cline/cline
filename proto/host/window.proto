@@ -4,7 +4,7 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
-import "common.proto";
+import "cline/common.proto";
 
 // Provides methods for working with IDE windows and editors.
 service WindowService {
@@ -14,6 +14,7 @@ service WindowService {
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
   rpc showInputBox(ShowInputBoxRequest) returns (ShowInputBoxResponse);
   rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
+  rpc openFile(OpenFileRequest) returns (OpenFileResponse);
   rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
   rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
 }
@@ -103,6 +104,15 @@ message ShowInputBoxRequest {
 
 message ShowInputBoxResponse {
   optional string response = 1;
+}
+
+message OpenFileRequest {
+  cline.Metadata metadata = 1;
+  string file_path = 2;
+}
+
+message OpenFileResponse {
+  // empty
 }
 
 message GetOpenTabsRequest {
