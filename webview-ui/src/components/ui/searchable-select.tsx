@@ -13,6 +13,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui"
+import { useEscapeKey } from "@/hooks/useEscapeKey"
 
 export interface SearchableSelectOption {
 	value: string
@@ -78,6 +79,9 @@ export function SearchableSelect({
 		}, 100)
 		return () => clearTimeout(timeoutId)
 	}, [value])
+
+	// Use the shared ESC key handler hook
+	useEscapeKey(open, () => setOpen(false))
 
 	const handleOpenChange = (open: boolean) => {
 		setOpen(open)
