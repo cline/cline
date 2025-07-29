@@ -190,6 +190,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		huaweiCloudMaasApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,6 +270,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
+		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
@@ -302,6 +304,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -327,6 +331,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
@@ -355,6 +361,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -380,6 +388,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	const processingStart = performance.now()
@@ -480,6 +490,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			huggingFaceApiKey,
+			huaweiCloudMaasApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -505,6 +516,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeHuaweiCloudMaasModelId,
+			planModeHuaweiCloudMaasModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -530,6 +543,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeHuaweiCloudMaasModelId,
+			actModeHuaweiCloudMaasModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -619,6 +634,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		claudeCodePath,
 		huggingFaceApiKey,
+		huaweiCloudMaasApiKey,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -644,6 +660,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -669,6 +687,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -698,6 +718,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -724,6 +746,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
@@ -789,6 +813,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		huggingFaceApiKey,
+		huaweiCloudMaasApiKey,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -833,6 +858,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",
+		"huaweiCloudMaasApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)

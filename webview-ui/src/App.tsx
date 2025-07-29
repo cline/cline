@@ -6,6 +6,7 @@ import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
+import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
@@ -30,6 +31,8 @@ const AppContent = () => {
 		hideAccount,
 		hideAnnouncement,
 	} = useExtensionState()
+
+	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
@@ -59,7 +62,14 @@ const AppContent = () => {
 			{showSettings && <SettingsView onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-			{showAccount && <AccountView onDone={hideAccount} />}
+			{showAccount && (
+				<AccountView
+					onDone={hideAccount}
+					clineUser={clineUser}
+					organizations={organizations}
+					activeOrganization={activeOrganization}
+				/>
+			)}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				showHistoryView={navigateToHistory}

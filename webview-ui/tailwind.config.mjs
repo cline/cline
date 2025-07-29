@@ -1,7 +1,7 @@
-const { heroui } = require("@heroui/react")
+import { heroui } from "@heroui/react"
 
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+const config = {
 	content: ["./src/**/*.{js,ts,jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}"],
 	theme: {
 		extend: {
@@ -24,3 +24,4 @@ module.exports = {
 		}),
 	],
 }
+export default config
