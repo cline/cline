@@ -1,4 +1,6 @@
 <common_mistakes_to_avoid>
+  - Not creating a todo list at the start to track the review workflow
+  - Using MCP tools instead of GitHub CLI commands for GitHub operations
   - Starting to review code WITHOUT first fetching existing comments and reviews
   - Failing to create a list of existing feedback before reviewing
   - Not systematically checking each existing comment against the current code
@@ -25,4 +27,7 @@
   - Failing to offer the task creation option for addressing suggestions
   - Creating tasks without specific context or file references
   - Choosing inappropriate modes when creating tasks for suggestions
+  - Not updating the todo list after completing each step
+  - Forgetting that GitHub CLI has limited support for inline review comments
+  - Not including --repo flag when using gh commands for non-default repositories
 </common_mistakes_to_avoid>

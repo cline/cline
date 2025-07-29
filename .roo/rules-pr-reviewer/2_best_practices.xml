@@ -1,8 +1,10 @@
 <best_practices>
-  - ALWAYS fetch existing comments and reviews BEFORE reviewing any code (Step 4)
+  - ALWAYS create a todo list at the start to track the review workflow (Step 1)
+  - Use GitHub CLI (`gh`) commands instead of MCP tools for all GitHub operations
+  - ALWAYS fetch existing comments and reviews BEFORE reviewing any code (Step 5)
   - Create a list of all existing feedback before starting your review
-  - Check out the PR locally for better context understanding
-  - Systematically verify each existing comment against the current code (Step 6)
+  - Check out the PR locally using `gh pr checkout` for better context understanding
+  - Systematically verify each existing comment against the current code (Step 7)
   - Track which comments are resolved vs still pending
   - Only provide feedback on NEW issues or UNRESOLVED existing issues
   - Never duplicate feedback that has already been addressed
@@ -28,4 +30,6 @@
   - Offer the option to create individual tasks for each suggestion
   - When creating tasks, choose the appropriate mode for each type of work
   - Include specific context and file references in each task
+  - Update the todo list after each major step to track progress
+  - Note: GitHub CLI has limited support for inline review comments
 </best_practices>
