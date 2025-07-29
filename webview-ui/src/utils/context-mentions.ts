@@ -29,9 +29,10 @@ export function insertMention(
 	text: string,
 	position: number,
 	value: string,
+	isSlashCommand: boolean = false,
 ): { newValue: string; mentionIndex: number } {
-	// Handle slash command
-	if (text.startsWith("/")) {
+	// Handle slash command selection (only when explicitly selecting a slash command)
+	if (isSlashCommand) {
 		return {
 			newValue: value,
 			mentionIndex: 0,
@@ -122,7 +123,6 @@ export interface ContextMenuQueryItem {
 
 export function getContextMenuOptions(
 	query: string,
-	inputValue: string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 	dynamicSearchResults: SearchResult[] = [],
@@ -130,7 +130,8 @@ export function getContextMenuOptions(
 	commands?: Command[],
 ): ContextMenuQueryItem[] {
 	// Handle slash commands for modes and commands
-	if (query.startsWith("/") && inputValue.startsWith("/")) {
+	// Only process as slash command if the query itself starts with "/" (meaning we're typing a slash command)
+	if (query.startsWith("/")) {
 		const slashQuery = query.slice(1)
 		const results: ContextMenuQueryItem[] = []
 
@@ -362,11 +363,14 @@ export function getContextMenuOptions(
 }
 
 export function shouldShowContextMenu(text: string, position: number): boolean {
-	// Handle slash command
-	if (text.startsWith("/")) {
-		return position <= text.length && !text.includes(" ")
-	}
 	const beforeCursor = text.slice(0, position)
+
+	// Check if we're in a slash command context (at the beginning and no space yet)
+	if (text.startsWith("/") && !text.includes(" ") && position <= text.length) {
+		return true
+	}
+
+	// Check for @ mention context
 	const atIndex = beforeCursor.lastIndexOf("@")
 
 	if (atIndex === -1) {

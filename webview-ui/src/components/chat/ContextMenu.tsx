@@ -30,7 +30,6 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({
 	onSelect,
 	searchQuery,
-	inputValue,
 	onMouseDown,
 	selectedIndex,
 	setSelectedIndex,
@@ -44,16 +43,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	const filteredOptions = useMemo(() => {
-		return getContextMenuOptions(
-			searchQuery,
-			inputValue,
-			selectedType,
-			queryItems,
-			dynamicSearchResults,
-			modes,
-			commands,
-		)
-	}, [searchQuery, inputValue, selectedType, queryItems, dynamicSearchResults, modes, commands])
+		return getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults, modes, commands)
+	}, [searchQuery, selectedType, queryItems, dynamicSearchResults, modes, commands])
 
 	useEffect(() => {
 		if (menuRef.current) {
