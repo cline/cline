@@ -30,7 +30,6 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		setShowNavbar,
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
@@ -49,13 +48,6 @@ const AppContent = () => {
 				})
 		}
 	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
-
-	// Check for data-showNavbar attribute on document element
-	useEffect(() => {
-		if (document.documentElement?.dataset?.showNavbar === "true") {
-			setShowNavbar(true)
-		}
-	}, [setShowNavbar])
 
 	if (!didHydrateState) {
 		return null

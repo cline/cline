@@ -39,6 +39,8 @@ interface ChatViewProps {
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 
+const IS_STANDALONE = window?.__is_standalone__ ?? false
+
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
 		version,
@@ -48,7 +50,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		telemetrySetting,
 		navigateToChat,
 		chatSettings,
-		showNavbar,
 	} = useExtensionState()
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -322,7 +323,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			{showNavbar && <Navbar />}
+			{IS_STANDALONE && <Navbar />}
 			{task ? (
 				<TaskSection
 					task={task}

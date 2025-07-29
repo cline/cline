@@ -4,8 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { TabTrigger } from "../common/Tab"
 
 export const Navbar = () => {
-	const { showNavbar, navigateToHistory, navigateToSettings, navigateToAccount, navigateToMcp, navigateToChat } =
-		useExtensionState()
+	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMcp, navigateToChat } = useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -42,13 +41,10 @@ export const Navbar = () => {
 		],
 		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings],
 	)
-	if (!showNavbar) {
-		return null
-	}
 
 	return (
-		<div
-			id="navbar-header"
+		<nav
+			id="cline-navbar-container"
 			className="fixed top-0 right-2 inline-flex justify-end bg-transparent shadow-sm max-h-[20px] w-full gap-2 mb-1 z-10 border-none items-center">
 			{SETTINGS_TABS.map((tab) => (
 				<TabTrigger
@@ -60,6 +56,6 @@ export const Navbar = () => {
 					<tab.icon className="text-white" strokeWidth={1} size={18} />
 				</TabTrigger>
 			))}
-		</div>
+		</nav>
 	)
 }
