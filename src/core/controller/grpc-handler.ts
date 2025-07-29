@@ -93,7 +93,7 @@ async function handleUnaryRequest(
  * Handle a streaming gRPC request
  * @param service The service name
  * @param method The method name
- * @param message The request message
+ * @param requestJSON The request message
  * @param requestId The request ID for response correlation
  */
 async function handleStreamingRequest(
