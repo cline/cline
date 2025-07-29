@@ -248,7 +248,7 @@ export abstract class WebviewProvider {
                     window.clineClientId = "${this.clientId}";
                 </script>
 				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-					<script src="http://localhost:8097"></script> 
+				<script src="http://localhost:8097"></script> 
 			</body>
 		</html>
 		`
@@ -353,7 +353,6 @@ export abstract class WebviewProvider {
 						// Inject the client ID
 						window.clineClientId = "${this.clientId}";
 					</script>
-					<script src="http://localhost:8097"></script> 
 					${reactRefresh}
 					<script type="module" src="${scriptUri}"></script>
 				</body>
