@@ -11,7 +11,7 @@ import { openExternal } from "@/utils/env"
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
 
-type ServiceConfig = {
+export type ServiceConfig = {
 	URI?: string
 	[key: string]: any
 }
@@ -49,13 +49,13 @@ export interface ClineAccountOrganization {
 // TODO: Add logic to handle multiple webviews getting auth updates.
 
 export class AuthService {
-	private static instance: AuthService | null = null
-	private _config: ServiceConfig
-	private _authenticated: boolean = false
-	private _clineAuthInfo: ClineAuthInfo | null = null
-	private _provider: { provider: FirebaseAuthProvider } | null = null
-	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
-	private _context: vscode.ExtensionContext
+	protected static instance: AuthService | null = null
+	protected _config: ServiceConfig
+	protected _authenticated: boolean = false
+	protected _clineAuthInfo: ClineAuthInfo | null = null
+	protected _provider: { provider: FirebaseAuthProvider } | null = null
+	protected _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
+	protected _context: vscode.ExtensionContext
 
 	/**
 	 * Creates an instance of AuthService.
@@ -63,7 +63,7 @@ export class AuthService {
 	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 */
-	private constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
+	protected constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
 		const providerName = authProvider || "firebase"
 		this._config = Object.assign({ URI: DefaultClineAccountURI }, config)
 
@@ -110,12 +110,19 @@ export class AuthService {
 				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
 				context = {} as vscode.ExtensionContext
 			}
-			AuthService.instance = new AuthService(context, config || {}, authProvider)
+			if (process.env.E2E_TEST) {
+				// Use require instead of import to avoid circular dependency issues
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { AuthServiceMock } = require("./AuthServiceMock")
+				AuthService.instance = AuthServiceMock.getInstance(context, config || {}, authProvider)
+			} else {
+				AuthService.instance = new AuthService(context, config || {}, authProvider)
+			}
 		}
-		if (context !== undefined) {
+		if (context !== undefined && AuthService.instance) {
 			AuthService.instance.context = context
 		}
-		return AuthService.instance
+		return AuthService.instance!
 	}
 
 	set context(context: vscode.ExtensionContext) {
@@ -146,7 +153,7 @@ export class AuthService {
 		return this._clineAuthInfo.idToken
 	}
 
-	private _setProvider(providerName: string): void {
+	protected _setProvider(providerName: string): void {
 		const providerConfig = authProviders.find((provider) => provider.name === providerName)
 		if (!providerConfig) {
 			throw new Error(`Auth provider "${providerName}" not found`)

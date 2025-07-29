@@ -5,7 +5,7 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
-import { Mode } from "@/shared/ChatSettings"
+import { Mode } from "@/shared/storage/types"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension

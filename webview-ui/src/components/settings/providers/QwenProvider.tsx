@@ -8,7 +8,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { useMemo } from "react"
 
 const SUPPORTED_THINKING_MODELS = [

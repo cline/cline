@@ -1,17 +1,51 @@
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import type { Anthropic } from "@anthropic-ai/sdk"
-import { type ApiHandler, buildApiHandler } from "@api/index"
+import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler, buildApiHandler } from "@api/index"
 import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
-import type { ApiStream } from "@api/transform/stream"
-import { parseAssistantMessageV2, parseAssistantMessageV3, type ToolUseName } from "@core/assistant-message"
-import { ContextManager } from "@core/context/context-management/ContextManager"
+import { ApiStream } from "@api/transform/stream"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex } from "@shared/array"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
+import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { getGitRemoteUrls } from "@utils/git"
+import { arePathsEqual, getDesktopDir } from "@utils/path"
+import cloneDeep from "clone-deep"
+import { execa } from "execa"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pTimeout from "p-timeout"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import * as vscode from "vscode"
+
+import { HostProvider } from "@/hosts/host-provider"
+import { ClineErrorType } from "@/services/error/ClineError"
+import { ErrorService } from "@/services/error/ErrorService"
+import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -34,51 +68,16 @@ import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
-	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	GlobalFileNames,
 } from "@core/storage/disk"
 import { getGlobalState } from "@core/storage/state"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import type WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { listFiles } from "@services/glob/list-files"
-import { Logger } from "@services/logging/Logger"
-import type { McpHub } from "@services/mcp/McpHub"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
-import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { ApiConfiguration } from "@shared/api"
-import { findLast, findLastIndex } from "@shared/array"
-import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { ChatSettings } from "@shared/ChatSettings"
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import type { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import type { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import type { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
-import { arePathsEqual, getDesktopDir } from "@utils/path"
-import cloneDeep from "clone-deep"
-import { execa } from "execa"
-import pTimeout from "p-timeout"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
-import { ErrorService } from "@/services/error/ErrorService"
-import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -86,6 +85,8 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { ShowMessageType } from "@/shared/proto/index.host"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -132,7 +133,9 @@ export class Task {
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
-	chatSettings: ChatSettings
+	preferredLanguage: string
+	openaiReasoningEffort: OpenaiReasoningEffort
+	mode: Mode
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
@@ -147,7 +150,9 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
-		chatSettings: ChatSettings,
+		preferredLanguage: string,
+		openaiReasoningEffort: OpenaiReasoningEffort,
+		mode: Mode,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -192,7 +197,9 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
-		this.chatSettings = chatSettings
+		this.preferredLanguage = preferredLanguage
+		this.openaiReasoningEffort = openaiReasoningEffort
+		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
 
@@ -229,7 +236,7 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Prepare effective API configuration
-		const effectiveApiConfiguration: ApiConfiguration = {
+		let effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
@@ -266,19 +273,18 @@ export class Task {
 			},
 		}
 
-		const currentProvider =
-			chatSettings.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+		const currentProvider = this.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
 		if (currentProvider === "openai" || currentProvider === "openai-native") {
-			if (chatSettings.mode === "plan") {
-				effectiveApiConfiguration.planModeReasoningEffort = chatSettings.openAIReasoningEffort
+			if (this.mode === "plan") {
+				effectiveApiConfiguration.planModeReasoningEffort = this.openaiReasoningEffort
 			} else {
-				effectiveApiConfiguration.actModeReasoningEffort = chatSettings.openAIReasoningEffort
+				effectiveApiConfiguration.actModeReasoningEffort = this.openaiReasoningEffort
 			}
 		}
 
 		// Now that taskId is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration, chatSettings.mode)
+		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -316,7 +322,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
-			this.chatSettings,
+			this.mode,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -450,7 +456,7 @@ export class Task {
 		if (!didWorkspaceRestoreFail) {
 			switch (restoreType) {
 				case "task":
-				case "taskAndWorkspace": {
+				case "taskAndWorkspace":
 					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -493,7 +499,6 @@ export class Task {
 						} satisfies ClineApiReqInfo),
 					)
 					break
-				}
 				case "workspace":
 					break
 			}
@@ -1020,9 +1025,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
-		const userContent: UserContent = [
+		let userContent: UserContent = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1149,7 +1154,7 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		const newUserContent: UserContent = [...modifiedOldUserContent]
+		let newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1178,7 +1183,7 @@ export class Task {
 		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
 
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
-			this.chatSettings?.mode === "plan" ? "plan" : "act",
+			this.mode === "plan" ? "plan" : "act",
 			agoText,
 			this.cwd,
 			wasRecent,
@@ -1605,7 +1610,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		const result = this.terminalManager.processOutput(outputLines)
+		let result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1654,23 +1659,10 @@ export class Task {
 		}
 	}
 
-	private async migratePreferredLanguageToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const preferredLanguage = config.get<LanguageDisplay>("preferredLanguage")
-		if (preferredLanguage !== undefined) {
-			this.chatSettings.preferredLanguage = preferredLanguage
-			// Remove from VSCode configuration
-			await config.update("preferredLanguage", undefined, true)
-		}
-	}
-
-	private async getCurrentProviderInfo(): Promise<{
-		modelId: string
-		providerId: string
-	}> {
+	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
 		const providerId =
-			this.chatSettings.mode === "plan"
+			this.mode === "plan"
 				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
 				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
 		return { modelId, providerId }
@@ -1678,9 +1670,7 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
-			timeout: 10_000,
-		}).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
@@ -1695,8 +1685,7 @@ export class Task {
 		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
-		await this.migratePreferredLanguageToolSetting()
-		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
+		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
@@ -1757,7 +1746,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -2005,7 +1994,7 @@ export class Task {
 		const { modelId, providerId } = await this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
-				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.chatSettings.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
 			} catch {}
 		}
 
@@ -2326,7 +2315,7 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
-						case "text": {
+						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
@@ -2347,7 +2336,6 @@ export class Task {
 							// present content to user
 							this.presentAssistantMessage()
 							break
-						}
 					}
 
 					if (this.taskState.abort) {
@@ -2464,8 +2452,9 @@ export class Task {
 
 				// Check if assistant message contains "toggle to Act mode" pattern - if so, end the loop to wait for user's response
 				const trimmedAssistantMessage = assistantMessage?.toLowerCase().trim()
-				const isPlanModeResponse = trimmedAssistantMessage?.includes("</plan_mode_respond>")
-				if (isPlanModeResponse && trimmedAssistantMessage && /toggle to act mode\s/i.test(trimmedAssistantMessage)) {
+				const hasPlanModeResponseTag = trimmedAssistantMessage?.includes("</plan_mode_respond>")
+				if (hasPlanModeResponseTag && trimmedAssistantMessage && /toggle to act mode\b/i.test(trimmedAssistantMessage)) {
+					this.taskState.isAwaitingPlanResponse = true
 					return true
 				}
 
@@ -2784,7 +2773,7 @@ export class Task {
 		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 
 		details += "\n\n# Current Mode"
-		if (this.chatSettings.mode === "plan") {
+		if (this.mode === "plan") {
 			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
 		} else {
 			details += "\nACT MODE"

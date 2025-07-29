@@ -39,7 +39,6 @@ import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { regexSearchFiles } from "@/services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
-import type { ChatSettings } from "@/shared/ChatSettings"
 import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
 import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
 import type { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
@@ -55,6 +54,7 @@ import type { MessageStateHandler } from "./message-state"
 import type { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
+import { Mode } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -91,7 +91,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
-		private chatSettings: ChatSettings,
+		private mode: Mode,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -1924,7 +1924,7 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const currentMode = this.chatSettings.mode
+						const currentMode = this.mode
 						const apiProvider =
 							currentMode === "plan"
 								? await getGlobalState(this.context, "planModeApiProvider")
