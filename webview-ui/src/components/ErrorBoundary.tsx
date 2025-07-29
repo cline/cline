@@ -17,8 +17,6 @@ class ErrorBoundary extends Component<ErrorProps, ErrorState> {
 	constructor(props: ErrorProps) {
 		super(props)
 		this.state = {}
-
-		this.state = {}
 	}
 
 	static getDerivedStateFromError(error: unknown) {
