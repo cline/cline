@@ -1,5 +1,26 @@
 # Roo Code Changelog
 
+## [3.25.0] - 2025-07-29
+
+- Add message queueing (thanks @app/roomote!)
+- Add custom slash commands
+- Add options for URL Context and Grounding with Google Search to the Gemini provider (thanks @HahaBill!)
+- Add image support to read_file tool (thanks @samhvw8!)
+- Add experimental setting to prevent editor focus disruption (#4784 by @hannesrudolph, PR by @app/roomote)
+- Add prompt caching support for LiteLLM (#5791 by @steve-gore-snapdocs, PR by @MuriloFP)
+- Add markdown table rendering support
+- Fix list_files recursive mode now works for dot directories (#2992 by @avtc, #4807 by @zhang157686, #5409 by @MuriloFP, PR by @MuriloFP)
+- Add search functionality to mode selector popup and reorganize layout
+- Sync API config selector style with mode selector
+- Fix keyboard shortcuts for non-QWERTY layouts (#6161 by @shlgug, PR by @app/roomote)
+- Add ESC key handling for modes, API provider, and indexing settings popovers (thanks @app/roomote!)
+- Make task mode sticky to task (thanks @app/roomote!)
+- Add text wrapping to command patterns in Manage Command Permissions (thanks @app/roomote!)
+- Update list-files test for fixed hidden files bug (thanks @daniel-lxs!)
+- Fix normalize Windows paths to forward slashes in mode export (#6307 by @hannesrudolph, PR by @app/roomote)
+- Ensure form-data >= 4.0.4
+- Fix filter out non-text tab inputs (Kilo-Org/kilocode#712 by @szermatt, PR by @hassoncs)
+
 ## [3.24.0] - 2025-07-25
 
 - Add Hugging Face provider with support for open source models (thanks @TGlide!)
