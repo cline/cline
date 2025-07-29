@@ -3,7 +3,7 @@ import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { PlanActMode } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
@@ -289,6 +289,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
+		const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
@@ -995,39 +996,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, openRouterModels])
 
-		const onModeToggle = useCallback(() => {
+		const onModeToggle = useCallback(async () => {
+			if (isSwitchingMode) return // prevent multiple toggles
+			setIsSwitchingMode(true)
 			// if (textAreaDisabled) return
-			let changeModeDelay = 0
 			if (showModelSelector) {
 				// user has model selector open, so we should save it before switching modes
-				submitApiConfig()
-				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+				await submitApiConfig()
 			}
-			setTimeout(async () => {
-				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActMode(
-					TogglePlanActModeRequest.create({
-						chatSettings: {
-							mode: newMode,
-							preferredLanguage: chatSettings.preferredLanguage,
-							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-						},
-						chatContent: {
-							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages.length > 0 ? selectedImages : undefined,
-							files: selectedFiles.length > 0 ? selectedFiles : undefined,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+			const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+			const response = await StateServiceClient.togglePlanActMode({
+				chatSettings: {
+					mode: newMode,
+					preferredLanguage: chatSettings.preferredLanguage,
+					openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+				},
+				chatContent: {
+					message: inputValue.trim() || undefined,
+					images: selectedImages.length > 0 ? selectedImages : [],
+					files: selectedFiles.length > 0 ? selectedFiles : [],
+				},
+			})
+			if (response.value) {
+				setInputValue("")
+			}
+			textAreaRef.current?.focus()
+			setIsSwitchingMode(false)
+		}, [
+			isSwitchingMode,
+			chatSettings.mode,
+			chatSettings.preferredLanguage,
+			chatSettings.openAIReasoningEffort,
+			showModelSelector,
+			submitApiConfig,
+			inputValue,
+			selectedImages,
+			selectedFiles,
+			setInputValue,
+		])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1752,7 +1758,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<SwitchContainer data-testid="mode-switch" disabled={isSwitchingMode} onClick={onModeToggle}>
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption
 								isActive={chatSettings.mode === "plan"}
