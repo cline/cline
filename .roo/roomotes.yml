@@ -1,0 +1,25 @@
+version: "1.0"
+
+commands:
+    - name: Pull latest changes
+      run: git pull
+      timeout: 60
+      execution_phase: task_run
+    - name: Install dependencies
+      run: pnpm install
+      timeout: 60
+      execution_phase: task_run
+
+github_events:
+    - event: issues.opened
+      action:
+          name: github.issue.fix
+    - event: issue_comment.created
+      action:
+          name: github.issue.comment.respond
+    - event: pull_request.opened
+      action:
+          name: github.pr.review
+    - event: pull_request_review_comment.created
+      action:
+          name: github.pr.comment.respond
