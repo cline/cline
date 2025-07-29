@@ -8,8 +8,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the LMStudioProvider component
  */

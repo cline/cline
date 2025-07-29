@@ -54,7 +54,7 @@ import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { ChatSettings } from "@/shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -91,7 +91,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
-		private chatSettings: ChatSettings,
+		private mode: Mode,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -1919,7 +1919,7 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const currentMode = this.chatSettings.mode
+						const currentMode = this.mode
 						const apiProvider =
 							currentMode === "plan"
 								? await getGlobalState(this.context, "planModeApiProvider")

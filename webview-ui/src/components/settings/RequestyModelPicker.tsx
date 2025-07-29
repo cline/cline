@@ -14,7 +14,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean

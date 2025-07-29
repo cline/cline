@@ -8,8 +8,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 // Z-index constants for proper dropdown layering
 const DROPDOWN_Z_INDEX = 1000
 

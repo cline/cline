@@ -7,8 +7,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the ClaudeCodeProvider component
  */

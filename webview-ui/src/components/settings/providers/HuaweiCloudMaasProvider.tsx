@@ -1,5 +1,5 @@
 import { huaweiCloudMaasModels } from "@shared/api"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"

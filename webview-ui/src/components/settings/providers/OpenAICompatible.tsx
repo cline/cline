@@ -11,8 +11,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the OpenAICompatibleProvider component
  */

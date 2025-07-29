@@ -14,8 +14,6 @@ import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpBu
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import {
 	migrateCustomInstructionsToGlobalRules,
-	migrateLegacyApiConfigurationToModeSpecific,
-	migrateModeFromWorkspaceStorageToControllerState,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
@@ -60,17 +58,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
 
-	// Migrate mode from workspace storage to controller state (one-time cleanup)
-	await migrateModeFromWorkspaceStorageToControllerState(context)
-
 	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
 	await migrateWelcomeViewCompleted(context)
 
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
-
-	// Migrate legacy API configuration to mode-specific keys (one-time migration)
-	await migrateLegacyApiConfigurationToModeSpecific(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)

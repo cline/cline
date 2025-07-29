@@ -15,7 +15,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/provid
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {

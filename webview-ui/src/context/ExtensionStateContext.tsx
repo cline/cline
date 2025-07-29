@@ -4,7 +4,6 @@ import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { type ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
@@ -59,7 +58,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	// Setters
 	setShowAnnouncement: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
-	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
@@ -176,7 +174,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		chatSettings: DEFAULT_CHAT_SETTINGS,
+		preferredLanguage: "English",
+		openaiReasoningEffort: "medium",
+		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		distinctId: "",
@@ -686,38 +686,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
-		setChatSettings: async (value) => {
-			setState((prevState) => ({
-				...prevState,
-				chatSettings: value,
-			}))
-			try {
-				// Import the conversion functions
-				const { convertApiConfigurationToProtoApiConfiguration } = await import(
-					"@shared/proto-conversions/state/settings-conversion"
-				)
-				const { convertChatSettingsToProtoChatSettings } = await import(
-					"@shared/proto-conversions/state/chat-settings-conversion"
-				)
-
-				await StateServiceClient.updateSettings(
-					UpdateSettingsRequest.create({
-						chatSettings: convertChatSettingsToProtoChatSettings(value),
-						apiConfiguration: state.apiConfiguration
-							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
-							: undefined,
-						telemetrySetting: state.telemetrySetting,
-						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-						enableCheckpointsSetting: state.enableCheckpointsSetting,
-						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-						mcpDisplayMode: state.mcpDisplayMode,
-						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-					}),
-				)
-			} catch (error) {
-				console.error("Failed to update chat settings:", error)
-			}
-		},
 		setGlobalClineRulesToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
