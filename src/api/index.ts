@@ -35,7 +35,7 @@ import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { BasetenHandler } from "./providers/baseten"
 
 export type CommonApiHandlerOptions = {
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
 
 export interface ApiHandler {
