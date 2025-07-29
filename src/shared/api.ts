@@ -2788,8 +2788,8 @@ export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotM
 // https://baseten.co/products/model-apis/
 export const basetenModels = {
 	"deepseek-ai/DeepSeek-R1-0528": {
-		maxTokens: 64000,
-		contextWindow: 64000,
+		maxTokens: 131072,
+		contextWindow: 163840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.55,
@@ -2798,8 +2798,8 @@ export const basetenModels = {
 			"DeepSeek R1 0528 - A state-of-the-art 671B-parameter MoE LLM with o1-style reasoning licensed for commercial use.",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
-		maxTokens: 64000,
-		contextWindow: 64000,
+		maxTokens: 131072,
+		contextWindow: 163840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.77,

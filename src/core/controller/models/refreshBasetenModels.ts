@@ -198,14 +198,7 @@ function isValidChatModel(rawModel: any): boolean {
 		return false
 	}
 	// Filter out non-chat models (whisper, TTS, guard models, etc.)
-	if (
-		rawModel.id.includes("whisper") ||
-		rawModel.id.includes("tts") ||
-		rawModel.id.includes("guard") ||
-		rawModel.id.includes("embedding") ||
-		rawModel.id.includes("moderation") ||
-		rawModel.id.includes("allam")
-	) {
+	if (rawModel.id.includes("whisper") || rawModel.id.includes("tts") || rawModel.id.includes("embedding")) {
 		return false
 	}
 

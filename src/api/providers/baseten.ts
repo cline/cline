@@ -39,20 +39,45 @@ export class BasetenHandler implements ApiHandler {
 		return this.client
 	}
 
-	getModel(): { id: BasetenModelId; info: ModelInfo } {
-		const modelId = (this.options.basetenModelId || this.options.apiModelId || basetenDefaultModelId) as BasetenModelId
-		const modelInfo = this.options.basetenModelInfo || basetenModels[modelId]
-
-		if (!modelInfo) {
-			throw new Error(`Unknown Baseten model: ${modelId}`)
+	/**
+	 * Gets the optimal max_tokens based on model capabilities
+	 */
+	private getOptimalMaxTokens(model: { id: BasetenModelId; info: ModelInfo }): number {
+		// Use model-specific max tokens if available
+		if (model.info.maxTokens && model.info.maxTokens > 0) {
+			return model.info.maxTokens
 		}
 
-		return { id: modelId, info: modelInfo }
+		// Default fallback
+		return 8192
 	}
 
-	private getOptimalMaxTokens(model: { id: BasetenModelId; info: ModelInfo }): number {
-		// Use model-specific max tokens if available, otherwise use default
-		return model.info.maxTokens || 8192
+	getModel(): { id: BasetenModelId; info: ModelInfo } {
+		// First priority: basetenModelId and basetenModelInfo
+		const basetenModelId = this.options.basetenModelId
+		const basetenModelInfo = this.options.basetenModelInfo
+		if (basetenModelId && basetenModelInfo) {
+			return { id: basetenModelId as BasetenModelId, info: basetenModelInfo }
+		}
+
+		// Second priority: basetenModelId with static model info
+		if (basetenModelId && basetenModelId in basetenModels) {
+			const id = basetenModelId as BasetenModelId
+			return { id, info: basetenModels[id] }
+		}
+
+		// Third priority: apiModelId (for backward compatibility)
+		const apiModelId = this.options.apiModelId
+		if (apiModelId && apiModelId in basetenModels) {
+			const id = apiModelId as BasetenModelId
+			return { id, info: basetenModels[id] }
+		}
+
+		// Default fallback
+		return {
+			id: basetenDefaultModelId,
+			info: basetenModels[basetenDefaultModelId],
+		}
 	}
 
 	private async *yieldUsage(modelInfo: ModelInfo, usage: any): ApiStream {
@@ -93,6 +118,17 @@ export class BasetenHandler implements ApiHandler {
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 
+			// Handle reasoning field if present (for reasoning models with parsed output)
+			if ((delta as any)?.reasoning) {
+				const reasoningContent = (delta as any).reasoning as string
+				yield {
+					type: "reasoning",
+					reasoning: reasoningContent,
+				}
+				continue
+			}
+
+			// Handle content field
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -100,9 +136,27 @@ export class BasetenHandler implements ApiHandler {
 				}
 			}
 
+			// Handle usage information
 			if (chunk.usage) {
 				yield* this.yieldUsage(model.info, chunk.usage)
 			}
 		}
+	}
+
+	/**
+	 * Checks if the current model supports vision/images
+	 */
+	supportsImages(): boolean {
+		const model = this.getModel()
+		return model.info.supportsImages === true
+	}
+
+	/**
+	 * Checks if the current model supports tools
+	 */
+	supportsTools(): boolean {
+		const model = this.getModel()
+		// Baseten models support tools via OpenAI-compatible API
+		return true
 	}
 }
