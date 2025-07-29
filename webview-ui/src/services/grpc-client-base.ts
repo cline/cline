@@ -26,7 +26,6 @@ export abstract class ProtoBusClient {
 					window.removeEventListener("message", handleResponse)
 					if (message.grpc_response.message) {
 						const response = decodeResponse(message.grpc_response.message)
-						console.log("sjfsjf response:", methodName, JSON.stringify(response))
 						resolve(response)
 					} else if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
