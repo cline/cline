@@ -58,7 +58,8 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 	const maxTabs = maxOpenTabsContext ?? 20
 	const openTabPaths = vscode.window.tabGroups.all
 		.flatMap((group) => group.tabs)
-		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+		.filter((tab) => tab.input instanceof vscode.TabInputText)
+		.map((tab) => (tab.input as vscode.TabInputText).uri.fsPath)
 		.filter(Boolean)
 		.map((absolutePath) => path.relative(cline.cwd, absolutePath).toPosix())
 		.slice(0, maxTabs)
