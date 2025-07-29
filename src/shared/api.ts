@@ -2531,7 +2531,7 @@ export const groqModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "SOTA performance with ~1500 tokens/s",
-  },
+	},
 	// DeepSeek Models - Reasoning-optimized
 	"deepseek-r1-distill-llama-70b": {
 		maxTokens: 131072,
