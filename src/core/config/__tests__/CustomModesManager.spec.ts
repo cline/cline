@@ -1744,10 +1744,13 @@ describe("CustomModesManager", () => {
 			expect(rulesFiles).toBeDefined()
 			expect(rulesFiles.length).toBe(2)
 
-			// Check that all paths use forward slashes
+			// Check that all paths use forward slashes and do NOT include the rules-{slug} prefix
 			rulesFiles.forEach((file: any) => {
 				expect(file.relativePath).not.toContain("\\")
-				expect(file.relativePath).toMatch(/^rules-test-mode\//)
+				// The PR excludes the rules-{slug} folder from paths
+				expect(file.relativePath).not.toMatch(/^rules-test-mode\//)
+				// Files should be at the root level now
+				expect(file.relativePath).toMatch(/^rule\d+\.md$/)
 			})
 
 			// Ensure no backslashes in the entire exported YAML
