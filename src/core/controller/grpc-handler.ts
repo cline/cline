@@ -19,7 +19,7 @@ export type UnaryHandler<TRequest, TResponse> = (controller: Controller, request
 export type StreamingHandler<TRequest, TResponse> = (
 	controller: Controller,
 	request: TRequest,
-	callbacks: StreamingResponseHandler<TResponse>,
+	callback: StreamingResponseHandler<TResponse>,
 	requestId: string,
 ) => Promise<void>
 
@@ -108,7 +108,7 @@ async function handleStreamingRequest(
 		const handler = getHandler(service, method) as JsonStreamingHandler<any, any>
 
 		// Create a response stream function
-		const responseStream: StreamingResponseHandler<any> = async (
+		const callback: StreamingResponseHandler<any> = async (
 			response: any,
 			isLast: boolean = false,
 			sequenceNumber?: number,
@@ -127,8 +127,8 @@ async function handleStreamingRequest(
 		}
 		// Decode the request
 		const request = handler.decodeRequest(requestJSON)
-		// Handle streaming request and pass the requestId to all streaming handlers
-		await handler.handler(controller, request, responseStream, requestId)
+		// Handle streaming request and pass the requestId to the streaming handler.
+		await handler.handler(controller, request, callback, requestId)
 
 		// Don't send a final message here - the stream should stay open for future updates
 		// The stream will be closed when the client disconnects or when the service explicitly ends it
