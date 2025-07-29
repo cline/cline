@@ -1,5 +1,5 @@
 import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
-import { ApiConfiguration as ProtoApiConfiguration, PlanActMode } from "@shared/proto/state"
+import { ApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/state"
 
 /**
  * Converts domain ApiConfiguration objects to proto ApiConfiguration objects

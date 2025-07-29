@@ -64,9 +64,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
 
-	// Migrate legacy API configuration to mode-specific keys (one-time migration)
-	await migrateLegacyApiConfigurationToModeSpecific(context)
-
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
