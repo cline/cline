@@ -19,6 +19,7 @@ export async function refreshBasetenModels(
 	controller: Controller,
 	request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
+	console.log("=== refreshBasetenModels called ===")
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
@@ -46,72 +47,52 @@ export async function refreshBasetenModels(
 		} else {
 			// Ensure the API key is properly formatted
 			const cleanApiKey = basetenApiKey.trim()
-			if (!cleanApiKey || cleanApiKey.length < 10) {
-				throw new Error("Invalid Baseten API key. Please check your API key.")
+			if (!cleanApiKey) {
+				throw new Error("Invalid Baseten API key format")
 			}
 
 			console.log("Fetching Baseten models with API key:", cleanApiKey.substring(0, 10) + "...")
 
-			try {
-				const response = await axios.get("https://inference.baseten.co/v1/models", {
-					headers: {
-						Authorization: `Bearer ${cleanApiKey}`,
-						"Content-Type": "application/json",
-						"User-Agent": "Cline-VSCode-Extension",
-					},
-					timeout: 10000, // 10 second timeout
-				})
+			const response = await axios.get("https://inference.baseten.co/v1/models", {
+				headers: {
+					Authorization: `Bearer ${cleanApiKey}`,
+					"Content-Type": "application/json",
+					"User-Agent": "Cline-VSCode-Extension",
+				},
+				timeout: 10000, // 10 second timeout
+			})
 
-				if (response.data?.data) {
-					const rawModels = response.data.data
+			if (response.data?.data) {
+				const rawModels = response.data.data
 
-					for (const rawModel of rawModels) {
-						// Filter out non-chat models and validate model capabilities
-						if (!isValidChatModel(rawModel)) {
-							continue
-						}
-
-						// Check if we have static pricing information for this model
-						const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
-
-						const modelInfo: Partial<OpenRouterModelInfo> = {
-							maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
-							contextWindow: rawModel.context_window || staticModelInfo?.contextWindow || 8192,
-							supportsImages: detectImageSupport(rawModel, staticModelInfo),
-							supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
-							inputPrice: staticModelInfo?.inputPrice || 0,
-							outputPrice: staticModelInfo?.outputPrice || 0,
-							cacheWritesPrice: (staticModelInfo as any)?.cacheWritesPrice || 0,
-							cacheReadsPrice: (staticModelInfo as any).cacheReadsPrice || 0,
-							description: generateModelDescription(rawModel, staticModelInfo),
-						}
-
-						models[rawModel.id] = modelInfo
+				for (const rawModel of rawModels) {
+					// Filter out non-chat models and validate model capabilities
+					if (!isValidChatModel(rawModel)) {
+						continue
 					}
-				} else {
-					console.error("Invalid response from Baseten API")
-				}
-				await fs.writeFile(basetenModelsFilePath, JSON.stringify(models))
-				console.log("Baseten models fetched and saved", models)
-			} catch (fetchError) {
-				console.log("Failed to fetch models from Baseten API, using static models:", fetchError.message)
-				// Fall back to static models
-				for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
-					models[modelId] = {
-						maxTokens: modelInfo.maxTokens,
-						contextWindow: modelInfo.contextWindow,
-						supportsImages: modelInfo.supportsImages,
-						supportsPromptCache: modelInfo.supportsPromptCache,
-						inputPrice: modelInfo.inputPrice,
-						outputPrice: modelInfo.outputPrice,
-						cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-						cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-						description: modelInfo.description || `${modelId} model`,
+
+					// Check if we have static pricing information for this model
+					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
+
+					const modelInfo: Partial<OpenRouterModelInfo> = {
+						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
+						contextWindow: rawModel.context_window || staticModelInfo?.contextWindow || 8192,
+						supportsImages: detectImageSupport(rawModel, staticModelInfo),
+						supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
+						inputPrice: staticModelInfo?.inputPrice || 0,
+						outputPrice: staticModelInfo?.outputPrice || 0,
+						cacheWritesPrice: (staticModelInfo as any)?.cacheWritesPrice || 0,
+						cacheReadsPrice: (staticModelInfo as any).cacheReadsPrice || 0,
+						description: generateModelDescription(rawModel, staticModelInfo),
 					}
+
+					models[rawModel.id] = modelInfo
 				}
-				await fs.writeFile(basetenModelsFilePath, JSON.stringify(models))
-				console.log("Baseten models saved (static fallback)", models)
+			} else {
+				console.error("Invalid response from Baseten API")
 			}
+			await fs.writeFile(basetenModelsFilePath, JSON.stringify(models))
+			console.log("Baseten models fetched and saved:", Object.keys(models))
 		}
 	} catch (error) {
 		console.error("Error fetching Baseten models:", error)

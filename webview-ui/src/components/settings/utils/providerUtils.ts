@@ -255,11 +255,14 @@ export function normalizeApiConfiguration(
 				currentMode === "plan" ? apiConfiguration?.planModeBasetenModelId : apiConfiguration?.actModeBasetenModelId
 			const basetenModelInfo =
 				currentMode === "plan" ? apiConfiguration?.planModeBasetenModelInfo : apiConfiguration?.actModeBasetenModelInfo
-			const finalModelId = basetenModelId || basetenDefaultModelId
+			const finalBasetenModelId = basetenModelId || basetenDefaultModelId
 			return {
 				selectedProvider: provider,
-				selectedModelId: finalModelId,
-				selectedModelInfo: basetenModelInfo || basetenModels[finalModelId as keyof typeof basetenModels],
+				selectedModelId: finalBasetenModelId,
+				selectedModelInfo:
+					basetenModelInfo ||
+					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
+					basetenModels[basetenDefaultModelId],
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
@@ -450,6 +453,13 @@ export async function syncModeConfigurations(
 			updates.actModeHuggingFaceModelId = sourceFields.huggingFaceModelId
 			updates.planModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
 			updates.actModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
+			break
+
+		case "baseten":
+			updates.planModeBasetenModelId = sourceFields.basetenModelId
+			updates.actModeBasetenModelId = sourceFields.basetenModelId
+			updates.planModeBasetenModelInfo = sourceFields.basetenModelInfo
+			updates.actModeBasetenModelInfo = sourceFields.basetenModelInfo
 			break
 
 		case "together":

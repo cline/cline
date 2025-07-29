@@ -658,6 +658,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeBasetenModelId,
+		planModeBasetenModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
 		// Act mode configurations
@@ -714,6 +716,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeSapAiCoreModelId,
 		planModeGroqModelId,
 		planModeGroqModelInfo,
+		planModeBasetenModelId,
+		planModeBasetenModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
 
