@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.25.1] - 2025-07-29
+
+- Add support for GLM-4.5-Air model to Chutes AI provider (#6376 by @matbgn, PR by @app/roomote)
+- Improve subshell validation for commands
+
 ## [3.25.0] - 2025-07-29
 
 - Add message queueing (thanks @app/roomote!)
