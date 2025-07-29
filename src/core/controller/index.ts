@@ -219,10 +219,6 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
-			case "fetchMcpMarketplace": {
-				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
@@ -235,9 +231,9 @@ export class Controller {
 				}
 				break
 			}
-
-			// Add more switch case statements here as more webview message commands
-			// are created within the webview context (i.e. inside media/main.js)
+			default: {
+				console.error("Received unhandled webview type:", JSON.stringify(message))
+			}
 		}
 	}
 
