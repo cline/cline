@@ -12,6 +12,7 @@ import { getReadablePath } from "../../utils/path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
+import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
 
 /**
  * Tool for performing search and replace operations on files
@@ -199,16 +200,15 @@ export async function searchAndReplaceTool(
 			return
 		}
 
-		// Show changes in diff view
-		if (!cline.diffViewProvider.isEditing) {
-			await cline.ask("tool", JSON.stringify(sharedMessageProps), true).catch(() => {})
-			await cline.diffViewProvider.open(validRelPath)
-			await cline.diffViewProvider.update(fileContent, false)
-			cline.diffViewProvider.scrollToFirstDiff()
-			await delay(200)
-		}
-
-		await cline.diffViewProvider.update(newContent, true)
+		// Check if preventFocusDisruption experiment is enabled
+		const provider = cline.providerRef.deref()
+		const state = await provider?.getState()
+		const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
+		const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
+		const isPreventFocusDisruptionEnabled = experiments.isEnabled(
+			state?.experiments ?? {},
+			EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
+		)
 
 		// Request user approval for changes
 		const completeMessage = JSON.stringify({
@@ -221,18 +221,33 @@ export async function searchAndReplaceTool(
 			.then((response) => response.response === "yesButtonClicked")
 
 		if (!didApprove) {
-			await cline.diffViewProvider.revertChanges()
+			if (!isPreventFocusDisruptionEnabled) {
+				await cline.diffViewProvider.revertChanges()
+			}
 			pushToolResult("Changes were rejected by the user.")
 			await cline.diffViewProvider.reset()
 			return
 		}
 
-		// Call saveChanges to update the DiffViewProvider properties
-		const provider = cline.providerRef.deref()
-		const state = await provider?.getState()
-		const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
-		const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
-		await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+		if (isPreventFocusDisruptionEnabled) {
+			// Direct file write without diff view or opening the file
+			await cline.diffViewProvider.saveDirectly(validRelPath, newContent, false, diagnosticsEnabled, writeDelayMs)
+		} else {
+			// Original behavior with diff view
+			// Show changes in diff view
+			if (!cline.diffViewProvider.isEditing) {
+				await cline.ask("tool", JSON.stringify(sharedMessageProps), true).catch(() => {})
+				await cline.diffViewProvider.open(validRelPath)
+				await cline.diffViewProvider.update(fileContent, false)
+				cline.diffViewProvider.scrollToFirstDiff()
+				await delay(200)
+			}
+
+			await cline.diffViewProvider.update(newContent, true)
+
+			// Call saveChanges to update the DiffViewProvider properties
+			await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+		}
 
 		// Track file edit operation
 		if (relPath) {

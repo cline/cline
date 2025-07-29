@@ -660,6 +660,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Bật chỉnh sửa tệp đồng thời",
 			"description": "Khi được bật, Roo có thể chỉnh sửa nhiều tệp trong một yêu cầu duy nhất. Khi bị tắt, Roo phải chỉnh sửa từng tệp một. Tắt tính năng này có thể hữu ích khi làm việc với các mô hình kém khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn đối với các thay đổi tệp."
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "Chỉnh sửa nền",
+			"description": "Khi được bật, ngăn chặn gián đoạn tiêu điểm trình soạn thảo. Việc chỉnh sửa tệp diễn ra ở nền mà không mở chế độ xem diff hoặc chiếm tiêu điểm. Bạn có thể tiếp tục làm việc không bị gián đoạn trong khi Roo thực hiện thay đổi. Các tệp có thể được mở mà không có tiêu điểm để thu thập chẩn đoán hoặc giữ hoàn toàn đóng."
 		}
 	},
 	"promptCaching": {

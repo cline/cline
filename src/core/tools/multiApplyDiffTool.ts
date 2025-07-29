@@ -507,11 +507,15 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 				cline.consecutiveMistakeCount = 0
 				cline.consecutiveMistakeCountForApplyDiff.delete(relPath)
 
-				// Show diff view before asking for approval (only for single file or after batch approval)
-				cline.diffViewProvider.editType = "modify"
-				await cline.diffViewProvider.open(relPath)
-				await cline.diffViewProvider.update(originalContent!, true)
-				cline.diffViewProvider.scrollToFirstDiff()
+				// Check if preventFocusDisruption experiment is enabled
+				const provider = cline.providerRef.deref()
+				const state = await provider?.getState()
+				const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
+				const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
+				const isPreventFocusDisruptionEnabled = experiments.isEnabled(
+					state?.experiments ?? {},
+					EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
+				)
 
 				// For batch operations, we've already gotten approval
 				const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
@@ -548,17 +552,35 @@ ${errorDetails ? `\nTechnical details:\n${errorDetails}\n` : ""}
 				}
 
 				if (!didApprove) {
-					await cline.diffViewProvider.revertChanges()
+					if (!isPreventFocusDisruptionEnabled) {
+						await cline.diffViewProvider.revertChanges()
+					}
 					results.push(`Changes to ${relPath} were not approved by user`)
 					continue
 				}
 
-				// Call saveChanges to update the DiffViewProvider properties
-				const provider = cline.providerRef.deref()
-				const state = await provider?.getState()
-				const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
-				const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
-				await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+				if (isPreventFocusDisruptionEnabled) {
+					// Direct file write without diff view or opening the file
+					cline.diffViewProvider.editType = "modify"
+					cline.diffViewProvider.originalContent = await fs.readFile(absolutePath, "utf-8")
+					await cline.diffViewProvider.saveDirectly(
+						relPath,
+						originalContent!,
+						false,
+						diagnosticsEnabled,
+						writeDelayMs,
+					)
+				} else {
+					// Original behavior with diff view
+					// Show diff view before asking for approval (only for single file or after batch approval)
+					cline.diffViewProvider.editType = "modify"
+					await cline.diffViewProvider.open(relPath)
+					await cline.diffViewProvider.update(originalContent!, true)
+					cline.diffViewProvider.scrollToFirstDiff()
+
+					// Call saveChanges to update the DiffViewProvider properties
+					await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+				}
 
 				// Track file edit operation
 				await cline.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)

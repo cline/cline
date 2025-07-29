@@ -12,6 +12,7 @@ import { formatResponse } from "../prompts/responses"
 import { fileExistsAtPath } from "../../utils/fs"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
+import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
 
 export async function applyDiffToolLegacy(
 	cline: Task,
@@ -87,7 +88,7 @@ export async function applyDiffToolLegacy(
 				return
 			}
 
-			let originalContent: string | null = await fs.readFile(absolutePath, "utf-8")
+			const originalContent: string = await fs.readFile(absolutePath, "utf-8")
 
 			// Apply the diff to the original content
 			const diffResult = (await cline.diffStrategy?.applyDiff(
@@ -98,9 +99,6 @@ export async function applyDiffToolLegacy(
 				success: false,
 				error: "No diff strategy available",
 			}
-
-			// Release the original content from memory as it's no longer needed
-			originalContent = null
 
 			if (!diffResult.success) {
 				cline.consecutiveMistakeCount++
@@ -142,40 +140,79 @@ export async function applyDiffToolLegacy(
 			cline.consecutiveMistakeCount = 0
 			cline.consecutiveMistakeCountForApplyDiff.delete(relPath)
 
-			// Show diff view before asking for approval
-			cline.diffViewProvider.editType = "modify"
-			await cline.diffViewProvider.open(relPath)
-			await cline.diffViewProvider.update(diffResult.content, true)
-			cline.diffViewProvider.scrollToFirstDiff()
-
-			// Check if file is write-protected
-			const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
-
-			const completeMessage = JSON.stringify({
-				...sharedMessageProps,
-				diff: diffContent,
-				isProtected: isWriteProtected,
-			} satisfies ClineSayTool)
-
-			let toolProgressStatus
-
-			if (cline.diffStrategy && cline.diffStrategy.getProgressStatus) {
-				toolProgressStatus = cline.diffStrategy.getProgressStatus(block, diffResult)
-			}
-
-			const didApprove = await askApproval("tool", completeMessage, toolProgressStatus, isWriteProtected)
-
-			if (!didApprove) {
-				await cline.diffViewProvider.revertChanges() // Cline likely handles closing the diff view
-				return
-			}
-
-			// Call saveChanges to update the DiffViewProvider properties
+			// Check if preventFocusDisruption experiment is enabled
 			const provider = cline.providerRef.deref()
 			const state = await provider?.getState()
 			const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
 			const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
-			await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+			const isPreventFocusDisruptionEnabled = experiments.isEnabled(
+				state?.experiments ?? {},
+				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
+			)
+
+			// Check if file is write-protected
+			const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
+
+			if (isPreventFocusDisruptionEnabled) {
+				// Direct file write without diff view
+				const completeMessage = JSON.stringify({
+					...sharedMessageProps,
+					diff: diffContent,
+					isProtected: isWriteProtected,
+				} satisfies ClineSayTool)
+
+				let toolProgressStatus
+
+				if (cline.diffStrategy && cline.diffStrategy.getProgressStatus) {
+					toolProgressStatus = cline.diffStrategy.getProgressStatus(block, diffResult)
+				}
+
+				const didApprove = await askApproval("tool", completeMessage, toolProgressStatus, isWriteProtected)
+
+				if (!didApprove) {
+					return
+				}
+
+				// Save directly without showing diff view or opening the file
+				cline.diffViewProvider.editType = "modify"
+				cline.diffViewProvider.originalContent = originalContent
+				await cline.diffViewProvider.saveDirectly(
+					relPath,
+					diffResult.content,
+					false,
+					diagnosticsEnabled,
+					writeDelayMs,
+				)
+			} else {
+				// Original behavior with diff view
+				// Show diff view before asking for approval
+				cline.diffViewProvider.editType = "modify"
+				await cline.diffViewProvider.open(relPath)
+				await cline.diffViewProvider.update(diffResult.content, true)
+				cline.diffViewProvider.scrollToFirstDiff()
+
+				const completeMessage = JSON.stringify({
+					...sharedMessageProps,
+					diff: diffContent,
+					isProtected: isWriteProtected,
+				} satisfies ClineSayTool)
+
+				let toolProgressStatus
+
+				if (cline.diffStrategy && cline.diffStrategy.getProgressStatus) {
+					toolProgressStatus = cline.diffStrategy.getProgressStatus(block, diffResult)
+				}
+
+				const didApprove = await askApproval("tool", completeMessage, toolProgressStatus, isWriteProtected)
+
+				if (!didApprove) {
+					await cline.diffViewProvider.revertChanges() // Cline likely handles closing the diff view
+					return
+				}
+
+				// Call saveChanges to update the DiffViewProvider properties
+				await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+			}
 
 			// Track file edit operation
 			if (relPath) {
