@@ -38,7 +38,7 @@ import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
 
 export interface ApiHandler {
