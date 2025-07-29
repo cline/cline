@@ -26,8 +26,6 @@
   <step number="2">
     <name>Fetch Pull Request Information</name>
     <instructions>
-      By default, review pull requests from the https://github.com/RooCodeInc/Roo-Code repository.
-      
       If the user provides a PR number or URL, extract the necessary information:
       - Repository owner and name
       - Pull request number
@@ -283,7 +281,7 @@
       - Avoid including internal evaluation terminology (e.g., scores or internal tags) in public comments.
       
       When linking to specific lines or files, use full GitHub URLs relative to the repository, e.g.
-      `https://github.com/RooCodeInc/Roo-Code/blob/main/src/api/providers/human-relay.ts#L50`.
+      `https://github.com/[owner]/[repo]/blob/[branch]/[path/to/file]#L[line-number]`.
       
       Present your findings as a numbered list organized by priority:
       
