@@ -137,6 +137,49 @@ export class Task extends EventEmitter<ClineEvents> {
 	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
+	/**
+	 * The mode associated with this task. Persisted across sessions
+	 * to maintain user context when reopening tasks from history.
+	 *
+	 * ## Lifecycle
+	 *
+	 * ### For new tasks:
+	 * 1. Initially `undefined` during construction
+	 * 2. Asynchronously initialized from provider state via `initializeTaskMode()`
+	 * 3. Falls back to `defaultModeSlug` if provider state is unavailable
+	 *
+	 * ### For history items:
+	 * 1. Immediately set from `historyItem.mode` during construction
+	 * 2. Falls back to `defaultModeSlug` if mode is not stored in history
+	 *
+	 * ## Important
+	 * This property should NOT be accessed directly until `taskModeReady` promise resolves.
+	 * Use `getTaskMode()` for async access or `taskMode` getter for sync access after initialization.
+	 *
+	 * @private
+	 * @see {@link getTaskMode} - For safe async access
+	 * @see {@link taskMode} - For sync access after initialization
+	 * @see {@link waitForModeInitialization} - To ensure initialization is complete
+	 */
+	private _taskMode: string | undefined
+
+	/**
+	 * Promise that resolves when the task mode has been initialized.
+	 * This ensures async mode initialization completes before the task is used.
+	 *
+	 * ## Purpose
+	 * - Prevents race conditions when accessing task mode
+	 * - Ensures provider state is properly loaded before mode-dependent operations
+	 * - Provides a synchronization point for async initialization
+	 *
+	 * ## Resolution timing
+	 * - For history items: Resolves immediately (sync initialization)
+	 * - For new tasks: Resolves after provider state is fetched (async initialization)
+	 *
+	 * @private
+	 * @see {@link waitForModeInitialization} - Public method to await this promise
+	 */
+	private taskModeReady: Promise<void>
 
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
@@ -268,9 +311,16 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.parentTask = parentTask
 		this.taskNumber = taskNumber
 
+		// Store the task's mode when it's created
+		// For history items, use the stored mode; for new tasks, we'll set it after getting state
 		if (historyItem) {
+			this._taskMode = historyItem.mode || defaultModeSlug
+			this.taskModeReady = Promise.resolve()
 			TelemetryService.instance.captureTaskRestarted(this.taskId)
 		} else {
+			// For new tasks, don't set the mode yet - wait for async initialization
+			this._taskMode = undefined
+			this.taskModeReady = this.initializeTaskMode(provider)
 			TelemetryService.instance.captureTaskCreated(this.taskId)
 		}
 
@@ -305,6 +355,129 @@ export class Task extends EventEmitter<ClineEvents> {
 				throw new Error("Either historyItem or task/images must be provided")
 			}
 		}
+	}
+
+	/**
+	 * Initialize the task mode from the provider state.
+	 * This method handles async initialization with proper error handling.
+	 *
+	 * ## Flow
+	 * 1. Attempts to fetch the current mode from provider state
+	 * 2. Sets `_taskMode` to the fetched mode or `defaultModeSlug` if unavailable
+	 * 3. Handles errors gracefully by falling back to default mode
+	 * 4. Logs any initialization errors for debugging
+	 *
+	 * ## Error handling
+	 * - Network failures when fetching provider state
+	 * - Provider not yet initialized
+	 * - Invalid state structure
+	 *
+	 * All errors result in fallback to `defaultModeSlug` to ensure task can proceed.
+	 *
+	 * @private
+	 * @param provider - The ClineProvider instance to fetch state from
+	 * @returns Promise that resolves when initialization is complete
+	 */
+	private async initializeTaskMode(provider: ClineProvider): Promise<void> {
+		try {
+			const state = await provider.getState()
+			this._taskMode = state?.mode || defaultModeSlug
+		} catch (error) {
+			// If there's an error getting state, use the default mode
+			this._taskMode = defaultModeSlug
+			// Use the provider's log method for better error visibility
+			const errorMessage = `Failed to initialize task mode: ${error instanceof Error ? error.message : String(error)}`
+			provider.log(errorMessage)
+		}
+	}
+
+	/**
+	 * Wait for the task mode to be initialized before proceeding.
+	 * This method ensures that any operations depending on the task mode
+	 * will have access to the correct mode value.
+	 *
+	 * ## When to use
+	 * - Before accessing mode-specific configurations
+	 * - When switching between tasks with different modes
+	 * - Before operations that depend on mode-based permissions
+	 *
+	 * ## Example usage
+	 * ```typescript
+	 * // Wait for mode initialization before mode-dependent operations
+	 * await task.waitForModeInitialization();
+	 * const mode = task.taskMode; // Now safe to access synchronously
+	 *
+	 * // Or use with getTaskMode() for a one-liner
+	 * const mode = await task.getTaskMode(); // Internally waits for initialization
+	 * ```
+	 *
+	 * @returns Promise that resolves when the task mode is initialized
+	 * @public
+	 */
+	public async waitForModeInitialization(): Promise<void> {
+		return this.taskModeReady
+	}
+
+	/**
+	 * Get the task mode asynchronously, ensuring it's properly initialized.
+	 * This is the recommended way to access the task mode as it guarantees
+	 * the mode is available before returning.
+	 *
+	 * ## Async behavior
+	 * - Internally waits for `taskModeReady` promise to resolve
+	 * - Returns the initialized mode or `defaultModeSlug` as fallback
+	 * - Safe to call multiple times - subsequent calls return immediately if already initialized
+	 *
+	 * ## Example usage
+	 * ```typescript
+	 * // Safe async access
+	 * const mode = await task.getTaskMode();
+	 * console.log(`Task is running in ${mode} mode`);
+	 *
+	 * // Use in conditional logic
+	 * if (await task.getTaskMode() === 'architect') {
+	 *   // Perform architect-specific operations
+	 * }
+	 * ```
+	 *
+	 * @returns Promise resolving to the task mode string
+	 * @public
+	 */
+	public async getTaskMode(): Promise<string> {
+		await this.taskModeReady
+		return this._taskMode || defaultModeSlug
+	}
+
+	/**
+	 * Get the task mode synchronously. This should only be used when you're certain
+	 * that the mode has already been initialized (e.g., after waitForModeInitialization).
+	 *
+	 * ## When to use
+	 * - In synchronous contexts where async/await is not available
+	 * - After explicitly waiting for initialization via `waitForModeInitialization()`
+	 * - In event handlers or callbacks where mode is guaranteed to be initialized
+	 *
+	 * ## Example usage
+	 * ```typescript
+	 * // After ensuring initialization
+	 * await task.waitForModeInitialization();
+	 * const mode = task.taskMode; // Safe synchronous access
+	 *
+	 * // In an event handler after task is started
+	 * task.on('taskStarted', () => {
+	 *   console.log(`Task started in ${task.taskMode} mode`); // Safe here
+	 * });
+	 * ```
+	 *
+	 * @throws {Error} If the mode hasn't been initialized yet
+	 * @returns The task mode string
+	 * @public
+	 */
+	public get taskMode(): string {
+		if (this._taskMode === undefined) {
+			throw new Error("Task mode accessed before initialization. Use getTaskMode() or wait for taskModeReady.")
+		}
+		return this._taskMode
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
@@ -411,6 +584,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				taskNumber: this.taskNumber,
 				globalStoragePath: this.globalStoragePath,
 				workspace: this.cwd,
+				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode
 			})
 
 			this.emit("taskTokenUsageUpdated", this.taskId, tokenUsage)

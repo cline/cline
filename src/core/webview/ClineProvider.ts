@@ -40,7 +40,7 @@ import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ExtensionMessage, MarketplaceInstalledMetadata } from "../../shared/ExtensionMessage"
-import { Mode, defaultModeSlug } from "../../shared/modes"
+import { Mode, defaultModeSlug, getModeBySlug } from "../../shared/modes"
 import { experimentDefault, experiments, EXPERIMENT_IDS } from "../../shared/experiments"
 import { formatLanguage } from "../../shared/language"
 import { DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
@@ -578,6 +578,49 @@ export class ClineProvider
 	public async initClineWithHistoryItem(historyItem: HistoryItem & { rootTask?: Task; parentTask?: Task }) {
 		await this.removeClineFromStack()
 
+		// If the history item has a saved mode, restore it and its associated API configuration
+		if (historyItem.mode) {
+			// Validate that the mode still exists
+			const customModes = await this.customModesManager.getCustomModes()
+			const modeExists = getModeBySlug(historyItem.mode, customModes) !== undefined
+
+			if (!modeExists) {
+				// Mode no longer exists, fall back to default mode
+				this.log(
+					`Mode '${historyItem.mode}' from history no longer exists. Falling back to default mode '${defaultModeSlug}'.`,
+				)
+				historyItem.mode = defaultModeSlug
+			}
+
+			await this.updateGlobalState("mode", historyItem.mode)
+
+			// Load the saved API config for the restored mode if it exists
+			const savedConfigId = await this.providerSettingsManager.getModeConfigId(historyItem.mode)
+			const listApiConfig = await this.providerSettingsManager.listConfig()
+
+			// Update listApiConfigMeta first to ensure UI has latest data
+			await this.updateGlobalState("listApiConfigMeta", listApiConfig)
+
+			// If this mode has a saved config, use it
+			if (savedConfigId) {
+				const profile = listApiConfig.find(({ id }) => id === savedConfigId)
+
+				if (profile?.name) {
+					try {
+						await this.activateProviderProfile({ name: profile.name })
+					} catch (error) {
+						// Log the error but continue with task restoration
+						this.log(
+							`Failed to restore API configuration for mode '${historyItem.mode}': ${
+								error instanceof Error ? error.message : String(error)
+							}. Continuing with default configuration.`,
+						)
+						// The task will continue with the current/default configuration
+					}
+				}
+			}
+		}
+
 		const {
 			apiConfiguration,
 			diffEnabled: enableDiff,
@@ -807,6 +850,31 @@ export class ClineProvider
 		if (cline) {
 			TelemetryService.instance.captureModeSwitch(cline.taskId, newMode)
 			cline.emit("taskModeSwitched", cline.taskId, newMode)
+
+			// Store the current mode in case we need to rollback
+			const previousMode = (cline as any)._taskMode
+
+			try {
+				// Update the task history with the new mode first
+				const history = this.getGlobalState("taskHistory") ?? []
+				const taskHistoryItem = history.find((item) => item.id === cline.taskId)
+				if (taskHistoryItem) {
+					taskHistoryItem.mode = newMode
+					await this.updateTaskHistory(taskHistoryItem)
+				}
+
+				// Only update the task's mode after successful persistence
+				;(cline as any)._taskMode = newMode
+			} catch (error) {
+				// If persistence fails, log the error but don't update the in-memory state
+				this.log(
+					`Failed to persist mode switch for task ${cline.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+				)
+
+				// Optionally, we could emit an event to notify about the failure
+				// This ensures the in-memory state remains consistent with persisted state
+				throw error
+			}
 		}
 
 		await this.updateGlobalState("mode", newMode)
