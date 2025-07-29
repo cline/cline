@@ -2457,8 +2457,17 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-32b"
+export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-235b-a22b-instruct-2507"
 export const cerebrasModels = {
+	"qwen-3-235b-a22b-instruct-2507": {
+		maxTokens: 64000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent model with ~1400 tokens/s",
+	},
 	"llama-3.3-70b": {
 		maxTokens: 64000,
 		contextWindow: 64000,
