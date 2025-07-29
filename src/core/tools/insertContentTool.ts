@@ -136,6 +136,7 @@ export async function insertContentTool(
 			approvalContent = updatedContent
 		}
 
+		// Prepare the approval message (same for both flows)
 		const completeMessage = JSON.stringify({
 			...sharedMessageProps,
 			diff,
@@ -144,35 +145,33 @@ export async function insertContentTool(
 			isProtected: isWriteProtected,
 		} satisfies ClineSayTool)
 
+		// Show diff view if focus disruption prevention is disabled
+		if (!isPreventFocusDisruptionEnabled) {
+			await cline.diffViewProvider.open(relPath)
+			await cline.diffViewProvider.update(updatedContent, true)
+			cline.diffViewProvider.scrollToFirstDiff()
+		}
+
+		// Ask for approval (same for both flows)
 		const didApprove = await cline
 			.ask("tool", completeMessage, isWriteProtected)
 			.then((response) => response.response === "yesButtonClicked")
 
 		if (!didApprove) {
+			// Revert changes if diff view was shown
 			if (!isPreventFocusDisruptionEnabled) {
 				await cline.diffViewProvider.revertChanges()
 			}
 			pushToolResult("Changes were rejected by the user.")
+			await cline.diffViewProvider.reset()
 			return
 		}
 
+		// Save the changes
 		if (isPreventFocusDisruptionEnabled) {
 			// Direct file write without diff view or opening the file
 			await cline.diffViewProvider.saveDirectly(relPath, updatedContent, false, diagnosticsEnabled, writeDelayMs)
 		} else {
-			// Original behavior with diff view
-			// Show changes in diff view
-			if (!cline.diffViewProvider.isEditing) {
-				await cline.ask("tool", JSON.stringify(sharedMessageProps), true).catch(() => {})
-				// First open with original content
-				await cline.diffViewProvider.open(relPath)
-				await cline.diffViewProvider.update(fileContent, false)
-				cline.diffViewProvider.scrollToFirstDiff()
-				await delay(200)
-			}
-
-			await cline.diffViewProvider.update(updatedContent, true)
-
 			// Call saveChanges to update the DiffViewProvider properties
 			await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
 		}
