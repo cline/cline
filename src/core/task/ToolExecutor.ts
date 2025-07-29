@@ -32,6 +32,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
@@ -839,12 +840,18 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 						}
 						// now execute the tool like normal
-						const content = await extractTextFromFile(absolutePath)
+						const supportsImages = this.api.getModel().info.supportsImages ?? false
+						const result = await extractFileContent(absolutePath, supportsImages)
 
 						// Track file read operation
 						await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-						this.pushToolResult(content, block)
+						this.pushToolResult(result.text, block)
+
+						if (result.imageBlock) {
+							this.taskState.userMessageContent.push(result.imageBlock)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
