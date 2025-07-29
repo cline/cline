@@ -32,7 +32,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = await controller.cacheService.getApiConfiguration()
+				const apiConfiguration = controller.cacheService.getApiConfiguration()
 				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
 				const currentMode = await controller.getCurrentMode()
 
@@ -47,7 +47,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 							...apiConfiguration,
 							[modelInfoField]: response.models[modelId],
 						}
-						await controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.cacheService.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -68,7 +68,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						await controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.cacheService.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				}
@@ -78,7 +78,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = await controller.cacheService.getApiConfiguration()
+				const apiConfiguration = controller.cacheService.getApiConfiguration()
 				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
 				const currentMode = await controller.getCurrentMode()
 
@@ -93,7 +93,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 							...apiConfiguration,
 							[modelInfoField]: response.models[modelId],
 						}
-						await controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.cacheService.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -114,7 +114,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						await controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.cacheService.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				}

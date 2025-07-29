@@ -30,7 +30,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
-import { CacheService } from "../storage/CacheService"
+import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -70,6 +70,25 @@ export class Controller {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 		this.cacheService = cacheService
+
+		// Set up persistence error recovery
+		this.cacheService.onPersistenceError(async ({ error }: PersistenceErrorEvent) => {
+			console.error("Cache persistence failed, recovering:", error)
+			try {
+				await this.cacheService.reInitialize()
+				await this.postStateToWebview()
+				HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "Saving settings to storage failed.",
+				})
+			} catch (recoveryError) {
+				console.error("Cache recovery failed:", recoveryError)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to save settings. Please restart the extension.",
+				})
+			}
+		})
 
 		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
@@ -119,13 +138,13 @@ export class Controller {
 			await updateGlobalState(this.context, "userInfo", undefined)
 
 			// Update API providers through cache service
-			const apiConfiguration = await this.cacheService.getApiConfiguration()
+			const apiConfiguration = this.cacheService.getApiConfiguration()
 			const updatedConfig = {
 				...apiConfiguration,
 				planModeApiProvider: "openrouter" as ApiProvider,
 				actModeApiProvider: "openrouter" as ApiProvider,
 			}
-			await this.cacheService.setApiConfiguration(updatedConfig)
+			this.cacheService.setApiConfiguration(updatedConfig)
 
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
@@ -148,7 +167,7 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		// Get API configuration from cache for immediate access
-		const apiConfiguration = await this.cacheService.getApiConfiguration()
+		const apiConfiguration = this.cacheService.getApiConfiguration()
 
 		const {
 			autoApprovalSettings,
@@ -268,7 +287,7 @@ export class Controller {
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
-			const apiConfiguration = await this.cacheService.getApiConfiguration()
+			const apiConfiguration = this.cacheService.getApiConfiguration()
 			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
 		}
 
@@ -336,7 +355,7 @@ export class Controller {
 			const currentMode = await this.getCurrentMode()
 
 			// Get current API configuration from cache
-			const currentApiConfiguration = await this.cacheService.getApiConfiguration()
+			const currentApiConfiguration = this.cacheService.getApiConfiguration()
 
 			let updatedConfig = { ...currentApiConfiguration }
 
@@ -354,7 +373,7 @@ export class Controller {
 			}
 
 			// Update the API configuration through cache service
-			await this.cacheService.setApiConfiguration(updatedConfig)
+			this.cacheService.setApiConfiguration(updatedConfig)
 
 			// Mark welcome view as completed since user has successfully logged in
 			await updateGlobalState(this.context, "welcomeViewCompleted", true)
@@ -518,14 +537,14 @@ export class Controller {
 		const currentMode = await this.getCurrentMode()
 
 		// Update API configuration through cache service
-		const currentApiConfiguration = await this.cacheService.getApiConfiguration()
+		const currentApiConfiguration = this.cacheService.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
 			planModeApiProvider: openrouter,
 			actModeApiProvider: openrouter,
 			openRouterApiKey: apiKey,
 		}
-		await this.cacheService.setApiConfiguration(updatedConfig)
+		this.cacheService.setApiConfiguration(updatedConfig)
 
 		await this.postStateToWebview()
 		if (this.task) {
@@ -704,7 +723,7 @@ export class Controller {
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const apiConfiguration = await this.cacheService.getApiConfiguration()
+		const apiConfiguration = this.cacheService.getApiConfiguration()
 
 		const {
 			lastShownAnnouncementId,

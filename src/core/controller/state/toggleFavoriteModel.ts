@@ -16,7 +16,7 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 		}
 
 		const modelId = request.value
-		const apiConfiguration = await controller.cacheService.getApiConfiguration()
+		const apiConfiguration = controller.cacheService.getApiConfiguration()
 
 		const favoritedModelIds = apiConfiguration.favoritedModelIds || []
 
@@ -30,7 +30,7 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 			...apiConfiguration,
 			favoritedModelIds: updatedFavorites,
 		}
-		await controller.cacheService.setApiConfiguration(updatedApiConfiguration)
+		controller.cacheService.setApiConfiguration(updatedApiConfiguration)
 
 		// Capture telemetry for model favorite toggle
 		const isFavorited = !favoritedModelIds.includes(modelId)

@@ -7,13 +7,7 @@ import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
 import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
-import {
-	updateGlobalState,
-	getAllExtensionState,
-	updateApiConfiguration,
-	storeSecret,
-	updateWorkspaceState,
-} from "@core/storage/state"
+import { updateGlobalState, getAllExtensionState, storeSecret } from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -270,11 +264,11 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						// Store the API key securely
 						await storeSecret(visibleWebview.controller.context, "clineAccountId", apiKey)
 
-						await visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
+						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
 
 						// Update cache service to use cline provider
-						const currentConfig = await visibleWebview.controller.cacheService.getApiConfiguration()
-						await visibleWebview.controller.cacheService.setApiConfiguration({
+						const currentConfig = visibleWebview.controller.cacheService.getApiConfiguration()
+						visibleWebview.controller.cacheService.setApiConfiguration({
 							...currentConfig,
 							planModeApiProvider: "cline",
 							actModeApiProvider: "cline",

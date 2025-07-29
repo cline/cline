@@ -49,7 +49,6 @@ import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
 import { ensureTaskDirectoryExists } from "../storage/disk"
-import { getGlobalState, getWorkspaceState } from "../storage/state"
 import { CacheService } from "../storage/CacheService"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
@@ -1922,7 +1921,7 @@ export class ToolExecutor {
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
-						const apiConfig = await this.cacheService.getApiConfiguration()
+						const apiConfig = this.cacheService.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 

@@ -86,6 +86,7 @@ import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { CacheService } from "../storage/CacheService"
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -129,7 +130,7 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	// Cache service
-	private cacheService: any // CacheService
+	private cacheService: CacheService
 
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
@@ -160,7 +161,7 @@ export class Task {
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		cwd: string,
-		cacheService: any, // CacheService
+		cacheService: CacheService,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -1616,8 +1617,8 @@ export class Task {
 
 	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
-		const apiConfig = await this.cacheService.getApiConfiguration()
-		const providerId = this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		const apiConfig = this.cacheService.getApiConfiguration()
+		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		return { modelId, providerId }
 	}
 
