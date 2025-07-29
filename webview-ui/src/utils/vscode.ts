@@ -18,7 +18,7 @@ declare global {
 }
 
 class VSCodeAPIWrapper {
-	private readonly vsCodeApi: WebviewApi | undefined
+	private readonly vsCodeApi: WebviewApi<unknown> | undefined
 
 	constructor() {
 		// Check if the acquireVsCodeApi function exists in the current development
