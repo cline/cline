@@ -1,9 +1,9 @@
-import vscode from "vscode"
 import { String } from "@shared/proto/cline/common"
-import { AuthService, ServiceConfig } from "./AuthService"
+import type vscode from "vscode"
 import { clineEnvConfig } from "@/config"
-import { UserResponse } from "@/shared/ClineAccount"
 import { WebviewProvider } from "@/core/webview"
+import type { UserResponse } from "@/shared/ClineAccount"
+import { AuthService, type ServiceConfig } from "./AuthService"
 
 export class AuthServiceMock extends AuthService {
 	protected constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
@@ -123,6 +123,24 @@ export class AuthServiceMock extends AuthService {
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
+		}
+	}
+
+	override async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
+		try {
+			if (this._clineAuthInfo) {
+				this._authenticated = true
+				await this.sendAuthStatusUpdate()
+			} else {
+				console.warn("No user found after restoring auth token")
+				this._authenticated = false
+				this._clineAuthInfo = null
+			}
+		} catch (error) {
+			console.error("Error restoring auth token:", error)
+			this._authenticated = false
+			this._clineAuthInfo = null
+			return
 		}
 	}
 }

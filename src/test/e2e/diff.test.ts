@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
-e2e("Authed as Cline user", async ({ page, sidebar }) => {
+e2e("Diff editor", async ({ page, sidebar }) => {
 	await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
 
 	await expect(sidebar.getByText(/cline:anthropic\/claude/, { exact: true })).toBeVisible()

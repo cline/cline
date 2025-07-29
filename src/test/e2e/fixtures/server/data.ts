@@ -7,6 +7,16 @@ import type {
 	UserResponse,
 } from "../../../../shared/ClineAccount"
 
+const organizations = [
+	{
+		organizationId: "random-org-id",
+		memberId: "random-member-id",
+		name: "Test Organization",
+		roles: ["member"],
+		active: false,
+	},
+] satisfies UserResponse["organizations"]
+
 export class ClineDataMock {
 	public static readonly USERS = [
 		{
@@ -17,6 +27,7 @@ export class ClineDataMock {
 			email: "personal@example.com",
 			displayName: "Personal User",
 			photoUrl: "https://example.com/personal-photo.jpg",
+			organizations,
 		},
 		{
 			name: "test-enterprise-user",
@@ -26,6 +37,7 @@ export class ClineDataMock {
 			email: "test@example.com",
 			displayName: "Enterprise User",
 			photoUrl: "https://example.com/photo.jpg",
+			organizations,
 		},
 	]
 
@@ -89,7 +101,6 @@ export class ClineDataMock {
 	}
 	// Helper to create UserResponse from USERS array data
 	private _createUserResponse(userData: (typeof ClineDataMock.USERS)[0]): UserResponse {
-		const isEnterprise = !!userData.orgId
 		const currentTime = new Date().toISOString()
 
 		return {
@@ -99,15 +110,7 @@ export class ClineDataMock {
 			photoUrl: userData.photoUrl,
 			createdAt: currentTime,
 			updatedAt: currentTime,
-			organizations: [
-				{
-					organizationId: userData.orgId || "",
-					memberId: userData.uid,
-					name: isEnterprise ? "Active Test Organization" : "Inactive Test Organization",
-					roles: [isEnterprise ? "member" : "member"],
-					active: isEnterprise,
-				},
-			],
+			organizations,
 		}
 	}
 
@@ -132,15 +135,7 @@ export class ClineDataMock {
 				photoUrl: "https://example.com/photo.jpg",
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString(),
-				organizations: [
-					{
-						organizationId: "random-org-id",
-						memberId: "random-member-id",
-						name: "Test Organization",
-						roles: ["owner"],
-						active: false,
-					},
-				],
+				organizations,
 			}
 		}
 
@@ -149,7 +144,7 @@ export class ClineDataMock {
 
 	public getMockBalance(userId: string): BalanceResponse {
 		return {
-			balance: 100.5, // Sufficient credits for testing
+			balance: 100000, // Sufficient credits for testing
 			userId,
 		}
 	}
@@ -166,19 +161,21 @@ export class ClineDataMock {
 		orgId?: string,
 		max = 5,
 	): UsageTransaction[] | OrganizationUsageTransaction[] {
+		console.log("Generating mock usage transactions for", { orgId, userId })
 		const usages: (OrganizationUsageTransaction | UsageTransaction)[] = []
 		const currentTime = new Date().toISOString()
 		const memberDisplayName = this._currentUser?.displayName || "Test User"
 		const memberEmail = this._currentUser?.email || "test@example.com"
+		const firstUsage = orgId ? 6000 : 1000
 
 		for (let i = 0; i < max; i++) {
 			const completionTokens = Math.floor(Math.random() * 100) + 50 // 50-150 tokens
-			const randomCost = Math.random() * 0.1 + 0.01 // $0.01-$0.11
+			const randomCost = i === 0 ? firstUsage : Math.random() * 0.1 + 0.01 // $0.01-$0.11
 
 			usages.push({
 				id: `usage-${i + 1}`,
 				aiInferenceProviderName: "anthropic",
-				aiModelName: "claude-3-5-sonnet-20241022",
+				aiModelName: orgId ? "claude-4-opus-latest" : "claude-4-sonnet-latest",
 				aiModelTypeName: "chat",
 				completionTokens,
 				costUsd: Number(randomCost.toFixed(2)),

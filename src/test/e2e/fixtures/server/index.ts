@@ -158,7 +158,7 @@ export class ClineApiServerMock {
 				controller.setCurrentUser(user)
 			}
 
-			console.log("Received %s request for %s with query", method, path, query)
+			console.log("Received %s request for %s query %s", method, path, JSON.stringify(query))
 
 			// Route handling
 			const handleRequest = async () => {
@@ -202,22 +202,24 @@ export class ClineApiServerMock {
 					}
 
 					if (endpoint === "/users/{userId}/usages" && method === "GET") {
+						const { userId } = params
 						const currentUser = controller.currentUser
-						if (!currentUser) {
+						if (currentUser?.id !== userId) {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse({
-							items: controller.API_USER.getMockUsageTransactions(currentUser.id),
+							items: controller.API_USER.getMockUsageTransactions(userId),
 						})
 					}
 
 					if (endpoint === "/users/{userId}/payments" && method === "GET") {
+						const { userId } = params
 						const currentUser = controller.currentUser
-						if (!currentUser) {
+						if (currentUser?.id !== userId) {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse({
-							paymentTransactions: controller.API_USER.getMockPaymentTransactions(currentUser.id),
+							paymentTransactions: controller.API_USER.getMockPaymentTransactions(userId),
 						})
 					}
 
@@ -237,21 +239,37 @@ export class ClineApiServerMock {
 							return sendApiError("Unauthorized", 401)
 						}
 						const body = await readBody()
-						const { organizationId } = JSON.parse(body)
+						const { orgId } = params
+						console.log("Fetching organization usage transactions for", {
+							orgId,
+							body,
+						})
 						return sendApiResponse({
-							items: controller.API_USER.getMockUsageTransactions(currentUser.id, organizationId),
+							items: controller.API_USER.getMockUsageTransactions(currentUser.id, orgId),
 						})
 					}
 
 					if (endpoint === "/users/active-account" && method === "PUT") {
 						const body = await readBody()
+						console.log("Switching active account")
 						const { organizationId } = JSON.parse(body)
-						controller.userHasOrganization = !!organizationId
+						controller.setUserHasOrganization(!!organizationId)
 						const currentUser = controller.API_USER.getCurrentUser()
 						if (!currentUser) {
 							return sendApiError("No current user found", 400)
 						}
-						currentUser.organizations[0].active = controller.userHasOrganization
+						if (organizationId === null) {
+							for (const org of currentUser.organizations) {
+								org.active = false
+							}
+						} else {
+							const orgIndex = currentUser.organizations.findIndex((org) => org.organizationId === organizationId)
+							if (orgIndex === -1) {
+								return sendApiError("Organization not found", 404)
+							}
+							currentUser.organizations[orgIndex].active = controller.userHasOrganization
+						}
+						controller.setCurrentUser(currentUser)
 						return sendApiResponse("Account switched successfully")
 					}
 
