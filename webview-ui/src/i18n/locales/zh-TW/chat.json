@@ -265,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來強大的新功能和重大改進，提升您的開發工作流程。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>Hugging Face 提供者</bold>：透過新的 Hugging Face 提供者直接存取大量優秀的開源模型，具備無縫整合和模型選擇功能。",
-		"feature2": "<bold>內嵌命令控制</bold>：新的自動核准和拒絕命令執行控制，為您提供對終端機操作的精確控制和可自訂權限。",
-		"feature3": "<bold>AGENTS.md 規則支援</bold>：新增對專案根目錄中社群標準 AGENTS.md 檔案的支援。",
+		"feature1": "<bold>訊息佇列</bold>：在 Roo 工作時將多個訊息排入佇列，讓您可以不間斷地繼續規劃工作流程。",
+		"feature2": "<bold>自訂斜線命令</bold>：建立個人化斜線命令，快速存取常用提示和工作流程，具備完整的 UI 管理功能。",
+		"feature3": "<bold>增強的 Gemini 工具</bold>：新的 URL 上下文和 Google 搜尋基礎功能為 Gemini 模型提供即時網路資訊和增強的研究能力。",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},

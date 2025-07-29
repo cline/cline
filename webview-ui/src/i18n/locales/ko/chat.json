@@ -265,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} 출시",
 		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>Hugging Face 프로바이더</bold>: 새로운 Hugging Face 프로바이더를 통해 원활한 통합과 모델 선택으로 수많은 훌륭한 오픈 소스 모델에 직접 액세스하세요.",
-		"feature2": "<bold>인라인 명령 제어</bold>: 명령 실행을 위한 새로운 자동 승인 및 거부 제어로 사용자 정의 가능한 권한으로 터미널 작업을 정밀하게 제어할 수 있습니다.",
-		"feature3": "<bold>AGENTS.md 규칙 지원</bold>: 프로젝트 루트에 커뮤니티 표준 AGENTS.md 파일에 대한 지원을 추가합니다.",
+		"feature1": "<bold>메시지 대기열</bold>: Roo가 작업하는 동안 여러 메시지를 대기열에 넣어 워크플로우 계획을 중단 없이 계속할 수 있습니다.",
+		"feature2": "<bold>사용자 정의 슬래시 명령</bold>: 자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 개인화된 슬래시 명령을 생성하고, 완전한 UI 관리를 제공합니다.",
+		"feature3": "<bold>향상된 Gemini 도구</bold>: 새로운 URL 컨텍스트 및 Google 검색 기반 기능으로 Gemini 모델에 실시간 웹 정보와 향상된 연구 기능을 제공합니다.",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 자세한 내용을 확인하고 토론에 참여하세요 🚀"
 	},

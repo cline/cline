@@ -265,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} Llançat",
 		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Proveïdor de Hugging Face</bold>: Accedeix a molts models de codi obert excel·lents directament a través del nou proveïdor de Hugging Face amb integració perfecta i selecció de models.",
-		"feature2": "<bold>Controls de Comandament en Línia</bold>: Nous controls d'aprovació automàtica i denegació per a l'execució de comandaments et donen control precís sobre les operacions de terminal amb permisos personalitzables.",
-		"feature3": "<bold>Suport per a Regles AGENTS.md</bold>: Afegeix suport per a un fitxer AGENTS.md estàndard de la comunitat a l'arrel del projecte.",
+		"feature1": "<bold>Cua de Missatges</bold>: Posa en cua múltiples missatges mentre Roo està treballant, permetent-te continuar planificant el teu flux de treball sense interrupcions.",
+		"feature2": "<bold>Comandaments de Barra Personalitzats</bold>: Crea comandaments de barra personalitzats per a accés ràpid a prompts i fluxos de treball utilitzats freqüentment, amb gestió completa de la interfície d'usuari.",
+		"feature3": "<bold>Eines Gemini Millorades</bold>: Noves capacitats de context d'URL i fonamentació de cerca de Google proporcionen als models Gemini informació web en temps real i capacitats de recerca millorades.",
 		"hideButton": "Amaga l'anunci",
 		"detailsDiscussLinks": "Obtén més detalls i uneix-te a les discussions a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

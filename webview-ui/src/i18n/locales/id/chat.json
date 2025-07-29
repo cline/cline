@@ -277,9 +277,9 @@
 		"title": "🎉 Roo Code {{version}} Dirilis",
 		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
 		"whatsNew": "Yang Baru",
-		"feature1": "<bold>Penyedia Hugging Face</bold>: Akses banyak model open source yang luar biasa secara langsung melalui penyedia Hugging Face baru dengan integrasi yang mulus dan pemilihan model.",
-		"feature2": "<bold>Kontrol Perintah Inline</bold>: Kontrol persetujuan otomatis dan penolakan baru untuk eksekusi perintah memberi Anda kontrol yang tepat atas operasi terminal dengan izin yang dapat disesuaikan.",
-		"feature3": "<bold>Dukungan Aturan AGENTS.md</bold>: Menambahkan dukungan untuk file AGENTS.md standar komunitas di root proyek.",
+		"feature1": "<bold>Antrian Pesan</bold>: Antrikan beberapa pesan saat Roo sedang bekerja, memungkinkan Anda melanjutkan perencanaan alur kerja tanpa gangguan.",
+		"feature2": "<bold>Perintah Slash Kustom</bold>: Buat perintah slash yang dipersonalisasi untuk akses cepat ke prompt dan alur kerja yang sering digunakan, dengan manajemen UI lengkap.",
+		"feature3": "<bold>Alat Gemini yang Ditingkatkan</bold>: Kemampuan konteks URL baru dan dasar pencarian Google memberikan model Gemini informasi web real-time dan kemampuan penelitian yang ditingkatkan.",
 		"hideButton": "Sembunyikan pengumuman",
 		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan bergabung dalam diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
 	},

@@ -265,9 +265,9 @@
 		"title": "🎉 Rilasciato Roo Code {{version}}",
 		"description": "Roo Code {{version}} porta nuove potenti funzionalità e miglioramenti significativi per potenziare il tuo flusso di lavoro di sviluppo.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Provider Hugging Face</bold>: Accedi a tantissimi ottimi modelli open source direttamente tramite il nuovo provider Hugging Face con integrazione perfetta e selezione dei modelli.",
-		"feature2": "<bold>Controlli Comando Inline</bold>: Nuovi controlli di approvazione automatica e rifiuto per l'esecuzione dei comandi ti danno controllo preciso sulle operazioni del terminale con permessi personalizzabili.",
-		"feature3": "<bold>Supporto Regole AGENTS.md</bold>: Aggiunge il supporto per un file AGENTS.md standard della comunità nella radice del progetto.",
+		"feature1": "<bold>Coda Messaggi</bold>: Metti in coda più messaggi mentre Roo sta lavorando, permettendoti di continuare a pianificare il tuo flusso di lavoro senza interruzioni.",
+		"feature2": "<bold>Comandi Slash Personalizzati</bold>: Crea comandi slash personalizzati per accesso rapido a prompt e flussi di lavoro utilizzati frequentemente, con gestione completa dell'interfaccia utente.",
+		"feature3": "<bold>Strumenti Gemini Migliorati</bold>: Nuove capacità di contesto URL e fondamenta di ricerca Google forniscono ai modelli Gemini informazioni web in tempo reale e capacità di ricerca migliorate.",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},
