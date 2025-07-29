@@ -34,7 +34,8 @@ import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
-import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { sendAddToInputEvent, sendAddToInputEventToClient } from "./ui/subscribeToAddToInput"
+import { WebviewProvider } from "../webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -552,10 +553,6 @@ export class Controller {
 
 	// 'Add to Cline' context menu in editor and code action
 	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-
 		// Post message to webview with the selected code
 		const fileMention = await this.getFileMentionFromPath(filePath)
 
@@ -565,7 +562,10 @@ export class Controller {
 			input += `\nProblems:\n${problemsString}`
 		}
 
-		await sendAddToInputEvent(input)
+		const lastActiveWebview = WebviewProvider.getLastActiveInstance()
+		if (lastActiveWebview) {
+			await sendAddToInputEventToClient(lastActiveWebview.getClientId(), input)
+		}
 
 		console.log("addSelectedCodeToChat", code, filePath, languageId)
 	}

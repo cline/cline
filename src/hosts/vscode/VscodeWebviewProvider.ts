@@ -4,9 +4,9 @@ import { WebviewProvider } from "@core/webview"
 import { getTheme } from "@integrations/theme/getTheme"
 import type { Uri } from "vscode"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
-import { HostProvider } from "@/hosts/host-provider"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -71,6 +71,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			webviewView.onDidChangeViewState(
 				async (e) => {
 					if (e?.webviewPanel?.visible && e.webviewPanel?.active) {
+						WebviewProvider.setLastActiveControllerId(this.controller.id)
 						//  Only send the event if the webview is active (focused)
 						await sendDidBecomeVisibleEvent(this.controller.id)
 					}
@@ -83,6 +84,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			webviewView.onDidChangeVisibility(
 				async () => {
 					if (this.webview?.visible) {
+						WebviewProvider.setLastActiveControllerId(this.controller.id)
 						await sendDidBecomeVisibleEvent(this.controller.id)
 					}
 				},
@@ -95,6 +97,9 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// This happens when the user closes the view or when the view is closed programmatically
 		webviewView.onDidDispose(
 			async () => {
+				if (WebviewProvider.getLastActiveControllerId() === this.controller.id) {
+					WebviewProvider.setLastActiveControllerId(null)
+				}
 				await this.dispose()
 			},
 			null,
