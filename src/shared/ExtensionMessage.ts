@@ -25,6 +25,7 @@ export interface Command {
 	source: "global" | "project"
 	filePath?: string
 	description?: string
+	argumentHint?: string
 }
 
 // Type for marketplace installed metadata

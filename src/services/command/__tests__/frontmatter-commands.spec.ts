@@ -43,6 +43,7 @@ npm run build
 				source: "project",
 				filePath: path.join("/test/cwd", ".roo", "commands", "setup.md"),
 				description: "Sets up the development environment",
+				argumentHint: undefined,
 			})
 		})
 
@@ -66,6 +67,7 @@ npm run build
 				source: "project",
 				filePath: path.join("/test/cwd", ".roo", "commands", "setup.md"),
 				description: undefined,
+				argumentHint: undefined,
 			})
 		})
 
@@ -108,6 +110,7 @@ Command content here.`
 				source: "project",
 				filePath: path.join("/test/cwd", ".roo", "commands", "setup.md"),
 				description: undefined,
+				argumentHint: undefined,
 			})
 		})
 
@@ -142,6 +145,7 @@ Global setup instructions.`
 				source: "project",
 				filePath: path.join("/test/cwd", ".roo", "commands", "setup.md"),
 				description: "Project-specific setup",
+				argumentHint: undefined,
 			})
 		})
 
@@ -168,7 +172,115 @@ Global setup instructions.`
 				source: "global",
 				filePath: expect.stringContaining(path.join(".roo", "commands", "setup.md")),
 				description: "Global setup command",
+				argumentHint: undefined,
 			})
+		})
+	})
+
+	describe("argument-hint functionality", () => {
+		it("should load command with argument-hint from frontmatter", async () => {
+			const commandContent = `---
+description: Create a new release of the Roo Code extension
+argument-hint: patch | minor | major
+---
+
+# Release Command
+
+Create a new release.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readFile = vi.fn().mockResolvedValue(commandContent)
+
+			const result = await getCommand("/test/cwd", "release")
+
+			expect(result).toEqual({
+				name: "release",
+				content: "# Release Command\n\nCreate a new release.",
+				source: "project",
+				filePath: path.join("/test/cwd", ".roo", "commands", "release.md"),
+				description: "Create a new release of the Roo Code extension",
+				argumentHint: "patch | minor | major",
+			})
+		})
+
+		it("should handle command with both description and argument-hint", async () => {
+			const commandContent = `---
+description: Deploy application to environment
+argument-hint: staging | production
+author: DevOps Team
+---
+
+# Deploy Command
+
+Deploy the application.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readFile = vi.fn().mockResolvedValue(commandContent)
+
+			const result = await getCommand("/test/cwd", "deploy")
+
+			expect(result).toEqual({
+				name: "deploy",
+				content: "# Deploy Command\n\nDeploy the application.",
+				source: "project",
+				filePath: path.join("/test/cwd", ".roo", "commands", "deploy.md"),
+				description: "Deploy application to environment",
+				argumentHint: "staging | production",
+			})
+		})
+
+		it("should handle empty argument-hint in frontmatter", async () => {
+			const commandContent = `---
+description: Test command
+argument-hint: ""
+---
+
+# Test Command
+
+Test content.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readFile = vi.fn().mockResolvedValue(commandContent)
+
+			const result = await getCommand("/test/cwd", "test")
+
+			expect(result?.argumentHint).toBeUndefined()
+		})
+
+		it("should handle whitespace-only argument-hint in frontmatter", async () => {
+			const commandContent = `---
+description: Test command
+argument-hint: "   "
+---
+
+# Test Command
+
+Test content.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readFile = vi.fn().mockResolvedValue(commandContent)
+
+			const result = await getCommand("/test/cwd", "test")
+
+			expect(result?.argumentHint).toBeUndefined()
+		})
+
+		it("should handle non-string argument-hint in frontmatter", async () => {
+			const commandContent = `---
+description: Test command
+argument-hint: 123
+---
+
+# Test Command
+
+Test content.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readFile = vi.fn().mockResolvedValue(commandContent)
+
+			const result = await getCommand("/test/cwd", "test")
+
+			expect(result?.argumentHint).toBeUndefined()
 		})
 	})
 
@@ -215,14 +327,62 @@ Build instructions without frontmatter.`
 					expect.objectContaining({
 						name: "setup",
 						description: "Sets up the development environment",
+						argumentHint: undefined,
 					}),
 					expect.objectContaining({
 						name: "deploy",
 						description: "Deploys the application to production",
+						argumentHint: undefined,
 					}),
 					expect.objectContaining({
 						name: "build",
 						description: undefined,
+						argumentHint: undefined,
+					}),
+				]),
+			)
+		})
+
+		it("should load multiple commands with argument hints", async () => {
+			const releaseContent = `---
+description: Create a new release
+argument-hint: patch | minor | major
+---
+
+# Release Command
+
+Create a release.`
+
+			const deployContent = `---
+description: Deploy to environment
+argument-hint: staging | production
+---
+
+# Deploy Command
+
+Deploy the app.`
+
+			mockFs.stat = vi.fn().mockResolvedValue({ isDirectory: () => true })
+			mockFs.readdir = vi.fn().mockResolvedValue([
+				{ name: "release.md", isFile: () => true },
+				{ name: "deploy.md", isFile: () => true },
+			])
+			mockFs.readFile = vi.fn().mockResolvedValueOnce(releaseContent).mockResolvedValueOnce(deployContent)
+
+			const result = await getCommands("/test/cwd")
+
+			expect(result).toHaveLength(2)
+			expect(result).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						name: "release",
+						description: "Create a new release",
+						argumentHint: "patch | minor | major",
+					}),
+					expect.objectContaining({
+						name: "deploy",
+						description: "Deploy to environment",
+						argumentHint: "staging | production",
 					}),
 				]),
 			)

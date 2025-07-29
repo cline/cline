@@ -119,6 +119,7 @@ export interface ContextMenuQueryItem {
 	icon?: string
 	slashCommand?: string
 	secondaryText?: string
+	argumentHint?: string
 }
 
 export function getContextMenuOptions(
@@ -155,12 +156,14 @@ export function getContextMenuOptions(
 						value: result.item.original.name,
 						slashCommand: `/${result.item.original.name}`,
 						description: result.item.original.description,
+						argumentHint: result.item.original.argumentHint,
 					}))
 				: commands.map((command) => ({
 						type: ContextMenuOptionType.Command,
 						value: command.name,
 						slashCommand: `/${command.name}`,
 						description: command.description,
+						argumentHint: command.argumentHint,
 					}))
 
 			if (matchingCommands.length > 0) {

@@ -107,8 +107,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Command:
 				return (
 					<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-						<div style={{ lineHeight: "1.2" }}>
+						<div style={{ lineHeight: "1.2", display: "flex", alignItems: "center", gap: "6px" }}>
 							<span>{option.slashCommand}</span>
+							{option.argumentHint && (
+								<span
+									style={{
+										opacity: 0.5,
+										fontSize: "0.9em",
+										lineHeight: "1.2",
+									}}>
+									{option.argumentHint}
+								</span>
+							)}
 						</div>
 						{option.description && (
 							<span

@@ -9,6 +9,7 @@ describe("Command Autocomplete", () => {
 		{ name: "deploy", source: "global" },
 		{ name: "test-suite", source: "project" },
 		{ name: "cleanup_old", source: "global" },
+		{ name: "release", source: "project", argumentHint: "patch | minor | major" },
 	]
 
 	const mockQueryItems = [
@@ -20,12 +21,12 @@ describe("Command Autocomplete", () => {
 		it('should return all commands when query is just "/"', () => {
 			const options = getContextMenuOptions("/", null, mockQueryItems, [], [], mockCommands)
 
-			// Should have 6 items: 1 section header + 5 commands
-			expect(options).toHaveLength(6)
+			// Should have 7 items: 1 section header + 6 commands
+			expect(options).toHaveLength(7)
 
 			// Filter out section headers to check commands
 			const commandOptions = options.filter((option) => option.type === ContextMenuOptionType.Command)
-			expect(commandOptions).toHaveLength(5)
+			expect(commandOptions).toHaveLength(6)
 
 			const commandNames = commandOptions.map((option) => option.value)
 			expect(commandNames).toContain("setup")
@@ -33,6 +34,7 @@ describe("Command Autocomplete", () => {
 			expect(commandNames).toContain("deploy")
 			expect(commandNames).toContain("test-suite")
 			expect(commandNames).toContain("cleanup_old")
+			expect(commandNames).toContain("release")
 		})
 
 		it("should filter commands based on fuzzy search", () => {
@@ -148,7 +150,7 @@ describe("Command Autocomplete", () => {
 			const commandOptions = options.filter((option) => option.type === ContextMenuOptionType.Command)
 
 			expect(modeOptions.length).toBe(2)
-			expect(commandOptions.length).toBe(5)
+			expect(commandOptions.length).toBe(6)
 		})
 
 		it("should filter both modes and commands based on query", () => {
@@ -178,6 +180,42 @@ describe("Command Autocomplete", () => {
 				expect(setupOption!.description).not.toContain("global")
 				expect(setupOption!.description).toBe("Trigger the setup command")
 			}
+		})
+	})
+
+	describe("argument hint functionality", () => {
+		it("should include argumentHint in command options when present", () => {
+			const options = getContextMenuOptions("/release", null, mockQueryItems, [], [], mockCommands)
+
+			const releaseOption = options.find((option) => option.value === "release")
+			expect(releaseOption).toBeDefined()
+			expect(releaseOption!.argumentHint).toBe("patch | minor | major")
+		})
+
+		it("should handle commands without argumentHint", () => {
+			const options = getContextMenuOptions("/setup", null, mockQueryItems, [], [], mockCommands)
+
+			const setupOption = options.find((option) => option.value === "setup")
+			expect(setupOption).toBeDefined()
+			expect(setupOption!.argumentHint).toBeUndefined()
+		})
+
+		it("should preserve argumentHint through fuzzy search", () => {
+			const options = getContextMenuOptions("/rel", null, mockQueryItems, [], [], mockCommands)
+
+			const releaseOption = options.find((option) => option.value === "release")
+			expect(releaseOption).toBeDefined()
+			expect(releaseOption!.argumentHint).toBe("patch | minor | major")
+		})
+
+		it("should handle commands with empty argumentHint", () => {
+			const commandsWithEmptyHint: Command[] = [{ name: "test-command", source: "project", argumentHint: "" }]
+
+			const options = getContextMenuOptions("/test", null, mockQueryItems, [], [], commandsWithEmptyHint)
+
+			const testOption = options.find((option) => option.value === "test-command")
+			expect(testOption).toBeDefined()
+			expect(testOption!.argumentHint).toBe("")
 		})
 	})
 
