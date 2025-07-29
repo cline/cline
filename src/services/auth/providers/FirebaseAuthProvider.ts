@@ -7,9 +7,22 @@ import { ExtensionContext } from "vscode"
 import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { jwtDecode } from "jwt-decode"
 import { clineEnvConfig } from "@/config"
-import { AuthProvider } from "./AuthProvider"
 
-export class FirebaseAuthProvider extends AuthProvider {
+export class FirebaseAuthProvider {
+	private _config: any
+
+	constructor(config: any) {
+		this._config = config || {}
+	}
+
+	get config(): any {
+		return this._config
+	}
+
+	set config(value: any) {
+		this._config = value
+	}
+
 	async shouldRefreshIdToken(existingIdToken: string): Promise<boolean> {
 		const decodedToken = jwtDecode(existingIdToken)
 		const exp = decodedToken.exp || 0 // 1752297633

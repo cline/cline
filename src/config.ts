@@ -27,7 +27,7 @@ function getClineEnv(): Environment {
 }
 
 // Config getter function to avoid storing all configs in memory
-function getEnvironmentConfig(env?: Environment): EnvironmentConfig {
+function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 	switch (env) {
 		case Environment.staging:
 			return {
@@ -78,4 +78,3 @@ const _configCache = getEnvironmentConfig(CLINE_ENVIRONMENT)
 console.info("Cline environment:", CLINE_ENVIRONMENT)
 
 export const clineEnvConfig = _configCache
-export const DEFAULT_CLINE_APP_URL = getEnvironmentConfig().appBaseUrl
