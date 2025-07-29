@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { UpdateSettingsRequest } from "../../../shared/proto/state"
+import { Empty } from "@shared/proto/cline/common"
+import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
@@ -21,7 +21,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await updateApiConfiguration(controller.context, apiConfiguration)
 
 			if (controller.task) {
-				controller.task.api = buildApiHandler(apiConfiguration)
+				const currentMode = await controller.getCurrentMode()
+				controller.task.api = buildApiHandler({ ...apiConfiguration, taskId: controller.task.taskId }, currentMode)
 			}
 		}
 
@@ -50,15 +51,24 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
-		// Update MCP responses collapsed setting
-		if (request.mcpRichDisplayEnabled !== undefined) {
-			await controller.context.globalState.update("mcpRichDisplayEnabled", request.mcpRichDisplayEnabled)
+		// Update MCP display mode setting
+		if (request.mcpDisplayMode !== undefined) {
+			await controller.context.globalState.update("mcpDisplayMode", request.mcpDisplayMode)
 		}
 
 		// Update chat settings
 		if (request.chatSettings) {
 			const chatSettings = convertProtoChatSettingsToChatSettings(request.chatSettings)
-			await controller.context.workspaceState.update("chatSettings", chatSettings)
+
+			// Store mode to global state
+			if (chatSettings.mode !== undefined) {
+				await controller.context.globalState.update("mode", chatSettings.mode)
+			}
+
+			// Store chat settings (excluding mode) to global state
+			const { mode, ...globalChatSettings } = chatSettings
+			await controller.context.globalState.update("chatSettings", globalChatSettings)
+
 			if (controller.task) {
 				controller.task.chatSettings = chatSettings
 			}

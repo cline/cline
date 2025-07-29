@@ -14,11 +14,9 @@ interface AutoApproveMenuItemProps {
 	showIcon?: boolean
 }
 
-const CheckboxContainer = styled.div<{
-	isFavorited?: boolean
-	onClick?: (e: MouseEvent) => void
-	onMouseDown?: (e: React.MouseEvent) => void
-}>`
+const CheckboxContainer = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isFavorited"].includes(prop),
+})<{ isFavorited?: boolean; onClick?: (e: MouseEvent) => void; onMouseDown?: (e: React.MouseEvent) => void }>`
 	display: flex;
 	align-items: center;
 	justify-content: space-between; /* Push content to edges */

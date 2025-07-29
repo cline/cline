@@ -1,16 +1,17 @@
-import { VSCodeDataGrid, VSCodeDataGridRow, VSCodeDataGridCell } from "@vscode/webview-ui-toolkit/react"
+import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
+import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
-import { TabButton } from "../mcp/configuration/McpConfigurationView"
-import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { formatDollars, formatTimestamp } from "@/utils/format"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
 
 interface CreditsHistoryTableProps {
 	isLoading: boolean
 	usageData: UsageTransaction[]
 	paymentsData: PaymentTransaction[]
+	showPayments?: boolean
 }
 
-const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHistoryTableProps) => {
+const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments }: CreditsHistoryTableProps) => {
 	const [activeTab, setActiveTab] = useState<"usage" | "payments">("usage")
 
 	return (
@@ -20,9 +21,11 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 				<TabButton isActive={activeTab === "usage"} onClick={() => setActiveTab("usage")}>
 					USAGE HISTORY
 				</TabButton>
-				<TabButton isActive={activeTab === "payments"} onClick={() => setActiveTab("payments")}>
-					PAYMENTS HISTORY
-				</TabButton>
+				{showPayments && (
+					<TabButton isActive={activeTab === "payments"} onClick={() => setActiveTab("payments")}>
+						PAYMENTS HISTORY
+					</TabButton>
+				)}
 			</div>
 
 			{/* Content container */}
@@ -55,11 +58,11 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 										{usageData.map((row, index) => (
 											<VSCodeDataGridRow key={index}>
 												<VSCodeDataGridCell grid-column="1">
-													{formatTimestamp(row.spentAt)}
+													{formatTimestamp(row.createdAt)}
 												</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{`${row.modelProvider}/${row.model}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="2">{`${row.aiModelName}`}</VSCodeDataGridCell>
 												{/* <VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell> */}
-												<VSCodeDataGridCell grid-column="3">{`$${Number(row.credits).toFixed(7)}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="3">{`$${Number(row.creditsUsed / 1000000).toFixed(4)}`}</VSCodeDataGridCell>
 											</VSCodeDataGridRow>
 										))}
 									</VSCodeDataGrid>
@@ -71,7 +74,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 							</>
 						)}
 
-						{activeTab === "payments" && (
+						{showPayments && activeTab === "payments" && (
 							<>
 								{paymentsData.length > 0 ? (
 									<VSCodeDataGrid>

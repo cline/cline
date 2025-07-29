@@ -1,13 +1,17 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { calculateApiCostAnthropic } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
-import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import * as vscode from "vscode"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
+import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
+
+interface VsCodeLmHandlerOptions {
+	vsCodeLmModelSelector?: any
+}
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
 // This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
@@ -124,12 +128,12 @@ declare module "vscode" {
  * ```
  */
 export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+	private options: VsCodeLmHandlerOptions
 	private client: vscode.LanguageModelChat | null
 	private disposable: vscode.Disposable | null
 	private currentRequestCancellation: vscode.CancellationTokenSource | null
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: VsCodeLmHandlerOptions) {
 		this.options = options
 		this.client = null
 		this.disposable = null
@@ -233,7 +237,28 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
+	private extractTextFromMessage(message: vscode.LanguageModelChatMessage): string {
+		if (Array.isArray(message.content)) {
+			return message.content
+				.filter((part) => part instanceof vscode.LanguageModelTextPart)
+				.map((part) => (part as vscode.LanguageModelTextPart).value)
+				.join("")
+		}
+		return ""
+	}
+
+	private isClaudeModel(): boolean {
+		return this.client?.family?.startsWith("claude") || false
+	}
+
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
+		// For Claude models, use character-to-token ratio instead of VSCode LM's inaccurate counting
+		if (this.isClaudeModel()) {
+			const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
+			// Use 4 character-to-token ratio for Claude models
+			return Math.ceil(textContent.length / 4)
+		}
+
 		// Check for required dependencies
 		if (!this.client) {
 			console.warn("Cline <Language Model API>: No client available for token counting")
@@ -300,15 +325,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private async calculateTotalInputTokens(
-		systemPrompt: string,
-		vsCodeLmMessages: vscode.LanguageModelChatMessage[],
-	): Promise<number> {
-		const systemTokens: number = await this.countTokens(systemPrompt)
-
+	private async calculateTotalInputTokens(vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {
 		const messageTokens: number[] = await Promise.all(vsCodeLmMessages.map((msg) => this.countTokens(msg)))
 
-		return systemTokens + messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
+		return messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
 	}
 
 	private ensureCleanState(): void {
@@ -430,7 +450,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		this.currentRequestCancellation = new vscode.CancellationTokenSource()
 
 		// Calculate input tokens before starting the stream
-		const totalInputTokens: number = await this.calculateTotalInputTokens(systemPrompt, vsCodeLmMessages)
+		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
 		let accumulatedText: string = ""

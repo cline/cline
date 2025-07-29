@@ -1,33 +1,31 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
-import * as sinon from "sinon"
-import * as should from "should"
-import * as vscode from "vscode"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
+import { HostProvider } from "@/hosts/host-provider"
+import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import * as stateModule from "@core/storage/state"
-import { createClineAPI } from "../index"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as should from "should"
+import * as sinon from "sinon"
 import type { ClineAPI } from "../cline"
+import { createClineAPI } from "../index"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI
 	let mockController: any
-	let mockOutputChannel: sinon.SinonStubbedInstance<vscode.OutputChannel>
+	let mockLogToChannel: sinon.SinonStub<[string], void>
 	let sandbox: sinon.SinonSandbox
 	let getGlobalStateStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 
-		// Create mock output channel
-		mockOutputChannel = {
-			appendLine: sandbox.stub(),
-			append: sandbox.stub(),
-			clear: sandbox.stub(),
-			show: sandbox.stub(),
-			hide: sandbox.stub(),
-			dispose: sandbox.stub(),
-			replace: sandbox.stub(),
-			name: "Cline Test",
-		} as any
-
+		// Create mock log function
+		mockLogToChannel = sandbox.stub<[string], void>()
+		HostProvider.initialize(
+			((_) => {}) as WebviewProviderCreator,
+			(() => {}) as DiffViewProviderCreator,
+			{} as HostBridgeClientProvider,
+			mockLogToChannel,
+		)
 		// Stub the getGlobalState function from the state module
 		// This is needed because the real createClineAPI uses it for getCustomInstructions
 		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")
@@ -58,7 +56,7 @@ describe("ClineAPI Core Functionality", () => {
 		}
 
 		// Create API instance
-		api = createClineAPI(mockOutputChannel as any, mockController)
+		api = createClineAPI(mockController)
 	})
 
 	afterEach(() => {
@@ -82,12 +80,9 @@ describe("ClineAPI Core Functionality", () => {
 			sinon.assert.calledWith(mockController.initTask, taskDescription, images)
 
 			// Verify logging - first it logs "Starting new task"
-			sinon.assert.calledWith(mockOutputChannel.appendLine, "Starting new task")
+			sinon.assert.calledWith(mockLogToChannel, "Starting new task")
 			// Then it logs the task details
-			sinon.assert.calledWith(
-				mockOutputChannel.appendLine,
-				`Task started with message: "Create a test function" and 2 image(s)`,
-			)
+			sinon.assert.calledWith(mockLogToChannel, `Task started with message: "Create a test function" and 2 image(s)`)
 		})
 
 		it("should handle undefined task description", async () => {
@@ -96,7 +91,7 @@ describe("ClineAPI Core Functionality", () => {
 			sinon.assert.called(mockController.clearTask)
 			sinon.assert.calledWith(mockController.initTask, undefined, [])
 
-			sinon.assert.calledWith(mockOutputChannel.appendLine, "Task started with message: undefined and 0 image(s)")
+			sinon.assert.calledWith(mockLogToChannel, "Task started with message: undefined and 0 image(s)")
 		})
 
 		it("should handle task with no images", async () => {
@@ -104,10 +99,7 @@ describe("ClineAPI Core Functionality", () => {
 
 			sinon.assert.calledWith(mockController.initTask, "Task without images", undefined)
 
-			sinon.assert.calledWith(
-				mockOutputChannel.appendLine,
-				`Task started with message: "Task without images" and 0 image(s)`,
-			)
+			sinon.assert.calledWith(mockLogToChannel, `Task started with message: "Task without images" and 0 image(s)`)
 		})
 	})
 
@@ -122,7 +114,7 @@ describe("ClineAPI Core Functionality", () => {
 
 			sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "messageResponse", "Test message", ["image.png"])
 
-			sinon.assert.calledWith(mockOutputChannel.appendLine, `Sending message: "Test message" with 1 image(s)`)
+			sinon.assert.calledWith(mockLogToChannel, `Sending message: "Test message" with 1 image(s)`)
 		})
 
 		it("should handle no active task gracefully", async () => {
@@ -130,7 +122,7 @@ describe("ClineAPI Core Functionality", () => {
 
 			await api.sendMessage("Message to nowhere", [])
 
-			sinon.assert.calledWith(mockOutputChannel.appendLine, "No active task to send message to")
+			sinon.assert.calledWith(mockLogToChannel, "No active task to send message to")
 		})
 
 		it("should handle empty message", async () => {
@@ -154,7 +146,7 @@ describe("ClineAPI Core Functionality", () => {
 
 			sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "messageResponse", "", [])
 
-			sinon.assert.calledWith(mockOutputChannel.appendLine, `Sending message: undefined with 0 image(s)`)
+			sinon.assert.calledWith(mockLogToChannel, `Sending message: undefined with 0 image(s)`)
 		})
 	})
 
@@ -170,7 +162,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "yesButtonClicked", "", [])
 
-				sinon.assert.calledWith(mockOutputChannel.appendLine, "Pressing primary button")
+				sinon.assert.calledWith(mockLogToChannel, "Pressing primary button")
 			})
 
 			it("should handle primary button press with no active task", async () => {
@@ -178,7 +170,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				await api.pressPrimaryButton()
 
-				sinon.assert.calledWith(mockOutputChannel.appendLine, "No active task to press button for")
+				sinon.assert.calledWith(mockLogToChannel, "No active task to press button for")
 			})
 		})
 
@@ -193,7 +185,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "noButtonClicked", "", [])
 
-				sinon.assert.calledWith(mockOutputChannel.appendLine, "Pressing secondary button")
+				sinon.assert.calledWith(mockLogToChannel, "Pressing secondary button")
 			})
 
 			it("should handle secondary button press with no active task", async () => {
@@ -201,7 +193,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				await api.pressSecondaryButton()
 
-				sinon.assert.calledWith(mockOutputChannel.appendLine, "No active task to press button for")
+				sinon.assert.calledWith(mockLogToChannel, "No active task to press button for")
 			})
 		})
 	})

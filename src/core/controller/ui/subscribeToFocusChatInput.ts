@@ -1,9 +1,9 @@
-import { StringRequest, Empty } from "@shared/proto/common"
+import { StringRequest, Empty } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import type { Controller } from "../index"
 
 // Map client IDs to their subscription handlers
-const focusChatInputSubscriptions = new Map<string, StreamingResponseHandler>()
+const focusChatInputSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to focus chat input events
@@ -13,9 +13,9 @@ const focusChatInputSubscriptions = new Map<string, StreamingResponseHandler>()
  * @param requestId The ID of the request
  */
 export async function subscribeToFocusChatInput(
-	controller: Controller,
+	_controller: Controller,
 	request: StringRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	const clientId = request.value

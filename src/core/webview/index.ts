@@ -10,6 +10,8 @@ import path from "node:path"
 import { v4 as uuidv4 } from "uuid"
 import { Uri } from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -22,13 +24,13 @@ export abstract class WebviewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		protected readonly outputChannel: vscode.OutputChannel,
+
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
-		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
+		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
 	}
 
 	// Add a method to get the client ID
@@ -165,8 +167,6 @@ export abstract class WebviewProvider {
 		// don't forget to add font-src ${webview.cspSource};
 		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
-		const katexCssUri = this.getExtensionUri("webview-ui", "node_modules", "katex", "dist", "katex.min.css")
-
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
 		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
@@ -198,9 +198,8 @@ export abstract class WebviewProvider {
 				<meta name="theme-color" content="#000000">
 				<link rel="stylesheet" type="text/css" href="${stylesUri}">
 				<link href="${codiconsUri}" rel="stylesheet" />
-				<link href="${katexCssUri}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
-					connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; 
+					connect-src https://*.posthog.com https://*.cline.bot https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; 
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
@@ -263,9 +262,14 @@ export abstract class WebviewProvider {
 		try {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
-			)
+			// Only show the error message if not in development mode.
+			if (!process.env.IS_DEV) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message:
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				})
+			}
 
 			return this.getHtmlContent()
 		}
@@ -273,9 +277,6 @@ export abstract class WebviewProvider {
 		const nonce = getNonce()
 		const stylesUri = this.getExtensionUri("webview-ui", "build", "assets", "index.css")
 		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
-
-		// Get KaTeX resources
-		const katexCssUri = this.getExtensionUri("webview-ui", "node_modules", "katex", "dist", "katex.min.css")
 
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
@@ -292,7 +293,7 @@ export abstract class WebviewProvider {
 
 		const csp = [
 			"default-src 'none'",
-			`font-src ${this.getCspSource()} data:`,
+			`font-src ${this.getCspSource()}`,
 			`style-src ${this.getCspSource()} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${this.getCspSource()} https: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
@@ -309,7 +310,6 @@ export abstract class WebviewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
-					<link href="${katexCssUri}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>

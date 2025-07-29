@@ -12,7 +12,7 @@ export type ServiceMethodHandler = (controller: Controller, message: any) => Pro
 export type StreamingMethodHandler = (
 	controller: Controller,
 	message: any,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<any>,
 	requestId?: string,
 ) => Promise<void>
 
@@ -37,6 +37,7 @@ export class ServiceRegistry {
 	 * @param serviceName The name of the service (used for logging)
 	 */
 	constructor(serviceName: string) {
+		console.log(`Registering Protobus service: ${serviceName}...`)
 		this.serviceName = serviceName
 	}
 
@@ -56,7 +57,6 @@ export class ServiceRegistry {
 		}
 
 		this.methodMetadata[methodName] = { isStreaming, ...metadata }
-		console.log(`Registered ${this.serviceName} method: ${methodName}${isStreaming ? " (streaming)" : ""}`)
 	}
 
 	/**
@@ -109,7 +109,7 @@ export class ServiceRegistry {
 		controller: Controller,
 		method: string,
 		message: any,
-		responseStream: StreamingResponseHandler,
+		responseStream: StreamingResponseHandler<any>,
 		requestId?: string,
 	): Promise<void> {
 		const handler = this.streamingMethodRegistry[method]
@@ -144,7 +144,7 @@ export function createServiceRegistry(serviceName: string) {
 			controller: Controller,
 			method: string,
 			message: any,
-			responseStream: StreamingResponseHandler,
+			responseStream: StreamingResponseHandler<any>,
 			requestId?: string,
 		) => registry.handleStreamingRequest(controller, method, message, responseStream, requestId),
 

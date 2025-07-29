@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { AutoApprovalSettingsRequest } from "../../../shared/proto/state"
-import { Empty } from "../../../shared/proto/common"
+import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { updateGlobalState } from "../../../core/storage/state"
 
@@ -22,7 +22,7 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 		await updateGlobalState(controller.context, "autoApprovalSettings", settings)
 
 		if (controller.task) {
-			controller.task.autoApprovalSettings = settings
+			controller.task.updateAutoApprovalSettings(settings)
 		}
 
 		await controller.postStateToWebview()

@@ -1,8 +1,7 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { McpViewTab } from "@shared/mcp"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
@@ -10,7 +9,7 @@ import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
 import InstalledServersView from "./tabs/installed/InstalledServersView"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { McpServers } from "@shared/proto/mcp"
+import { McpServers } from "@shared/proto/cline/mcp"
 
 type McpViewProps = {
 	onDone: () => void
@@ -113,19 +112,23 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	)
 }
 
-const StyledTabButton = styled.button<{ isActive: boolean }>`
+const StyledTabButton = styled.button.withConfig({
+	shouldForwardProp: (prop) => !["isActive"].includes(prop),
+})<{ isActive: boolean; disabled?: boolean }>`
 	background: none;
 	border: none;
 	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
 	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	padding: 8px 16px;
-	cursor: pointer;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
 	font-size: 13px;
 	margin-bottom: -1px;
 	font-family: inherit;
+	opacity: ${(props) => (props.disabled ? 0.6 : 1)};
+	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
 
 	&:hover {
-		color: var(--vscode-foreground);
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
 	}
 `
 
@@ -133,12 +136,16 @@ export const TabButton = ({
 	children,
 	isActive,
 	onClick,
+	disabled,
+	style,
 }: {
 	children: React.ReactNode
 	isActive: boolean
 	onClick: () => void
+	disabled?: boolean
+	style?: React.CSSProperties
 }) => (
-	<StyledTabButton isActive={isActive} onClick={onClick}>
+	<StyledTabButton isActive={isActive} onClick={onClick} disabled={disabled} style={style}>
 		{children}
 	</StyledTabButton>
 )

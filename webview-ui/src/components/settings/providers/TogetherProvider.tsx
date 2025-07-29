@@ -1,35 +1,45 @@
 import { ApiConfiguration } from "@shared/api"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/ChatSettings"
 
 /**
  * Props for the TogetherProvider component
  */
 interface TogetherProviderProps {
-	apiConfiguration: ApiConfiguration
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Together provider configuration component
  */
-export const TogetherProvider = ({ apiConfiguration, handleInputChange, showModelOptions, isPopup }: TogetherProviderProps) => {
+export const TogetherProvider = ({ showModelOptions, isPopup, currentMode }: TogetherProviderProps) => {
+	const { apiConfiguration } = useExtensionState()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { togetherModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+
 	return (
 		<div>
 			<ApiKeyField
-				value={apiConfiguration?.togetherApiKey || ""}
-				onChange={handleInputChange("togetherApiKey")}
+				initialValue={apiConfiguration?.togetherApiKey || ""}
+				onChange={(value) => handleFieldChange("togetherApiKey", value)}
 				providerName="Together"
 			/>
-			<VSCodeTextField
-				value={apiConfiguration?.togetherModelId || ""}
+			<DebouncedTextField
+				initialValue={togetherModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeTogetherModelId", act: "actModeTogetherModelId" }, value, currentMode)
+				}
 				style={{ width: "100%" }}
-				onInput={handleInputChange("togetherModelId")}
 				placeholder={"Enter Model ID..."}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			<p
 				style={{
 					fontSize: "12px",

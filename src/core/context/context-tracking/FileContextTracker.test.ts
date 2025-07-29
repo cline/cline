@@ -6,6 +6,9 @@ import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "@core/storage/disk"
 import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
+import { HostProvider } from "@/hosts/host-provider"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
@@ -37,7 +40,6 @@ describe("FileContextTracker", () => {
 		}
 
 		// Use a function replacement instead of a direct stub
-		const originalCreateFileSystemWatcher = vscode.workspace.createFileSystemWatcher
 		vscode.workspace.createFileSystemWatcher = function () {
 			return mockFileSystemWatcher
 		}
@@ -52,6 +54,15 @@ describe("FileContextTracker", () => {
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 
+		// Reset HostProvider before initializing to avoid "already initialized" errors
+		HostProvider.reset()
+		HostProvider.initialize(
+			((_) => {}) as WebviewProviderCreator,
+			(() => {}) as DiffViewProviderCreator,
+			vscodeHostBridgeClient,
+			(_) => {},
+		)
+
 		// Create tracker instance
 		taskId = "test-task-id"
 		tracker = new FileContextTracker(mockContext, taskId)
@@ -59,6 +70,8 @@ describe("FileContextTracker", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		// Reset HostProvider after each test to ensure clean state
+		HostProvider.reset()
 	})
 
 	it("should add a record when a file is read by a tool", async () => {

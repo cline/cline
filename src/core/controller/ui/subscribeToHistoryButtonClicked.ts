@@ -1,10 +1,10 @@
 import { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import { Empty } from "@shared/proto/cline/common"
+import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active subscriptions with their provider type
-const activeHistoryButtonClickedSubscriptions = new Map<StreamingResponseHandler, WebviewProviderType>()
+const activeHistoryButtonClickedSubscriptions = new Map<StreamingResponseHandler<Empty>, WebviewProviderType>()
 
 /**
  * Subscribe to history button clicked events
@@ -16,7 +16,7 @@ const activeHistoryButtonClickedSubscriptions = new Map<StreamingResponseHandler
 export async function subscribeToHistoryButtonClicked(
 	_controller: Controller,
 	request: WebviewProviderTypeRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	// Extract the provider type from the request

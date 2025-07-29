@@ -1,16 +1,23 @@
-import * as vscode from "vscode"
-import { TaskState } from "./TaskState"
-import { MessageStateHandler } from "./message-state"
+import { showSystemNotification } from "@/integrations/notifications"
+import { listFiles } from "@/services/glob/list-files"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { regexSearchFiles } from "@/services/ripgrep"
+import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
+import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
+import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
+import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
+import Anthropic from "@anthropic-ai/sdk"
 import { ApiHandler } from "@api/index"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { McpHub } from "@services/mcp/McpHub"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { ChatSettings } from "@shared/ChatSettings"
-import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
+import { BrowserSettings } from "@shared/BrowserSettings"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -24,47 +31,53 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
-import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import { fileExistsAtPath } from "@utils/fs"
-import { formatResponse } from "../prompts/responses"
-import { isClaude4ModelFamily } from "@utils/model-utils"
-import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
-import { serializeError } from "serialize-error"
-import * as path from "path"
-import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
 import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { constructNewFileContent } from "../assistant-message/diff"
-import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
-import { listFiles } from "@/services/glob/list-files"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
-import { regexSearchFiles } from "@/services/ripgrep"
-import { showSystemNotification } from "@/integrations/notifications"
-import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
-import { ensureTaskDirectoryExists } from "../storage/disk"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
-import Anthropic from "@anthropic-ai/sdk"
-import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
-import { getWorkspaceState } from "../storage/state"
-import os from "os"
-import { ContextManager } from "../context/context-management/ContextManager"
+import { fileExistsAtPath } from "@utils/fs"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import os from "os"
+import * as path from "path"
+import { serializeError } from "serialize-error"
+import * as vscode from "vscode"
+import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
+import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
+import { constructNewFileContent } from "../assistant-message/diff"
 import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
+import { ContextManager } from "../context/context-management/ContextManager"
+import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
+import { formatResponse } from "../prompts/responses"
+import { ensureTaskDirectoryExists } from "../storage/disk"
+import { getGlobalState, getWorkspaceState } from "../storage/state"
+import { TaskState } from "./TaskState"
+import { MessageStateHandler } from "./message-state"
+import { AutoApprove } from "./tools/autoApprove"
+import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
+import { ChatSettings } from "@/shared/ChatSettings"
 
 export class ToolExecutor {
+	private autoApprover: AutoApprove
+
+	// Auto-approval methods using the AutoApprove class
+	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+		return this.autoApprover.shouldAutoApproveTool(toolName)
+	}
+
+	private async shouldAutoApproveToolWithPath(
+		blockname: ToolUseName,
+		autoApproveActionpath: string | undefined,
+	): Promise<boolean> {
+		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
+	}
+
 	constructor(
 		// Core Services & Managers
 		private context: vscode.ExtensionContext,
 		private taskState: TaskState,
 		private messageStateHandler: MessageStateHandler,
 		private api: ApiHandler,
-		private terminalManager: TerminalManager,
 		private urlContentFetcher: UrlContentFetcher,
 		private browserSession: BrowserSession,
 		private diffViewProvider: DiffViewProvider,
@@ -77,9 +90,9 @@ export class ToolExecutor {
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
 		private browserSettings: BrowserSettings,
-		private chatSettings: ChatSettings,
 		private cwd: string,
 		private taskId: string,
+		private chatSettings: ChatSettings,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -95,23 +108,28 @@ export class ToolExecutor {
 			partial?: boolean,
 		) => Promise<{ response: ClineAskResponse; text?: string; images?: string[]; files?: string[] }>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
-		private reinitExistingTaskFromId: (taskId: string) => Promise<void>,
-		private cancelTask: () => Promise<void>,
-		private shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean],
-		private shouldAutoApproveToolWithPath: (blockname: ToolUseName, autoApproveActionpath: string | undefined) => boolean,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
-	) {}
+	) {
+		this.autoApprover = new AutoApprove(autoApprovalSettings)
+	}
+
+	/**
+	 * Updates the auto approval settings
+	 */
+	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
+		this.autoApprover.updateSettings(settings)
+	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isClaude4Model = isClaude4ModelFamily(this.api)
+		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
+			if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 				// Claude 4 family: Use function_results format
 				this.taskState.userMessageContent.push({
 					type: "text",
@@ -318,8 +336,6 @@ export class ToolExecutor {
 					// Handle write error
 					return { shouldBreak: true, error: `Write error: ${e}` }
 				}
-
-				const newContentParsed = this.taskState.streamingJsonReplacer.getSuccessfullyParsedItems()
 			}
 
 			return { shouldBreak: true } // Wait for more chunks
@@ -473,9 +489,9 @@ export class ToolExecutor {
 
 						const currentFullJson = block.params.diff
 						// Check if we should use streaming (e.g., for specific models)
-						const isClaude4Model = isClaude4ModelFamily(this.api)
+						const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 						// Going through claude family of models
-						if (isClaude4Model && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
+						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
 
 							if (streamingResult.error) {
@@ -556,14 +572,14 @@ export class ToolExecutor {
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: getReadablePath(this.cwd, this.removeClosingTag(block, "path", relPath)),
 						content: diff || content,
-						operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+						operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 					}
 
 					if (block.partial) {
 						// update gui message
 						const partialMessage = JSON.stringify(sharedMessageProps)
 
-						if (this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -621,13 +637,13 @@ export class ToolExecutor {
 						}
 						await this.diffViewProvider.update(newContent, true)
 						await setTimeoutPromise(300) // wait for diff view to update
-						this.diffViewProvider.scrollToFirstDiff()
+						await this.diffViewProvider.scrollToFirstDiff()
 						// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: diff || content,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 							// ? formatResponse.createPrettyPatch(
 							// 		relPath,
 							// 		this.diffViewProvider.originalContent,
@@ -635,7 +651,7 @@ export class ToolExecutor {
 							// 	)
 							// : undefined,
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -770,9 +786,9 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: undefined,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -801,9 +817,9 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: absolutePath,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -846,7 +862,6 @@ export class ToolExecutor {
 				}
 			}
 			case "list_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const recursiveRaw: string | undefined = block.params.recursive
 				const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -859,9 +874,9 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -891,9 +906,9 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: result,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -934,9 +949,9 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -963,9 +978,9 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: result,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -996,7 +1011,6 @@ export class ToolExecutor {
 				}
 			}
 			case "search_files": {
-				const isClaude4Model = isClaude4ModelFamily(this.api)
 				const relDirPath: string | undefined = block.params.path
 				const regex: string | undefined = block.params.regex
 				const filePattern: string | undefined = block.params.file_pattern
@@ -1011,9 +1025,9 @@ export class ToolExecutor {
 						const partialMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: "",
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", partialMessage, undefined, undefined, block.partial)
 						} else {
@@ -1048,9 +1062,9 @@ export class ToolExecutor {
 						const completeMessage = JSON.stringify({
 							...sharedMessageProps,
 							content: results,
-							operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(block.params.path),
 						} satisfies ClineSayTool)
-						if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
@@ -1912,7 +1926,12 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const providerAndModel = `${(await getWorkspaceState(this.context, "apiProvider")) as string} / ${this.api.getModel().id}`
+						const currentMode = this.chatSettings.mode
+						const apiProvider =
+							currentMode === "plan"
+								? await getGlobalState(this.context, "planModeApiProvider")
+								: await getGlobalState(this.context, "actModeApiProvider")
+						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation
 						const bugReportData = JSON.stringify({

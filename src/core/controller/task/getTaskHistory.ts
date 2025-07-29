@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { GetTaskHistoryRequest, TaskHistoryArray } from "../../../shared/proto/task"
+import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import { getGlobalState } from "../../storage/state"
 import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 
@@ -15,7 +15,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Get task history from global state
 		const taskHistory = ((await getGlobalState(controller.context, "taskHistory")) as any[]) || []
-		const workspacePath = getWorkspacePath()
+		const workspacePath = await getWorkspacePath()
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {

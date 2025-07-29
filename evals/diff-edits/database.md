@@ -33,7 +33,7 @@ This is the most granular and important table in the database. A `result` repres
 
 -   **Purpose**: To store the detailed outcome of every single model attempt, providing the raw data for all quantitative and qualitative analysis.
 -   **Key Columns**:
-    -   `result_id`: A unique identifier for the individual attempt.
+    -   `result_id`: The primary key for the result.
     -   `run_id`, `case_id`, `model_id`, `processing_functions_hash`: A set of foreign keys that precisely situate this result within the context of a specific run, case, model, and set of helper functions.
     -   `succeeded`: A boolean indicating if the generated diff was applied successfully.
     -   `error_enum`: A numeric code representing the specific type of error if the attempt failed (e.g., `1` for `no_tool_calls`, `7` for `wrong_file_edited`).
@@ -82,3 +82,15 @@ This relational schema provides a powerful foundation for sophisticated analysis
 -   "Which of our internal diffing algorithms is the most robust against a wide range of model-generated edits?"
 
 Ultimately, this data model enables us to move from simply *measuring* performance to truly *understanding* it, providing the insights needed to build more capable and reliable AI engineering systems.
+
+---
+
+## Viewing the Full Schema
+
+To see the most up-to-date and detailed schema for the database, you can use the `sqlite3` command-line tool. From the `evals/diff-edits` directory, run the following command:
+
+```bash
+sqlite3 evals.db .schema
+```
+
+This will print the complete `CREATE TABLE` statements for all tables in the database, providing a definitive reference for the database structure.

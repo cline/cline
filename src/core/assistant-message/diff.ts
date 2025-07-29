@@ -8,11 +8,13 @@ const LEGACY_SEARCH_BLOCK_CHAR = "<"
 const LEGACY_REPLACE_BLOCK_CHAR = ">"
 
 // Replace the exact string constants with flexible regex patterns
-const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH$/
+const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH>?$/
+const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH>?$/
+
 const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
-const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE$/
-const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH$/
-const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE$/
+
+const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>?$/
+const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
 
 // Helper functions to check if a line matches the flexible patterns
 function isSearchBlockStart(line: string): boolean {
@@ -377,6 +379,10 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 
 		if (isReplaceBlockEnd(line)) {
 			// Finished one replace block
+
+			if (searchMatchIndex === -1) {
+				throw new Error(`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...is malformatted.`)
+			}
 
 			// Store this replacement
 			replacements.push({

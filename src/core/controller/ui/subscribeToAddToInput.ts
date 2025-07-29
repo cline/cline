@@ -1,11 +1,10 @@
-import * as vscode from "vscode"
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { String as ProtoString } from "../../../shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { String as ProtoString } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active addToInput subscriptions
-const activeAddToInputSubscriptions = new Set<StreamingResponseHandler>()
+const activeAddToInputSubscriptions = new Set<StreamingResponseHandler<ProtoString>>()
 
 /**
  * Subscribe to addToInput events
@@ -15,9 +14,9 @@ const activeAddToInputSubscriptions = new Set<StreamingResponseHandler>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToAddToInput(
-	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<ProtoString>,
 	requestId?: string,
 ): Promise<void> {
 	console.log("[DEBUG] set up addToInput subscription")

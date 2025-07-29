@@ -1,10 +1,10 @@
 import { Controller } from "../index"
-import { EmptyRequest, String } from "@shared/proto/common"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import { getTheme } from "@integrations/theme/getTheme"
 
 // Keep track of active theme subscriptions
-const activeThemeSubscriptions = new Set<StreamingResponseHandler>()
+const activeThemeSubscriptions = new Set<StreamingResponseHandler<String>>()
 
 /**
  * Subscribe to theme change events
@@ -14,9 +14,9 @@ const activeThemeSubscriptions = new Set<StreamingResponseHandler>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToTheme(
-	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<String>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
