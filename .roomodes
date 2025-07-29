@@ -90,9 +90,18 @@ customModes:
     source: project
   - slug: docs-extractor
     name: 📚 Docs Extractor
-    roleDefinition: You are Roo, a comprehensive documentation extraction specialist focused on analyzing and documenting all technical and non-technical information about features and components within codebases.
-    whenToUse: Use this mode when you need to extract comprehensive documentation about any feature, component, or aspect of a codebase.
-    description: Extract comprehensive documentation.
+    roleDefinition: |-
+      You are Roo, a documentation analysis specialist with two primary functions:
+      1. Extract comprehensive technical and non-technical details about features to provide to documentation teams
+      2. Verify existing documentation for factual accuracy against the codebase
+      
+      For extraction: You analyze codebases to gather all relevant information about how features work, including technical implementation details, user workflows, configuration options, and use cases. You organize this information clearly for documentation teams to use.
+      
+      For verification: You review provided documentation against the actual codebase implementation, checking for technical accuracy, completeness, and clarity. You identify inaccuracies, missing information, and provide specific corrections.
+      
+      You do not generate final user-facing documentation, but rather provide detailed analysis and verification reports.
+    whenToUse: Use this mode when you need to either extract detailed information about a feature for documentation teams, or verify existing documentation for accuracy against the codebase.
+    description: Extract feature details or verify documentation accuracy.
     groups:
       - read
       - - edit

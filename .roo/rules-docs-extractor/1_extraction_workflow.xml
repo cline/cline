@@ -1,8 +1,10 @@
 <extraction_workflow>
   <mode_overview>
-    The Docs Extractor mode analyzes features to generate documentation.
-    It extracts technical details, business logic, and user workflows
-    for different audiences.
+    The Docs Extractor mode has two primary functions:
+    1. Extract technical and non-technical details about features to provide to documentation teams
+    2. Verify existing documentation for factual accuracy against the codebase
+    
+    This mode does not generate final documentation but provides detailed analysis and verification.
   </mode_overview>
 
   <initialization_phase>
@@ -10,25 +12,23 @@
       <title>Parse Request</title>
       <actions>
         <action>Identify the feature or component in the user's request.</action>
-        <action>Determine if the request is for a review or to generate new documentation.</action>
-        <action>Default to user-friendly docs unless technical output is requested.</action>
-        <action>Note any specific areas to emphasize.</action>
+        <action>Determine if the request is for extraction or verification.</action>
+        <action>For extraction: Note what level of detail is needed (technical vs non-technical).</action>
+        <action>For verification: Identify the documentation to be verified.</action>
+        <action>Note any specific areas to emphasize or check.</action>
       </actions>
-      <note>The initial request determines the workflow path (review vs. generation).</note>
+      <note>The mode branches into extraction or verification based on the request.</note>
     </step>
 
     <step number="2">
       <title>Discover Feature</title>
       <actions>
-        <action>Find related code with semantic search.</action>
+        <action>Locate relevant code using appropriate search methods.</action>
         <action>Identify entry points and components.</action>
         <action>Map the high-level architecture.</action>
+        <action>Use any combination of tools to understand the feature.</action>
       </actions>
-      <tool_use><![CDATA[
-<codebase_search>
-<query>[feature name] implementation main entry point</query>
-</codebase_search>
-      ]]></tool_use>
+      <note>Use the most effective discovery method for the situation - file exploration, search, or direct navigation.</note>
     </step>
   </initialization_phase>
 
@@ -66,22 +66,68 @@
       </steps>
     </phase>
 
+    <phase name="ui_ux_analysis">
+      <title>UI/UX and User Experience Analysis</title>
+      <steps>
+        <step>
+          <action>Analyze user interface components</action>
+          <details>
+            - UI components and their interactions
+            - Forms, buttons, navigation elements
+            - Visual feedback and loading states
+            - Responsive design considerations
+            - Accessibility features
+          </details>
+        </step>
+        <step>
+          <action>Map user journeys and interactions</action>
+          <details>
+            - Step-by-step user workflows
+            - Click paths and navigation flows
+            - User decision points
+            - Input validation and error messaging
+            - Success and failure scenarios
+          </details>
+        </step>
+        <step>
+          <action>Document user experience elements</action>
+          <details>
+            - Page layouts and information architecture
+            - Interactive elements and their behaviors
+            - Tooltips, help text, and guidance
+            - Confirmation dialogs and warnings
+            - Progress indicators and status updates
+          </details>
+        </step>
+        <step>
+          <action>Capture visual and behavioral patterns</action>
+          <details>
+            - Color schemes and theming
+            - Animation and transitions
+            - Keyboard shortcuts and accessibility
+            - Mobile vs desktop experiences
+            - Browser-specific considerations
+          </details>
+        </step>
+      </steps>
+    </phase>
+
     <phase name="business_logic_analysis">
       <title>Business Logic Extraction</title>
       <steps>
         <step>
-          <action>Map workflows</action>
+          <action>Map workflows from user perspective</action>
           <details>
-            - User journey
+            - User journey through the feature
             - Decision points and branching
-            - State transitions
-            - Roles and permissions
+            - State transitions visible to users
+            - Roles and permissions affecting UI
           </details>
         </step>
         <step>
           <action>Document business rules</action>
           <details>
-            - Validation logic
+            - Validation logic and user feedback
             - Formulas and algorithms
             - Business process implementations
             - Compliance requirements
@@ -92,8 +138,8 @@
           <details>
             - Primary use cases
             - Edge cases
-            - Error scenarios
-            - Performance factors
+            - Error scenarios and user recovery
+            - Performance factors affecting UX
           </details>
         </step>
       </steps>
@@ -199,38 +245,117 @@
     </phase>
   </analysis_phases>
 
-  <documentation_generation>
-    <note>Workflow branches here: review existing docs or generate new docs.</note>
-    <step number="1">
-      <title>Path 1: Review and Recommend</title>
-      <note>Used when a document is provided for review.</note>
-      <actions>
-        <action>Compare provided docs against codebase analysis.</action>
-        <action>Identify inaccuracies, omissions, and areas for improvement.</action>
-        <action>Categorize issues by severity (Critical, Major, Minor).</action>
-        <action>Formulate a structured recommendation in chat.</action>
-        <action>Do not write files.</action>
-        <action>Final output is only the recommendation.</action>
-      </actions>
-    </step>
-    <step number="2">
-      <title>Path 2: Generate Documentation</title>
-      <note>Used when new documentation is requested.</note>
-      <actions>
-        <action>Select a template from `2_documentation_patterns.xml`.</action>
-        <action>Structure the document with clear sections and examples.</action>
-        <action>Create `DOCS-TEMP-[feature].md` with generated content.</action>
-        <action>Apply tone and examples from `7_user_friendly_examples.xml`.</action>
-      </actions>
-    </step>
-  </documentation_generation>
+  <workflow_paths>
+    <path name="extraction">
+      <title>Extract Feature Details</title>
+      <description>Analyze and extract comprehensive details for documentation team</description>
+      <steps>
+        <step number="1">
+          <title>Compile Technical Details</title>
+          <actions>
+            <action>List all technical components and their relationships</action>
+            <action>Document APIs, data structures, and algorithms</action>
+            <action>Extract configuration options and their impacts</action>
+            <action>Identify error handling and edge cases</action>
+            <action>Note performance characteristics and limitations</action>
+          </actions>
+        </step>
+        <step number="2">
+          <title>Extract Non-Technical Information</title>
+          <actions>
+            <action>Describe complete user experience and workflows</action>
+            <action>Document UI interactions and visual elements</action>
+            <action>Explain business logic in plain language</action>
+            <action>Identify user benefits and use cases</action>
+            <action>Document common scenarios with UI context</action>
+            <action>Note prerequisites and user-facing dependencies</action>
+            <action>Capture error messages and user guidance</action>
+          </actions>
+        </step>
+        <step number="3">
+          <title>Create Extraction Report</title>
+          <actions>
+            <action>Organize findings into clear categories</action>
+            <action>Separate technical and non-technical information</action>
+            <action>Include code snippets and examples where helpful</action>
+            <action>Create `EXTRACTION-[feature].md` with findings</action>
+            <action>Highlight areas that need special attention in documentation</action>
+          </actions>
+          <output_format>
+            - Executive summary of the feature
+            - UI/UX analysis and user experience
+            - Technical details section
+            - Non-technical/user-facing details
+            - User workflows and interactions
+            - Configuration and setup information
+            - Common use cases with UI context
+            - Error handling and user guidance
+            - Potential documentation considerations
+          </output_format>
+        </step>
+      </steps>
+    </path>
+
+    <path name="verification">
+      <title>Verify Documentation Accuracy</title>
+      <description>Check existing documentation against codebase reality</description>
+      <steps>
+        <step number="1">
+          <title>Analyze Provided Documentation</title>
+          <actions>
+            <action>Parse the documentation to identify claims and descriptions</action>
+            <action>Extract technical specifications mentioned</action>
+            <action>Note user-facing features and workflows described</action>
+            <action>Identify configuration options and examples provided</action>
+          </actions>
+        </step>
+        <step number="2">
+          <title>Verify Against Codebase</title>
+          <actions>
+            <action>Check technical claims against actual implementation</action>
+            <action>Verify API endpoints, parameters, and responses</action>
+            <action>Confirm configuration options and defaults</action>
+            <action>Validate code examples and snippets</action>
+            <action>Check if described workflows match implementation</action>
+          </actions>
+        </step>
+        <step number="3">
+          <title>Create Verification Report</title>
+          <actions>
+            <action>Categorize findings by severity (Critical, Major, Minor)</action>
+            <action>List all inaccuracies with correct information</action>
+            <action>Identify missing important information</action>
+            <action>Note outdated or deprecated content</action>
+            <action>Provide specific corrections and suggestions</action>
+            <action>Create `VERIFICATION-[feature].md` with findings</action>
+          </actions>
+          <output_format>
+            - Verification summary (Accurate/Needs Updates)
+            - Critical inaccuracies that could mislead users
+            - Technical corrections needed
+            - Missing information that should be added
+            - Suggestions for clarity improvements
+            - Overall recommendations
+          </output_format>
+        </step>
+      </steps>
+    </path>
+  </workflow_paths>
 
   <completion_criteria>
-    <criterion>Code paths analyzed</criterion>
-    <criterion>Business logic documented</criterion>
-    <criterion>Integration points mapped</criterion>
-    <criterion>Security addressed</criterion>
-    <criterion>Audience needs met</criterion>
-    <criterion>Metadata and links are complete</criterion>
+    <for_extraction>
+      <criterion>All code paths analyzed</criterion>
+      <criterion>Technical details comprehensively extracted</criterion>
+      <criterion>Non-technical information clearly explained</criterion>
+      <criterion>Use cases and examples provided</criterion>
+      <criterion>Report organized for documentation team use</criterion>
+    </for_extraction>
+    <for_verification>
+      <criterion>All documentation claims verified</criterion>
+      <criterion>Inaccuracies identified and corrected</criterion>
+      <criterion>Missing information noted</criterion>
+      <criterion>Suggestions for improvement provided</criterion>
+      <criterion>Clear verification report created</criterion>
+    </for_verification>
   </completion_criteria>
 </extraction_workflow>

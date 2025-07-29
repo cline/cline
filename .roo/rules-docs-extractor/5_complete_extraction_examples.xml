@@ -1,42 +1,54 @@
 <complete_extraction_examples>
   <overview>
-    Examples of the documentation extraction workflow.
+    Examples of both documentation extraction and verification workflows demonstrating flexible discovery methods and comprehensive UI/UX analysis.
   </overview>
 
   <example name="authentication_system_extraction">
     <scenario>
-      Extract documentation for a JWT-based authentication system, including login, token refresh, and RBAC.
+      Extract comprehensive documentation for a JWT-based authentication system, including technical implementation, UI/UX elements, and user workflows.
     </scenario>
 
     <workflow>
       <step number="1">
-        <description>Discover feature</description>
+        <description>Initialize and discover feature using flexible methods</description>
         <tool_use><![CDATA[
-<codebase_search>
-<query>authentication JWT login logout token refresh auth middleware</query>
-</codebase_search>
+<!-- Method 1: Directory exploration -->
+<list_files>
+<path>src</path>
+<recursive>false</recursive>
+</list_files>
+        ]]></tool_use>
+        <analysis>Look for auth-related directories like auth/, authentication/, or security/</analysis>
+        <tool_use><![CDATA[
+<list_files>
+<path>src/auth</path>
+<recursive>true</recursive>
+</list_files>
         ]]></tool_use>
         <expected_findings>
-          - Auth controllers, services, middleware, models, and routes.
+          - Auth controllers, services, middleware, models, and routes
+          - Login components and forms
+          - Session management UI
         </expected_findings>
       </step>
 
       <step number="2">
-        <description>Analyze structure</description>
+        <description>Analyze code structure and architecture</description>
         <tool_use><![CDATA[
 <list_code_definition_names>
 <path>src/auth</path>
 </list_code_definition_names>
         ]]></tool_use>
         <analysis>
-          - Identify main classes/functions.
-          - Map auth flow.
-          - Find token generation/validation logic.
+          - Identify main classes/functions
+          - Map authentication flow
+          - Find token generation/validation logic
+          - Locate UI components
         </analysis>
       </step>
 
       <step number="3">
-        <description>Read core files</description>
+        <description>Read core implementation files</description>
         <tool_use><![CDATA[
 <read_file>
 <args>
@@ -61,20 +73,74 @@
       </step>
 
       <step number="4">
-        <description>Extract API endpoints</description>
+        <description>UI/UX Analysis - Discover UI components</description>
+        <tool_use><![CDATA[
+<!-- Method 2: Pattern search for UI components -->
+<search_files>
+<path>src/components</path>
+<regex>(Login|Auth|Session|Password).*\.(tsx?|jsx?)</regex>
+<file_pattern>*.tsx</file_pattern>
+</search_files>
+        ]]></tool_use>
+        <tool_use><![CDATA[
+<read_file>
+<args>
+  <file>
+    <path>src/components/LoginForm.tsx</path>
+  </file>
+  <file>
+    <path>src/components/SessionManager.tsx</path>
+  </file>
+  <file>
+    <path>src/components/PasswordReset.tsx</path>
+  </file>
+</args>
+</read_file>
+        ]]></tool_use>
+      </step>
+
+      <step number="5">
+        <description>UI/UX Analysis - Map user interactions</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/components</path>
+<regex>onClick|onSubmit|onChange|handleSubmit|validate</regex>
+</search_files>
+        ]]></tool_use>
+        <analysis>
+          - Form validation patterns
+          - User feedback mechanisms
+          - Error handling UI
+          - Loading states
+        </analysis>
+      </step>
+
+      <step number="6">
+        <description>UI/UX Analysis - Visual patterns and accessibility</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src</path>
+<regex>className=|style=|theme\.|aria-|role=</regex>
+<file_pattern>*.tsx</file_pattern>
+</search_files>
+        ]]></tool_use>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/styles</path>
+<regex>\.login|\.auth|\.session</regex>
+<file_pattern>*.css</file_pattern>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="7">
+        <description>Extract API endpoints and configuration</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/auth</path>
 <regex>@(Post|Get)\(['"]\/auth\/[^'"]+['"]|router\.(post|get)\(['"]\/auth\/[^'"]+['"]</regex>
 </search_files>
         ]]></tool_use>
-        <findings>
-          - POST /auth/login, POST /auth/logout, POST /auth/refresh, GET /auth/profile, POST /auth/register
-        </findings>
-      </step>
-
-      <step number="5">
-        <description>Extract configuration</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
@@ -83,542 +149,573 @@
         ]]></tool_use>
       </step>
 
-      <step number="6">
-        <description>Analyze security</description>
+      <step number="8">
+        <description>Optional: Use semantic search for deeper insights</description>
         <tool_use><![CDATA[
-<search_files>
-<path>src/auth</path>
-<regex>bcrypt|hash|salt|encrypt|sanitize|validate|@IsEmail|@MinLength</regex>
-</search_files>
+<!-- Only if pattern searches miss important context -->
+<codebase_search>
+<query>authentication error handling user feedback messages</query>
+</codebase_search>
         ]]></tool_use>
+        <note>Used when specific patterns don't capture all relevant error handling</note>
       </step>
 
-      <step number="7">
-        <description>Generate docs</description>
+      <step number="9">
+        <description>Create comprehensive extraction report</description>
         <tool_use><![CDATA[
 <write_to_file>
-<path>DOCS-TEMP-authentication-system.md</path>
+<path>EXTRACTION-authentication-system.md</path>
 <content>
-# Authentication System Documentation
+# Authentication System - Feature Extraction Report
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-3. [Architecture](#architecture)
-4. [API Reference](#api-reference)
-5. [Configuration](#configuration)
-6. [Security](#security)
-7. [User Guide](#user-guide)
-8. [Developer Guide](#developer-guide)
-9. [Troubleshooting](#troubleshooting)
+## Executive Summary
+The authentication system is a JWT-based security implementation that handles user registration, login, session management, and access control. It provides a comprehensive user experience with visual feedback, accessibility features, and robust error handling.
 
----
+## UI/UX Analysis
 
-## Overview
+### User Interface Components
 
-### Purpose
-The authentication system provides secure user authentication using JWT (JSON Web Tokens) with support for:
-- User registration and login
-- Token-based authentication
-- Refresh token rotation
-- Role-based access control (RBAC)
-- Session management
-- Password reset functionality
+#### 1. Login Page (`src/components/LoginForm.tsx`)
+**Visual Layout:**
+- Centered card design with shadow (400px width)
+- Company logo at top
+- Form fields with floating labels
+- Primary blue theme (#1976d2)
 
-### Key Features
-- **JWT Authentication**: Stateless authentication using signed tokens
-- **Refresh Tokens**: Long-lived tokens for seamless user experience
-- **Role-Based Access**: Fine-grained permission control
-- **Security**: bcrypt password hashing, rate limiting, CSRF protection
-- **Multi-device Support**: Token management across devices
+**Interactive Elements:**
+- Email input field
+  - Real-time validation (regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+  - Error state: Red border and helper text
+  - Success state: Green checkmark icon
+- Password field
+  - Show/hide toggle button (eye icon)
+  - Minimum 8 characters validation
+  - Caps lock warning indicator
+- "Remember me" checkbox with 30-day persistence
+- "Forgot password?" link (underlined on hover)
+- Submit button
+  - Disabled state: Gray background until valid input
+  - Loading state: Spinner replaces text
+  - Success state: Checkmark animation
 
-### Version Information
-- **Current Version**: 2.1.0
-- **Minimum Node.js**: 14.0.0
-- **Dependencies**: 
-  - jsonwebtoken: ^9.0.0
-  - bcrypt: ^5.1.0
-  - passport: ^0.6.0
+**User Feedback:**
+- Loading overlay with spinner during authentication
+- Error messages appear with slide-down animation
+- Success toast notification (3s duration)
+- Form shake animation on error
 
----
+#### 2. Registration Form (`src/components/RegisterForm.tsx`)
+**Multi-Step Design:**
+- Progress bar showing 3 steps
+- Smooth slide transitions between steps
+- Back/Next navigation buttons
 
-## Quick Start
+**Step 1 - Account Info:**
+- Email field with async availability check
+- Password field with strength meter (5 levels)
+- Password confirmation with match validation
 
-### For Users
-1. Register a new account:
-   ```bash
-   POST /api/auth/register
-   {
-     "email": "user@example.com",
-     "password": "SecurePassword123!",
-     "name": "John Doe"
-   }
-   ```
+**Step 2 - Personal Info:**
+- First/Last name fields
+- Optional phone with format mask
+- Country dropdown with flag icons
 
-2. Login to receive tokens:
-   ```bash
-   POST /api/auth/login
-   {
-     "email": "user@example.com",
-     "password": "SecurePassword123!"
-   }
-   ```
+**Step 3 - Terms & Submit:**
+- Terms of service scrollable text
+- Privacy policy link (opens modal)
+- Checkbox required for submission
+- Review summary before final submit
 
-3. Use the access token in subsequent requests:
-   ```bash
-   Authorization: Bearer <access_token>
-   ```
+**Visual Feedback:**
+- Field validation on blur
+- Progress saved in localStorage
+- Success confetti animation
+- Auto-redirect countdown (5s)
 
-### For Developers
-```typescript
-// Import authentication module
-import { AuthModule } from './auth/auth.module';
+#### 3. Session Management (`src/components/SessionManager.tsx`)
+**Device List UI:**
+- Card-based layout for each session
+- Device icons (FontAwesome)
+  - fa-mobile for mobile
+  - fa-desktop for desktop
+  - fa-tablet for tablet
+- Information displayed:
+  - Device name and browser
+  - IP address (partially masked)
+  - Last active (relative time)
+  - Location (city, country)
 
-// Configure in app module
-@Module({
-  imports: [
-    AuthModule.forRoot({
-      jwtSecret: process.env.JWT_SECRET,
-      jwtExpiration: '15m',
-      refreshExpiration: '7d'
-    })
-  ]
-})
-export class AppModule {}
+**Interactive Features:**
+- Current device highlighted with blue border
+- Hover state shows "Revoke" button
+- Confirmation modal with device details
+- Bulk selection with checkboxes
+- "Revoke All" with double confirmation
+
+### User Experience Elements
+
+#### Visual Patterns
+**Theme System:**
+```css
+--primary-color: #1976d2;
+--error-color: #d32f2f;
+--success-color: #388e3c;
+--warning-color: #f57c00;
+--text-primary: rgba(0, 0, 0, 0.87);
+--text-secondary: rgba(0, 0, 0, 0.6);
 ```
 
----
+**Animations:**
+- Page transitions: 300ms ease-in-out
+- Button hover: scale(1.02)
+- Error shake: 0.5s horizontal
+- Success checkmark: SVG path animation
+- Loading spinner: 1s rotation
 
-## Architecture
+**Responsive Breakpoints:**
+- Mobile: < 768px (single column)
+- Tablet: 768px - 1024px
+- Desktop: > 1024px
 
-### System Overview
+#### Accessibility Features
+**Keyboard Navigation:**
+- Tab order follows visual flow
+- Enter key submits forms
+- Escape closes modals
+- Arrow keys in dropdowns
+
+**Screen Reader Support:**
+- ARIA labels on all inputs
+- Live regions for errors
+- Role attributes for custom components
+- Descriptive button text
+
+**Visual Accessibility:**
+- 4.5:1 contrast ratio minimum
+- Focus indicators (2px outline)
+- Error icons for colorblind users
+- Scalable fonts (rem units)
+
+### User Workflows
+
+#### 1. First-Time Registration
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Client    │────▶│ Auth Guard   │────▶│   Service   │
-└─────────────┘     └──────────────┘     └─────────────┘
-                            │                     │
-                            ▼                     ▼
-                    ┌──────────────┐     ┌─────────────┐
-                    │ JWT Strategy │     │  Database   │
-                    └──────────────┘     └─────────────┘
-```
-
-### Components
-- **AuthController**: Handles HTTP requests for authentication endpoints
-- **AuthService**: Core authentication logic and token management
-- **JwtStrategy**: Passport strategy for JWT validation
-- **AuthGuard**: Route protection middleware
-- **UserService**: User management and database operations
-
-### Token Flow
-1. User provides credentials
-2. System validates credentials against database
-3. Generate access token (short-lived) and refresh token (long-lived)
-4. Client stores tokens securely
-5. Access token used for API requests
-6. Refresh token used to obtain new access token
-
----
-
-## API Reference
-
-### Authentication Endpoints
-
-#### `POST /api/auth/register`
-Register a new user account.
-
-**Request Body**:
-```json
-{
-  "email": "string (required)",
-  "password": "string (required, min 8 chars)",
-  "name": "string (required)",
-  "role": "string (optional, default: 'user')"
-}
-```
-
-**Response** (201 Created):
-```json
-{
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "role": "user",
-    "createdAt": "2024-01-01T00:00:00Z"
-  },
-  "tokens": {
-    "accessToken": "jwt_token",
-    "refreshToken": "refresh_token",
-    "expiresIn": 900
-  }
-}
+Start → Landing Page → "Get Started" CTA
+  ↓
+Registration Form (Step 1)
+  → Email validation (async)
+  → Password strength check
+  → Real-time feedback
+  ↓
+Personal Info (Step 2)
+  → Optional fields clearly marked
+  → Format validation
+  ↓
+Terms Agreement (Step 3)
+  → Must scroll to enable checkbox
+  → Review summary
+  ↓
+Submit → Loading → Success
+  → Confetti animation
+  → Welcome email sent
+  → Auto-redirect (5s)
+  ↓
+Dashboard (First-time tour)
 ```
 
-**Error Responses**:
-- `400 Bad Request`: Invalid input data
-- `409 Conflict`: Email already exists
-
-#### `POST /api/auth/login`
-Authenticate user and receive tokens.
-
-**Request Body**:
-```json
-{
-  "email": "string (required)",
-  "password": "string (required)"
-}
+#### 2. Returning User Login
+```
+Start → Login Page
+  ↓
+Enter Credentials
+  → Email autocomplete
+  → Password manager integration
+  → "Remember me" option
+  ↓
+Submit → Loading (avg 1.2s)
+  ↓
+Success → Dashboard
+  OR
+Error → Inline feedback
+  → Retry with guidance
+  → "Forgot password?" option
 ```
 
-**Response** (200 OK):
-```json
-{
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "role": "user"
-  },
-  "tokens": {
-    "accessToken": "jwt_token",
-    "refreshToken": "refresh_token",
-    "expiresIn": 900
-  }
-}
+#### 3. Password Reset Flow
+```
+Login Page → "Forgot password?"
+  ↓
+Modal Dialog
+  → Email input
+  → Captcha (if multiple attempts)
+  ↓
+Submit → "Check email" message
+  ↓
+Email Received (< 1 min)
+  → Secure link (1hr expiry)
+  ↓
+Reset Page
+  → New password requirements shown
+  → Strength meter
+  → Confirmation field
+  ↓
+Submit → Success → Login redirect
 ```
 
-**Error Responses**:
-- `401 Unauthorized`: Invalid credentials
-- `429 Too Many Requests`: Rate limit exceeded
+## Technical Details
 
-#### `POST /api/auth/refresh`
-Refresh access token using refresh token.
+### Core Components
+1. **AuthController** (`src/auth/auth.controller.ts`)
+   - REST endpoints with validation decorators
+   - Rate limiting middleware
+   - CORS configuration
 
-**Request Body**:
-```json
-{
-  "refreshToken": "string (required)"
-}
+2. **AuthService** (`src/auth/auth.service.ts`)
+   - JWT token generation/validation
+   - Bcrypt password hashing
+   - Session management logic
+
+3. **Security Implementation**
+   - JWT RS256 algorithm
+   - Refresh token rotation
+   - CSRF double-submit cookies
+   - XSS protection headers
+
+### API Endpoints
+| Method | Endpoint | Description | Rate Limit |
+|--------|----------|-------------|------------|
+| POST | /auth/register | New user registration | 3/hour |
+| POST | /auth/login | User authentication | 5/min |
+| POST | /auth/refresh | Token refresh | 10/min |
+| POST | /auth/logout | Session termination | None |
+| GET | /auth/profile | Current user data | None |
+| POST | /auth/reset-password | Password reset | 3/hour |
+
+### Configuration
+```env
+# Required
+JWT_SECRET=minimum-32-character-secret
+DATABASE_URL=postgresql://...
+
+# Optional with defaults
+JWT_EXPIRATION=15m
+REFRESH_TOKEN_EXPIRATION=7d
+BCRYPT_ROUNDS=10
+SESSION_MAX_AGE=30d
+MAX_SESSIONS_PER_USER=5
 ```
 
-**Response** (200 OK):
-```json
-{
-  "accessToken": "new_jwt_token",
-  "expiresIn": 900
-}
-```
+## Non-Technical Information
 
-#### `POST /api/auth/logout`
-Invalidate refresh token.
+### Business Rules
+1. **Account Creation**
+   - Unique email required
+   - Password: 8+ chars, mixed case, number, special
+   - Email verification within 24 hours
+   - Terms acceptance mandatory
 
-**Headers**:
-- `Authorization: Bearer <access_token>`
+2. **Session Management**
+   - Max 5 concurrent sessions
+   - Idle timeout: 30 minutes
+   - Absolute timeout: 7 days
+   - Device trust for 30 days
 
-**Request Body**:
-```json
-{
-  "refreshToken": "string (required)"
-}
-```
+3. **Security Policies**
+   - Account lockout: 5 failed attempts (15 min)
+   - Password history: Last 3 not reusable
+   - 2FA optional but recommended
+   - Suspicious login notifications
 
-**Response** (200 OK):
-```json
-{
-  "message": "Logged out successfully"
-}
-```
+### Common User Scenarios
 
----
+#### Mobile Experience
+- Touch-optimized buttons (44px min)
+- Biometric login (Face ID/Touch ID)
+- Simplified navigation menu
+- Offline detection with retry
+- Push notification for new sessions
 
-## Configuration
+#### Error Recovery
+- Network timeout: Auto-retry with backoff
+- Session expired: Smooth re-login flow
+- Form errors: Contextual help text
+- Server errors: Friendly messages with support link
 
-### Environment Variables
+### Performance Metrics
+- Login response: 200ms (p50), 500ms (p95)
+- Page load: 1.2s (3G), 400ms (4G)
+- Token validation: < 10ms
+- Session check: < 50ms
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `JWT_SECRET` | string | - | Secret key for signing JWT tokens (required) |
-| `JWT_EXPIRATION` | string | '15m' | Access token expiration time |
-| `REFRESH_TOKEN_EXPIRATION` | string | '7d' | Refresh token expiration time |
-| `BCRYPT_ROUNDS` | number | 10 | Number of bcrypt hashing rounds |
-| `AUTH_RATE_LIMIT` | number | 5 | Max login attempts per minute |
-| `ENABLE_2FA` | boolean | false | Enable two-factor authentication |
+## Documentation Recommendations
 
-### Configuration File (auth.config.ts)
-```typescript
-export const authConfig = {
-  jwt: {
-    secret: process.env.JWT_SECRET,
-    signOptions: {
-      expiresIn: process.env.JWT_EXPIRATION || '15m',
-      issuer: 'your-app-name',
-      audience: 'your-app-users'
-    }
-  },
-  bcrypt: {
-    rounds: parseInt(process.env.BCRYPT_ROUNDS || '10')
-  },
-  session: {
-    maxDevices: 5,
-    inactivityTimeout: '30d'
-  }
-};
-```
+### Critical Areas for User Documentation
+1. **Getting Started Guide**
+   - Screenshots of each registration step
+   - Common email provider settings
+   - Password manager setup
 
----
+2. **Troubleshooting Section**
+   - "Why can't I log in?" flowchart
+   - Browser compatibility matrix
+   - Cookie/JavaScript requirements
 
-## Security
+3. **Security Best Practices**
+   - How to spot phishing attempts
+   - Importance of unique passwords
+   - When to revoke sessions
 
-### Authentication Flow
-1. **Password Storage**: Passwords hashed using bcrypt with configurable rounds
-2. **Token Security**: JWT tokens signed with RS256 algorithm
-3. **Refresh Token Rotation**: New refresh token issued on each refresh
-4. **Rate Limiting**: Prevents brute force attacks on login endpoint
+### Developer Integration Guide
+1. **API Authentication**
+   - Bearer token format
+   - Refresh token flow diagram
+   - Error response examples
 
-### Security Best Practices
-- Store tokens securely (httpOnly cookies recommended)
-- Implement CSRF protection for cookie-based auth
-- Use HTTPS in production
-- Rotate JWT secrets periodically
-- Implement account lockout after failed attempts
-- Enable 2FA for sensitive accounts
+2. **SDK Examples**
+   - JavaScript/TypeScript
+   - Python
+   - Mobile (iOS/Android)
 
-### Common Vulnerabilities Addressed
-- **SQL Injection**: Parameterized queries
-- **XSS**: Input sanitization and validation
-- **CSRF**: Token validation
-- **Brute Force**: Rate limiting and account lockout
-- **Token Hijacking**: Short expiration times and refresh rotation
+## Integration Points
+- Email service for password reset and notifications
+- Session storage (Redis optional, in-memory default)
+- Rate limiting middleware
+- CORS configuration for cross-origin requests
+- Logging service for audit trails
 
----
-
-## User Guide
-
-### Registration Process
-1. Navigate to registration page
-2. Enter email, password, and name
-3. Verify email (if enabled)
-4. Login with credentials
-
-### Managing Sessions
-- View active sessions in account settings
-- Revoke sessions from other devices
-- Set session timeout preferences
-
-### Password Management
-- Change password from profile settings
-- Reset forgotten password via email
-- Password requirements:
-  - Minimum 8 characters
-  - At least one uppercase letter
-  - At least one number
-  - At least one special character
-
----
-
-## Developer Guide
-
-### Protecting Routes
-```typescript
-// Use AuthGuard decorator
-@UseGuards(AuthGuard('jwt'))
-@Get('protected')
-async getProtectedData() {
-  return { data: 'This is protected' };
-}
-
-// Role-based protection
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles('admin')
-@Get('admin')
-async getAdminData() {
-  return { data: 'Admin only' };
-}
-```
-
-### Custom Authentication Logic
-```typescript
-// Extend AuthService
-export class CustomAuthService extends AuthService {
-  async validateUser(email: string, password: string): Promise<User> {
-    // Add custom validation logic
-    const user = await super.validateUser(email, password);
-    
-    // Additional checks
-    if (user.suspended) {
-      throw new UnauthorizedException('Account suspended');
-    }
-    
-    return user;
-  }
-}
-```
-
-### Testing Authentication
-```typescript
-describe('AuthController', () => {
-  it('should login user', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: 'test@example.com',
-        password: 'TestPass123!'
-      })
-      .expect(200);
-    
-    expect(response.body).toHaveProperty('tokens.accessToken');
-  });
-});
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### Invalid Token Error
-**Problem**: "JsonWebTokenError: invalid token"
-**Solutions**:
-- Verify token format (Bearer prefix)
-- Check token expiration
-- Ensure JWT_SECRET matches
-
-#### Login Rate Limit
-**Problem**: "429 Too Many Requests"
-**Solutions**:
-- Wait for rate limit window to reset
-- Check AUTH_RATE_LIMIT configuration
-- Implement exponential backoff
-
-#### CORS Issues
-**Problem**: "Access blocked by CORS policy"
-**Solutions**:
-- Configure CORS middleware
-- Add origin to allowed list
-- Check preflight requests
-
-### Debug Mode
-Enable debug logging:
-```bash
-DEBUG=auth:* npm start
-```
-
-### Support
-- GitHub Issues: [github.com/yourapp/issues](https://github.com/yourapp/issues)
-- Documentation: [docs.yourapp.com/auth](https://docs.yourapp.com/auth)
-- Email: support@yourapp.com
-
----
-
-## Changelog
-
-### v2.1.0 (2024-01-15)
-- Added refresh token rotation
-- Improved rate limiting
-- Fixed security vulnerability in password reset
-
-### v2.0.0 (2023-12-01)
-- Breaking: Changed token format
-- Added 2FA support
-- Improved session management
-
-### Migration Guide (v1.x to v2.x)
-1. Update JWT_SECRET format
-2. Run token migration script
-3. Update client-side token handling
-
----
-
-## References
-- [JWT.io](https://jwt.io) - JWT Documentation
-- [OWASP Authentication Guide](https://owasp.org/www-project-cheat-sheets/cheatsheets/Authentication_Cheat_Sheet)
-- [Passport.js Documentation](http://www.passportjs.org/docs/)
+## Summary for Documentation Team
+This extraction report provides comprehensive details about the authentication system's current implementation. The system offers a complete user experience with visual feedback, accessibility features, and robust security measures. Key areas for user documentation include the multi-step registration process, session management features, and security policies. The technical implementation uses industry-standard JWT tokens with proper security measures.
 </content>
-<line_count>450</line_count>
+<line_count>354</line_count>
 </write_to_file>
         ]]></tool_use>
       </step>
     </workflow>
 
     <key_takeaways>
-      <takeaway>Use semantic search to find related files.</takeaway>
-      <takeaway>Read multiple files for context.</takeaway>
-      <takeaway>Extract API docs from route definitions.</takeaway>
-      <takeaway>Use tests to understand behavior.</takeaway>
-      <takeaway>Document security measures.</takeaway>
-      <takeaway>Include troubleshooting for common errors.</takeaway>
+      <takeaway>Use flexible discovery methods - directory exploration and pattern search are primary tools</takeaway>
+      <takeaway>Comprehensive UI/UX analysis is essential for complete documentation</takeaway>
+      <takeaway>Document visual elements, interactions, and user feedback mechanisms</takeaway>
+      <takeaway>Include accessibility and responsive design considerations</takeaway>
+      <takeaway>Semantic search (codebase_search) is optional for deeper insights when needed</takeaway>
+      <takeaway>Organize findings to support documentation team's work</takeaway>
     </key_takeaways>
   </example>
 
-  <example name="database_schema_extraction">
+  <example name="documentation_verification_example">
     <scenario>
-      Extract documentation for database models, relationships, and migrations.
+      Verify user-provided documentation about authentication UI/UX against the actual implementation.
     </scenario>
 
     <workflow>
       <step number="1">
-        <description>Find DB files</description>
-        <tool_use><![CDATA[
-<codebase_search>
-<query>database schema model entity migration table column relationship</query>
-</codebase_search>
-        ]]></tool_use>
+        <description>User provides documentation to verify</description>
+        <user_input>
+          "Please verify our login documentation:
+          
+          'The login form provides a seamless experience with instant validation. Users see a green checkmark when their email is valid. The password field includes a strength indicator. After 3 failed attempts, users must wait 5 minutes before trying again.'"
+        </user_input>
       </step>
 
       <step number="2">
-        <description>Analyze models</description>
-        <tool_use><![CDATA[
-<search_files>
-<path>src/models</path>
-<regex>@(Entity|Table|Model)|class\s+\w+\s+extends\s+(Model|BaseEntity)</regex>
-</search_files>
-        ]]></tool_use>
+        <description>Analyze the documentation claims</description>
+        <analysis>
+          Claims to verify:
+          - Instant email validation with green checkmark
+          - Password strength indicator on login
+          - 3 failed attempts triggers 5-minute wait
+        </analysis>
       </step>
 
       <step number="3">
-        <description>Extract relationships</description>
+        <description>Find login UI components using directory exploration</description>
+        <tool_use><![CDATA[
+<list_files>
+<path>src/components</path>
+<recursive>false</recursive>
+</list_files>
+        ]]></tool_use>
         <tool_use><![CDATA[
 <search_files>
-<path>src/models</path>
-<regex>@(OneToMany|ManyToOne|OneToOne|ManyToMany|BelongsTo|HasMany)</regex>
+<path>src/components</path>
+<regex>Login|SignIn|Auth.*Form</regex>
+<file_pattern>*.tsx</file_pattern>
 </search_files>
         ]]></tool_use>
       </step>
 
       <step number="4">
-        <description>Document migrations</description>
+        <description>Examine login form implementation</description>
+        <tool_use><![CDATA[
+<read_file>
+<args>
+  <file>
+    <path>src/components/LoginForm.tsx</path>
+  </file>
+  <file>
+    <path>src/components/LoginForm.css</path>
+  </file>
+</args>
+</read_file>
+        ]]></tool_use>
+        <findings>
+          - Email validation exists but shows red X, not green checkmark
+          - No password strength indicator on login form (only on registration)
+          - Account lockout is after 5 attempts, not 3
+          - Lockout duration is 15 minutes, not 5
+        </findings>
+      </step>
+
+      <step number="5">
+        <description>Verify validation behavior</description>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/components</path>
+<regex>validateEmail|emailValid|checkmark|strength.*indicator</regex>
+</search_files>
+        ]]></tool_use>
+        <tool_use><![CDATA[
+<search_files>
+<path>src/auth</path>
+<regex>failed.*attempts|lockout|rate.*limit</regex>
+</search_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="6">
+        <description>Create verification report</description>
+        <tool_use><![CDATA[
+<write_to_file>
+<path>VERIFICATION-login-documentation.md</path>
+<content>
+# Login Documentation - Verification Report
+
+## Overall Assessment: Needs Significant Updates
+
+## Summary
+The login documentation contains several inaccuracies about the UI/UX implementation that could confuse users and lead to poor user experience.
+
+## Critical Inaccuracies
+
+### 1. Email Validation Feedback
+**Documentation States**: "Users see a green checkmark when their email is valid"
+**Actual Implementation**: Red X icon for invalid emails, no positive feedback
+- Location: `src/components/LoginForm.tsx:45-52`
+- Current behavior: Only shows error states
+- Missing: Success indicator implementation
+- **Impact**: Users don't get positive reinforcement for correct input
+
+### 2. Password Strength Indicator
+**Documentation States**: "The password field includes a strength indicator"
+**Actual Implementation**: No strength indicator on login form
+- Location: Checked `src/components/LoginForm.tsx`
+- Strength indicator only exists in `RegisterForm.tsx`
+- Login form has basic password field only
+- **Impact**: Sets incorrect user expectations
+
+### 3. Failed Login Attempts
+**Documentation States**: "After 3 failed attempts, users must wait 5 minutes"
+**Actual Implementation**: 5 attempts, 15-minute lockout
+- Location: `src/auth/services/auth.service.ts:234`
+- Code: `MAX_LOGIN_ATTEMPTS = 5`
+- Code: `LOCKOUT_DURATION = 15 * 60 * 1000 // 15 minutes`
+- **Impact**: Users may be confused about actual security policy
+
+## UI/UX Elements Found But Not Documented
+
+### 1. Loading States
+- Spinner overlay during authentication
+- Button disabled state during submission
+- These improve perceived performance
+
+### 2. Remember Me Feature
+- 30-day persistent session option
+- Stored in secure cookie
+- Not mentioned in documentation
+
+### 3. Caps Lock Warning
+- Visual indicator when caps lock is on
+- Helps prevent login failures
+- Important accessibility feature
+
+## Recommendations
+
+### Immediate Corrections Needed
+1. **Email Validation**:
+   ```
+   CORRECT: "The email field shows a red error icon for invalid formats. Valid emails are accepted without visual confirmation."
+   ```
+
+2. **Password Features**:
+   ```
+   CORRECT: "The login form has a standard password field with show/hide toggle. Password strength indicators are only shown during registration."
+   ```
+
+3. **Security Policy**:
+   ```
+   CORRECT: "After 5 failed login attempts, accounts are temporarily locked for 15 minutes to prevent brute force attacks."
+   ```
+
+### Suggested Additions
+1. Document the loading states and visual feedback
+2. Explain the "Remember Me" functionality
+3. Mention the Caps Lock warning feature
+4. Add screenshots of actual UI states
+
+## Technical References
+- Login Form Component: `src/components/LoginForm.tsx`
+- Styles: `src/components/LoginForm.css`
+- Auth Service: `src/auth/services/auth.service.ts`
+- Rate Limiting: `src/middleware/rateLimiter.ts`
+
+## Visual Discrepancies
+- Documentation implies more visual feedback than implemented
+- Color scheme in docs doesn't match actual theme
+- Missing documentation for error message styling
+
+## Conclusion
+The documentation needs updates to accurately reflect the current login experience. The actual implementation is more security-focused (5 attempts, 15-min lockout) but less visually rich (no success indicators) than documented.
+</content>
+<line_count>95</line_count>
+</write_to_file>
+        ]]></tool_use>
+      </step>
+    </workflow>
+
+    <key_takeaways>
+      <takeaway>Always verify UI/UX claims against actual component implementation</takeaway>
+      <takeaway>Check both visual elements and behavioral logic</takeaway>
+      <takeaway>Look for undocumented features that users might expect</takeaway>
+      <takeaway>Provide specific corrections with code references</takeaway>
+      <takeaway>Consider the impact of inaccuracies on user experience</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="api_endpoint_extraction">
+    <scenario>
+      Extract comprehensive API documentation including endpoints, request/response formats, and error handling.
+    </scenario>
+
+    <workflow>
+      <step number="1">
+        <description>Discover API structure using flexible methods</description>
+        <tool_use><![CDATA[
+<!-- Method 1: Look for common API directories -->
+<list_files>
+<path>src</path>
+<recursive>false</recursive>
+</list_files>
+        ]]></tool_use>
         <tool_use><![CDATA[
 <list_files>
-<path>migrations</path>
+<path>src/api</path>
 <recursive>true</recursive>
 </list_files>
         ]]></tool_use>
       </step>
 
-      <step number="5">
-        <description>Generate schema documentation</description>
-        <output>
-          - Entity relationship diagrams
-          - Table schemas with column types
-          - Index definitions
-          - Foreign key constraints
-          - Migration history
-          - Query patterns and optimizations
-        </output>
-      </step>
-    </workflow>
-  </example>
-
-  <example name="api_endpoint_extraction">
-    <scenario>
-      Extract comprehensive API documentation including all endpoints,
-      request/response formats, authentication, and examples.
-    </scenario>
-
-    <workflow>
-      <step number="1">
-        <description>Find all API routes</description>
+      <step number="2">
+        <description>Find all API routes using pattern search</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
@@ -627,8 +724,8 @@ DEBUG=auth:* npm start
         ]]></tool_use>
       </step>
 
-      <step number="2">
-        <description>Extract request validation</description>
+      <step number="3">
+        <description>Extract request validation schemas</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
@@ -637,296 +734,148 @@ DEBUG=auth:* npm start
         ]]></tool_use>
       </step>
 
-      <step number="3">
-        <description>Find response schemas</description>
-        <tool_use><![CDATA[
-<search_files>
-<path>src</path>
-<regex>@ApiResponse|swagger|openapi|response\.json\(|res\.send\(</regex>
-</search_files>
-        ]]></tool_use>
-      </step>
-
       <step number="4">
-        <description>Document authentication requirements</description>
+        <description>Analyze error handling and responses</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
-<regex>@(UseGuards|Authorized|Public)|passport\.authenticate|requireAuth</regex>
+<regex>@ApiResponse|response\.status\(|res\.status\(|throw new.*Error</regex>
 </search_files>
         ]]></tool_use>
       </step>
 
       <step number="5">
-        <description>Generate OpenAPI/Swagger documentation</description>
-        <output_format>
-          - OpenAPI 3.0 specification
-          - Postman collection
-          - API client examples
-          - cURL commands
-          - SDK usage examples
-        </output_format>
+        <description>Optional: Semantic search for middleware and auth</description>
+        <tool_use><![CDATA[
+<!-- Use when pattern search might miss complex middleware chains -->
+<codebase_search>
+<query>API middleware authentication authorization guards</query>
+</codebase_search>
+        ]]></tool_use>
+      </step>
+
+      <step number="6">
+        <description>Generate API extraction report</description>
+        <output>
+          - Complete endpoint inventory with methods and paths
+          - Request/response schemas with examples
+          - Authentication requirements per endpoint
+          - Rate limiting and throttling rules
+          - Error response formats and codes
+          - API versioning strategy
+        </output>
       </step>
     </workflow>
   </example>
 
-  <example name="frontend_component_extraction">
+  <example name="ui_component_library_extraction">
     <scenario>
-      Document React/Vue/Angular components including props, events,
-      slots, styling, and usage examples.
+      Document a React component library including props, styling, accessibility, and usage patterns.
     </scenario>
 
     <workflow>
       <step number="1">
-        <description>Find component files</description>
+        <description>Discover component structure</description>
+        <tool_use><![CDATA[
+<list_files>
+<path>src/components</path>
+<recursive>true</recursive>
+</list_files>
+        ]]></tool_use>
+      </step>
+
+      <step number="2">
+        <description>Analyze component interfaces and props</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/components</path>
-<regex>export\s+(default\s+)?(function|class|const)\s+\w+|@Component</regex>
+<regex>interface\s+\w+Props|type\s+\w+Props|export\s+(default\s+)?function|export\s+const</regex>
 <file_pattern>*.tsx</file_pattern>
 </search_files>
         ]]></tool_use>
       </step>
 
-      <step number="2">
-        <description>Extract component props/inputs</description>
+      <step number="3">
+        <description>Extract styling and theme usage</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/components</path>
-<regex>interface\s+\w+Props|type\s+\w+Props|@Input\(\)|props:\s*{</regex>
-</search_files>
-        ]]></tool_use>
-      </step>
-
-      <step number="3">
-        <description>Find component usage examples</description>
-        <tool_use><![CDATA[
-<search_files>
-<path>src</path>
-<regex><ComponentName|import.*ComponentName</regex>
+<regex>styled\.|makeStyles|className=|sx=|css=</regex>
 </search_files>
         ]]></tool_use>
       </step>
 
       <step number="4">
-        <description>Document styling and themes</description>
+        <description>Document accessibility features</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src/components</path>
-<regex>styled\.|makeStyles|@apply|className=|style=</regex>
+<regex>aria-|role=|tabIndex|alt=|htmlFor=</regex>
 </search_files>
         ]]></tool_use>
       </step>
 
       <step number="5">
-        <description>Extract Storybook stories</description>
+        <description>Find usage examples and stories</description>
         <tool_use><![CDATA[
 <search_files>
 <path>src</path>
-<regex>export\s+default\s+{.*title:|\.stories\.</regex>
-<file_pattern>*.stories.tsx</file_pattern>
+<regex>\.stories\.|\.story\.|examples?/|demo/</regex>
+<file_pattern>*.tsx</file_pattern>
 </search_files>
         ]]></tool_use>
       </step>
 
       <step number="6">
-        <description>Generate component documentation</description>
+        <description>Create component library report</description>
         <output>
-          - Component API reference
-          - Props table with types and defaults
-          - Event documentation
-          - Styling guidelines
-          - Usage examples
-          - Accessibility notes
-          - Browser compatibility
+          - Component hierarchy and relationships
+          - Props documentation with types and defaults
+          - Styling system and customization options
+          - Accessibility compliance checklist
+          - Interactive examples and code snippets
+          - Best practices and anti-patterns
+          - Browser compatibility notes
         </output>
       </step>
     </workflow>
   </example>
 
-  <example name="configuration_system_extraction">
-    <scenario>
-      Document all configuration options, environment variables,
-      feature flags, and their impacts on system behavior.
-    </scenario>
-
-    <workflow>
-      <step number="1">
-        <description>Find configuration files</description>
-        <tool_use><![CDATA[
-<list_files>
-<path>.</path>
-<recursive>false</recursive>
-</list_files>
-        ]]></tool_use>
-        <look_for>
-          - .env.example
-          - config/
-          - settings.json
-          - app.config.ts
-        </look_for>
-      </step>
-
-      <step number="2">
-        <description>Extract environment variables</description>
-        <tool_use><![CDATA[
-<search_files>
-<path>.</path>
-<regex>process\.env\.(\w+)|getenv\(['"](\w+)['"]\)</regex>
-</search_files>
-        ]]></tool_use>
-      </step>
-
-      <step number="3">
-        <description>Find feature flags</description>
-        <tool_use><![CDATA[
-<search_files>
-<path>src</path>
-<regex>feature\.|featureFlag|isEnabled\(['"]|flags\.</regex>
-</search_files>
-        ]]></tool_use>
-      </step>
-
-      <step number="4">
-        <description>Document configuration impacts</description>
-        <analysis>
-          - How each config affects behavior
-          - Dependencies between configs
-          - Performance implications
-          - Security considerations
-          - Default values and overrides
-        </analysis>
-      </step>
-
-      <step number="5">
-        <description>Generate configuration guide</description>
-        <output>
-          - Complete configuration reference
-          - Environment setup guide
-          - Docker/Kubernetes configs
-          - CI/CD pipeline variables
-          - Production deployment checklist
-        </output>
-      </step>
-    </workflow>
-  </example>
-  <example name="documentation_review_example">
-    <scenario>
-      Review a user-provided documentation section for accuracy against the codebase
-      and provide recommendations for improvement in the chat.
-    </scenario>
-    <workflow>
-      <step number="1">
-        <description>User provides documentation for review</description>
-        <user_input>
-          "Here's our current draft for the JWT_SECRET setting. Can you check it for accuracy? 'The `JWT_SECRET` is an optional key for enhancing security.'"
-        </user_input>
-      </step>
-      <step number="2">
-        <description>Analyze relevant code</description>
-        <tool_use><![CDATA[
-<codebase_search>
-<query>JWT_SECRET configuration implementation</query>
-</codebase_search>
-        ]]></tool_use>
-        <expected_findings>
-          - Code where `JWT_SECRET` is read (e.g., `process.env.JWT_SECRET`)
-          - Logic that fails if the secret is missing
-          - Default values or error handling related to the secret
-        </expected_findings>
-      </step>
-      <step number="3">
-        <description>Formulate and provide feedback in chat</description>
-        <tool_use><![CDATA[
-<attempt_completion>
-<result>
-I have reviewed the documentation section provided for the `JWT_SECRET` setting. Here are my recommendations for improvement:
-
-**Overall Assessment**: The current draft is critically inaccurate and could lead to security vulnerabilities if followed.
-
-**Recommendations for Improvement**:
-
-*   **Critical Inaccuracy**:
-    *   The documentation states that `JWT_SECRET` is optional. However, the application will fail to start if it is not provided. It is a **required** setting for the application to function securely.
-    *   **Suggestion**: "The `JWT_SECRET` is a **required** environment variable used to sign and verify JSON Web Tokens. The application will not run without it."
-
-This feedback can be copied and pasted for your documentation team.
-</result>
-</attempt_completion>
-        ]]></tool_use>
-        <note>No file is written. The feedback is provided directly to the user in the chat interface.</note>
-      </step>
-    </workflow>
-  </example>
- 
-   <best_practices>
-     <practice name="comprehensive_coverage">
-       <description>Ensure all aspects are documented</description>
-      <checklist>
-        <item>Technical implementation details</item>
-        <item>Business logic and rules</item>
-        <item>User workflows and journeys</item>
-        <item>API specifications</item>
-        <item>Configuration options</item>
-        <item>Security measures</item>
-        <item>Performance characteristics</item>
-        <item>Error handling</item>
-        <item>Testing strategies</item>
-        <item>Deployment procedures</item>
-      </checklist>
-    </practice>
-
-    <practice name="multi_audience_writing">
-      <description>Tailor content for different readers</description>
-      <audiences>
-        <audience type="end_users">
-          Focus on how-to guides and troubleshooting
-        </audience>
-        <audience type="developers">
-          Include code examples and technical details
-        </audience>
-        <audience type="administrators">
-          Emphasize configuration and maintenance
-        </audience>
-        <audience type="stakeholders">
-          Highlight business value and metrics
-        </audience>
-      </audiences>
-    </practice>
-
-    <practice name="maintainable_documentation">
-      <description>Create documentation that's easy to update</description>
+  <best_practices>
+    <practice name="flexible_discovery">
+      <description>Use the most appropriate discovery method</description>
       <guidelines>
-        <guideline>Use clear section headers</guideline>
-        <guideline>Include version information</guideline>
-        <guideline>Add last-updated timestamps</guideline>
-        <guideline>Cross-reference related sections</guideline>
-        <guideline>Provide migration guides</guideline>
+        <guideline>Start with directory exploration for well-organized codebases</guideline>
+        <guideline>Use pattern search for specific syntax or naming conventions</guideline>
+        <guideline>Apply file-based search when you know exact locations</guideline>
+        <guideline>Reserve semantic search for complex conceptual queries</guideline>
       </guidelines>
     </practice>
 
-    <practice name="example_driven">
-      <description>Include practical examples throughout</description>
-      <example_types>
-        <type>Code snippets with syntax highlighting</type>
-        <type>API request/response pairs</type>
-        <type>Configuration examples</type>
-        <type>Command-line usage</type>
-        <type>Error scenarios and solutions</type>
-      </example_types>
+    <practice name="comprehensive_ui_ux_coverage">
+      <description>Ensure complete UI/UX documentation</description>
+      <checklist>
+        <item>Visual design and layout</item>
+        <item>Interactive elements and states</item>
+        <item>User feedback mechanisms</item>
+        <item>Accessibility features</item>
+        <item>Responsive behavior</item>
+        <item>Animation and transitions</item>
+        <item>Error states and recovery</item>
+        <item>Loading and progress indicators</item>
+      </checklist>
+    </practice>
+
+    <practice name="verification_thoroughness">
+      <description>Verify all aspects of documentation claims</description>
+      <checklist>
+        <item>Technical accuracy of code examples</item>
+        <item>UI element descriptions match implementation</item>
+        <item>User workflows reflect actual behavior</item>
+        <item>Configuration values are current</item>
+        <item>Error messages match code</item>
+        <item>Performance claims are realistic</item>
+      </checklist>
     </practice>
   </best_practices>
-
-  <output_validation>
-    <checklist>
-      <item>Table of contents with working links</item>
-      <item>All sections properly formatted</item>
-      <item>Code examples are syntactically correct</item>
-      <item>No placeholder text remaining</item>
-      <item>Version information included</item>
-      <item>Cross-references are valid</item>
-      <item>Metadata is complete</item>
-      <item>File follows naming convention</item>
-    </checklist>
-  </output_validation>
 </complete_extraction_examples>
