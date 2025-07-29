@@ -538,6 +538,16 @@
 			"profileDescription": "このプロファイルのみのカスタムしきい値（グローバルデフォルトを上書き）",
 			"inheritDescription": "このプロファイルはグローバルデフォルトしきい値を継承します（{{threshold}}%）",
 			"usesGlobal": "（グローバル {{threshold}}% を使用）"
+		},
+		"maxImageFileSize": {
+			"label": "最大画像ファイルサイズ",
+			"mb": "MB",
+			"description": "read fileツールで処理できる画像ファイルの最大サイズ（MB単位）。"
+		},
+		"maxTotalImageSize": {
+			"label": "最大合計画像サイズ",
+			"mb": "MB",
+			"description": "単一のread_file操作で処理されるすべての画像の累積サイズ制限（MB単位）。複数の画像を読み取る際、各画像のサイズが合計に加算されます。別の画像を含めるとこの制限を超える場合、その画像はスキップされます。"
 		}
 	},
 	"terminal": {

@@ -14,6 +14,14 @@ import { readLines } from "../../integrations/misc/read-lines"
 import { extractTextFromFile, addLineNumbers, getSupportedBinaryFormats } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { parseXml } from "../../utils/xml"
+import {
+	DEFAULT_MAX_IMAGE_FILE_SIZE_MB,
+	DEFAULT_MAX_TOTAL_IMAGE_SIZE_MB,
+	isSupportedImageFormat,
+	validateImageForProcessing,
+	processImageFile,
+	ImageMemoryTracker,
+} from "./helpers/imageHelpers"
 
 export function getReadFileToolDescription(blockName: string, blockParams: any): string {
 	// Handle both single path and multiple files via args
@@ -66,6 +74,7 @@ interface FileResult {
 	notice?: string
 	lineRanges?: LineRange[]
 	xmlContent?: string // Final XML content for this file
+	imageDataUrl?: string // Image data URL for image files
 	feedbackText?: string // User feedback text from approval/denial
 	feedbackImages?: any[] // User feedback images from approval/denial
 }
@@ -82,6 +91,10 @@ export async function readFileTool(
 	const legacyPath: string | undefined = block.params.path
 	const legacyStartLineStr: string | undefined = block.params.start_line
 	const legacyEndLineStr: string | undefined = block.params.end_line
+
+	// Check if the current model supports images at the beginning
+	const modelInfo = cline.api.getModel().info
+	const supportsImages = modelInfo.supportsImages ?? false
 
 	// Handle partial message first
 	if (block.partial) {
@@ -420,6 +433,15 @@ export async function readFileTool(
 			}
 		}
 
+		// Track total image memory usage across all files
+		const imageMemoryTracker = new ImageMemoryTracker()
+		const state = await cline.providerRef.deref()?.getState()
+		const {
+			maxReadFileLine = -1,
+			maxImageFileSize = DEFAULT_MAX_IMAGE_FILE_SIZE_MB,
+			maxTotalImageSize = DEFAULT_MAX_TOTAL_IMAGE_SIZE_MB,
+		} = state ?? {}
+
 		// Then process only approved files
 		for (const fileResult of fileResults) {
 			// Skip files that weren't approved
@@ -429,7 +451,6 @@ export async function readFileTool(
 
 			const relPath = fileResult.path
 			const fullPath = path.resolve(cline.cwd, relPath)
-			const { maxReadFileLine = -1 } = (await cline.providerRef.deref()?.getState()) ?? {}
 
 			// Process approved files
 			try {
@@ -440,14 +461,71 @@ export async function readFileTool(
 					const fileExtension = path.extname(relPath).toLowerCase()
 					const supportedBinaryFormats = getSupportedBinaryFormats()
 
-					if (!supportedBinaryFormats.includes(fileExtension)) {
+					// Check if it's a supported image format
+					if (isSupportedImageFormat(fileExtension)) {
+						try {
+							// Validate image for processing
+							const validationResult = await validateImageForProcessing(
+								fullPath,
+								supportsImages,
+								maxImageFileSize,
+								maxTotalImageSize,
+								imageMemoryTracker.getTotalMemoryUsed(),
+							)
+
+							if (!validationResult.isValid) {
+								// Track file read
+								await cline.fileContextTracker.trackFileContext(relPath, "read_tool" as RecordSource)
+
+								updateFileResult(relPath, {
+									xmlContent: `<file><path>${relPath}</path>\n<notice>${validationResult.notice}</notice>\n</file>`,
+								})
+								continue
+							}
+
+							// Process the image
+							const imageResult = await processImageFile(fullPath)
+
+							// Track memory usage for this image
+							imageMemoryTracker.addMemoryUsage(imageResult.sizeInMB)
+
+							// Track file read
+							await cline.fileContextTracker.trackFileContext(relPath, "read_tool" as RecordSource)
+
+							// Store image data URL separately - NOT in XML
+							updateFileResult(relPath, {
+								xmlContent: `<file><path>${relPath}</path>\n<notice>${imageResult.notice}</notice>\n</file>`,
+								imageDataUrl: imageResult.dataUrl,
+							})
+							continue
+						} catch (error) {
+							const errorMsg = error instanceof Error ? error.message : String(error)
+							updateFileResult(relPath, {
+								status: "error",
+								error: `Error reading image file: ${errorMsg}`,
+								xmlContent: `<file><path>${relPath}</path><error>Error reading image file: ${errorMsg}</error></file>`,
+							})
+							await handleError(
+								`reading image file ${relPath}`,
+								error instanceof Error ? error : new Error(errorMsg),
+							)
+							continue
+						}
+					}
+
+					// Check if it's a supported binary format that can be processed
+					if (supportedBinaryFormats && supportedBinaryFormats.includes(fileExtension)) {
+						// For supported binary formats (.pdf, .docx, .ipynb), continue to extractTextFromFile
+						// Fall through to the normal extractTextFromFile processing below
+					} else {
+						// Handle unknown binary format
+						const fileFormat = fileExtension.slice(1) || "bin" // Remove the dot, fallback to "bin"
 						updateFileResult(relPath, {
-							notice: "Binary file",
-							xmlContent: `<file><path>${relPath}</path>\n<notice>Binary file</notice>\n</file>`,
+							notice: `Binary file format: ${fileFormat}`,
+							xmlContent: `<file><path>${relPath}</path>\n<binary_file format="${fileFormat}">Binary file - content not displayed</binary_file>\n</file>`,
 						})
 						continue
 					}
-					// For supported binary formats (.pdf, .docx, .ipynb), continue to extractTextFromFile
 				}
 
 				// Handle range reads (bypass maxReadFileLine)
@@ -546,6 +624,11 @@ export async function readFileTool(
 		const xmlResults = fileResults.filter((result) => result.xmlContent).map((result) => result.xmlContent)
 		const filesXml = `<files>\n${xmlResults.join("\n")}\n</files>`
 
+		// Collect all image data URLs from file results
+		const fileImageUrls = fileResults
+			.filter((result) => result.imageDataUrl)
+			.map((result) => result.imageDataUrl as string)
+
 		// Process all feedback in a unified way without branching
 		let statusMessage = ""
 		let feedbackImages: any[] = []
@@ -573,20 +656,39 @@ export async function readFileTool(
 			}
 		}
 
+		// Combine all images: feedback images first, then file images
+		const allImages = [...feedbackImages, ...fileImageUrls]
+
+		// Re-check if the model supports images before including them, in case it changed during execution.
+		const finalModelSupportsImages = cline.api.getModel().info.supportsImages ?? false
+		const imagesToInclude = finalModelSupportsImages ? allImages : []
+
 		// Push the result with appropriate formatting
-		if (statusMessage) {
-			const result = formatResponse.toolResult(statusMessage, feedbackImages)
+		if (statusMessage || imagesToInclude.length > 0) {
+			// Always use formatResponse.toolResult when we have a status message or images
+			const result = formatResponse.toolResult(
+				statusMessage || filesXml,
+				imagesToInclude.length > 0 ? imagesToInclude : undefined,
+			)
 
 			// Handle different return types from toolResult
 			if (typeof result === "string") {
-				pushToolResult(`${result}\n${filesXml}`)
+				if (statusMessage) {
+					pushToolResult(`${result}\n${filesXml}`)
+				} else {
+					pushToolResult(result)
+				}
 			} else {
-				// For block-based results, we need to convert the filesXml to a text block and append it
-				const textBlock = { type: "text" as const, text: filesXml }
-				pushToolResult([...result, textBlock])
+				// For block-based results, append the files XML as a text block if not already included
+				if (statusMessage) {
+					const textBlock = { type: "text" as const, text: filesXml }
+					pushToolResult([...result, textBlock])
+				} else {
+					pushToolResult(result)
+				}
 			}
 		} else {
-			// No status message, just push the files XML
+			// No images or status message, just push the files XML
 			pushToolResult(filesXml)
 		}
 	} catch (error) {

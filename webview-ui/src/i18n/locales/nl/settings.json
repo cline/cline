@@ -513,6 +513,16 @@
 			"label": "Limiet gelijktijdige bestandslezingen",
 			"description": "Maximum aantal bestanden dat de 'read_file' tool tegelijkertijd kan verwerken. Hogere waarden kunnen het lezen van meerdere kleine bestanden versnellen maar verhogen het geheugengebruik."
 		},
+		"maxImageFileSize": {
+			"label": "Maximum afbeeldingsbestandsgrootte",
+			"mb": "MB",
+			"description": "Maximale grootte (in MB) voor afbeeldingsbestanden die kunnen worden verwerkt door de read file tool."
+		},
+		"maxTotalImageSize": {
+			"label": "Maximale totale afbeeldingsgrootte",
+			"mb": "MB",
+			"description": "Maximale cumulatieve groottelimiet (in MB) voor alle afbeeldingen die in één read_file-bewerking worden verwerkt. Bij het lezen van meerdere afbeeldingen wordt de grootte van elke afbeelding bij het totaal opgeteld. Als het toevoegen van een andere afbeelding deze limiet zou overschrijden, wordt deze overgeslagen."
+		},
 		"diagnostics": {
 			"includeMessages": {
 				"label": "Automatisch diagnostiek opnemen in context",

@@ -513,6 +513,16 @@
 			"label": "Límite de lecturas simultáneas",
 			"description": "Número máximo de archivos que la herramienta 'read_file' puede procesar simultáneamente. Valores más altos pueden acelerar la lectura de múltiples archivos pequeños pero aumentan el uso de memoria."
 		},
+		"maxImageFileSize": {
+			"label": "Tamaño máximo de archivo de imagen",
+			"mb": "MB",
+			"description": "Tamaño máximo (en MB) para archivos de imagen que pueden ser procesados por la herramienta de lectura de archivos."
+		},
+		"maxTotalImageSize": {
+			"label": "Tamaño total máximo de imágenes",
+			"mb": "MB",
+			"description": "Límite de tamaño acumulativo máximo (en MB) para todas las imágenes procesadas en una sola operación read_file. Al leer múltiples imágenes, el tamaño de cada imagen se suma al total. Si incluir otra imagen excedería este límite, será omitida."
+		},
 		"diagnostics": {
 			"includeMessages": {
 				"label": "Incluir automáticamente diagnósticos en el contexto",

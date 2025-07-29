@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (lignes {{start}}-{{end}})",
 		"definitionsOnly": " (définitions uniquement)",
-		"maxLines": " (max {{max}} lignes)"
+		"maxLines": " (max {{max}} lignes)",
+		"imageTooLarge": "Le fichier image est trop volumineux ({{size}} MB). La taille maximale autorisée est {{max}} MB.",
+		"imageWithSize": "Fichier image ({{size}} Ko)"
 	},
 	"toolRepetitionLimitReached": "Roo semble être bloqué dans une boucle, tentant la même action ({{toolName}}) de façon répétée. Cela pourrait indiquer un problème avec sa stratégie actuelle. Envisage de reformuler la tâche, de fournir des instructions plus spécifiques ou de le guider vers une approche différente.",
 	"codebaseSearch": {

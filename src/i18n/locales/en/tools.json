@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (lines {{start}}-{{end}})",
 		"definitionsOnly": " (definitions only)",
-		"maxLines": " (max {{max}} lines)"
+		"maxLines": " (max {{max}} lines)",
+		"imageTooLarge": "Image file is too large ({{size}} MB). The maximum allowed size is {{max}} MB.",
+		"imageWithSize": "Image file ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo appears to be stuck in a loop, attempting the same action ({{toolName}}) repeatedly. This might indicate a problem with its current strategy. Consider rephrasing the task, providing more specific instructions, or guiding it towards a different approach.",
 	"codebaseSearch": {

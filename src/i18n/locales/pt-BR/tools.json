@@ -2,7 +2,9 @@
 	"readFile": {
 		"linesRange": " (linhas {{start}}-{{end}})",
 		"definitionsOnly": " (apenas definições)",
-		"maxLines": " (máx. {{max}} linhas)"
+		"maxLines": " (máx. {{max}} linhas)",
+		"imageTooLarge": "Arquivo de imagem é muito grande ({{size}} MB). O tamanho máximo permitido é {{max}} MB.",
+		"imageWithSize": "Arquivo de imagem ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo parece estar preso em um loop, tentando a mesma ação ({{toolName}}) repetidamente. Isso pode indicar um problema com sua estratégia atual. Considere reformular a tarefa, fornecer instruções mais específicas ou guiá-lo para uma abordagem diferente.",
 	"codebaseSearch": {

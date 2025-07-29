@@ -538,6 +538,16 @@
 			"profileDescription": "Soglia personalizzata solo per questo profilo (sovrascrive il predefinito globale)",
 			"inheritDescription": "Questo profilo eredita la soglia predefinita globale ({{threshold}}%)",
 			"usesGlobal": "(usa globale {{threshold}}%)"
+		},
+		"maxImageFileSize": {
+			"label": "Dimensione massima file immagine",
+			"mb": "MB",
+			"description": "Dimensione massima (in MB) per i file immagine che possono essere elaborati dallo strumento di lettura file."
+		},
+		"maxTotalImageSize": {
+			"label": "Dimensione totale massima immagini",
+			"mb": "MB",
+			"description": "Limite di dimensione cumulativa massima (in MB) per tutte le immagini elaborate in una singola operazione read_file. Durante la lettura di più immagini, la dimensione di ogni immagine viene aggiunta al totale. Se l'inclusione di un'altra immagine supererebbe questo limite, verrà saltata."
 		}
 	},
 	"terminal": {
