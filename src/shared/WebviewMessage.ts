@@ -47,13 +47,7 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
-	grpc_request?: {
-		service: string
-		method: string
-		message: any // JSON serialized protobuf message
-		request_id: string // For correlating requests and responses
-		is_streaming?: boolean // Whether this is a streaming request
-	}
+	grpc_request?: GrpcRequest
 	grpc_request_cancel?: {
 		request_id: string // ID of the request to cancel
 	}
@@ -68,6 +62,14 @@ export interface WebviewMessage {
 	shellIntegrationTimeout?: number
 	terminalReuseEnabled?: boolean
 	defaultTerminalProfile?: string
+}
+
+export type GrpcRequest = {
+	service: string
+	method: string
+	message: any // JSON serialized protobuf message
+	request_id: string // For correlating requests and responses
+	is_streaming?: boolean // Whether this is a streaming request
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

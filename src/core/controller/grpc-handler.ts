@@ -1,6 +1,27 @@
 import { Controller } from "./index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
+import { GrpcRequest } from "@shared/WebviewMessage"
+
+export type JsonUnaryHandler<TRequest, TResponse> = {
+	handler: UnaryHandler<TRequest, TResponse>
+	decodeRequest: (_: unknown) => TRequest
+	encodeResponse: (_: TResponse) => unknown
+}
+export type JsonStreamingHandler<TRequest, TResponse> = {
+	handler: StreamingHandler<TRequest, TResponse>
+	decodeRequest: (_: unknown) => TRequest
+	encodeResponse: (_: TResponse) => unknown
+}
+
+export type UnaryHandler<TRequest, TResponse> = (controller: Controller, request: TRequest) => Promise<TResponse>
+
+export type StreamingHandler<TRequest, TResponse> = (
+	controller: Controller,
+	request: TRequest,
+	callbacks: StreamingResponseHandler<TResponse>,
+	requestId: string,
+) => Promise<void>
 
 /**
  * Type definition for a streaming response handler
@@ -21,7 +42,7 @@ export class GrpcHandler {
 	 * Handle a gRPC request from the webview
 	 * @param service The service name
 	 * @param method The method name
-	 * @param message The request message
+	 * @param requestJSON The JSON request message
 	 * @param requestId The request ID for response correlation
 	 * @param isStreaming Whether this is a streaming request
 	 * @returns The response message or error for unary requests, void for streaming requests
@@ -29,27 +50,31 @@ export class GrpcHandler {
 	async handleRequest(
 		service: string,
 		method: string,
-		message: any,
+		requestJSON: unknown,
 		requestId: string,
 		isStreaming: boolean = false,
 	): Promise<{
-		message?: any
+		message?: unknown
 		error?: string
 		request_id: string
 	} | void> {
 		try {
 			// If this is a streaming request, use the streaming handler
 			if (isStreaming) {
-				await this.handleStreamingRequest(service, method, message, requestId)
+				await this.handleStreamingRequest(service, method, requestJSON, requestId)
 				return
 			}
-
 			// Get the service handler from the config
-			const handler = getHandler(service, method)
-
+			const handler = getHandler(service, method) as JsonUnaryHandler<any, any>
+			// Decode the request from JSON.
+			const request = handler.decodeRequest(requestJSON)
+			// Call the handler
+			const response = await handler.handler(this.controller, request)
+			// Encode the response to JSON.
+			const responseJSON = handler.encodeResponse(response)
 			// Handle unary request
 			return {
-				message: await handler(this.controller, message),
+				message: responseJSON,
 				request_id: requestId,
 			}
 		} catch (error) {
@@ -68,30 +93,33 @@ export class GrpcHandler {
 	 * @param message The request message
 	 * @param requestId The request ID for response correlation
 	 */
-	private async handleStreamingRequest(service: string, method: string, message: any, requestId: string): Promise<void> {
-		// Create a response stream function
-		const responseStream: StreamingResponseHandler<any> = async (
-			response: any,
-			isLast: boolean = false,
-			sequenceNumber?: number,
-		) => {
-			await this.controller.postMessageToWebview({
-				type: "grpc_response",
-				grpc_response: {
-					message: response,
-					request_id: requestId,
-					is_streaming: !isLast,
-					sequence_number: sequenceNumber,
-				},
-			})
-		}
-
+	private async handleStreamingRequest(service: string, method: string, requestJSON: any, requestId: string): Promise<void> {
 		try {
 			// Get the service handler from the config
-			const handler = getHandler(service, method)
+			const handler = getHandler(service, method) as JsonStreamingHandler<any, any>
 
+			// Create a response stream function
+			const responseStream: StreamingResponseHandler<any> = async (
+				response: any,
+				isLast: boolean = false,
+				sequenceNumber?: number,
+			) => {
+				// Encode the response
+				const responseJSON = handler.encodeResponse(response)
+				await this.controller.postMessageToWebview({
+					type: "grpc_response",
+					grpc_response: {
+						message: responseJSON,
+						request_id: requestId,
+						is_streaming: !isLast,
+						sequence_number: sequenceNumber,
+					},
+				})
+			}
+			// Decode the request
+			const request = handler.decodeRequest(requestJSON)
 			// Handle streaming request and pass the requestId to all streaming handlers
-			await handler(this.controller, message, responseStream, requestId)
+			await handler.handler(this.controller, request, responseStream, requestId)
 
 			// Don't send a final message here - the stream should stay open for future updates
 			// The stream will be closed when the client disconnects or when the service explicitly ends it
@@ -118,16 +146,7 @@ const requestRegistry = new GrpcRequestRegistry()
  * @param controller The controller instance
  * @param request The gRPC request
  */
-export async function handleGrpcRequest(
-	controller: Controller,
-	request: {
-		service: string
-		method: string
-		message: any
-		request_id: string
-		is_streaming?: boolean
-	},
-) {
+export async function handleGrpcRequest(controller: Controller, request: GrpcRequest) {
 	try {
 		const grpcHandler = new GrpcHandler(controller)
 
@@ -201,7 +220,7 @@ export async function handleGrpcRequestCancel(
 	}
 }
 
-function getHandler(serviceName: string, methodName: string): any {
+function getHandler(serviceName: string, methodName: string): JsonUnaryHandler<any, any> | JsonStreamingHandler<any, any> {
 	// Get the service handler from the config
 	const serviceConfig = serviceHandlers[serviceName]
 	if (!serviceConfig) {
