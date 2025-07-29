@@ -15,6 +15,7 @@ import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
 import CodeBlock from "../common/CodeBlock"
 import { CommandPatternSelector } from "./CommandPatternSelector"
+import { parseCommand } from "../../utils/command-validation"
 import { extractPatternsFromCommand } from "../../utils/command-parser"
 
 interface CommandPattern {
@@ -53,8 +54,26 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 
 	// Extract command patterns from the actual command that was executed
 	const commandPatterns = useMemo<CommandPattern[]>(() => {
-		const extractedPatterns = extractPatternsFromCommand(command)
-		return extractedPatterns.map((pattern) => ({
+		// First get all individual commands (including subshell commands) using parseCommand
+		const allCommands = parseCommand(command)
+
+		// Then extract patterns from each command using the existing pattern extraction logic
+		const allPatterns = new Set<string>()
+
+		// Add all individual commands first
+		allCommands.forEach((cmd) => {
+			if (cmd.trim()) {
+				allPatterns.add(cmd.trim())
+			}
+		})
+
+		// Then add extracted patterns for each command
+		allCommands.forEach((cmd) => {
+			const patterns = extractPatternsFromCommand(cmd)
+			patterns.forEach((pattern) => allPatterns.add(pattern))
+		})
+
+		return Array.from(allPatterns).map((pattern) => ({
 			pattern,
 		}))
 	}, [command])
