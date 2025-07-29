@@ -1,8 +1,8 @@
 import * as vscode from "vscode"
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
-import { State } from "@/shared/proto/state"
+import { State } from "@shared/proto/cline/state"
 
 // Keep track of active state subscriptions by controller ID
 const activeStateSubscriptions = new Map<string, StreamingResponseHandler<State>>()

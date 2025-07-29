@@ -10,7 +10,7 @@ const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
 const typeNameToFQN = new Map()
 
 function addTypeNameToFqn(name, fqn) {
-	if (typeNameToFQN.has(name)) {
+	if (typeNameToFQN.has(name) && typeNameToFQN.get(name) !== fqn) {
 		throw new Error(`Proto type ${name} redefined (${fqn}).`)
 	}
 	typeNameToFQN.set(name, fqn)
@@ -23,11 +23,15 @@ export function getFqn(name) {
 	return typeNameToFQN.get(name)
 }
 
-export async function loadServicesFromProtoDescriptor() {
-	// Load service definitions from descriptor set
+export async function loadProtoDescriptorSet() {
 	const descriptorBuffer = await fs.readFile(DESCRIPTOR_SET)
 	const packageDefinition = protoLoader.loadFileDescriptorSetFromBuffer(descriptorBuffer)
-	const proto = grpc.loadPackageDefinition(packageDefinition)
+	return grpc.loadPackageDefinition(packageDefinition)
+}
+
+export async function loadServicesFromProtoDescriptor() {
+	// Load service definitions from descriptor set
+	const proto = await loadProtoDescriptorSet()
 
 	// Extract host services and proto messages from the proto definition
 	const hostServices = {}

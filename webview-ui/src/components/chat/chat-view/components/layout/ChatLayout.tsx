@@ -14,7 +14,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ isHidden, children }) =>
 	return <ChatLayoutContainer isHidden={isHidden}>{children}</ChatLayoutContainer>
 }
 
-const ChatLayoutContainer = styled.div<{ isHidden: boolean }>`
+const ChatLayoutContainer = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isHidden"].includes(prop),
+})<{ isHidden: boolean }>`
 	position: fixed;
 	top: 0;
 	left: 0;

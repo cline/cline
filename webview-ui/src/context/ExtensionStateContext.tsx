@@ -1,38 +1,36 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import type React from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import "../../../src/shared/webview/types"
-import {
-	StateServiceClient,
-	ModelsServiceClient,
-	UiServiceClient,
-	FileServiceClient,
-	McpServiceClient,
-} from "../services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { UpdateSettingsRequest } from "@shared/proto/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
-import { TerminalProfile } from "@shared/proto/state"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { findLastIndex } from "@shared/array"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
+import type { UserInfo } from "@shared/proto/cline/account"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { type TerminalProfile, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
-import { findLastIndex } from "@shared/array"
 import {
-	ModelInfo,
+	groqDefaultModelId,
+	groqModels,
+	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
-	groqDefaultModelId,
-	groqModels,
-	huggingFaceDefaultModelId,
-	huggingFaceModels,
 } from "../../../src/shared/api"
-import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import {
+	FileServiceClient,
+	McpServiceClient,
+	ModelsServiceClient,
+	StateServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
-import { UserInfo } from "@shared/proto/account"
-import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean

@@ -1,5 +1,5 @@
 import { ApiConfiguration, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
-import { OpenAiModelsRequest } from "@shared/proto/models"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"

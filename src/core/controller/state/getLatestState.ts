@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { State } from "../../../shared/proto/state"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { State } from "@shared/proto/cline/state"
 
 /**
  * Get the latest extension state

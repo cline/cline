@@ -38,7 +38,10 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 
 	const inputBox = scm?.inputBox
 	if (!inputBox) {
-		vscode.window.showErrorMessage("Git extension not found or no repositories available")
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "Git extension not found or no repositories available",
+		})
 		return
 	}
 
@@ -100,7 +103,10 @@ Commit message:`
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to generate commit message: ${errorMessage}`,
+		})
 	} finally {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 	}

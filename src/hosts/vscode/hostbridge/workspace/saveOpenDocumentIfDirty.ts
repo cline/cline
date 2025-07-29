@@ -1,5 +1,5 @@
 import { SaveOpenDocumentIfDirtyRequest } from "@/shared/proto/index.host"
-import { Empty } from "@/shared/proto/common"
+import { Empty } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
 import { arePathsEqual } from "@utils/path"
 

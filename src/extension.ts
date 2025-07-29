@@ -1,44 +1,43 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import * as vscode from "vscode"
-import pWaitFor from "p-wait-for"
-import { Logger } from "./services/logging/Logger"
-import { createClineAPI } from "./exports"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
 import assert from "node:assert"
-import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
-import { WebviewProvider } from "./core/webview"
-import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
-import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
-import { ErrorService } from "./services/error/ErrorService"
-import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
-import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
-import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pWaitFor from "p-wait-for"
 import { v4 as uuidv4 } from "uuid"
-import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
-import { WebviewProviderType } from "./shared/webview/types"
-import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
+import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
+import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
+import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import {
-	migrateWorkspaceToGlobalStorage,
 	migrateCustomInstructionsToGlobalRules,
 	migrateWelcomeViewCompleted,
-	migrateLegacyApiConfigurationToModeSpecific,
+	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
+import { WebviewProvider } from "./core/webview"
+import { createClineAPI } from "./exports"
+import { ErrorService } from "./services/error/ErrorService"
+import { Logger } from "./services/logging/Logger"
+import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { WebviewProviderType } from "./shared/webview/types"
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
-import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
-import { ExtensionContext } from "vscode"
-import { AuthService } from "./services/auth/AuthService"
-import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
-import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "./shared/proto/host/window"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
+import { ExtensionContext } from "vscode"
+import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
+import { AuthService } from "./services/auth/AuthService"
+import { ShowMessageType } from "./shared/proto/host/window"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -48,19 +47,13 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 
 */
 
-let outputChannel: vscode.OutputChannel
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Cline")
-	context.subscriptions.push(outputChannel)
+	maybeSetupHostProviders(context)
 
 	ErrorService.initialize()
-	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
-
-	maybeSetupHostProviders(context)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -686,19 +679,23 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	return createClineAPI(outputChannel, sidebarWebview.controller)
+	return createClineAPI(sidebarWebview.controller)
 }
 
 function maybeSetupHostProviders(context: ExtensionContext) {
 	if (!HostProvider.isInitialized()) {
 		console.log("Setting up vscode host providers...")
+
 		const createWebview = function (type: WebviewProviderType) {
-			return new VscodeWebviewProvider(context, outputChannel, type)
+			return new VscodeWebviewProvider(context, type)
 		}
 		const createDiffView = function () {
 			return new VscodeDiffViewProvider()
 		}
-		HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient)
+		const outputChannel = vscode.window.createOutputChannel("Cline")
+		context.subscriptions.push(outputChannel)
+
+		HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient, outputChannel.appendLine)
 	}
 }
 

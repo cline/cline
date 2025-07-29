@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { OpenAiModelsRequest } from "../../../shared/proto/models"
-import { StringArray } from "../../../shared/proto/common"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
+import { StringArray } from "@shared/proto/cline/common"
 import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
 

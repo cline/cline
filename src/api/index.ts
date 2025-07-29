@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiConfiguration, ModelInfo } from "../shared/api"
+import { ApiConfiguration, ModelInfo, QwenApiRegions } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { OpenRouterHandler } from "./providers/openrouter"
@@ -31,6 +31,7 @@ import { MoonshotHandler } from "./providers/moonshot"
 import { GroqHandler } from "./providers/groq"
 import { Mode } from "@shared/storage/types"
 import { HuggingFaceHandler } from "./providers/huggingface"
+import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -166,7 +167,8 @@ function createHandlerForProvider(
 		case "qwen":
 			return new QwenHandler({
 				qwenApiKey: options.qwenApiKey,
-				qwenApiLine: options.qwenApiLine,
+				qwenApiLine:
+					options.qwenApiLine === QwenApiRegions.INTERNATIONAL ? QwenApiRegions.INTERNATIONAL : QwenApiRegions.CHINA,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
@@ -270,6 +272,14 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+			})
+		case "huawei-cloud-maas":
+			return new HuaweiCloudMaaSHandler({
+				huaweiCloudMaasApiKey: options.huaweiCloudMaasApiKey,
+				huaweiCloudMaasModelId:
+					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
+				huaweiCloudMaasModelInfo:
+					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

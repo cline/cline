@@ -3,7 +3,7 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 
 export const useApiConfigurationHandlers = () => {
 	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
