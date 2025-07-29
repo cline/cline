@@ -54,7 +54,7 @@ export const Navbar = () => {
 				<TabTrigger
 					key={`navbar-trigger-${tab.id}`}
 					value={tab.id}
-					className="bg-transparent border-none text-white m-0 p-0"
+					className="bg-transparent border-none text-white m-0 p-0 cursor-pointer"
 					data-testid={`tab-${tab.id}`}
 					onSelect={() => tab.navigate()}>
 					<tab.icon className="text-white" strokeWidth={1} size={18} />
