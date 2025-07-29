@@ -349,8 +349,8 @@ export class McpHub {
 
 			// Register notification handler for real-time messages
 			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
-			console.log(`[MCP Debug] Client instance:`, connection.client)
-			console.log(`[MCP Debug] Transport type:`, config.type)
+			//console.log(`[MCP Debug] Client instance:`, connection.client)
+			//console.log(`[MCP Debug] Transport type:`, config.type)
 
 			// Try to set notification handler using the client's method
 			try {
