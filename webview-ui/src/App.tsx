@@ -58,7 +58,7 @@ const AppContent = () => {
 	}
 
 	return (
-		<>
+		<div className="flex h-full w-full">
 			{showSettings && <SettingsView onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
@@ -77,7 +77,7 @@ const AppContent = () => {
 				showAnnouncement={showAnnouncement}
 				hideAnnouncement={hideAnnouncement}
 			/>
-		</>
+		</div>
 	)
 }
 
