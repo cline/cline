@@ -35,6 +35,10 @@
 		},
 		"none": "कोई नहीं"
 	},
+	"sections": {
+		"organizationMcps": "{{organization}} MCPs",
+		"marketplace": "मार्केटप्लेस"
+	},
 	"type-group": {
 		"modes": "मोड",
 		"mcps": "MCP सर्वर"

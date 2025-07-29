@@ -23,10 +23,13 @@ export class RemoteConfigLoader {
 		this.apiBaseUrl = getRooCodeApiUrl()
 	}
 
-	async loadAllItems(): Promise<MarketplaceItem[]> {
+	async loadAllItems(hideMarketplaceMcps = false): Promise<MarketplaceItem[]> {
 		const items: MarketplaceItem[] = []
 
-		const [modes, mcps] = await Promise.all([this.fetchModes(), this.fetchMcps()])
+		const modesPromise = this.fetchModes()
+		const mcpsPromise = hideMarketplaceMcps ? Promise.resolve([]) : this.fetchMcps()
+
+		const [modes, mcps] = await Promise.all([modesPromise, mcpsPromise])
 
 		items.push(...modes, ...mcps)
 		return items

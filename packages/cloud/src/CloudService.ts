@@ -4,6 +4,7 @@ import type {
 	CloudUserInfo,
 	TelemetryEvent,
 	OrganizationAllowList,
+	OrganizationSettings,
 	ClineMessage,
 	ShareVisibility,
 } from "@roo-code/types"
@@ -172,6 +173,11 @@ export class CloudService {
 	public getAllowList(): OrganizationAllowList {
 		this.ensureInitialized()
 		return this.settingsService!.getAllowList()
+	}
+
+	public getOrganizationSettings(): OrganizationSettings | undefined {
+		this.ensureInitialized()
+		return this.settingsService!.getSettings()
 	}
 
 	// TelemetryClient

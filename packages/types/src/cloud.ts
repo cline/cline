@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { globalSettingsSchema } from "./global-settings.js"
+import { mcpMarketplaceItemSchema } from "./marketplace.js"
 
 /**
  * CloudUserInfo
@@ -110,6 +111,9 @@ export const organizationSettingsSchema = z.object({
 	cloudSettings: organizationCloudSettingsSchema.optional(),
 	defaultSettings: organizationDefaultSettingsSchema,
 	allowList: organizationAllowListSchema,
+	hiddenMcps: z.array(z.string()).optional(),
+	hideMarketplaceMcps: z.boolean().optional(),
+	mcps: z.array(mcpMarketplaceItemSchema).optional(),
 })
 
 export type OrganizationSettings = z.infer<typeof organizationSettingsSchema>

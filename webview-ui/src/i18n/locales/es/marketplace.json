@@ -35,6 +35,10 @@
 		},
 		"none": "Ninguno"
 	},
+	"sections": {
+		"organizationMcps": "MCPs de {{organization}}",
+		"marketplace": "Mercado"
+	},
 	"type-group": {
 		"modes": "Modos",
 		"mcps": "Servidores MCP"

@@ -35,6 +35,10 @@
 		},
 		"none": "なし"
 	},
+	"sections": {
+		"organizationMcps": "{{organization}} MCPs",
+		"marketplace": "マーケットプレイス"
+	},
 	"type-group": {
 		"modes": "モード",
 		"mcps": "MCPサーバー"

@@ -35,6 +35,10 @@
 		},
 		"none": "없음"
 	},
+	"sections": {
+		"organizationMcps": "{{organization}} MCPs",
+		"marketplace": "마켓플레이스"
+	},
 	"type-group": {
 		"modes": "모드",
 		"mcps": "MCP 서버"
