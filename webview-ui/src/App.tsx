@@ -40,7 +40,7 @@ const AppContent = () => {
 
 			// Use the gRPC client instead of direct WebviewMessage
 			UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
-				.then((response: Boolean) => {
+				.then((response: boolean) => {
 					setShouldShowAnnouncement(response.value)
 				})
 				.catch((error) => {
