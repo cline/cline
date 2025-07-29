@@ -47,7 +47,7 @@ export const SlashCommandsPopover: React.FC<SlashCommandsPopoverProps> = ({ clas
 				className={cn(
 					"h-7 w-7 p-0",
 					"text-vscode-foreground opacity-85",
-					"hover:opacity-100 hover:bg-vscode-button-hoverBackground",
+					"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)]",
 					"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 					className,
 				)}>
