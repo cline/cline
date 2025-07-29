@@ -9,7 +9,7 @@ export type GrpcRequest = {
 	method: string
 	message: any // JSON serialized protobuf message
 	request_id: string // For correlating requests and responses
-	is_streaming: boolean // Whether this is a streaming request
+	is_streaming?: boolean // Whether this is a streaming request
 }
 
 export type GrpcCancel = {
