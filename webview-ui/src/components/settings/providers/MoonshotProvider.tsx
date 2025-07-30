@@ -7,8 +7,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useState } from "react"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the MoonshotProvider component
  */

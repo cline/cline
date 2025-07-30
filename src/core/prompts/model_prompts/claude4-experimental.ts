@@ -337,7 +337,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		accessMcpResourceToolDefinition,
 		loadMcpDocumentationTool,
 		newTaskToolDefinition,
-		editToolDefinition,
 	]
 	if (supportsBrowserUse) {
 		tools.push(browserActionTool)

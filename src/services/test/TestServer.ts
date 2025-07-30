@@ -282,10 +282,10 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					}
 
 					// Ensure we're in Act mode before initiating the task
-					const { chatSettings } = await visibleWebview.controller.getStateToPostToWebview()
-					if (chatSettings.mode === "plan") {
+					const { mode } = await visibleWebview.controller.getStateToPostToWebview()
+					if (mode === "plan") {
 						// Switch to Act mode if currently in Plan mode
-						await visibleWebview.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+						await visibleWebview.controller.togglePlanActMode("act")
 					}
 
 					// Initialize tool call tracker
@@ -612,7 +612,7 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 				try {
 					if (webviewProvider.controller) {
 						Logger.log("Auto-toggling to Act mode from Plan mode")
-						await webviewProvider.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+						await webviewProvider.controller.togglePlanActMode("act")
 					}
 				} catch (error) {
 					Logger.log(`Error toggling to Act mode: ${error}`)

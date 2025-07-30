@@ -19,8 +19,6 @@ export class AuthHandler {
 	private timeoutId: NodeJS.Timeout | null = null
 	private enabled: boolean = false
 
-	public static callbackHandler: (uri: string) => Promise<void>
-
 	private constructor() {}
 
 	/**

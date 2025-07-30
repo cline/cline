@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { DEFAULT_CHAT_SETTINGS, Mode } from "@shared/ChatSettings"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
@@ -7,7 +7,6 @@ import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@share
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -110,7 +109,6 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
-	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
 		welcomeViewCompleted,
@@ -190,6 +188,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		huaweiCloudMaasApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,14 +268,15 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
+		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
-	const secondBatchStart = performance.now()
 	const [
-		chatSettings,
-		currentMode,
+		preferredLanguage,
+		openaiReasoningEffort,
+		mode,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -302,6 +302,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -327,8 +329,11 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	] = await Promise.all([
-		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
+		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
@@ -355,6 +360,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -380,9 +387,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
-	const processingStart = performance.now()
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
 		apiProvider = planModeApiProvider
@@ -480,6 +488,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			huggingFaceApiKey,
+			huaweiCloudMaasApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -505,6 +514,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeHuaweiCloudMaasModelId,
+			planModeHuaweiCloudMaasModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -530,6 +541,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeHuaweiCloudMaasModelId,
+			actModeHuaweiCloudMaasModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -539,11 +552,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
-		chatSettings: {
-			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
-			mode: currentMode || "act", // Merge mode from global state
-		},
+		preferredLanguage: preferredLanguage || "English",
+		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
+		mode: mode || "act",
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,
@@ -619,6 +630,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiResourceGroup,
 		claudeCodePath,
 		huggingFaceApiKey,
+		huaweiCloudMaasApiKey,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -644,6 +656,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -669,6 +683,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	} = apiConfiguration
 
 	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
@@ -698,6 +714,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 
 		// Act mode configuration updates
 		actModeApiProvider,
@@ -724,6 +742,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 
 		// Global state updates (27 keys)
 		awsRegion,
@@ -789,6 +809,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		huggingFaceApiKey,
+		huaweiCloudMaasApiKey,
 	}
 
 	// Execute batched operations in parallel for maximum performance
@@ -833,6 +854,7 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",
+		"huaweiCloudMaasApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)

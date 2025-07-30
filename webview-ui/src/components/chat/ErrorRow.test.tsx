@@ -1,15 +1,15 @@
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { render, screen } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
-import { ClineMessage } from "@shared/ExtensionMessage"
 
 // Mock the auth context
-const mockHandleSignIn = vi.fn()
 vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => ({
-		handleSignIn: mockHandleSignIn,
 		clineUser: null,
 	}),
+	handleSignIn: vi.fn(),
+	handleSignOut: vi.fn(),
 }))
 
 // Mock CreditLimitError component

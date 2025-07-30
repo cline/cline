@@ -13,7 +13,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings, Mode, StoredChatSettings } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -60,12 +60,12 @@ export class Controller {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
 	) {
 		this.id = id
-		this.outputChannel.appendLine("ClineProvider instantiated")
+
+		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.postMessage = postMessage
 
 		this.workspaceTracker = new WorkspaceTracker()
@@ -80,11 +80,9 @@ export class Controller {
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
+		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-
-		AuthHandler.callbackHandler = this.callbackHandler.bind(this)
 	}
 
 	async getCurrentMode(): Promise<Mode> {
@@ -143,7 +141,9 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings: storedChatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
@@ -152,15 +152,6 @@ export class Controller {
 			isNewUser,
 			taskHistory,
 		} = await getAllExtensionState(this.context)
-
-		// Get current mode using helper function
-		const currentMode = await this.getCurrentMode()
-
-		// Reconstruct ChatSettings with mode from global state and stored preferences
-		const chatSettings: ChatSettings = {
-			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: currentMode, // Use mode from global state
-		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -188,7 +179,9 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -251,28 +244,25 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
-		const didSwitchToActMode = chatSettings.mode === "act"
+	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		const didSwitchToActMode = modeToSwitchTo === "act"
 
 		// Store mode to global state
-		await updateGlobalState(this.context, "mode", chatSettings.mode)
+		await updateGlobalState(this.context, "mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
-		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
+		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
 			const { apiConfiguration } = await getAllExtensionState(this.context)
-			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, chatSettings.mode)
+			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
 		}
 
-		// Save only non-mode properties to global storage
-		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
-		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.chatSettings = chatSettings
+			this.task.mode = modeToSwitchTo
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
@@ -322,20 +312,7 @@ export class Controller {
 		}
 	}
 
-	public callbackHandler = async (token: string, provider: string | null = null) => {
-		try {
-			if (!token) {
-				throw new Error("No idToken found in the callback URL")
-			}
-
-			// Notify the webview about the successful authentication
-			await this.handleAuthCallback(token, provider)
-		} catch (error) {
-			console.error("AuthTokenHandler.authTokenHandler error:", error)
-		}
-	}
-
-	private async handleAuthCallback(customToken: string, provider: string | null = null) {
+	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
@@ -721,7 +698,9 @@ export class Controller {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings: storedChatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -738,15 +717,6 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 		} = await getAllExtensionState(this.context)
-
-		// Get current mode using helper function
-		const currentMode = await this.getCurrentMode()
-
-		// Reconstruct ChatSettings with mode from global state and stored preferences
-		const chatSettings: ChatSettings = {
-			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: currentMode, // Use mode from global state
-		}
 
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
@@ -774,7 +744,9 @@ export class Controller {
 			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,

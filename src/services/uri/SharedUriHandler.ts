@@ -44,7 +44,7 @@ export class SharedUriHandler {
 					const provider = query.get("provider")
 
 					if (token) {
-						await visibleWebview.controller.callbackHandler(token, provider)
+						await visibleWebview.controller.handleAuthCallback(token, provider)
 						return true
 					}
 					console.warn("SharedUriHandler: Missing idToken parameter for auth callback")

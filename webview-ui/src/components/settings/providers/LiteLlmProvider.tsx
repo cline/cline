@@ -8,8 +8,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the LiteLlmProvider component
  */

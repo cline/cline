@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid"
 import { Uri } from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -24,13 +24,13 @@ export abstract class WebviewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		protected readonly outputChannel: vscode.OutputChannel,
+
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
-		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
+		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
 	}
 
 	// Add a method to get the client ID
