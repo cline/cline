@@ -40,7 +40,6 @@ import { writeTextToClipboard, readTextFromClipboard } from "@/utils/env"
 import { VscodeDiffViewProvider } from "./integrations/editor/VscodeDiffViewProvider"
 import { getHostBridgeProvider } from "@hosts/host-providers"
 import { ShowMessageRequest, ShowMessageType } from "./shared/proto/host/window"
-import { getActiveTextEditor, getVisibleTextEditors } from "./utils/editor"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -193,11 +192,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabWebview = hostProviders.createWebviewProvider(WebviewProviderType.TAB)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-		const visibleEditors = await getVisibleTextEditors()
-		const lastCol = Math.max(...visibleEditors.map((editor) => editor.viewColumn || 0))
+		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
 		// Check if there are any visible text editors, otherwise open a new group to the right
-		const hasVisibleEditors = visibleEditors.length > 0
+		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
 		if (!hasVisibleEditors) {
 			await vscode.commands.executeCommand("workbench.action.newGroupRight")
 		}
@@ -363,13 +361,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
 			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
-			const editorInfo = await getActiveTextEditor()
-			if (!editorInfo) {
-				return
-			}
-
-			// For now, we'll need to get the VSCode editor to access document and selection
-			// This is a transitional approach - in the future, we'd want to move this logic to the host bridge
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
