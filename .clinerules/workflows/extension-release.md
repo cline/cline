@@ -128,7 +128,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					}}>
 					<ul style={ulStyle}>
 						<li>
-							<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between
+							<b>Global Ponder Rules:</b> store multiple rules files in Documents/Ponder/Rules to share between
 							projects.
 						</li>
 						<li>
@@ -261,7 +261,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
+					<b>Global Ponder Rules:</b> store multiple rules files in Documents/Ponder/Rules to share between projects.
 				</li>
 				<li>
 					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
