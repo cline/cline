@@ -257,6 +257,8 @@
 		"getChutesApiKey": "Dapatkan Chutes API Key",
 		"deepSeekApiKey": "DeepSeek API Key",
 		"getDeepSeekApiKey": "Dapatkan DeepSeek API Key",
+		"doubaoApiKey": "Kunci API Doubao",
+		"getDoubaoApiKey": "Dapatkan Kunci API Doubao",
 		"moonshotApiKey": "Kunci API Moonshot",
 		"getMoonshotApiKey": "Dapatkan Kunci API Moonshot",
 		"moonshotBaseUrl": "Titik Masuk Moonshot",

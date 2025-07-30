@@ -14,6 +14,7 @@ import {
 	groqModels,
 	chutesModels,
 	sambaNovaModels,
+	doubaoModels,
 } from "@roo-code/types"
 
 export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, ModelInfo>>> = {
@@ -21,6 +22,7 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 	"claude-code": claudeCodeModels,
 	bedrock: bedrockModels,
 	deepseek: deepSeekModels,
+	doubao: doubaoModels,
 	moonshot: moonshotModels,
 	gemini: geminiModels,
 	mistral: mistralModels,
@@ -37,6 +39,7 @@ export const PROVIDERS = [
 	{ value: "anthropic", label: "Anthropic" },
 	{ value: "claude-code", label: "Claude Code" },
 	{ value: "gemini", label: "Google Gemini" },
+	{ value: "doubao", label: "Doubao" },
 	{ value: "deepseek", label: "DeepSeek" },
 	{ value: "moonshot", label: "Moonshot" },
 	{ value: "openai-native", label: "OpenAI" },

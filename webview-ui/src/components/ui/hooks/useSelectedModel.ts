@@ -36,6 +36,8 @@ import {
 	claudeCodeModels,
 	sambaNovaModels,
 	sambaNovaDefaultModelId,
+	doubaoModels,
+	doubaoDefaultModelId,
 } from "@roo-code/types"
 
 import type { RouterModels } from "@roo/api"
@@ -174,6 +176,11 @@ function getSelectedModel({
 		case "deepseek": {
 			const id = apiConfiguration.apiModelId ?? deepSeekDefaultModelId
 			const info = deepSeekModels[id as keyof typeof deepSeekModels]
+			return { id, info }
+		}
+		case "doubao": {
+			const id = apiConfiguration.apiModelId ?? doubaoDefaultModelId
+			const info = doubaoModels[id as keyof typeof doubaoModels]
 			return { id, info }
 		}
 		case "moonshot": {

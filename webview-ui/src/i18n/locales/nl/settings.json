@@ -253,6 +253,8 @@
 		"getChutesApiKey": "Chutes API-sleutel ophalen",
 		"deepSeekApiKey": "DeepSeek API-sleutel",
 		"getDeepSeekApiKey": "DeepSeek API-sleutel ophalen",
+		"doubaoApiKey": "Doubao API-sleutel",
+		"getDoubaoApiKey": "Doubao API-sleutel ophalen",
 		"moonshotApiKey": "Moonshot API-sleutel",
 		"getMoonshotApiKey": "Moonshot API-sleutel ophalen",
 		"moonshotBaseUrl": "Moonshot-ingangspunt",

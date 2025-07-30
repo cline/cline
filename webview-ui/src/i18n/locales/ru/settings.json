@@ -253,6 +253,8 @@
 		"getChutesApiKey": "Получить Chutes API-ключ",
 		"deepSeekApiKey": "DeepSeek API-ключ",
 		"getDeepSeekApiKey": "Получить DeepSeek API-ключ",
+		"doubaoApiKey": "Doubao API-ключ",
+		"getDoubaoApiKey": "Получить Doubao API-ключ",
 		"moonshotApiKey": "Moonshot API-ключ",
 		"getMoonshotApiKey": "Получить Moonshot API-ключ",
 		"moonshotBaseUrl": "Точка входа Moonshot",

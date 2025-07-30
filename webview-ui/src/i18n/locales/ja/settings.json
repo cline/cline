@@ -253,6 +253,8 @@
 		"getChutesApiKey": "Chutes APIキーを取得",
 		"deepSeekApiKey": "DeepSeek APIキー",
 		"getDeepSeekApiKey": "DeepSeek APIキーを取得",
+		"doubaoApiKey": "Doubao APIキー",
+		"getDoubaoApiKey": "Doubao APIキーを取得",
 		"moonshotApiKey": "Moonshot APIキー",
 		"getMoonshotApiKey": "Moonshot APIキーを取得",
 		"moonshotBaseUrl": "Moonshot エントリーポイント",

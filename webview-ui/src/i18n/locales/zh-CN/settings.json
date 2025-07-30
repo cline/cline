@@ -253,6 +253,8 @@
 		"getChutesApiKey": "获取 Chutes API 密钥",
 		"deepSeekApiKey": "DeepSeek API 密钥",
 		"getDeepSeekApiKey": "获取 DeepSeek API 密钥",
+		"doubaoApiKey": "豆包 API 密钥",
+		"getDoubaoApiKey": "获取豆包 API 密钥",
 		"moonshotApiKey": "Moonshot API 密钥",
 		"getMoonshotApiKey": "获取 Moonshot API 密钥",
 		"moonshotBaseUrl": "Moonshot 服务站点",

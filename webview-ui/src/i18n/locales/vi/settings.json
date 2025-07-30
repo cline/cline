@@ -253,6 +253,8 @@
 		"getChutesApiKey": "Lấy khóa API Chutes",
 		"deepSeekApiKey": "Khóa API DeepSeek",
 		"getDeepSeekApiKey": "Lấy khóa API DeepSeek",
+		"doubaoApiKey": "Khóa API Doubao",
+		"getDoubaoApiKey": "Lấy khóa API Doubao",
 		"moonshotApiKey": "Khóa API Moonshot",
 		"getMoonshotApiKey": "Lấy khóa API Moonshot",
 		"moonshotBaseUrl": "Điểm vào Moonshot",

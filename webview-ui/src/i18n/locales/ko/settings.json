@@ -253,6 +253,8 @@
 		"getChutesApiKey": "Chutes API 키 받기",
 		"deepSeekApiKey": "DeepSeek API 키",
 		"getDeepSeekApiKey": "DeepSeek API 키 받기",
+		"doubaoApiKey": "Doubao API 키",
+		"getDoubaoApiKey": "Doubao API 키 받기",
 		"moonshotApiKey": "Moonshot API 키",
 		"getMoonshotApiKey": "Moonshot API 키 받기",
 		"moonshotBaseUrl": "Moonshot 엔트리포인트",
