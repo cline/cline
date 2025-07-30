@@ -1,7 +1,7 @@
 # Ponder – AI 글쓰기 도우미
 
 <p align="center">
-    <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
+    <img src="https://media.githubusercontent.com/media/leuoson/ponder/main/assets/docs/demo.gif" width="100%" />
 </p>
 
 <div align="center">

@@ -1,22 +1,22 @@
-# 贡献到 Cline
+# 贡献到 Ponder
 
-我们很高兴您有兴趣为 Cline 做出贡献。无论您是修复错误、添加功能还是改进我们的文档，每一份贡献都让 Cline 更加智能！为了保持我们的社区充满活力和欢迎，所有成员必须遵守我们的[行为准则](CODE_OF_CONDUCT.md)。
+我们很高兴您有兴趣为 Ponder 做出贡献。无论您是修复错误、添加功能还是改进我们的文档，每一份贡献都让 Ponder 更加智能！为了保持我们的社区充满活力和欢迎，所有成员必须遵守我们的[行为准则](CODE_OF_CONDUCT.md)。
 
 ## 报告错误或问题
 
-错误报告有助于让 Cline 对每个人都更好！在创建新问题之前，请先[搜索现有问题](https://github.com/cline/cline/issues)以避免重复。当您准备好报告错误时，请前往我们的[问题页面](https://github.com/cline/cline/issues/new/choose)，在那里您会找到一个模板来帮助您填写相关信息。
+错误报告有助于让 Ponder 对每个人都更好！在创建新问题之前，请先[搜索现有问题](https://github.com/leuoson/ponder/issues)以避免重复。当您准备好报告错误时，请前往我们的[问题页面](https://github.com/leuoson/ponder/issues/new/choose)，在那里您会找到一个模板来帮助您填写相关信息。
 
 <blockquote class='warning-note'>
-    🔐 <b>重要：</b>如果您发现安全漏洞，请使用<a href="https://github.com/cline/cline/security/advisories/new">Github 安全工具私下报告</a>。
+    🔐 <b>重要：</b>如果您发现安全漏洞，请使用<a href="https://github.com/leuoson/ponder/security/advisories/new">Github 安全工具私下报告</a>。
 </blockquote>
 
 ## 决定要做什么
 
-寻找一个好的首次贡献？查看标记为["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue)或["help wanted"](https://github.com/cline/cline/labels/help%20wanted)的问题。这些是专门为新贡献者策划的领域，我们非常欢迎您的帮助！
+寻找一个好的首次贡献？查看标记为["good first issue"](https://github.com/leuoson/ponder/labels/good%20first%20issue)或["help wanted"](https://github.com/leuoson/ponder/labels/help%20wanted)的问题。这些是专门为新贡献者策划的领域，我们非常欢迎您的帮助！
 
-我们也欢迎对我们的[文档](https://github.com/cline/cline/tree/main/docs)做出贡献！无论是修正错别字、改进现有指南，还是创建新的教育内容 - 我们希望建立一个社区驱动的资源库，帮助每个人充分利用 Cline。您可以从深入研究 `/docs` 并寻找需要改进的地方开始。
+我们也欢迎对我们的[文档](https://github.com/leuoson/ponder/tree/main/docs)做出贡献！无论是修正错别字、改进现有指南，还是创建新的教育内容 - 我们希望建立一个社区驱动的资源库，帮助每个人充分利用 Ponder。您可以从深入研究 `/docs` 并寻找需要改进的地方开始。
 
-如果您计划开发一个更大的功能，请先创建一个[功能请求](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)，以便我们讨论它是否符合 Cline 的愿景。
+如果您计划开发一个更大的功能，请先创建一个[功能请求](https://github.com/leuoson/ponder/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)，以便我们讨论它是否符合 Ponder 的愿景。
 
 ## 开发设置
 
@@ -33,7 +33,7 @@
 
 ## 编写和提交代码
 
-任何人都可以为 Cline 贡献代码，但我们要求您遵循以下指南，以确保您的贡献能够顺利集成：
+任何人都可以为 Ponder 贡献代码，但我们要求您遵循以下指南，以确保您的贡献能够顺利集成：
 
 1. **保持 Pull Request 集中**
 
@@ -79,4 +79,4 @@
 
 通过提交 pull request，您同意您的贡献将根据与项目相同的许可证（[Apache 2.0](LICENSE)）进行许可。
 
-记住：为 Cline 做贡献不仅仅是编写代码 - 这是成为一个社区的一部分，共同塑造 AI 辅助开发的未来。让我们一起构建一些令人惊叹的东西！🚀
+记住：为 Ponder 做贡献不仅仅是编写代码 - 这是成为一个社区的一部分，共同塑造 AI 辅助写作的未来。让我们一起构建一些令人惊叹的东西！🚀
