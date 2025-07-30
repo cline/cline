@@ -1,4 +1,3 @@
-import * as vscode from "vscode"
 import { globby } from "globby"
 import { HostProvider } from "@/hosts/host-provider"
 
@@ -9,7 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
  * @param excludePattern Optional glob pattern to exclude files
  * @param maxResults Maximum number of files to return
  * @param workspacePath Optional workspace path to search in
- * @returns Promise resolving to array of file URIs
+ * @returns Promise resolving to array of file paths
  * @throws Error if the operation fails
  */
 export async function findFiles(
@@ -17,7 +16,7 @@ export async function findFiles(
 	excludePattern?: string,
 	maxResults?: number,
 	workspacePath?: string,
-): Promise<vscode.Uri[]> {
+): Promise<string[]> {
 	try {
 		// Get workspace paths to determine search root
 		let searchRoot: string
@@ -49,8 +48,8 @@ export async function findFiles(
 		// Apply max results limit
 		const limitedFiles = maxResults ? foundFiles.slice(0, maxResults) : foundFiles
 
-		// Convert to VSCode URIs
-		return limitedFiles.map((filePath) => vscode.Uri.file(filePath))
+		// Return string paths (compatible with standalone mode)
+		return limitedFiles
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		throw new Error(`Failed to find files: ${errorMessage}`)
