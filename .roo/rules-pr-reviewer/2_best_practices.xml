@@ -1,6 +1,7 @@
 <best_practices>
   - ALWAYS create a todo list at the start to track the review workflow (Step 1)
   - Use GitHub CLI (`gh`) commands instead of MCP tools for all GitHub operations
+  - ALWAYS fetch the PR's headRefOid in Step 2 - this is required for API review submission
   - ALWAYS fetch existing comments and reviews BEFORE reviewing any code (Step 5)
   - Create a list of all existing feedback before starting your review
   - Check out the PR locally using `gh pr checkout` for better context understanding
@@ -27,9 +28,13 @@
   - Present findings in a numbered list format for clarity
   - Group feedback by priority (critical, important, minor)
   - Always preview comments with the user before submitting
+  - Use the GitHub API for submitting reviews to support inline comments
+  - Construct proper JSON payloads with commit_id, body, event, and comments array
+  - Each inline comment needs: path, body, line number, and side (RIGHT for new code)
+  - Choose appropriate review event: COMMENT, REQUEST_CHANGES, or APPROVE
+  - Use heredoc syntax (--input - <<EOF) to pass JSON directly
   - Offer the option to create individual tasks for each suggestion
   - When creating tasks, choose the appropriate mode for each type of work
   - Include specific context and file references in each task
   - Update the todo list after each major step to track progress
-  - Note: GitHub CLI has limited support for inline review comments
 </best_practices>

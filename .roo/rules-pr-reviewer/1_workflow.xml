@@ -33,10 +33,11 @@
       Use the GitHub CLI to fetch the PR details:
       
       <execute_command>
-      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,body,author,state,url,headRefName,baseRefName,mergeable,isDraft,createdAt,updatedAt</command>
+      <command>gh pr view [PR_NUMBER] --repo [owner]/[repo] --json number,title,body,author,state,url,headRefName,baseRefName,headRefOid,mergeable,isDraft,createdAt,updatedAt</command>
       </execute_command>
       
       Parse the JSON output to understand the PR's current state and metadata.
+      IMPORTANT: Save the headRefOid value as it will be needed for submitting the review via the API.
       
       <update_todo_list>
       <todos>
@@ -124,7 +125,7 @@
       
       Also fetch review details:
       <execute_command>
-      <command>gh pr reviews [PR_NUMBER] --repo [owner]/[repo]</command>
+      <command>gh api repos/[owner]/[repo]/pulls/[PR_NUMBER]/reviews</command>
       </execute_command>
       
       Create a mental or written list of:
@@ -372,23 +373,64 @@
   <step number="11">
     <name>Submit Review</name>
     <instructions>
-      Based on user preference, submit the review using GitHub CLI:
+      Based on user preference, submit the review using the GitHub API to support inline comments:
       
-      Note: The GitHub CLI has limited support for creating reviews with inline comments.
-      For comprehensive reviews with line-specific comments, we'll need to:
+      1. Construct the review payload with inline comments. For each comment, you need:
+         - The file path (relative to repository root)
+         - The line number where the comment should appear
+         - The comment body text
+         - The side ("RIGHT" for new code, "LEFT" for old code)
       
-      1. Create individual comments on specific lines (if needed):
+      2. Submit the review using the GitHub API with heredoc syntax:
       <execute_command>
-      <command>gh pr comment [PR_NUMBER] --repo [owner]/[repo] --body "[comment text]"</command>
+      <command>gh api -X POST repos/[owner]/[repo]/pulls/[PR_NUMBER]/reviews --input - <<EOF
+{
+  "commit_id": "[headRefOid from Step 2]",
+  "body": "Thank you for your contribution! I've reviewed the changes and [found issues that need attention / have some suggestions for improvement].",
+  "event": "[COMMENT|REQUEST_CHANGES|APPROVE]",
+  "comments": [
+    {
+      "path": "[file/path/to/code.ts]",
+      "body": "[Your comment text here - use friendly, curious tone]",
+      "line": [line_number],
+      "side": "RIGHT"
+    }
+  ]
+}
+EOF</command>
       </execute_command>
       
-      2. Or create a general review comment summarizing all findings:
-      <execute_command>
-      <command>gh pr review [PR_NUMBER] --repo [owner]/[repo] --comment --body "[review summary with all findings]"</command>
-      </execute_command>
+      The review will be created with all inline comments attached to specific lines of code.
       
-      Note: For line-specific comments, you may need to use the GitHub web interface or API directly,
-      as the gh CLI has limited support for inline review comments.
+      Note on event types:
+      - "COMMENT": Submit general feedback without approval/rejection
+      - "REQUEST_CHANGES": Request changes be made before merging
+      - "APPROVE": Approve the PR for merging
+      
+      Example for a review requesting changes:
+      <execute_command>
+      <command>gh api -X POST repos/RooCodeInc/Roo-Code/pulls/6378/reviews --input - <<EOF
+{
+  "commit_id": "abc123def4567890...",
+  "body": "Thank you for your contribution! I've reviewed the changes and found that the critical issues from the previous review are still pending. I've left some suggestions inline to help improve the implementation.",
+  "event": "REQUEST_CHANGES",
+  "comments": [
+    {
+      "path": "packages/cloud/src/CloudService.ts",
+      "body": "Missing error handling here...",
+      "line": 19,
+      "side": "RIGHT"
+    },
+    {
+      "path": "packages/cloud/src/CloudService.ts",
+      "body": "Is this intentional? The timeout seems quite high (30s). Could we consider reducing it or making it configurable?",
+      "line": 45,
+      "side": "RIGHT"
+    }
+  ]
+}
+EOF</command>
+      </execute_command>
       
       <update_todo_list>
       <todos>
