@@ -114,7 +114,7 @@ export class AuthHandler {
 	}
 
 	private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-		console.log("AuthTokenHandler: Received request", req.url)
+		console.log("AuthHandler: Received request", req.url)
 
 		if (!req.url) {
 			this.sendResponse(res, 404, "text/plain", "Not found")

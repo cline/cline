@@ -38,7 +38,7 @@ export class SharedUriHandler {
 					return false
 				}
 				case "/auth": {
-					console.log("SharedUriHandler: Auth callback received:", uri.toString())
+					console.log("SharedUriHandler: Auth callback received:", { path: uri.path, provider: query.get("provider") })
 
 					const token = query.get("idToken")
 					const provider = query.get("provider")
