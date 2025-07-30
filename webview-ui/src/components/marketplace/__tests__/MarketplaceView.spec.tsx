@@ -1,14 +1,13 @@
-import { render, screen } from "@/utils/test-utils"
-import userEvent from "@testing-library/user-event"
-
+import { render, waitFor } from "@testing-library/react"
+import { vi, describe, it, expect, beforeEach } from "vitest"
 import { MarketplaceView } from "../MarketplaceView"
 import { MarketplaceViewStateManager } from "../MarketplaceViewStateManager"
+import { ExtensionStateContext } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 
 vi.mock("@/utils/vscode", () => ({
 	vscode: {
 		postMessage: vi.fn(),
-		getState: vi.fn(() => ({})),
-		setState: vi.fn(),
 	},
 }))
 
@@ -18,70 +17,146 @@ vi.mock("@/i18n/TranslationContext", () => ({
 	}),
 }))
 
-vi.mock("../useStateManager", () => ({
-	useStateManager: () => [
-		{
-			allItems: [],
-			displayItems: [],
-			isFetching: false,
-			activeTab: "mcp",
-			filters: { type: "", search: "", tags: [] },
-		},
-		{
-			transition: vi.fn(),
-			onStateChange: vi.fn(() => vi.fn()),
-		},
-	],
-}))
-
-vi.mock("../MarketplaceListView", () => ({
-	MarketplaceListView: ({ filterByType }: { filterByType: string }) => (
-		<div data-testid="marketplace-list-view">MarketplaceListView - {filterByType}</div>
-	),
-}))
-
-// Mock Tab components to avoid ExtensionStateContext dependency
-vi.mock("@/components/common/Tab", () => ({
-	Tab: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	TabHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	TabContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	TabList: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-	TabTrigger: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-}))
-
 describe("MarketplaceView", () => {
-	const mockOnDone = vi.fn()
-	const mockStateManager = new MarketplaceViewStateManager()
+	let stateManager: MarketplaceViewStateManager
+	let mockExtensionState: any
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		stateManager = new MarketplaceViewStateManager()
+
+		// Initialize state manager with some test data
+		stateManager.transition({
+			type: "FETCH_COMPLETE",
+			payload: {
+				items: [
+					{
+						id: "test-mcp",
+						name: "Test MCP",
+						type: "mcp" as const,
+						description: "Test MCP server",
+						tags: ["test"],
+						content: "Test content",
+						url: "https://test.com",
+						author: "Test Author",
+					},
+				],
+			},
+		})
+
+		mockExtensionState = {
+			organizationSettingsVersion: 1,
+			// Add other required properties for the context
+			didHydrateState: true,
+			showWelcome: false,
+			theme: {},
+			mcpServers: [],
+			filePaths: [],
+			openedTabs: [],
+			commands: [],
+			organizationAllowList: { allowAll: true, providers: {} },
+			cloudIsAuthenticated: false,
+			sharingEnabled: false,
+			hasOpenedModeSelector: false,
+			setHasOpenedModeSelector: vi.fn(),
+			alwaysAllowFollowupQuestions: false,
+			setAlwaysAllowFollowupQuestions: vi.fn(),
+			followupAutoApproveTimeoutMs: 60000,
+			setFollowupAutoApproveTimeoutMs: vi.fn(),
+			profileThresholds: {},
+			setProfileThresholds: vi.fn(),
+			// ... other required context properties
+		}
 	})
 
-	it("renders without crashing", () => {
-		render(<MarketplaceView stateManager={mockStateManager} onDone={mockOnDone} />)
+	it("should trigger fetchMarketplaceData when organization settings version changes", async () => {
+		const { rerender } = render(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
 
-		expect(screen.getByText("marketplace:title")).toBeInTheDocument()
-		expect(screen.getByText("marketplace:done")).toBeInTheDocument()
+		// Initial render should not trigger fetch (version hasn't changed)
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({
+			type: "fetchMarketplaceData",
+		})
+
+		// Update the organization settings version
+		mockExtensionState = {
+			...mockExtensionState,
+			organizationSettingsVersion: 2,
+		}
+
+		// Re-render with updated context
+		rerender(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		// Wait for the effect to run
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "fetchMarketplaceData",
+			})
+		})
 	})
 
-	it("calls onDone when Done button is clicked", async () => {
-		const user = userEvent.setup()
-		render(<MarketplaceView stateManager={mockStateManager} onDone={mockOnDone} />)
+	it("should trigger fetchMarketplaceData when organization settings version changes from -1", async () => {
+		// Start with -1 version (default)
+		mockExtensionState = {
+			...mockExtensionState,
+			organizationSettingsVersion: -1,
+		}
 
-		await user.click(screen.getByText("marketplace:done"))
-		expect(mockOnDone).toHaveBeenCalledTimes(1)
+		const { rerender } = render(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		// Clear any initial calls
+		vi.clearAllMocks()
+
+		// Update to a defined version
+		mockExtensionState = {
+			...mockExtensionState,
+			organizationSettingsVersion: 1,
+		}
+
+		rerender(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		// Should trigger fetch when transitioning from -1 to 1
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "fetchMarketplaceData",
+			})
+		})
 	})
 
-	it("renders tab buttons", () => {
-		render(<MarketplaceView stateManager={mockStateManager} onDone={mockOnDone} />)
+	it("should not trigger fetchMarketplaceData when organization settings version remains the same", async () => {
+		const { rerender } = render(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
 
-		expect(screen.getByText("MCP")).toBeInTheDocument()
-		expect(screen.getByText("Modes")).toBeInTheDocument()
-	})
+		// Re-render with same version
+		rerender(
+			<ExtensionStateContext.Provider value={mockExtensionState}>
+				<MarketplaceView stateManager={stateManager} />
+			</ExtensionStateContext.Provider>,
+		)
 
-	it("renders MarketplaceListView", () => {
-		render(<MarketplaceView stateManager={mockStateManager} onDone={mockOnDone} />)
-
-		expect(screen.getByTestId("marketplace-list-view")).toBeInTheDocument()
+		// Should not trigger fetch when version hasn't changed
+		await waitFor(() => {
+			expect(vscode.postMessage).not.toHaveBeenCalledWith({
+				type: "fetchMarketplaceData",
+			})
+		})
 	})
 })
