@@ -1,4 +1,4 @@
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import BasetenModelPicker from "../BasetenModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
