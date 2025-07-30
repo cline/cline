@@ -20,7 +20,8 @@
 		"keep": "Оставить"
 	},
 	"ui": {
-		"search_placeholder": "Поиск..."
+		"search_placeholder": "Поиск...",
+		"no_results": "Результатов не найдено"
 	},
 	"mermaid": {
 		"loading": "Создание диаграммы mermaid...",

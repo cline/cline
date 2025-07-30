@@ -134,6 +134,9 @@ export const FollowUpSuggest = ({
 								className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity"
 								onClick={(e) => {
 									e.stopPropagation()
+									// Cancel the auto-approve timer when edit button is clicked
+									setSuggestionSelected(true)
+									onCancelAutoApproval?.()
 									// Simulate shift-click by directly calling the handler with shiftKey=true.
 									onSuggestionClick?.(suggestion, { ...e, shiftKey: true })
 								}}>

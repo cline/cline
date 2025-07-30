@@ -25,6 +25,7 @@ export type ChutesModelId =
 	| "Qwen/Qwen3-8B"
 	| "microsoft/MAI-DS-R1-FP8"
 	| "tngtech/DeepSeek-R1T-Chimera"
+	| "zai-org/GLM-4.5-Air"
 
 export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1-0528"
 
@@ -235,5 +236,15 @@ export const chutesModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "TNGTech DeepSeek R1T Chimera model.",
+	},
+	"zai-org/GLM-4.5-Air": {
+		maxTokens: 32768,
+		contextWindow: 151329,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"GLM-4.5-Air model with 151,329 token context window and 106B total parameters with 12B activated.",
 	},
 } as const satisfies Record<string, ModelInfo>

@@ -108,7 +108,7 @@
 	"stopTts": "Detener texto a voz",
 	"typeMessage": "Escribe un mensaje...",
 	"typeTask": "Escribe tu tarea aquí...",
-	"addContext": "@ para agregar contexto, / para cambiar modos",
+	"addContext": "@ para agregar contexto, / para comandos",
 	"dragFiles": "mantén shift para arrastrar archivos",
 	"dragFilesImages": "mantén shift para arrastrar archivos/imágenes",
 	"enhancePromptDescription": "El botón 'Mejorar el mensaje' ayuda a mejorar tu petición proporcionando contexto adicional, aclaraciones o reformulaciones. Intenta escribir una petición aquí y haz clic en el botón nuevamente para ver cómo funciona.",
@@ -116,7 +116,9 @@
 		"title": "Modos",
 		"marketplace": "Marketplace de Modos",
 		"settings": "Configuración de Modos",
-		"description": "Personalidades especializadas que adaptan el comportamiento de Roo."
+		"description": "Personalidades especializadas que adaptan el comportamiento de Roo.",
+		"searchPlaceholder": "Buscar modos...",
+		"noResults": "No se encontraron resultados"
 	},
 	"errorReadingFile": "Error al leer el archivo:",
 	"noValidImages": "No se procesaron imágenes válidas",
@@ -192,6 +194,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo vio nombres de definiciones de código fuente utilizados en este directorio (fuera del espacio de trabajo):"
 	},
 	"commandOutput": "Salida del comando",
+	"commandExecution": {
+		"running": "Ejecutando",
+		"pid": "PID: {{pid}}",
+		"exited": "Finalizado ({{exitCode}})",
+		"manageCommands": "Gestionar permisos de comandos",
+		"commandManagementDescription": "Gestionar permisos de comandos: Haz clic en ✓ para permitir la ejecución automática, ✗ para denegar la ejecución. Los patrones se pueden activar/desactivar o eliminar de las listas. <settingsLink>Ver todos los ajustes</settingsLink>",
+		"addToAllowed": "Añadir a la lista de permitidos",
+		"removeFromAllowed": "Eliminar de la lista de permitidos",
+		"addToDenied": "Añadir a la lista de denegados",
+		"removeFromDenied": "Eliminar de la lista de denegados",
+		"abortCommand": "Abortar ejecución del comando",
+		"expandOutput": "Expandir salida",
+		"collapseOutput": "Contraer salida",
+		"expandManagement": "Expandir sección de gestión de comandos",
+		"collapseManagement": "Contraer sección de gestión de comandos"
+	},
 	"response": "Respuesta",
 	"arguments": "Argumentos",
 	"mcp": {
@@ -247,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} publicado",
 		"description": "Roo Code {{version}} trae poderosas nuevas funcionalidades y mejoras significativas para mejorar tu flujo de trabajo de desarrollo.",
 		"whatsNew": "Novedades",
-		"feature1": "<bold>Indexación de código base graduada de experimental</bold>: La indexación completa del código base ahora es estable y está lista para uso en producción con búsqueda mejorada y comprensión de contexto.",
-		"feature2": "<bold>Nueva función de lista de tareas</bold>: Mantén tus tareas en el buen camino con gestión integrada de tareas que te ayuda a mantenerte organizado y enfocado en tus objetivos de desarrollo.",
-		"feature3": "<bold>Transiciones mejoradas de Arquitecto a Código</bold>: Transferencias fluidas desde la planificación en modo Arquitecto hasta la implementación en modo Código.",
+		"feature1": "<bold>Cola de Mensajes</bold>: Pon en cola múltiples mensajes mientras Roo está trabajando, permitiéndote continuar planificando tu flujo de trabajo sin interrupciones.",
+		"feature2": "<bold>Comandos de Barra Personalizados</bold>: Crea comandos de barra personalizados para acceso rápido a prompts y flujos de trabajo utilizados frecuentemente, con gestión completa de la interfaz de usuario.",
+		"feature3": "<bold>Herramientas Gemini Mejoradas</bold>: Nuevas capacidades de contexto de URL y fundamentación de búsqueda de Google proporcionan a los modelos Gemini información web en tiempo real y capacidades de investigación mejoradas.",
 		"hideButton": "Ocultar anuncio",
 		"detailsDiscussLinks": "Obtén más detalles y participa en <discordLink>Discord</discordLink> y <redditLink>Reddit</redditLink> 🚀"
 	},
@@ -330,5 +348,30 @@
 	},
 	"editMessage": {
 		"placeholder": "Edita tu mensaje..."
+	},
+	"command": {
+		"triggerDescription": "Activar el comando {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gestionar comandos de barra",
+		"title": "Comandos de Barra",
+		"description": "Crea comandos de barra personalizados para acceder rápidamente a prompts y flujos de trabajo utilizados con frecuencia. <DocsLink>Documentación</DocsLink>",
+		"globalCommands": "Comandos Globales",
+		"workspaceCommands": "Comandos del Espacio de Trabajo",
+		"globalCommand": "Comando global",
+		"editCommand": "Editar comando",
+		"deleteCommand": "Eliminar comando",
+		"newGlobalCommandPlaceholder": "Nuevo comando global...",
+		"newWorkspaceCommandPlaceholder": "Nuevo comando del espacio de trabajo...",
+		"deleteDialog": {
+			"title": "Eliminar Comando",
+			"description": "¿Estás seguro de que quieres eliminar el comando \"{{name}}\"? Esta acción no se puede deshacer.",
+			"cancel": "Cancelar",
+			"confirm": "Eliminar"
+		}
+	},
+	"queuedMessages": {
+		"title": "Mensajes en cola:",
+		"clickToEdit": "Haz clic para editar el mensaje"
 	}
 }

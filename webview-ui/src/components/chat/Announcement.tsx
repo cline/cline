@@ -82,6 +82,16 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 								}}
 							/>
 						</li>
+						<li>
+							•{" "}
+							<Trans
+								i18nKey="chat:announcement.feature3"
+								components={{
+									bold: <b />,
+									code: <code />,
+								}}
+							/>
+						</li>
 					</ul>
 					<Trans
 						i18nKey="chat:announcement.detailsDiscussLinks"

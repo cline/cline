@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "Tìm kiếm..."
+		"search_placeholder": "Tìm kiếm...",
+		"no_results": "Không tìm thấy kết quả nào"
 	},
 	"mermaid": {
 		"loading": "Đang tạo biểu đồ mermaid...",

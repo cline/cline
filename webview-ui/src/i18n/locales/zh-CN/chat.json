@@ -108,7 +108,7 @@
 	"stopTts": "停止文本转语音",
 	"typeMessage": "输入消息...",
 	"typeTask": "在此处输入您的任务...",
-	"addContext": "@添加上下文，/切换模式",
+	"addContext": "@添加上下文，/输入命令",
 	"dragFiles": "Shift+拖拽文件",
 	"dragFilesImages": "Shift+拖拽文件/图片",
 	"enhancePromptDescription": "'增强提示'按钮通过提供额外上下文、澄清或重新表述来帮助改进您的请求。尝试在此处输入请求，然后再次点击按钮查看其工作原理。",
@@ -116,7 +116,9 @@
 		"title": "模式",
 		"marketplace": "模式市场",
 		"settings": "模式设置",
-		"description": "专门定制Roo行为的角色。"
+		"description": "专门定制Roo行为的角色。",
+		"searchPlaceholder": "搜索模式...",
+		"noResults": "未找到结果"
 	},
 	"errorReadingFile": "读取文件时出错:",
 	"noValidImages": "没有处理有效图片",
@@ -192,6 +194,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo已查看此目录中使用的源代码定义名称（工作区外）:"
 	},
 	"commandOutput": "命令输出",
+	"commandExecution": {
+		"running": "正在运行",
+		"pid": "PID: {{pid}}",
+		"exited": "已退出 ({{exitCode}})",
+		"manageCommands": "管理命令权限",
+		"commandManagementDescription": "管理命令权限：点击 ✓ 允许自动执行，点击 ✗ 拒绝执行。可以打开/关闭模式或从列表中删除。<settingsLink>查看所有设置</settingsLink>",
+		"addToAllowed": "添加到允许列表",
+		"removeFromAllowed": "从允许列表中删除",
+		"addToDenied": "添加到拒绝列表",
+		"removeFromDenied": "从拒绝列表中删除",
+		"abortCommand": "中止命令执行",
+		"expandOutput": "展开输出",
+		"collapseOutput": "折叠输出",
+		"expandManagement": "展开命令管理部分",
+		"collapseManagement": "折叠命令管理部分"
+	},
 	"response": "响应",
 	"arguments": "参数",
 	"mcp": {
@@ -247,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} 已发布",
 		"description": "Roo Code {{version}} 带来强大的新功能和重大改进，提升您的开发工作流程。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>代码库索引从实验阶段正式发布</bold>: 完整的代码库索引现已稳定，可用于生产环境，具备改进的搜索和上下文理解功能。",
-		"feature2": "<bold>新增待办事项列表功能</bold>: 通过集成的待办事项管理保持任务进度，帮助你保持条理并专注于开发目标。",
-		"feature3": "<bold>改进的架构师到代码转换</bold>: 从架构师模式的规划到代码模式的实现，实现无缝交接。",
+		"feature1": "<bold>消息队列</bold>: 在 Roo 工作时将多个消息排队，让你可以不间断地继续规划工作流程。",
+		"feature2": "<bold>自定义斜杠命令</bold>: 创建个性化斜杠命令，快速访问常用提示词和工作流程，具备完整的 UI 管理功能。",
+		"feature3": "<bold>增强的 Gemini 工具</bold>: 新的 URL 上下文和 Google 搜索基础功能为 Gemini 模型提供实时网络信息和增强的研究能力。",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},
@@ -328,7 +346,32 @@
 		"description": "在云端运行远程代理，随时随地访问任务，与他人协作等更多功能。",
 		"joinWaitlist": "加入等待列表获取早期访问权限。"
 	},
+	"command": {
+		"triggerDescription": "触发 {{name}} 命令"
+	},
 	"editMessage": {
 		"placeholder": "编辑消息..."
+	},
+	"slashCommands": {
+		"tooltip": "管理斜杠命令",
+		"title": "斜杠命令",
+		"description": "创建自定义斜杠命令，快速访问常用提示词和工作流程。<DocsLink>文档</DocsLink>",
+		"globalCommands": "全局命令",
+		"workspaceCommands": "工作区命令",
+		"globalCommand": "全局命令",
+		"editCommand": "编辑命令",
+		"deleteCommand": "删除命令",
+		"newGlobalCommandPlaceholder": "新建全局命令...",
+		"newWorkspaceCommandPlaceholder": "新建工作区命令...",
+		"deleteDialog": {
+			"title": "删除命令",
+			"description": "确定要删除命令 \"{{name}}\" 吗？此操作无法撤销。",
+			"cancel": "取消",
+			"confirm": "删除"
+		}
+	},
+	"queuedMessages": {
+		"title": "队列消息:",
+		"clickToEdit": "点击编辑消息"
 	}
 }

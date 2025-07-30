@@ -19,6 +19,15 @@ import { Mode } from "./modes"
 import { RouterModels } from "./api"
 import type { MarketplaceItem } from "@roo-code/types"
 
+// Command interface for frontend/backend communication
+export interface Command {
+	name: string
+	source: "global" | "project"
+	filePath?: string
+	description?: string
+	argumentHint?: string
+}
+
 // Type for marketplace installed metadata
 export interface MarketplaceInstalledMetadata {
 	project: Record<string, { type: string }>
@@ -109,6 +118,8 @@ export interface ExtensionMessage {
 		| "codeIndexSecretStatus"
 		| "showDeleteMessageDialog"
 		| "showEditMessageDialog"
+		| "commands"
+		| "insertTextIntoTextarea"
 	text?: string
 	payload?: any // Add a generic payload for now, can refine later
 	action?:
@@ -138,26 +149,21 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	huggingFaceModels?: Array<{
-		_id: string
 		id: string
-		inferenceProviderMapping: Array<{
+		object: string
+		created: number
+		owned_by: string
+		providers: Array<{
 			provider: string
-			providerId: string
 			status: "live" | "staging" | "error"
-			task: "conversational"
-		}>
-		trendingScore: number
-		config: {
-			architectures: string[]
-			model_type: string
-			tokenizer_config?: {
-				chat_template?: string | Array<{ name: string; template: string }>
-				model_max_length?: number
+			supports_tools?: boolean
+			supports_structured_output?: boolean
+			context_length?: number
+			pricing?: {
+				input: number
+				output: number
 			}
-		}
-		tags: string[]
-		pipeline_tag: "text-generation" | "image-text-to-text"
-		library_name?: string
+		}>
 	}>
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
@@ -179,12 +185,15 @@ export interface ExtensionMessage {
 	organizationAllowList?: OrganizationAllowList
 	tab?: string
 	marketplaceItems?: MarketplaceItem[]
+	organizationMcps?: MarketplaceItem[]
 	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
+	errors?: string[]
 	visibility?: ShareVisibility
 	rulesFolderPath?: string
 	settings?: any
 	messageTs?: number
 	context?: string
+	commands?: Command[]
 }
 
 export type ExtensionState = Pick<
@@ -278,6 +287,8 @@ export type ExtensionState = Pick<
 	maxWorkspaceFiles: number // Maximum number of files to include in current working directory details (0-500)
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
+	maxImageFileSize: number // Maximum size of image files to process in MB
+	maxTotalImageSize: number // Maximum total size for all images in a single read operation in MB
 
 	experiments: Experiments // Map of experiment IDs to their enabled state
 

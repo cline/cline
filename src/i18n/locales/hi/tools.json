@@ -4,7 +4,9 @@
 		"definitionsOnly": " (केवल परिभाषाएँ)",
 		"maxLines": " (अधिकतम {{max}} पंक्तियाँ)",
 		"showingOnlyLines": "कुल {{total}} पंक्तियों में से केवल {{shown}} दिखा रहे हैं। यदि आपको अधिक पंक्तियाँ पढ़नी हैं तो line_range का उपयोग करें",
-		"contextLimitInstructions": "इस फ़ाइल के विशिष्ट भागों को पढ़ने के लिए, निम्नलिखित प्रारूप का उपयोग करें:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>शुरुआत-अंत</line_range>\n  </file>\n</args>\n</read_file>\n\nउदाहरण के लिए, पंक्ति 2001-3000 पढ़ने के लिए:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "इस फ़ाइल के विशिष्ट भागों को पढ़ने के लिए, निम्नलिखित प्रारूप का उपयोग करें:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>शुरुआत-अंत</line_range>\n  </file>\n</args>\n</read_file>\n\nउदाहरण के लिए, पंक्ति 2001-3000 पढ़ने के लिए:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "छवि फ़ाइल बहुत बड़ी है ({{size}} MB)। अधिकतम अनुमतित आकार {{max}} MB है।",
+		"imageWithSize": "छवि फ़ाइल ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo एक लूप में फंसा हुआ लगता है, बार-बार एक ही क्रिया ({{toolName}}) को दोहरा रहा है। यह उसकी वर्तमान रणनीति में किसी समस्या का संकेत हो सकता है। कार्य को पुनः परिभाषित करने, अधिक विशिष्ट निर्देश देने, या उसे एक अलग दृष्टिकोण की ओर मार्गदर्शित करने पर विचार करें।",
 	"codebaseSearch": {

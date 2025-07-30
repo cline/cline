@@ -35,6 +35,10 @@
 		},
 		"none": "Keine"
 	},
+	"sections": {
+		"organizationMcps": "MCPs von {{organization}}",
+		"marketplace": "Marktplatz"
+	},
 	"type-group": {
 		"modes": "Modi",
 		"mcps": "MCP-Server"

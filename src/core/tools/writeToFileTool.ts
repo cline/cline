@@ -1,6 +1,7 @@
 import path from "path"
 import delay from "delay"
 import * as vscode from "vscode"
+import fs from "fs/promises"
 
 import { Task } from "../task/Task"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
@@ -14,6 +15,7 @@ import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { detectCodeOmission } from "../../integrations/editor/detect-omission"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
 import { DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
+import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
 
 export async function writeToFileTool(
 	cline: Task,
@@ -99,21 +101,31 @@ export async function writeToFileTool(
 
 	try {
 		if (block.partial) {
-			// update gui message
-			const partialMessage = JSON.stringify(sharedMessageProps)
-			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
-
-			// update editor
-			if (!cline.diffViewProvider.isEditing) {
-				// open the editor and prepare to stream content in
-				await cline.diffViewProvider.open(relPath)
-			}
-
-			// editor is open, stream content in
-			await cline.diffViewProvider.update(
-				everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
-				false,
+			// Check if preventFocusDisruption experiment is enabled
+			const provider = cline.providerRef.deref()
+			const state = await provider?.getState()
+			const isPreventFocusDisruptionEnabled = experiments.isEnabled(
+				state?.experiments ?? {},
+				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
 			)
+
+			if (!isPreventFocusDisruptionEnabled) {
+				// update gui message
+				const partialMessage = JSON.stringify(sharedMessageProps)
+				await cline.ask("tool", partialMessage, block.partial).catch(() => {})
+
+				// update editor
+				if (!cline.diffViewProvider.isEditing) {
+					// open the editor and prepare to stream content in
+					await cline.diffViewProvider.open(relPath)
+				}
+
+				// editor is open, stream content in
+				await cline.diffViewProvider.update(
+					everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
+					false,
+				)
+			}
 
 			return
 		} else {
@@ -149,76 +161,138 @@ export async function writeToFileTool(
 
 			cline.consecutiveMistakeCount = 0
 
-			// if isEditingFile false, that means we have the full contents of the file already.
-			// it's important to note how cline function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So cline part of the logic will always be called.
-			// in other words, you must always repeat the block.partial logic here
-			if (!cline.diffViewProvider.isEditing) {
-				// show gui message before showing edit animation
-				const partialMessage = JSON.stringify(sharedMessageProps)
-				await cline.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, cline shows the edit row before the content is streamed into the editor
-				await cline.diffViewProvider.open(relPath)
-			}
-
-			await cline.diffViewProvider.update(
-				everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
-				true,
-			)
-
-			await delay(300) // wait for diff view to update
-			cline.diffViewProvider.scrollToFirstDiff()
-
-			// Check for code omissions before proceeding
-			if (detectCodeOmission(cline.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
-				if (cline.diffStrategy) {
-					await cline.diffViewProvider.revertChanges()
-
-					pushToolResult(
-						formatResponse.toolError(
-							`Content appears to be truncated (file has ${
-								newContent.split("\n").length
-							} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
-						),
-					)
-					return
-				} else {
-					vscode.window
-						.showWarningMessage(
-							"Potential code truncation detected. cline happens when the AI reaches its max output limit.",
-							"Follow cline guide to fix the issue",
-						)
-						.then((selection) => {
-							if (selection === "Follow cline guide to fix the issue") {
-								vscode.env.openExternal(
-									vscode.Uri.parse(
-										"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
-									),
-								)
-							}
-						})
-				}
-			}
-
-			const completeMessage = JSON.stringify({
-				...sharedMessageProps,
-				content: fileExists ? undefined : newContent,
-				diff: fileExists
-					? formatResponse.createPrettyPatch(relPath, cline.diffViewProvider.originalContent, newContent)
-					: undefined,
-			} satisfies ClineSayTool)
-
-			const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
-
-			if (!didApprove) {
-				await cline.diffViewProvider.revertChanges()
-				return
-			}
-
-			// Call saveChanges to update the DiffViewProvider properties
+			// Check if preventFocusDisruption experiment is enabled
 			const provider = cline.providerRef.deref()
 			const state = await provider?.getState()
 			const diagnosticsEnabled = state?.diagnosticsEnabled ?? true
 			const writeDelayMs = state?.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS
-			await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+			const isPreventFocusDisruptionEnabled = experiments.isEnabled(
+				state?.experiments ?? {},
+				EXPERIMENT_IDS.PREVENT_FOCUS_DISRUPTION,
+			)
+
+			if (isPreventFocusDisruptionEnabled) {
+				// Direct file write without diff view
+				// Check for code omissions before proceeding
+				if (detectCodeOmission(cline.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
+					if (cline.diffStrategy) {
+						pushToolResult(
+							formatResponse.toolError(
+								`Content appears to be truncated (file has ${
+									newContent.split("\n").length
+								} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
+							),
+						)
+						return
+					} else {
+						vscode.window
+							.showWarningMessage(
+								"Potential code truncation detected. cline happens when the AI reaches its max output limit.",
+								"Follow cline guide to fix the issue",
+							)
+							.then((selection) => {
+								if (selection === "Follow cline guide to fix the issue") {
+									vscode.env.openExternal(
+										vscode.Uri.parse(
+											"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
+										),
+									)
+								}
+							})
+					}
+				}
+
+				const completeMessage = JSON.stringify({
+					...sharedMessageProps,
+					content: newContent,
+				} satisfies ClineSayTool)
+
+				const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
+
+				if (!didApprove) {
+					return
+				}
+
+				// Set up diffViewProvider properties needed for saveDirectly
+				cline.diffViewProvider.editType = fileExists ? "modify" : "create"
+				if (fileExists) {
+					const absolutePath = path.resolve(cline.cwd, relPath)
+					cline.diffViewProvider.originalContent = await fs.readFile(absolutePath, "utf-8")
+				} else {
+					cline.diffViewProvider.originalContent = ""
+				}
+
+				// Save directly without showing diff view or opening the file
+				await cline.diffViewProvider.saveDirectly(relPath, newContent, false, diagnosticsEnabled, writeDelayMs)
+			} else {
+				// Original behavior with diff view
+				// if isEditingFile false, that means we have the full contents of the file already.
+				// it's important to note how cline function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So cline part of the logic will always be called.
+				// in other words, you must always repeat the block.partial logic here
+				if (!cline.diffViewProvider.isEditing) {
+					// show gui message before showing edit animation
+					const partialMessage = JSON.stringify(sharedMessageProps)
+					await cline.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, cline shows the edit row before the content is streamed into the editor
+					await cline.diffViewProvider.open(relPath)
+				}
+
+				await cline.diffViewProvider.update(
+					everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
+					true,
+				)
+
+				await delay(300) // wait for diff view to update
+				cline.diffViewProvider.scrollToFirstDiff()
+
+				// Check for code omissions before proceeding
+				if (detectCodeOmission(cline.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
+					if (cline.diffStrategy) {
+						await cline.diffViewProvider.revertChanges()
+
+						pushToolResult(
+							formatResponse.toolError(
+								`Content appears to be truncated (file has ${
+									newContent.split("\n").length
+								} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
+							),
+						)
+						return
+					} else {
+						vscode.window
+							.showWarningMessage(
+								"Potential code truncation detected. cline happens when the AI reaches its max output limit.",
+								"Follow cline guide to fix the issue",
+							)
+							.then((selection) => {
+								if (selection === "Follow cline guide to fix the issue") {
+									vscode.env.openExternal(
+										vscode.Uri.parse(
+											"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
+										),
+									)
+								}
+							})
+					}
+				}
+
+				const completeMessage = JSON.stringify({
+					...sharedMessageProps,
+					content: fileExists ? undefined : newContent,
+					diff: fileExists
+						? formatResponse.createPrettyPatch(relPath, cline.diffViewProvider.originalContent, newContent)
+						: undefined,
+				} satisfies ClineSayTool)
+
+				const didApprove = await askApproval("tool", completeMessage, undefined, isWriteProtected)
+
+				if (!didApprove) {
+					await cline.diffViewProvider.revertChanges()
+					return
+				}
+
+				// Call saveChanges to update the DiffViewProvider properties
+				await cline.diffViewProvider.saveChanges(diagnosticsEnabled, writeDelayMs)
+			}
 
 			// Track file edit operation
 			if (relPath) {

@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Hinweis: Wenn Sie keine Cache-Nutzung sehen, versuchen Sie ein anderes Modell auszuwählen und dann Ihr gewünschtes Modell erneut auszuwählen.",
 		"vscodeLmModel": "Sprachmodell",
 		"vscodeLmWarning": "Hinweis: Dies ist eine sehr experimentelle Integration und die Anbieterunterstützung variiert. Wenn Sie einen Fehler über ein nicht unterstütztes Modell erhalten, liegt das Problem auf Anbieterseite.",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "URL-Kontext aktivieren",
+				"description": "Ermöglicht Gemini, verlinkte Seiten zu lesen, um deren Inhalt zu extrahieren, zu vergleichen und in fundierte Antworten zu synthetisieren."
+			},
+			"groundingSearch": {
+				"title": "Grounding mit Google Suche aktivieren",
+				"description": "Verbindet Gemini mit Echtzeit-Webdaten für genaue, aktuelle Antworten mit überprüfbaren Zitaten."
+			}
+		},
 		"googleCloudSetup": {
 			"title": "Um Google Cloud Vertex AI zu verwenden, müssen Sie:",
 			"step1": "1. Ein Google Cloud-Konto erstellen, die Vertex AI API aktivieren & die gewünschten Claude-Modelle aktivieren.",
@@ -526,6 +537,16 @@
 			"profileDescription": "Benutzerdefinierter Schwellenwert nur für dieses Profil (überschreibt globalen Standard)",
 			"inheritDescription": "Dieses Profil erbt den globalen Standard-Schwellenwert ({{threshold}}%)",
 			"usesGlobal": "(verwendet global {{threshold}}%)"
+		},
+		"maxImageFileSize": {
+			"label": "Maximale Bilddateigröße",
+			"mb": "MB",
+			"description": "Maximale Größe (in MB) für Bilddateien, die vom read file Tool verarbeitet werden können."
+		},
+		"maxTotalImageSize": {
+			"label": "Maximale Gesamtbildgröße",
+			"mb": "MB",
+			"description": "Maximales kumulatives Größenlimit (in MB) für alle Bilder, die in einer einzelnen read_file-Operation verarbeitet werden. Beim Lesen mehrerer Bilder wird die Größe jedes Bildes zur Gesamtsumme addiert. Wenn das Einbeziehen eines weiteren Bildes dieses Limit überschreiten würde, wird es übersprungen."
 		}
 	},
 	"terminal": {
@@ -648,6 +669,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Gleichzeitige Dateibearbeitungen aktivieren",
 			"description": "Wenn aktiviert, kann Roo mehrere Dateien in einer einzigen Anfrage bearbeiten. Wenn deaktiviert, muss Roo Dateien einzeln bearbeiten. Das Deaktivieren kann hilfreich sein, wenn mit weniger fähigen Modellen gearbeitet wird oder wenn du mehr Kontrolle über Dateiänderungen haben möchtest."
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "Hintergrundbearbeitung",
+			"description": "Verhindert Editor-Fokus-Störungen wenn aktiviert. Dateibearbeitungen erfolgen im Hintergrund ohne Öffnung von Diff-Ansichten oder Fokus-Diebstahl. Du kannst ungestört weiterarbeiten, während Roo Änderungen vornimmt. Dateien können ohne Fokus geöffnet werden, um Diagnosen zu erfassen oder vollständig geschlossen bleiben."
 		}
 	},
 	"promptCaching": {
@@ -755,5 +780,8 @@
 		"useCustomArn": "Benutzerdefinierte ARN verwenden..."
 	},
 	"includeMaxOutputTokens": "Maximale Ausgabe-Tokens einbeziehen",
-	"includeMaxOutputTokensDescription": "Senden Sie den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht."
+	"includeMaxOutputTokensDescription": "Senden Sie den Parameter für maximale Ausgabe-Tokens in API-Anfragen. Einige Anbieter unterstützen dies möglicherweise nicht.",
+	"limitMaxTokensDescription": "Begrenze die maximale Anzahl von Tokens in der Antwort",
+	"maxOutputTokensLabel": "Maximale Ausgabe-Tokens",
+	"maxTokensGenerateDescription": "Maximale Tokens, die in der Antwort generiert werden"
 }

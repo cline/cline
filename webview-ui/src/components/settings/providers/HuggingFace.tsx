@@ -9,30 +9,27 @@ import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
 import { SearchableSelect, type SearchableSelectOption } from "@src/components/ui"
+import { cn } from "@src/lib/utils"
+import { formatPrice } from "@/utils/formatPrice"
 
 import { inputEventTransform } from "../transforms"
 
 type HuggingFaceModel = {
-	_id: string
 	id: string
-	inferenceProviderMapping: Array<{
+	object: string
+	created: number
+	owned_by: string
+	providers: Array<{
 		provider: string
-		providerId: string
 		status: "live" | "staging" | "error"
-		task: "conversational"
-	}>
-	trendingScore: number
-	config: {
-		architectures: string[]
-		model_type: string
-		tokenizer_config?: {
-			chat_template?: string | Array<{ name: string; template: string }>
-			model_max_length?: number
+		supports_tools?: boolean
+		supports_structured_output?: boolean
+		context_length?: number
+		pricing?: {
+			input: number
+			output: number
 		}
-	}
-	tags: string[]
-	pipeline_tag: "text-generation" | "image-text-to-text"
-	library_name?: string
+	}>
 }
 
 type HuggingFaceProps = {
@@ -81,10 +78,7 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 
 	// Get current model and its providers
 	const currentModel = models.find((m) => m.id === apiConfiguration?.huggingFaceModelId)
-	const availableProviders = useMemo(
-		() => currentModel?.inferenceProviderMapping || [],
-		[currentModel?.inferenceProviderMapping],
-	)
+	const availableProviders = useMemo(() => currentModel?.providers || [], [currentModel?.providers])
 
 	// Set default provider when model changes
 	useEffect(() => {
@@ -140,6 +134,32 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 		return nameMap[provider] || provider.charAt(0).toUpperCase() + provider.slice(1)
 	}
 
+	// Get current provider
+	const currentProvider = useMemo(() => {
+		if (!currentModel || !selectedProvider || selectedProvider === "auto") return null
+		return currentModel.providers.find((p) => p.provider === selectedProvider)
+	}, [currentModel, selectedProvider])
+
+	// Get model capabilities based on current provider
+	const modelCapabilities = useMemo(() => {
+		if (!currentModel) return null
+
+		// For now, assume text-only models since we don't have pipeline_tag in new API
+		// This could be enhanced by checking model name patterns or adding vision support detection
+		const supportsImages = false
+
+		// Use provider-specific capabilities if a specific provider is selected
+		const maxTokens =
+			currentProvider?.context_length || currentModel.providers.find((p) => p.context_length)?.context_length
+		const supportsTools = currentProvider?.supports_tools || currentModel.providers.some((p) => p.supports_tools)
+
+		return {
+			supportsImages,
+			maxTokens,
+			supportsTools,
+		}
+	}, [currentModel, currentProvider])
+
 	return (
 		<>
 			<VSCodeTextField
@@ -150,6 +170,16 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 				className="w-full">
 				<label className="block font-medium mb-1">{t("settings:providers.huggingFaceApiKey")}</label>
 			</VSCodeTextField>
+
+			<div className="text-sm text-vscode-descriptionForeground -mt-2">
+				{t("settings:providers.apiKeyStorageNotice")}
+			</div>
+
+			{!apiConfiguration?.huggingFaceApiKey && (
+				<VSCodeButtonLink href="https://huggingface.co/settings/tokens" appearance="secondary">
+					{t("settings:providers.getHuggingFaceApiKey")}
+				</VSCodeButtonLink>
+			)}
 
 			<div className="flex flex-col gap-2">
 				<label className="block font-medium text-sm">
@@ -202,14 +232,42 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 				</div>
 			)}
 
-			<div className="text-sm text-vscode-descriptionForeground -mt-2">
-				{t("settings:providers.apiKeyStorageNotice")}
-			</div>
-
-			{!apiConfiguration?.huggingFaceApiKey && (
-				<VSCodeButtonLink href="https://huggingface.co/settings/tokens" appearance="secondary">
-					{t("settings:providers.getHuggingFaceApiKey")}
-				</VSCodeButtonLink>
+			{/* Model capabilities */}
+			{currentModel && modelCapabilities && (
+				<div className="text-sm text-vscode-descriptionForeground">
+					<div
+						className={cn(
+							"flex items-center gap-1 font-medium",
+							modelCapabilities.supportsImages
+								? "text-vscode-charts-green"
+								: "text-vscode-errorForeground",
+						)}>
+						<span
+							className={cn("codicon", modelCapabilities.supportsImages ? "codicon-check" : "codicon-x")}
+						/>
+						{modelCapabilities.supportsImages
+							? t("settings:modelInfo.supportsImages")
+							: t("settings:modelInfo.noImages")}
+					</div>
+					{modelCapabilities.maxTokens && (
+						<div>
+							<span className="font-medium">{t("settings:modelInfo.maxOutput")}:</span>{" "}
+							{modelCapabilities.maxTokens.toLocaleString()} tokens
+						</div>
+					)}
+					{currentProvider?.pricing && (
+						<>
+							<div>
+								<span className="font-medium">{t("settings:modelInfo.inputPrice")}:</span>{" "}
+								{formatPrice(currentProvider.pricing.input)} / 1M tokens
+							</div>
+							<div>
+								<span className="font-medium">{t("settings:modelInfo.outputPrice")}:</span>{" "}
+								{formatPrice(currentProvider.pricing.output)} / 1M tokens
+							</div>
+						</>
+					)}
+				</div>
 			)}
 		</>
 	)

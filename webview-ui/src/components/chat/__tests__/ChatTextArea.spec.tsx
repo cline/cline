@@ -77,7 +77,7 @@ describe("ChatTextArea", () => {
 	})
 
 	describe("enhance prompt button", () => {
-		it("should be disabled when sendingDisabled is true", () => {
+		it("should be enabled even when sendingDisabled is true (for message queueing)", () => {
 			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
 				filePaths: [],
 				openedTabs: [],
@@ -86,7 +86,7 @@ describe("ChatTextArea", () => {
 			})
 			render(<ChatTextArea {...defaultProps} sendingDisabled={true} />)
 			const enhanceButton = getEnhancePromptButton()
-			expect(enhanceButton).toHaveClass("cursor-not-allowed")
+			expect(enhanceButton).toHaveClass("cursor-pointer")
 		})
 	})
 
@@ -901,6 +901,144 @@ describe("ChatTextArea", () => {
 				// Should not navigate history, allowing default behavior (same as regular Up)
 				expect(setInputValue).not.toHaveBeenCalled()
 			})
+		})
+	})
+
+	describe("slash command highlighting", () => {
+		const mockCommands = [
+			{ name: "setup", source: "project", description: "Setup the project" },
+			{ name: "deploy", source: "global", description: "Deploy the application" },
+			{ name: "test-command", source: "project", description: "Test command with dash" },
+		]
+
+		beforeEach(() => {
+			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
+				filePaths: [],
+				openedTabs: [],
+				taskHistory: [],
+				cwd: "/test/workspace",
+				commands: mockCommands,
+			})
+		})
+
+		it("should highlight valid slash commands", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/setup the project" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// The highlighting is applied via innerHTML, so we need to check the content
+			// The valid command "/setup" should be highlighted
+			expect(highlightLayer.innerHTML).toContain('<mark class="mention-context-textarea-highlight">/setup</mark>')
+		})
+
+		it("should not highlight invalid slash commands", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/invalid command" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// The invalid command "/invalid" should not be highlighted
+			expect(highlightLayer.innerHTML).not.toContain(
+				'<mark class="mention-context-textarea-highlight">/invalid</mark>',
+			)
+			// But it should still contain the text without highlighting
+			expect(highlightLayer.innerHTML).toContain("/invalid")
+		})
+
+		it("should highlight only the command portion, not arguments", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/deploy to production" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// Only "/deploy" should be highlighted, not "to production"
+			expect(highlightLayer.innerHTML).toContain(
+				'<mark class="mention-context-textarea-highlight">/deploy</mark>',
+			)
+			expect(highlightLayer.innerHTML).not.toContain(
+				'<mark class="mention-context-textarea-highlight">/deploy to production</mark>',
+			)
+		})
+
+		it("should handle commands with dashes and underscores", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/test-command with args" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// The command with dash should be highlighted
+			expect(highlightLayer.innerHTML).toContain(
+				'<mark class="mention-context-textarea-highlight">/test-command</mark>',
+			)
+		})
+
+		it("should be case-sensitive when matching commands", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/Setup the project" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// "/Setup" (capital S) should not be highlighted since the command is "setup" (lowercase)
+			expect(highlightLayer.innerHTML).not.toContain(
+				'<mark class="mention-context-textarea-highlight">/Setup</mark>',
+			)
+			expect(highlightLayer.innerHTML).toContain("/Setup")
+		})
+
+		it("should highlight multiple valid commands in the same text", () => {
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/setup first then /deploy" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// Both valid commands should be highlighted
+			expect(highlightLayer.innerHTML).toContain('<mark class="mention-context-textarea-highlight">/setup</mark>')
+			expect(highlightLayer.innerHTML).toContain(
+				'<mark class="mention-context-textarea-highlight">/deploy</mark>',
+			)
+		})
+
+		it("should handle mixed valid and invalid commands", () => {
+			const { getByTestId } = render(
+				<ChatTextArea {...defaultProps} inputValue="/setup first then /invalid then /deploy" />,
+			)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// Valid commands should be highlighted
+			expect(highlightLayer.innerHTML).toContain('<mark class="mention-context-textarea-highlight">/setup</mark>')
+			expect(highlightLayer.innerHTML).toContain(
+				'<mark class="mention-context-textarea-highlight">/deploy</mark>',
+			)
+
+			// Invalid command should not be highlighted
+			expect(highlightLayer.innerHTML).not.toContain(
+				'<mark class="mention-context-textarea-highlight">/invalid</mark>',
+			)
+			expect(highlightLayer.innerHTML).toContain("/invalid")
+		})
+
+		it("should work when no commands are available", () => {
+			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
+				filePaths: [],
+				openedTabs: [],
+				taskHistory: [],
+				cwd: "/test/workspace",
+				commands: undefined,
+			})
+
+			const { getByTestId } = render(<ChatTextArea {...defaultProps} inputValue="/setup the project" />)
+
+			const highlightLayer = getByTestId("highlight-layer")
+			expect(highlightLayer).toBeInTheDocument()
+
+			// No commands should be highlighted when commands array is undefined
+			expect(highlightLayer.innerHTML).not.toContain(
+				'<mark class="mention-context-textarea-highlight">/setup</mark>',
+			)
+			expect(highlightLayer.innerHTML).toContain("/setup")
 		})
 	})
 

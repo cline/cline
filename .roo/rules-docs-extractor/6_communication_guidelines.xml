@@ -61,29 +61,48 @@
           Warn about complex dependency chains.
         </discovery>
       </important_findings>
-      <review_findings>
-       <template><![CDATA[
-Review of the provided documentation section is complete.
+      <extraction_findings>
+        <template><![CDATA[
+Feature extraction complete for [feature name].
 
-**Assessment**: [Summary of document quality]
+**Extraction Report**: `EXTRACTION-[feature].md`
 
-**Recommendations**:
+**Key Findings**:
+- Technical Components: [X] classes, [Y] APIs, [Z] configurations
+- User Workflows: [number] primary use cases identified
+- Business Logic: [summary of core functionality]
+- Integration Points: [list of external dependencies]
 
-*   **Critical Inaccuracies**:
-    *   [Inaccuracy 1]: Docs state [X], but code implements [Y].
-    *   ...
+**Documentation Considerations**:
+- [Important aspect that needs clear explanation]
+- [Complex area that may need diagrams]
+- [Edge cases that should be documented]
 
-*   **Omissions**:
-    *   Missing info about [Missing Feature].
-    *   ...
+The extraction report provides comprehensive details for your documentation team.
+        ]]></template>
+      </extraction_findings>
+      <verification_findings>
+        <template><![CDATA[
+Documentation verification complete.
 
-*   **Clarity Suggestions**:
-    *   The section on [Topic] can be clarified by [Suggestion].
-    *   ...
+**Verification Report**: `VERIFICATION-[feature].md`
 
-Copy this feedback for your documentation team.
-       ]]></template>
-      </review_findings>
+**Overall Assessment**: [Accurate/Needs Updates/Contains Critical Errors]
+
+**Summary of Findings**:
+- Critical Inaccuracies: [number]
+- Technical Corrections Needed: [number]
+- Missing Information: [number]
+- Clarity Improvements: [number]
+
+**Most Important Issues**:
+1. [Critical issue that could mislead users]
+2. [Important technical inaccuracy]
+3. [Key missing information]
+
+See the full verification report for detailed corrections and suggestions.
+        ]]></template>
+      </verification_findings>
     </findings_communication>
   </user_interaction>
 
@@ -204,43 +223,55 @@ Status: Stable
 
   <completion_message>
     <structure>
-      <element>Summary of documented feature.</element>
-      <element>Key findings.</element>
-      <element>File location.</element>
-      <element>Next step suggestions (if applicable).</element>
+      <element>Summary of analysis performed.</element>
+      <element>Key findings or issues identified.</element>
+      <element>Report file location.</element>
+      <element>Recommended next steps.</element>
     </structure>
 
-    <example><![CDATA[
-Documentation extracted for the authentication system.
+    <extraction_example><![CDATA[
+Feature extraction complete for the authentication system.
 
-**Generated File**: `DOCS-TEMP-authentication-system.md`
+**Extraction Report**: `EXTRACTION-authentication-system.md`
 
-**Key Findings**:
-- System uses JWT with refresh token rotation.
-- 5 API endpoints found.
-- 12 configuration options identified.
-- Security measures (bcrypt, rate limiting) documented.
-- Troubleshooting for 3 common issues included.
+**Technical Summary**:
+- JWT-based authentication with refresh tokens
+- 5 API endpoints (login, logout, refresh, register, profile)
+- 12 configuration options
+- bcrypt password hashing, rate limiting
 
-**Coverage**:
-- ✅ Technical details
-- ✅ API reference
-- ✅ Configuration guide
-- ✅ Security guide
-- ✅ User and developer guides
-- ✅ Troubleshooting
-    ]]></example>
-    <example_review><![CDATA[
-Review of the documentation section is complete.
+**Non-Technical Summary**:
+- Users can register, login, and manage sessions
+- Supports "remember me" functionality
+- Automatic session refresh for seamless experience
+- Account lockout after failed attempts
 
-**Action**:
-- Analyzed text against codebase.
-- Identified inaccuracies and omissions.
-- Formulated recommendations.
+**Documentation Considerations**:
+- Token expiration times need clear explanation
+- Password requirements should be prominently displayed
+- Error messages need user-friendly translations
 
-**Next Steps**:
-- Feedback is in the chat. No files were created.
-    ]]></example_review>
+The extraction report contains all details needed for comprehensive documentation.
+    ]]></extraction_example>
+
+    <verification_example><![CDATA[
+Documentation verification complete for the authentication system.
+
+**Verification Report**: `VERIFICATION-authentication-system.md`
+
+**Overall Assessment**: Needs Updates
+
+**Critical Issues Found**:
+1. JWT_SECRET documented as optional, but it's required
+2. Token expiration listed as 30m, actual is 15m
+3. Missing documentation for rate limiting feature
+
+**Technical Corrections**: 7 items
+**Missing Information**: 4 sections
+**Clarity Improvements**: 3 suggestions
+
+Please review the verification report for specific corrections needed.
+    ]]></verification_example>
   </completion_message>
 
   <error_handling>

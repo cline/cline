@@ -35,6 +35,10 @@
 		},
 		"none": "Нет"
 	},
+	"sections": {
+		"organizationMcps": "MCPs {{organization}}",
+		"marketplace": "Маркетплейс"
+	},
 	"type-group": {
 		"modes": "Режимы",
 		"mcps": "MCP серверы"

@@ -21,7 +21,7 @@ export const Markdown = memo(({ markdown, partial }: { markdown?: string; partia
 			onMouseEnter={() => setIsHovering(true)}
 			onMouseLeave={() => setIsHovering(false)}
 			style={{ position: "relative" }}>
-			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
+			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
 				<MarkdownBlock markdown={markdown} />
 			</div>
 			{markdown && !partial && isHovering && (

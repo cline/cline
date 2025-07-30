@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "검색..."
+		"search_placeholder": "검색...",
+		"no_results": "결과를 찾을 수 없습니다"
 	},
 	"mermaid": {
 		"loading": "머메이드 다이어그램 생성 중...",

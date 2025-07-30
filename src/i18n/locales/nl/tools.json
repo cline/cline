@@ -4,7 +4,9 @@
 		"definitionsOnly": " (alleen definities)",
 		"maxLines": " (max {{max}} regels)",
 		"showingOnlyLines": "Toont alleen {{shown}} van {{total}} totale regels. Gebruik line_range als je meer regels wilt lezen",
-		"contextLimitInstructions": "Om specifieke secties van dit bestand te lezen, gebruik het volgende formaat:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-eind</line_range>\n  </file>\n</args>\n</read_file>\n\nBijvoorbeeld, om regels 2001-3000 te lezen:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "Om specifieke secties van dit bestand te lezen, gebruik het volgende formaat:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-eind</line_range>\n  </file>\n</args>\n</read_file>\n\nBijvoorbeeld, om regels 2001-3000 te lezen:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "Afbeeldingsbestand is te groot ({{size}} MB). De maximaal toegestane grootte is {{max}} MB.",
+		"imageWithSize": "Afbeeldingsbestand ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo lijkt vast te zitten in een lus, waarbij hij herhaaldelijk dezelfde actie ({{toolName}}) probeert. Dit kan duiden op een probleem met de huidige strategie. Overweeg de taak te herformuleren, specifiekere instructies te geven of Roo naar een andere aanpak te leiden.",
 	"codebaseSearch": {

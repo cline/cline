@@ -169,6 +169,8 @@ const lmStudioSchema = baseProviderSettingsSchema.extend({
 const geminiSchema = apiModelIdProviderModelSchema.extend({
 	geminiApiKey: z.string().optional(),
 	googleGeminiBaseUrl: z.string().optional(),
+	enableUrlContext: z.boolean().optional(),
+	enableGrounding: z.boolean().optional(),
 })
 
 const geminiCliSchema = apiModelIdProviderModelSchema.extend({
@@ -236,6 +238,7 @@ const litellmSchema = baseProviderSettingsSchema.extend({
 	litellmBaseUrl: z.string().optional(),
 	litellmApiKey: z.string().optional(),
 	litellmModelId: z.string().optional(),
+	litellmUsePromptCache: z.boolean().optional(),
 })
 
 const defaultSchema = z.object({

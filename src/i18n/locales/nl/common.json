@@ -71,12 +71,24 @@
 		"share_task_not_found": "Taak niet gevonden of toegang geweigerd.",
 		"mode_import_failed": "Importeren van modus mislukt: {{error}}",
 		"delete_rules_folder_failed": "Kan regelmap niet verwijderen: {{rulesFolderPath}}. Fout: {{error}}",
+		"command_not_found": "Opdracht '{{name}}' niet gevonden",
+		"open_command_file": "Kan opdrachtbestand niet openen",
+		"delete_command": "Kan opdracht niet verwijderen",
+		"no_workspace_for_project_command": "Geen werkruimtemap gevonden voor projectopdracht",
+		"command_already_exists": "Opdracht \"{{commandName}}\" bestaat al",
+		"create_command_failed": "Kan opdracht niet aanmaken",
+		"command_template_content": "---\ndescription: \"Korte beschrijving van wat deze opdracht doet\"\n---\n\nDit is een nieuwe slash-opdracht. Bewerk dit bestand om het opdrachtgedrag aan te passen.",
 		"claudeCode": {
 			"processExited": "Claude Code proces beëindigd met code {{exitCode}}.",
 			"errorOutput": "Foutuitvoer: {{output}}",
 			"processExitedWithError": "Claude Code proces beëindigd met code {{exitCode}}. Foutuitvoer: {{output}}",
 			"stoppedWithReason": "Claude Code gestopt om reden: {{reason}}",
 			"apiKeyModelPlanMismatch": "API-sleutels en abonnementsplannen staan verschillende modellen toe. Zorg ervoor dat het geselecteerde model is opgenomen in je plan."
+		},
+		"gemini": {
+			"generate_stream": "Fout bij het genereren van contextstream door Gemini: {{error}}",
+			"generate_complete_prompt": "Fout bij het voltooien door Gemini: {{error}}",
+			"sources": "Bronnen:"
 		}
 	},
 	"warnings": {

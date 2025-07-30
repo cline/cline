@@ -4,7 +4,9 @@
 		"definitionsOnly": " (僅定義)",
 		"maxLines": " (最多 {{max}} 行)",
 		"showingOnlyLines": "僅顯示 {{shown}} 行，共 {{total}} 行。如需閱讀更多行請使用 line_range",
-		"contextLimitInstructions": "要閱讀此檔案的特定部分，請使用以下格式：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>開始-結束</line_range>\n  </file>\n</args>\n</read_file>\n\n例如，要閱讀第 2001-3000 行：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "要閱讀此檔案的特定部分，請使用以下格式：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>開始-結束</line_range>\n  </file>\n</args>\n</read_file>\n\n例如，要閱讀第 2001-3000 行：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "圖片檔案過大 ({{size}} MB)。允許的最大大小為 {{max}} MB。",
+		"imageWithSize": "圖片檔案 ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo 似乎陷入循環，反覆嘗試同一操作 ({{toolName}})。這可能表明目前策略存在問題。請考慮重新描述工作、提供更具體的指示或引導其嘗試不同的方法。",
 	"codebaseSearch": {

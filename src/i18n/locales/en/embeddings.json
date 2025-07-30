@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Could not determine vector dimension for model '{{modelId}}' with provider '{{provider}}'. Check model profiles or configuration.",
 		"qdrantUrlMissing": "Qdrant URL missing for vector store creation",
 		"codeIndexingNotConfigured": "Cannot create services: Code indexing is not properly configured"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indexing failed: No code blocks were successfully indexed. This usually indicates an embedder configuration issue.",
+		"indexingFailedCritical": "Indexing failed: No code blocks were successfully indexed despite finding files to process. This indicates a critical embedder failure.",
+		"fileWatcherStarted": "File watcher started.",
+		"fileWatcherStopped": "File watcher stopped.",
+		"failedDuringInitialScan": "Failed during initial scan: {{errorMessage}}",
+		"unknownError": "Unknown error",
+		"indexingRequiresWorkspace": "Indexing requires an open workspace folder"
 	}
 }

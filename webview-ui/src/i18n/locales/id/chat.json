@@ -122,14 +122,16 @@
 		"title": "Mode",
 		"marketplace": "Marketplace Mode",
 		"settings": "Pengaturan Mode",
-		"description": "Persona khusus yang menyesuaikan perilaku Roo."
+		"description": "Persona khusus yang menyesuaikan perilaku Roo.",
+		"searchPlaceholder": "Cari mode...",
+		"noResults": "Tidak ada hasil yang ditemukan"
 	},
 	"addImages": "Tambahkan gambar ke pesan",
 	"sendMessage": "Kirim pesan",
 	"stopTts": "Hentikan text-to-speech",
 	"typeMessage": "Ketik pesan...",
 	"typeTask": "Bangun, cari, tanya sesuatu",
-	"addContext": "@ untuk menambah konteks, / untuk ganti mode",
+	"addContext": "@ untuk menambah konteks, / untuk perintah",
 	"dragFiles": "tahan shift untuk drag file",
 	"dragFilesImages": "tahan shift untuk drag file/gambar",
 	"errorReadingFile": "Error membaca file:",
@@ -214,6 +216,22 @@
 		"resultTooltip": "Skor kemiripan: {{score}} (klik untuk membuka file)"
 	},
 	"commandOutput": "Output Perintah",
+	"commandExecution": {
+		"running": "Menjalankan",
+		"pid": "PID: {{pid}}",
+		"exited": "Keluar ({{exitCode}})",
+		"manageCommands": "Kelola Izin Perintah",
+		"commandManagementDescription": "Kelola izin perintah: Klik ✓ untuk mengizinkan eksekusi otomatis, ✗ untuk menolak eksekusi. Pola dapat diaktifkan/dinonaktifkan atau dihapus dari daftar. <settingsLink>Lihat semua pengaturan</settingsLink>",
+		"addToAllowed": "Tambahkan ke daftar yang diizinkan",
+		"removeFromAllowed": "Hapus dari daftar yang diizinkan",
+		"addToDenied": "Tambahkan ke daftar yang ditolak",
+		"removeFromDenied": "Hapus dari daftar yang ditolak",
+		"abortCommand": "Batalkan eksekusi perintah",
+		"expandOutput": "Perluas output",
+		"collapseOutput": "Ciutkan output",
+		"expandManagement": "Perluas bagian manajemen perintah",
+		"collapseManagement": "Ciutkan bagian manajemen perintah"
+	},
 	"response": "Respons",
 	"arguments": "Argumen",
 	"mcp": {
@@ -259,9 +277,9 @@
 		"title": "🎉 Roo Code {{version}} Dirilis",
 		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
 		"whatsNew": "Yang Baru",
-		"feature1": "<bold>Pengindeksan Codebase Lulus dari Eksperimental</bold>: Pengindeksan codebase lengkap kini stabil dan siap untuk penggunaan produksi dengan pencarian yang ditingkatkan dan pemahaman konteks.",
-		"feature2": "<bold>Fitur Daftar Todo Baru</bold>: Jaga tugas Anda tetap pada jalur dengan manajemen todo terintegrasi yang membantu Anda tetap terorganisir dan fokus pada tujuan pengembangan.",
-		"feature3": "<bold>Transisi Arsitektur ke Kode yang Ditingkatkan</bold>: Transfer yang mulus dari perencanaan di mode Arsitektur ke implementasi di mode Kode.",
+		"feature1": "<bold>Antrian Pesan</bold>: Antrikan beberapa pesan saat Roo sedang bekerja, memungkinkan Anda melanjutkan perencanaan alur kerja tanpa gangguan.",
+		"feature2": "<bold>Perintah Slash Kustom</bold>: Buat perintah slash yang dipersonalisasi untuk akses cepat ke prompt dan alur kerja yang sering digunakan, dengan manajemen UI lengkap.",
+		"feature3": "<bold>Alat Gemini yang Ditingkatkan</bold>: Kemampuan konteks URL baru dan dasar pencarian Google memberikan model Gemini informasi web real-time dan kemampuan penelitian yang ditingkatkan.",
 		"hideButton": "Sembunyikan pengumuman",
 		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan bergabung dalam diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
 	},
@@ -336,5 +354,30 @@
 	},
 	"editMessage": {
 		"placeholder": "Edit pesan Anda..."
+	},
+	"command": {
+		"triggerDescription": "Jalankan perintah {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Kelola perintah slash",
+		"title": "Perintah Slash",
+		"description": "Buat perintah slash kustom untuk akses cepat ke prompt dan alur kerja yang sering digunakan. <DocsLink>Dokumentasi</DocsLink>",
+		"globalCommands": "Perintah Global",
+		"workspaceCommands": "Perintah Workspace",
+		"globalCommand": "Perintah global",
+		"editCommand": "Edit perintah",
+		"deleteCommand": "Hapus perintah",
+		"newGlobalCommandPlaceholder": "Perintah global baru...",
+		"newWorkspaceCommandPlaceholder": "Perintah workspace baru...",
+		"deleteDialog": {
+			"title": "Hapus Perintah",
+			"description": "Apakah Anda yakin ingin menghapus perintah \"{{name}}\"? Tindakan ini tidak dapat dibatalkan.",
+			"cancel": "Batal",
+			"confirm": "Hapus"
+		}
+	},
+	"queuedMessages": {
+		"title": "Pesan Antrian:",
+		"clickToEdit": "Klik untuk mengedit pesan"
 	}
 }

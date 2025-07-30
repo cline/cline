@@ -63,7 +63,7 @@ async function main() {
 				build.onEnd(() => {
 					copyPaths(
 						[
-							["../README.md", "README.md"],
+							["../README.vscode.md", "README.md"],
 							["../CHANGELOG.md", "CHANGELOG.md"],
 							["../LICENSE", "LICENSE"],
 							["../.env", ".env", { optional: true }],

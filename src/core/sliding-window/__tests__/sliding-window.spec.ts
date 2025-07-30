@@ -250,7 +250,6 @@ describe("Sliding Window", () => {
 			{ role: "assistant", content: "Fourth message" },
 			{ role: "user", content: "Fifth message" },
 		]
-
 		it("should not truncate if tokens are below max tokens threshold", async () => {
 			const modelInfo = createModelInfo(100000, 30000)
 			const dynamicBuffer = modelInfo.contextWindow * TOKEN_BUFFER_PERCENTAGE // 10000

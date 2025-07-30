@@ -21,12 +21,17 @@ export interface MarketplaceListViewProps {
 export function MarketplaceListView({ stateManager, allTags, filteredTags, filterByType }: MarketplaceListViewProps) {
 	const [state, manager] = useStateManager(stateManager)
 	const { t } = useAppTranslation()
-	const { marketplaceInstalledMetadata } = useExtensionState()
+	const { marketplaceInstalledMetadata, cloudUserInfo } = useExtensionState()
 	const [isTagPopoverOpen, setIsTagPopoverOpen] = React.useState(false)
 	const [tagSearch, setTagSearch] = React.useState("")
 	const allItems = state.displayItems || []
+	const organizationMcps = state.displayOrganizationMcps || []
+
+	// Filter items by type if specified
 	const items = filterByType ? allItems.filter((item) => item.type === filterByType) : allItems
-	const isEmpty = items.length === 0
+	const orgMcps = filterByType === "mcp" ? organizationMcps : []
+
+	const isEmpty = items.length === 0 && orgMcps.length === 0
 
 	return (
 		<>
@@ -193,24 +198,72 @@ export function MarketplaceListView({ stateManager, allTags, filteredTags, filte
 			)}
 
 			{!state.isFetching && !isEmpty && (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3 pb-3">
-					{items.map((item) => (
-						<MarketplaceItemCard
-							key={item.id}
-							item={item}
-							filters={state.filters}
-							setFilters={(filters) =>
-								manager.transition({
-									type: "UPDATE_FILTERS",
-									payload: { filters },
-								})
-							}
-							installed={{
-								project: marketplaceInstalledMetadata?.project?.[item.id],
-								global: marketplaceInstalledMetadata?.global?.[item.id],
-							}}
-						/>
-					))}
+				<div className="pb-3">
+					{orgMcps.length > 0 && (
+						<div className="mb-6">
+							<div className="flex items-center gap-2 mb-3 px-1">
+								<span className="codicon codicon-organization text-lg"></span>
+								<h3 className="text-sm font-semibold text-vscode-foreground">
+									{t("marketplace:sections.organizationMcps", {
+										organization: cloudUserInfo?.organizationName,
+									})}
+								</h3>
+								<div className="flex-1 h-px bg-vscode-input-border"></div>
+							</div>
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+								{orgMcps.map((item) => (
+									<MarketplaceItemCard
+										key={`org-${item.id}`}
+										item={item}
+										filters={state.filters}
+										setFilters={(filters) =>
+											manager.transition({
+												type: "UPDATE_FILTERS",
+												payload: { filters },
+											})
+										}
+										installed={{
+											project: marketplaceInstalledMetadata?.project?.[item.id],
+											global: marketplaceInstalledMetadata?.global?.[item.id],
+										}}
+									/>
+								))}
+							</div>
+						</div>
+					)}
+
+					{items.length > 0 && (
+						<div>
+							{orgMcps.length > 0 && (
+								<div className="flex items-center gap-2 mb-3 px-1">
+									<span className="codicon codicon-globe text-lg"></span>
+									<h3 className="text-sm font-semibold text-vscode-foreground">
+										{t("marketplace:sections.marketplace")}
+									</h3>
+									<div className="flex-1 h-px bg-vscode-input-border"></div>
+								</div>
+							)}
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+								{items.map((item) => (
+									<MarketplaceItemCard
+										key={item.id}
+										item={item}
+										filters={state.filters}
+										setFilters={(filters) =>
+											manager.transition({
+												type: "UPDATE_FILTERS",
+												payload: { filters },
+											})
+										}
+										installed={{
+											project: marketplaceInstalledMetadata?.project?.[item.id],
+											global: marketplaceInstalledMetadata?.global?.[item.id],
+										}}
+									/>
+								))}
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 

@@ -20,7 +20,8 @@
 		"billion_suffix": "m"
 	},
 	"ui": {
-		"search_placeholder": "Cari..."
+		"search_placeholder": "Cari...",
+		"no_results": "Tidak ada hasil yang ditemukan"
 	},
 	"mermaid": {
 		"loading": "Membuat diagram mermaid...",

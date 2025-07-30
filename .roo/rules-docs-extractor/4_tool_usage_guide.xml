@@ -3,125 +3,117 @@
     Guidance on using tools for documentation extraction.
   </overview>
 
-  <tool_sequence>
-    <priority level="1">
-      <tool>codebase_search</tool>
-      <purpose>Initial code discovery.</purpose>
-      <usage_patterns>
-        <pattern>
-          <scenario>Find feature entry points</scenario>
-          <example><![CDATA[
-<codebase_search>
-<query>authentication login user session JWT token</query>
-</codebase_search>
-          ]]></example>
-        </pattern>
-        <pattern>
-          <scenario>Find business logic</scenario>
-          <example><![CDATA[
-<codebase_search>
-<query>calculate pricing discount tax invoice billing</query>
-</codebase_search>
-          ]]></example>
-        </pattern>
-        <pattern>
-          <scenario>Find configuration</scenario>
-          <example><![CDATA[
-<codebase_search>
-<query>config settings environment variables .env process.env</query>
-</codebase_search>
-          ]]></example>
-        </pattern>
-      </usage_patterns>
-    </priority>
+  <discovery_approaches>
+    <approach name="flexible_discovery">
+      <description>Use the most appropriate tools for the situation</description>
+      <principles>
+        <principle>Start with what you know - file names, directory structure, or keywords</principle>
+        <principle>Use multiple discovery methods to build understanding</principle>
+        <principle>Adapt your approach based on the codebase structure</principle>
+      </principles>
+    </approach>
 
-    <priority level="2">
-      <tool>list_code_definition_names</tool>
-      <purpose>Understand code structure.</purpose>
-      <best_practices>
-        <practice>Use on core feature directories.</practice>
-        <practice>Analyze implementation and test directories.</practice>
-        <practice>Look for naming patterns.</practice>
-      </best_practices>
-      <example><![CDATA[
-<list_code_definition_names>
-<path>src/features/authentication</path>
-</list_code_definition_names>
-      ]]></example>
-    </priority>
+    <common_tools>
+      <tool name="list_files">
+        <purpose>Explore directory structure and find relevant files</purpose>
+        <when_to_use>
+          - Starting exploration of a feature area
+          - Understanding project organization
+          - Finding configuration or test files
+        </when_to_use>
+      </tool>
 
-    <priority level="3">
-      <tool>read_file</tool>
-      <purpose>Analyze specific implementations.</purpose>
-      <strategy>
-        <step>Read main feature files.</step>
-        <step>Follow imports to find dependencies.</step>
-        <step>Read test files for expected behavior.</step>
-        <step>Examine config and type definition files.</step>
-      </strategy>
-      <batch_reading><![CDATA[
-<read_file>
-<args>
-  <file>
-    <path>src/controllers/auth.controller.ts</path>
-  </file>
-  <file>
-    <path>src/services/auth.service.ts</path>
-  </file>
-  <file>
-    <path>src/models/user.model.ts</path>
-  </file>
-  <file>
-    <path>src/types/auth.types.ts</path>
-  </file>
-  <file>
-    <path>src/__tests__/auth.test.ts</path>
-  </file>
-</args>
-</read_file>
-      ]]></batch_reading>
-    </priority>
+      <tool name="read_file">
+        <purpose>Examine specific files in detail</purpose>
+        <when_to_use>
+          - Analyzing implementation details
+          - Understanding configuration
+          - Reading documentation or comments
+        </when_to_use>
+        <tip>Read multiple related files together for better context</tip>
+      </tool>
 
-    <priority level="4">
-      <tool>search_files</tool>
-      <purpose>Find specific patterns.</purpose>
-      <use_cases>
-        <use_case>
-          <description>Find API endpoints</description>
-          <example><![CDATA[
-<search_files>
-<path>src</path>
-<regex>@(Get|Post|Put|Delete|Patch)\(['"]([^'"]+)['"]|router\.(get|post|put|delete|patch)\(['"]([^'"]+)['"]</regex>
-</search_files>
-          ]]></example>
-        </use_case>
-        <use_case>
-          <description>Find error handling</description>
-          <example><![CDATA[
-<search_files>
-<path>src</path>
-<regex>throw new \w+Error|catch \(|\.catch\(|try \{</regex>
-</search_files>
-          ]]></example>
-        </use_case>
-        <use_case>
-          <description>Find config usage</description>
-          <example><![CDATA[
-<search_files>
-<path>src</path>
-<regex>process\.env\.\w+|config\.get\(['"]([^'"]+)['"]|getConfig\(\)</regex>
-</search_files>
-          ]]></example>
-        </use_case>
-      </use_cases>
-    </priority>
-  </tool_sequence>
+      <tool name="search_files">
+        <purpose>Find specific patterns or text</purpose>
+        <when_to_use>
+          - Locating API endpoints
+          - Finding configuration usage
+          - Tracking down error handling
+          - Discovering cross-references
+        </when_to_use>
+      </tool>
+
+      <tool name="list_code_definition_names">
+        <purpose>Get overview of code structure</purpose>
+        <when_to_use>
+          - Understanding module organization
+          - Identifying main components
+          - Finding test coverage
+        </when_to_use>
+      </tool>
+
+      <tool name="codebase_search">
+        <purpose>Semantic search when available</purpose>
+        <when_to_use>
+          - Finding conceptually related code
+          - Discovering implementations by functionality
+          - When keyword search isn't sufficient
+        </when_to_use>
+        <note>Optional - use when semantic understanding is needed</note>
+      </tool>
+    </common_tools>
+
+    <discovery_patterns>
+      <pattern name="top_down">
+        <description>Start from high-level structure and drill down</description>
+        <steps>
+          <step>List files in feature directory</step>
+          <step>Identify main entry points</step>
+          <step>Follow imports and dependencies</step>
+          <step>Examine implementation details</step>
+        </steps>
+      </pattern>
+
+      <pattern name="test_driven">
+        <description>Use tests to understand expected behavior</description>
+        <steps>
+          <step>Find test files for the feature</step>
+          <step>Read test descriptions and scenarios</step>
+          <step>Trace back to implementation</step>
+          <step>Verify behavior matches tests</step>
+        </steps>
+      </pattern>
+
+      <pattern name="configuration_first">
+        <description>Start with configuration to understand setup</description>
+        <steps>
+          <step>Find configuration files</step>
+          <step>Identify feature flags and settings</step>
+          <step>Trace usage in code</step>
+          <step>Document impacts of each setting</step>
+        </steps>
+      </pattern>
+
+      <pattern name="api_focused">
+        <description>Map external interfaces first</description>
+        <steps>
+          <step>Search for route definitions</step>
+          <step>Find API controllers or handlers</step>
+          <step>Trace to business logic</step>
+          <step>Document request/response flow</step>
+        </steps>
+      </pattern>
+    </discovery_patterns>
+  </discovery_approaches>
 
   <documentation_generation_tools>
     <tool name="write_to_file">
-      <purpose>Create documentation file for new docs.</purpose>
-      <note>Not used for reviews. Feedback for reviews is provided in chat.</note>
-      <file_naming>DOCS-TEMP-[feature-name].md</file_naming>
+      <purpose>Create extraction or verification report files.</purpose>
+      <note>Generates reports for documentation teams, not final documentation.</note>
+      <file_naming>
+        - For extraction: EXTRACTION-[feature-name].md
+        - For verification: VERIFICATION-[feature-name].md
+      </file_naming>
       <best_practices>
         <practice>Use descriptive feature name in filename.</practice>
         <practice>Include table of contents.</practice>
@@ -130,7 +122,7 @@
       </best_practices>
       <example><![CDATA[
 <write_to_file>
-<path>DOCS-TEMP-authentication-system.md</path>
+<path>EXTRACTION-authentication-system.md</path>
 <content>
 # Authentication System Documentation
 
@@ -184,47 +176,72 @@ The authentication system provides secure user authentication using JWT tokens..
   <analysis_strategies>
     <strategy name="file_discovery">
       <description>
-        Find all files related to a feature.
+        Find all files related to a feature using various methods.
       </description>
-      <steps>
-        <step>
-          <action>Start with semantic search.</action>
-          <tool_use><![CDATA[
-<codebase_search>
-<query>feature implementation main logic</query>
-</codebase_search>
-          ]]></tool_use>
-        </step>
-        <step>
-          <action>List directory structure.</action>
+      <methods>
+        <method name="directory_exploration">
+          <description>Start by exploring likely directories</description>
           <tool_use><![CDATA[
 <list_files>
-<path>src/features</path>
+<path>src</path>
+<recursive>false</recursive>
+</list_files>
+
+<!-- Then drill into feature directory -->
+<list_files>
+<path>src/features/[feature-name]</path>
 <recursive>true</recursive>
 </list_files>
           ]]></tool_use>
-        </step>
-        <step>
-          <action>Find related tests.</action>
+        </method>
+
+        <method name="pattern_search">
+          <description>Search for feature-related patterns</description>
           <tool_use><![CDATA[
+<!-- Find files with feature name -->
+<search_files>
+<path>src</path>
+<regex>feature-name|FeatureName</regex>
+</search_files>
+
+<!-- Find related tests -->
 <search_files>
 <path>src</path>
 <regex>describe\(['"].*Feature.*['"]|test\(['"].*feature.*['"]</regex>
 <file_pattern>*.test.ts</file_pattern>
 </search_files>
           ]]></tool_use>
-        </step>
-        <step>
-          <action>Find config files.</action>
+        </method>
+
+        <method name="configuration_discovery">
+          <description>Find configuration files</description>
           <tool_use><![CDATA[
+<!-- Look for config files -->
+<list_files>
+<path>config</path>
+<recursive>true</recursive>
+</list_files>
+
+<!-- Search for feature config -->
 <search_files>
 <path>.</path>
 <regex>feature.*config|settings.*feature</regex>
 <file_pattern>*.json</file_pattern>
 </search_files>
           ]]></tool_use>
-        </step>
-      </steps>
+        </method>
+
+        <method name="semantic_search_optional">
+          <description>Use semantic search if available and helpful</description>
+          <tool_use><![CDATA[
+<!-- Optional: Use when concept-based search is needed -->
+<codebase_search>
+<query>feature implementation main logic</query>
+</codebase_search>
+          ]]></tool_use>
+          <note>This is optional - use when other methods aren't sufficient</note>
+        </method>
+      </methods>
     </strategy>
 
     <strategy name="dependency_chain_analysis">

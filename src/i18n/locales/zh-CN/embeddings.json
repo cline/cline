@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "无法确定提供商 '{{provider}}' 的模型 '{{modelId}}' 的向量维度。请检查模型配置文件或配置。",
 		"qdrantUrlMissing": "创建向量存储缺少 Qdrant URL",
 		"codeIndexingNotConfigured": "无法创建服务：代码索引未正确配置"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "索引失败：没有代码块被成功索引。这通常表示 Embedder 配置问题。",
+		"indexingFailedCritical": "索引失败：尽管找到了要处理的文件，但没有代码块被成功索引。这表示 Embedder 出现严重故障。",
+		"fileWatcherStarted": "文件监控已启动。",
+		"fileWatcherStopped": "文件监控已停止。",
+		"failedDuringInitialScan": "初始扫描失败：{{errorMessage}}",
+		"unknownError": "未知错误",
+		"indexingRequiresWorkspace": "索引需要打开的工作区文件夹"
 	}
 }

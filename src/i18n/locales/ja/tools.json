@@ -4,7 +4,9 @@
 		"definitionsOnly": " (定義のみ)",
 		"maxLines": " (最大{{max}}行)",
 		"showingOnlyLines": "全{{total}}行中{{shown}}行のみ表示しています。より多くの行を読む必要がある場合はline_rangeを使用してください",
-		"contextLimitInstructions": "このファイルの特定のセクションを読むには、以下の形式を使用してください：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>開始-終了</line_range>\n  </file>\n</args>\n</read_file>\n\n例えば、2001-3000行目を読むには：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "このファイルの特定のセクションを読むには、以下の形式を使用してください：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>開始-終了</line_range>\n  </file>\n</args>\n</read_file>\n\n例えば、2001-3000行目を読むには：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "画像ファイルが大きすぎます（{{size}} MB）。最大許可サイズは {{max}} MB です。",
+		"imageWithSize": "画像ファイル（{{size}} KB）"
 	},
 	"toolRepetitionLimitReached": "Rooが同じ操作（{{toolName}}）を繰り返し試みるループに陥っているようです。これは現在の方法に問題がある可能性を示しています。タスクの言い換え、より具体的な指示の提供、または別のアプローチへの誘導を検討してください。",
 	"codebaseSearch": {

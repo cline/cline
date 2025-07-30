@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Kan de vectordimensie voor model '{{modelId}}' met provider '{{provider}}' niet bepalen. Controleer modelprofielen of configuratie.",
 		"qdrantUrlMissing": "Qdrant URL ontbreekt voor het maken van vectoropslag",
 		"codeIndexingNotConfigured": "Kan geen services maken: Code-indexering is niet correct geconfigureerd"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indexering mislukt: Geen codeblokken werden succesvol geïndexeerd. Dit duidt meestal op een embedder configuratieprobleem.",
+		"indexingFailedCritical": "Indexering mislukt: Geen codeblokken werden succesvol geïndexeerd ondanks het vinden van bestanden om te verwerken. Dit duidt op een kritieke embedder fout.",
+		"fileWatcherStarted": "Bestandsmonitor gestart.",
+		"fileWatcherStopped": "Bestandsmonitor gestopt.",
+		"failedDuringInitialScan": "Mislukt tijdens initiële scan: {{errorMessage}}",
+		"unknownError": "Onbekende fout",
+		"indexingRequiresWorkspace": "Indexering vereist een geopende workspace map"
 	}
 }

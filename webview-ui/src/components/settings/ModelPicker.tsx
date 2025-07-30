@@ -21,6 +21,7 @@ import {
 	PopoverTrigger,
 	Button,
 } from "@src/components/ui"
+import { useEscapeKey } from "@src/hooks/useEscapeKey"
 
 import { ModelInfoView } from "./ModelInfoView"
 import { ApiErrorMessage } from "./ApiErrorMessage"
@@ -132,6 +133,9 @@ export const ModelPicker = ({
 			}
 		}
 	}, [])
+
+	// Use the shared ESC key handler hook
+	useEscapeKey(open, () => setOpen(false))
 
 	return (
 		<>

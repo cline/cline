@@ -71,12 +71,24 @@
 		"share_task_not_found": "Tarea no encontrada o acceso denegado.",
 		"mode_import_failed": "Error al importar el modo: {{error}}",
 		"delete_rules_folder_failed": "Error al eliminar la carpeta de reglas: {{rulesFolderPath}}. Error: {{error}}",
+		"command_not_found": "Comando '{{name}}' no encontrado",
+		"open_command_file": "Error al abrir el archivo de comandos",
+		"delete_command": "Error al eliminar el comando",
+		"no_workspace_for_project_command": "No se encontró carpeta de espacio de trabajo para comando de proyecto",
+		"command_already_exists": "El comando \"{{commandName}}\" ya existe",
+		"create_command_failed": "Error al crear comando",
+		"command_template_content": "---\ndescription: \"Breve descripción de lo que hace este comando\"\n---\n\nEste es un nuevo comando slash. Edita este archivo para personalizar el comportamiento del comando.",
 		"claudeCode": {
 			"processExited": "El proceso de Claude Code terminó con código {{exitCode}}.",
 			"errorOutput": "Salida de error: {{output}}",
 			"processExitedWithError": "El proceso de Claude Code terminó con código {{exitCode}}. Salida de error: {{output}}",
 			"stoppedWithReason": "Claude Code se detuvo por la razón: {{reason}}",
 			"apiKeyModelPlanMismatch": "Las claves API y los planes de suscripción permiten diferentes modelos. Asegúrate de que el modelo seleccionado esté incluido en tu plan."
+		},
+		"gemini": {
+			"generate_stream": "Error del stream de contexto de generación de Gemini: {{error}}",
+			"generate_complete_prompt": "Error de finalización de Gemini: {{error}}",
+			"sources": "Fuentes:"
 		}
 	},
 	"warnings": {

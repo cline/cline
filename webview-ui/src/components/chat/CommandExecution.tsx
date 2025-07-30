@@ -6,6 +6,7 @@ import { CommandExecutionStatus, commandExecutionStatusSchema } from "@roo-code/
 
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 import { safeJsonParse } from "@roo/safeJsonParse"
+
 import { COMMAND_OUTPUT_STRING } from "@roo/combineCommandSequences"
 
 import { vscode } from "@src/utils/vscode"
@@ -13,6 +14,14 @@ import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
 import CodeBlock from "../common/CodeBlock"
+import { CommandPatternSelector } from "./CommandPatternSelector"
+import { parseCommand } from "../../utils/command-validation"
+import { extractPatternsFromCommand } from "../../utils/command-parser"
+
+interface CommandPattern {
+	pattern: string
+	description?: string
+}
 
 interface CommandExecutionProps {
 	executionId: string
@@ -22,7 +31,13 @@ interface CommandExecutionProps {
 }
 
 export const CommandExecution = ({ executionId, text, icon, title }: CommandExecutionProps) => {
-	const { terminalShellIntegrationDisabled = false } = useExtensionState()
+	const {
+		terminalShellIntegrationDisabled = false,
+		allowedCommands = [],
+		deniedCommands = [],
+		setAllowedCommands,
+		setDeniedCommands,
+	} = useExtensionState()
 
 	const { command, output: parsedOutput } = useMemo(() => parseCommandAndOutput(text), [text])
 
@@ -36,6 +51,55 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 	// task message (this is the case for completed commands) or from the
 	// streaming output (this is the case for running commands).
 	const output = streamingOutput || parsedOutput
+
+	// Extract command patterns from the actual command that was executed
+	const commandPatterns = useMemo<CommandPattern[]>(() => {
+		// First get all individual commands (including subshell commands) using parseCommand
+		const allCommands = parseCommand(command)
+
+		// Then extract patterns from each command using the existing pattern extraction logic
+		const allPatterns = new Set<string>()
+
+		// Add all individual commands first
+		allCommands.forEach((cmd) => {
+			if (cmd.trim()) {
+				allPatterns.add(cmd.trim())
+			}
+		})
+
+		// Then add extracted patterns for each command
+		allCommands.forEach((cmd) => {
+			const patterns = extractPatternsFromCommand(cmd)
+			patterns.forEach((pattern) => allPatterns.add(pattern))
+		})
+
+		return Array.from(allPatterns).map((pattern) => ({
+			pattern,
+		}))
+	}, [command])
+
+	// Handle pattern changes
+	const handleAllowPatternChange = (pattern: string) => {
+		const isAllowed = allowedCommands.includes(pattern)
+		const newAllowed = isAllowed ? allowedCommands.filter((p) => p !== pattern) : [...allowedCommands, pattern]
+		const newDenied = deniedCommands.filter((p) => p !== pattern)
+
+		setAllowedCommands(newAllowed)
+		setDeniedCommands(newDenied)
+		vscode.postMessage({ type: "allowedCommands", commands: newAllowed })
+		vscode.postMessage({ type: "deniedCommands", commands: newDenied })
+	}
+
+	const handleDenyPatternChange = (pattern: string) => {
+		const isDenied = deniedCommands.includes(pattern)
+		const newDenied = isDenied ? deniedCommands.filter((p) => p !== pattern) : [...deniedCommands, pattern]
+		const newAllowed = allowedCommands.filter((p) => p !== pattern)
+
+		setAllowedCommands(newAllowed)
+		setDeniedCommands(newDenied)
+		vscode.postMessage({ type: "allowedCommands", commands: newAllowed })
+		vscode.postMessage({ type: "deniedCommands", commands: newDenied })
+	}
 
 	const onMessage = useCallback(
 		(event: MessageEvent) => {
@@ -121,9 +185,21 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 				</div>
 			</div>
 
-			<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
-				<CodeBlock source={command} language="shell" />
-				<OutputContainer isExpanded={isExpanded} output={output} />
+			<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs">
+				<div className="p-2">
+					<CodeBlock source={command} language="shell" />
+					<OutputContainer isExpanded={isExpanded} output={output} />
+				</div>
+				{command && command.trim() && (
+					<CommandPatternSelector
+						command={command}
+						patterns={commandPatterns}
+						allowedCommands={allowedCommands}
+						deniedCommands={deniedCommands}
+						onAllowPatternChange={handleAllowPatternChange}
+						onDenyPatternChange={handleDenyPatternChange}
+					/>
+				)}
 			</div>
 		</>
 	)

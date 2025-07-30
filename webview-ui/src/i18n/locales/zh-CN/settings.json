@@ -304,6 +304,17 @@
 		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "启用 URL 上下文",
+				"description": "让 Gemini 读取链接的页面以提取、比较和综合其内容，从而提供明智的答复。"
+			},
+			"groundingSearch": {
+				"title": "启用 Google 搜索基础",
+				"description": "将 Gemini 连接到实时网络数据，以获得包含可验证引用的准确、最新的答案。"
+			}
+		},
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
 			"step1": "1. 注册Google Cloud账号并启用Vertex AI API",
@@ -527,6 +538,16 @@
 			"profileDescription": "仅此配置文件的自定义阈值（覆盖全局默认）",
 			"inheritDescription": "此配置文件继承全局默认阈值（{{threshold}}%）",
 			"usesGlobal": "（使用全局 {{threshold}}%）"
+		},
+		"maxImageFileSize": {
+			"label": "最大图像文件大小",
+			"mb": "MB",
+			"description": "read file工具可以处理的图像文件的最大大小（以MB为单位）。"
+		},
+		"maxTotalImageSize": {
+			"label": "图片总大小上限",
+			"mb": "MB",
+			"description": "单次 read_file 操作中处理的所有图片的最大累计大小限制（MB）。读取多张图片时，每张图片的大小会累加到总大小中。如果包含另一张图片会超过此限制，则会跳过该图片。"
 		}
 	},
 	"terminal": {
@@ -649,6 +670,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "启用并发文件编辑",
 			"description": "启用后 Roo 可在单个请求中编辑多个文件。禁用后 Roo 必须逐个编辑文件。禁用此功能有助于使用能力较弱的模型或需要更精确控制文件修改时。"
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "后台编辑",
+			"description": "启用后防止编辑器焦点干扰。文件编辑在后台进行，不会打开差异视图或抢夺焦点。你可以在 Roo 进行更改时继续不受干扰地工作。文件可以在不获取焦点的情况下打开以捕获诊断信息，或保持完全关闭状态。"
 		}
 	},
 	"promptCaching": {
@@ -756,5 +781,8 @@
 		"useCustomArn": "使用自定义 ARN..."
 	},
 	"includeMaxOutputTokens": "包含最大输出 Token 数",
-	"includeMaxOutputTokensDescription": "在 API 请求中发送最大输出 Token 参数。某些提供商可能不支持此功能。"
+	"includeMaxOutputTokensDescription": "在 API 请求中发送最大输出 Token 参数。某些提供商可能不支持此功能。",
+	"limitMaxTokensDescription": "限制响应中的最大 Token 数量",
+	"maxOutputTokensLabel": "最大输出 Token 数",
+	"maxTokensGenerateDescription": "响应中生成的最大 Token 数"
 }

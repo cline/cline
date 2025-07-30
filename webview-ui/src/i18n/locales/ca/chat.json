@@ -108,7 +108,7 @@
 	"stopTts": "Atura la síntesi de veu",
 	"typeMessage": "Escriu un missatge...",
 	"typeTask": "Escriu la teva tasca aquí...",
-	"addContext": "@ per afegir context, / per canviar de mode",
+	"addContext": "@ per afegir context, / per a comandes",
 	"dragFiles": "manté premut shift per arrossegar fitxers",
 	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges",
 	"enhancePromptDescription": "El botó 'Millora la sol·licitud' ajuda a millorar la teva sol·licitud proporcionant context addicional, aclariments o reformulacions. Prova d'escriure una sol·licitud aquí i fes clic al botó de nou per veure com funciona.",
@@ -116,7 +116,9 @@
 		"title": "Modes",
 		"marketplace": "Marketplace de Modes",
 		"settings": "Configuració de Modes",
-		"description": "Personalitats especialitzades que adapten el comportament de Roo."
+		"description": "Personalitats especialitzades que adapten el comportament de Roo.",
+		"searchPlaceholder": "Cerca modes...",
+		"noResults": "No s'han trobat resultats"
 	},
 	"errorReadingFile": "Error en llegir el fitxer:",
 	"noValidImages": "No s'ha processat cap imatge vàlida",
@@ -192,6 +194,22 @@
 		"didViewDefinitionsOutsideWorkspace": "Roo ha vist noms de definicions de codi font utilitzats en aquest directori (fora de l'espai de treball):"
 	},
 	"commandOutput": "Sortida de l'ordre",
+	"commandExecution": {
+		"running": "Executant",
+		"pid": "PID: {{pid}}",
+		"exited": "Finalitzat ({{exitCode}})",
+		"manageCommands": "Gestiona els permisos de les ordres",
+		"commandManagementDescription": "Gestiona els permisos de les ordres: Fes clic a ✓ per permetre l'execució automàtica, ✗ per denegar l'execució. Els patrons es poden activar/desactivar o eliminar de les llistes. <settingsLink>Mostra tots els paràmetres</settingsLink>",
+		"addToAllowed": "Afegeix a la llista de permesos",
+		"removeFromAllowed": "Elimina de la llista de permesos",
+		"addToDenied": "Afegeix a la llista de denegats",
+		"removeFromDenied": "Elimina de la llista de denegats",
+		"abortCommand": "Interromp l'execució de l'ordre",
+		"expandOutput": "Amplia la sortida",
+		"collapseOutput": "Redueix la sortida",
+		"expandManagement": "Amplia la secció de gestió d'ordres",
+		"collapseManagement": "Redueix la secció de gestió d'ordres"
+	},
 	"response": "Resposta",
 	"arguments": "Arguments",
 	"mcp": {
@@ -247,9 +265,9 @@
 		"title": "🎉 Roo Code {{version}} Llançat",
 		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Indexació de Base de Codi Graduada d'Experimental</bold>: La indexació completa de la base de codi ara és estable i està llesta per a ús en producció amb cerca millorada i comprensió del context.",
-		"feature2": "<bold>Nova Funcionalitat de Llista de Tasques Pendents</bold>: Mantingueu les vostres tasques en el bon camí amb gestió integrada de tasques pendents que us ajuda a mantenir-vos organitzats i centrats en els vostres objectius de desenvolupament.",
-		"feature3": "<bold>Transicions Millorades d'Arquitecte a Codi</bold>: Transferències fluides de la planificació en mode Arquitecte a la implementació en mode Codi.",
+		"feature1": "<bold>Cua de Missatges</bold>: Posa en cua múltiples missatges mentre Roo està treballant, permetent-te continuar planificant el teu flux de treball sense interrupcions.",
+		"feature2": "<bold>Comandaments de Barra Personalitzats</bold>: Crea comandaments de barra personalitzats per a accés ràpid a prompts i fluxos de treball utilitzats freqüentment, amb gestió completa de la interfície d'usuari.",
+		"feature3": "<bold>Eines Gemini Millorades</bold>: Noves capacitats de context d'URL i fonamentació de cerca de Google proporcionen als models Gemini informació web en temps real i capacitats de recerca millorades.",
 		"hideButton": "Amaga l'anunci",
 		"detailsDiscussLinks": "Obtén més detalls i uneix-te a les discussions a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},
@@ -330,5 +348,30 @@
 	},
 	"editMessage": {
 		"placeholder": "Edita el teu missatge..."
+	},
+	"command": {
+		"triggerDescription": "Activa la comanda {{name}}"
+	},
+	"slashCommands": {
+		"tooltip": "Gestionar ordres de barra",
+		"title": "Ordres de Barra",
+		"description": "Crea ordres de barra personalitzades per accedir ràpidament a indicacions i fluxos de treball utilitzats amb freqüència. <DocsLink>Documentació</DocsLink>",
+		"globalCommands": "Ordres Globals",
+		"workspaceCommands": "Ordres de l'Espai de Treball",
+		"globalCommand": "Ordre global",
+		"editCommand": "Editar ordre",
+		"deleteCommand": "Eliminar ordre",
+		"newGlobalCommandPlaceholder": "Nova ordre global...",
+		"newWorkspaceCommandPlaceholder": "Nova ordre de l'espai de treball...",
+		"deleteDialog": {
+			"title": "Eliminar Ordre",
+			"description": "Estàs segur que vols eliminar l'ordre \"{{name}}\"? Aquesta acció no es pot desfer.",
+			"cancel": "Cancel·lar",
+			"confirm": "Eliminar"
+		}
+	},
+	"queuedMessages": {
+		"title": "Missatges en cua:",
+		"clickToEdit": "Feu clic per editar el missatge"
 	}
 }

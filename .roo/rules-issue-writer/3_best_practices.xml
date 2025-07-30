@@ -1,32 +1,96 @@
 <best_practices>
+  <mode_behavior>
+    - CRITICAL: This mode assumes the user's FIRST message is already an issue description
+    - Do NOT ask "What would you like to do?" or "Do you want to create an issue?"
+    - Immediately start the issue creation workflow when the user begins talking
+    - Treat their initial message as the problem/feature description
+    - Begin with repository detection and codebase discovery right away
+    - The user is already in "issue creation mode" by choosing this mode
+  </mode_behavior>
+  
+  <template_usage>
+    - ALWAYS check for repository-specific issue templates before creating issues
+    - Use templates from .github/ISSUE_TEMPLATE/ directory if they exist
+    - Parse both YAML (.yml/.yaml) and Markdown (.md) template formats
+    - If multiple templates exist, let the user choose the appropriate one
+    - If no templates exist, create a simple generic template on the fly
+    - NEVER fall back to hardcoded templates - always use repo templates or generate minimal ones
+    - Respect template metadata like labels, assignees, and title patterns
+    - Fill templates intelligently using gathered information from codebase exploration
+  </template_usage>
+  
   <problem_reporting_focus>
     - Focus on helping users describe problems clearly, not solutions
-    - The Roo team will design solutions unless the user explicitly wants to contribute
+    - The project team will design solutions unless the user explicitly wants to contribute
     - Don't push users to provide technical details they may not have
     - Make it easy for non-technical users to report issues effectively
+    
+    CRITICAL: Lead with user impact:
+    - Always explain WHO is affected and WHEN the problem occurs
+    - Use concrete examples with actual values, not abstractions
+    - Show before/after scenarios with specific data
+    - Example: "Users trying to [action] see [actual result] instead of [expected result]"
   </problem_reporting_focus>
+  
+  <fact_driven_verification>
+    - ALWAYS verify user claims against actual code implementation
+    - For feature requests, aggressively check if current behavior matches user's description
+    - If code shows different intent than user describes, it might be a bug not a feature
+    - Present code evidence when challenging user assumptions
+    - Do not be agreeable - be fact-driven and question discrepancies
+    - Continue verification until facts are established
+    - A "feature request" where code shows the feature should already work is likely a bug
+    
+    CRITICAL additions for thorough analysis:
+    - Trace data flow from where values are created to where they're used
+    - Look for existing variables/functions that already contain needed data
+    - Check if the issue is just missing usage of existing code
+    - Follow imports and exports to understand data availability
+    - Identify patterns in similar features that work correctly
+  </fact_driven_verification>
   
   <general_practices>
     - Always search for existing similar issues before creating a new one
-    - Search GitHub Discussions (especially feature-requests category) for related topics
+    - Check for and use repository issue templates before creating content
     - Include specific version numbers and environment details
     - Use code blocks with syntax highlighting for code snippets
     - Make titles descriptive but concise (e.g., "Dark theme: Submit button invisible due to white-on-grey text")
     - For bugs, always test if the issue is reproducible
     - Include screenshots or mockups when relevant (ask user to provide)
     - Link to related issues or PRs if found during exploration
-    - Add "Closes #[number]" for discussions that would be fully addressed by the issue
-    - Add "Related to #[number]" for partially related discussions
+    
+    CRITICAL: Use concrete examples throughout:
+    - Show actual data values, not just descriptions
+    - Include specific file paths and line numbers
+    - Demonstrate the data flow with real examples
+    - Bad: "The value is incorrect"
+    - Good: "The function returns '123' when it should return '456'"
   </general_practices>
   
   <contributor_specific>
-    - Only explore codebase if user wants to contribute
+    - Only perform issue scoping if user wants to contribute
     - Reference specific files and line numbers from codebase exploration
     - Ensure technical proposals align with project architecture
-    - Include implementation steps and technical analysis
+    - Include implementation steps and issue scoping
     - Provide clear acceptance criteria in Given/When/Then format
     - Consider trade-offs and alternative approaches
+    
+    CRITICAL: Prioritize simple solutions:
+    - ALWAYS check if needed functionality already exists before proposing new code
+    - Look for existing variables that just need to be passed/used differently
+    - Prefer using existing patterns over creating new ones
+    - The best fix often involves minimal code changes
+    - Example: "Use existing `modeInfo` from line 234 in export" vs "Create new mode tracking system"
   </contributor_specific>
+  
+  <backwards_compatibility_focus>
+    ALWAYS consider backwards compatibility:
+    - Think about existing data/configurations already in use
+    - Propose solutions that handle both old and new formats gracefully
+    - Consider migration paths for existing users
+    - Document any breaking changes clearly
+    - Prefer additive changes over breaking changes when possible
+  </backwards_compatibility_focus>
   
   <communication_guidelines>
     - Be supportive and encouraging to problem reporters
@@ -34,5 +98,75 @@
     - Clearly indicate when technical sections are optional
     - Guide contributors through the additional requirements
     - Make the "submit now" option clear for problem reporters
+    - When presenting template choices, include template descriptions to help users choose
+    - Explain that you're using the repository's own templates for consistency
   </communication_guidelines>
+  
+  <template_best_practices>
+    <practice name="template_detection">
+      Always check these locations in order:
+      1. .github/ISSUE_TEMPLATE/*.yml or *.yaml (GitHub form syntax)
+      2. .github/ISSUE_TEMPLATE/*.md (Markdown templates)
+      3. .github/issue_template.md (single template)
+      4. .github/ISSUE_TEMPLATE.md (alternate naming)
+    </practice>
+    
+    <practice name="template_parsing">
+      For YAML templates:
+      - Extract form elements and convert to appropriate markdown sections
+      - Preserve required field indicators
+      - Include field descriptions as context
+      - Respect dropdown options and checkbox lists
+      
+      For Markdown templates:
+      - Parse front matter for metadata
+      - Identify section headers and structure
+      - Replace placeholder text with actual information
+      - Maintain formatting and hierarchy
+    </practice>
+    
+    <practice name="template_filling">
+      - Map gathered information to template sections intelligently
+      - Don't leave placeholder text in the final issue
+      - Add code investigation findings to relevant sections
+      - Include contributor scoping in appropriate section if applicable
+      - Preserve the template's intended structure and flow
+    </practice>
+    
+    <practice name="no_template_handling">
+      When no templates exist:
+      - Create minimal, focused templates
+      - Use simple section headers
+      - Focus on essential information only
+      - Adapt structure based on issue type
+      - Don't overwhelm with unnecessary fields
+    </practice>
+  </template_best_practices>
+  <technical_accuracy_guidelines>
+    <guideline name="thorough_code_analysis">
+      Before proposing ANY solution:
+      1. Use codebase_search extensively to find all related code
+      2. Read multiple files to understand the full context
+      3. Trace variable usage from creation to consumption
+      4. Look for similar working features to understand patterns
+      5. Identify what already exists vs what's actually missing
+    </guideline>
+    
+    <guideline name="simplicity_first">
+      When designing solutions:
+      1. Check if the data/function already exists somewhere
+      2. Look for configuration options before code changes
+      3. Prefer passing existing variables over creating new ones
+      4. Use established patterns from similar features
+      5. Aim for minimal diff size
+    </guideline>
+    
+    <guideline name="precise_technical_details">
+      Always include:
+      - Exact file paths and line numbers
+      - Variable/function names as they appear in code
+      - Before/after code snippets showing minimal changes
+      - Clear explanation of why the simple fix works
+    </guideline>
+  </technical_accuracy_guidelines>
 </best_practices>

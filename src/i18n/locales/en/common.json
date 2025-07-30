@@ -71,12 +71,24 @@
 		"share_task_not_found": "Task not found or access denied.",
 		"mode_import_failed": "Failed to import mode: {{error}}",
 		"delete_rules_folder_failed": "Failed to delete rules folder: {{rulesFolderPath}}. Error: {{error}}",
+		"command_not_found": "Command '{{name}}' not found",
+		"open_command_file": "Failed to open command file",
+		"delete_command": "Failed to delete command",
+		"no_workspace_for_project_command": "No workspace folder found for project command",
+		"command_already_exists": "Command \"{{commandName}}\" already exists",
+		"create_command_failed": "Failed to create command",
+		"command_template_content": "---\ndescription: \"Brief description of what this command does\"\n---\n\nThis is a new slash command. Edit this file to customize the command behavior.",
 		"claudeCode": {
 			"processExited": "Claude Code process exited with code {{exitCode}}.",
 			"errorOutput": "Error output: {{output}}",
 			"processExitedWithError": "Claude Code process exited with code {{exitCode}}. Error output: {{output}}",
 			"stoppedWithReason": "Claude Code stopped with reason: {{reason}}",
 			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan."
+		},
+		"gemini": {
+			"generate_stream": "Gemini generate context stream error: {{error}}",
+			"generate_complete_prompt": "Gemini completion error: {{error}}",
+			"sources": "Sources:"
 		}
 	},
 	"warnings": {

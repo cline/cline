@@ -304,6 +304,17 @@
 		"cacheUsageNote": "注意：キャッシュの使用が表示されない場合は、別のモデルを選択してから希望のモデルを再度選択してみてください。",
 		"vscodeLmModel": "言語モデル",
 		"vscodeLmWarning": "注意：これは非常に実験的な統合であり、プロバイダーのサポートは異なります。モデルがサポートされていないというエラーが表示された場合、それはプロバイダー側の問題です。",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "URLコンテキストを有効にする",
+				"description": "応答を生成する際に、追加のコンテキストとしてGeminiがURLにアクセスして処理できるようにします。Webコンテンツの分析を必要とするタスクに役立ちます。"
+			},
+			"groundingSearch": {
+				"title": "Google検索でのグラウンディングを有効にする",
+				"description": "GeminiがGoogleを検索して最新情報を取得し、リアルタイムデータに基づいて応答をグラウンディングできるようにします。最新情報が必要なクエリに便利です。"
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AIを使用するには：",
 			"step1": "1. Google Cloudアカウントを作成し、Vertex AI APIを有効にして、希望するClaudeモデルを有効にします。",
@@ -527,6 +538,16 @@
 			"profileDescription": "このプロファイルのみのカスタムしきい値（グローバルデフォルトを上書き）",
 			"inheritDescription": "このプロファイルはグローバルデフォルトしきい値を継承します（{{threshold}}%）",
 			"usesGlobal": "（グローバル {{threshold}}% を使用）"
+		},
+		"maxImageFileSize": {
+			"label": "最大画像ファイルサイズ",
+			"mb": "MB",
+			"description": "read fileツールで処理できる画像ファイルの最大サイズ（MB単位）。"
+		},
+		"maxTotalImageSize": {
+			"label": "最大合計画像サイズ",
+			"mb": "MB",
+			"description": "単一のread_file操作で処理されるすべての画像の累積サイズ制限（MB単位）。複数の画像を読み取る際、各画像のサイズが合計に加算されます。別の画像を含めるとこの制限を超える場合、その画像はスキップされます。"
 		}
 	},
 	"terminal": {
@@ -649,6 +670,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "同時ファイル編集を有効にする",
 			"description": "有効にすると、Rooは単一のリクエストで複数のファイルを編集できます。無効にすると、Rooはファイルを一つずつ編集する必要があります。これを無効にすることで、能力の低いモデルで作業する場合や、ファイル変更をより細かく制御したい場合に役立ちます。"
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "バックグラウンド編集",
+			"description": "有効にすると、エディターのフォーカス中断を防ぎます。ファイル編集は差分ビューを開いたりフォーカスを奪ったりすることなく、バックグラウンドで行われます。Rooが変更を行っている間も中断されることなく作業を続けることができます。ファイルは診断をキャプチャするためにフォーカスなしで開くか、完全に閉じたままにできます。"
 		}
 	},
 	"promptCaching": {
@@ -756,5 +781,8 @@
 		"useCustomArn": "カスタム ARN を使用..."
 	},
 	"includeMaxOutputTokens": "最大出力トークンを含める",
-	"includeMaxOutputTokensDescription": "APIリクエストで最大出力トークンパラメータを送信します。一部のプロバイダーはこれをサポートしていない場合があります。"
+	"includeMaxOutputTokensDescription": "APIリクエストで最大出力トークンパラメータを送信します。一部のプロバイダーはこれをサポートしていない場合があります。",
+	"limitMaxTokensDescription": "レスポンスの最大トークン数を制限する",
+	"maxOutputTokensLabel": "最大出力トークン",
+	"maxTokensGenerateDescription": "レスポンスで生成する最大トークン数"
 }

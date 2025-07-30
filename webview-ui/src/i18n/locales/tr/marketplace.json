@@ -35,6 +35,10 @@
 		},
 		"none": "Hiçbiri"
 	},
+	"sections": {
+		"organizationMcps": "{{organization}} MCP'leri",
+		"marketplace": "Marketplace"
+	},
 	"type-group": {
 		"modes": "Modlar",
 		"mcps": "MCP Sunucuları"

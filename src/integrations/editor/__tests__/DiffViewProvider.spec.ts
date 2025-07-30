@@ -30,6 +30,10 @@ vi.mock("vscode", () => ({
 	workspace: {
 		applyEdit: vi.fn(),
 		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+		openTextDocument: vi.fn().mockResolvedValue({
+			isDirty: false,
+			save: vi.fn().mockResolvedValue(undefined),
+		}),
 		textDocuments: [],
 		fs: {
 			stat: vi.fn(),
@@ -350,6 +354,88 @@ describe("DiffViewProvider", () => {
 			expect(
 				closedTabs.find((t) => t.label === `file4.ts: ${DIFF_VIEW_LABEL_CHANGES} (Editable)` && t.isDirty),
 			).toBeUndefined()
+		})
+	})
+
+	describe("saveDirectly method", () => {
+		beforeEach(() => {
+			// Mock vscode functions
+			vi.mocked(vscode.window.showTextDocument).mockResolvedValue({} as any)
+			vi.mocked(vscode.languages.getDiagnostics).mockReturnValue([])
+		})
+
+		it("should write content directly to file without opening diff view", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			const result = await diffViewProvider.saveDirectly("test.ts", "new content", true, true, 2000)
+
+			// Verify file was written
+			const fs = await import("fs/promises")
+			expect(fs.writeFile).toHaveBeenCalledWith(`${mockCwd}/test.ts`, "new content", "utf-8")
+
+			// Verify file was opened without focus
+			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
+				expect.objectContaining({ fsPath: `${mockCwd}/test.ts` }),
+				{ preview: false, preserveFocus: true },
+			)
+
+			// Verify diagnostics were checked after delay
+			expect(mockDelay).toHaveBeenCalledWith(2000)
+			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+
+			// Verify result
+			expect(result.newProblemsMessage).toBe("")
+			expect(result.userEdits).toBeUndefined()
+			expect(result.finalContent).toBe("new content")
+		})
+
+		it("should not open file when openWithoutFocus is false", async () => {
+			await diffViewProvider.saveDirectly("test.ts", "new content", false, true, 1000)
+
+			// Verify file was written
+			const fs = await import("fs/promises")
+			expect(fs.writeFile).toHaveBeenCalledWith(`${mockCwd}/test.ts`, "new content", "utf-8")
+
+			// Verify file was NOT opened
+			expect(vscode.window.showTextDocument).not.toHaveBeenCalled()
+		})
+
+		it("should skip diagnostics when diagnosticsEnabled is false", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+			vi.mocked(vscode.languages.getDiagnostics).mockClear()
+
+			await diffViewProvider.saveDirectly("test.ts", "new content", true, false, 1000)
+
+			// Verify file was written
+			const fs = await import("fs/promises")
+			expect(fs.writeFile).toHaveBeenCalledWith(`${mockCwd}/test.ts`, "new content", "utf-8")
+
+			// Verify delay was NOT called
+			expect(mockDelay).not.toHaveBeenCalled()
+			// getDiagnostics is called once for pre-diagnostics, but not for post-diagnostics
+			expect(vscode.languages.getDiagnostics).toHaveBeenCalledTimes(1)
+		})
+
+		it("should handle negative delay values", async () => {
+			const mockDelay = vi.mocked(delay)
+			mockDelay.mockClear()
+
+			await diffViewProvider.saveDirectly("test.ts", "new content", true, true, -500)
+
+			// Verify delay was called with 0 (safe minimum)
+			expect(mockDelay).toHaveBeenCalledWith(0)
+		})
+
+		it("should store results for formatFileWriteResponse", async () => {
+			await diffViewProvider.saveDirectly("test.ts", "new content", true, true, 1000)
+
+			// Verify internal state was updated
+			expect((diffViewProvider as any).newProblemsMessage).toBe("")
+			expect((diffViewProvider as any).userEdits).toBeUndefined()
+			expect((diffViewProvider as any).relPath).toBe("test.ts")
+			expect((diffViewProvider as any).newContent).toBe("new content")
 		})
 	})
 

@@ -11,6 +11,7 @@ import {
 	getSingleCommandDecision,
 	CommandValidator,
 	createCommandValidator,
+	containsSubshell,
 } from "../command-validation"
 
 describe("Command Validation", () => {
@@ -31,6 +32,20 @@ describe("Command Validation", () => {
 		it("handles subshell patterns", () => {
 			expect(parseCommand("npm test $(echo test)")).toEqual(["npm test", "echo test"])
 			expect(parseCommand("npm test `echo test`")).toEqual(["npm test", "echo test"])
+			expect(parseCommand("diff <(sort f1) <(sort f2)")).toEqual(["diff", "sort f1", "sort f2"])
+		})
+
+		it("detects additional subshell patterns", () => {
+			// Test $[] arithmetic expansion detection
+			expect(parseCommand("echo $[1 + 2]")).toEqual(["echo $[1 + 2]"])
+
+			// Verify containsSubshell detects all subshell patterns
+			expect(containsSubshell("echo $[1 + 2]")).toBe(true) // $[] arithmetic expansion
+			expect(containsSubshell("echo $((1 + 2))")).toBe(true) // $(()) arithmetic expansion
+			expect(containsSubshell("echo $(date)")).toBe(true) // $() command substitution
+			expect(containsSubshell("echo `date`")).toBe(true) // backtick substitution
+			expect(containsSubshell("diff <(sort f1) <(sort f2)")).toBe(true) // process substitution
+			expect(containsSubshell("echo hello")).toBe(false) // no subshells
 		})
 
 		it("handles empty and whitespace input", () => {
@@ -629,7 +644,6 @@ echo "Successfully converted $count .jsx files to .tsx"`
 		})
 	})
 })
-
 describe("Unified Command Decision Functions", () => {
 	describe("getSingleCommandDecision", () => {
 		const allowedCommands = ["npm", "echo", "git"]
@@ -712,8 +726,8 @@ describe("Unified Command Decision Functions", () => {
 			expect(getCommandDecision("npm install && dangerous", allowedCommands, deniedCommands)).toBe("ask_user")
 		})
 
-		it("returns auto_deny for subshell commands only when they contain denied prefixes", () => {
-			// Subshells without denied prefixes should not be auto-denied
+		it("properly validates subshell commands by checking all parsed commands", () => {
+			// Subshells without denied prefixes should be auto-approved if all commands are allowed
 			expect(getCommandDecision("npm install $(echo test)", allowedCommands, deniedCommands)).toBe("auto_approve")
 			expect(getCommandDecision("npm install `echo test`", allowedCommands, deniedCommands)).toBe("auto_approve")
 
@@ -727,7 +741,7 @@ describe("Unified Command Decision Functions", () => {
 			expect(getCommandDecision("npm test $(echo hello)", allowedCommands, deniedCommands)).toBe("auto_deny")
 		})
 
-		it("allows subshell commands when no denylist is present", () => {
+		it("properly validates subshell commands when no denylist is present", () => {
 			expect(getCommandDecision("npm install $(echo test)", allowedCommands)).toBe("auto_approve")
 			expect(getCommandDecision("npm install `echo test`", allowedCommands)).toBe("auto_approve")
 		})
@@ -844,12 +858,12 @@ describe("Unified Command Decision Functions", () => {
 				it("detects subshells correctly", () => {
 					const details = validator.getValidationDetails("npm install $(echo test)")
 					expect(details.hasSubshells).toBe(true)
-					expect(details.decision).toBe("auto_approve") // not blocked since echo doesn't match denied prefixes
+					expect(details.decision).toBe("auto_approve") // all commands are allowed
 
 					// Test with denied prefix in subshell
 					const detailsWithDenied = validator.getValidationDetails("npm install $(npm test)")
 					expect(detailsWithDenied.hasSubshells).toBe(true)
-					expect(detailsWithDenied.decision).toBe("auto_deny") // blocked due to npm test in subshell
+					expect(detailsWithDenied.decision).toBe("auto_deny") // npm test is denied
 				})
 
 				it("handles complex command chains", () => {
@@ -955,9 +969,9 @@ describe("Unified Command Decision Functions", () => {
 				// Multiple subshells, one with denied prefix
 				expect(validator.validateCommand("echo $(date) $(rm file)")).toBe("auto_deny")
 
-				// Nested subshells - inner commands are extracted and not in allowlist
+				// Nested subshells - validates individual parsed commands
 				expect(validator.validateCommand("echo $(echo $(date))")).toBe("ask_user")
-				expect(validator.validateCommand("echo $(echo $(rm file))")).toBe("auto_deny")
+				expect(validator.validateCommand("echo $(echo $(rm file))")).toBe("ask_user") // complex nested parsing with mixed validation results
 			})
 
 			it("handles complex commands with subshells", () => {

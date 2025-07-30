@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Uwaga: Jeśli nie widzisz użycia bufora, spróbuj wybrać inny model, a następnie ponownie wybrać żądany model.",
 		"vscodeLmModel": "Model językowy",
 		"vscodeLmWarning": "Uwaga: To bardzo eksperymentalna integracja, a wsparcie dostawcy może się różnić. Jeśli otrzymasz błąd dotyczący nieobsługiwanego modelu, jest to problem po stronie dostawcy.",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Włącz kontekst URL",
+				"description": "Pozwala Gemini uzyskiwać dostęp i przetwarzać adresy URL w celu uzyskania dodatkowego kontekstu podczas generowania odpowiedzi. Przydatne w zadaniach wymagających analizy zawartości sieci Web."
+			},
+			"groundingSearch": {
+				"title": "Włącz grounding przy użyciu wyszukiwarki Google",
+				"description": "Pozwala Gemini przeszukiwać Google w celu uzyskania aktualnych informacji i opierać odpowiedzi na danych w czasie rzeczywistym. Przydatne w zapytaniach wymagających najnowszych informacji."
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Aby korzystać z Google Cloud Vertex AI, potrzebujesz:",
 			"step1": "1. Utworzyć konto Google Cloud, włączyć API Vertex AI i włączyć żądane modele Claude.",
@@ -527,6 +538,16 @@
 			"profileDescription": "Niestandardowy próg tylko dla tego profilu (zastępuje globalny domyślny)",
 			"inheritDescription": "Ten profil dziedziczy globalny domyślny próg ({{threshold}}%)",
 			"usesGlobal": "(używa globalnego {{threshold}}%)"
+		},
+		"maxImageFileSize": {
+			"label": "Maksymalny rozmiar pliku obrazu",
+			"mb": "MB",
+			"description": "Maksymalny rozmiar (w MB) plików obrazów, które mogą być przetwarzane przez narzędzie do czytania plików."
+		},
+		"maxTotalImageSize": {
+			"label": "Maksymalny całkowity rozmiar obrazów",
+			"mb": "MB",
+			"description": "Maksymalny skumulowany limit rozmiaru (w MB) dla wszystkich obrazów przetwarzanych w jednej operacji read_file. Podczas odczytu wielu obrazów rozmiar każdego obrazu jest dodawany do sumy. Jeśli dołączenie kolejnego obrazu przekroczyłoby ten limit, zostanie on pominięty."
 		}
 	},
 	"terminal": {
@@ -649,6 +670,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Włącz równoczesne edycje plików",
 			"description": "Gdy włączone, Roo może edytować wiele plików w jednym żądaniu. Gdy wyłączone, Roo musi edytować pliki jeden po drugim. Wyłączenie tego może pomóc podczas pracy z mniej zdolnymi modelami lub gdy chcesz mieć większą kontrolę nad modyfikacjami plików."
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "Edycja w tle",
+			"description": "Zapobiega zakłócaniu fokusa edytora gdy włączone. Edycje plików odbywają się w tle bez otwierania widoków różnic lub kradzieży fokusa. Możesz kontynuować pracę bez przeszkód podczas gdy Roo wprowadza zmiany. Pliki mogą być otwierane bez fokusa aby przechwycić diagnostykę lub pozostać całkowicie zamknięte."
 		}
 	},
 	"promptCaching": {
@@ -756,5 +781,8 @@
 		"useCustomArn": "Użyj niestandardowego ARN..."
 	},
 	"includeMaxOutputTokens": "Uwzględnij maksymalne tokeny wyjściowe",
-	"includeMaxOutputTokensDescription": "Wyślij parametr maksymalnych tokenów wyjściowych w żądaniach API. Niektórzy dostawcy mogą tego nie obsługiwać."
+	"includeMaxOutputTokensDescription": "Wyślij parametr maksymalnych tokenów wyjściowych w żądaniach API. Niektórzy dostawcy mogą tego nie obsługiwać.",
+	"limitMaxTokensDescription": "Ogranicz maksymalną liczbę tokenów w odpowiedzi",
+	"maxOutputTokensLabel": "Maksymalne tokeny wyjściowe",
+	"maxTokensGenerateDescription": "Maksymalne tokeny do wygenerowania w odpowiedzi"
 }

@@ -4,7 +4,9 @@
 		"definitionsOnly": " (solo definizioni)",
 		"maxLines": " (max {{max}} righe)",
 		"showingOnlyLines": "Mostrando solo {{shown}} di {{total}} righe totali. Usa line_range se hai bisogno di leggere più righe",
-		"contextLimitInstructions": "Per leggere sezioni specifiche di questo file, usa il seguente formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>inizio-fine</line_range>\n  </file>\n</args>\n</read_file>\n\nAd esempio, per leggere le righe 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "Per leggere sezioni specifiche di questo file, usa il seguente formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>inizio-fine</line_range>\n  </file>\n</args>\n</read_file>\n\nAd esempio, per leggere le righe 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "Il file immagine è troppo grande ({{size}} MB). La dimensione massima consentita è {{max}} MB.",
+		"imageWithSize": "File immagine ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo sembra essere bloccato in un ciclo, tentando ripetutamente la stessa azione ({{toolName}}). Questo potrebbe indicare un problema con la sua strategia attuale. Considera di riformulare l'attività, fornire istruzioni più specifiche o guidarlo verso un approccio diverso.",
 	"codebaseSearch": {

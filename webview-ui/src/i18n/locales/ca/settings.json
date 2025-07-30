@@ -304,6 +304,17 @@
 		"cacheUsageNote": "Nota: Si no veieu l'ús de la caché, proveu de seleccionar un model diferent i després tornar a seleccionar el model desitjat.",
 		"vscodeLmModel": "Model de llenguatge",
 		"vscodeLmWarning": "Nota: Aquesta és una integració molt experimental i el suport del proveïdor variarà. Si rebeu un error sobre un model no compatible, és un problema del proveïdor.",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Activa el context d'URL",
+				"description": "Permet a Gemini llegir pàgines enllaçades per extreure, comparar i sintetitzar el seu contingut en respostes informades."
+			},
+			"groundingSearch": {
+				"title": "Activa la Fonamentació amb la Cerca de Google",
+				"description": "Connecta Gemini a dades web en temps real per a respostes precises i actualitzades amb citacions verificables."
+			}
+		},
 		"googleCloudSetup": {
 			"title": "Per utilitzar Google Cloud Vertex AI, necessiteu:",
 			"step1": "1. Crear un compte de Google Cloud, habilitar l'API de Vertex AI i habilitar els models Claude necessaris.",
@@ -526,6 +537,16 @@
 			"profileDescription": "Llindar personalitzat només per a aquest perfil (substitueix el per defecte global)",
 			"inheritDescription": "Aquest perfil hereta el llindar per defecte global ({{threshold}}%)",
 			"usesGlobal": "(utilitza global {{threshold}}%)"
+		},
+		"maxImageFileSize": {
+			"label": "Mida màxima d'arxiu d'imatge",
+			"mb": "MB",
+			"description": "Mida màxima (en MB) per a arxius d'imatge que poden ser processats per l'eina de lectura d'arxius."
+		},
+		"maxTotalImageSize": {
+			"label": "Mida total màxima d'imatges",
+			"mb": "MB",
+			"description": "Límit de mida acumulativa màxima (en MB) per a totes les imatges processades en una sola operació read_file. Quan es llegeixen múltiples imatges, la mida de cada imatge s'afegeix al total. Si incloure una altra imatge excediria aquest límit, serà omesa."
 		}
 	},
 	"terminal": {
@@ -648,6 +669,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Habilita edicions de fitxers concurrents",
 			"description": "Quan està activat, Roo pot editar múltiples fitxers en una sola petició. Quan està desactivat, Roo ha d'editar fitxers d'un en un. Desactivar això pot ajudar quan es treballa amb models menys capaços o quan vols més control sobre les modificacions de fitxers."
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "Edició en segon pla",
+			"description": "Quan s'activa, evita la interrupció del focus de l'editor. Les edicions de fitxers es produeixen en segon pla sense obrir la vista diff o robar el focus. Pots continuar treballant sense interrupcions mentre Roo fa canvis. Els fitxers poden obrir-se sense focus per capturar diagnòstics o romandre completament tancats."
 		}
 	},
 	"promptCaching": {
@@ -755,5 +780,8 @@
 		"useCustomArn": "Utilitza ARN personalitzat..."
 	},
 	"includeMaxOutputTokens": "Incloure tokens màxims de sortida",
-	"includeMaxOutputTokensDescription": "Enviar el paràmetre de tokens màxims de sortida a les sol·licituds API. Alguns proveïdors poden no admetre això."
+	"includeMaxOutputTokensDescription": "Enviar el paràmetre de tokens màxims de sortida a les sol·licituds API. Alguns proveïdors poden no admetre això.",
+	"limitMaxTokensDescription": "Limitar el nombre màxim de tokens en la resposta",
+	"maxOutputTokensLabel": "Tokens màxims de sortida",
+	"maxTokensGenerateDescription": "Tokens màxims a generar en la resposta"
 }

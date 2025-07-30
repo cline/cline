@@ -304,6 +304,17 @@
 		"cacheUsageNote": "注意：如果您沒有看到快取使用情況，請嘗試選擇其他模型，然後重新選擇您想要的模型。",
 		"vscodeLmModel": "語言模型",
 		"vscodeLmWarning": "注意：此整合功能仍處於實驗階段，各供應商的支援程度可能不同。如果出現模型不支援的錯誤，通常是供應商方面的問題。",
+
+		"geminiParameters": {
+			"urlContext": {
+				"title": "啟用 URL 上下文",
+				"description": "讓 Gemini 讀取連結的頁面以提取、比較和綜合其內容，從而提供明智的答覆。"
+			},
+			"groundingSearch": {
+				"title": "啟用 Google 搜尋基礎",
+				"description": "將 Gemini 連接到即時網路數據，以獲得包含可驗證引用的準確、最新的答案。"
+			}
+		},
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
 			"step1": "1. 建立 Google Cloud 帳戶，啟用 Vertex AI API 並啟用所需的 Claude 模型。",
@@ -527,6 +538,16 @@
 			"profileDescription": "僅此檔案的自訂閾值（覆蓋全域預設）",
 			"inheritDescription": "此檔案繼承全域預設閾值（{{threshold}}%）",
 			"usesGlobal": "（使用全域 {{threshold}}%）"
+		},
+		"maxImageFileSize": {
+			"label": "最大圖像檔案大小",
+			"mb": "MB",
+			"description": "read file工具可以處理的圖像檔案的最大大小（以MB為單位）。"
+		},
+		"maxTotalImageSize": {
+			"label": "圖片總大小上限",
+			"mb": "MB",
+			"description": "單次 read_file 操作中處理的所有圖片的最大累計大小限制（MB）。讀取多張圖片時，每張圖片的大小會累加到總大小中。如果包含另一張圖片會超過此限制，則會跳過該圖片。"
 		}
 	},
 	"terminal": {
@@ -649,6 +670,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "啟用並行檔案編輯",
 			"description": "啟用後 Roo 可在單個請求中編輯多個檔案。停用後 Roo 必須逐個編輯檔案。停用此功能有助於使用能力較弱的模型或需要更精確控制檔案修改時。"
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "背景編輯",
+			"description": "啟用後可防止編輯器焦點中斷。檔案編輯會在背景進行，不會開啟 diff 檢視或搶奪焦點。您可以在 Roo 進行變更時繼續不受干擾地工作。檔案可能會在不獲得焦點的情況下開啟以捕獲診斷，或保持完全關閉。"
 		}
 	},
 	"promptCaching": {
@@ -756,5 +781,8 @@
 		"useCustomArn": "使用自訂 ARN..."
 	},
 	"includeMaxOutputTokens": "包含最大輸出 Token 數",
-	"includeMaxOutputTokensDescription": "在 API 請求中傳送最大輸出 Token 參數。某些提供商可能不支援此功能。"
+	"includeMaxOutputTokensDescription": "在 API 請求中傳送最大輸出 Token 參數。某些提供商可能不支援此功能。",
+	"limitMaxTokensDescription": "限制回應中的最大 Token 數量",
+	"maxOutputTokensLabel": "最大輸出 Token 數",
+	"maxTokensGenerateDescription": "回應中產生的最大 Token 數"
 }

@@ -35,6 +35,10 @@
 		},
 		"none": "无"
 	},
+	"sections": {
+		"organizationMcps": "{{organization}} MCPs",
+		"marketplace": "Marketplace"
+	},
 	"type-group": {
 		"modes": "模式",
 		"mcps": "MCP 服务"

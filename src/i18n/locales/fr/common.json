@@ -71,12 +71,24 @@
 		"share_task_not_found": "Tâche non trouvée ou accès refusé.",
 		"mode_import_failed": "Échec de l'importation du mode : {{error}}",
 		"delete_rules_folder_failed": "Échec de la suppression du dossier de règles : {{rulesFolderPath}}. Erreur : {{error}}",
+		"command_not_found": "Commande '{{name}}' introuvable",
+		"open_command_file": "Échec de l'ouverture du fichier de commande",
+		"delete_command": "Échec de la suppression de la commande",
+		"no_workspace_for_project_command": "Aucun dossier d'espace de travail trouvé pour la commande de projet",
+		"command_already_exists": "La commande \"{{commandName}}\" existe déjà",
+		"create_command_failed": "Échec de la création de la commande",
+		"command_template_content": "---\ndescription: \"Brève description de ce que fait cette commande\"\n---\n\nCeci est une nouvelle commande slash. Modifie ce fichier pour personnaliser le comportement de la commande.",
 		"claudeCode": {
 			"processExited": "Le processus Claude Code s'est terminé avec le code {{exitCode}}.",
 			"errorOutput": "Sortie d'erreur : {{output}}",
 			"processExitedWithError": "Le processus Claude Code s'est terminé avec le code {{exitCode}}. Sortie d'erreur : {{output}}",
 			"stoppedWithReason": "Claude Code s'est arrêté pour la raison : {{reason}}",
 			"apiKeyModelPlanMismatch": "Les clés API et les plans d'abonnement permettent différents modèles. Assurez-vous que le modèle sélectionné est inclus dans votre plan."
+		},
+		"gemini": {
+			"generate_stream": "Erreur du flux de contexte de génération Gemini : {{error}}",
+			"generate_complete_prompt": "Erreur d'achèvement de Gemini : {{error}}",
+			"sources": "Sources :"
 		}
 	},
 	"warnings": {

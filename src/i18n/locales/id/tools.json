@@ -4,7 +4,9 @@
 		"definitionsOnly": " (hanya definisi)",
 		"maxLines": " (maks {{max}} baris)",
 		"showingOnlyLines": "Menampilkan hanya {{shown}} dari {{total}} total baris. Gunakan line_range jika kamu perlu membaca lebih banyak baris",
-		"contextLimitInstructions": "Untuk membaca bagian tertentu dari file ini, gunakan format berikut:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>awal-akhir</line_range>\n  </file>\n</args>\n</read_file>\n\nContohnya, untuk membaca baris 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>"
+		"contextLimitInstructions": "Untuk membaca bagian tertentu dari file ini, gunakan format berikut:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>awal-akhir</line_range>\n  </file>\n</args>\n</read_file>\n\nContohnya, untuk membaca baris 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"imageTooLarge": "File gambar terlalu besar ({{size}} MB). Ukuran maksimum yang diizinkan adalah {{max}} MB.",
+		"imageWithSize": "File gambar ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo tampaknya terjebak dalam loop, mencoba aksi yang sama ({{toolName}}) berulang kali. Ini mungkin menunjukkan masalah dengan strategi saat ini. Pertimbangkan untuk mengubah frasa tugas, memberikan instruksi yang lebih spesifik, atau mengarahkannya ke pendekatan yang berbeda.",
 	"codebaseSearch": {

@@ -3,7 +3,191 @@
     Techniques for analyzing code to extract documentation.
   </overview>
 
+  <ui_ux_analysis_techniques>
+    <technique name="component_discovery">
+      <description>
+        Find and analyze UI components and their interactions
+      </description>
+      <discovery_methods>
+        <method name="component_search">
+          <description>Search for UI component files</description>
+          <example><![CDATA[
+<!-- Find React/Vue/Angular components -->
+<search_files>
+<path>src</path>
+<regex>\.(tsx|jsx|vue)$|@Component|export.*component</regex>
+<file_pattern>*.tsx</file_pattern>
+</search_files>
+
+<!-- Find component usage -->
+<search_files>
+<path>src</path>
+<regex><Button|<Form|<Modal|<Dialog|<Input</regex>
+</search_files>
+          ]]></example>
+        </method>
+        
+        <method name="style_analysis">
+          <description>Analyze styling and visual elements</description>
+          <example><![CDATA[
+<!-- Find stylesheets -->
+<list_files>
+<path>src/styles</path>
+<recursive>true</recursive>
+</list_files>
+
+<!-- Search for style definitions -->
+<search_files>
+<path>src</path>
+<regex>className=|style=|styled\.|makeStyles|@apply</regex>
+</search_files>
+          ]]></example>
+        </method>
+      </discovery_methods>
+    </technique>
+
+    <technique name="user_flow_mapping">
+      <description>
+        Map user interactions and navigation flows
+      </description>
+      <analysis_areas>
+        <area>Route definitions and navigation</area>
+        <area>Form submissions and validations</area>
+        <area>Button clicks and event handlers</area>
+        <area>State changes and UI updates</area>
+        <area>Loading and error states</area>
+      </analysis_areas>
+      <search_patterns><![CDATA[
+<!-- Find route definitions -->
+<search_files>
+<path>src</path>
+<regex>Route.*path=|router\.push|navigate\(|Link.*to=</regex>
+</search_files>
+
+<!-- Find event handlers -->
+<search_files>
+<path>src</path>
+<regex>onClick=|onSubmit=|onChange=|handleClick|handleSubmit</regex>
+</search_files>
+
+<!-- Find form validations -->
+<search_files>
+<path>src</path>
+<regex>validate|validation|required|pattern=|minLength|maxLength</regex>
+</search_files>
+      ]]></search_patterns>
+    </technique>
+
+    <technique name="user_feedback_analysis">
+      <description>
+        Analyze how the system communicates with users
+      </description>
+      <elements_to_find>
+        <element>Error messages and alerts</element>
+        <element>Success notifications</element>
+        <element>Loading indicators</element>
+        <element>Tooltips and help text</element>
+        <element>Confirmation dialogs</element>
+        <element>Progress indicators</element>
+      </elements_to_find>
+      <search_patterns><![CDATA[
+<!-- Find user messages -->
+<search_files>
+<path>src</path>
+<regex>toast|notification|alert|message|error.*message|success.*message</regex>
+</search_files>
+
+<!-- Find loading states -->
+<search_files>
+<path>src</path>
+<regex>loading|isLoading|pending|spinner|skeleton|placeholder</regex>
+</search_files>
+
+<!-- Find dialogs and modals -->
+<search_files>
+<path>src</path>
+<regex>modal|dialog|confirm|popup|overlay</regex>
+</search_files>
+      ]]></search_patterns>
+    </technique>
+
+    <technique name="accessibility_analysis">
+      <description>
+        Check for accessibility features and compliance
+      </description>
+      <accessibility_checks>
+        <check>ARIA labels and roles</check>
+        <check>Keyboard navigation support</check>
+        <check>Screen reader compatibility</check>
+        <check>Focus management</check>
+        <check>Color contrast considerations</check>
+      </accessibility_checks>
+      <search_patterns><![CDATA[
+<!-- Find accessibility attributes -->
+<search_files>
+<path>src</path>
+<regex>aria-|role=|tabIndex|alt=|title=|accessibilityLabel</regex>
+</search_files>
+
+<!-- Find focus management -->
+<search_files>
+<path>src</path>
+<regex>focus\(|blur\(|onFocus|onBlur|autoFocus|focusable</regex>
+</search_files>
+      ]]></search_patterns>
+    </technique>
+
+    <technique name="responsive_design_analysis">
+      <description>
+        Analyze responsive design and mobile experience
+      </description>
+      <analysis_points>
+        <point>Breakpoint definitions</point>
+        <point>Mobile-specific components</point>
+        <point>Touch event handlers</point>
+        <point>Viewport configurations</point>
+        <point>Media queries</point>
+      </analysis_points>
+      <search_patterns><![CDATA[
+<!-- Find responsive utilities -->
+<search_files>
+<path>src</path>
+<regex>@media|breakpoint|mobile|tablet|desktop|responsive</regex>
+</search_files>
+
+<!-- Find touch events -->
+<search_files>
+<path>src</path>
+<regex>onTouch|swipe|gesture|tap|press</regex>
+</search_files>
+      ]]></search_patterns>
+    </technique>
+  </ui_ux_analysis_techniques>
+
   <code_analysis_techniques>
+    <technique name="semantic_search_analysis">
+      <description>
+        Use semantic search to find conceptually related code when available.
+      </description>
+      <when_to_use>
+        <scenario>Finding code by concept rather than keywords</scenario>
+        <scenario>Discovering implementations across different naming conventions</scenario>
+        <scenario>When pattern-based search isn't finding expected results</scenario>
+      </when_to_use>
+      <example><![CDATA[
+<!-- Optional: Find authentication-related code semantically -->
+<codebase_search>
+<query>user authentication login security JWT token validation</query>
+</codebase_search>
+
+<!-- Optional: Find payment processing logic -->
+<codebase_search>
+<query>payment processing transaction billing invoice checkout</query>
+</codebase_search>
+      ]]></example>
+      <note>This is an optional tool - use when semantic understanding would help find related code that keyword search might miss</note>
+    </technique>
+
     <technique name="entry_point_analysis">
       <description>
         Analyze entry points to understand feature flow.
@@ -14,23 +198,60 @@
         <step>Map decision branches.</step>
         <step>Document input validation.</step>
       </steps>
-      <tools><![CDATA[
-<!-- Find entry points -->
-<codebase_search>
-<query>main function app.listen server.start router controller handler</query>
-</codebase_search>
+      <discovery_methods>
+        <method name="directory_based">
+          <description>Start by exploring directory structure</description>
+          <example><![CDATA[
+<!-- List main directories -->
+<list_files>
+<path>src</path>
+<recursive>false</recursive>
+</list_files>
 
-<!-- Analyze specific entry point -->
-<read_file>
-<path>src/controllers/feature.controller.ts</path>
-</read_file>
-
+<!-- Explore feature directory -->
+<list_files>
+<path>src/controllers</path>
+<recursive>true</recursive>
+</list_files>
+          ]]></example>
+        </method>
+        
+        <method name="pattern_based">
+          <description>Search for specific patterns</description>
+          <example><![CDATA[
 <!-- Find all routes -->
 <search_files>
 <path>src</path>
 <regex>(app\.(get|post|put|delete)|@(Get|Post|Put|Delete)|router\.(get|post|put|delete))</regex>
 </search_files>
-      ]]></tools>
+          ]]></example>
+        </method>
+        
+        <method name="file_based">
+          <description>Read known entry points directly</description>
+          <example><![CDATA[
+<!-- Read main application file -->
+<read_file>
+<path>src/app.ts</path>
+</read_file>
+
+<!-- Read specific controller -->
+<read_file>
+<path>src/controllers/feature.controller.ts</path>
+</read_file>
+          ]]></example>
+        </method>
+        
+        <method name="semantic_based">
+          <description>Use semantic search as an alternative discovery method</description>
+          <example><![CDATA[
+<!-- Optional: Find entry points semantically -->
+<codebase_search>
+<query>main entry point application startup initialization bootstrap</query>
+</codebase_search>
+          ]]></example>
+        </method>
+      </discovery_methods>
     </technique>
 
     <technique name="api_extraction">
@@ -76,24 +297,39 @@ type\s+(Query|Mutation|Subscription)\s*{[^}]+}|@(Query|Mutation|Resolver)
         <point>Message queue integrations</point>
         <point>Filesystem operations</point>
       </analysis_points>
-      <tools><![CDATA[
+      <analysis_approaches>
+        <approach name="package_analysis">
+          <description>Start with package.json to understand dependencies</description>
+          <example><![CDATA[
+<!-- Analyze package dependencies -->
+<read_file>
+<path>package.json</path>
+</read_file>
+          ]]></example>
+        </approach>
+        
+        <approach name="import_tracking">
+          <description>Follow import chains to map dependencies</description>
+          <example><![CDATA[
 <!-- Find all imports -->
 <search_files>
 <path>src</path>
 <regex>^import\s+.*from\s+['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\)</regex>
 </search_files>
-
-<!-- Analyze package dependencies -->
-<read_file>
-<path>package.json</path>
-</read_file>
-
+          ]]></example>
+        </approach>
+        
+        <approach name="api_discovery">
+          <description>Find external API integrations</description>
+          <example><![CDATA[
 <!-- Find external API calls -->
 <search_files>
 <path>src</path>
 <regex>(fetch|axios|http\.request|request\(|\.get\(|\.post\()</regex>
 </search_files>
-      ]]></tools>
+          ]]></example>
+        </approach>
+      </analysis_approaches>
     </technique>
 
     <technique name="data_model_extraction">

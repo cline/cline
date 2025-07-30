@@ -20,7 +20,8 @@
 		"billion_suffix": "b"
 	},
 	"ui": {
-		"search_placeholder": "Cerca..."
+		"search_placeholder": "Cerca...",
+		"no_results": "No s'han trobat resultats"
 	},
 	"mermaid": {
 		"loading": "Generant diagrama mermaid...",

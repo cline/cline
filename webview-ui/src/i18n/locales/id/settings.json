@@ -308,6 +308,17 @@
 		"cacheUsageNote": "Catatan: Jika kamu tidak melihat penggunaan cache, coba pilih model yang berbeda lalu pilih model yang kamu inginkan lagi.",
 		"vscodeLmModel": "Model Bahasa",
 		"vscodeLmWarning": "Catatan: Ini adalah integrasi yang sangat eksperimental dan dukungan provider akan bervariasi. Jika kamu mendapat error tentang model yang tidak didukung, itu adalah masalah di sisi provider.",
+		"geminiParameters": {
+			"urlContext": {
+				"title": "Aktifkan konteks URL",
+				"description": "Memungkinkan Gemini mengakses dan memproses URL untuk konteks tambahan saat menghasilkan respons. Berguna untuk tugas yang memerlukan analisis konten web."
+			},
+			"groundingSearch": {
+				"title": "Aktifkan Grounding dengan Pencarian Google",
+				"description": "Memungkinkan Gemini mencari informasi terkini di Google dan mendasarkan respons pada data waktu nyata. Berguna untuk kueri yang memerlukan informasi terkini."
+			}
+		},
+
 		"googleCloudSetup": {
 			"title": "Untuk menggunakan Google Cloud Vertex AI, kamu perlu:",
 			"step1": "1. Buat akun Google Cloud, aktifkan Vertex AI API & aktifkan model Claude yang diinginkan.",
@@ -531,6 +542,16 @@
 			"description": "Roo membaca sejumlah baris ini ketika model menghilangkan nilai start/end. Jika angka ini kurang dari total file, Roo menghasilkan indeks nomor baris dari definisi kode. Kasus khusus: -1 menginstruksikan Roo untuk membaca seluruh file (tanpa indexing), dan 0 menginstruksikannya untuk tidak membaca baris dan hanya menyediakan indeks baris untuk konteks minimal. Nilai yang lebih rendah meminimalkan penggunaan konteks awal, memungkinkan pembacaan rentang baris yang tepat selanjutnya. Permintaan start/end eksplisit tidak dibatasi oleh pengaturan ini.",
 			"lines": "baris",
 			"always_full_read": "Selalu baca seluruh file"
+		},
+		"maxImageFileSize": {
+			"label": "Ukuran file gambar maksimum",
+			"mb": "MB",
+			"description": "Ukuran maksimum (dalam MB) untuk file gambar yang dapat diproses oleh alat baca file."
+		},
+		"maxTotalImageSize": {
+			"label": "Ukuran total gambar maksimum",
+			"mb": "MB",
+			"description": "Batas ukuran kumulatif maksimum (dalam MB) untuk semua gambar yang diproses dalam satu operasi read_file. Saat membaca beberapa gambar, ukuran setiap gambar ditambahkan ke total. Jika menyertakan gambar lain akan melebihi batas ini, gambar tersebut akan dilewati."
 		}
 	},
 	"terminal": {
@@ -678,6 +699,10 @@
 		"MULTI_FILE_APPLY_DIFF": {
 			"name": "Aktifkan edit file bersamaan",
 			"description": "Ketika diaktifkan, Roo dapat mengedit beberapa file dalam satu permintaan. Ketika dinonaktifkan, Roo harus mengedit file satu per satu. Menonaktifkan ini dapat membantu saat bekerja dengan model yang kurang mampu atau ketika kamu ingin kontrol lebih terhadap modifikasi file."
+		},
+		"PREVENT_FOCUS_DISRUPTION": {
+			"name": "Pengeditan Latar Belakang",
+			"description": "Ketika diaktifkan, mencegah gangguan fokus editor. Pengeditan file terjadi di latar belakang tanpa membuka tampilan diff atau mencuri fokus. Anda dapat terus bekerja tanpa gangguan saat Roo melakukan perubahan. File mungkin dibuka tanpa fokus untuk menangkap diagnostik atau tetap tertutup sepenuhnya."
 		}
 	},
 	"promptCaching": {
@@ -785,5 +810,8 @@
 		"useCustomArn": "Gunakan ARN kustom..."
 	},
 	"includeMaxOutputTokens": "Sertakan token output maksimum",
-	"includeMaxOutputTokensDescription": "Kirim parameter token output maksimum dalam permintaan API. Beberapa provider mungkin tidak mendukung ini."
+	"includeMaxOutputTokensDescription": "Kirim parameter token output maksimum dalam permintaan API. Beberapa provider mungkin tidak mendukung ini.",
+	"limitMaxTokensDescription": "Batasi jumlah maksimum token dalam respons",
+	"maxOutputTokensLabel": "Token output maksimum",
+	"maxTokensGenerateDescription": "Token maksimum untuk dihasilkan dalam respons"
 }

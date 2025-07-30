@@ -253,4 +253,67 @@ describe("SearchableSelect", () => {
 			expect(within(dropdown).queryByText("Option 3")).not.toBeInTheDocument()
 		})
 	})
+
+	it("closes the dropdown when ESC key is pressed", async () => {
+		const user = userEvent.setup()
+		render(<SearchableSelect {...defaultProps} />)
+
+		// Open the dropdown
+		const trigger = screen.getByRole("combobox")
+		await user.click(trigger)
+
+		// Verify dropdown is open
+		expect(trigger).toHaveAttribute("aria-expanded", "true")
+		expect(screen.getByRole("listbox")).toBeInTheDocument()
+
+		// Press ESC key
+		fireEvent.keyDown(window, { key: "Escape" })
+
+		// Verify dropdown is closed
+		await waitFor(() => {
+			expect(trigger).toHaveAttribute("aria-expanded", "false")
+			expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+		})
+	})
+
+	it("does not close the dropdown when ESC is pressed while dropdown is closed", async () => {
+		render(<SearchableSelect {...defaultProps} />)
+
+		const trigger = screen.getByRole("combobox")
+
+		// Ensure dropdown is closed
+		expect(trigger).toHaveAttribute("aria-expanded", "false")
+
+		// Press ESC key
+		fireEvent.keyDown(window, { key: "Escape" })
+
+		// Verify dropdown remains closed
+		expect(trigger).toHaveAttribute("aria-expanded", "false")
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+	})
+
+	it("prevents default and stops propagation when ESC is pressed", async () => {
+		const user = userEvent.setup()
+		render(<SearchableSelect {...defaultProps} />)
+
+		// Open the dropdown
+		const trigger = screen.getByRole("combobox")
+		await user.click(trigger)
+
+		// Create a mock event to track preventDefault and stopPropagation
+		const escapeEvent = new KeyboardEvent("keydown", {
+			key: "Escape",
+			bubbles: true,
+			cancelable: true,
+		})
+		const preventDefaultSpy = vi.spyOn(escapeEvent, "preventDefault")
+		const stopPropagationSpy = vi.spyOn(escapeEvent, "stopPropagation")
+
+		// Dispatch the event
+		window.dispatchEvent(escapeEvent)
+
+		// Verify preventDefault and stopPropagation were called
+		expect(preventDefaultSpy).toHaveBeenCalled()
+		expect(stopPropagationSpy).toHaveBeenCalled()
+	})
 })

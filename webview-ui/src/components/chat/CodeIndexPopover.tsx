@@ -38,6 +38,7 @@ import {
 } from "@src/components/ui"
 import { AlertTriangle } from "lucide-react"
 import { useRooPortal } from "@src/components/ui/hooks/useRooPortal"
+import { useEscapeKey } from "@src/hooks/useEscapeKey"
 import type { EmbedderProvider } from "@roo/embeddingModels"
 import type { IndexingStatus } from "@roo/ExtensionMessage"
 import { CODEBASE_INDEX_DEFAULTS } from "@roo-code/types"
@@ -439,6 +440,9 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 			setOpen(false)
 		})
 	}, [checkUnsavedChanges])
+
+	// Use the shared ESC key handler hook - respects unsaved changes logic
+	useEscapeKey(open, handlePopoverClose)
 
 	const handleSaveSettings = () => {
 		// Validate settings before saving

@@ -52,5 +52,14 @@
 		"vectorDimensionNotDetermined": "Konnte die Vektordimension für Modell '{{modelId}}' mit Anbieter '{{provider}}' nicht bestimmen. Überprüfe die Modellprofile oder Konfiguration.",
 		"qdrantUrlMissing": "Qdrant-URL fehlt für die Erstellung des Vektorspeichers",
 		"codeIndexingNotConfigured": "Kann keine Dienste erstellen: Code-Indizierung ist nicht richtig konfiguriert"
+	},
+	"orchestrator": {
+		"indexingFailedNoBlocks": "Indizierung fehlgeschlagen: Keine Code-Blöcke wurden erfolgreich indiziert. Dies deutet normalerweise auf ein Embedder-Konfigurationsproblem hin.",
+		"indexingFailedCritical": "Indizierung fehlgeschlagen: Keine Code-Blöcke wurden erfolgreich indiziert, obwohl zu verarbeitende Dateien gefunden wurden. Dies deutet auf einen kritischen Embedder-Fehler hin.",
+		"fileWatcherStarted": "Datei-Watcher gestartet.",
+		"fileWatcherStopped": "Datei-Watcher gestoppt.",
+		"failedDuringInitialScan": "Fehler während des ersten Scans: {{errorMessage}}",
+		"unknownError": "Unbekannter Fehler",
+		"indexingRequiresWorkspace": "Indexierung erfordert einen offenen Workspace-Ordner"
 	}
 }

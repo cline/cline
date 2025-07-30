@@ -3,9 +3,8 @@
     The GitHub CLI (gh) provides comprehensive tools for interacting with GitHub.
     Here's when and how to use each command in the issue creation workflow.
     
-    Note: Issue body formatting should follow the templates defined in
-    2_github_issue_templates.xml, with different formats for problem reporters
-    vs contributors.
+    Note: This mode prioritizes using repository-specific issue templates over
+    hardcoded ones. Templates are detected and used dynamically from the repository.
   </overview>
 
   <pre_creation_commands>
@@ -16,7 +15,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh issue list --repo RooCodeInc/Roo-Code --search "dark theme button visibility" --state all --limit 20</command>
+        <command>gh issue list --repo $REPO_FULL_NAME --search "dark theme button visibility" --state all --limit 20</command>
         </execute_command>
       </example>
       <options>
@@ -35,7 +34,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh search issues --repo RooCodeInc/Roo-Code "dark theme button" --limit 10</command>
+        <command>gh search issues --repo $REPO_FULL_NAME "dark theme button" --limit 10</command>
         </execute_command>
       </example>
     </command>
@@ -47,7 +46,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh issue view 123 --repo RooCodeInc/Roo-Code --comments</command>
+        <command>gh issue view 123 --repo $REPO_FULL_NAME --comments</command>
         </execute_command>
       </example>
       <options>
@@ -57,6 +56,46 @@
       </options>
     </command>
   </pre_creation_commands>
+
+  <template_detection_commands>
+    <command name="list_files">
+      <when_to_use>
+        Use to check for issue templates in the repository before creating issues.
+        This is not a gh command but necessary for template detection.
+      </when_to_use>
+      <examples>
+        Check for templates in standard location:
+        <list_files>
+        <path>.github/ISSUE_TEMPLATE</path>
+        <recursive>true</recursive>
+        </list_files>
+        
+        Check for single template file:
+        <list_files>
+        <path>.github</path>
+        <recursive>false</recursive>
+        </list_files>
+      </examples>
+    </command>
+
+    <command name="read_file">
+      <when_to_use>
+        Read template files to parse their structure and content.
+        Used after detecting template files.
+      </when_to_use>
+      <examples>
+        Read YAML template:
+        <read_file>
+        <path>.github/ISSUE_TEMPLATE/bug_report.yml</path>
+        </read_file>
+        
+        Read Markdown template:
+        <read_file>
+        <path>.github/ISSUE_TEMPLATE/feature_request.md</path>
+        </read_file>
+      </examples>
+    </command>
+  </template_detection_commands>
 
   <contributor_only_commands>
     <note>
@@ -70,7 +109,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh repo view RooCodeInc/Roo-Code --json defaultBranchRef,description,updatedAt</command>
+        <command>gh repo view $REPO_FULL_NAME --json defaultBranchRef,description,updatedAt</command>
         </execute_command>
       </example>
     </command>
@@ -82,7 +121,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh search prs --repo RooCodeInc/Roo-Code "dark theme" --limit 10 --state all</command>
+        <command>gh search prs --repo $REPO_FULL_NAME "dark theme" --limit 10 --state all</command>
         </execute_command>
       </example>
     </command>
@@ -105,18 +144,19 @@
       <when_to_use>
         Only use after:
         1. Confirming no duplicates exist
-        2. Gathering all required information
-        3. Determining if user is contributing or just reporting
-        4. Getting user confirmation
+        2. Checking for and using repository templates
+        3. Gathering all required information
+        4. Determining if user is contributing or just reporting
+        5. Getting user confirmation
       </when_to_use>
       <bug_report_example>
         <execute_command>
-        <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Descriptive title of the bug]" --body-file /tmp/issue_body.md --label "bug"</command>
+        <command>gh issue create --repo $REPO_FULL_NAME --title "[Descriptive title of the bug]" --body-file /tmp/issue_body.md --label "bug"</command>
         </execute_command>
       </bug_report_example>
       <feature_request_example>
         <execute_command>
-        <command>gh issue create --repo RooCodeInc/Roo-Code --title "[Problem-focused title]" --body-file /tmp/issue_body.md --label "proposal" --label "enhancement"</command>
+        <command>gh issue create --repo $REPO_FULL_NAME --title "[Problem-focused title]" --body-file /tmp/issue_body.md --label "proposal" --label "enhancement"</command>
         </execute_command>
       </feature_request_example>
       <options>
@@ -138,7 +178,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh issue comment 456 --repo RooCodeInc/Roo-Code --body "Additional context or comments."</command>
+        <command>gh issue comment 456 --repo $REPO_FULL_NAME --body "Additional context or comments."</command>
         </execute_command>
       </example>
     </command>
@@ -150,7 +190,7 @@
       </when_to_use>
       <example>
         <execute_command>
-        <command>gh issue edit 456 --repo RooCodeInc/Roo-Code --title "[Updated title]" --body "[Updated body]"</command>
+        <command>gh issue edit 456 --repo $REPO_FULL_NAME --title "[Updated title]" --body "[Updated body]"</command>
         </execute_command>
       </example>
     </command>
@@ -164,41 +204,41 @@
       3. Ask if they want to continue or comment on existing issue
     </step_1_integration>
 
-    <step_3_integration>
-      When searching GitHub Discussions:
-      1. Note that GitHub CLI doesn't currently have full discussions support
-      2. Use web search or instruct user to manually search discussions at:
-         https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests
-      3. Ask user to provide any related discussion numbers they find
-      4. Include these in the "Related Discussions" section of the issue
-    </step_3_integration>
+    <step_2_integration>
+      Template detection (NEW):
+      1. Use list_files to check .github/ISSUE_TEMPLATE/ directory
+      2. Read any template files found (YAML or Markdown)
+      3. Parse template structure and metadata
+      4. If multiple templates, let user choose
+      5. If no templates, prepare to create generic one
+    </step_2_integration>
 
-    <step_4_integration>
+    <step_3_integration>
       Decision point for contribution:
       1. Ask user if they want to contribute implementation
       2. If yes: Use contributor commands for codebase investigation
       3. If no: Skip directly to creating a problem-focused issue
       4. This saves time for problem reporters
-    </step_4_integration>
+    </step_3_integration>
 
-    <step_5_integration>
+    <step_4_integration>
       During codebase exploration (CONTRIBUTORS ONLY):
-      1. Clone repo locally if needed: `gh repo clone RooCodeInc/Roo-Code`
+      1. Clone repo locally if needed: `gh repo clone $REPO_FULL_NAME`
       2. Use `git log` to find recent changes to affected files
       3. Use `gh search prs` for related pull requests
       4. Include findings in the technical context section
-    </step_5_integration>
+    </step_4_integration>
 
-    <step_6_integration>
+    <step_5_integration>
       When creating the issue:
-      1. Format differently based on contributor vs problem reporter
-      2. Problem reporters: Simple problem description + context
-      3. Contributors: Full template with technical sections
+      1. Use repository template if found, or generic template if not
+      2. Fill template with gathered information
+      3. Format differently based on contributor vs problem reporter
       4. Save formatted body to temporary file
-      5. Use `gh issue create` with appropriate labels
+      5. Use `gh issue create` with appropriate labels from template
       6. Capture the returned issue URL
       7. Show user the created issue URL
-    </step_6_integration>
+    </step_5_integration>
   </workflow_integration>
 
   <best_practices>
@@ -270,4 +310,33 @@
       gh repo clone      - Clone repository
     </repository>
   </command_reference>
+
+  <template_handling_reference>
+    <yaml_template_parsing>
+      When parsing YAML templates:
+      - Extract 'name' for template identification
+      - Get 'labels' array for automatic labeling
+      - Parse 'body' array for form elements
+      - Convert form elements to markdown sections
+      - Preserve 'required' field indicators
+    </yaml_template_parsing>
+    
+    <markdown_template_parsing>
+      When parsing Markdown templates:
+      - Check for YAML front matter
+      - Extract metadata (labels, assignees)
+      - Identify section headers
+      - Replace placeholder text
+      - Maintain formatting structure
+    </markdown_template_parsing>
+    
+    <template_usage_flow>
+      1. Detect templates with list_files
+      2. Read templates with read_file
+      3. Parse structure and metadata
+      4. Let user choose if multiple exist
+      5. Fill template with information
+      6. Create issue with template content
+    </template_usage_flow>
+  </template_handling_reference>
 </github_cli_usage>

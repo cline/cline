@@ -2,7 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import { useEvent } from "react-use"
 import DynamicTextArea from "react-textarea-autosize"
 
-import { mentionRegex, mentionRegexGlobal, unescapeSpaces } from "@roo/context-mentions"
+import { mentionRegex, mentionRegexGlobal, commandRegexGlobal, unescapeSpaces } from "@roo/context-mentions"
 import { WebviewMessage } from "@roo/WebviewMessage"
 import { Mode, getAllModes } from "@roo/modes"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
@@ -19,14 +19,16 @@ import {
 	SearchResult,
 } from "@src/utils/context-mentions"
 import { convertToMentionPath } from "@/utils/path-mentions"
-import { SelectDropdown, DropdownOptionType, Button, StandardTooltip } from "@/components/ui"
+import { StandardTooltip } from "@/components/ui"
 
 import Thumbnails from "../common/Thumbnails"
 import ModeSelector from "./ModeSelector"
+import { ApiConfigSelector } from "./ApiConfigSelector"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import { VolumeX, Pin, Check, Image, WandSparkles, SendHorizontal } from "lucide-react"
+import { VolumeX, Image, WandSparkles, SendHorizontal } from "lucide-react"
 import { IndexingStatusBadge } from "./IndexingStatusBadge"
+import { SlashCommandsPopover } from "./SlashCommandsPopover"
 import { cn } from "@/lib/utils"
 import { usePromptHistory } from "./hooks/usePromptHistory"
 import { EditModeControls } from "./EditModeControls"
@@ -86,6 +88,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			togglePinnedApiConfig,
 			taskHistory,
 			clineMessages,
+			commands,
 		} = useExtensionState()
 
 		// Find the ID and display text for the currently selected API configuration
@@ -143,6 +146,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 
 					setIsEnhancingPrompt(false)
+				} else if (message.type === "insertTextIntoTextarea") {
+					if (message.text && textAreaRef.current) {
+						// Insert the command text at the current cursor position
+						const textarea = textAreaRef.current
+						const currentValue = inputValue
+						const cursorPos = textarea.selectionStart || 0
+
+						// Check if we need to add a space before the command
+						const textBefore = currentValue.slice(0, cursorPos)
+						const needsSpaceBefore = textBefore.length > 0 && !textBefore.endsWith(" ")
+						const prefix = needsSpaceBefore ? " " : ""
+
+						// Insert the text at cursor position
+						const newValue =
+							currentValue.slice(0, cursorPos) +
+							prefix +
+							message.text +
+							" " +
+							currentValue.slice(cursorPos)
+						setInputValue(newValue)
+
+						// Set cursor position after the inserted text
+						const newCursorPos = cursorPos + prefix.length + message.text.length + 1
+						setTimeout(() => {
+							if (textAreaRef.current) {
+								textAreaRef.current.focus()
+								textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+							}
+						}, 0)
+					}
 				} else if (message.type === "commitSearchResults") {
 					const commits = message.commits.map((commit: any) => ({
 						type: ContextMenuOptionType.Git,
@@ -163,7 +196,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			window.addEventListener("message", messageHandler)
 			return () => window.removeEventListener("message", messageHandler)
-		}, [setInputValue, searchRequestId])
+		}, [setInputValue, searchRequestId, inputValue])
 
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -202,10 +235,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [selectedType, searchQuery])
 
 		const handleEnhancePrompt = useCallback(() => {
-			if (sendingDisabled) {
-				return
-			}
-
 			const trimmedInput = inputValue.trim()
 
 			if (trimmedInput) {
@@ -214,7 +243,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} else {
 				setInputValue(t("chat:enhancePromptDescription"))
 			}
-		}, [inputValue, sendingDisabled, setInputValue, t])
+		}, [inputValue, setInputValue, t])
 
 		const allModes = useMemo(() => getAllModes(customModes), [customModes])
 
@@ -273,6 +302,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
+				if (type === ContextMenuOptionType.Command && value) {
+					// Handle command selection.
+					setSelectedMenuIndex(-1)
+					setInputValue("")
+					setShowContextMenu(false)
+
+					// Insert the command mention into the textarea
+					const commandMention = `/${value}`
+					setInputValue(commandMention + " ")
+					setCursorPosition(commandMention.length + 1)
+					setIntendedCursorPosition(commandMention.length + 1)
+
+					// Focus the textarea
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.focus()
+						}
+					}, 0)
+					return
+				}
+
 				if (
 					type === ContextMenuOptionType.File ||
 					type === ContextMenuOptionType.Folder ||
@@ -302,12 +352,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = "terminal"
 					} else if (type === ContextMenuOptionType.Git) {
 						insertValue = value || ""
+					} else if (type === ContextMenuOptionType.Command) {
+						insertValue = value ? `/${value}` : ""
 					}
+
+					// Determine if this is a slash command selection
+					const isSlashCommand = type === ContextMenuOptionType.Mode || type === ContextMenuOptionType.Command
 
 					const { newValue, mentionIndex } = insertMention(
 						textAreaRef.current.value,
 						cursorPosition,
 						insertValue,
+						isSlashCommand,
 					)
 
 					setInputValue(newValue)
@@ -343,11 +399,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const direction = event.key === "ArrowUp" ? -1 : 1
 							const options = getContextMenuOptions(
 								searchQuery,
-								inputValue,
 								selectedType,
 								queryItems,
 								fileSearchResults,
 								allModes,
+								commands,
 							)
 							const optionsLength = options.length
 
@@ -357,7 +413,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const selectableOptions = options.filter(
 								(option) =>
 									option.type !== ContextMenuOptionType.URL &&
-									option.type !== ContextMenuOptionType.NoResults,
+									option.type !== ContextMenuOptionType.NoResults &&
+									option.type !== ContextMenuOptionType.SectionHeader,
 							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
@@ -380,16 +437,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						const selectedOption = getContextMenuOptions(
 							searchQuery,
-							inputValue,
 							selectedType,
 							queryItems,
 							fileSearchResults,
 							allModes,
+							commands,
 						)[selectedMenuIndex]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
-							selectedOption.type !== ContextMenuOptionType.NoResults
+							selectedOption.type !== ContextMenuOptionType.NoResults &&
+							selectedOption.type !== ContextMenuOptionType.SectionHeader
 						) {
 							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
@@ -407,11 +465,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
-					if (!sendingDisabled) {
-						// Reset history navigation state when sending
-						resetHistoryNavigation()
-						onSend()
-					}
+					// Always call onSend - let ChatView handle queueing when disabled
+					resetHistoryNavigation()
+					onSend()
 				}
 
 				if (event.key === "Backspace" && !isComposing) {
@@ -459,7 +515,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			},
 			[
-				sendingDisabled,
 				onSend,
 				showContextMenu,
 				searchQuery,
@@ -475,6 +530,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				fileSearchResults,
 				handleHistoryNavigation,
 				resetHistoryNavigation,
+				commands,
 			],
 		)
 
@@ -503,11 +559,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 
 				if (showMenu) {
-					if (newValue.startsWith("/")) {
-						// Handle slash command.
+					if (newValue.startsWith("/") && !newValue.includes(" ")) {
+						// Handle slash command - request fresh commands
 						const query = newValue
 						setSearchQuery(query)
-						setSelectedMenuIndex(0)
+						// Set to first selectable item (skip section headers)
+						setSelectedMenuIndex(1) // Section header is at 0, first command is at 1
+						// Request commands fresh each time slash menu is shown
+						vscode.postMessage({ type: "requestCommands" })
 					} else {
 						// Existing @ mention handling.
 						const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
@@ -655,14 +714,41 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			const text = textAreaRef.current.value
 
-			highlightLayerRef.current.innerHTML = text
+			// Helper function to check if a command is valid
+			const isValidCommand = (commandName: string): boolean => {
+				return commands?.some((cmd) => cmd.name === commandName) || false
+			}
+
+			// Process the text to highlight mentions and valid commands
+			let processedText = text
 				.replace(/\n$/, "\n\n")
 				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
+			// Custom replacement for commands - only highlight valid ones
+			processedText = processedText.replace(commandRegexGlobal, (match, commandName) => {
+				// Only highlight if the command exists in the valid commands list
+				if (isValidCommand(commandName)) {
+					// Check if the match starts with a space
+					const startsWithSpace = match.startsWith(" ")
+					const commandPart = `/${commandName}`
+
+					if (startsWithSpace) {
+						// Keep the space but only highlight the command part
+						return ` <mark class="mention-context-textarea-highlight">${commandPart}</mark>`
+					} else {
+						// Highlight the entire command (starts at beginning of line)
+						return `<mark class="mention-context-textarea-highlight">${commandPart}</mark>`
+					}
+				}
+				return match // Return unhighlighted if command is not valid
+			})
+
+			highlightLayerRef.current.innerHTML = processedText
+
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [])
+		}, [commands])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -824,121 +910,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			/>
 		)
 
-		// Helper function to get API config dropdown options
-		const getApiConfigOptions = useMemo(() => {
-			const pinnedConfigs = (listApiConfigMeta || [])
-				.filter((config) => pinnedApiConfigs && pinnedApiConfigs[config.id])
-				.map((config) => ({
-					value: config.id,
-					label: config.name,
-					name: config.name,
-					type: DropdownOptionType.ITEM,
-					pinned: true,
-				}))
-				.sort((a, b) => a.label.localeCompare(b.label))
-
-			const unpinnedConfigs = (listApiConfigMeta || [])
-				.filter((config) => !pinnedApiConfigs || !pinnedApiConfigs[config.id])
-				.map((config) => ({
-					value: config.id,
-					label: config.name,
-					name: config.name,
-					type: DropdownOptionType.ITEM,
-					pinned: false,
-				}))
-				.sort((a, b) => a.label.localeCompare(b.label))
-
-			const hasPinnedAndUnpinned = pinnedConfigs.length > 0 && unpinnedConfigs.length > 0
-
-			return [
-				...pinnedConfigs,
-				...(hasPinnedAndUnpinned
-					? [
-							{
-								value: "sep-pinned",
-								label: t("chat:separator"),
-								type: DropdownOptionType.SEPARATOR,
-							},
-						]
-					: []),
-				...unpinnedConfigs,
-				{
-					value: "sep-2",
-					label: t("chat:separator"),
-					type: DropdownOptionType.SEPARATOR,
-				},
-				{
-					value: "settingsButtonClicked",
-					label: t("chat:edit"),
-					type: DropdownOptionType.ACTION,
-				},
-			]
-		}, [listApiConfigMeta, pinnedApiConfigs, t])
-
 		// Helper function to handle API config change
 		const handleApiConfigChange = useCallback((value: string) => {
-			if (value === "settingsButtonClicked") {
-				vscode.postMessage({
-					type: "loadApiConfiguration",
-					text: value,
-					values: { section: "providers" },
-				})
-			} else {
-				vscode.postMessage({ type: "loadApiConfigurationById", text: value })
-			}
+			vscode.postMessage({ type: "loadApiConfigurationById", text: value })
 		}, [])
-
-		// Helper function to render API config item
-		const renderApiConfigItem = useCallback(
-			({ type, value, label, pinned }: any) => {
-				if (type !== DropdownOptionType.ITEM) {
-					return label
-				}
-
-				const config = listApiConfigMeta?.find((c) => c.id === value)
-				const isCurrentConfig = config?.name === currentApiConfigName
-
-				return (
-					<div className="flex justify-between gap-2 w-full h-5">
-						<div
-							className={cn("truncate min-w-0 overflow-hidden", {
-								"font-medium": isCurrentConfig,
-							})}>
-							{label}
-						</div>
-						<div className="flex justify-end w-10 flex-shrink-0">
-							<div
-								className={cn("size-5 p-1", {
-									"block group-hover:hidden": !pinned,
-									hidden: !isCurrentConfig,
-								})}>
-								<Check className="size-3" />
-							</div>
-							<StandardTooltip content={pinned ? t("chat:unpin") : t("chat:pin")}>
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={(e) => {
-										e.stopPropagation()
-										togglePinnedApiConfig(value)
-										vscode.postMessage({
-											type: "toggleApiConfigPin",
-											text: value,
-										})
-									}}
-									className={cn("size-5", {
-										"hidden group-hover:flex": !pinned,
-										"bg-accent": pinned,
-									})}>
-									<Pin className="size-3 p-0.5 opacity-50" />
-								</Button>
-							</StandardTooltip>
-						</div>
-					</div>
-				)
-			},
-			[listApiConfigMeta, currentApiConfigName, t, togglePinnedApiConfig],
-		)
 
 		// Helper function to render non-edit mode controls
 		const renderNonEditModeControls = () => (
@@ -947,17 +922,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="shrink-0">{renderModeSelector()}</div>
 
 					<div className={cn("flex-1", "min-w-0", "overflow-hidden")}>
-						<SelectDropdown
+						<ApiConfigSelector
 							value={currentConfigId}
+							displayName={displayName}
 							disabled={selectApiConfigDisabled}
 							title={t("chat:selectApiConfig")}
-							disableSearch={false}
-							placeholder={displayName}
-							options={getApiConfigOptions}
 							onChange={handleApiConfigChange}
 							triggerClassName="w-full text-ellipsis overflow-hidden"
-							itemClassName="group"
-							renderItem={renderApiConfigItem}
+							listApiConfigMeta={listApiConfigMeta || []}
+							pinnedApiConfigs={pinnedApiConfigs}
+							togglePinnedApiConfig={togglePinnedApiConfig}
 						/>
 					</div>
 				</div>
@@ -983,6 +957,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</button>
 						</StandardTooltip>
 					)}
+					<SlashCommandsPopover />
 					<IndexingStatusBadge />
 					<StandardTooltip content={t("chat:addImages")}>
 						<button
@@ -1024,6 +999,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)}>
 				<div
 					ref={highlightLayerRef}
+					data-testid="highlight-layer"
 					className={cn(
 						"absolute",
 						"inset-0",
@@ -1113,8 +1089,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<StandardTooltip content={t("chat:enhancePrompt")}>
 						<button
 							aria-label={t("chat:enhancePrompt")}
-							disabled={sendingDisabled}
-							onClick={!sendingDisabled ? handleEnhancePrompt : undefined}
+							disabled={false}
+							onClick={handleEnhancePrompt}
 							className={cn(
 								"relative inline-flex items-center justify-center",
 								"bg-transparent border-none p-1.5",
@@ -1124,9 +1100,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
 								"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 								"active:bg-[rgba(255,255,255,0.1)]",
-								!sendingDisabled && "cursor-pointer",
-								sendingDisabled &&
-									"opacity-40 cursor-not-allowed grayscale-[30%] hover:bg-transparent hover:border-[rgba(255,255,255,0.08)] active:bg-transparent",
+								"cursor-pointer",
 							)}>
 							<WandSparkles className={cn("w-4 h-4", isEnhancingPrompt && "animate-spin")} />
 						</button>
@@ -1138,8 +1112,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<StandardTooltip content={t("chat:sendMessage")}>
 							<button
 								aria-label={t("chat:sendMessage")}
-								disabled={sendingDisabled}
-								onClick={!sendingDisabled ? onSend : undefined}
+								disabled={false}
+								onClick={onSend}
 								className={cn(
 									"relative inline-flex items-center justify-center",
 									"bg-transparent border-none p-1.5",
@@ -1149,9 +1123,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
 									"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 									"active:bg-[rgba(255,255,255,0.1)]",
-									!sendingDisabled && "cursor-pointer",
-									sendingDisabled &&
-										"opacity-40 cursor-not-allowed grayscale-[30%] hover:bg-transparent hover:border-[rgba(255,255,255,0.08)] active:bg-transparent",
+									"cursor-pointer",
 								)}>
 								<SendHorizontal className="w-4 h-4" />
 							</button>
@@ -1161,10 +1133,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				{!inputValue && !isEditMode && (
 					<div
-						className="absolute left-2 z-30 pr-9 flex items-center h-8"
+						className="absolute left-2 z-30 pr-9 flex items-center h-8 font-vscode-font-family text-vscode-editor-font-size leading-vscode-editor-line-height"
 						style={{
 							bottom: "0.25rem",
-							color: "var(--vscode-tab-inactiveForeground)",
+							color: "color-mix(in oklab, var(--vscode-input-foreground) 50%, transparent)",
 							userSelect: "none",
 							pointerEvents: "none",
 						}}>
@@ -1245,6 +1217,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									modes={allModes}
 									loading={searchLoading}
 									dynamicSearchResults={fileSearchResults}
+									commands={commands}
 								/>
 							</div>
 						)}

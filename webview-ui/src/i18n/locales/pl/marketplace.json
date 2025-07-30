@@ -35,6 +35,10 @@
 		},
 		"none": "Brak"
 	},
+	"sections": {
+		"organizationMcps": "MCPs {{organization}}",
+		"marketplace": "Rynek"
+	},
 	"type-group": {
 		"modes": "Tryby",
 		"mcps": "Serwery MCP"
