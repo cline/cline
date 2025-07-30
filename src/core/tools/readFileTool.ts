@@ -488,7 +488,7 @@ export async function readFileTool(
 					try {
 						const defResult = await parseSourceCodeDefinitionsForFile(fullPath, cline.rooIgnoreController)
 						if (defResult) {
-							let xmlInfo = `<notice>${t("tools.readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
+							let xmlInfo = `<notice>${t("tools:readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
 							updateFileResult(relPath, {
 								xmlContent: `<file><path>${relPath}</path>\n<list_code_definition_names>${defResult}</list_code_definition_names>\n${xmlInfo}</file>`,
 							})
@@ -520,10 +520,10 @@ export async function readFileTool(
 						// Add appropriate notice based on whether this was a preemptive limit or user setting
 						if (validationNotice) {
 							// When shouldLimit is true, always provide inline instructions
-							const instructions = t("tools.readFile.contextLimitInstructions", { path: relPath })
+							const instructions = t("tools:readFile.contextLimitInstructions", { path: relPath })
 							xmlInfo += `<notice>${validationNotice}\n\n${instructions}</notice>\n`
 						} else {
-							xmlInfo += `<notice>${t("tools.readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
+							xmlInfo += `<notice>${t("tools:readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
 						}
 
 						updateFileResult(relPath, {

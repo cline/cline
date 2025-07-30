@@ -246,7 +246,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(result).toContain(`<list_code_definition_names>`)
 
 			// Verify XML structure
-			expect(result).toContain("<notice>tools.readFile.showingOnlyLines</notice>")
+			expect(result).toContain("<notice>tools:readFile.showingOnlyLines</notice>")
 			expect(result).toContain("<list_code_definition_names>")
 			expect(result).toContain(sourceCodeDef.trim())
 			expect(result).toContain("</list_code_definition_names>")
@@ -272,7 +272,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(result).toContain(`<file><path>${testFilePath}</path>`)
 			expect(result).toContain(`<content lines="1-3">`)
 			expect(result).toContain(`<list_code_definition_names>`)
-			expect(result).toContain("<notice>tools.readFile.showingOnlyLines</notice>")
+			expect(result).toContain("<notice>tools:readFile.showingOnlyLines</notice>")
 		})
 	})
 
@@ -568,7 +568,7 @@ describe("read_file tool XML output structure", () => {
 			// Verify the result contains the inline instructions
 			expect(result).toContain("<notice>")
 			expect(result).toContain("File exceeds available context space")
-			expect(result).toContain("tools.readFile.contextLimitInstructions</notice>")
+			expect(result).toContain("tools:readFile.contextLimitInstructions</notice>")
 		})
 
 		it("should not show any special notice when file fits in context", async () => {
