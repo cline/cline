@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { RuleFileRequest, RuleFile } from "@shared/proto/file"
+import { RuleFileRequest, RuleFile } from "@shared/proto/cline/file"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import * as path from "path"

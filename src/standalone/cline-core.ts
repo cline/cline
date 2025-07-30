@@ -8,31 +8,38 @@ import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@shared/webview/types"
 import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
-import { extensionContext, outputChannel, postMessage } from "./vscode-context"
+import { extensionContext, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
+import { WebviewProvider } from "@/core/webview"
+import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
+	setupHostProvider()
+
 	// Set up global error handlers to prevent process crashes
 	setupGlobalErrorHandlers()
 
-	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager())
 	activate(extensionContext)
 	// Create and initialize cache service
 	const cacheService = new CacheService(extensionContext)
 	await cacheService.initialize()
 
 	// Create controller with cache service
-	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4(), cacheService)
+	const controller = new Controller(extensionContext, postMessage, uuidv4(), cacheService)
 	startProtobusService(controller)
 }
 
-function createWebview() {
-	return new ExternalWebviewProvider(extensionContext, outputChannel, WebviewProviderType.SIDEBAR)
-}
-function createDiffView() {
-	return new ExternalDiffViewProvider()
+function setupHostProvider() {
+	const createWebview = (_: WebviewProviderType): WebviewProvider => {
+		return new ExternalWebviewProvider(extensionContext, WebviewProviderType.SIDEBAR)
+	}
+	const createDiffView = (): DiffViewProvider => {
+		return new ExternalDiffViewProvider()
+	}
+
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log)
 }
 
 /**

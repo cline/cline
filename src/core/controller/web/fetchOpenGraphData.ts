@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { StringRequest } from "../../../shared/proto/common"
-import { OpenGraphData } from "../../../shared/proto/web"
+import { StringRequest } from "@shared/proto/cline/common"
+import { OpenGraphData } from "@shared/proto/cline/web"
 import { fetchOpenGraphData as fetchOGData } from "../../../integrations/misc/link-preview"
 import { convertDomainOpenGraphDataToProto } from "../../../shared/proto-conversions/web/open-graph-conversion"
 

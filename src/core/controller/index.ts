@@ -14,6 +14,7 @@ import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { Mode } from "@shared/storage/types"
+import { Mode } from "@shared/storage/types"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -61,13 +62,13 @@ export class Controller {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
 		cacheService: CacheService,
 	) {
 		this.id = id
-		this.outputChannel.appendLine("ClineProvider instantiated")
+
+		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.postMessage = postMessage
 		this.cacheService = cacheService
 
@@ -102,7 +103,7 @@ export class Controller {
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
+		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
 	}

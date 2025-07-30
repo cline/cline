@@ -20,7 +20,9 @@ export async function openImage(dataUri: string) {
 	const tempFilePath = path.join(os.tmpdir(), `temp_image_${Date.now()}.${format}`)
 	try {
 		await writeFile(tempFilePath, new Uint8Array(imageBuffer))
-		await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(tempFilePath))
+		await HostProvider.window.openFile({
+			filePath: tempFilePath,
+		})
 	} catch (error) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,

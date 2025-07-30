@@ -85,8 +85,10 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { CacheService } from "../storage/CacheService"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { ShowMessageType } from "@/shared/proto/index.host"
+
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -386,7 +388,10 @@ export class Task {
 			case "taskAndWorkspace":
 			case "workspace":
 				if (!this.enableCheckpoints) {
-					vscode.window.showErrorMessage("Checkpoints are disabled in settings.")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Checkpoints are disabled in settings.",
+					})
 					didWorkspaceRestoreFail = true
 					break
 				}
@@ -404,7 +409,10 @@ export class Task {
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.taskState.checkpointTrackerErrorMessage = errorMessage
 						await this.postStateToWebview()
-						vscode.window.showErrorMessage(errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 					}
 				}
@@ -413,7 +421,10 @@ export class Task {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: "Failed to restore checkpoint: " + errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 					}
 				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -421,7 +432,10 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: "Failed to restore offsetcheckpoint: " + errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 					}
 				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
@@ -431,11 +445,17 @@ export class Task {
 						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: "Failed to restore checkpoint: " + errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 					}
 				} else {
-					vscode.window.showErrorMessage("Failed to restore checkpoint")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Failed to restore checkpoint",
+					})
 				}
 				break
 		}
@@ -492,13 +512,22 @@ export class Task {
 
 			switch (restoreType) {
 				case "task":
-					vscode.window.showInformationMessage("Task messages have been restored to the checkpoint")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "Task messages have been restored to the checkpoint",
+					})
 					break
 				case "workspace":
-					vscode.window.showInformationMessage("Workspace files have been restored to the checkpoint")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "Workspace files have been restored to the checkpoint",
+					})
 					break
 				case "taskAndWorkspace":
-					vscode.window.showInformationMessage("Task and workspace have been restored to the checkpoint")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "Task and workspace have been restored to the checkpoint",
+					})
 					break
 			}
 
@@ -529,7 +558,10 @@ export class Task {
 			sendRelinquishControlEvent()
 		}
 		if (!this.enableCheckpoints) {
-			vscode.window.showInformationMessage("Checkpoints are disabled in settings. Cannot show diff.")
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Checkpoints are disabled in settings. Cannot show diff.",
+			})
 			relinquishButton()
 			return
 		}
@@ -564,7 +596,10 @@ export class Task {
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.taskState.checkpointTrackerErrorMessage = errorMessage
 				await this.postStateToWebview()
-				vscode.window.showErrorMessage(errorMessage)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: errorMessage,
+				})
 				relinquishButton()
 				return
 			}
@@ -599,7 +634,10 @@ export class Task {
 				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
 
 				if (!previousCheckpointHash) {
-					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Unexpected error: No checkpoint hash found",
+					})
 					relinquishButton()
 					return
 				}
@@ -607,7 +645,10 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes found",
+					})
 					relinquishButton()
 					return
 				}
@@ -615,14 +656,20 @@ export class Task {
 				// Get changed files between current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes found",
+					})
 					relinquishButton()
 					return
 				}
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to retrieve diff set: " + errorMessage,
+			})
 			relinquishButton()
 			return
 		}
@@ -1280,19 +1327,23 @@ export class Task {
 
 			// Create a checkpoint commit and update clineMessages with a commitHash
 			if (this.checkpointTracker) {
-				const commitHash = await this.checkpointTracker.commit()
-				if (commitHash) {
-					await this.say("checkpoint_created")
-					const lastCheckpointMessageIndex = findLastIndex(
-						this.messageStateHandler.getClineMessages(),
-						(m) => m.say === "checkpoint_created",
-					)
-					if (lastCheckpointMessageIndex !== -1) {
-						await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-							lastCheckpointHash: commitHash,
-						})
+				// We are letting this run in a non-blocking way so that the UI doesn't freeze when creating checkpoints.
+				// We show that a checkpoint is created in the chatview, then in the background run the git operation (which can take multiple seconds for large shadow git repos), and once that's been completed update the previous checkpoint message with the newly created hash to be associated with.
+				// NOTE: the attempt completion flow is different in that it requires the latest checkpoint hash to be present before determining if it can present the 'see new changes' button. In ToolExecutor, when we call saveCheckpoint(true), we must make sure that the checkpoint hash is present in the last completion_result message before returning, since it is always followed by a addNewChangesFlagToLastCompletionResultMessage(), which calls doesLatestTaskCompletionHaveNewChanges() that uses the latest message hash to determine if there any changes since the last attempt_completion checkpoint.
+				await this.say("checkpoint_created")
+				this.checkpointTracker.commit().then(async (commitHash) => {
+					if (commitHash) {
+						const lastCheckpointMessageIndex = findLastIndex(
+							this.messageStateHandler.getClineMessages(),
+							(m) => m.say === "checkpoint_created",
+						)
+						if (lastCheckpointMessageIndex !== -1) {
+							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+								lastCheckpointHash: commitHash,
+							})
+						}
 					}
-				}
+				})
 			} // silently fails for now
 
 			//
@@ -2524,10 +2575,9 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFilePaths = vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
+			path.relative(this.cwd, absolutePath),
+		)
 
 		// Filter paths through clineIgnoreController
 		const allowedVisibleFiles = this.clineIgnoreController
@@ -2542,11 +2592,9 @@ export class Task {
 		}
 
 		details += "\n\n# VSCode Open Tabs"
-		const openTabPaths = vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
-			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
+			path.relative(this.cwd, absolutePath),
+		)
 
 		// Filter paths through clineIgnoreController
 		const allowedOpenTabs = this.clineIgnoreController

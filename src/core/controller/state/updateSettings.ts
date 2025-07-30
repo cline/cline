@@ -1,10 +1,9 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { PlanActMode, UpdateSettingsRequest } from "../../../shared/proto/state"
+import { Empty } from "@shared/proto/cline/common"
+import { PlanActMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { OpenaiReasoningEffort } from "@/shared/storage/types"
 
 /**
  * Updates multiple extension settings in a single request

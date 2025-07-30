@@ -1,6 +1,6 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { String as ProtoString } from "../../../shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { String as ProtoString } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active addToInput subscriptions

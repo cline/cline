@@ -10,7 +10,7 @@ import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 import { WithCopyButton } from "./CopyButton"
 import { StateServiceClient } from "@/services/grpc-client"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {

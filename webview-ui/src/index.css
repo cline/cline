@@ -4,7 +4,7 @@
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);
 
-@config "../tailwind.config.js";
+@config "../tailwind.config.mjs";
 
 /* Import Azeret Mono font from local package */
 @import "@fontsource/azeret-mono/300.css";
