@@ -8,7 +8,7 @@ function getEditingInstructions(diffStrategy?: DiffStrategy): string {
 	// Collect available editing tools
 	if (diffStrategy) {
 		availableTools.push(
-			"apply_diff (for replacing lines in existing files)",
+			"apply_diff (for surgical edits - targeted changes to specific lines or functions)",
 			"write_to_file (for creating new files or complete file rewrites)",
 		)
 	} else {
