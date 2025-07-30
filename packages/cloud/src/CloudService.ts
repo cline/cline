@@ -48,6 +48,7 @@ export class CloudService {
 
 		try {
 			const cloudToken = process.env.ROO_CODE_CLOUD_TOKEN
+
 			if (cloudToken && cloudToken.length > 0) {
 				this.authService = new StaticTokenAuthService(this.context, cloudToken, this.log)
 			} else {
@@ -62,8 +63,9 @@ export class CloudService {
 			this.authService.on("logged-out", this.authListener)
 			this.authService.on("user-info", this.authListener)
 
-			// Check for static settings environment variable
+			// Check for static settings environment variable.
 			const staticOrgSettings = process.env.ROO_CODE_CLOUD_ORG_SETTINGS
+
 			if (staticOrgSettings && staticOrgSettings.length > 0) {
 				this.settingsService = new StaticSettingsService(staticOrgSettings, this.log)
 			} else {
@@ -73,12 +75,12 @@ export class CloudService {
 					() => this.callbacks.stateChanged?.(),
 					this.log,
 				)
+
 				cloudSettingsService.initialize()
 				this.settingsService = cloudSettingsService
 			}
 
 			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
-
 			this.shareService = new ShareService(this.authService, this.settingsService, this.log)
 
 			try {

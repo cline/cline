@@ -214,7 +214,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	}
 
 	private registerListeners(provider: ClineProvider) {
-		provider.on("clineCreated", (cline) => {
+		provider.on("taskCreated", (cline) => {
 			cline.on("taskStarted", async () => {
 				this.emit(RooCodeEventName.TaskStarted, cline.taskId)
 				this.taskMap.set(cline.taskId, provider)

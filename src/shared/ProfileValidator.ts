@@ -41,6 +41,7 @@ export class ProfileValidator {
 		}
 
 		const providerAllowList = allowList.providers[providerName]
+
 		if (!providerAllowList) {
 			return false
 		}
