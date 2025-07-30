@@ -14,7 +14,7 @@ export const SuggestedTasks: React.FC<{ shouldShowQuickWins: boolean }> = ({ sho
 			<div className="px-4 pt-1 pb-3 select-none">
 				{" "}
 				<h2 className="text-sm font-medium mb-2.5 text-center " style={{ color: "#ccc" }}>
-					Quick <span style={{ color: "#ffffff" }}>[Wins]</span> with Cline
+					Quick <span className="text-white">[Wins]</span> with Cline
 				</h2>
 				<div className="flex flex-col space-y-1">
 					{" "}
