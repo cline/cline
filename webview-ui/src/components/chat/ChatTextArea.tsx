@@ -990,10 +990,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [apiConfiguration, openRouterModels])
 
 		const onModeToggle = useCallback(async () => {
-			if (showModelSelector) {
-				// user has model selector open, so we should save it before switching modes
-				submitApiConfig()
-			}
 			if (isSwitchingMode) return // prevent double toggling
 			setIsSwitchingMode(true)
 			const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
@@ -1010,7 +1006,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 			textAreaRef.current?.focus()
 			setIsSwitchingMode(false)
-		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles, setInputValue])
+		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, isSwitchingMode])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1735,7 +1731,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<SwitchContainer data-testid="mode-switch" disabled={isSwitchingMode} onClick={onModeToggle}>
 							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
 								isActive={mode === "plan"}
