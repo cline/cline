@@ -77,7 +77,6 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
-	refreshBasetenModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -640,18 +639,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
-	const refreshBasetenModels = useCallback(() => {
-		ModelsServiceClient.refreshBasetenModels(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = response.models
-				setBasetenModels({
-					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId], // in case the extension sent a model list without the default model
-					...models,
-				})
-			})
-			.catch((error: Error) => console.error("Failed to refresh Baseten models:", error))
-	}, [])
-
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -688,10 +675,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToHistory,
 		navigateToAccount,
 		navigateToChat,
-
-		// Refresh functions
-		refreshOpenRouterModels,
-		refreshBasetenModels,
 
 		// Hide functions
 		hideSettings,
@@ -744,6 +727,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
+		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 	}
