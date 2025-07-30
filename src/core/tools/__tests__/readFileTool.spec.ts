@@ -12,6 +12,10 @@ import { readFileTool } from "../readFileTool"
 import { formatResponse } from "../../prompts/responses"
 import * as contextValidatorModule from "../contextValidator"
 
+vi.mock("../../../i18n", () => ({
+	t: vi.fn((key: string) => key),
+}))
+
 vi.mock("path", async () => {
 	const originalPath = await vi.importActual("path")
 	return {
@@ -242,8 +246,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(result).toContain(`<list_code_definition_names>`)
 
 			// Verify XML structure
-			expect(result).toContain("<notice>Showing only 0 of 5 total lines")
-			expect(result).toContain("</notice>")
+			expect(result).toContain("<notice>tools.readFile.showingOnlyLines</notice>")
 			expect(result).toContain("<list_code_definition_names>")
 			expect(result).toContain(sourceCodeDef.trim())
 			expect(result).toContain("</list_code_definition_names>")
@@ -269,7 +272,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(result).toContain(`<file><path>${testFilePath}</path>`)
 			expect(result).toContain(`<content lines="1-3">`)
 			expect(result).toContain(`<list_code_definition_names>`)
-			expect(result).toContain("<notice>Showing only 3 of 5 total lines")
+			expect(result).toContain("<notice>tools.readFile.showingOnlyLines</notice>")
 		})
 	})
 
@@ -565,11 +568,7 @@ describe("read_file tool XML output structure", () => {
 			// Verify the result contains the inline instructions
 			expect(result).toContain("<notice>")
 			expect(result).toContain("File exceeds available context space")
-			expect(result).toContain("To read specific sections of this file, use the following format:")
-			expect(result).toContain("<line_range>start-end</line_range>")
-			expect(result).toContain("For example, to read lines 2001-3000:")
-			expect(result).toContain("<line_range>2001-3000</line_range>")
-			expect(result).toContain("large-file.ts")
+			expect(result).toContain("tools.readFile.contextLimitInstructions</notice>")
 		})
 
 		it("should not show any special notice when file fits in context", async () => {

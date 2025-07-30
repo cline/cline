@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { validateFileSizeForContext } from "../contextValidator"
 import { Task } from "../../task/Task"
 import { promises as fs } from "fs"
+import * as fsPromises from "fs/promises"
 import { readLines } from "../../../integrations/misc/read-lines"
 import * as sharedApi from "../../../shared/api"
 
@@ -11,12 +12,17 @@ vi.mock("fs", () => ({
 	},
 }))
 
+vi.mock("fs/promises", () => ({
+	stat: vi.fn(),
+}))
+
 vi.mock("../../../integrations/misc/read-lines", () => ({
 	readLines: vi.fn(),
 }))
 
 vi.mock("../../../shared/api", () => ({
 	getModelMaxOutputTokens: vi.fn(),
+	getFormatForProvider: vi.fn().mockReturnValue("anthropic"),
 }))
 
 describe("contextValidator", () => {
@@ -24,6 +30,11 @@ describe("contextValidator", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+
+		// Default file size mock (1MB - large enough to trigger validation)
+		vi.mocked(fs.stat).mockResolvedValue({
+			size: 1024 * 1024, // 1MB
+		} as any)
 
 		// Mock Task instance
 		mockTask = {
@@ -55,26 +66,27 @@ describe("contextValidator", () => {
 	})
 
 	describe("validateFileSizeForContext", () => {
-		it("should apply 25% buffer to remaining context and read incrementally", async () => {
+		it("should apply 25% buffer to remaining context and use character-based reading", async () => {
 			const mockStats = { size: 50000 }
 			vi.mocked(fs.stat).mockResolvedValue(mockStats as any)
 
-			// Mock readLines to return content in batches
-			// Each batch is 100 lines, returning content that results in 1200 tokens per batch
+			// Mock readLines to return content in larger batches (500 lines)
 			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
 				const start = startLine ?? 0
-				const end = endLine ?? 99
-				const lines = end - start + 1
-				return `test content line\n`.repeat(lines)
+				const end = endLine ?? 499
+				const lines = []
+				for (let i = start; i <= end; i++) {
+					// Each line is ~60 chars to simulate real code
+					lines.push(`const variable${i} = "test content line with enough characters";`)
+				}
+				return lines.join("\n")
 			})
 
-			// Mock token count - 12 tokens per line (1200 per 100-line batch)
-			let callCount = 0
+			// Mock token count based on character count (using ~3 chars per token)
 			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
-				callCount++
 				const text = content[0].text
-				const lines = text.split("\n").length - 1
-				return lines * 12 // 12 tokens per line
+				// Approximate 3 characters per token
+				return Math.ceil(text.length / 3)
 			})
 
 			const result = await validateFileSizeForContext(
@@ -88,13 +100,14 @@ describe("contextValidator", () => {
 			// Context window = 100k, current usage = 10k
 			// Remaining = 90k
 			// With 25% buffer on remaining: usable = 90k * 0.75 = 67.5k
-			// Reserved for response ~2k
-			// Available should be around 65.5k tokens
-			// File needs 12k tokens total (1000 lines * 12 tokens)
+			// Reserved for response = 4096
+			// Available = 67.5k - 4096 ≈ 63.4k tokens
+			// Target limit = 63.4k * 0.9 ≈ 57k tokens
+			// File content: 1000 lines * 60 chars = 60k chars ≈ 20k tokens
 			expect(result.shouldLimit).toBe(false)
 
-			// Verify readLines was called multiple times (incremental reading)
-			expect(readLines).toHaveBeenCalled()
+			// Should make fewer API calls with character-based approach
+			expect(mockTask.api.countTokens).toHaveBeenCalledTimes(1)
 
 			// Verify the new calculation approach
 			const remaining = 100000 - 10000 // 90k remaining
@@ -106,19 +119,24 @@ describe("contextValidator", () => {
 			const mockStats = { size: 50000 }
 			vi.mocked(fs.stat).mockResolvedValue(mockStats as any)
 
-			// Mock readLines
+			// Mock readLines with larger batches
 			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
 				const start = startLine ?? 0
-				const end = endLine ?? 99
-				const lines = end - start + 1
-				return `test content line\n`.repeat(lines)
+				const end = endLine ?? 499
+				const lines = []
+				for (let i = start; i <= end && i < 2000; i++) {
+					// Dense content - 150 chars per line
+					lines.push(
+						`const longVariable${i} = "This is a much longer line of content to simulate dense code with many characters per line";`,
+					)
+				}
+				return lines.join("\n")
 			})
 
-			// Mock token count - 50 tokens per line
+			// Mock token count based on character count
 			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
 				const text = content[0].text
-				const lines = text.split("\n").length - 1
-				return lines * 50
+				return Math.ceil(text.length / 3)
 			})
 
 			// Test with 50% context already used
@@ -134,12 +152,16 @@ describe("contextValidator", () => {
 			)
 
 			// With 50k remaining and 25% buffer: 50k * 0.75 = 37.5k usable
-			// Minus ~2k for response = ~35.5k available
-			// File needs 100k tokens (2000 lines * 50 tokens)
+			// Minus 4096 for response = ~33.4k available
+			// Target limit = 33.4k * 0.9 ≈ 30k tokens
+			// File content: 2000 lines * 150 chars = 300k chars ≈ 100k tokens
 			// Should limit the file
 			expect(result.shouldLimit).toBe(true)
 			expect(result.safeMaxLines).toBeLessThan(2000)
 			expect(result.reason).toContain("exceeds available context space")
+
+			// Should use character-based approach with fewer API calls
+			expect(mockTask.api.countTokens).toHaveBeenCalled()
 		})
 
 		it("should limit file when it exceeds available space with buffer", async () => {
@@ -147,19 +169,26 @@ describe("contextValidator", () => {
 			const mockStats = { size: 500000 } // Large file
 			vi.mocked(fs.stat).mockResolvedValue(mockStats as any)
 
-			// Mock readLines to return content in batches
+			// Mock readLines to return dense content
 			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
 				const start = startLine ?? 0
-				const end = endLine ?? 99
-				const lines = end - start + 1
-				return `large content line\n`.repeat(lines)
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < 10000; i++) {
+					// Very dense content - 300 chars per line
+					lines.push(
+						`const veryLongVariable${i} = "This is an extremely long line of content that simulates very dense code with many characters, such as minified JavaScript or long string literals that would consume many tokens";`,
+					)
+				}
+				return lines.join("\n")
 			})
 
-			// Mock large token count - 100 tokens per line
+			// Mock token count based on character count
+			let apiCallCount = 0
 			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
+				apiCallCount++
 				const text = content[0].text
-				const lines = text.split("\n").length - 1
-				return lines * 100 // 100 tokens per line
+				return Math.ceil(text.length / 3)
 			})
 
 			const result = await validateFileSizeForContext(
@@ -173,6 +202,9 @@ describe("contextValidator", () => {
 			expect(result.safeMaxLines).toBeGreaterThan(0)
 			expect(result.safeMaxLines).toBeLessThan(10000) // Should stop before reading all lines
 			expect(result.reason).toContain("exceeds available context space")
+
+			// Should make 1-2 API calls with character-based approach
+			expect(apiCallCount).toBeLessThanOrEqual(2)
 		})
 
 		it("should handle very large files through incremental reading", async () => {
@@ -180,19 +212,25 @@ describe("contextValidator", () => {
 			const mockStats = { size: 60_000_000 } // 60MB file
 			vi.mocked(fs.stat).mockResolvedValue(mockStats as any)
 
-			// Mock readLines to return content in batches
+			// Mock readLines to return dense content in larger batches
 			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
 				const start = startLine ?? 0
-				const end = endLine ?? 99
-				const lines = end - start + 1
-				return `large file content line\n`.repeat(lines)
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < 100000; i++) {
+					// Very dense content - 300 chars per line
+					lines.push(
+						`const veryLongVariable${i} = "This is an extremely long line of content that simulates very dense code with many characters, such as minified JavaScript or long string literals that would consume many tokens";`,
+					)
+				}
+				return lines.join("\n")
 			})
 
-			// Mock very high token count per line (simulating dense content)
+			// Mock token count based on character count
 			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
 				const text = content[0].text
-				const lines = text.split("\n").length - 1
-				return lines * 200 // 200 tokens per line for very large file
+				// Return high token count to trigger limit
+				return Math.ceil(text.length / 2) // More tokens per char for dense content
 			})
 
 			const result = await validateFileSizeForContext(
@@ -205,8 +243,9 @@ describe("contextValidator", () => {
 			expect(result.shouldLimit).toBe(true)
 			// Should have attempted to read the file incrementally
 			expect(readLines).toHaveBeenCalled()
-			// Should stop early due to token limits
-			expect(result.safeMaxLines).toBeLessThan(1000)
+			// With character-based approach, it reads more lines before hitting limit
+			expect(result.safeMaxLines).toBeGreaterThan(0)
+			expect(result.safeMaxLines).toBeLessThan(10000) // But still limited
 			expect(result.reason).toContain("exceeds available context space")
 		})
 
@@ -215,7 +254,9 @@ describe("contextValidator", () => {
 			vi.mocked(fs.stat).mockResolvedValue(mockStats as any)
 
 			// Mock readLines to fail
-			vi.mocked(readLines).mockRejectedValue(new Error("Read error"))
+			vi.mocked(readLines).mockImplementation(async () => {
+				throw new Error("Read error")
+			})
 
 			const result = await validateFileSizeForContext(
 				"/test/problematic.ts",
@@ -236,24 +277,26 @@ describe("contextValidator", () => {
 			// Set very high context usage
 			// With new calculation: 100k - 95k = 5k remaining
 			// 5k * 0.75 = 3.75k usable
-			// Minus ~2k for response = ~1.75k available
+			// Minus 4096 for response = negative available space
 			mockTask.getTokenUsage = vi.fn().mockReturnValue({
 				contextTokens: 95000, // 95% of context used
 			})
 
-			// Mock small token count
+			// Mock token count to exceed available space immediately
 			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
-				const text = content[0].text
-				const lines = text.split("\n").length - 1
-				return lines * 10 // 10 tokens per line
+				// Return tokens that exceed available space
+				return 5000 // More than available
 			})
 
 			// Mock readLines
 			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
 				const start = startLine ?? 0
-				const end = endLine ?? 99
-				const lines = end - start + 1
-				return `test line\n`.repeat(lines)
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < 500; i++) {
+					lines.push(`const var${i} = "test line";`)
+				}
+				return lines.join("\n")
 			})
 
 			const result = await validateFileSizeForContext(
@@ -264,10 +307,10 @@ describe("contextValidator", () => {
 			)
 
 			expect(result.shouldLimit).toBe(true)
-			// With the new calculation using full model max tokens (4096),
-			// we have less space available, so we get the minimum 50 lines
-			expect(result.safeMaxLines).toBe(50)
-			expect(result.reason).toContain("Very limited context space")
+			// With the new implementation, when content exceeds limit even after cutback,
+			// it returns a very small number (10) as specified in the safety check
+			expect(result.safeMaxLines).toBe(10)
+			expect(result.reason).toContain("File too large for available context")
 		})
 
 		it("should handle negative available space gracefully", async () => {
@@ -277,9 +320,23 @@ describe("contextValidator", () => {
 			// Set extremely high context usage
 			// With 100k - 99k = 1k remaining
 			// 1k * 0.75 = 750 tokens usable
-			// Minus 2k for response = negative available space
+			// Minus 4096 for response = negative available space
 			mockTask.getTokenUsage = vi.fn().mockReturnValue({
 				contextTokens: 99000, // 99% of context used
+			})
+
+			// Mock token count to always exceed limit
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(10000)
+
+			// Mock readLines
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < 500; i++) {
+					lines.push(`const var${i} = "test line";`)
+				}
+				return lines.join("\n")
 			})
 
 			const result = await validateFileSizeForContext(
@@ -290,10 +347,9 @@ describe("contextValidator", () => {
 			)
 
 			expect(result.shouldLimit).toBe(true)
-			expect(result.safeMaxLines).toBe(50) // Should be limited to minimum useful lines
-			expect(result.reason).toContain("Very limited context space")
-			// With negative available space, readLines won't be called
-			expect(readLines).not.toHaveBeenCalled()
+			// When available space is negative, it returns minimal safe value
+			expect(result.safeMaxLines).toBe(10) // Minimal safe value from safety check
+			expect(result.reason).toContain("File too large for available context")
 		})
 
 		it("should limit file when it is too large and would be truncated", async () => {
@@ -306,11 +362,19 @@ describe("contextValidator", () => {
 				contextTokens: 90000, // 90% of context used
 			})
 
-			// Mock token counting to simulate a large file
-			mockTask.api.countTokens = vi.fn().mockResolvedValue(1000) // Each batch is 1000 tokens
+			// Mock token counting to exceed limit on first call
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(20000) // Exceeds available space
 
-			// Mock readLines to return some content
-			vi.mocked(readLines).mockResolvedValue("line content")
+			// Mock readLines to return content
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < totalLines; i++) {
+					lines.push(`line content ${i} with enough characters`)
+				}
+				return lines.join("\n")
+			})
 
 			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
 
@@ -332,15 +396,24 @@ describe("contextValidator", () => {
 			})
 
 			// Mock token counting to quickly exceed limit
-			mockTask.api.countTokens = vi.fn().mockResolvedValue(500) // Each batch uses a lot of tokens
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(5000) // Exceeds available space immediately
 
-			vi.mocked(readLines).mockResolvedValue("line content")
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < totalLines; i++) {
+					lines.push(`line content ${i}`)
+				}
+				return lines.join("\n")
+			})
 
 			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
 
 			expect(result.shouldLimit).toBe(true)
-			expect(result.reason).toContain("Very limited context space")
-			expect(result.reason).toContain("Consider using search_files or line_range")
+			// With the new implementation, when space is very limited and content exceeds,
+			// it returns the minimal safe value
+			expect(result.reason).toContain("File too large for available context")
 		})
 
 		it("should not limit when file fits within context", async () => {
@@ -351,7 +424,21 @@ describe("contextValidator", () => {
 			// Mock low token usage
 			mockTask.api.countTokens = vi.fn().mockResolvedValue(10) // Small token count per batch
 
-			vi.mocked(readLines).mockResolvedValue("line content")
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = endLine ?? 0
+
+				// For sampling phase (first 50 lines), return normal length content
+				if (start === 0 && end === 49) {
+					const lines = []
+					for (let i = 0; i <= end; i++) {
+						lines.push(`line content with enough characters to avoid heuristic skip`)
+					}
+					return lines.join("\n")
+				}
+
+				return "line content"
+			})
 
 			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
 
@@ -375,6 +462,160 @@ describe("contextValidator", () => {
 			expect(result.shouldLimit).toBe(true)
 			expect(result.safeMaxLines).toBe(1000)
 			expect(result.reason).toContain("Large file detected")
+		})
+	})
+
+	describe("heuristic optimization", () => {
+		it("should skip validation for files with less than 100 lines", async () => {
+			const filePath = "/test/small-file.ts"
+			const totalLines = 50 // Less than 100 lines
+			const currentMaxReadFileLine = -1
+
+			// Mock file size to be small (3KB)
+			vi.mocked(fs.stat).mockResolvedValue({
+				size: 3 * 1024, // 3KB
+			} as any)
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should not limit small files
+			expect(result.shouldLimit).toBe(false)
+			expect(result.safeMaxLines).toBe(currentMaxReadFileLine)
+			// Should not call countTokens for small files
+			expect(mockTask.api.countTokens).not.toHaveBeenCalled()
+			// Should not even attempt to read the file
+			expect(readLines).not.toHaveBeenCalled()
+		})
+
+		it("should skip validation for small files", async () => {
+			const filePath = "/test/small-file.ts"
+			const totalLines = 500
+			const currentMaxReadFileLine = -1
+
+			// Mock file size to be small (3KB)
+			vi.mocked(fsPromises.stat).mockResolvedValueOnce({
+				size: 3 * 1024, // 3KB
+			} as any)
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Small files should skip validation
+			expect(result.shouldLimit).toBe(false)
+			expect(result.safeMaxLines).toBe(currentMaxReadFileLine)
+			// Should not call readLines for validation
+			expect(readLines).not.toHaveBeenCalled()
+			// Should not call countTokens
+			expect(mockTask.api.countTokens).not.toHaveBeenCalled()
+			// Verify fs.stat was called
+			expect(fsPromises.stat).toHaveBeenCalledWith(filePath)
+		})
+
+		it("should skip validation for moderate files when context is mostly empty", async () => {
+			const filePath = "/test/moderate-file.ts"
+			const totalLines = 2000
+			const currentMaxReadFileLine = -1
+
+			// Mock file size to be moderate (80KB - below 100KB threshold)
+			vi.mocked(fsPromises.stat).mockResolvedValueOnce({
+				size: 80 * 1024, // 80KB
+			} as any)
+
+			// Mock context to be mostly empty (30% used - below 50% threshold)
+			mockTask.getTokenUsage = vi.fn().mockReturnValue({
+				contextTokens: 30000, // 30% of 100000
+			})
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should skip validation when context is mostly empty and file is moderate
+			expect(result.shouldLimit).toBe(false)
+			expect(result.safeMaxLines).toBe(currentMaxReadFileLine)
+			expect(readLines).not.toHaveBeenCalled()
+			expect(mockTask.api.countTokens).not.toHaveBeenCalled()
+			// Verify fs.stat was called
+			expect(fsPromises.stat).toHaveBeenCalledWith(filePath)
+		})
+
+		it("should perform validation for larger files", async () => {
+			const filePath = "/test/large-file.ts"
+			const totalLines = 1000
+			const currentMaxReadFileLine = -1
+
+			// Mock file size to be large (1MB)
+			vi.mocked(fs.stat).mockResolvedValue({
+				size: 1024 * 1024, // 1MB
+			} as any)
+
+			// Mock readLines to return normal content
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = endLine ?? 0
+
+				// For sampling phase, return normal code lines
+				if (start === 0 && end === 49) {
+					const lines = []
+					for (let i = 0; i <= 49; i++) {
+						lines.push(`const variable${i} = "This is a normal length line of code";`)
+					}
+					return lines.join("\n")
+				}
+
+				// For actual reading
+				const lines = []
+				for (let i = start; i <= end; i++) {
+					lines.push(`const variable${i} = "This is a normal length line of code";`)
+				}
+				return lines.join("\n")
+			})
+
+			// Mock token counting
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(100)
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should perform normal validation
+			expect(readLines).toHaveBeenCalled()
+			expect(mockTask.api.countTokens).toHaveBeenCalled()
+		})
+
+		it("should handle cutback strategy when content exceeds limit", async () => {
+			const filePath = "/test/cutback-test.ts"
+			const totalLines = 1000
+			const currentMaxReadFileLine = -1
+
+			// Mock readLines to return content
+			vi.mocked(readLines).mockImplementation(async (path, endLine, startLine) => {
+				const start = startLine ?? 0
+				const end = Math.min(endLine ?? 499, start + 499)
+				const lines = []
+				for (let i = start; i <= end && i < totalLines; i++) {
+					lines.push(`const variable${i} = "This is a line of content";`)
+				}
+				return lines.join("\n")
+			})
+
+			// Mock token counting to exceed limit on first call, then succeed after cutback
+			let apiCallCount = 0
+			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
+				apiCallCount++
+				const text = content[0].text
+				const charCount = text.length
+
+				// First call: return tokens that exceed the limit
+				if (apiCallCount === 1) {
+					return 70000 // Exceeds available tokens
+				}
+				// After cutback: return acceptable amount
+				return Math.ceil(charCount / 3)
+			})
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should apply cutback strategy
+			expect(mockTask.api.countTokens).toHaveBeenCalledTimes(2) // Initial + after cutback
+			expect(result.shouldLimit).toBe(true)
+			expect(result.safeMaxLines).toBeLessThan(totalLines)
+			expect(result.safeMaxLines).toBeGreaterThan(0)
 		})
 	})
 })

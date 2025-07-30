@@ -1,6 +1,7 @@
 import { Task } from "../task/Task"
 import { readLines } from "../../integrations/misc/read-lines"
-import { getModelMaxOutputTokens } from "../../shared/api"
+import { getModelMaxOutputTokens, getFormatForProvider } from "../../shared/api"
+import * as fs from "fs/promises"
 
 /**
  * More aggressive buffer percentage specifically for file reading validation.
@@ -16,8 +17,60 @@ export interface ContextValidationResult {
 }
 
 /**
+ * Determines if we should skip the expensive token-based validation.
+ * Returns true if we're confident the file can be read without limits.
+ * Prioritizes accuracy - only skips when very confident.
+ */
+async function shouldSkipValidation(filePath: string, totalLines: number, cline: Task): Promise<boolean> {
+	// Heuristic 1: Very small files by line count (< 100 lines)
+	if (totalLines < 100) {
+		console.log(
+			`[shouldSkipValidation] Skipping validation for ${filePath} - small line count (${totalLines} lines)`,
+		)
+		return true
+	}
+
+	try {
+		// Get file size
+		const stats = await fs.stat(filePath)
+		const fileSizeBytes = stats.size
+		const fileSizeMB = fileSizeBytes / (1024 * 1024)
+
+		// Heuristic 2: Very small files by size (< 5KB) - definitely safe to skip validation
+		if (fileSizeBytes < 5 * 1024) {
+			console.log(
+				`[shouldSkipValidation] Skipping validation for ${filePath} - small file size (${(fileSizeBytes / 1024).toFixed(1)}KB)`,
+			)
+			return true
+		}
+
+		// For larger files, check if context is mostly empty
+		const modelInfo = cline.api.getModel().info
+		const { contextTokens: currentContextTokens } = cline.getTokenUsage()
+		const contextWindow = modelInfo.contextWindow
+
+		// Calculate context usage percentage
+		const contextUsagePercent = (currentContextTokens || 0) / contextWindow
+
+		// Heuristic 3: If context is mostly empty (< 50% used) and file is not too big (< 100KB),
+		// we can skip validation as there's plenty of room
+		if (contextUsagePercent < 0.5 && fileSizeBytes < 100 * 1024) {
+			console.log(
+				`[validateFileSizeForContext] Skipping validation for ${filePath} - context mostly empty (${Math.round(contextUsagePercent * 100)}% used) and file is moderate size (${fileSizeMB.toFixed(2)}MB)`,
+			)
+			return true
+		}
+	} catch (error) {
+		// If we can't check file size or context state, don't skip validation
+		console.warn(`[validateFileSizeForContext] Could not check file size or context state: ${error}`)
+	}
+
+	return false
+}
+
+/**
  * Validates if a file can be safely read based on its size and current runtime context state.
- * Reads lines incrementally and counts tokens as it goes, stopping when reaching the token limit.
+ * Uses a 2-phase approach: character-based estimation followed by actual token validation.
  * Returns a safe maxReadFileLine value to prevent context overflow.
  */
 export async function validateFileSizeForContext(
@@ -27,6 +80,11 @@ export async function validateFileSizeForContext(
 	cline: Task,
 ): Promise<ContextValidationResult> {
 	try {
+		// Check if we can skip validation
+		if (await shouldSkipValidation(filePath, totalLines, cline)) {
+			return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
+		}
+
 		// Get actual runtime state from the task
 		const modelInfo = cline.api.getModel().info
 		const { contextTokens: currentContextTokens } = cline.getTokenUsage()
@@ -37,22 +95,8 @@ export async function validateFileSizeForContext(
 		const apiProvider = cline.apiConfiguration.apiProvider
 		const settings = await cline.providerRef.deref()?.getState()
 
-		// Map apiProvider to the format expected by getModelMaxOutputTokens
-		let format: "anthropic" | "openai" | "gemini" | "openrouter" | undefined
-		if (
-			apiProvider === "anthropic" ||
-			apiProvider === "bedrock" ||
-			apiProvider === "vertex" ||
-			apiProvider === "claude-code"
-		) {
-			format = "anthropic"
-		} else if (apiProvider === "openrouter") {
-			format = "openrouter"
-		} else if (apiProvider === "openai" || apiProvider === "openai-native") {
-			format = "openai"
-		} else if (apiProvider === "gemini" || apiProvider === "gemini-cli") {
-			format = "gemini"
-		}
+		// Use the centralized utility function to get the format
+		const format = getFormatForProvider(apiProvider)
 
 		const maxResponseTokens = getModelMaxOutputTokens({ modelId, model: modelInfo, settings, format })
 
@@ -73,90 +117,150 @@ export async function validateFileSizeForContext(
 		// Calculate available tokens for file content
 		const availableTokensForFile = usableRemainingContext - reservedForResponse
 
-		// Now read lines incrementally and count tokens until we reach the limit
-		const BATCH_SIZE = 100 // Read 100 lines at a time
-		let currentLine = 0
-		let totalTokensSoFar = 0
-		let safeMaxLines = 0
-
 		// Use 90% of available space to leave some margin
 		const targetTokenLimit = Math.floor(availableTokensForFile * 0.9)
 
-		while (currentLine < totalLines && totalTokensSoFar < targetTokenLimit) {
-			// Calculate the end line for this batch
-			const batchEndLine = Math.min(currentLine + BATCH_SIZE - 1, totalLines - 1)
+		// Constants for the 2-phase approach
+		const CHARS_PER_TOKEN_ESTIMATE = 3
+		const CUTBACK_PERCENTAGE = 0.2 // 20% reduction when over limit
+		const READ_BATCH_SIZE = 100 // Read 100 lines at a time for efficiency
+
+		// Phase 1: Read content up to estimated safe character limit
+		const estimatedSafeChars = targetTokenLimit * CHARS_PER_TOKEN_ESTIMATE
+
+		let accumulatedContent = ""
+		let currentLine = 0
+		let lineToCharMap: Map<number, number> = new Map() // Maps line number to character position
+
+		// Track the start position of each line for potential cutback
+		lineToCharMap.set(0, 0)
+
+		// Read until we hit our estimated character limit or EOF
+		while (currentLine < totalLines && accumulatedContent.length < estimatedSafeChars) {
+			const batchEndLine = Math.min(currentLine + READ_BATCH_SIZE - 1, totalLines - 1)
 
 			try {
-				// Read the next batch of lines
 				const batchContent = await readLines(filePath, batchEndLine, currentLine)
 
-				// Count tokens for this batch
-				const batchTokens = await cline.api.countTokens([{ type: "text", text: batchContent }])
-
-				// Check if adding this batch would exceed our limit
-				if (totalTokensSoFar + batchTokens > targetTokenLimit) {
-					// This batch would exceed the limit
-					// Try to find a more precise cutoff within this batch
-					if (batchEndLine - currentLine > 10) {
-						// Read smaller chunks to find a more precise cutoff
-						const FINE_BATCH_SIZE = 10
-						let fineLine = currentLine
-
-						while (fineLine <= batchEndLine && totalTokensSoFar < targetTokenLimit) {
-							const fineEndLine = Math.min(fineLine + FINE_BATCH_SIZE - 1, batchEndLine)
-							const fineContent = await readLines(filePath, fineEndLine, fineLine)
-							const fineTokens = await cline.api.countTokens([{ type: "text", text: fineContent }])
-
-							if (totalTokensSoFar + fineTokens > targetTokenLimit) {
-								// Even this fine batch exceeds the limit
-								break
-							}
-
-							totalTokensSoFar += fineTokens
-							safeMaxLines = fineEndLine + 1 // Convert to 1-based line count
-							fineLine = fineEndLine + 1
-						}
+				// Track line positions within the accumulated content
+				let localPos = 0
+				for (let lineNum = currentLine; lineNum <= batchEndLine; lineNum++) {
+					const nextNewline = batchContent.indexOf("\n", localPos)
+					if (nextNewline !== -1) {
+						lineToCharMap.set(lineNum + 1, accumulatedContent.length + nextNewline + 1)
+						localPos = nextNewline + 1
 					}
-					// Stop processing more batches
-					break
 				}
 
-				// Add this batch's tokens to our total
-				totalTokensSoFar += batchTokens
-				safeMaxLines = batchEndLine + 1 // Convert to 1-based line count
+				accumulatedContent += batchContent
 				currentLine = batchEndLine + 1
 			} catch (error) {
-				// If we encounter an error reading a batch, stop here
+				console.warn(`[validateFileSizeForContext] Error reading batch: ${error}`)
 				break
 			}
 		}
 
+		// Phase 2: Validate with actual API and cutback if needed
+		let finalContent = accumulatedContent
+		let finalLineCount = currentLine
+		let apiCallCount = 0
+		const maxApiCalls = 5 // Safety limit to prevent infinite loops
+
+		while (apiCallCount < maxApiCalls) {
+			apiCallCount++
+
+			// Make the actual API call to count tokens
+			const actualTokens = await cline.api.countTokens([{ type: "text", text: finalContent }])
+
+			console.log(
+				`[validateFileSizeForContext] API call ${apiCallCount}: ${actualTokens} tokens for ${finalContent.length} chars (${finalLineCount} lines)`,
+			)
+
+			if (actualTokens <= targetTokenLimit) {
+				// We're under the limit, we're done!
+				break
+			}
+
+			// We're over the limit - cut back by 20%
+			const targetLength = Math.floor(finalContent.length * (1 - CUTBACK_PERCENTAGE))
+
+			// Find the line that gets us closest to the target length
+			let cutoffLine = 0
+			for (const [lineNum, charPos] of lineToCharMap.entries()) {
+				if (charPos > targetLength) {
+					break
+				}
+				cutoffLine = lineNum
+			}
+
+			// Ensure we don't cut back too far
+			if (cutoffLine < 10) {
+				console.warn(
+					`[validateFileSizeForContext] Cutback resulted in too few lines (${cutoffLine}), using minimum`,
+				)
+				cutoffLine = Math.min(50, totalLines)
+			}
+
+			// Get the character position for the cutoff line
+			const cutoffCharPos = lineToCharMap.get(cutoffLine) || 0
+			finalContent = accumulatedContent.substring(0, cutoffCharPos)
+			finalLineCount = cutoffLine
+
+			// Safety check
+			if (finalContent.length === 0) {
+				return {
+					shouldLimit: true,
+					safeMaxLines: 10,
+					reason: `File too large for available context. Even minimal content exceeds token limit.`,
+				}
+			}
+		}
+
+		// Log final statistics
+		console.log(
+			`[validateFileSizeForContext] Final: ${finalLineCount} lines, ${finalContent.length} chars, ${apiCallCount} API calls`,
+		)
+
 		// Ensure we provide at least a minimum useful amount
 		const minUsefulLines = 50
-		const finalSafeMaxLines = Math.max(minUsefulLines, safeMaxLines)
+		const finalSafeMaxLines = Math.max(minUsefulLines, finalLineCount)
 
 		// If we read the entire file without exceeding the limit, no limitation needed
-		if (safeMaxLines >= totalLines) {
+		if (finalLineCount >= totalLines) {
 			return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
 		}
 
 		// If we couldn't read even the minimum useful lines
-		if (safeMaxLines < minUsefulLines) {
+		if (finalLineCount < minUsefulLines) {
 			return {
 				shouldLimit: true,
 				safeMaxLines: finalSafeMaxLines,
-				reason: `Very limited context space. Could only safely read ${safeMaxLines} lines before exceeding token limit. Context: ${currentlyUsed}/${contextWindow} tokens used (${Math.round((currentlyUsed / contextWindow) * 100)}%). Limited to ${finalSafeMaxLines} lines. Consider using search_files or line_range for specific sections.`,
+				reason: `Very limited context space. Could only safely read ${finalLineCount} lines before exceeding token limit. Context: ${currentlyUsed}/${contextWindow} tokens used (${Math.round((currentlyUsed / contextWindow) * 100)}%). Limited to ${finalSafeMaxLines} lines. Consider using search_files or line_range for specific sections.`,
 			}
 		}
 
 		return {
 			shouldLimit: true,
 			safeMaxLines: finalSafeMaxLines,
-			reason: `File exceeds available context space. Safely read ${finalSafeMaxLines} lines (${totalTokensSoFar} tokens) out of ${totalLines} total lines. Context usage: ${currentlyUsed}/${contextWindow} tokens (${Math.round((currentlyUsed / contextWindow) * 100)}%). Use line_range to read specific sections.`,
+			reason: `File exceeds available context space. Safely read ${finalSafeMaxLines} lines out of ${totalLines} total lines. Context usage: ${currentlyUsed}/${contextWindow} tokens (${Math.round((currentlyUsed / contextWindow) * 100)}%). Use line_range to read specific sections.`,
 		}
 	} catch (error) {
 		// If we can't get runtime state, fall back to conservative estimation
 		console.warn(`[validateFileSizeForContext] Error accessing runtime state: ${error}`)
+
+		// In error cases, we can't check context state, so use simple file size heuristics
+		try {
+			const stats = await fs.stat(filePath)
+			const fileSizeBytes = stats.size
+
+			// Very small files are safe
+			if (fileSizeBytes < 5 * 1024) {
+				return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
+			}
+		} catch (statError) {
+			// If we can't even stat the file, proceed with conservative defaults
+			console.warn(`[validateFileSizeForContext] Could not stat file: ${statError}`)
+		}
 
 		if (totalLines > 10000) {
 			return {

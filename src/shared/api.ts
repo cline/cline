@@ -1,9 +1,81 @@
 import {
 	type ModelInfo,
 	type ProviderSettings,
+	type ProviderName,
 	ANTHROPIC_DEFAULT_MAX_TOKENS,
 	CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS,
 } from "@roo-code/types"
+
+// Provider Format Mapping
+
+/**
+ * Maps API provider names to their corresponding format for model parameter handling.
+ * This centralizes the provider-to-format mapping logic used across the codebase.
+ *
+ * @param apiProvider - The API provider name
+ * @returns The format string used by getModelParams and getModelMaxOutputTokens, or undefined if not mapped
+ */
+export function getFormatForProvider(
+	apiProvider: ProviderName | undefined,
+): "anthropic" | "openai" | "gemini" | "openrouter" | undefined {
+	if (!apiProvider) {
+		return undefined
+	}
+
+	switch (apiProvider) {
+		// Anthropic-based providers
+		case "anthropic":
+		case "bedrock":
+		case "vertex": // Note: vertex can use either anthropic or gemini format depending on the model
+		case "claude-code":
+		case "requesty": // Uses anthropic format based on code analysis
+			return "anthropic"
+
+		// OpenAI-based providers
+		case "openai":
+		case "openai-native":
+		case "deepseek":
+		case "moonshot":
+		case "xai":
+		case "groq":
+		case "chutes":
+		case "mistral":
+		case "ollama":
+		case "lmstudio":
+		case "litellm":
+		case "huggingface":
+		case "glama":
+		case "unbound":
+		case "vscode-lm":
+		case "human-relay":
+		case "fake-ai":
+			return "openai"
+
+		// Gemini-based providers
+		case "gemini":
+		case "gemini-cli":
+			return "gemini"
+
+		// OpenRouter
+		case "openrouter":
+			return "openrouter"
+
+		// Providers that don't have a specific format mapping
+		default:
+			return undefined
+	}
+}
+
+/**
+ * Special case: Vertex provider can use either anthropic or gemini format depending on the model.
+ * This function checks if a vertex model should use anthropic format.
+ *
+ * @param modelId - The model ID to check
+ * @returns true if the model should use anthropic format
+ */
+export function isVertexAnthropicModel(modelId?: string): boolean {
+	return modelId?.toLowerCase().includes("claude") ?? false
+}
 
 // ApiHandlerOptions
 
@@ -70,14 +142,17 @@ export const getModelMaxOutputTokens = ({
 		return settings.claudeCodeMaxOutputTokens || CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS
 	}
 
+	// If format is not provided, derive it from the provider settings
+	const effectiveFormat = format ?? getFormatForProvider(settings?.apiProvider)
+
 	if (shouldUseReasoningBudget({ model, settings })) {
 		return settings?.modelMaxTokens || DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS
 	}
 
 	const isAnthropicContext =
 		modelId.includes("claude") ||
-		format === "anthropic" ||
-		(format === "openrouter" && modelId.startsWith("anthropic/"))
+		effectiveFormat === "anthropic" ||
+		(effectiveFormat === "openrouter" && modelId.startsWith("anthropic/"))
 
 	// For "Hybrid" reasoning models, discard the model's actual maxTokens for Anthropic contexts
 	if (model.supportsReasoningBudget && isAnthropicContext) {
@@ -95,7 +170,7 @@ export const getModelMaxOutputTokens = ({
 	}
 
 	// For non-Anthropic formats without explicit maxTokens, return undefined
-	if (format) {
+	if (effectiveFormat) {
 		return undefined
 	}
 
