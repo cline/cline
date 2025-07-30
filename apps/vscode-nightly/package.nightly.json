@@ -2,5 +2,6 @@
 	"name": "roo-code-nightly",
 	"version": "0.0.1",
 	"icon": "assets/icons/icon-nightly.png",
-	"scripts": {}
+	"scripts": {},
+	"contributes": {}
 }
