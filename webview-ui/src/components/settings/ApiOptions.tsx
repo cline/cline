@@ -448,7 +448,11 @@ const ApiOptions = ({
 			)}
 
 			{selectedProvider === "gemini" && (
-				<Gemini apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+				<Gemini
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+					fromWelcomeView={fromWelcomeView}
+				/>
 			)}
 
 			{selectedProvider === "openai" && (
