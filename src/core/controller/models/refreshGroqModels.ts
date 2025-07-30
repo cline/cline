@@ -78,7 +78,7 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 						inputPrice: staticModelInfo?.inputPrice || 0,
 						outputPrice: staticModelInfo?.outputPrice || 0,
 						cacheWritesPrice: (staticModelInfo as any)?.cacheWritesPrice || 0,
-						cacheReadsPrice: (staticModelInfo as any).cacheReadsPrice || 0,
+						cacheReadsPrice: (staticModelInfo as any)?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 					}
 

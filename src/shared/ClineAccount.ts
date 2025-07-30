@@ -43,10 +43,24 @@ export interface UsageTransaction {
 }
 
 export interface PaymentTransaction {
-	paidAt: string
-	creatorId: string
+	id: string
+	transactionId: string
+	userId: string
 	amountCents: number
 	credits: number
+	type: string
+	status: string
+	providerReference: string
+	metadata: {
+		customer_id: string
+		event_id: string
+		payment_id: string
+		provider: string
+		subscription_id: string
+	}
+	createdAt: string
+	updatedAt: string
+	completedAt: string
 }
 
 export interface OrganizationBalanceResponse {

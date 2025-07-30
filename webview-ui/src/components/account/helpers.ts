@@ -1,5 +1,11 @@
-import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
-import type { UsageTransaction as ProtoUsageTransaction } from "@shared/proto/cline/account"
+import type {
+	PaymentTransaction as ClineAccountPaymentTransaction,
+	UsageTransaction as ClineAccountUsageTransaction,
+} from "@shared/ClineAccount"
+import type {
+	PaymentTransaction as ProtoPaymentTransaction,
+	UsageTransaction as ProtoUsageTransaction,
+} from "@shared/proto/cline/account"
 
 export const getMainRole = (roles?: string[]) => {
 	if (!roles) return undefined
@@ -44,4 +50,39 @@ export function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransac
  */
 export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTransaction[]): ClineAccountUsageTransaction[] {
 	return protoTransactions.map(convertProtoUsageTransaction)
+}
+
+/**
+ * Converts a protobuf PaymentTransaction to a ClineAccount PaymentTransaction
+ * This is a temporary workaround for the fact that the protobuf definition is out of sync with the API response.
+ */
+export function convertProtoPaymentTransaction(protoTransaction: ProtoPaymentTransaction): ClineAccountPaymentTransaction {
+	try {
+		const unpackedData = JSON.parse(protoTransaction.paidAt)
+		return unpackedData as ClineAccountPaymentTransaction
+	} catch (error) {
+		console.error("Failed to parse packed payment transaction:", error)
+		// Return a default/empty object that won't crash the UI
+		return {
+			id: "",
+			transactionId: "",
+			userId: "",
+			amountCents: 0,
+			credits: 0,
+			type: "",
+			status: "",
+			providerReference: "",
+			metadata: {},
+			createdAt: "",
+			updatedAt: "",
+			completedAt: "",
+		} as unknown as ClineAccountPaymentTransaction
+	}
+}
+
+/**
+ * Converts an array of protobuf PaymentTransactions to ClineAccount PaymentTransactions
+ */
+export function convertProtoPaymentTransactions(protoTransactions: ProtoPaymentTransaction[]): ClineAccountPaymentTransaction[] {
+	return protoTransactions.map(convertProtoPaymentTransaction)
 }

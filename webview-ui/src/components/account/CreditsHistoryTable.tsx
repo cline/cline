@@ -1,4 +1,4 @@
-import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
+import type { PaymentTransaction as ClinePaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
 import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { formatDollars, formatTimestamp } from "@/utils/format"
@@ -7,7 +7,7 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 interface CreditsHistoryTableProps {
 	isLoading: boolean
 	usageData: UsageTransaction[]
-	paymentsData: PaymentTransaction[]
+	paymentsData: ClinePaymentTransaction[]
 	showPayments?: boolean
 }
 
@@ -93,7 +93,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 										{paymentsData.map((row, index) => (
 											<VSCodeDataGridRow key={index}>
 												<VSCodeDataGridCell grid-column="1">
-													{formatTimestamp(row.paidAt)}
+													{formatTimestamp(row.completedAt)}
 												</VSCodeDataGridCell>
 												<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
 												<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>

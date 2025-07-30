@@ -11,7 +11,7 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { AccountWelcomeView } from "./AccountWelcomeView"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
+import { convertProtoPaymentTransactions, convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
 
 type AccountViewProps = {
 	clineUser: ClineUser | null
@@ -112,7 +112,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 			setBalance(newBalance ?? null)
 			const newUsage = convertProtoUsageTransactions(response.usageTransactions)
 			setUsageData((prev) => (deepEqual(newUsage, prev) ? prev : newUsage))
-			const newPaymentsData = response.paymentTransactions
+			const newPaymentsData = convertProtoPaymentTransactions(response.paymentTransactions)
 			setPaymentsData((prev) => (deepEqual(newPaymentsData, prev) ? prev : newPaymentsData))
 		} catch (error) {
 			console.error("Failed to fetch user credit:", error)

@@ -1,7 +1,6 @@
 import { useEffect } from "react"
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { ChatState } from "../types/chatTypes"
-import { useDeepCompareEffect } from "react-use"
 
 /**
  * Custom hook for managing button state based on messages
@@ -19,7 +18,7 @@ export function useButtonState(messages: ClineMessage[], chatState: ChatState) {
 	} = chatState
 
 	// Update button state based on last message
-	useDeepCompareEffect(() => {
+	useEffect(() => {
 		if (lastMessage) {
 			switch (lastMessage.type) {
 				case "ask":
@@ -146,7 +145,20 @@ export function useButtonState(messages: ClineMessage[], chatState: ChatState) {
 					break
 			}
 		}
-	}, [lastMessage, secondLastMessage])
+	}, [
+		lastMessage?.type,
+		lastMessage?.partial,
+		lastMessage?.ask,
+		lastMessage?.text,
+		lastMessage?.say,
+		secondLastMessage?.ask,
+		setSendingDisabled,
+		setEnableButtons,
+		setPrimaryButtonText,
+		setSecondaryButtonText,
+		setDidClickCancel,
+		chatState,
+	])
 
 	// Reset button state when no messages
 	useEffect(() => {

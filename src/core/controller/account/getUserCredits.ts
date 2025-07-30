@@ -26,10 +26,19 @@ export async function getUserCredits(controller: Controller, request: EmptyReque
 			throw new Error("Failed to fetch user credits data")
 		}
 
+		const packedPaymentTransactions = (paymentTransactions || []).map((tx) => {
+			return {
+				paidAt: JSON.stringify(tx),
+				creatorId: tx.id,
+				amountCents: tx.amountCents,
+				credits: tx.credits,
+			}
+		})
+
 		return UserCreditsData.create({
 			balance: balance ? { currentBalance: balance.balance / 100 } : { currentBalance: 0 },
 			usageTransactions: usageTransactions,
-			paymentTransactions: paymentTransactions,
+			paymentTransactions: packedPaymentTransactions,
 		})
 	} catch (error) {
 		console.error(`Failed to fetch user credits data: ${error}`)
