@@ -1,8 +1,9 @@
 // npx vitest run src/api/transform/__tests__/vscode-lm-format.spec.ts
 
 import { Anthropic } from "@anthropic-ai/sdk"
+import * as vscode from "vscode"
 
-import { convertToVsCodeLmMessages, convertToAnthropicRole } from "../vscode-lm-format"
+import { convertToVsCodeLmMessages, convertToAnthropicRole, extractTextCountFromMessage } from "../vscode-lm-format"
 
 // Mock crypto using Vitest
 vitest.stubGlobal("crypto", {
@@ -24,8 +25,8 @@ interface MockLanguageModelToolCallPart {
 
 interface MockLanguageModelToolResultPart {
 	type: "tool_result"
-	toolUseId: string
-	parts: MockLanguageModelTextPart[]
+	callId: string
+	content: MockLanguageModelTextPart[]
 }
 
 // Mock vscode namespace
@@ -52,8 +53,8 @@ vitest.mock("vscode", () => {
 	class MockLanguageModelToolResultPart {
 		type = "tool_result"
 		constructor(
-			public toolUseId: string,
-			public parts: MockLanguageModelTextPart[],
+			public callId: string,
+			public content: MockLanguageModelTextPart[],
 		) {}
 	}
 
@@ -187,5 +188,159 @@ describe("convertToAnthropicRole", () => {
 	it("should return null for unknown roles", () => {
 		const result = convertToAnthropicRole("unknown" as any)
 		expect(result).toBeNull()
+	})
+})
+
+describe("extractTextCountFromMessage", () => {
+	it("should extract text from simple string content", () => {
+		const message = {
+			role: "user",
+			content: "Hello world",
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("Hello world")
+	})
+
+	it("should extract text from LanguageModelTextPart", () => {
+		const mockTextPart = new (vitest.mocked(vscode).LanguageModelTextPart)("Text content")
+		const message = {
+			role: "user",
+			content: [mockTextPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("Text content")
+	})
+
+	it("should extract text from multiple LanguageModelTextParts", () => {
+		const mockTextPart1 = new (vitest.mocked(vscode).LanguageModelTextPart)("First part")
+		const mockTextPart2 = new (vitest.mocked(vscode).LanguageModelTextPart)("Second part")
+		const message = {
+			role: "user",
+			content: [mockTextPart1, mockTextPart2],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("First partSecond part")
+	})
+
+	it("should extract text from LanguageModelToolResultPart", () => {
+		const mockTextPart = new (vitest.mocked(vscode).LanguageModelTextPart)("Tool result content")
+		const mockToolResultPart = new (vitest.mocked(vscode).LanguageModelToolResultPart)("tool-result-id", [
+			mockTextPart,
+		])
+		const message = {
+			role: "user",
+			content: [mockToolResultPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("tool-result-idTool result content")
+	})
+
+	it("should extract text from LanguageModelToolCallPart without input", () => {
+		const mockToolCallPart = new (vitest.mocked(vscode).LanguageModelToolCallPart)("call-id", "tool-name", {})
+		const message = {
+			role: "assistant",
+			content: [mockToolCallPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("tool-namecall-id")
+	})
+
+	it("should extract text from LanguageModelToolCallPart with input", () => {
+		const mockInput = { operation: "add", numbers: [1, 2, 3] }
+		const mockToolCallPart = new (vitest.mocked(vscode).LanguageModelToolCallPart)(
+			"call-id",
+			"calculator",
+			mockInput,
+		)
+		const message = {
+			role: "assistant",
+			content: [mockToolCallPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe(`calculatorcall-id${JSON.stringify(mockInput)}`)
+	})
+
+	it("should extract text from LanguageModelToolCallPart with empty input", () => {
+		const mockToolCallPart = new (vitest.mocked(vscode).LanguageModelToolCallPart)("call-id", "tool-name", {})
+		const message = {
+			role: "assistant",
+			content: [mockToolCallPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("tool-namecall-id")
+	})
+
+	it("should extract text from mixed content types", () => {
+		const mockTextPart = new (vitest.mocked(vscode).LanguageModelTextPart)("Text content")
+		const mockToolResultTextPart = new (vitest.mocked(vscode).LanguageModelTextPart)("Tool result")
+		const mockToolResultPart = new (vitest.mocked(vscode).LanguageModelToolResultPart)("result-id", [
+			mockToolResultTextPart,
+		])
+		const mockInput = { param: "value" }
+		const mockToolCallPart = new (vitest.mocked(vscode).LanguageModelToolCallPart)("call-id", "tool", mockInput)
+
+		const message = {
+			role: "assistant",
+			content: [mockTextPart, mockToolResultPart, mockToolCallPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe(`Text contentresult-idTool resulttoolcall-id${JSON.stringify(mockInput)}`)
+	})
+
+	it("should handle empty array content", () => {
+		const message = {
+			role: "user",
+			content: [],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("")
+	})
+
+	it("should handle undefined content", () => {
+		const message = {
+			role: "user",
+			content: undefined,
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("")
+	})
+
+	it("should handle ToolResultPart with multiple text parts", () => {
+		const mockTextPart1 = new (vitest.mocked(vscode).LanguageModelTextPart)("Part 1")
+		const mockTextPart2 = new (vitest.mocked(vscode).LanguageModelTextPart)("Part 2")
+		const mockToolResultPart = new (vitest.mocked(vscode).LanguageModelToolResultPart)("result-id", [
+			mockTextPart1,
+			mockTextPart2,
+		])
+
+		const message = {
+			role: "user",
+			content: [mockToolResultPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("result-idPart 1Part 2")
+	})
+
+	it("should handle ToolResultPart with empty parts array", () => {
+		const mockToolResultPart = new (vitest.mocked(vscode).LanguageModelToolResultPart)("result-id", [])
+
+		const message = {
+			role: "user",
+			content: [mockToolResultPart],
+		} as any
+
+		const result = extractTextCountFromMessage(message)
+		expect(result).toBe("result-id")
 	})
 })
