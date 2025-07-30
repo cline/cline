@@ -224,6 +224,7 @@ class TelemetryService {
 		this.client.identify({
 			distinctId: userInfo.email,
 			properties: {
+				id: userInfo.id,
 				email: userInfo.email,
 				name: userInfo.displayName,
 				...this.addProperties({}),
