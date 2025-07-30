@@ -1,7 +1,7 @@
 import { Controller } from ".."
-import { Boolean } from "../../../shared/proto/common"
-import { TogglePlanActModeRequest, PlanActMode } from "../../../shared/proto/state"
-import { Mode } from "../../../shared/storage/types"
+import { Boolean } from "@shared/proto/cline/common"
+import { TogglePlanActModeRequest, PlanActMode } from "@shared/proto/cline/state"
+import { Mode } from "@shared/storage/types"
 
 /**
  * Toggles between Plan and Act modes
