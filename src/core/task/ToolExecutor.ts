@@ -56,6 +56,9 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { ChatSettings } from "@/shared/ChatSettings"
 
+import { summarizeTask } from "../prompts/contextManagement"
+import { getContextWindowInfo } from "../context/context-management/context-window-utils"
+
 export class ToolExecutor {
 	private autoApprover: AutoApprove
 
@@ -125,6 +128,7 @@ export class ToolExecutor {
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
 		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 
+		// 1. ADD NORMAL TOOL RESULT (existing logic)
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
@@ -148,6 +152,22 @@ export class ToolExecutor {
 		} else {
 			this.taskState.userMessageContent.push(...content)
 		}
+
+		// 2. CHECK IF WE NEED SUMMARIZATION
+		const { totalTokens, maxAllowedSize, contextWindow, shouldSummarize } = this.contextManager.shouldTriggerSummarization(
+			this.messageStateHandler.getApiConversationHistory(),
+			this.messageStateHandler.getClineMessages(),
+			this.api,
+		)
+
+		if (shouldSummarize) {
+			// 3. ADD SUMMARIZATION PROMPT AS SEPARATE MESSAGE
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: summarizeTask(totalTokens, maxAllowedSize, contextWindow),
+			})
+		}
+
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		this.taskState.didAlreadyUseTool = true
 	}

@@ -8,6 +8,7 @@ import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { findLastIndex } from "@shared/array"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -847,5 +848,53 @@ export class ContextManager {
 		const percentCharactersSaved = totalCharacters === 0 ? 0 : totalCharactersSaved / totalCharacters
 
 		return percentCharactersSaved
+	}
+
+	/**
+	 * Check if conversation should trigger automatic summarization based on token usage
+	 */
+	public shouldTriggerSummarization(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
+	): {
+		totalTokens: number
+		maxAllowedSize: number
+		contextWindow: number
+		shouldSummarize: boolean
+	} {
+		let totalTokens = 0
+		let maxAllowedSize = 0
+		let contextWindow = 0
+		let shouldSummarize = false
+
+		const lastApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+
+		if (lastApiReqIndex >= 0) {
+			const previousRequest = clineMessages[lastApiReqIndex]
+			if (previousRequest?.text) {
+				try {
+					const apiReqInfo: ClineApiReqInfo = JSON.parse(previousRequest.text)
+					const { tokensIn = 0, tokensOut = 0, cacheWrites = 0, cacheReads = 0 } = apiReqInfo
+
+					totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
+
+					const info = getContextWindowInfo(api)
+					maxAllowedSize = info.maxAllowedSize
+					contextWindow = info.contextWindow
+
+					shouldSummarize = totalTokens >= maxAllowedSize
+				} catch (error) {
+					console.error("Error parsing API request info for summarization threshold check:", error)
+				}
+			}
+		}
+
+		return {
+			totalTokens,
+			maxAllowedSize,
+			contextWindow,
+			shouldSummarize,
+		}
 	}
 }
