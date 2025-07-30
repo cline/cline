@@ -575,9 +575,7 @@ export async function resetWorkspaceState(controller: Controller) {
 	const context = controller.context
 	await Promise.all(context.workspaceState.keys().map((key) => controller.context.workspaceState.update(key, undefined)))
 
-	controller.cacheService.dispose()
-
-	await controller.cacheService.initialize()
+	await controller.cacheService.reInitialize()
 }
 
 export async function resetGlobalState(controller: Controller) {
@@ -615,6 +613,5 @@ export async function resetGlobalState(controller: Controller) {
 		"huaweiCloudMaasApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => storeSecret(context, key, undefined)))
-	controller.cacheService.dispose()
-	await controller.cacheService.initialize()
+	await controller.cacheService.reInitialize()
 }

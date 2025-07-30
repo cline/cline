@@ -72,7 +72,7 @@ export class Controller {
 		this.cacheService = cacheService
 
 		// Set up persistence error recovery
-		this.cacheService.onPersistenceError(async ({ error }: PersistenceErrorEvent) => {
+		this.cacheService.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
 			console.error("Cache persistence failed, recovering:", error)
 			try {
 				await this.cacheService.reInitialize()
@@ -88,7 +88,7 @@ export class Controller {
 					message: "Failed to save settings. Please restart the extension.",
 				})
 			}
-		})
+		}
 
 		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(

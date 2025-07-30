@@ -1,8 +1,8 @@
-import * as vscode from "vscode"
 import { ApiConfiguration } from "@shared/api"
 import { updateGlobalState, updateWorkspaceState, getAllExtensionState, storeSecret } from "./state"
 import { SecretKey, GlobalStateKey, LocalStateKey } from "./state-keys"
 import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import type { ExtensionContext } from "vscode"
 
 /**
  * Interface for persistence error event data
@@ -19,7 +19,7 @@ export class CacheService {
 	private globalStateCache: Map<GlobalStateKey, any> = new Map()
 	private secretsCache: Map<SecretKey, string | undefined> = new Map()
 	private workspaceStateCache: Map<LocalStateKey, any> = new Map()
-	private context: vscode.ExtensionContext
+	private context: ExtensionContext
 	private isInitialized = false
 
 	// Debounced persistence state
@@ -29,11 +29,10 @@ export class CacheService {
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
 
-	// Event emitter for persistence errors
-	private _onPersistenceError = new vscode.EventEmitter<PersistenceErrorEvent>()
-	readonly onPersistenceError = this._onPersistenceError.event
+	// Callback for persistence errors
+	onPersistenceError?: (event: PersistenceErrorEvent) => void
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(context: ExtensionContext) {
 		this.context = context
 	}
 
@@ -459,7 +458,7 @@ export class CacheService {
 	/**
 	 * Dispose of the cache service
 	 */
-	dispose(): void {
+	private dispose(): void {
 		if (this.persistenceTimeout) {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
@@ -469,7 +468,9 @@ export class CacheService {
 		this.pendingSecrets.clear()
 		this.pendingWorkspaceState.clear()
 
-		this.clearCache()
+		this.globalStateCache.clear()
+		this.secretsCache.clear()
+		this.workspaceStateCache.clear()
 
 		this.isInitialized = false
 	}
@@ -501,19 +502,10 @@ export class CacheService {
 				console.error("Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
-				// Emit persistence error event for error recovery
-				this._onPersistenceError.fire({ error: error as Error })
+				// Call persistence error callback for error recovery
+				this.onPersistenceError?.({ error: error as Error })
 			}
 		}, this.PERSISTENCE_DELAY_MS)
-	}
-
-	/**
-	 * Clear all cached data (for testing or reset purposes)
-	 */
-	private clearCache(): void {
-		this.globalStateCache.clear()
-		this.secretsCache.clear()
-		this.workspaceStateCache.clear()
 	}
 
 	/**
