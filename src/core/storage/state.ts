@@ -572,25 +572,19 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 }
 
 export async function resetWorkspaceState(controller: Controller) {
-	controller.cacheService.dispose()
-
 	const context = controller.context
-	for (const key of context.workspaceState.keys()) {
-		controller.cacheService.setWorkspaceState(key as LocalStateKey, undefined)
-	}
+	await Promise.all(context.workspaceState.keys().map((key) => controller.context.workspaceState.update(key, undefined)))
+
+	controller.cacheService.dispose()
 
 	await controller.cacheService.initialize()
 }
 
 export async function resetGlobalState(controller: Controller) {
-	controller.cacheService.dispose()
-
 	// TODO: Reset all workspace states?
 	const context = controller.context
 
-	for (const key of context.globalState.keys()) {
-		await context.globalState.update(key, undefined)
-	}
+	await Promise.all(context.globalState.keys().map((key) => context.globalState.update(key, undefined)))
 	const secretKeys: SecretKey[] = [
 		"apiKey",
 		"openRouterApiKey",
@@ -620,9 +614,7 @@ export async function resetGlobalState(controller: Controller) {
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
 	]
-	for (const key of secretKeys) {
-		controller.cacheService.setSecret(key, undefined)
-	}
-
+	await Promise.all(secretKeys.map((key) => storeSecret(context, key, undefined)))
+	controller.cacheService.dispose()
 	await controller.cacheService.initialize()
 }
