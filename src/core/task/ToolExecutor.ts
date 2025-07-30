@@ -2196,7 +2196,7 @@ export class ToolExecutor {
 							// if we didn't switch to ACT MODE, then we can just send the user_feedback message
 							this.pushToolResult(
 								formatResponse.toolResult(
-									`The user provided feedback on your plan but has not switched to ACT MODE yet. Consider their feedback and continue refining the plan, answer any questions they have, or provide additional clarification. Do not repeatedly ask them to switch to ACT MODE unless they explicitly request implementation or indicate they are ready to proceed.\n\n<user_message>\n${text}\n</user_message>`,
+									`The user replied with the following message but has not toggled to ACT MODE:\n<user_message>\n${text}\n</user_message>`,
 									images,
 									fileContentString,
 								),
