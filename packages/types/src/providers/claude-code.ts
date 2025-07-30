@@ -22,7 +22,7 @@ export function convertModelNameForVertex(modelName: string): string {
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
 export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
-export const CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS = 8000
+export const CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS = 16000
 
 /**
  * Gets the appropriate model ID based on whether Vertex AI is being used.
