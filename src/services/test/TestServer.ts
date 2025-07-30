@@ -18,7 +18,7 @@ import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
-import { AskResponseRequest } from "@/shared/proto/task"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
 
 /**
@@ -274,17 +274,18 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
 
 						// Update global state to use cline provider
-						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
+						await updateGlobalState(visibleWebview.controller.context, "planModeApiProvider", "cline")
+						await updateGlobalState(visibleWebview.controller.context, "actModeApiProvider", "cline")
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()
 					}
 
 					// Ensure we're in Act mode before initiating the task
-					const { chatSettings } = await visibleWebview.controller.getStateToPostToWebview()
-					if (chatSettings.mode === "plan") {
+					const { mode } = await visibleWebview.controller.getStateToPostToWebview()
+					if (mode === "plan") {
 						// Switch to Act mode if currently in Plan mode
-						await visibleWebview.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+						await visibleWebview.controller.togglePlanActMode("act")
 					}
 
 					// Initialize tool call tracker
@@ -611,7 +612,7 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 				try {
 					if (webviewProvider.controller) {
 						Logger.log("Auto-toggling to Act mode from Plan mode")
-						await webviewProvider.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+						await webviewProvider.controller.togglePlanActMode("act")
 					}
 				} catch (error) {
 					Logger.log(`Error toggling to Act mode: ${error}`)

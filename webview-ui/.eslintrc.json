@@ -23,11 +23,8 @@
 		"@typescript-eslint/no-explicit-any": "off",
 		"@typescript-eslint/no-empty-object-type": "off",
 		"no-case-declarations": "off",
-		"react-hooks/exhaustive-deps": "off",
 		"prefer-const": "off",
 		"no-extra-semi": "off",
-		"eslint-rules/no-protobuf-object-literals": "error",
-		"eslint-rules/no-grpc-client-object-literals": "error",
 		"eslint-rules/no-direct-vscode-api": "warn",
 		"no-restricted-syntax": [
 			"error",

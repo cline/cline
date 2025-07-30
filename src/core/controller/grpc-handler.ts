@@ -1,11 +1,15 @@
 import { Controller } from "./index"
-import { serviceHandlers } from "./grpc-service-config"
+import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 
 /**
  * Type definition for a streaming response handler
  */
-export type StreamingResponseHandler = (response: any, isLast?: boolean, sequenceNumber?: number) => Promise<void>
+export type StreamingResponseHandler<TResponse> = (
+	response: TResponse,
+	isLast?: boolean,
+	sequenceNumber?: number,
+) => Promise<void>
 
 /**
  * Handles gRPC requests from the webview
@@ -41,17 +45,15 @@ export class GrpcHandler {
 			}
 
 			// Get the service handler from the config
-			const serviceConfig = serviceHandlers[service]
-			if (!serviceConfig) {
-				throw new Error(`Unknown service: ${service}`)
-			}
+			const handler = getHandler(service, method)
 
 			// Handle unary request
 			return {
-				message: await serviceConfig.requestHandler(this.controller, method, message),
+				message: await handler(this.controller, message),
 				request_id: requestId,
 			}
 		} catch (error) {
+			console.log("Protobus error:", error)
 			return {
 				error: error instanceof Error ? error.message : String(error),
 				request_id: requestId,
@@ -68,7 +70,7 @@ export class GrpcHandler {
 	 */
 	private async handleStreamingRequest(service: string, method: string, message: any, requestId: string): Promise<void> {
 		// Create a response stream function
-		const responseStream: StreamingResponseHandler = async (
+		const responseStream: StreamingResponseHandler<any> = async (
 			response: any,
 			isLast: boolean = false,
 			sequenceNumber?: number,
@@ -86,23 +88,16 @@ export class GrpcHandler {
 
 		try {
 			// Get the service handler from the config
-			const serviceConfig = serviceHandlers[service]
-			if (!serviceConfig) {
-				throw new Error(`Unknown service: ${service}`)
-			}
-
-			// Check if the service supports streaming
-			if (!serviceConfig.streamingHandler) {
-				throw new Error(`Service ${service} does not support streaming`)
-			}
+			const handler = getHandler(service, method)
 
 			// Handle streaming request and pass the requestId to all streaming handlers
-			await serviceConfig.streamingHandler(this.controller, method, message, responseStream, requestId)
+			await handler(this.controller, message, responseStream, requestId)
 
 			// Don't send a final message here - the stream should stay open for future updates
 			// The stream will be closed when the client disconnects or when the service explicitly ends it
 		} catch (error) {
 			// Send error response
+			console.log("Protobus error:", error)
 			await this.controller.postMessageToWebview({
 				type: "grpc_response",
 				grpc_response: {
@@ -167,6 +162,7 @@ export async function handleGrpcRequest(
 		})
 	} catch (error) {
 		// Send error response
+		console.log("Protobus error:", error)
 		await controller.postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -203,6 +199,19 @@ export async function handleGrpcRequestCancel(
 	} else {
 		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
+}
+
+function getHandler(serviceName: string, methodName: string): any {
+	// Get the service handler from the config
+	const serviceConfig = serviceHandlers[serviceName]
+	if (!serviceConfig) {
+		throw new Error(`Unknown service: ${serviceName}`)
+	}
+	const handler = serviceConfig[methodName]
+	if (!handler) {
+		throw new Error(`Unknown rpc: ${serviceName}.${methodName}`)
+	}
+	return handler
 }
 
 /**

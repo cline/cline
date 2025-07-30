@@ -1,10 +1,10 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { ClineMessage } from "@shared/proto/ui"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { ClineMessage } from "@shared/proto/cline/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active partial message subscriptions
-const activePartialMessageSubscriptions = new Set<StreamingResponseHandler>()
+const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()
 
 /**
  * Subscribe to partial message events
@@ -14,9 +14,9 @@ const activePartialMessageSubscriptions = new Set<StreamingResponseHandler>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToPartialMessage(
-	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<ClineMessage>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions

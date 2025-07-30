@@ -1,6 +1,5 @@
 import { Controller } from ".."
-import { Empty, StringRequest } from "@shared/proto/common"
-import { TaskMethodHandler } from "./index"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
 
 /**
  * Exports a task with the given ID to markdown
@@ -8,7 +7,7 @@ import { TaskMethodHandler } from "./index"
  * @param request The request containing the task ID in the value field
  * @returns Empty response
  */
-export const exportTaskWithId: TaskMethodHandler = async (controller: Controller, request: StringRequest): Promise<Empty> => {
+export async function exportTaskWithId(controller: Controller, request: StringRequest): Promise<Empty> {
 	try {
 		if (request.value) {
 			await controller.exportTaskWithId(request.value)

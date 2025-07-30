@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
 import sizeOf from "image-size"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType, ShowOpenDialogueRequest } from "@/shared/proto/host/window"
 
 /**
@@ -13,7 +13,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv"]
 
-	const showDialogueResponse = await getHostBridgeProvider().windowClient.showOpenDialogue(
+	const showDialogueResponse = await HostProvider.window.showOpenDialogue(
 		ShowOpenDialogueRequest.create({
 			canSelectMany: true,
 			openLabel: "Select",
@@ -44,24 +44,20 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				// Convert Node.js Buffer to Uint8Array
 				const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
 				const dimensions = sizeOf(uint8Array) // Get dimensions from Uint8Array
-				if (dimensions.width! > 7500 || dimensions.height! > 7500) {
+				if (dimensions.width! > 7680 || dimensions.height! > 7680) {
 					console.warn(`Image dimensions exceed 7500px, skipping: ${filePath}`)
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.ERROR,
-							message: `Image too large: ${path.basename(filePath)} was skipped (dimensions exceed 7500px).`,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Image too large: ${path.basename(filePath)} was skipped (dimensions exceed 7500px).`,
+					})
 					return null
 				}
 			} catch (error) {
 				console.error(`Error reading file or getting dimensions for ${filePath}:`, error)
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: `Could not read dimensions for ${path.basename(filePath)}, skipping.`,
-					}),
-				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Could not read dimensions for ${path.basename(filePath)}, skipping.`,
+				})
 				return null
 			}
 
@@ -76,22 +72,18 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				const stats = await fs.stat(filePath)
 				if (stats.size > 20 * 1000 * 1024) {
 					console.warn(`File too large, skipping: ${filePath}`)
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.ERROR,
-							message: `File too large: ${path.basename(filePath)} was skipped (size exceeds 20MB).`,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `File too large: ${path.basename(filePath)} was skipped (size exceeds 20MB).`,
+					})
 					return null
 				}
 			} catch (error) {
 				console.error(`Error checking file size for ${filePath}:`, error)
-				getHostBridgeProvider().windowClient.showMessage(
-					ShowMessageRequest.create({
-						type: ShowMessageType.ERROR,
-						message: `Could not check file size for ${path.basename(filePath)}, skipping.`,
-					}),
-				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Could not check file size for ${path.basename(filePath)}, skipping.`,
+				})
 				return null
 			}
 			return { type: "file", data: filePath }
@@ -115,7 +107,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 	return { images, files }
 }
 
-function getMimeType(filePath: string): string {
+export function getMimeType(filePath: string): string {
 	const ext = path.extname(filePath).toLowerCase()
 	switch (ext) {
 		case ".png":

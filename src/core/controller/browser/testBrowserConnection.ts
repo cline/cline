@@ -1,5 +1,5 @@
-import { BrowserConnection } from "@shared/proto/browser"
-import { StringRequest } from "@shared/proto/common"
+import { BrowserConnection } from "@shared/proto/cline/browser"
+import { StringRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
 import { getAllExtensionState } from "@core/storage/state"
 import { BrowserSession } from "@services/browser/BrowserSession"

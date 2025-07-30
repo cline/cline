@@ -10,6 +10,9 @@ import { withRetry } from "../retry"
 import { AuthService } from "@/services/auth/AuthService"
 import OpenAI from "openai"
 import { version as extensionVersion } from "../../../package.json"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -26,10 +29,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
 	private counter = 0
 
@@ -41,7 +41,7 @@ export class ClineHandler implements ApiHandler {
 	private async ensureClient(): Promise<OpenAI> {
 		const clineAccountAuthToken = await this._authService.getAuthToken()
 		if (!clineAccountAuthToken) {
-			throw new Error("Cline account authentication token is required")
+			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}
 		if (!this.client) {
 			try {
@@ -67,12 +67,6 @@ export class ClineHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			// Only continue the request if the user:
-			// 1. Has signed in to Cline with a token
-			// 2. Has more than 0 credits
-			// Or an error is thrown.
-			await this.clineAccountService.validateRequest()
-
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
@@ -127,7 +121,8 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				if ("reasoning" in delta && delta.reasoning) {
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
 						// @ts-ignore-next-line
@@ -181,13 +176,8 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			if (error.code === "ERR_BAD_REQUEST" || error.status === 401) {
-				throw new Error("Unauthorized: Please sign in to Cline before trying again.") // match with webview-ui/src/components/chat/ChatRow.tsx
-			} else if (error.code === "insufficient_credits" || error.status === 402) {
-				throw new Error(error.error ? JSON.stringify(error.error) : "Insufficient credits or unknown error.")
-			}
 			console.error("Cline API Error:", error)
-			throw error instanceof Error ? error : new Error(String(error))
+			throw error
 		}
 	}
 

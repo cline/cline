@@ -1,32 +1,32 @@
-import { useCallback, useEffect, useMemo } from "react"
-import { useMount } from "react-use"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { useCallback, useEffect, useMemo } from "react"
+import { useMount } from "react-use"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
-
+import { Navbar } from "../menu/Navbar"
 // Import utilities and hooks from the new structure
 import {
+	ActionButtons,
+	CHAT_CONSTANTS,
+	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
 	groupMessages,
-	CHAT_CONSTANTS,
-	useChatState,
-	useButtonState,
-	useScrollBehavior,
-	useMessageHandlers,
-	useIsStreaming,
-	ChatLayout,
-	WelcomeSection,
-	TaskSection,
-	MessagesArea,
-	ActionButtons,
 	InputSection,
+	MessagesArea,
+	TaskSection,
+	useButtonState,
+	useChatState,
+	useIsStreaming,
+	useMessageHandlers,
+	useScrollBehavior,
+	WelcomeSection,
 } from "./chat-view"
 
 interface ChatViewProps {
@@ -39,6 +39,8 @@ interface ChatViewProps {
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 
+const IS_STANDALONE = window?.__is_standalone__ ?? false
+
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
 		version,
@@ -47,6 +49,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		apiConfiguration,
 		telemetrySetting,
 		navigateToChat,
+		mode,
 	} = useExtensionState()
 	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -199,8 +202,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		messageHandlers
 
 	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, mode)
+	}, [apiConfiguration, mode])
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -320,6 +323,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
+			{IS_STANDALONE && <Navbar />}
 			{task ? (
 				<TaskSection
 					task={task}

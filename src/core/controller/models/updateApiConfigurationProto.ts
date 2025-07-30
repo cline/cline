@@ -1,6 +1,6 @@
 import type { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
+import { Empty } from "@shared/proto/cline/common"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "@api/index"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -29,7 +29,8 @@ export async function updateApiConfigurationProto(
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			controller.task.api = buildApiHandler(appApiConfiguration)
+			const currentMode = await controller.getCurrentMode()
+			controller.task.api = buildApiHandler({ ...appApiConfiguration, taskId: controller.task.taskId }, currentMode)
 		}
 
 		// Post updated state to webview

@@ -6,6 +6,13 @@ import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { withRetry } from "../retry"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+
+interface XAIHandlerOptions {
+	xaiApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
 
 interface XAIHandlerOptions {
 	xaiApiKey?: string
@@ -70,10 +77,13 @@ export class XAIHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					// @ts-ignore-next-line
-					reasoning: delta.reasoning_content,
+				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				if (!shouldSkipReasoningForModel(modelId)) {
+					yield {
+						type: "reasoning",
+						// @ts-ignore-next-line
+						reasoning: delta.reasoning_content,
+					}
 				}
 			}
 

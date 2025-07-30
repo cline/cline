@@ -4,8 +4,8 @@ import * as path from "path"
 import { Controller } from "@core/controller"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Registers development-only commands for task manipulation.
@@ -14,13 +14,15 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
-			const count = await vscode.window.showInputBox({
-				title: "Test Tasks",
-				prompt: "How many test tasks to create?",
-				value: "10",
-			})
+			const count = (
+				await HostProvider.window.showInputBox({
+					title: "Test Tasks",
+					prompt: "How many test tasks to create?",
+					value: "10",
+				})
+			).response
 
-			if (!count) {
+			if (count === undefined) {
 				return
 			}
 
@@ -99,12 +101,10 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					await controller.postStateToWebview()
 
 					const message = `Created ${tasksCount} test tasks`
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.INFORMATION,
-							message,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message,
+					})
 				},
 			)
 		}),

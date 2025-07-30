@@ -1,9 +1,10 @@
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
-import { OpenAIReasoningEffort } from "@shared/ChatSettings"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { updateSetting } from "../utils/settingsHandlers"
-import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
+import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
@@ -11,19 +12,11 @@ interface FeatureSettingsSectionProps {
 }
 
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
-	const { enableCheckpointsSetting, mcpMarketplaceEnabled, mcpRichDisplayEnabled, mcpResponsesCollapsed, chatSettings } =
+	const { enableCheckpointsSetting, mcpMarketplaceEnabled, mcpDisplayMode, mcpResponsesCollapsed, openaiReasoningEffort } =
 		useExtensionState()
 
-	const handleReasoningEffortChange = (newValue: OpenAIReasoningEffort) => {
-		if (!chatSettings) return
-
-		const updatedChatSettings = {
-			...chatSettings,
-			openAIReasoningEffort: newValue,
-		}
-
-		const protoChatSettings = convertChatSettingsToProtoChatSettings(updatedChatSettings)
-		updateSetting("chatSettings", protoChatSettings)
+	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
+		updateSetting("openaiReasoningEffort", newValue)
 	}
 
 	return (
@@ -59,16 +52,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpRichDisplayEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpRichDisplayEnabled", checked)
-							}}>
-							Enable Rich MCP Display
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enables rich formatting for MCP responses. When disabled, responses will be shown in plain text.
+						<label
+							htmlFor="mcp-display-mode-dropdown"
+							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+							MCP Display Mode
+						</label>
+						<McpDisplayModeDropdown
+							id="mcp-display-mode-dropdown"
+							value={mcpDisplayMode}
+							onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
+							className="w-full"
+						/>
+						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
+							rendering.
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -92,9 +89,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</label>
 						<VSCodeDropdown
 							id="openai-reasoning-effort-dropdown"
-							currentValue={chatSettings.openAIReasoningEffort || "medium"}
+							currentValue={openaiReasoningEffort || "medium"}
 							onChange={(e: any) => {
-								const newValue = e.target.currentValue as OpenAIReasoningEffort
+								const newValue = e.target.currentValue as OpenaiReasoningEffort
 								handleReasoningEffortChange(newValue)
 							}}
 							className="w-full">
