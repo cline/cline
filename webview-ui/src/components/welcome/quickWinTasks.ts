@@ -24,7 +24,7 @@ export const quickWinTasks: QuickWinTask[] = [
 		description: "Develop a powerful terminal CLI to automate a cool task",
 		icon: "TerminalIcon",
 		actionCommand: "cline/createCliTool",
-		prompt: "Make a terminal CLI tool using Node.js that fetches the current weather for a given city using a free weather API and displays it in a user-friendly format.",
+		prompt: "Make a terminal CLI tool using Node.js that organizes files in a directory by type, size, or date. It should have options to sort files into folders, show file statistics, find duplicates, and clean up empty directories. Include colorful output and progress indicators.",
 		buttonText: ">",
 	},
 	{
