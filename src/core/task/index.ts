@@ -2440,7 +2440,7 @@ export class Task {
 		details += "\n\n# VSCode Visible Files"
 		const visibleEditors = await getVisibleTextEditors()
 		const visibleFilePaths = visibleEditors
-			.map((editor) => editor.documentPath)
+			.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
