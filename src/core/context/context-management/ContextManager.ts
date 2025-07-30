@@ -129,50 +129,50 @@ export class ContextManager {
 				const { maxAllowedSize } = getContextWindowInfo(api)
 
 				// This is the most reliable way to know when we're close to hitting the context window.
-				if (totalTokens >= maxAllowedSize) {
-					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+				// if (totalTokens >= maxAllowedSize) {
+				// 	// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+				// 	// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+				// 	const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
-					// we later check how many chars we trim to determine if we should still truncate history
-					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
-						apiConversationHistory,
-						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
-						timestamp,
-					)
+				// 	// we later check how many chars we trim to determine if we should still truncate history
+				// 	let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+				// 		apiConversationHistory,
+				// 		conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+				// 		timestamp,
+				// 	)
 
-					let needToTruncate = true
-					if (anyContextUpdates) {
-						// determine whether we've saved enough chars to not truncate
-						const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							uniqueFileReadIndices,
-						)
-						if (charactersSavedPercentage >= 0.3) {
-							needToTruncate = false
-						}
-					}
+				// 	let needToTruncate = true
+				// 	if (anyContextUpdates) {
+				// 		// determine whether we've saved enough chars to not truncate
+				// 		const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
+				// 			apiConversationHistory,
+				// 			conversationHistoryDeletedRange,
+				// 			uniqueFileReadIndices,
+				// 		)
+				// 		if (charactersSavedPercentage >= 0.3) {
+				// 			needToTruncate = false
+				// 		}
+				// 	}
 
-					if (needToTruncate) {
-						// go ahead with truncation
-						anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
+				// 	if (needToTruncate) {
+				// 		// go ahead with truncation
+				// 		anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
 
-						// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-						conversationHistoryDeletedRange = this.getNextTruncationRange(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							keep,
-						)
+				// 		// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+				// 		conversationHistoryDeletedRange = this.getNextTruncationRange(
+				// 			apiConversationHistory,
+				// 			conversationHistoryDeletedRange,
+				// 			keep,
+				// 		)
 
-						updatedConversationHistoryDeletedRange = true
-					}
+				// 		updatedConversationHistoryDeletedRange = true
+				// 	}
 
-					// if we alter the context history, save the updated version to disk
-					if (anyContextUpdates) {
-						await this.saveContextHistory(taskDirectory)
-					}
-				}
+				// 	// if we alter the context history, save the updated version to disk
+				// 	if (anyContextUpdates) {
+				// 		await this.saveContextHistory(taskDirectory)
+				// 	}
+				// }
 			}
 		}
 

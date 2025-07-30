@@ -1824,10 +1824,7 @@ export class ToolExecutor {
 						await this.say("tool", completeMessage, undefined, undefined, false)
 
 						// Auto-execute conversation replacement (no user approval needed)
-						this.pushToolResult(
-							formatResponse.toolResult("Conversation context optimized through AI summarization."),
-							block,
-						)
+						this.pushToolResult(formatResponse.toolResult(continuationPrompt(context)), block)
 
 						// Replace conversation history (same logic as condense when approved)
 						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
@@ -1846,9 +1843,6 @@ export class ToolExecutor {
 							Date.now(),
 							await ensureTaskDirectoryExists(this.context, this.taskId),
 						)
-
-						// Add continuation prompt to help AI continue from where it left off
-						this.pushToolResult(continuationPrompt(context), block)
 					}
 					await this.saveCheckpoint()
 					break
