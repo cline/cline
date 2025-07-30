@@ -4,7 +4,7 @@ import { test as teardown } from "@playwright/test"
 import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
-teardown("cleanup server", async () => {
+teardown("cleanup test environment", async () => {
 	const assetsDir = getResultsDir()
 
 	try {

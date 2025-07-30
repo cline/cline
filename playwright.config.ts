@@ -19,14 +19,14 @@ export default defineConfig({
 			testMatch: /global\.setup\.ts/,
 		},
 		{
-			name: "e2e tests with server",
+			name: "e2e tests",
 			testMatch: /.*\.test\.ts/,
-			dependencies: ["setup server"],
+			dependencies: ["setup test environment"],
 		},
 		{
-			name: "cleanup server",
+			name: "cleanup test environment",
 			testMatch: /global\.teardown\.ts/,
-			dependencies: ["e2e tests with server"],
+			dependencies: ["e2e tests"],
 		},
 	],
 })
