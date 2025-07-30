@@ -34,7 +34,7 @@
   - Forgetting to specify "side": "RIGHT" for comments on new code
   - Using incorrect line numbers that don't match the actual diff
   - Not escaping special characters in JSON payload properly
-  - Using wrong event type (e.g., REQUEST_CHANGES when only commenting)
+  - Not using COMMENT as the event type in the review payload
   - Not constructing proper file paths relative to repository root
   - Submitting empty comments array when inline comments are needed
   - Forgetting to use <<EOF syntax properly in the command
