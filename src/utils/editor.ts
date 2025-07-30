@@ -1,4 +1,5 @@
 import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { Metadata } from "@/shared/proto/common"
 
 /**
  * Get the active text editor via host bridge
@@ -18,7 +19,9 @@ export async function getActiveTextEditor(): Promise<{
 	isActive: boolean
 } | null> {
 	try {
-		const activeEditorInfo = await getHostBridgeProvider().windowClient.getActiveTextEditor({})
+		const activeEditorInfo = await getHostBridgeProvider().windowClient.getActiveTextEditor({
+			metadata: Metadata.create(),
+		})
 
 		if (activeEditorInfo && activeEditorInfo.isActive) {
 			return {
@@ -64,7 +67,9 @@ export async function getVisibleTextEditors(): Promise<
 	}[]
 > {
 	try {
-		const editorsInfo = await getHostBridgeProvider().windowClient.getVisibleTextEditors({})
+		const editorsInfo = await getHostBridgeProvider().windowClient.getVisibleTextEditors({
+			metadata: Metadata.create(),
+		})
 
 		return editorsInfo.editors.map((editor) => ({
 			documentPath: editor.documentPath,
