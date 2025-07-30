@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Slash-Befehle verwalten",
 		"title": "Slash-Befehle",
-		"description": "Erstelle benutzerdefinierte Slash-Befehle für schnellen Zugriff auf häufig verwendete Prompts und Workflows.",
+		"description": "Erstelle benutzerdefinierte Slash-Befehle für schnellen Zugriff auf häufig verwendete Prompts und Workflows. <DocsLink>Dokumentation</DocsLink>",
 		"globalCommands": "Globale Befehle",
 		"workspaceCommands": "Arbeitsbereich-Befehle",
 		"globalCommand": "Globaler Befehl",

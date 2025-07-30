@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Slash-opdrachten beheren",
 		"title": "Slash-opdrachten",
-		"description": "Maak aangepaste slash-opdrachten voor snelle toegang tot veelgebruikte prompts en workflows.",
+		"description": "Maak aangepaste slash-opdrachten voor snelle toegang tot veelgebruikte prompts en workflows. <DocsLink>Documentatie</DocsLink>",
 		"globalCommands": "Globale Opdrachten",
 		"workspaceCommands": "Werkruimte Opdrachten",
 		"globalCommand": "Globale opdracht",

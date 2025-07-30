@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Zarządzaj poleceniami slash",
 		"title": "Polecenia Slash",
-		"description": "Twórz niestandardowe polecenia slash dla szybkiego dostępu do często używanych promptów i przepływów pracy.",
+		"description": "Twórz niestandardowe polecenia slash dla szybkiego dostępu do często używanych promptów i przepływów pracy. <DocsLink>Dokumentacja</DocsLink>",
 		"globalCommands": "Polecenia Globalne",
 		"workspaceCommands": "Polecenia Obszaru Roboczego",
 		"globalCommand": "Polecenie globalne",

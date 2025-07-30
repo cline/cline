@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { Zap } from "lucide-react"
+import { Trans } from "react-i18next"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -7,6 +8,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, StandardTooltip } from
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
 import { cn } from "@/lib/utils"
 import { vscode } from "@/utils/vscode"
+import { buildDocLink } from "@/utils/docLinks"
 
 import { SlashCommandsList } from "./SlashCommandsList"
 
@@ -69,7 +71,19 @@ export const SlashCommandsPopover: React.FC<SlashCommandsPopoverProps> = ({ clas
 					{/* Header section */}
 					<div className="p-3 border-b border-vscode-dropdown-border">
 						<p className="m-0 text-xs text-vscode-descriptionForeground">
-							{t("chat:slashCommands.description")}
+							<Trans
+								i18nKey="chat:slashCommands.description"
+								components={{
+									DocsLink: (
+										<a
+											href={buildDocLink("features/slash-commands", "slash_commands")}
+											target="_blank"
+											rel="noopener noreferrer">
+											Docs
+										</a>
+									),
+								}}
+							/>
 						</p>
 					</div>
 

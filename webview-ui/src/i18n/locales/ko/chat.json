@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "슬래시 명령 관리",
 		"title": "슬래시 명령",
-		"description": "자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 사용자 정의 슬래시 명령을 만듭니다.",
+		"description": "자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 사용자 정의 슬래시 명령을 만듭니다. <DocsLink>문서</DocsLink>",
 		"globalCommands": "전역 명령",
 		"workspaceCommands": "작업 공간 명령",
 		"globalCommand": "전역 명령",

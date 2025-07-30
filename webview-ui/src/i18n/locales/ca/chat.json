@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Gestionar ordres de barra",
 		"title": "Ordres de Barra",
-		"description": "Crea ordres de barra personalitzades per accedir ràpidament a indicacions i fluxos de treball utilitzats amb freqüència.",
+		"description": "Crea ordres de barra personalitzades per accedir ràpidament a indicacions i fluxos de treball utilitzats amb freqüència. <DocsLink>Documentació</DocsLink>",
 		"globalCommands": "Ordres Globals",
 		"workspaceCommands": "Ordres de l'Espai de Treball",
 		"globalCommand": "Ordre global",

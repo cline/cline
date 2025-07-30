@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Eğik çizgi komutlarını yönet",
 		"title": "Eğik Çizgi Komutları",
-		"description": "Sık kullanılan komut istemleri ve iş akışlarına hızlı erişim için özel eğik çizgi komutları oluşturun.",
+		"description": "Sık kullanılan komut istemleri ve iş akışlarına hızlı erişim için özel eğik çizgi komutları oluşturun. <DocsLink>Belgeler</DocsLink>",
 		"globalCommands": "Genel Komutlar",
 		"workspaceCommands": "Çalışma Alanı Komutları",
 		"globalCommand": "Genel komut",

@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Manage slash commands",
 		"title": "Slash Commands",
-		"description": "Create custom slash commands for quick access to frequently used prompts and workflows.",
+		"description": "Create custom slash commands for quick access to frequently used prompts and workflows. <DocsLink>Docs</DocsLink>",
 		"globalCommands": "Global Commands",
 		"workspaceCommands": "Workspace Commands",
 		"globalCommand": "Global command",

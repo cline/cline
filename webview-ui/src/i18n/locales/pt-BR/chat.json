@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Gerenciar comandos de barra",
 		"title": "Comandos de Barra",
-		"description": "Crie comandos de barra personalizados para acesso rápido a prompts e fluxos de trabalho usados com frequência.",
+		"description": "Crie comandos de barra personalizados para acesso rápido a prompts e fluxos de trabalho usados com frequência. <DocsLink>Documentação</DocsLink>",
 		"globalCommands": "Comandos Globais",
 		"workspaceCommands": "Comandos do Espaço de Trabalho",
 		"globalCommand": "Comando global",

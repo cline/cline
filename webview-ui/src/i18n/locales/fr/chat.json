@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Gérer les commandes slash",
 		"title": "Commandes Slash",
-		"description": "Créez des commandes slash personnalisées pour accéder rapidement aux prompts et flux de travail fréquemment utilisés.",
+		"description": "Créez des commandes slash personnalisées pour accéder rapidement aux prompts et flux de travail fréquemment utilisés. <DocsLink>Documentation</DocsLink>",
 		"globalCommands": "Commandes Globales",
 		"workspaceCommands": "Commandes de l'Espace de Travail",
 		"globalCommand": "Commande globale",

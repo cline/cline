@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "Quản lý lệnh gạch chéo",
 		"title": "Lệnh Gạch Chéo",
-		"description": "Tạo lệnh gạch chéo tùy chỉnh để truy cập nhanh vào các lời nhắc và quy trình làm việc thường dùng.",
+		"description": "Tạo lệnh gạch chéo tùy chỉnh để truy cập nhanh vào các lời nhắc và quy trình làm việc thường dùng. <DocsLink>Tài liệu</DocsLink>",
 		"globalCommands": "Lệnh Toàn Cục",
 		"workspaceCommands": "Lệnh Không Gian Làm Việc",
 		"globalCommand": "Lệnh toàn cục",

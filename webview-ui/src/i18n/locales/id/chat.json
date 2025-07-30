@@ -361,7 +361,7 @@
 	"slashCommands": {
 		"tooltip": "Kelola perintah slash",
 		"title": "Perintah Slash",
-		"description": "Buat perintah slash kustom untuk akses cepat ke prompt dan alur kerja yang sering digunakan.",
+		"description": "Buat perintah slash kustom untuk akses cepat ke prompt dan alur kerja yang sering digunakan. <DocsLink>Dokumentasi</DocsLink>",
 		"globalCommands": "Perintah Global",
 		"workspaceCommands": "Perintah Workspace",
 		"globalCommand": "Perintah global",

@@ -355,7 +355,7 @@
 	"slashCommands": {
 		"tooltip": "管理斜線指令",
 		"title": "斜線指令",
-		"description": "建立自訂斜線指令，快速存取常用提示詞和工作流程。",
+		"description": "建立自訂斜線指令，快速存取常用提示詞和工作流程。<DocsLink>說明文件</DocsLink>",
 		"globalCommands": "全域指令",
 		"workspaceCommands": "工作區指令",
 		"globalCommand": "全域指令",
