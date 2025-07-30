@@ -179,6 +179,8 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cline - Authentication Success</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;700&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
@@ -186,105 +188,79 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Azeret Mono', monospace;
+            background-color: #ffffff;
+            color: #333333;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            line-height: 1.25;
         }
         
         .container {
             text-align: center;
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
+            padding: 32px;
+            background-color: #f8f8f8;
+            border: 1px solid #e1e1e1;
+            border-radius: 6px;
+            max-width: 480px;
             width: 90%;
         }
         
         .checkmark {
-            width: 80px;
-            height: 80px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            background: #4CAF50;
-            margin: 0 auto 30px;
+            background-color: #73c991;
+            margin: 0 auto 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: scaleIn 0.5s ease-out;
         }
         
         .checkmark::after {
             content: '✓';
-            font-size: 40px;
-            color: white;
+            font-size: 24px;
+            color: #ffffff;
             font-weight: bold;
         }
         
         h1 {
-            font-size: 2.2rem;
-            margin-bottom: 20px;
-            font-weight: 600;
-            opacity: 0;
-            animation: fadeInUp 0.6s ease-out 0.2s forwards;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            font-weight: 400;
+            color: #333333;
         }
         
         p {
-            font-size: 1.1rem;
-            line-height: 1.6;
-            margin-bottom: 30px;
-            opacity: 0.9;
-            opacity: 0;
-            animation: fadeInUp 0.6s ease-out 0.4s forwards;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            margin-bottom: 24px;
+            color: #666666;
         }
         
         .countdown {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 10px 20px;
-            border-radius: 25px;
+            font-size: 0.8125rem;
+            color: #666666;
+            background-color: #ffffff;
+            border: 1px solid #d1d1d1;
+            padding: 8px 16px;
+            border-radius: 4px;
             display: inline-block;
-            opacity: 0;
-            animation: fadeInUp 0.6s ease-out 0.6s forwards;
-        }
-        
-        @keyframes scaleIn {
-            0% {
-                transform: scale(0);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-        
-        @keyframes fadeInUp {
-            0% {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            100% {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
         
         @media (max-width: 480px) {
             .container {
-                padding: 30px 20px;
+                padding: 24px 16px;
             }
             
             h1 {
-                font-size: 1.8rem;
+                font-size: 1.25rem;
             }
             
             p {
-                font-size: 1rem;
+                font-size: 0.8125rem;
             }
         }
     </style>
@@ -292,35 +268,9 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="checkmark"></div>
-        <h1>Token Sent Successfully!</h1>
+        <h1>Authentication Successful</h1>
         <p>Your authentication token has been securely sent back to your IDE. You can now return to your development environment to continue working.</p>
-        <div class="countdown">This window will close automatically in <span id="timer">5</span> seconds</div>
+        <div class="countdown">Feel free to close this window and continue in your IDE</div>
     </div>
-
-    <script>
-        let countdown = 5;
-        const timerElement = document.getElementById('timer');
-        
-        const interval = setInterval(() => {
-            countdown--;
-            timerElement.textContent = countdown;
-            
-            if (countdown <= 0) {
-                clearInterval(interval);
-                window.close();
-            }
-        }, 1000);
-        
-        // Fallback: if window.close() doesn't work (some browsers block it),
-        // try to redirect to about:blank or show a message
-        setTimeout(() => {
-            try {
-                window.close();
-            } catch (e) {
-                // If window.close() fails, redirect to a blank page
-                window.location.href = 'about:blank';
-            }
-        }, 5000);
-    </script>
 </body>
 </html>`

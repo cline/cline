@@ -207,7 +207,6 @@ export class AuthService {
 		const authUrlString = authUrl.toString()
 
 		await openExternal(authUrlString)
-
 		return String.create({ value: authUrlString })
 	}
 
