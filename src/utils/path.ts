@@ -1,5 +1,4 @@
-import { getHostBridgeProvider } from "@hosts/host-providers"
-import { getActiveTextEditor } from "./editor"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -116,11 +115,7 @@ export function getDesktopDir() {
 // Returns the workspace path of the file in the current editor.
 // If there is no open file, it returns the top level workspace directory.
 export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
-	const activeEditor = await getActiveTextEditor()
-	if (!activeEditor) {
-		return await getCwd(defaultCwd)
-	}
-	const currentFilePath = activeEditor.document?.uri.fsPath
+	const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}
