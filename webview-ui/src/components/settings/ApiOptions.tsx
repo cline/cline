@@ -25,6 +25,7 @@ import {
 	chutesDefaultModelId,
 	bedrockDefaultModelId,
 	vertexDefaultModelId,
+	sambaNovaDefaultModelId,
 } from "@roo-code/types"
 
 import { vscode } from "@src/utils/vscode"
@@ -69,6 +70,7 @@ import {
 	OpenAICompatible,
 	OpenRouter,
 	Requesty,
+	SambaNova,
 	Unbound,
 	Vertex,
 	VSCodeLM,
@@ -297,6 +299,7 @@ const ApiOptions = ({
 				chutes: { field: "apiModelId", default: chutesDefaultModelId },
 				bedrock: { field: "apiModelId", default: bedrockDefaultModelId },
 				vertex: { field: "apiModelId", default: vertexDefaultModelId },
+				sambanova: { field: "apiModelId", default: sambaNovaDefaultModelId },
 				openai: { field: "openAiModelId" },
 				ollama: { field: "ollamaModelId" },
 				lmstudio: { field: "lmStudioModelId" },
@@ -507,6 +510,10 @@ const ApiOptions = ({
 					organizationAllowList={organizationAllowList}
 					modelValidationError={modelValidationError}
 				/>
+			)}
+
+			{selectedProvider === "sambanova" && (
+				<SambaNova apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 			)}
 
 			{selectedProvider === "human-relay" && (

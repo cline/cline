@@ -259,6 +259,8 @@
 		"geminiApiKey": "Clau API de Gemini",
 		"getGroqApiKey": "Obtenir clau API de Groq",
 		"groqApiKey": "Clau API de Groq",
+		"getSambaNovaApiKey": "Obtenir clau API de SambaNova",
+		"sambaNovaApiKey": "Clau API de SambaNova",
 		"getHuggingFaceApiKey": "Obtenir clau API de Hugging Face",
 		"huggingFaceApiKey": "Clau API de Hugging Face",
 		"huggingFaceModelId": "ID del model",

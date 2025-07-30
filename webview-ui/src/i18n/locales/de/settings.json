@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API-Schlüssel",
 		"getGroqApiKey": "Groq API-Schlüssel erhalten",
 		"groqApiKey": "Groq API-Schlüssel",
+		"getSambaNovaApiKey": "SambaNova API-Schlüssel erhalten",
+		"sambaNovaApiKey": "SambaNova API-Schlüssel",
 		"getHuggingFaceApiKey": "Hugging Face API-Schlüssel erhalten",
 		"huggingFaceApiKey": "Hugging Face API-Schlüssel",
 		"huggingFaceModelId": "Modell-ID",

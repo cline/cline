@@ -259,6 +259,8 @@
 		"geminiApiKey": "Clé API Gemini",
 		"getGroqApiKey": "Obtenir la clé API Groq",
 		"groqApiKey": "Clé API Groq",
+		"getSambaNovaApiKey": "Obtenir la clé API SambaNova",
+		"sambaNovaApiKey": "Clé API SambaNova",
 		"getHuggingFaceApiKey": "Obtenir la clé API Hugging Face",
 		"huggingFaceApiKey": "Clé API Hugging Face",
 		"huggingFaceModelId": "ID du modèle",

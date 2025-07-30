@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API कुंजी",
 		"getGroqApiKey": "Groq API कुंजी प्राप्त करें",
 		"groqApiKey": "Groq API कुंजी",
+		"getSambaNovaApiKey": "SambaNova API कुंजी प्राप्त करें",
+		"sambaNovaApiKey": "SambaNova API कुंजी",
 		"getHuggingFaceApiKey": "Hugging Face API कुंजी प्राप्त करें",
 		"huggingFaceApiKey": "Hugging Face API कुंजी",
 		"huggingFaceModelId": "मॉडल ID",

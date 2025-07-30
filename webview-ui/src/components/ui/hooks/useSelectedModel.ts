@@ -34,6 +34,8 @@ import {
 	litellmDefaultModelId,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	sambaNovaModels,
+	sambaNovaDefaultModelId,
 } from "@roo-code/types"
 
 import type { RouterModels } from "@roo/api"
@@ -223,6 +225,11 @@ function getSelectedModel({
 			const id = apiConfiguration.apiModelId ?? claudeCodeDefaultModelId
 			const info = claudeCodeModels[id as keyof typeof claudeCodeModels]
 			return { id, info: { ...openAiModelInfoSaneDefaults, ...info } }
+		}
+		case "sambanova": {
+			const id = apiConfiguration.apiModelId ?? sambaNovaDefaultModelId
+			const info = sambaNovaModels[id as keyof typeof sambaNovaModels]
+			return { id, info }
 		}
 		// case "anthropic":
 		// case "human-relay":

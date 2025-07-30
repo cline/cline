@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API Anahtarı",
 		"getGroqApiKey": "Groq API Anahtarı Al",
 		"groqApiKey": "Groq API Anahtarı",
+		"getSambaNovaApiKey": "SambaNova API Anahtarı Al",
+		"sambaNovaApiKey": "SambaNova API Anahtarı",
 		"getHuggingFaceApiKey": "Hugging Face API Anahtarı Al",
 		"huggingFaceApiKey": "Hugging Face API Anahtarı",
 		"huggingFaceModelId": "Model ID",

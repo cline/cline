@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API 키",
 		"getGroqApiKey": "Groq API 키 받기",
 		"groqApiKey": "Groq API 키",
+		"getSambaNovaApiKey": "SambaNova API 키 받기",
+		"sambaNovaApiKey": "SambaNova API 키",
 		"getGeminiApiKey": "Gemini API 키 받기",
 		"getHuggingFaceApiKey": "Hugging Face API 키 받기",
 		"huggingFaceApiKey": "Hugging Face API 키",

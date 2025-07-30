@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API 密钥",
 		"getGroqApiKey": "获取 Groq API 密钥",
 		"groqApiKey": "Groq API 密钥",
+		"getSambaNovaApiKey": "获取 SambaNova API 密钥",
+		"sambaNovaApiKey": "SambaNova API 密钥",
 		"getHuggingFaceApiKey": "获取 Hugging Face API 密钥",
 		"huggingFaceApiKey": "Hugging Face API 密钥",
 		"huggingFaceModelId": "模型 ID",

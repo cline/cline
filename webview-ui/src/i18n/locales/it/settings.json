@@ -259,6 +259,8 @@
 		"geminiApiKey": "Chiave API Gemini",
 		"getGroqApiKey": "Ottieni chiave API Groq",
 		"groqApiKey": "Chiave API Groq",
+		"getSambaNovaApiKey": "Ottieni chiave API SambaNova",
+		"sambaNovaApiKey": "Chiave API SambaNova",
 		"getHuggingFaceApiKey": "Ottieni chiave API Hugging Face",
 		"huggingFaceApiKey": "Chiave API Hugging Face",
 		"huggingFaceModelId": "ID modello",

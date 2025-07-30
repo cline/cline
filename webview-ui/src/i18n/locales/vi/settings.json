@@ -259,6 +259,8 @@
 		"geminiApiKey": "Khóa API Gemini",
 		"getGroqApiKey": "Lấy khóa API Groq",
 		"groqApiKey": "Khóa API Groq",
+		"getSambaNovaApiKey": "Lấy khóa API SambaNova",
+		"sambaNovaApiKey": "Khóa API SambaNova",
 		"getHuggingFaceApiKey": "Lấy Khóa API Hugging Face",
 		"huggingFaceApiKey": "Khóa API Hugging Face",
 		"huggingFaceModelId": "ID Mô hình",

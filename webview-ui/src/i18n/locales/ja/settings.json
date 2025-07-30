@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini APIキー",
 		"getGroqApiKey": "Groq APIキーを取得",
 		"groqApiKey": "Groq APIキー",
+		"getSambaNovaApiKey": "SambaNova APIキーを取得",
+		"sambaNovaApiKey": "SambaNova APIキー",
 		"getHuggingFaceApiKey": "Hugging Face APIキーを取得",
 		"huggingFaceApiKey": "Hugging Face APIキー",
 		"huggingFaceModelId": "モデルID",

@@ -259,6 +259,8 @@
 		"geminiApiKey": "Gemini API-ключ",
 		"getGroqApiKey": "Получить Groq API-ключ",
 		"groqApiKey": "Groq API-ключ",
+		"getSambaNovaApiKey": "Получить SambaNova API-ключ",
+		"sambaNovaApiKey": "SambaNova API-ключ",
 		"getGeminiApiKey": "Получить Gemini API-ключ",
 		"getHuggingFaceApiKey": "Получить Hugging Face API-ключ",
 		"huggingFaceApiKey": "Hugging Face API-ключ",

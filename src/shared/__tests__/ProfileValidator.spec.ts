@@ -192,6 +192,7 @@ describe("ProfileValidator", () => {
 			"xai",
 			"groq",
 			"chutes",
+			"sambanova",
 		]
 
 		apiModelProviders.forEach((provider) => {
