@@ -10,6 +10,7 @@ overrides:
   undici: '>=5.29.0'
   brace-expansion: '>=2.0.2'
   form-data: '>=4.0.4'
+  bluebird: '>=3.7.2'
 
 importers:
 
@@ -671,8 +672,8 @@ importers:
         specifier: ^4.0.8
         version: 4.0.8
       mammoth:
-        specifier: ^1.8.0
-        version: 1.9.0
+        specifier: ^1.9.1
+        version: 1.9.1
       monaco-vscode-textmate-theme-converter:
         specifier: ^0.1.7
         version: 0.1.7(tslib@2.8.1)
@@ -4393,8 +4394,8 @@ packages:
   bl@4.1.0:
     resolution: {integrity: sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==}
 
-  bluebird@3.4.7:
-    resolution: {integrity: sha512-iD3898SR7sWVRHbiQv+sHUtHnMvC1o3nW5rAcqnq3uOn07DSAppZYUkIGslDz6gXC7HfunPe7YVBgoEJASPcHA==}
+  bluebird@3.7.2:
+    resolution: {integrity: sha512-XpNj6GDQzdfW+r2Wnn7xiSAd7TM3jzkxGXBGTtWKuSXv1xUV+azxAm8jdWZN06QTQk+2N2XB9jRDkvbmQmcRtg==}
 
   body-parser@2.2.0:
     resolution: {integrity: sha512-02qvAaxv8tp7fBa/mw1ga98OGm+eCbqzJOKoRt70sLmfEEi+jyBYVTDGfCL/k06/4EMk/z01gCe7HoCH/f2LTg==}
@@ -7060,8 +7061,8 @@ packages:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
     engines: {node: '>=10'}
 
-  mammoth@1.9.0:
-    resolution: {integrity: sha512-F+0NxzankQV9XSUAuVKvkdQK0GbtGGuqVnND9aVf9VSeUA82LQa29GjLqYU6Eez8LHqSJG3eGiDW3224OKdpZg==}
+  mammoth@1.9.1:
+    resolution: {integrity: sha512-4S2v1eP4Yo4so0zGNicJKcP93su3wDPcUk+xvkjSG75nlNjSkDJu8BhWQ+e54BROM0HfA6nPzJn12S6bq2Ko6w==}
     engines: {node: '>=12.0.0'}
     hasBin: true
 
@@ -13789,7 +13790,7 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  bluebird@3.4.7: {}
+  bluebird@3.7.2: {}
 
   body-parser@2.2.0:
     dependencies:
@@ -16685,12 +16686,12 @@ snapshots:
     dependencies:
       semver: 7.7.2
 
-  mammoth@1.9.0:
+  mammoth@1.9.1:
     dependencies:
       '@xmldom/xmldom': 0.8.10
       argparse: 1.0.10
       base64-js: 1.5.1
-      bluebird: 3.4.7
+      bluebird: 3.7.2
       dingbat-to-unicode: 1.0.1
       jszip: 3.10.1
       lop: 0.4.2
@@ -19475,7 +19476,7 @@ snapshots:
     dependencies:
       big-integer: 1.6.52
       binary: 0.3.0
-      bluebird: 3.4.7
+      bluebird: 3.7.2
       buffer-indexof-polyfill: 1.0.2
       duplexer2: 0.1.4
       fstream: 1.0.12

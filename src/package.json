@@ -447,7 +447,7 @@
 		"ignore": "^7.0.3",
 		"isbinaryfile": "^5.0.2",
 		"lodash.debounce": "^4.0.8",
-		"mammoth": "^1.8.0",
+		"mammoth": "^1.9.1",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"node-cache": "^5.1.2",
 		"node-ipc": "^12.0.0",
