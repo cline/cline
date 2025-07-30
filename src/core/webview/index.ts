@@ -14,8 +14,8 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	public static readonly sideBarId = "ponder.SidebarProvider" // used in package.json as the view's id. Updated for Ponder branding.
+	public static readonly tabPanelId = "ponder.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
 	protected disposables: vscode.Disposable[] = []
@@ -64,7 +64,7 @@ export abstract class WebviewProvider {
 		return Array.from(this.activeInstances).find((instance) => {
 			if (
 				instance.getWebview() &&
-				instance.getWebview().viewType === "claude-dev.TabPanelProvider" &&
+				instance.getWebview().viewType === "ponder.TabPanelProvider" &&
 				"active" in instance.getWebview()
 			) {
 				return instance.getWebview().active === true
@@ -214,7 +214,7 @@ export abstract class WebviewProvider {
                     window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
                     
                     // Inject the client ID
-                    window.clineClientId = "${this.clientId}";
+                    window.ponderClientId = "${this.clientId}";
                 </script>
 				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
@@ -310,7 +310,7 @@ export abstract class WebviewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
-					<title>Cline</title>
+					<title>Ponder</title>
 				</head>
 				<body>
 					<div id="root"></div>
@@ -319,7 +319,7 @@ export abstract class WebviewProvider {
 						window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
 						
 						// Inject the client ID
-						window.clineClientId = "${this.clientId}";
+						window.ponderClientId = "${this.clientId}";
 					</script>
 					${reactRefresh}
 					<script type="module" src="${scriptUri}"></script>

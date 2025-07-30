@@ -538,7 +538,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Subscribe to focus chat input events
-		const clientId = (window as any).clineClientId
+		const clientId = (window as any).ponderClientId
 		if (clientId) {
 			const request = StringRequest.create({ value: clientId })
 			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {

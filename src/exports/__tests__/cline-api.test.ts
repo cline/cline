@@ -5,11 +5,11 @@ import * as stateModule from "@core/storage/state"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
-import type { ClineAPI } from "../cline"
-import { createClineAPI } from "../index"
+import type { PonderAPI } from "../ponder"
+import { createPonderAPI } from "../index"
 
-describe("ClineAPI Core Functionality", () => {
-	let api: ClineAPI
+describe("PonderAPI Core Functionality", () => {
+	let api: PonderAPI
 	let mockController: any
 	let mockLogToChannel: sinon.SinonStub<[string], void>
 	let sandbox: sinon.SinonSandbox
@@ -27,10 +27,10 @@ describe("ClineAPI Core Functionality", () => {
 			mockLogToChannel,
 		)
 		// Stub the getGlobalState function from the state module
-		// This is needed because the real createClineAPI uses it for getCustomInstructions
+		// This is needed because the real createPonderAPI uses it for getCustomInstructions
 		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")
 
-		// Create a mock controller that matches what the real createClineAPI expects
+		// Create a mock controller that matches what the real createPonderAPI expects
 		// We don't import the real Controller to avoid the webview dependencies
 		mockController = {
 			context: {
@@ -56,7 +56,7 @@ describe("ClineAPI Core Functionality", () => {
 		}
 
 		// Create API instance
-		api = createClineAPI(mockController)
+		api = createPonderAPI(mockController)
 	})
 
 	afterEach(() => {

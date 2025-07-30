@@ -1,10 +1,10 @@
 import { Controller } from "@core/controller"
-import { ClineAPI } from "./cline"
+import { PonderAPI } from "./ponder"
 import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
 import { HostProvider } from "@/hosts/host-provider"
 
-export function createClineAPI(sidebarController: Controller): ClineAPI {
-	const api: ClineAPI = {
+export function createPonderAPI(sidebarController: Controller): PonderAPI {
+	const api: PonderAPI = {
 		startNewTask: async (task?: string, images?: string[]) => {
 			HostProvider.get().logToChannel("Starting new task")
 			await sidebarController.clearTask()

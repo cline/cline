@@ -1,43 +1,53 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "ponder-writing-assistant",
+	"displayName": "Ponder",
+	"description": "AI-powered writing assistant for creative writing, content creation, and literary composition. Transform VS Code into your creative writing studio with comprehensive writing support.",
 	"version": "3.20.2",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Ponder Project"
 	},
 	"license": "Apache-2.0",
 	"publisher": "saoudrizwan",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/leuoson/ponder"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://github.com/leuoson/ponder",
 	"categories": [
 		"AI",
 		"Chat",
-		"Programming Languages",
 		"Education",
+		"Other",
 		"Snippets",
-		"Testing"
+		"Formatters"
 	],
 	"keywords": [
-		"cline",
+		"ponder",
+		"writing",
+		"creative-writing",
+		"content-creation",
+		"literary",
+		"ai-writing",
+		"writing-assistant",
 		"claude",
-		"dev",
 		"mcp",
 		"openrouter",
-		"coding",
 		"agent",
 		"autonomous",
 		"chatgpt",
 		"sonnet",
 		"ai",
-		"llama"
+		"llama",
+		"novel",
+		"screenplay",
+		"poetry",
+		"blog",
+		"copywriting",
+		"editing"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -101,116 +111,116 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
+					"id": "ponder-ActivityBar",
+					"title": "Ponder (⌘+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "isMac"
 				},
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
+					"id": "ponder-ActivityBar",
+					"title": "Ponder (Ctrl+')",
 					"icon": "assets/icons/icon.svg",
 					"when": "!isMac"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"ponder-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "ponder.SidebarProvider",
 					"name": ""
 				}
 			]
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "ponder.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "ponder.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "ponder.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
+				"command": "ponder.popoutButtonClicked",
 				"title": "Open in Editor",
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
+				"command": "ponder.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
+				"command": "ponder.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.openInNewTab",
+				"command": "ponder.openInNewTab",
 				"title": "Open In New Tab",
-				"category": "Cline"
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "ponder.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
-				"when": "cline.isDevMode"
+				"category": "Ponder",
+				"when": "ponder.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "ponder.addToChat",
+				"title": "Add to Ponder",
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"command": "ponder.addTerminalOutputToChat",
+				"title": "Add to Ponder",
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "ponder.focusChatInput",
 				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
+				"command": "ponder.generateGitCommitMessage",
+				"title": "Generate Commit Message with Ponder",
+				"category": "Ponder",
 				"icon": "$(robot)"
 			},
 			{
-				"command": "cline.abortGitCommitMessage",
-				"title": "Generate Commit Message with Cline - Stop",
-				"category": "Cline",
+				"command": "ponder.abortGitCommitMessage",
+				"title": "Generate Commit Message with Ponder - Stop",
+				"category": "Ponder",
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "cline.explainCode",
-				"title": "Explain with Cline",
-				"category": "Cline"
+				"command": "ponder.explainCode",
+				"title": "Explain with Ponder",
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.improveCode",
-				"title": "Improve with Cline",
-				"category": "Cline"
+				"command": "ponder.improveCode",
+				"title": "Improve with Ponder",
+				"category": "Ponder"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "ponder.openWalkthrough",
 				"title": "Open Walkthrough",
-				"category": "Cline"
+				"category": "Ponder"
 			}
 		],
 		"keybindings": [
 			{
-				"command": "cline.addToChat",
+				"command": "ponder.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -218,11 +228,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "ponder.generateGitCommitMessage",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "ponder.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -233,106 +243,106 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "ponder.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "ponder.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "ponder.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "ponder.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "ponder.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "ponder.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == ponder.SidebarProvider"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "ponder.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "ponder.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "ponder.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "ponder.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "ponder.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "ponder.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == ponder.TabPanelProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "ponder.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "ponder.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "ponder.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && !ponder.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "ponder.abortGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && ponder.isGeneratingCommit"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"command": "ponder.generateGitCommitMessage",
+					"when": "config.git.enabled && scmProvider == git && !ponder.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"command": "ponder.abortGitCommitMessage",
+					"when": "config.git.enabled && scmProvider == git && ponder.isGeneratingCommit"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Ponder",
 			"properties": {}
 		}
 	},
