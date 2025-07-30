@@ -22,6 +22,7 @@ import { changeLanguage, t } from "../../i18n"
 import { Package } from "../../shared/package"
 import { RouterName, toRouterName, ModelRecord } from "../../shared/api"
 import { supportPrompt } from "../../shared/support-prompt"
+import { MessageEnhancer } from "./messageEnhancer"
 
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
@@ -35,7 +36,6 @@ import { discoverChromeHostUrl, tryChromeHostUrl } from "../../services/browser/
 import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
-import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
@@ -1311,6 +1311,10 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("enhancementApiConfigId", message.text)
 			await provider.postStateToWebview()
 			break
+		case "includeTaskHistoryInEnhance":
+			await updateGlobalState("includeTaskHistoryInEnhance", message.bool ?? false)
+			await provider.postStateToWebview()
+			break
 		case "condensingApiConfigId":
 			await updateGlobalState("condensingApiConfigId", message.text)
 			await provider.postStateToWebview()
@@ -1335,32 +1339,34 @@ export const webviewMessageHandler = async (
 		case "enhancePrompt":
 			if (message.text) {
 				try {
-					const { apiConfiguration, customSupportPrompts, listApiConfigMeta, enhancementApiConfigId } =
-						await provider.getState()
+					const state = await provider.getState()
+					const {
+						apiConfiguration,
+						customSupportPrompts,
+						listApiConfigMeta,
+						enhancementApiConfigId,
+						includeTaskHistoryInEnhance,
+					} = state
 
-					// Try to get enhancement config first, fall back to current config.
-					let configToUse: ProviderSettings = apiConfiguration
-
-					if (enhancementApiConfigId && !!listApiConfigMeta.find(({ id }) => id === enhancementApiConfigId)) {
-						const { name: _, ...providerSettings } = await provider.providerSettingsManager.getProfile({
-							id: enhancementApiConfigId,
-						})
-
-						if (providerSettings.apiProvider) {
-							configToUse = providerSettings
-						}
-					}
-
-					const enhancedPrompt = await singleCompletionHandler(
-						configToUse,
-						supportPrompt.create("ENHANCE", { userInput: message.text }, customSupportPrompts),
-					)
-
-					// Capture telemetry for prompt enhancement.
 					const currentCline = provider.getCurrentCline()
-					TelemetryService.instance.capturePromptEnhanced(currentCline?.taskId)
+					const result = await MessageEnhancer.enhanceMessage({
+						text: message.text,
+						apiConfiguration,
+						customSupportPrompts,
+						listApiConfigMeta,
+						enhancementApiConfigId,
+						includeTaskHistoryInEnhance,
+						currentClineMessages: currentCline?.clineMessages,
+						providerSettingsManager: provider.providerSettingsManager,
+					})
 
-					await provider.postMessageToWebview({ type: "enhancedPrompt", text: enhancedPrompt })
+					if (result.success && result.enhancedText) {
+						// Capture telemetry for prompt enhancement
+						MessageEnhancer.captureTelemetry(currentCline?.taskId, includeTaskHistoryInEnhance)
+						await provider.postMessageToWebview({ type: "enhancedPrompt", text: result.enhancedText })
+					} else {
+						throw new Error(result.error || "Unknown error")
+					}
 				} catch (error) {
 					provider.log(
 						`Error enhancing prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,

@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Huidige API-configuratie gebruiken",
 			"testPromptPlaceholder": "Voer een prompt in om de verbetering te testen",
 			"previewButton": "Voorbeeld promptverbetering",
-			"testEnhancement": "Test verbetering"
+			"testEnhancement": "Test verbetering",
+			"includeTaskHistory": "Taakgeschiedenis als context opnemen",
+			"includeTaskHistoryDescription": "Wanneer ingeschakeld, worden de laatste 10 berichten van het huidige gesprek opgenomen als context bij het verbeteren van prompts, wat helpt bij het genereren van meer relevante en contextbewuste suggesties."
 		},
 		"condense": {
 			"apiConfiguration": "API-configuratie voor contextcondensatie",

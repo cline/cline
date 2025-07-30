@@ -91,7 +91,9 @@
 			"useCurrentConfig": "Şu anda seçili API yapılandırmasını kullan",
 			"testPromptPlaceholder": "Geliştirmeyi test etmek için bir prompt girin",
 			"previewButton": "Prompt geliştirmesini önizle",
-			"testEnhancement": "Geliştirmeyi test et"
+			"testEnhancement": "Geliştirmeyi test et",
+			"includeTaskHistory": "Görev geçmişini bağlam olarak dahil et",
+			"includeTaskHistoryDescription": "Etkinleştirildiğinde, mevcut konuşmanın son 10 mesajı promptları geliştirirken bağlam olarak dahil edilecek ve daha alakalı ve bağlam farkında öneriler üretmeye yardımcı olacaktır."
 		},
 		"condense": {
 			"apiConfiguration": "Bağlam Yoğunlaştırma için API Yapılandırması",

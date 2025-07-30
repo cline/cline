@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Utilitzar la configuració d'API seleccionada actualment",
 			"testPromptPlaceholder": "Introduïu un prompt per provar la millora",
 			"previewButton": "Previsualització de la millora del prompt",
-			"testEnhancement": "Prova la millora"
+			"testEnhancement": "Prova la millora",
+			"includeTaskHistory": "Inclou l'historial de tasques com a context",
+			"includeTaskHistoryDescription": "Quan està activat, els últims 10 missatges de la conversa actual s'inclouran com a context en millorar els prompts, ajudant a generar suggeriments més rellevants i conscients del context."
 		},
 		"condense": {
 			"apiConfiguration": "Configuració de l'API per a la condensació de context",

@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Użyj aktualnie wybranej konfiguracji API",
 			"testPromptPlaceholder": "Wprowadź podpowiedź, aby przetestować ulepszenie",
 			"previewButton": "Podgląd ulepszenia podpowiedzi",
-			"testEnhancement": "Testuj ulepszenie"
+			"testEnhancement": "Testuj ulepszenie",
+			"includeTaskHistory": "Uwzględnij historię zadań jako kontekst",
+			"includeTaskHistoryDescription": "Gdy włączone, ostatnie 10 wiadomości z bieżącej rozmowy zostanie uwzględnione jako kontekst podczas ulepszania podpowiedzi, pomagając generować bardziej trafne i świadome kontekstu sugestie."
 		},
 		"condense": {
 			"apiConfiguration": "Konfiguracja API do kondensacji kontekstu",

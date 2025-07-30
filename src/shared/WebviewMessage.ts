@@ -140,6 +140,7 @@ export interface WebviewMessage {
 		| "copySystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
+		| "includeTaskHistoryInEnhance"
 		| "updateExperimental"
 		| "autoApprovalEnabled"
 		| "updateCustomMode"

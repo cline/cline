@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Gunakan konfigurasi API yang sedang dipilih",
 			"testPromptPlaceholder": "Masukkan prompt untuk menguji peningkatan",
 			"previewButton": "Pratinjau Peningkatan Prompt",
-			"testEnhancement": "Uji Peningkatan"
+			"testEnhancement": "Uji Peningkatan",
+			"includeTaskHistory": "Sertakan riwayat tugas sebagai konteks",
+			"includeTaskHistoryDescription": "Ketika diaktifkan, 10 pesan terakhir dari percakapan saat ini akan disertakan sebagai konteks saat meningkatkan prompt, membantu menghasilkan saran yang lebih relevan dan sadar konteks."
 		},
 		"condense": {
 			"apiConfiguration": "Konfigurasi API untuk Peringkasan Konteks",

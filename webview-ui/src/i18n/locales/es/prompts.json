@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Usar la configuración de API actualmente seleccionada",
 			"testPromptPlaceholder": "Ingresa una solicitud para probar la mejora",
 			"previewButton": "Vista previa de la mejora de solicitud",
-			"testEnhancement": "Probar mejora"
+			"testEnhancement": "Probar mejora",
+			"includeTaskHistory": "Incluir historial de tareas como contexto",
+			"includeTaskHistoryDescription": "Cuando está habilitado, los últimos 10 mensajes de la conversación actual se incluirán como contexto al mejorar solicitudes, ayudando a generar sugerencias más relevantes y conscientes del contexto."
 		},
 		"condense": {
 			"apiConfiguration": "Configuración de API para la condensación de contexto",

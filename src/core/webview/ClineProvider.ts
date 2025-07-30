@@ -1516,6 +1516,7 @@ export class ClineProvider
 			followupAutoApproveTimeoutMs,
 			includeDiagnosticMessages,
 			maxDiagnosticMessages,
+			includeTaskHistoryInEnhance,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1641,6 +1642,7 @@ export class ClineProvider
 			followupAutoApproveTimeoutMs: followupAutoApproveTimeoutMs ?? 60000,
 			includeDiagnosticMessages: includeDiagnosticMessages ?? true,
 			maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
+			includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? false,
 		}
 	}
 
@@ -1825,6 +1827,8 @@ export class ClineProvider
 			// Add diagnostic message settings
 			includeDiagnosticMessages: stateValues.includeDiagnosticMessages ?? true,
 			maxDiagnosticMessages: stateValues.maxDiagnosticMessages ?? 50,
+			// Add includeTaskHistoryInEnhance setting
+			includeTaskHistoryInEnhance: stateValues.includeTaskHistoryInEnhance ?? false,
 		}
 	}
 

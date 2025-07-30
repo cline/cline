@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Usar configuração de API atualmente selecionada",
 			"testPromptPlaceholder": "Digite um prompt para testar o aprimoramento",
 			"previewButton": "Visualizar aprimoramento do prompt",
-			"testEnhancement": "Testar aprimoramento"
+			"testEnhancement": "Testar aprimoramento",
+			"includeTaskHistory": "Incluir histórico de tarefas como contexto",
+			"includeTaskHistoryDescription": "Quando habilitado, as últimas 10 mensagens da conversa atual serão incluídas como contexto ao aprimorar prompts, ajudando a gerar sugestões mais relevantes e conscientes do contexto."
 		},
 		"condense": {
 			"apiConfiguration": "Configuração da API para condensação de contexto",

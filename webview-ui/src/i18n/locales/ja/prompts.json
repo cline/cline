@@ -94,7 +94,9 @@
 			"useCurrentConfig": "現在選択されているAPI設定を使用",
 			"testPromptPlaceholder": "強化をテストするプロンプトを入力してください",
 			"previewButton": "プロンプト強化のプレビュー",
-			"testEnhancement": "強化をテスト"
+			"testEnhancement": "強化をテスト",
+			"includeTaskHistory": "タスク履歴をコンテキストとして含める",
+			"includeTaskHistoryDescription": "有効にすると、現在の会話の最後の10メッセージがプロンプト強化時にコンテキストとして含まれ、より関連性が高くコンテキストを意識した提案の生成に役立ちます。"
 		},
 		"condense": {
 			"apiConfiguration": "コンテキスト圧縮のためのAPI構成",

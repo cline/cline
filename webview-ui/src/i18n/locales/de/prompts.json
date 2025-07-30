@@ -94,7 +94,9 @@
 			"useCurrentConfig": "Aktuell ausgewählte API-Konfiguration verwenden",
 			"testPromptPlaceholder": "Gib einen Prompt ein, um die Verbesserung zu testen",
 			"previewButton": "Vorschau der Prompt-Verbesserung",
-			"testEnhancement": "Verbesserung testen"
+			"testEnhancement": "Verbesserung testen",
+			"includeTaskHistory": "Aufgabenverlauf als Kontext einbeziehen",
+			"includeTaskHistoryDescription": "Wenn aktiviert, werden die letzten 10 Nachrichten aus der aktuellen Unterhaltung als Kontext beim Verbessern von Prompts einbezogen, um relevantere und kontextbewusste Vorschläge zu generieren."
 		},
 		"condense": {
 			"apiConfiguration": "API-Konfiguration für die Kontextverdichtung",

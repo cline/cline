@@ -144,6 +144,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setIncludeDiagnosticMessages: (value: boolean) => void
 	maxDiagnosticMessages?: number
 	setMaxDiagnosticMessages: (value: number) => void
+	includeTaskHistoryInEnhance?: boolean
+	setIncludeTaskHistoryInEnhance: (value: boolean) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -262,6 +264,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		project: {},
 		global: {},
 	})
+	const [includeTaskHistoryInEnhance, setIncludeTaskHistoryInEnhance] = useState(false)
 
 	const setListApiConfigMeta = useCallback(
 		(value: ProviderSettingsEntry[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
@@ -294,6 +297,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					// Update followupAutoApproveTimeoutMs if present in state message
 					if ((newState as any).followupAutoApproveTimeoutMs !== undefined) {
 						setFollowupAutoApproveTimeoutMs((newState as any).followupAutoApproveTimeoutMs)
+					}
+					// Update includeTaskHistoryInEnhance if present in state message
+					if ((newState as any).includeTaskHistoryInEnhance !== undefined) {
+						setIncludeTaskHistoryInEnhance((newState as any).includeTaskHistoryInEnhance)
 					}
 					// Handle marketplace data if present in state message
 					if (newState.marketplaceItems !== undefined) {
@@ -506,6 +513,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setMaxDiagnosticMessages: (value) => {
 			setState((prevState) => ({ ...prevState, maxDiagnosticMessages: value }))
 		},
+		includeTaskHistoryInEnhance,
+		setIncludeTaskHistoryInEnhance,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
