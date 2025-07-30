@@ -5,7 +5,6 @@ import * as vscode from "vscode"
 import { getHostBridgeProvider } from "@/hosts/host-providers"
 import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { writeFile } from "@utils/fs"
-import { showSaveDialog } from "@utils/dialog"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -33,27 +32,29 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		.join("---\n\n")
 
 	// Prompt user for save location
-	try {
-		const savePath = await showSaveDialog({
-			filters: { Markdown: ["md"] },
-			defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
-		})
+	const saveUri = await vscode.window.showSaveDialog({
+		filters: { Markdown: ["md"] },
+		defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
+	})
 
-		// Write content to the selected location
-		await writeFile(savePath, markdownContent)
-		await getHostBridgeProvider().windowClient.showTextDocument(
-			ShowTextDocumentRequest.create({
-				path: savePath,
-				options: ShowTextDocumentOptions.create({ preview: true }),
-			}),
-		)
-	} catch (error) {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
-			}),
-		)
+	if (saveUri) {
+		try {
+			// Write content to the selected location
+			await writeFile(saveUri.fsPath, markdownContent)
+			await getHostBridgeProvider().windowClient.showTextDocument(
+				ShowTextDocumentRequest.create({
+					path: saveUri.fsPath,
+					options: ShowTextDocumentOptions.create({ preview: true }),
+				}),
+			)
+		} catch (error) {
+			getHostBridgeProvider().windowClient.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.ERROR,
+					message: `Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
+				}),
+			)
+		}
 	}
 }
 
