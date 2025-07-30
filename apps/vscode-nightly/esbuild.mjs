@@ -64,7 +64,7 @@ async function main() {
 					copyPaths(
 						[
 							["../README.vscode.md", "README.md"],
-							["../CHANGELOG.md", "CHANGELOG.md"],
+							["../CHANGELOG-NIGHTLY.md", "CHANGELOG.md"],
 							["../LICENSE", "LICENSE"],
 							["../.env", ".env", { optional: true }],
 							[".vscodeignore", ".vscodeignore"],
