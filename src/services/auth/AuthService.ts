@@ -5,8 +5,9 @@ import { clineEnvConfig } from "@/config"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { storeSecret } from "@/core/storage/state"
-import { getAuthHandler, setAuthHandler } from "./AuthHandler"
+import { AuthHandler } from "./AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import { openExternal } from "@/utils/env"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -95,9 +96,6 @@ export class AuthService {
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
 
 		this._context = context
-
-		// TODO: Only set auth handler in non-vs code
-		setAuthHandler()
 	}
 
 	/**
@@ -190,7 +188,9 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackUrl = `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`
+		const callbackHost =
+			(await AuthHandler.getInstance().getCallbackUri()) || `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
+		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(this._config.URI)
@@ -198,7 +198,7 @@ export class AuthService {
 
 		const authUrlString = authUrl.toString()
 
-		await getAuthHandler(authUrlString)
+		await openExternal(authUrlString)
 
 		return String.create({ value: authUrlString })
 	}

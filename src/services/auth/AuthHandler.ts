@@ -3,70 +3,144 @@ import http from "node:http"
 import type { AddressInfo } from "node:net"
 import { clineEnvConfig } from "@/config"
 import { openExternal } from "@/utils/env"
+import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
 
-const SERVER_TIMEOUT = 10 * 60 * 1000
+const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 
 /**
  * Handles OAuth authentication flow by creating a local server to receive tokens.
  */
 export class AuthHandler {
+	private static instance: AuthHandler | null = null
+
 	private port = 0
 	private server: Server | null = null
+	private serverCreationPromise: Promise<void> | null = null
+	private timeoutId: NodeJS.Timeout | null = null
+	private enabled: boolean = false
 
 	public static callbackHandler: (uri: string) => Promise<void>
 
-	public start(): string | undefined {
+	private constructor() {}
+
+	/**
+	 * Gets the singleton instance of AuthHandler
+	 * @returns The singleton AuthHandler instance
+	 */
+	public static getInstance(): AuthHandler {
+		if (!AuthHandler.instance) {
+			AuthHandler.instance = new AuthHandler()
+		}
+		return AuthHandler.instance
+	}
+
+	public setEnabled(enabled: boolean): void {
+		this.enabled = enabled
+	}
+
+	public async getCallbackUri(): Promise<string | undefined> {
 		try {
-			if (this.server) {
-				const authUrl = this.getBrowserAuthUrl()
-				console.error("AuthTokenHandler: Server already running")
-				this.openBrowser(authUrl)
-				return authUrl.href
+			if (!this.enabled) {
+				return undefined
 			}
 
-			this.createServer()
-			const authUrl = this.getBrowserAuthUrl()
-			return authUrl.href
+			if (!this.server) {
+				// If server creation is already in progress, wait for it
+				if (this.serverCreationPromise) {
+					await this.serverCreationPromise
+				} else {
+					// Start server creation and track the promise
+					this.serverCreationPromise = this.createServer()
+					await this.serverCreationPromise
+				}
+			} else {
+				this.updateTimeout()
+			}
+
+			return `http://127.0.0.1:${this.port}`
 		} catch (error) {
-			console.error("AuthTokenHandler.start error:", error)
+			console.error("AuthHandler.getCallbackUri error:", error)
 			return undefined
 		}
 	}
 
-	private createServer(): void {
-		const server = http.createServer(this.handleRequest.bind(this))
+	private async createServer(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			try {
+				const server = http.createServer(this.handleRequest.bind(this))
 
-		server.listen(0, "127.0.0.1", () => {
-			this.port = (server.address() as AddressInfo).port
-			this.server = server
-			console.error("AuthTokenHandler: Server started on port", this.port)
+				// Use callback to ensure server is ready before getting address
+				server.listen(0, "127.0.0.1", () => {
+					const address = server.address()
+					if (!address) {
+						console.error("AuthHandler: Failed to get server address")
+						this.server = null
+						this.port = 0
+						this.serverCreationPromise = null
+						reject(new Error("Failed to get server address"))
+						return
+					}
 
-			const callbackUrl = this.getBrowserAuthUrl()
-			this.openBrowser(callbackUrl)
-			setTimeout(() => this.stop(), SERVER_TIMEOUT)
+					// Get the assigned port and set up the server
+					this.port = (address as AddressInfo).port
+					this.server = server
+					console.log("AuthHandler: Server started on port", this.port)
+					this.updateTimeout()
+					this.serverCreationPromise = null
+					resolve()
+				})
+
+				server.on("error", (error) => {
+					console.error("AuthHandler: Server error", error)
+					this.server = null
+					this.port = 0
+					this.serverCreationPromise = null
+					reject(error)
+				})
+			} catch (error) {
+				console.error("AuthHandler: Failed to create server", error)
+				this.server = null
+				this.port = 0
+				this.serverCreationPromise = null
+				reject(error)
+			}
 		})
+	}
 
-		server.on("error", (error) => {
-			console.error("AuthTokenHandler: Server error", error)
-		})
+	private updateTimeout(): void {
+		if (this.timeoutId) {
+			clearTimeout(this.timeoutId)
+		}
+
+		this.timeoutId = setTimeout(() => this.stop(), SERVER_TIMEOUT)
 	}
 
 	private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		console.log("AuthTokenHandler: Received request", req.url)
-		if (!req.url || !req.url?.startsWith("/auth?idToken=")) {
+
+		if (!req.url) {
 			this.sendResponse(res, 404, "text/plain", "Not found")
 			return
 		}
-		try {
-			const url = new URL(req.url, `http://127.0.0.1:${this.port}`)
 
-			// Convert URL to vscode.Uri for the callback
-			await AuthHandler.callbackHandler?.(url.toString())
-			this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
+		try {
+			// Convert HTTP URL to vscode.Uri and use shared handler directly
+			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
+			const uri = SharedUriHandler.convertHttpUrlToUri(fullUrl)
+
+			// Use SharedUriHandler directly - it handles all validation and processing
+			const success = await SharedUriHandler.handleUri(uri)
+
+			if (success) {
+				this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
+			} else {
+				this.sendResponse(res, 400, "text/plain", "Bad request")
+			}
 		} catch (error) {
-			console.error("AuthTokenHandler: Error handling request", error)
-			this.sendResponse(res, 400, "text/plain", "Token not found")
+			console.error("AuthTokenHandler: Error processing request", error)
+			this.sendResponse(res, 400, "text/plain", "Bad request")
 		} finally {
+			// Stop the server after handling any request (success or failure)
 			this.stop()
 		}
 	}
@@ -80,27 +154,19 @@ export class AuthHandler {
 		await openExternal(callbackUrl.toString())
 	}
 
-	private getBrowserAuthUrl(): URL {
-		try {
-			if (!clineEnvConfig.appBaseUrl) {
-				throw new Error("clineEnvConfig.appBaseUrl is undefined")
-			}
-			const baseUrl = new URL(clineEnvConfig.appBaseUrl)
-			baseUrl.pathname = "/auth"
-			baseUrl.searchParams.set("callback_url", `http://127.0.0.1:${this.port}/auth`)
-			return baseUrl
-		} catch (error) {
-			console.error("Error creating browser auth URL:", error)
-			throw error
-		}
-	}
-
 	public stop(): void {
+		if (this.timeoutId) {
+			clearTimeout(this.timeoutId)
+			this.timeoutId = null
+		}
+
 		if (this.server) {
 			this.server.close()
 			this.server = null
-			this.port = 0
 		}
+
+		this.serverCreationPromise = null
+		this.port = 0
 	}
 
 	public dispose(): void {
@@ -260,20 +326,3 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
     </script>
 </body>
 </html>`
-
-let _authHandler: AuthHandler | null = null
-
-export async function getAuthHandler(authUrlString: string): Promise<void> {
-	if (_authHandler) {
-		_authHandler.start()
-		return
-	}
-	await openExternal(authUrlString)
-}
-
-/**
- * Sets the AuthHandler instance for non-vscode environments.
- */
-export function setAuthHandler(): void {
-	_authHandler = new AuthHandler()
-}

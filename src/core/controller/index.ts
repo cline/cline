@@ -322,17 +322,8 @@ export class Controller {
 		}
 	}
 
-	public callbackHandler = async (uri: string) => {
+	public callbackHandler = async (token: string, provider: string | null = null) => {
 		try {
-			if (!uri) {
-				console.error("AuthTokenHandler.authUrlHandler: URI is undefined")
-				return
-			}
-			const url = new URL(uri.toString())
-			const query = new URLSearchParams(url.search)
-			const token = query.get("idToken")
-			const provider = query.get("provider") || null
-
 			if (!token) {
 				throw new Error("No idToken found in the callback URL")
 			}

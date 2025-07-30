@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
 import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
+import { AuthHandler } from "@/services/auth/AuthHandler"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -20,6 +21,8 @@ async function main() {
 	activate(extensionContext)
 	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
 	startProtobusService(controller)
+
+	AuthHandler.getInstance().setEnabled(true)
 }
 
 function createWebview() {
