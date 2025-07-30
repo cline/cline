@@ -221,10 +221,15 @@ class TelemetryService {
 			return
 		}
 
+		if (!this.client) {
+			console.warn("Telemetry client is not initialized. Skipping identifyAccount.")
+			return
+		}
+
 		this.client.identify({
-			distinctId: userInfo.email,
+			distinctId: userInfo.id,
 			properties: {
-				id: userInfo.id,
+				uuid: userInfo.id,
 				email: userInfo.email,
 				name: userInfo.displayName,
 				...this.addProperties({}),
