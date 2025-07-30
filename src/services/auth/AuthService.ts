@@ -3,6 +3,7 @@ import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { storeSecret } from "@/core/storage/state"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
@@ -230,6 +231,10 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.signIn(this._context, token, provider)
 			this._authenticated = true
 
+			if (this._clineAuthInfo) {
+				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+			}
+
 			await this.sendAuthStatusUpdate()
 			// return this._clineAuthInfo
 		} catch (error) {
@@ -259,6 +264,7 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._context)
 			if (this._clineAuthInfo) {
 				this._authenticated = true
+				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")
