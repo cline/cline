@@ -131,7 +131,8 @@ enum ApiProvider {
   CLAUDE_CODE = 26;
   MOONSHOT = 27;
   HUGGINGFACE = 28;
-  BASETEN = 29;
+  HUAWEI_CLOUD_MAAS = 29;
+  BASETEN = 30;
 }
 
 // Model info for OpenAI-compatible models
@@ -232,7 +233,8 @@ message ModelsApiConfiguration {
   optional string cline_account_id = 58;
   optional string groq_api_key = 59;
   optional string hugging_face_api_key = 60;
-  optional string baseten_api_key = 61;
+  optional string huawei_cloud_maas_api_key = 61;
+  optional string baseten_api_key = 62;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -259,8 +261,10 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
   optional string plan_mode_hugging_face_model_id = 122;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
-  optional string plan_mode_baseten_model_id = 124;
-  optional OpenRouterModelInfo plan_mode_baseten_model_info = 125;
+  optional string plan_mode_huawei_cloud_maas_model_id = 124;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
+  optional string plan_mode_baseten_model_id = 126;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -287,8 +291,10 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_groq_model_info = 221;
   optional string act_mode_hugging_face_model_id = 222;
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
-    optional string act_mode_baseten_model_id = 224;
-  optional OpenRouterModelInfo act_mode_baseten_model_info = 225;
+  optional string act_mode_huawei_cloud_maas_model_id = 224;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
+  optional string act_mode_baseten_model_id = 226;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
 
   repeated string favorited_model_ids = 300;
 }

@@ -48,10 +48,12 @@ import {
 	claudeCodeModels,
 	groqModels,
 	groqDefaultModelId,
+	huaweiCloudMaasModels,
+	huaweiCloudMaasDefaultModelId,
 	basetenModels,
 	basetenDefaultModelId,
 } from "@shared/api"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 /**
  * Interface for normalized API configuration
@@ -266,6 +268,20 @@ export function normalizeApiConfiguration(
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		case "huawei-cloud-maas":
+			const huaweiCloudMaasModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuaweiCloudMaasModelId
+					: apiConfiguration?.actModeHuaweiCloudMaasModelId
+			const huaweiCloudMaasModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeHuaweiCloudMaasModelInfo
+					: apiConfiguration?.actModeHuaweiCloudMaasModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
+				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -296,6 +312,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			groqModelId: undefined,
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
+			huaweiCloudMaasModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -310,6 +327,9 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
 			awsBedrockCustomModelBaseId: undefined,
+
+			// Huawei Cloud Maas Model Info
+			huaweiCloudMaasModelInfo: undefined,
 
 			// Other mode-specific fields
 			thinkingBudgetTokens: undefined,
@@ -336,6 +356,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
+		huaweiCloudMaasModelId:
+			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -360,6 +382,12 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan"
 				? apiConfiguration.planModeAwsBedrockCustomModelBaseId
 				: apiConfiguration.actModeAwsBedrockCustomModelBaseId,
+
+		// Huawei Cloud Maas Model Info
+		huaweiCloudMaasModelInfo:
+			mode === "plan"
+				? apiConfiguration.planModeHuaweiCloudMaasModelInfo
+				: apiConfiguration.actModeHuaweiCloudMaasModelInfo,
 
 		// Other mode-specific fields
 		thinkingBudgetTokens:
@@ -479,6 +507,12 @@ export async function syncModeConfigurations(
 			updates.actModeAwsBedrockCustomSelected = sourceFields.awsBedrockCustomSelected
 			updates.planModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
 			updates.actModeAwsBedrockCustomModelBaseId = sourceFields.awsBedrockCustomModelBaseId
+			break
+		case "huawei-cloud-maas":
+			updates.planModeHuaweiCloudMaasModelId = sourceFields.huaweiCloudMaasModelId
+			updates.actModeHuaweiCloudMaasModelId = sourceFields.huaweiCloudMaasModelId
+			updates.planModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
+			updates.actModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

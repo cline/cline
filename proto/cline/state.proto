@@ -6,14 +6,14 @@ option java_multiple_files = true;
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
-  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+  rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
   rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
   rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
-  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
+  rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
@@ -43,19 +43,13 @@ message TerminalProfileUpdateResponse {
 
 message TogglePlanActModeRequest {
   Metadata metadata = 1;
-  ChatSettings chat_settings = 2;
+  PlanActMode mode = 2;
   optional ChatContent chat_content = 3;
 }
 
 enum PlanActMode {
   PLAN = 0;
   ACT = 1;
-}
-
-message ChatSettings {
-  PlanActMode mode = 1;
-  optional string preferred_language = 2;
-  optional string open_ai_reasoning_effort = 3;
 }
 
 message ChatContent {
@@ -108,12 +102,14 @@ message UpdateSettingsRequest {
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
-  optional ChatSettings chat_settings = 7;
-  optional int64 shell_integration_timeout = 8;
+  optional int32 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional string mcp_display_mode = 11;
-  optional int64 terminal_output_line_limit = 12;
+  optional int32 terminal_output_line_limit = 12;
+  optional PlanActMode mode = 13;
+  optional string preferred_language = 14;
+  optional string openai_reasoning_effort = 15;
 }
 
 // Complete API Configuration message
@@ -153,8 +149,8 @@ message ApiConfiguration {
   optional string requesty_api_key = 32;
   optional string together_api_key = 33;
   optional string fireworks_api_key = 34;
-  optional int64 fireworks_model_max_completion_tokens = 35;
-  optional int64 fireworks_model_max_tokens = 36;
+  optional int32 fireworks_model_max_completion_tokens = 35;
+  optional int32 fireworks_model_max_tokens = 36;
   optional string qwen_api_key = 37;
   optional string doubao_api_key = 38;
   optional string mistral_api_key = 39;
@@ -166,7 +162,7 @@ message ApiConfiguration {
   optional string xai_api_key = 45;
   optional string sambanova_api_key = 46;
   optional string cerebras_api_key = 47;
-  optional int64 request_timeout_ms = 48;
+  optional int32 request_timeout_ms = 48;
   optional string sap_ai_core_client_id = 49;
   optional string sap_ai_core_client_secret = 50;
   optional string sap_ai_resource_group = 51;
@@ -174,11 +170,12 @@ message ApiConfiguration {
   optional string sap_ai_core_base_url = 53;
   optional string moonshot_api_key = 54;
   optional string moonshot_api_line = 55;
+  optional string huawei_cloud_maas_api_key = 56;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
-  optional int64 plan_mode_thinking_budget_tokens = 102;
+  optional int32 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   optional string plan_mode_vscode_lm_model_selector = 104; // JSON string
   optional bool plan_mode_aws_bedrock_custom_selected = 105;
@@ -196,11 +193,13 @@ message ApiConfiguration {
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
   optional string plan_mode_sap_ai_core_model_id = 119;
+  optional string plan_mode_huawei_cloud_maas_model_id = 120;
+  optional string plan_mode_huawei_cloud_maas_model_info = 121;
   
   // Act mode configurations
   optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
-  optional int64 act_mode_thinking_budget_tokens = 202;
+  optional int32 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
   optional string act_mode_vscode_lm_model_selector = 204; // JSON string
   optional bool act_mode_aws_bedrock_custom_selected = 205;
@@ -218,6 +217,8 @@ message ApiConfiguration {
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
+  optional string act_mode_huawei_cloud_maas_model_id = 220;
+  optional string act_mode_huawei_cloud_maas_model_info = 221;
   
   // Favorited model IDs
   repeated string favorited_model_ids = 300;
@@ -227,4 +228,12 @@ message ApiConfiguration {
   optional string aws_bedrock_api_key = 302;
 
   optional string cline_account_id = 303;
+}
+
+message UpdateTerminalConnectionTimeoutRequest {
+  optional int32 timeout_ms = 1;
+}
+
+message UpdateTerminalConnectionTimeoutResponse {
+  optional int32 timeout_ms = 1;
 }

@@ -2,7 +2,7 @@ import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -104,7 +104,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 	// Track if we're currently switching modes
 
-	const { version, chatSettings } = useExtensionState()
+	const { version } = useExtensionState()
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
