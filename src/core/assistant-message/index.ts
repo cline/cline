@@ -28,6 +28,7 @@ export const toolUseNames = [
 	"report_bug",
 	"new_rule",
 	"web_fetch",
+	"summarize_task",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)

@@ -56,7 +56,7 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { ChatSettings } from "@/shared/ChatSettings"
 
-import { summarizeTask } from "../prompts/contextManagement"
+import { summarizeTask, continuationPrompt } from "../prompts/contextManagement"
 import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 
 export class ToolExecutor {
@@ -207,6 +207,8 @@ export class ToolExecutor {
 			case "new_task":
 				return `[${block.name} for creating a new task]`
 			case "condense":
+				return `[${block.name}]`
+			case "summarize_task":
 				return `[${block.name}]`
 			case "report_bug":
 				return `[${block.name}]`
@@ -1788,6 +1790,70 @@ export class ToolExecutor {
 					}
 				} catch (error) {
 					await this.handleError("creating new task", error, block)
+					await this.saveCheckpoint()
+					break
+				}
+			}
+			case "summarize_task": {
+				const context: string | undefined = block.params.context
+				try {
+					if (block.partial) {
+						// Show streaming summary generation in tool UI
+						const partialMessage = JSON.stringify({
+							tool: "summarizeTask",
+							content: this.removeClosingTag(block, "context", context),
+						} satisfies ClineSayTool)
+
+						await this.say("tool", partialMessage, undefined, undefined, block.partial)
+						break
+					} else {
+						if (!context) {
+							this.taskState.consecutiveMistakeCount++
+							this.pushToolResult(await this.sayAndCreateMissingParamError("summarize_task", "context"), block)
+							await this.saveCheckpoint()
+							break
+						}
+						this.taskState.consecutiveMistakeCount = 0
+
+						// Show completed summary in tool UI
+						const completeMessage = JSON.stringify({
+							tool: "summarizeTask",
+							content: context,
+						} satisfies ClineSayTool)
+
+						await this.say("tool", completeMessage, undefined, undefined, false)
+
+						// Auto-execute conversation replacement (no user approval needed)
+						this.pushToolResult(
+							formatResponse.toolResult("Conversation context optimized through AI summarization."),
+							block,
+						)
+
+						// Replace conversation history (same logic as condense when approved)
+						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+						const lastMessage = apiConversationHistory[apiConversationHistory.length - 1]
+						const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
+						const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
+
+						// Clear the context history at this point in time
+						this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+							apiConversationHistory,
+							this.taskState.conversationHistoryDeletedRange,
+							keepStrategy,
+						)
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+							Date.now(),
+							await ensureTaskDirectoryExists(this.context, this.taskId),
+						)
+
+						// Add continuation prompt to help AI continue from where it left off
+						this.pushToolResult(continuationPrompt(context), block)
+					}
+					await this.saveCheckpoint()
+					break
+				} catch (error) {
+					await this.handleError("summarizing conversation", error, block)
 					await this.saveCheckpoint()
 					break
 				}

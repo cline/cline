@@ -136,6 +136,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "summarizeTask"
 	path?: string
 	diff?: string
 	content?: string
