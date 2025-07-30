@@ -1133,10 +1133,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				{!inputValue && !isEditMode && (
 					<div
-						className="absolute left-2 z-30 pr-9 flex items-center h-8"
+						className="absolute left-2 z-30 pr-9 flex items-center h-8 font-vscode-font-family text-vscode-editor-font-size leading-vscode-editor-line-height"
 						style={{
 							bottom: "0.25rem",
-							color: "var(--vscode-tab-inactiveForeground)",
+							color: "color-mix(in oklab, var(--vscode-input-foreground) 50%, transparent)",
 							userSelect: "none",
 							pointerEvents: "none",
 						}}>
