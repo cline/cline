@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { globby } from "globby"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Finds files in the workspace matching the given pattern (Native Cline Core implementation)
@@ -25,7 +25,7 @@ export async function findFiles(
 			searchRoot = workspacePath
 		} else {
 			// Get workspace paths from host bridge
-			const workspaceResponse = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+			const workspaceResponse = await HostProvider.workspace.getWorkspacePaths({})
 			const workspacePaths = workspaceResponse.paths
 			if (workspacePaths.length === 0) {
 				return []
