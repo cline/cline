@@ -20,6 +20,10 @@ github_events:
     - event: pull_request.opened
       action:
           name: github.pr.review
+    - event: pull_request.opened
+      action:
+          name: general.task
+          prompt: "Check this pull request for any missing translations in the codebase. First, run the check-translations script using `node scripts/find-missing-translations.js` and carefully review its output for any missing translations. Then look for hardcoded strings that should be internationalized, but focus only on hardcoded strings that were added in this PR rather than existing strings. Verify that all UI text uses i18n functions, and ensure translation files are updated for all supported languages. If the script reports missing translations or you find other translation issues, use the translator mode to add them."
     - event: pull_request_review_comment.created
       action:
           name: github.pr.comment.respond
