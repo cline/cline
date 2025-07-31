@@ -14,6 +14,8 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { TaskState } from "../../core/task/TaskState"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import pTimeout from "p-timeout"
 
 // Type definitions for better code organization
@@ -259,7 +261,10 @@ export class TaskCheckpointManager {
 					if (!this.config.enableCheckpoints) {
 						const errorMessage = "Checkpoints are disabled in settings."
 						console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
-						vscode.window.showErrorMessage(errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 						break
 					}
@@ -279,7 +284,10 @@ export class TaskCheckpointManager {
 								errorMessage,
 							)
 							this.state.checkpointManagerErrorMessage = errorMessage
-							vscode.window.showErrorMessage(errorMessage)
+							HostProvider.window.showMessage({
+								type: ShowMessageType.ERROR,
+								message: errorMessage,
+							})
 							didWorkspaceRestoreFail = true
 						}
 					}
@@ -292,7 +300,10 @@ export class TaskCheckpointManager {
 								`[TaskCheckpointManager] Failed to restore checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
-							vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+							HostProvider.window.showMessage({
+								type: ShowMessageType.ERROR,
+								message: "Failed to restore checkpoint: " + errorMessage,
+							})
 							didWorkspaceRestoreFail = true
 						}
 					} else if (offset && lastMessageWithHash.lastCheckpointHash && this.state.checkpointTracker) {
@@ -304,7 +315,10 @@ export class TaskCheckpointManager {
 								`[TaskCheckpointManager] Failed to restore offset checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
-							vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
+							HostProvider.window.showMessage({
+								type: ShowMessageType.ERROR,
+								message: "Failed to restore offsetcheckpoint: " + errorMessage,
+							})
 							didWorkspaceRestoreFail = true
 						}
 					} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.state.checkpointTracker) {
@@ -320,13 +334,19 @@ export class TaskCheckpointManager {
 								`[TaskCheckpointManager] Failed to restore fallback checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
-							vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+							HostProvider.window.showMessage({
+								type: ShowMessageType.ERROR,
+								message: "Failed to restore checkpoint: " + errorMessage,
+							})
 							didWorkspaceRestoreFail = true
 						}
 					} else {
 						const errorMessage = "Failed to restore checkpoint: No valid checkpoint hash found"
 						console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
-						vscode.window.showErrorMessage(errorMessage)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: errorMessage,
+						})
 						didWorkspaceRestoreFail = true
 					}
 					break
@@ -374,7 +394,10 @@ export class TaskCheckpointManager {
 			if (!this.config.enableCheckpoints) {
 				const errorMessage = "Checkpoints are disabled in settings. Cannot show diff."
 				console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
-				vscode.window.showInformationMessage(errorMessage)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: errorMessage,
+				})
 				relinquishButton()
 				return
 			}
@@ -413,7 +436,10 @@ export class TaskCheckpointManager {
 						errorMessage,
 					)
 					this.state.checkpointManagerErrorMessage = errorMessage
-					vscode.window.showErrorMessage(errorMessage)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: errorMessage,
+					})
 					relinquishButton()
 					return
 				}
@@ -421,7 +447,10 @@ export class TaskCheckpointManager {
 
 			if (!this.state.checkpointTracker) {
 				console.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
-				vscode.window.showErrorMessage("Checkpoint tracker not available")
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Checkpoint tracker not available",
+				})
 				relinquishButton()
 				return
 			}
@@ -452,7 +481,10 @@ export class TaskCheckpointManager {
 				if (!previousCheckpointHash) {
 					const errorMessage = "Unexpected error: No checkpoint hash found"
 					console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
-					vscode.window.showErrorMessage(errorMessage)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: errorMessage,
+					})
 					relinquishButton()
 					return
 				}
@@ -460,7 +492,10 @@ export class TaskCheckpointManager {
 				// Get changed files between current state and commit
 				changedFiles = await this.state.checkpointTracker.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes found",
+					})
 					relinquishButton()
 					return
 				}
@@ -468,7 +503,10 @@ export class TaskCheckpointManager {
 				// Get changed files between current state and commit
 				changedFiles = await this.state.checkpointTracker.getDiffSet(hash)
 				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message: "No changes found",
+					})
 					relinquishButton()
 					return
 				}
@@ -492,7 +530,10 @@ export class TaskCheckpointManager {
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
 			console.error(`[TaskCheckpointManager] Failed to present multifile diff for task ${this.task.taskId}:`, errorMessage)
-			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to retrieve diff set: " + errorMessage,
+			})
 			relinquishButton()
 		}
 	}
@@ -670,13 +711,22 @@ export class TaskCheckpointManager {
 
 		switch (restoreType) {
 			case "task":
-				vscode.window.showInformationMessage("Task messages have been restored to the checkpoint")
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Task messages have been restored to the checkpoint",
+				})
 				break
 			case "workspace":
-				vscode.window.showInformationMessage("Workspace files have been restored to the checkpoint")
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Workspace files have been restored to the checkpoint",
+				})
 				break
 			case "taskAndWorkspace":
-				vscode.window.showInformationMessage("Task and workspace have been restored to the checkpoint")
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Task and workspace have been restored to the checkpoint",
+				})
 				break
 		}
 
