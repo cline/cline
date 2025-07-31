@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
-import { ApiHandler } from "../index"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ModelInfo } from "@shared/api"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { ApiStream } from "../transform/stream"
 
-interface AnthropicHandlerOptions {
+interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
 	anthropicBaseUrl?: string
 	apiModelId?: string

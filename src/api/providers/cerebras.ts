@@ -2,10 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { withRetry } from "../retry"
 import { ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { ApiStream } from "@api/transform/stream"
 
-interface CerebrasHandlerOptions {
+interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 	cerebrasApiKey?: string
 	apiModelId?: string
 }
