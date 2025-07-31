@@ -197,7 +197,14 @@
 			"description": "Fazer automaticamente este número de requisições à API antes de pedir aprovação para continuar com a tarefa.",
 			"unlimited": "Ilimitado"
 		},
-		"selectOptionsFirst": "Selecione pelo menos uma opção abaixo para habilitar a aprovação automática"
+		"selectOptionsFirst": "Selecione pelo menos uma opção abaixo para habilitar a aprovação automática",
+		"apiCostLimit": {
+			"title": "Custo máximo",
+			"unlimited": "Ilimitado"
+		},
+		"maxLimits": {
+			"description": "Fazer solicitações automaticamente até estes limites antes de pedir aprovação para continuar."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Documentação do {{provider}}",
@@ -318,7 +325,6 @@
 				"description": "Permite que o Gemini pesquise informações atuais no Google e fundamente as respostas em dados em tempo real. Útil para consultas que requerem informações atualizadas."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Para usar o Google Cloud Vertex AI, você precisa:",
 			"step1": "1. Criar uma conta Google Cloud, ativar a API Vertex AI e ativar os modelos Claude desejados.",

@@ -314,6 +314,11 @@
 			"title": "已達自動核准請求限制",
 			"description": "Roo 已達到 {{count}} 次 API 請求的自動核准限制。您想要重設計數並繼續工作嗎？",
 			"button": "重設並繼續"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "已达到自动批准成本上限",
+			"button": "重置并继续",
+			"description": "Roo已达到自动批准的成本限制${{count}}。您想要重置成本并继续任务吗？"
 		}
 	},
 	"codebaseSearch": {

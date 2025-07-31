@@ -197,7 +197,14 @@
 			"description": "Fes aquesta quantitat de sol·licituds API automàticament abans de demanar aprovació per continuar amb la tasca.",
 			"unlimited": "Il·limitat"
 		},
-		"selectOptionsFirst": "Seleccioneu almenys una opció a continuació per activar l'aprovació automàtica"
+		"selectOptionsFirst": "Seleccioneu almenys una opció a continuació per activar l'aprovació automàtica",
+		"apiCostLimit": {
+			"title": "Cost Màxim",
+			"unlimited": "Il·limitat"
+		},
+		"maxLimits": {
+			"description": "Fes sol·licituds automàticament fins a aquests límits abans de demanar aprovació per continuar."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Documentació de {{provider}}",
@@ -308,7 +315,6 @@
 		"cacheUsageNote": "Nota: Si no veieu l'ús de la caché, proveu de seleccionar un model diferent i després tornar a seleccionar el model desitjat.",
 		"vscodeLmModel": "Model de llenguatge",
 		"vscodeLmWarning": "Nota: Aquesta és una integració molt experimental i el suport del proveïdor variarà. Si rebeu un error sobre un model no compatible, és un problema del proveïdor.",
-
 		"geminiParameters": {
 			"urlContext": {
 				"title": "Activa el context d'URL",

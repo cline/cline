@@ -10,6 +10,7 @@ import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { AutoApproveToggle } from "./AutoApproveToggle"
+import { MaxLimitInputs } from "./MaxLimitInputs"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApprovalState } from "@/hooks/useAutoApprovalState"
 import { useAutoApprovalToggles } from "@/hooks/useAutoApprovalToggles"
@@ -31,6 +32,8 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowUpdateTodoList?: boolean
 	followupAutoApproveTimeoutMs?: number
 	allowedCommands?: string[]
+	allowedMaxRequests?: number | undefined
+	allowedMaxCost?: number | undefined
 	deniedCommands?: string[]
 	setCachedStateField: SetCachedStateField<
 		| "alwaysAllowReadOnly"
@@ -48,6 +51,8 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "alwaysAllowFollowupQuestions"
 		| "followupAutoApproveTimeoutMs"
 		| "allowedCommands"
+		| "allowedMaxRequests"
+		| "allowedMaxCost"
 		| "deniedCommands"
 		| "alwaysAllowUpdateTodoList"
 	>
@@ -70,6 +75,8 @@ export const AutoApproveSettings = ({
 	followupAutoApproveTimeoutMs = 60000,
 	alwaysAllowUpdateTodoList,
 	allowedCommands,
+	allowedMaxRequests,
+	allowedMaxCost,
 	deniedCommands,
 	setCachedStateField,
 	...props
@@ -151,6 +158,12 @@ export const AutoApproveSettings = ({
 					alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
 					alwaysAllowUpdateTodoList={alwaysAllowUpdateTodoList}
 					onToggle={(key, value) => setCachedStateField(key, value)}
+				/>
+				<MaxLimitInputs
+					allowedMaxRequests={allowedMaxRequests}
+					allowedMaxCost={allowedMaxCost}
+					onMaxRequestsChange={(value) => setCachedStateField("allowedMaxRequests", value)}
+					onMaxCostChange={(value) => setCachedStateField("allowedMaxCost", value)}
 				/>
 
 				{/* ADDITIONAL SETTINGS */}

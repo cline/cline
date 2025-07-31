@@ -314,6 +314,11 @@
 			"title": "자동 승인 요청 한도 도달",
 			"description": "Roo가 {{count}}개의 API 요청(들)에 대한 자동 승인 한도에 도달했습니다. 카운트를 재설정하고 작업을 계속하시겠습니까?",
 			"button": "재설정 후 계속"
+		},
+		"autoApprovedCostLimitReached": {
+			"description": "Roo가 자동 승인된 비용 한도인 ${{count}}에 도달했습니다. 비용을 초기화하고 작업을 계속하시겠습니까?",
+			"title": "자동 승인 비용 한도에 도달함",
+			"button": "재설정 후 계속하기"
 		}
 	},
 	"codebaseSearch": {

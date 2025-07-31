@@ -197,7 +197,14 @@
 			"description": "在請求批准以繼續執行工作之前，自動發出此數量的 API 請求。",
 			"unlimited": "無限制"
 		},
-		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准"
+		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准",
+		"apiCostLimit": {
+			"unlimited": "无限",
+			"title": "最高费用"
+		},
+		"maxLimits": {
+			"description": "在请求获得继续操作的批准前，自动发送请求直至达到这些限制。"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 文件",
@@ -308,7 +315,6 @@
 		"cacheUsageNote": "注意：如果您沒有看到快取使用情況，請嘗試選擇其他模型，然後重新選擇您想要的模型。",
 		"vscodeLmModel": "語言模型",
 		"vscodeLmWarning": "注意：此整合功能仍處於實驗階段，各供應商的支援程度可能不同。如果出現模型不支援的錯誤，通常是供應商方面的問題。",
-
 		"geminiParameters": {
 			"urlContext": {
 				"title": "啟用 URL 上下文",

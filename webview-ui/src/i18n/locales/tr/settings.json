@@ -197,7 +197,14 @@
 			"description": "Göreve devam etmek için onay istemeden önce bu sayıda API isteği otomatik olarak yap.",
 			"unlimited": "Sınırsız"
 		},
-		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek seçin"
+		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek seçin",
+		"apiCostLimit": {
+			"unlimited": "Sınırsız",
+			"title": "Maksimum Maliyet"
+		},
+		"maxLimits": {
+			"description": "Bu sınırlara ulaşana kadar otomatik olarak istekleri yap, sonrasında devam etmek için onay iste."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} Dokümantasyonu",
@@ -318,7 +325,6 @@
 				"description": "Gemini'nin güncel bilgileri almak için Google'da arama yapmasına ve yanıtları gerçek zamanlı verilere dayandırmasına izin verir. Güncel bilgi gerektiren sorgular için kullanışlıdır."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AI'yi kullanmak için şunları yapmanız gerekir:",
 			"step1": "1. Google Cloud hesabı oluşturun, Vertex AI API'sini etkinleştirin ve istediğiniz Claude modellerini etkinleştirin.",

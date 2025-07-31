@@ -197,7 +197,14 @@
 			"description": "タスクを続行するための承認を求める前に、自動的にこの数のAPIリクエストを行います。",
 			"unlimited": "無制限"
 		},
-		"selectOptionsFirst": "自動承認を有効にするには、以下のオプションを少なくとも1つ選択してください"
+		"selectOptionsFirst": "自動承認を有効にするには、以下のオプションを少なくとも1つ選択してください",
+		"apiCostLimit": {
+			"unlimited": "無制限",
+			"title": "最大料金"
+		},
+		"maxLimits": {
+			"description": "これらの上限まで自動的にリクエストを行い、その後継続の承認を求めます。"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}のドキュメント",
@@ -318,7 +325,6 @@
 				"description": "GeminiがGoogleを検索して最新情報を取得し、リアルタイムデータに基づいて応答をグラウンディングできるようにします。最新情報が必要なクエリに便利です。"
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AIを使用するには：",
 			"step1": "1. Google Cloudアカウントを作成し、Vertex AI APIを有効にして、希望するClaudeモデルを有効にします。",

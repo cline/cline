@@ -92,6 +92,7 @@ import { ApiMessage } from "../task-persistence/apiMessages"
 import { getMessagesSinceLastSummary, summarizeConversation } from "../condense"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 import { restoreTodoListForTask } from "../tools/updateTodoListTool"
+import { AutoApprovalHandler } from "./AutoApprovalHandler"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 
@@ -199,7 +200,7 @@ export class Task extends EventEmitter<TaskEvents> {
 	readonly apiConfiguration: ProviderSettings
 	api: ApiHandler
 	private static lastGlobalApiRequestTime?: number
-	private consecutiveAutoApprovedRequestsCount: number = 0
+	private autoApprovalHandler: AutoApprovalHandler
 
 	/**
 	 * Reset the global API request timestamp. This should only be used for testing.
@@ -302,6 +303,7 @@ export class Task extends EventEmitter<TaskEvents> {
 
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
+		this.autoApprovalHandler = new AutoApprovalHandler()
 
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
@@ -1968,18 +1970,16 @@ export class Task extends EventEmitter<TaskEvents> {
 			({ role, content }) => ({ role, content }),
 		)
 
-		// Check if we've reached the maximum number of auto-approved requests
-		const maxRequests = state?.allowedMaxRequests || Infinity
+		// Check auto-approval limits
+		const approvalResult = await this.autoApprovalHandler.checkAutoApprovalLimits(
+			state,
+			this.combineMessages(this.clineMessages.slice(1)),
+			async (type, data) => this.ask(type, data),
+		)
 
-		// Increment the counter for each new API request
-		this.consecutiveAutoApprovedRequestsCount++
-
-		if (this.consecutiveAutoApprovedRequestsCount > maxRequests) {
-			const { response } = await this.ask("auto_approval_max_req_reached", JSON.stringify({ count: maxRequests }))
-			// If we get past the promise, it means the user approved and did not start a new task
-			if (response === "yesButtonClicked") {
-				this.consecutiveAutoApprovedRequestsCount = 0
-			}
+		if (!approvalResult.shouldProceed) {
+			// User did not approve, task should be aborted
+			throw new Error("Auto-approval limit reached and user did not approve continuation")
 		}
 
 		const metadata: ApiHandlerCreateMessageMetadata = {

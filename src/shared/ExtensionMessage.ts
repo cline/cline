@@ -222,6 +222,7 @@ export type ExtensionState = Pick<
 	| "allowedCommands"
 	| "deniedCommands"
 	| "allowedMaxRequests"
+	| "allowedMaxCost"
 	| "browserToolEnabled"
 	| "browserViewportSize"
 	| "screenshotQuality"

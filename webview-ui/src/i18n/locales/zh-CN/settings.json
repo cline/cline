@@ -197,7 +197,14 @@
 			"description": "在请求批准以继续执行任务之前，自动发出此数量的 API 请求。",
 			"unlimited": "无限制"
 		},
-		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准"
+		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准",
+		"apiCostLimit": {
+			"title": "最高费用",
+			"unlimited": "无限"
+		},
+		"maxLimits": {
+			"description": "在请求批准继续之前，自动发出请求，最多不超过这些限制。"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 文档",
@@ -308,7 +315,6 @@
 		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
-
 		"geminiParameters": {
 			"urlContext": {
 				"title": "启用 URL 上下文",

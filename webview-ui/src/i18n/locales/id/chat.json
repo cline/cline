@@ -335,6 +335,11 @@
 			"title": "Batas Permintaan yang Disetujui Otomatis Tercapai",
 			"description": "Roo telah mencapai batas {{count}} permintaan API yang disetujui otomatis. Apakah kamu ingin mengatur ulang hitungan dan melanjutkan tugas?",
 			"button": "Atur Ulang dan Lanjutkan"
+		},
+		"autoApprovedCostLimitReached": {
+			"description": "Roo telah mencapai batas biaya yang disetujui secara otomatis sebesar ${{count}}. Apakah Anda ingin mengatur ulang biaya dan melanjutkan tugas ini?",
+			"button": "Reset dan Lanjutkan",
+			"title": "Batas Biaya Otomatis-Disetujui Tercapai"
 		}
 	},
 	"indexingStatus": {

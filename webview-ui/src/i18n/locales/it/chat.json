@@ -314,6 +314,11 @@
 			"title": "Limite di Richieste Auto-approvate Raggiunto",
 			"description": "Roo ha raggiunto il limite auto-approvato di {{count}} richiesta/e API. Vuoi reimpostare il contatore e procedere con l'attività?",
 			"button": "Reimposta e Continua"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Limite di costo auto-approvato raggiunto",
+			"button": "Reimposta e Continua",
+			"description": "Roo ha raggiunto il limite di costo approvato automaticamente di ${{count}}. Vuoi reimpostare il costo e procedere con l'attività?"
 		}
 	},
 	"codebaseSearch": {

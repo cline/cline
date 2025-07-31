@@ -314,6 +314,11 @@
 			"title": "自動承認リクエスト制限に達しました",
 			"description": "Rooは{{count}}件のAPI自動承認リクエスト制限に達しました。カウントをリセットしてタスクを続行しますか？",
 			"button": "リセットして続行"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "自動承認コスト制限に達しました",
+			"description": "Rooは自動承認されたコスト制限の${{count}}に達しました。コストをリセットしてタスクを続行しますか？",
+			"button": "リセットして続ける"
 		}
 	},
 	"codebaseSearch": {

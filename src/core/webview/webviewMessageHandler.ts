@@ -332,6 +332,10 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("allowedMaxRequests", message.value)
 			await provider.postStateToWebview()
 			break
+		case "allowedMaxCost":
+			await updateGlobalState("allowedMaxCost", message.value)
+			await provider.postStateToWebview()
+			break
 		case "alwaysAllowSubtasks":
 			await updateGlobalState("alwaysAllowSubtasks", message.bool)
 			await provider.postStateToWebview()
