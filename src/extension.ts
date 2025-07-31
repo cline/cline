@@ -679,6 +679,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	return createClineAPI(sidebarWebview.controller)
 }
 
+export function getLatestAnnouncementId(context: vscode.ExtensionContext) {
+	return context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+}
+
 function maybeSetupHostProviders(context: ExtensionContext) {
 	if (!HostProvider.isInitialized()) {
 		console.log("Setting up vscode host providers...")
