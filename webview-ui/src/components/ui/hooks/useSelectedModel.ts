@@ -6,6 +6,8 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	cerebrasDefaultModelId,
+	cerebrasModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
 	moonshotDefaultModelId,
@@ -245,6 +247,11 @@ function getSelectedModel({
 			const id = apiConfiguration.apiModelId ?? claudeCodeDefaultModelId
 			const info = claudeCodeModels[id as keyof typeof claudeCodeModels]
 			return { id, info: { ...openAiModelInfoSaneDefaults, ...info } }
+		}
+		case "cerebras": {
+			const id = apiConfiguration.apiModelId ?? cerebrasDefaultModelId
+			const info = cerebrasModels[id as keyof typeof cerebrasModels]
+      return { id, info }
 		}
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? sambaNovaDefaultModelId

@@ -256,6 +256,8 @@
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",
 		"anthropicUseAuthToken": "将 Anthropic API 密钥作为 Authorization 标头传递，而不是 X-Api-Key",
+		"cerebrasApiKey": "Cerebras API 密钥",
+		"getCerebrasApiKey": "获取 Cerebras API 密钥",
 		"chutesApiKey": "Chutes API 密钥",
 		"getChutesApiKey": "获取 Chutes API 密钥",
 		"deepSeekApiKey": "DeepSeek API 密钥",

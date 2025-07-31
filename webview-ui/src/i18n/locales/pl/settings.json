@@ -256,6 +256,8 @@
 		"anthropicApiKey": "Klucz API Anthropic",
 		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",
 		"anthropicUseAuthToken": "Przekaż klucz API Anthropic jako nagłówek Authorization zamiast X-Api-Key",
+		"cerebrasApiKey": "Klucz API Cerebras",
+		"getCerebrasApiKey": "Pobierz klucz API Cerebras",
 		"chutesApiKey": "Klucz API Chutes",
 		"getChutesApiKey": "Uzyskaj klucz API Chutes",
 		"deepSeekApiKey": "Klucz API DeepSeek",

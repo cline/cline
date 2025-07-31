@@ -256,6 +256,8 @@
 		"anthropicApiKey": "Anthropic API-ключ",
 		"getAnthropicApiKey": "Получить Anthropic API-ключ",
 		"anthropicUseAuthToken": "Передавать Anthropic API-ключ как Authorization-заголовок вместо X-Api-Key",
+		"cerebrasApiKey": "Cerebras API-ключ",
+		"getCerebrasApiKey": "Получить Cerebras API-ключ",
 		"chutesApiKey": "Chutes API-ключ",
 		"getChutesApiKey": "Получить Chutes API-ключ",
 		"deepSeekApiKey": "DeepSeek API-ключ",

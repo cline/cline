@@ -256,6 +256,8 @@
 		"anthropicApiKey": "Anthropic API Anahtarı",
 		"getAnthropicApiKey": "Anthropic API Anahtarı Al",
 		"anthropicUseAuthToken": "Anthropic API Anahtarını X-Api-Key yerine Authorization başlığı olarak geçir",
+		"cerebrasApiKey": "Cerebras API Anahtarı",
+		"getCerebrasApiKey": "Cerebras API Anahtarını Al",
 		"chutesApiKey": "Chutes API Anahtarı",
 		"getChutesApiKey": "Chutes API Anahtarı Al",
 		"deepSeekApiKey": "DeepSeek API Anahtarı",

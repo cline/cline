@@ -94,6 +94,15 @@
 			"generate_complete_prompt": "Error de finalització de Gemini: {{error}}",
 			"sources": "Fonts:"
 		},
+		"cerebras": {
+			"authenticationFailed": "Ha fallat l'autenticació de l'API de Cerebras. Comproveu que la vostra clau d'API sigui vàlida i no hagi caducat.",
+			"accessForbidden": "Accés denegat a l'API de Cerebras. La vostra clau d'API pot no tenir accés al model o funcionalitat sol·licitats.",
+			"rateLimitExceeded": "S'ha superat el límit de velocitat de l'API de Cerebras. Espereu abans de fer una altra sol·licitud.",
+			"serverError": "Error del servidor de l'API de Cerebras ({{status}}). Torneu-ho a provar més tard.",
+			"genericError": "Error de l'API de Cerebras ({{status}}): {{message}}",
+			"noResponseBody": "Error de l'API de Cerebras: No hi ha cos de resposta",
+			"completionError": "Error de finalització de Cerebras: {{error}}"
+		},
 		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},
 	"warnings": {

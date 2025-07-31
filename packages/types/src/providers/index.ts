@@ -1,5 +1,6 @@
 export * from "./anthropic.js"
 export * from "./bedrock.js"
+export * from "./cerebras.js"
 export * from "./chutes.js"
 export * from "./claude-code.js"
 export * from "./deepseek.js"

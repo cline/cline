@@ -256,6 +256,8 @@
 		"anthropicApiKey": "Chiave API Anthropic",
 		"getAnthropicApiKey": "Ottieni chiave API Anthropic",
 		"anthropicUseAuthToken": "Passa la chiave API Anthropic come header di autorizzazione invece di X-Api-Key",
+		"cerebrasApiKey": "Chiave API Cerebras",
+		"getCerebrasApiKey": "Ottieni chiave API Cerebras",
 		"chutesApiKey": "Chiave API Chutes",
 		"getChutesApiKey": "Ottieni chiave API Chutes",
 		"deepSeekApiKey": "Chiave API DeepSeek",

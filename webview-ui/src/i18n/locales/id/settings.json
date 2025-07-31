@@ -260,6 +260,8 @@
 		"anthropicApiKey": "Anthropic API Key",
 		"getAnthropicApiKey": "Dapatkan Anthropic API Key",
 		"anthropicUseAuthToken": "Kirim Anthropic API Key sebagai Authorization header alih-alih X-Api-Key",
+		"cerebrasApiKey": "Cerebras API Key",
+		"getCerebrasApiKey": "Dapatkan Cerebras API Key",
 		"chutesApiKey": "Chutes API Key",
 		"getChutesApiKey": "Dapatkan Chutes API Key",
 		"deepSeekApiKey": "DeepSeek API Key",

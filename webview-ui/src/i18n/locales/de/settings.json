@@ -258,6 +258,8 @@
 		"anthropicApiKey": "Anthropic API-Schlüssel",
 		"getAnthropicApiKey": "Anthropic API-Schlüssel erhalten",
 		"anthropicUseAuthToken": "Anthropic API-Schlüssel als Authorization-Header anstelle von X-Api-Key übergeben",
+		"cerebrasApiKey": "Cerebras API-Schlüssel",
+		"getCerebrasApiKey": "Cerebras API-Schlüssel erhalten",
 		"chutesApiKey": "Chutes API-Schlüssel",
 		"getChutesApiKey": "Chutes API-Schlüssel erhalten",
 		"deepSeekApiKey": "DeepSeek API-Schlüssel",

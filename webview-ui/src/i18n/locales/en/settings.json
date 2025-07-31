@@ -255,6 +255,8 @@
 		"anthropicApiKey": "Anthropic API Key",
 		"getAnthropicApiKey": "Get Anthropic API Key",
 		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"cerebrasApiKey": "Cerebras API Key",
+		"getCerebrasApiKey": "Get Cerebras API Key",
 		"chutesApiKey": "Chutes API Key",
 		"getChutesApiKey": "Get Chutes API Key",
 		"deepSeekApiKey": "DeepSeek API Key",
