@@ -175,9 +175,15 @@ export class CerebrasHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in cerebrasModels) {
-			const id = modelId as CerebrasModelId
+		const originalModelId = this.options.apiModelId
+		let apiModelId = originalModelId
+		if (originalModelId === "qwen-3-coder-480b-free" || originalModelId === "qwen-3-coder-480b-paid") {
+			apiModelId = "qwen-3-coder-480b"
+			return { id: apiModelId, info: cerebrasModels[originalModelId as CerebrasModelId] }
+		}
+
+		if (originalModelId && originalModelId in cerebrasModels) {
+			const id = originalModelId as CerebrasModelId
 			return { id, info: cerebrasModels[id] }
 		}
 		return {
