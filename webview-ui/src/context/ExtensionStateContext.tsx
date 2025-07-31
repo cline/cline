@@ -16,6 +16,8 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import {
 	groqDefaultModelId,
 	groqModels,
+	basetenDefaultModelId,
+	basetenModels,
 	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -40,6 +42,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
+	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
@@ -61,6 +64,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
+	setBasetenModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -213,6 +217,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
+	})
+	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
+		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -641,6 +648,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
+		basetenModels: basetenModelsState,
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
@@ -682,6 +690,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
+		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
