@@ -1,6 +1,6 @@
 import axios from "axios"
 import { initializeApp } from "firebase/app"
-import { GithubAuthProvider, GoogleAuthProvider, getAuth, signInWithCredential, User } from "firebase/auth"
+import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
 import type { ExtensionContext } from "vscode"
 import { clineEnvConfig } from "@/config"
@@ -102,7 +102,7 @@ export class FirebaseAuthProvider {
 	 */
 	async signIn(context: ExtensionContext, token: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
-			let credential
+			let credential: OAuthCredential
 			switch (provider) {
 				case "google":
 					credential = GoogleAuthProvider.credential(token)

@@ -258,14 +258,14 @@ export class Task {
 
 						// Post the updated state to the webview so the UI reflects the retry attempt
 						await this.postStateToWebview().catch((e) =>
-							console.error("Error posting state to webview in onRetryAttempt:", e),
+							Logger.error("Error posting state to webview in onRetryAttempt:", e),
 						)
 
-						console.log(
+						Logger.log(
 							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
 						)
 					} catch (e) {
-						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
+						Logger.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
 					}
 				}
 			},
@@ -367,7 +367,7 @@ export class Task {
 		const lastMessageWithHash = clineMessages[lastHashIndex]
 
 		if (!message) {
-			console.error("Message not found", clineMessages)
+			Logger.error("Message not found for timestamp: " + messageTs)
 			return
 		}
 
@@ -397,7 +397,8 @@ export class Task {
 						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						console.error("Failed to initialize checkpoint tracker:", errorMessage)
+						Logger.log("Failed to initialize checkpoint tracker:")
+						Logger.error(errorMessage)
 						this.taskState.checkpointTrackerErrorMessage = errorMessage
 						await this.postStateToWebview()
 						HostProvider.window.showMessage({
@@ -563,13 +564,13 @@ export class Task {
 		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
 		const message = clineMessages[messageIndex]
 		if (!message) {
-			console.error("Message not found")
+			Logger.error("Message not found")
 			relinquishButton()
 			return
 		}
 		const hash = message.lastCheckpointHash
 		if (!hash) {
-			console.error("No checkpoint hash found")
+			Logger.error("No checkpoint hash found")
 			relinquishButton()
 			return
 		}
@@ -585,7 +586,8 @@ export class Task {
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
+				Logger.log(`Failed to initialize checkpoint tracker: ${errorMessage}`)
+				Logger.error(error)
 				this.taskState.checkpointTrackerErrorMessage = errorMessage
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
@@ -615,7 +617,7 @@ export class Task {
 				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 				// if undefined, then we get diff from beginning of git
 				// if (!lastTaskCompletedMessage) {
-				// 	console.error("No previous task completion message found")
+				// 	Logger.error("No previous task completion message found")
 				// 	return
 				// }
 				// This value *should* always exist
@@ -703,12 +705,12 @@ export class Task {
 		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
 		const message = clineMessages[messageIndex]
 		if (!message) {
-			console.error("Completion message not found")
+			Logger.error("Completion message not found")
 			return false
 		}
 		const hash = message.lastCheckpointHash
 		if (!hash) {
-			console.error("No checkpoint hash found")
+			Logger.error("No checkpoint hash found")
 			return false
 		}
 
@@ -722,7 +724,7 @@ export class Task {
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
+				Logger.error("Failed to initialize checkpoint tracker:" + errorMessage)
 				return false
 			}
 		}
@@ -738,7 +740,7 @@ export class Task {
 			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 			// if undefined, then we get diff from beginning of git
 			// if (!lastTaskCompletedMessage) {
-			// 	console.error("No previous task completion message found")
+			// 	Logger.error("No previous task completion message found")
 			// 	return
 			// }
 			// This value *should* always exist
@@ -758,7 +760,7 @@ export class Task {
 				return true
 			}
 		} catch (error) {
-			console.error("Failed to get diff set:", error)
+			Logger.error("Failed to get diff set:", error)
 			return false
 		}
 
@@ -1010,7 +1012,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
@@ -1051,7 +1053,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
@@ -1310,7 +1312,7 @@ export class Task {
 					)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error("Failed to initialize checkpoint tracker:", errorMessage)
+					Logger.error(`Failed to initialize checkpoint tracker: ${errorMessage}`)
 					this.taskState.checkpointTrackerErrorMessage = errorMessage
 					await this.postStateToWebview()
 					return
@@ -1355,7 +1357,7 @@ export class Task {
 					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
+					Logger.error(`Failed to initialize checkpoint tracker for attempt completion: ${errorMessage}`)
 					return
 				}
 			}
@@ -1376,7 +1378,7 @@ export class Task {
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			} else {
-				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
+				Logger.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
 			}
 		}
 
@@ -1675,7 +1677,7 @@ export class Task {
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
 			timeout: 10_000,
 		}).catch(() => {
-			console.error("MCP servers failed to connect in time")
+			Logger.error("MCP servers failed to connect in time")
 		})
 
 		await this.migrateDisableBrowserToolSetting()
@@ -1769,14 +1771,8 @@ export class Task {
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
-			// TODO: Move into ErrorService
-			telemetryService.captureProviderApiError({
-				taskId: this.taskId,
-				model: modelInfo.id,
-				errorMessage: clineError.message,
-				errorStatus: clineError._error?.status,
-				requestId: clineError._error?.request_id,
-			})
+			errorService.logMessage(clineError.message)
+			errorService.logException(clineError)
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
@@ -2142,7 +2138,7 @@ export class Task {
 				}
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
+				Logger.error("Failed to initialize checkpoint tracker:" + errorMessage)
 
 				// If the error was a timeout, we disabled all checkpoint operations for the rest of the task
 				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
