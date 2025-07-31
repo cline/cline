@@ -1,15 +1,15 @@
 # Changelog
 
-## 3.21.0
+## [3.20.3]
 
-- 708b785: Add Huawei Cloud MaaS Provider
-- fdc2e26: Add Cerebras Qwen 3 235B instruct
-- 099bc44: Fix Global Rules directory documentation for Linux/WSL systems
-- dfbac3e: DeepSeek R1 0528 support under Hugging Face
-- 6050413: remove duplicate tool registration for claude4-experimental
-- 65c21e7: Fixed token counting when using VSCode LM API provider
-- a91878e: fix: only focus on editor panel that is visible and active to stop input field stealing issue
-- 25c5310: trim input value for URL fields
+- Add Huawei Cloud MaaS Provider (Thanks @ddling!)
+- Add Cerebras Qwen 3 235B instruct model (Thanks @kevint-cerebras!)
+- Add DeepSeek R1 0528 support under Hugging Face (Thanks @0ne0rZer0!)
+- Fix Global Rules directory documentation for Linux/WSL systems
+- Fix token counting when using VSCode LM API provider
+- Fix input field stealing focus issue by only focusing on visible and active editor panels
+- Fix duplicate tool registration for claude4-experimental
+- Trim input value for URL fields
 
 ## [3.20.2]
 
