@@ -124,7 +124,8 @@ export class E2ETestHelper {
 	}
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
-		await page.locator("li").filter({ hasText: "[Extension Development Host]" }).first().click()
+		const editorMenu = page.locator("li").filter({ hasText: "[Extension Development Host]" }).first()
+		await editorMenu.click()
 		const editorSearchBar = page.getByRole("textbox", {
 			name: "Search files by name (append",
 		})
@@ -273,13 +274,16 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
+			await E2ETestHelper.openClineSidebar(page)
 			await use(page)
 		},
 	})
 	.extend<{ sidebar: Frame }>({
 		sidebar: async ({ page, helper, server }, use) => {
-			await E2ETestHelper.openClineSidebar(page)
+			// Ensure the sidebar is loaded and ready before disabling notifications
+			const chatInputBox = page.getByTestId("chat-input")
+			await expect(chatInputBox).toBeVisible()
+			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
 			const sidebar = await helper.getSidebar(page)
 			await use(sidebar)
 		},
