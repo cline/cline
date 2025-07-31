@@ -274,16 +274,14 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await E2ETestHelper.openClineSidebar(page)
+			// Disable notifications before opening sidebar
+			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
 			await use(page)
 		},
 	})
 	.extend<{ sidebar: Frame }>({
 		sidebar: async ({ page, helper, server }, use) => {
-			// Ensure the sidebar is loaded and ready before disabling notifications
-			const chatInputBox = page.getByTestId("chat-input")
-			await expect(chatInputBox).toBeVisible()
-			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
+			await E2ETestHelper.openClineSidebar(page)
 			const sidebar = await helper.getSidebar(page)
 			await use(sidebar)
 		},
