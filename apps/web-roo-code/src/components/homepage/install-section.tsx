@@ -23,59 +23,73 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 	}
 
 	return (
-		<section className="relative overflow-hidden border-t border-border py-16 sm:py-24 lg:py-32">
+		<section className="relative overflow-hidden border-t-2 border-border bg-gradient-to-b from-background via-background/95 to-background dark:from-background dark:via-background/98 dark:to-background py-20 sm:py-28 lg:py-36">
+			{/* Enhanced background with better contrast */}
 			<motion.div
-				className="absolute inset-x-0 top-1/2 -translate-y-1/2"
+				className="absolute inset-0"
 				initial="hidden"
 				whileInView="visible"
 				viewport={{ once: true }}
 				variants={backgroundVariants}>
+				<div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-cyan-500/5 to-purple-500/5 dark:from-blue-500/10 dark:via-cyan-500/10 dark:to-purple-500/10" />
 				<div className="relative mx-auto max-w-[1200px]">
-					<div className="absolute left-1/2 top-1/2 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-blue-500/10 blur-[120px]" />
+					<div className="absolute left-1/2 top-1/2 h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-gradient-to-r from-blue-500/20 via-cyan-500/20 to-purple-500/20 blur-[100px] dark:from-blue-500/30 dark:via-cyan-500/30 dark:to-purple-500/30" />
 				</div>
 			</motion.div>
+
 			<div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
-				<div className="mx-auto max-w-3xl text-center">
-					<h2 className="text-center text-xl font-semibold uppercase tracking-wider text-muted-foreground sm:text-2xl">
-						Install Roo Code — Open & Flexible
-					</h2>
-					<p className="mt-4 text-center text-base text-muted-foreground sm:mt-6 sm:text-lg">
-						Roo Code is open-source, model-agnostic, and developer-focused. Install from the VS Code
-						Marketplace or the CLI in minutes, then bring your own AI model.
-					</p>
-					<div className="mt-10 flex flex-col items-center justify-center gap-6">
-						<Link
-							href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline"
-							target="_blank"
-							className="group relative inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border/50 bg-background/30 px-4 py-3 text-base backdrop-blur-xl transition-all duration-300 hover:border-border hover:bg-background/40 sm:w-auto sm:gap-3 sm:px-6 sm:py-4 sm:text-lg md:text-2xl">
-							<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-500/30 via-cyan-500/30 to-purple-500/30 opacity-0 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
-							<div className="relative flex items-center gap-2 sm:gap-3">
-								<VscVscode className="h-5 w-5 text-blue-400 sm:h-6 sm:w-6 md:h-8 md:w-8" />
-								<span className="flex flex-wrap items-center gap-1 sm:gap-2 md:gap-3">
-									<span className="text-foreground/90">VSCode Marketplace</span>
-									{downloads !== null && (
-										<>
-											<span className="hidden font-black text-muted-foreground sm:inline">
-												&middot;
-											</span>
-											<span className="text-muted-foreground">{downloads} Downloads</span>
-										</>
-									)}
-								</span>
-							</div>
-						</Link>
-						<div className="group relative w-full max-w-xl">
-							<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-500/30 via-cyan-500/30 to-purple-500/30 opacity-0 blur-sm transition-opacity duration-500 group-hover:opacity-100" />
-							<div className="relative overflow-hidden rounded-xl border border-border/50 bg-background/30 backdrop-blur-xl transition-all duration-500 ease-out group-hover:border-border group-hover:bg-background/40">
-								<div className="border-b border-border/50 px-3 py-2 sm:px-4">
-									<div className="text-sm text-muted-foreground">Install via CLI</div>
-								</div>
-								<div className="overflow-x-auto">
-									<pre className="p-3 sm:p-4">
-										<code className="whitespace-pre-wrap break-all text-sm text-foreground/90 sm:break-normal">
-											code --install-extension RooVeterinaryInc.roo-cline
-										</code>
-									</pre>
+				<div className="mx-auto max-w-4xl">
+					{/* Enhanced container with better visual separation */}
+					<div className="relative rounded-3xl border border-border/50 bg-background/60 p-8 shadow-2xl backdrop-blur-xl dark:border-border/30 dark:bg-background/40 dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] sm:p-12 lg:p-16">
+						{/* Subtle gradient overlay */}
+						<div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10" />
+
+						<div className="relative text-center">
+							{/* Updated h2 to match other sections */}
+							<h2 className="bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
+								Install Roo Code — Open & Flexible
+							</h2>
+							<p className="mt-6 text-lg text-muted-foreground">
+								Roo Code is open-source, model-agnostic, and developer-focused. Install from the VS Code
+								Marketplace or the CLI in minutes, then bring your own AI model.
+							</p>
+
+							<div className="mt-12 flex flex-col items-center justify-center gap-6">
+								{/* Enhanced VSCode Marketplace button */}
+								<Link
+									href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline"
+									target="_blank"
+									className="group relative inline-flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl hover:shadow-blue-500/25 dark:from-blue-500 dark:to-cyan-500 dark:hover:from-blue-600 dark:hover:to-cyan-600 sm:w-auto sm:px-8 sm:text-xl">
+									<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 opacity-0 blur transition-opacity duration-500 group-hover:opacity-70" />
+									<div className="relative flex items-center gap-3">
+										<VscVscode className="h-6 w-6 sm:h-7 sm:w-7" />
+										<span className="flex flex-wrap items-center gap-2">
+											<span>VSCode Marketplace</span>
+											{downloads !== null && (
+												<>
+													<span className="font-black opacity-60">&middot;</span>
+													<span className="opacity-90">{downloads} Downloads</span>
+												</>
+											)}
+										</span>
+									</div>
+								</Link>
+
+								{/* Enhanced CLI install section */}
+								<div className="group relative w-full max-w-xl">
+									<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-500/50 via-cyan-500/50 to-purple-500/50 opacity-30 blur-sm transition-all duration-500 group-hover:opacity-60 dark:opacity-40 dark:group-hover:opacity-70" />
+									<div className="relative overflow-hidden rounded-xl border border-border bg-background/80 shadow-lg backdrop-blur-xl transition-all duration-500 ease-out group-hover:border-blue-500/50 group-hover:shadow-xl group-hover:shadow-blue-500/10 dark:border-border/50 dark:bg-background/60 dark:group-hover:border-blue-400/50">
+										<div className="border-b border-border/50 bg-muted/30 px-4 py-3 dark:bg-muted/20">
+											<div className="text-sm font-medium text-foreground">Install via CLI</div>
+										</div>
+										<div className="overflow-x-auto bg-background/50 dark:bg-background/30">
+											<pre className="p-4">
+												<code className="whitespace-pre-wrap break-all text-sm font-mono text-foreground sm:break-normal sm:text-base">
+													code --install-extension RooVeterinaryInc.roo-cline
+												</code>
+											</pre>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>
