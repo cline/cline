@@ -57,7 +57,7 @@ async function getContextInfo(cline: Task): Promise<ContextInfo> {
 	const currentlyUsed = currentContextTokens || 0
 	const remainingContext = contextWindow - currentlyUsed
 	const usableRemainingContext = Math.floor(remainingContext * (1 - FILE_READ_BUFFER_PERCENTAGE))
-	const reservedForResponse = maxResponseTokens || 0
+	const reservedForResponse = Math.min(maxResponseTokens || 0, usableRemainingContext)
 	const availableTokensForFile = usableRemainingContext - reservedForResponse
 	const targetTokenLimit = Math.floor(availableTokensForFile * 0.9)
 
