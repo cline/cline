@@ -47,7 +47,7 @@ async function readModels(router: RouterName): Promise<ModelRecord | undefined> 
  */
 export const getModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
 	const { provider } = options
-	let models = memoryCache.get<ModelRecord>(provider)
+	let models = getModelsFromCache(provider)
 	if (models) {
 		return models
 	}
@@ -112,4 +112,8 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
  */
 export const flushModels = async (router: RouterName) => {
 	memoryCache.del(router)
+}
+
+export function getModelsFromCache(provider: string) {
+	return memoryCache.get<ModelRecord>(provider)
 }

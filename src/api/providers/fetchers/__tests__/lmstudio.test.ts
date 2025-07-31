@@ -118,7 +118,7 @@ describe("LMStudio Fetcher", () => {
 			expect(MockedLMStudioClientConstructor).toHaveBeenCalledWith({ baseUrl: lmsUrl })
 			expect(mockListDownloadedModels).toHaveBeenCalledTimes(1)
 			expect(mockListDownloadedModels).toHaveBeenCalledWith("llm")
-			expect(mockListLoaded).not.toHaveBeenCalled()
+			expect(mockListLoaded).toHaveBeenCalled() // we now call it to get context data
 
 			const expectedParsedModel = parseLMStudioModel(mockLLMInfo)
 			expect(result).toEqual({ [mockLLMInfo.path]: expectedParsedModel })

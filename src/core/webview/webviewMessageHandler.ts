@@ -584,7 +584,7 @@ export const webviewMessageHandler = async (
 					} else if (routerName === "lmstudio" && Object.keys(result.value.models).length > 0) {
 						provider.postMessageToWebview({
 							type: "lmStudioModels",
-							lmStudioModels: Object.keys(result.value.models),
+							lmStudioModels: result.value.models,
 						})
 					}
 				} else {
@@ -648,7 +648,7 @@ export const webviewMessageHandler = async (
 				if (Object.keys(lmStudioModels).length > 0) {
 					provider.postMessageToWebview({
 						type: "lmStudioModels",
-						lmStudioModels: Object.keys(lmStudioModels),
+						lmStudioModels: lmStudioModels,
 					})
 				}
 			} catch (error) {

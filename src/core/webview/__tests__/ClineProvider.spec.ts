@@ -16,6 +16,7 @@ import { Task, TaskOptions } from "../../task/Task"
 import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 import { ClineProvider } from "../ClineProvider"
+import { AsyncInvokeOutputDataConfig } from "@aws-sdk/client-bedrock-runtime"
 
 // Mock setup must come before imports
 vi.mock("../../prompts/sections/custom-instructions")
@@ -2838,6 +2839,33 @@ describe("ClineProvider - Router Models", () => {
 				ollama: {},
 				lmstudio: {},
 			},
+		})
+	})
+
+	test("handles requestLmStudioModels with proper response", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
+
+		vi.spyOn(provider, "getState").mockResolvedValue({
+			apiConfiguration: {
+				lmStudioModelId: "model-1",
+				lmStudioBaseUrl: "http://localhost:1234",
+			},
+		} as any)
+
+		const mockModels = {
+			"model-1": { maxTokens: 4096, contextWindow: 8192, description: "Test model", supportsPromptCache: false },
+		}
+		const { getModels } = await import("../../../api/providers/fetchers/modelCache")
+		vi.mocked(getModels).mockResolvedValue(mockModels)
+
+		await messageHandler({
+			type: "requestLmStudioModels",
+		})
+
+		expect(getModels).toHaveBeenCalledWith({
+			provider: "lmstudio",
+			baseUrl: "http://localhost:1234",
 		})
 	})
 })

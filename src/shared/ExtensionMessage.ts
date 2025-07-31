@@ -16,7 +16,7 @@ import { GitCommit } from "../utils/git"
 
 import { McpServer } from "./mcp"
 import { Mode } from "./modes"
-import { RouterModels } from "./api"
+import { ModelRecord, RouterModels } from "./api"
 import type { MarketplaceItem } from "@roo-code/types"
 
 // Command interface for frontend/backend communication
@@ -146,7 +146,7 @@ export interface ExtensionMessage {
 	routerModels?: RouterModels
 	openAiModels?: string[]
 	ollamaModels?: string[]
-	lmStudioModels?: string[]
+	lmStudioModels?: ModelRecord
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	huggingFaceModels?: Array<{
 		id: string

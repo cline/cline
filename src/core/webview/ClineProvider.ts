@@ -70,6 +70,7 @@ import { WebviewMessage } from "../../shared/WebviewMessage"
 import { EMBEDDING_MODEL_PROFILES } from "../../shared/embeddingModels"
 import { ProfileValidator } from "../../shared/ProfileValidator"
 import { getWorkspaceGitInfo } from "../../utils/git"
+import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/providers/fetchers/lmstudio"
 
 /**
  * https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -163,11 +164,31 @@ export class ClineProvider
 		// Add this cline instance into the stack that represents the order of all the called tasks.
 		this.clineStack.push(cline)
 
+		// Perform special setup provider specific tasks
+		await this.performPreparationTasks(cline)
+
 		// Ensure getState() resolves correctly.
 		const state = await this.getState()
 
 		if (!state || typeof state.mode !== "string") {
 			throw new Error(t("common:errors.retrieve_current_mode"))
+		}
+	}
+
+	async performPreparationTasks(cline: Task) {
+		// LMStudio: we need to force model loading in order to read its context size; we do it now since we're starting a task with that model selected
+		if (cline.apiConfiguration && cline.apiConfiguration.apiProvider === "lmstudio") {
+			try {
+				if (!hasLoadedFullDetails(cline.apiConfiguration.lmStudioModelId!)) {
+					await forceFullModelDetailsLoad(
+						cline.apiConfiguration.lmStudioBaseUrl ?? "http://localhost:1234",
+						cline.apiConfiguration.lmStudioModelId!,
+					)
+				}
+			} catch (error) {
+				this.log(`Failed to load full model details for LM Studio: ${error}`)
+				vscode.window.showErrorMessage(error.message)
+			}
 		}
 	}
 
