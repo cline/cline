@@ -113,6 +113,7 @@ async function shouldSkipValidation(filePath: string, totalLines: number, cline:
 
 /**
  * Validates a single-line file (likely minified) to see if it fits in context
+ * NOTE: because we cannot chunk lines in file reads, we still cannot handle single-line files that do not fit in context
  */
 async function validateSingleLineFile(
 	filePath: string,
