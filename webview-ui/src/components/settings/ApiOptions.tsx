@@ -35,6 +35,7 @@ import { NebiusProvider } from "./providers/NebiusProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
+import { OcaProvider } from "./providers/OcaProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { GroqProvider } from "./providers/GroqProvider"
 import { Mode } from "@shared/storage/types"
@@ -166,6 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					<VSCodeOption value="oca">Oracle Code Assist</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -285,6 +287,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
 				<HuaweiCloudMaasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
+			{apiConfiguration && selectedProvider === "oca" && <OcaProvider isPopup={isPopup} currentMode={currentMode} />}
 
 			{apiErrorMessage && (
 				<p

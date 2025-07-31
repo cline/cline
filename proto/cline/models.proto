@@ -21,6 +21,8 @@ service ModelsService {
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Oca models
+  rpc refreshOcaModels(StringRequest) returns (OcaModelInfoMap);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
@@ -130,6 +132,7 @@ enum ApiProvider {
   MOONSHOT = 27;
   HUGGINGFACE = 28;
   HUAWEI_CLOUD_MAAS = 29;
+  OCA = 30;
 }
 
 // Model info for OpenAI-compatible models
@@ -165,6 +168,28 @@ message LiteLLMModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
+}
+
+message OcaModelInfo {
+  optional int32 max_tokens = 1;
+  optional int32 context_window = 2;
+  optional bool supports_images = 3;
+  bool supports_prompt_cache = 4;
+  optional double input_price = 5;
+  optional double output_price = 6;
+  optional ThinkingConfig thinking_config = 7;
+  optional double cache_writes_price = 9;
+  optional double cache_reads_price = 10;
+  optional string description = 11;
+  optional double temperature = 13;
+  optional string survey_content = 14;
+  optional string survey_id = 15;
+  optional string banner_content = 16;
+  string model_name = 17;
+}
+
+message OcaModelInfoMap {
+  map<string, OcaModelInfo> models = 1;
 }
 
 // Main ApiConfiguration message
@@ -231,6 +256,10 @@ message ModelsApiConfiguration {
   optional string groq_api_key = 59;
   optional string hugging_face_api_key = 60;
   optional string huawei_cloud_maas_api_key = 61;
+  optional string oca_base_url = 62;
+  optional string oca_access_token = 63;
+  optional int32 oca_access_token_expires_at = 64;
+  optional string oca_access_token_sub = 65;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -259,7 +288,9 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
   optional string plan_mode_huawei_cloud_maas_model_id = 124;
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
-
+  optional string plan_mode_oca_model_id = 126;
+  optional OcaModelInfo plan_mode_oca_model_info = 127;
+  
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
@@ -287,6 +318,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
   optional string act_mode_huawei_cloud_maas_model_id = 224;
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
+  optional string act_mode_oca_model_id = 226;
+  optional OcaModelInfo act_mode_oca_model_info = 227;
 
   repeated string favorited_model_ids = 300;
 }

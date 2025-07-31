@@ -31,6 +31,7 @@ export type ApiProvider =
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
+	| "oca"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -94,7 +95,13 @@ export interface ApiHandlerOptions {
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
 	huaweiCloudMaasApiKey?: string
+	sapAiCoreModelId?: string
+	ocaBaseUrl?: string
+	ocaAccessToken?: string
+	ocaAccessTokenExpiresAt?: number
+	ocaAccessTokenSub?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
@@ -121,8 +128,10 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	// Act mode configurations
+	planModeOcaModelId?: string
+	planModeOcaModelInfo?: OcaModelInfo
 
+	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
@@ -148,6 +157,8 @@ export interface ApiHandlerOptions {
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
+	actModeOcaModelId?: string
+	actModeOcaModelInfo?: OcaModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -193,6 +204,12 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	isR1FormatRequired?: boolean
 }
 
+export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
+	modelName: string
+	bannerContent?: string
+	surveyContent?: string
+	surveyId?: string
+}
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
