@@ -2502,7 +2502,7 @@ export const cerebrasModels = {
 	},
 	"qwen-3-235b-a22b-instruct-2507": {
 		maxTokens: 20000,
-		contextWindow: 20000,
+		contextWindow: 64000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -2529,7 +2529,7 @@ export const cerebrasModels = {
 	},
 	"qwen-3-235b-a22b-thinking-2507": {
 		maxTokens: 40000,
-		contextWindow: 40000,
+		contextWindow: 65000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
