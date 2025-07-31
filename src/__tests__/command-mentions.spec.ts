@@ -62,16 +62,31 @@ describe("Command Mentions", () => {
 		})
 
 		it("should handle multiple commands in message", async () => {
+			const setupContent = "# Setup Environment\n\nRun the following commands:\n```bash\nnpm install\n```"
+			const deployContent = "# Deploy Environment\n\nRun the following commands:\n```bash\nnpm run deploy\n```"
+
 			mockGetCommand
 				.mockResolvedValueOnce({
 					name: "setup",
-					content: "# Setup instructions",
+					content: setupContent,
 					source: "project",
 					filePath: "/project/.roo/commands/setup.md",
 				})
 				.mockResolvedValueOnce({
 					name: "deploy",
-					content: "# Deploy instructions",
+					content: deployContent,
+					source: "project",
+					filePath: "/project/.roo/commands/deploy.md",
+				})
+				.mockResolvedValueOnce({
+					name: "setup",
+					content: setupContent,
+					source: "project",
+					filePath: "/project/.roo/commands/setup.md",
+				})
+				.mockResolvedValueOnce({
+					name: "deploy",
+					content: deployContent,
 					source: "project",
 					filePath: "/project/.roo/commands/deploy.md",
 				})
@@ -82,33 +97,55 @@ describe("Command Mentions", () => {
 
 			expect(mockGetCommand).toHaveBeenCalledWith("/test/cwd", "setup")
 			expect(mockGetCommand).toHaveBeenCalledWith("/test/cwd", "deploy")
-			expect(mockGetCommand).toHaveBeenCalledTimes(2) // Both commands called
+			expect(mockGetCommand).toHaveBeenCalledTimes(2) // Each unique command called once (optimized)
 			expect(result).toContain('<command name="setup">')
-			expect(result).toContain("# Setup instructions")
+			expect(result).toContain("# Setup Environment")
 			expect(result).toContain('<command name="deploy">')
-			expect(result).toContain("# Deploy instructions")
+			expect(result).toContain("# Deploy Environment")
 		})
 
-		it("should handle non-existent command gracefully", async () => {
+		it("should leave non-existent commands unchanged", async () => {
+			mockGetCommand.mockReset()
 			mockGetCommand.mockResolvedValue(undefined)
 
 			const input = "/nonexistent command"
 			const result = await callParseMentions(input)
 
 			expect(mockGetCommand).toHaveBeenCalledWith("/test/cwd", "nonexistent")
-			expect(result).toContain('<command name="nonexistent">')
-			expect(result).toContain("Command 'nonexistent' not found")
-			expect(result).toContain("</command>")
+			// The command should remain unchanged in the text
+			expect(result).toBe("/nonexistent command")
+			// Should not contain any command tags
+			expect(result).not.toContain('<command name="nonexistent">')
+			expect(result).not.toContain("Command 'nonexistent' not found")
 		})
 
-		it("should handle command loading errors", async () => {
+		it("should handle command loading errors during existence check", async () => {
+			mockGetCommand.mockReset()
 			mockGetCommand.mockRejectedValue(new Error("Failed to load command"))
 
 			const input = "/error-command test"
 			const result = await callParseMentions(input)
 
+			// When getCommand throws an error during existence check,
+			// the command is treated as non-existent and left unchanged
+			expect(result).toBe("/error-command test")
+			expect(result).not.toContain('<command name="error-command">')
+		})
+
+		it("should handle command loading errors during processing", async () => {
+			// With optimization, command is loaded once and cached
+			mockGetCommand.mockResolvedValue({
+				name: "error-command",
+				content: "# Error command",
+				source: "project",
+				filePath: "/project/.roo/commands/error-command.md",
+			})
+
+			const input = "/error-command test"
+			const result = await callParseMentions(input)
+
 			expect(result).toContain('<command name="error-command">')
-			expect(result).toContain("Error loading command")
+			expect(result).toContain("# Error command")
 			expect(result).toContain("</command>")
 		})
 
@@ -246,11 +283,27 @@ npm install
 	})
 
 	describe("command mention text transformation", () => {
-		it("should transform command mentions at start of message", async () => {
+		it("should transform existing command mentions at start of message", async () => {
+			mockGetCommand.mockResolvedValue({
+				name: "setup",
+				content: "# Setup instructions",
+				source: "project",
+				filePath: "/project/.roo/commands/setup.md",
+			})
+
 			const input = "/setup the project"
 			const result = await callParseMentions(input)
 
 			expect(result).toContain("Command 'setup' (see below for command content)")
+		})
+
+		it("should leave non-existent command mentions unchanged", async () => {
+			mockGetCommand.mockResolvedValue(undefined)
+
+			const input = "/nonexistent the project"
+			const result = await callParseMentions(input)
+
+			expect(result).toBe("/nonexistent the project")
 		})
 
 		it("should process multiple commands in message", async () => {
