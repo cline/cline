@@ -1,4 +1,3 @@
-import type { ChatSettings } from "@shared/ChatSettings"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
@@ -44,6 +43,7 @@ import {
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
+import { Mode } from "@shared/storage/types"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -277,15 +277,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const {
-			filePaths,
-			chatSettings,
-			apiConfiguration,
-			openRouterModels,
-			platform,
-			localWorkflowToggles,
-			globalWorkflowToggles,
-		} = useExtensionState()
+		const { filePaths, mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
+			useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -315,7 +308,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
-		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
@@ -971,8 +964,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(async () => {
-			const apiValidationResult = validateApiConfiguration(chatSettings.mode, apiConfiguration)
-			const modelIdValidationResult = validateModelId(chatSettings.mode, apiConfiguration, openRouterModels)
+			const apiValidationResult = validateApiConfiguration(mode, apiConfiguration)
+			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels)
 
 			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
 				try {
@@ -1004,18 +997,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(async () => {
-				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActMode(
+				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				const response = await StateServiceClient.togglePlanActModeProto(
 					TogglePlanActModeRequest.create({
-						chatSettings: {
-							mode: newMode,
-							preferredLanguage: chatSettings.preferredLanguage,
-							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-						},
+						mode: convertedProtoMode,
 						chatContent: {
 							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages.length > 0 ? selectedImages : undefined,
-							files: selectedFiles.length > 0 ? selectedFiles : undefined,
+							images: selectedImages,
+							files: selectedFiles,
 						},
 					}),
 				)
@@ -1027,7 +1016,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1094,7 +1083,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
-			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, chatSettings.mode)
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
 			const {
 				vsCodeLmModelSelector,
 				togetherModelId,
@@ -1103,7 +1092,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				ollamaModelId,
 				liteLlmModelId,
 				requestyModelId,
-			} = getModeSpecificFields(apiConfiguration, chatSettings.mode)
+			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
@@ -1130,7 +1119,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration, chatSettings.mode])
+		}, [apiConfiguration, mode])
 
 		// Calculate arrow position and menu position based on button location
 		useEffect(() => {
@@ -1586,7 +1575,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
 									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
-										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
 										: "none",
 							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
@@ -1739,7 +1728,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											apiErrorMessage={undefined}
 											modelIdErrorMessage={undefined}
 											isPopup={true}
-											currentMode={chatSettings.mode}
+											currentMode={mode}
 										/>
 									</ModelSelectorTooltip>
 								)}
@@ -1753,19 +1742,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
-								isActive={chatSettings.mode === "plan"}
+								isActive={mode === "plan"}
 								role="switch"
-								aria-checked={chatSettings.mode === "plan"}
+								aria-checked={mode === "plan"}
 								onMouseOver={() => setShownTooltipMode("plan")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Plan
 							</SwitchOption>
 							<SwitchOption
-								isActive={chatSettings.mode === "act"}
+								isActive={mode === "act"}
 								role="switch"
-								aria-checked={chatSettings.mode === "act"}
+								aria-checked={mode === "act"}
 								onMouseOver={() => setShownTooltipMode("act")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Act

@@ -5,7 +5,8 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
-import { Mode } from "@/shared/ChatSettings"
+import { Mode } from "@/shared/storage/types"
+import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -209,6 +210,31 @@ class TelemetryService {
 			this.client.identify({ distinctId: this.distinctId })
 			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
 		}
+	}
+
+	/**
+	 * Identifies the accounts user
+	 * @param userInfo The user's information
+	 */
+	public identifyAccount(userInfo: ClineAccountUserInfo) {
+		if (!this.telemetryEnabled) {
+			return
+		}
+
+		if (!this.client) {
+			console.warn("Telemetry client is not initialized. Skipping identifyAccount.")
+			return
+		}
+
+		this.client.identify({
+			distinctId: userInfo.id,
+			properties: {
+				uuid: userInfo.id,
+				email: userInfo.email,
+				name: userInfo.displayName,
+				...this.addProperties({}),
+			},
+		})
 	}
 
 	// Task events

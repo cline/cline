@@ -1,3 +1,4 @@
+import * as path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { type ApiHandler, buildApiHandler } from "@api/index"
@@ -57,7 +58,6 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { ChatSettings } from "@shared/ChatSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
@@ -65,6 +65,7 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import type { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import type { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls } from "@utils/git"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
@@ -73,7 +74,6 @@ import cloneDeep from "clone-deep"
 import { execa } from "execa"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
-import * as path from "path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
@@ -132,7 +132,9 @@ export class Task {
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
-	chatSettings: ChatSettings
+	preferredLanguage: string
+	openaiReasoningEffort: OpenaiReasoningEffort
+	mode: Mode
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
@@ -147,7 +149,9 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
-		chatSettings: ChatSettings,
+		preferredLanguage: string,
+		openaiReasoningEffort: OpenaiReasoningEffort,
+		mode: Mode,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -192,7 +196,9 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
-		this.chatSettings = chatSettings
+		this.preferredLanguage = preferredLanguage
+		this.openaiReasoningEffort = openaiReasoningEffort
+		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
 
@@ -266,19 +272,18 @@ export class Task {
 			},
 		}
 
-		const currentProvider =
-			chatSettings.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+		const currentProvider = this.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
 		if (currentProvider === "openai" || currentProvider === "openai-native") {
-			if (chatSettings.mode === "plan") {
-				effectiveApiConfiguration.planModeReasoningEffort = chatSettings.openAIReasoningEffort
+			if (this.mode === "plan") {
+				effectiveApiConfiguration.planModeReasoningEffort = this.openaiReasoningEffort
 			} else {
-				effectiveApiConfiguration.actModeReasoningEffort = chatSettings.openAIReasoningEffort
+				effectiveApiConfiguration.actModeReasoningEffort = this.openaiReasoningEffort
 			}
 		}
 
 		// Now that taskId is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration, chatSettings.mode)
+		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -316,7 +321,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
-			this.chatSettings,
+			this.mode,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -1178,7 +1183,7 @@ export class Task {
 		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
 
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
-			this.chatSettings?.mode === "plan" ? "plan" : "act",
+			this.mode === "plan" ? "plan" : "act",
 			agoText,
 			this.cwd,
 			wasRecent,
@@ -1654,23 +1659,13 @@ export class Task {
 		}
 	}
 
-	private async migratePreferredLanguageToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const preferredLanguage = config.get<LanguageDisplay>("preferredLanguage")
-		if (preferredLanguage !== undefined) {
-			this.chatSettings.preferredLanguage = preferredLanguage
-			// Remove from VSCode configuration
-			await config.update("preferredLanguage", undefined, true)
-		}
-	}
-
 	private async getCurrentProviderInfo(): Promise<{
 		modelId: string
 		providerId: string
 	}> {
 		const modelId = this.api.getModel()?.id
 		const providerId =
-			this.chatSettings.mode === "plan"
+			this.mode === "plan"
 				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
 				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
 		return { modelId, providerId }
@@ -1695,8 +1690,7 @@ export class Task {
 		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
-		await this.migratePreferredLanguageToolSetting()
-		const preferredLanguage = getLanguageKey(this.chatSettings.preferredLanguage as LanguageDisplay)
+		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
@@ -2019,7 +2013,7 @@ export class Task {
 		const { modelId, providerId } = await this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
-				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.chatSettings.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
 			} catch {}
 		}
 
@@ -2791,7 +2785,7 @@ export class Task {
 		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 
 		details += "\n\n# Current Mode"
-		if (this.chatSettings.mode === "plan") {
+		if (this.mode === "plan") {
 			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
 		} else {
 			details += "\nACT MODE"

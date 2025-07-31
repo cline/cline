@@ -32,6 +32,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
@@ -54,7 +55,7 @@ import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { ChatSettings } from "@/shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -91,7 +92,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
-		private chatSettings: ChatSettings,
+		private mode: Mode,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -839,12 +840,18 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
 						}
 						// now execute the tool like normal
-						const content = await extractTextFromFile(absolutePath)
+						const supportsImages = this.api.getModel().info.supportsImages ?? false
+						const result = await extractFileContent(absolutePath, supportsImages)
 
 						// Track file read operation
 						await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-						this.pushToolResult(content, block)
+						this.pushToolResult(result.text, block)
+
+						if (result.imageBlock) {
+							this.taskState.userMessageContent.push(result.imageBlock)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
@@ -1919,7 +1926,7 @@ export class ToolExecutor {
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-						const currentMode = this.chatSettings.mode
+						const currentMode = this.mode
 						const apiProvider =
 							currentMode === "plan"
 								? await getGlobalState(this.context, "planModeApiProvider")

@@ -6,6 +6,7 @@ import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
+import { HostProvider } from "@/hosts/host-provider"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -15,8 +16,8 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class VscodeWebviewProvider extends WebviewProvider implements vscode.WebviewViewProvider {
 	public webview?: vscode.WebviewView | vscode.WebviewPanel
 
-	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
-		super(context, outputChannel, providerType)
+	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
+		super(context, providerType)
 	}
 
 	override getWebviewUri(uri: Uri) {
@@ -122,7 +123,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
-		this.outputChannel.appendLine("Webview view resolved")
+		HostProvider.get().logToChannel("Webview view resolved")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}
