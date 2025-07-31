@@ -177,7 +177,7 @@ export class CerebrasHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		const originalModelId = this.options.apiModelId
 		let apiModelId = originalModelId
-		if (originalModelId === "qwen-3-coder-480b-free" || originalModelId === "qwen-3-coder-480b-paid") {
+		if (originalModelId === "qwen-3-coder-480b-free") {
 			apiModelId = "qwen-3-coder-480b"
 			return { id: apiModelId, info: cerebrasModels[originalModelId as CerebrasModelId] }
 		}

@@ -2491,7 +2491,7 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "SOTA coding model with ~2000 tokens/s (free tier)",
 	},
-	"qwen-3-coder-480b-paid": {
+	"qwen-3-coder-480b": {
 		maxTokens: 40000,
 		contextWindow: 128000,
 		supportsImages: false,
