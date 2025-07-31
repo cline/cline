@@ -204,15 +204,20 @@ export class FileWatcher implements IFileWatcher {
 						currentFile: path,
 					})
 				}
-			} catch (error) {
-				overallBatchError = error as Error
+			} catch (error: any) {
+				const errorStatus = error?.status || error?.response?.status || error?.statusCode
+				const errorMessage = error instanceof Error ? error.message : String(error)
+
 				// Log telemetry for deletion error
 				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
-					error: sanitizeErrorMessage(overallBatchError.message),
+					error: sanitizeErrorMessage(errorMessage),
 					location: "deletePointsByMultipleFilePaths",
 					errorType: "deletion_error",
+					errorStatus: errorStatus,
 				})
 
+				// Mark all paths as error
+				overallBatchError = error as Error
 				for (const path of pathsToExplicitlyDelete) {
 					batchResults.push({ path, status: "error", error: error as Error })
 					processedCountInBatch++

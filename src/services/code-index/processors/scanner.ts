@@ -281,17 +281,24 @@ export class DirectoryScanner implements IDirectoryScanner {
 					try {
 						await this.qdrantClient.deletePointsByFilePath(cachedFilePath)
 						await this.cacheManager.deleteHash(cachedFilePath)
-					} catch (error) {
+					} catch (error: any) {
+						const errorStatus = error?.status || error?.response?.status || error?.statusCode
+						const errorMessage = error instanceof Error ? error.message : String(error)
+
 						console.error(
 							`[DirectoryScanner] Failed to delete points for ${cachedFilePath} in workspace ${scanWorkspace}:`,
 							error,
 						)
+
 						TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
-							error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+							error: sanitizeErrorMessage(errorMessage),
 							stack: error instanceof Error ? sanitizeErrorMessage(error.stack || "") : undefined,
 							location: "scanDirectory:deleteRemovedFiles",
+							errorStatus: errorStatus,
 						})
+
 						if (onError) {
+							// Report error to error handler
 							onError(
 								error instanceof Error
 									? new Error(
@@ -304,7 +311,8 @@ export class DirectoryScanner implements IDirectoryScanner {
 										),
 							)
 						}
-						// Decide if we should re-throw or just log
+						// Log error and continue processing instead of re-throwing
+						console.error(`Failed to delete points for removed file: ${cachedFilePath}`, error)
 					}
 				}
 			}
@@ -347,25 +355,30 @@ export class DirectoryScanner implements IDirectoryScanner {
 				if (uniqueFilePaths.length > 0) {
 					try {
 						await this.qdrantClient.deletePointsByMultipleFilePaths(uniqueFilePaths)
-					} catch (deleteError) {
+					} catch (deleteError: any) {
+						const errorStatus =
+							deleteError?.status || deleteError?.response?.status || deleteError?.statusCode
+						const errorMessage = deleteError instanceof Error ? deleteError.message : String(deleteError)
+
 						console.error(
 							`[DirectoryScanner] Failed to delete points for ${uniqueFilePaths.length} files before upsert in workspace ${scanWorkspace}:`,
 							deleteError,
 						)
+
 						TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
-							error: sanitizeErrorMessage(
-								deleteError instanceof Error ? deleteError.message : String(deleteError),
-							),
+							error: sanitizeErrorMessage(errorMessage),
 							stack:
 								deleteError instanceof Error
 									? sanitizeErrorMessage(deleteError.stack || "")
 									: undefined,
 							location: "processBatch:deletePointsByMultipleFilePaths",
 							fileCount: uniqueFilePaths.length,
+							errorStatus: errorStatus,
 						})
-						// Re-throw the error with workspace context
+
+						// Re-throw with workspace context
 						throw new Error(
-							`Failed to delete points for ${uniqueFilePaths.length} files. Workspace: ${scanWorkspace}. ${deleteError instanceof Error ? deleteError.message : String(deleteError)}`,
+							`Failed to delete points for ${uniqueFilePaths.length} files. Workspace: ${scanWorkspace}. ${errorMessage}`,
 							{ cause: deleteError },
 						)
 					}
