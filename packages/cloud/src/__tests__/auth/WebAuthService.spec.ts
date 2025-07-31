@@ -165,34 +165,37 @@ describe("WebAuthService", () => {
 		it("should transition to logged-out when no credentials exist", async () => {
 			mockContext.secrets.get.mockResolvedValue(undefined)
 
-			const loggedOutSpy = vi.fn()
-			authService.on("logged-out", loggedOutSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await authService.initialize()
 
 			expect(authService.getState()).toBe("logged-out")
-			expect(loggedOutSpy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({ state: "logged-out", previousState: "initializing" })
 		})
 
 		it("should transition to attempting-session when valid credentials exist", async () => {
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
 
-			const attemptingSessionSpy = vi.fn()
-			authService.on("attempting-session", attemptingSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await authService.initialize()
 
 			expect(authService.getState()).toBe("attempting-session")
-			expect(attemptingSessionSpy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "attempting-session",
+				previousState: "initializing",
+			})
 			expect(mockTimer.start).toHaveBeenCalled()
 		})
 
 		it("should handle invalid credentials gracefully", async () => {
 			mockContext.secrets.get.mockResolvedValue("invalid-json")
 
-			const loggedOutSpy = vi.fn()
-			authService.on("logged-out", loggedOutSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await authService.initialize()
 
@@ -214,13 +217,13 @@ describe("WebAuthService", () => {
 			const newCredentials = { clientToken: "new-token", sessionId: "new-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(newCredentials))
 
-			const attemptingSessionSpy = vi.fn()
-			authService.on("attempting-session", attemptingSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			onDidChangeCallback!({ key: "clerk-auth-credentials" })
 			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
 
-			expect(attemptingSessionSpy).toHaveBeenCalled()
+			expect(authStateChangedSpy).toHaveBeenCalled()
 		})
 	})
 
@@ -344,13 +347,13 @@ describe("WebAuthService", () => {
 				statusText: "Bad Request",
 			})
 
-			const loggedOutSpy = vi.fn()
-			authService.on("logged-out", loggedOutSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await expect(authService.handleCallback("auth-code", storedState)).rejects.toThrow(
 				"Failed to handle Roo Code Cloud callback",
 			)
-			expect(loggedOutSpy).toHaveBeenCalled()
+			expect(authStateChangedSpy).toHaveBeenCalled()
 		})
 	})
 
@@ -503,9 +506,9 @@ describe("WebAuthService", () => {
 						}),
 				})
 
-			const activeSessionSpy = vi.fn()
+			const authStateChangedSpy = vi.fn()
 			const userInfoSpy = vi.fn()
-			authService.on("active-session", activeSessionSpy)
+			authService.on("auth-state-changed", authStateChangedSpy)
 			authService.on("user-info", userInfoSpy)
 
 			// Trigger refresh by calling the timer callback
@@ -518,7 +521,10 @@ describe("WebAuthService", () => {
 			expect(authService.getState()).toBe("active-session")
 			expect(authService.hasActiveSession()).toBe(true)
 			expect(authService.getSessionToken()).toBe("new-jwt-token")
-			expect(activeSessionSpy).toHaveBeenCalledWith({ previousState: "attempting-session" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "active-session",
+				previousState: "attempting-session",
+			})
 			expect(userInfoSpy).toHaveBeenCalledWith({
 				userInfo: {
 					name: "John Doe",
@@ -560,8 +566,8 @@ describe("WebAuthService", () => {
 				statusText: "Internal Server Error",
 			})
 
-			const inactiveSessionSpy = vi.fn()
-			authService.on("inactive-session", inactiveSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			// Verify we start in attempting-session state
 			expect(authService.getState()).toBe("attempting-session")
@@ -574,7 +580,10 @@ describe("WebAuthService", () => {
 			// Should transition to inactive-session after first failure
 			expect(authService.getState()).toBe("inactive-session")
 			expect(authService["isFirstRefreshAttempt"]).toBe(false)
-			expect(inactiveSessionSpy).toHaveBeenCalledWith({ previousState: "attempting-session" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "inactive-session",
+				previousState: "attempting-session",
+			})
 		})
 
 		it("should not transition to inactive-session on subsequent failures", async () => {
@@ -592,14 +601,14 @@ describe("WebAuthService", () => {
 			expect(authService.getState()).toBe("inactive-session")
 			expect(authService["isFirstRefreshAttempt"]).toBe(false)
 
-			const inactiveSessionSpy = vi.fn()
-			authService.on("inactive-session", inactiveSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			// Subsequent failure should not trigger another transition
 			await expect(timerCallback()).rejects.toThrow()
 
 			expect(authService.getState()).toBe("inactive-session")
-			expect(inactiveSessionSpy).not.toHaveBeenCalled()
+			expect(authStateChangedSpy).not.toHaveBeenCalled()
 		})
 
 		it("should clear credentials on 401 during first refresh attempt (bug fix)", async () => {
@@ -610,8 +619,8 @@ describe("WebAuthService", () => {
 				statusText: "Unauthorized",
 			})
 
-			const loggedOutSpy = vi.fn()
-			authService.on("logged-out", loggedOutSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			const timerCallback = vi.mocked(RefreshTimer).mock.calls[0][0].callback
 			await expect(timerCallback()).rejects.toThrow()
@@ -625,7 +634,10 @@ describe("WebAuthService", () => {
 			await authService["handleCredentialsChange"]()
 
 			expect(authService.getState()).toBe("logged-out")
-			expect(loggedOutSpy).toHaveBeenCalledWith({ previousState: "attempting-session" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "logged-out",
+				previousState: "attempting-session",
+			})
 		})
 	})
 
@@ -788,28 +800,31 @@ describe("WebAuthService", () => {
 	})
 
 	describe("event emissions", () => {
-		it("should emit logged-out event", async () => {
-			const loggedOutSpy = vi.fn()
-			authService.on("logged-out", loggedOutSpy)
+		it("should emit auth-state-changed event for logged-out", async () => {
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await authService.initialize()
 
-			expect(loggedOutSpy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({ state: "logged-out", previousState: "initializing" })
 		})
 
-		it("should emit attempting-session event", async () => {
+		it("should emit auth-state-changed event for attempting-session", async () => {
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
 
-			const attemptingSessionSpy = vi.fn()
-			authService.on("attempting-session", attemptingSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			await authService.initialize()
 
-			expect(attemptingSessionSpy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "attempting-session",
+				previousState: "initializing",
+			})
 		})
 
-		it("should emit active-session event", async () => {
+		it("should emit auth-state-changed event for active-session", async () => {
 			// Set up with credentials
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(credentials))
@@ -835,8 +850,8 @@ describe("WebAuthService", () => {
 						}),
 				})
 
-			const activeSessionSpy = vi.fn()
-			authService.on("active-session", activeSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			authService.on("auth-state-changed", authStateChangedSpy)
 
 			const timerCallback = vi.mocked(RefreshTimer).mock.calls[0][0].callback
 			await timerCallback()
@@ -844,7 +859,10 @@ describe("WebAuthService", () => {
 			// Wait for async operations to complete
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
-			expect(activeSessionSpy).toHaveBeenCalledWith({ previousState: "attempting-session" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({
+				state: "active-session",
+				previousState: "attempting-session",
+			})
 		})
 
 		it("should emit user-info event", async () => {
@@ -1035,13 +1053,13 @@ describe("WebAuthService", () => {
 			const newCredentials = { clientToken: "new-token", sessionId: "new-session" }
 			mockContext.secrets.get.mockResolvedValue(JSON.stringify(newCredentials))
 
-			const attemptingSessionSpy = vi.fn()
-			service.on("attempting-session", attemptingSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			service.on("auth-state-changed", authStateChangedSpy)
 
 			onDidChangeCallback!({ key: `clerk-auth-credentials-${customUrl}` })
 			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
 
-			expect(attemptingSessionSpy).toHaveBeenCalled()
+			expect(authStateChangedSpy).toHaveBeenCalled()
 		})
 
 		it("should not respond to changes on different scoped keys", async () => {
@@ -1058,14 +1076,14 @@ describe("WebAuthService", () => {
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await service.initialize()
 
-			const inactiveSessionSpy = vi.fn()
-			service.on("inactive-session", inactiveSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			service.on("auth-state-changed", authStateChangedSpy)
 
 			// Simulate credentials change event with different scoped key
 			onDidChangeCallback!({ key: "clerk-auth-credentials-https://other.clerk.com" })
 			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
 
-			expect(inactiveSessionSpy).not.toHaveBeenCalled()
+			expect(authStateChangedSpy).not.toHaveBeenCalled()
 		})
 
 		it("should not respond to changes on default key when using scoped key", async () => {
@@ -1082,14 +1100,14 @@ describe("WebAuthService", () => {
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			await service.initialize()
 
-			const inactiveSessionSpy = vi.fn()
-			service.on("inactive-session", inactiveSessionSpy)
+			const authStateChangedSpy = vi.fn()
+			service.on("auth-state-changed", authStateChangedSpy)
 
 			// Simulate credentials change event with default key
 			onDidChangeCallback!({ key: "clerk-auth-credentials" })
 			await new Promise((resolve) => setTimeout(resolve, 0)) // Wait for async handling
 
-			expect(inactiveSessionSpy).not.toHaveBeenCalled()
+			expect(authStateChangedSpy).not.toHaveBeenCalled()
 		})
 	})
 })

@@ -113,6 +113,12 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 		})
 	}
 
+	private changeState(newState: AuthState): void {
+		const previousState = this.state
+		this.state = newState
+		this.emit("auth-state-changed", { state: newState, previousState })
+	}
+
 	private async handleCredentialsChange(): Promise<void> {
 		try {
 			const credentials = await this.loadCredentials()
@@ -138,14 +144,11 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 	private transitionToLoggedOut(): void {
 		this.timer.stop()
 
-		const previousState = this.state
-
 		this.credentials = null
 		this.sessionToken = null
 		this.userInfo = null
-		this.state = "logged-out"
 
-		this.emit("logged-out", { previousState })
+		this.changeState("logged-out")
 
 		this.log("[auth] Transitioned to logged-out state")
 	}
@@ -153,14 +156,11 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 	private transitionToAttemptingSession(credentials: AuthCredentials): void {
 		this.credentials = credentials
 
-		const previousState = this.state
-		this.state = "attempting-session"
-
 		this.sessionToken = null
 		this.userInfo = null
 		this.isFirstRefreshAttempt = true
 
-		this.emit("attempting-session", { previousState })
+		this.changeState("attempting-session")
 
 		this.timer.start()
 
@@ -168,13 +168,10 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 	}
 
 	private transitionToInactiveSession(): void {
-		const previousState = this.state
-		this.state = "inactive-session"
-
 		this.sessionToken = null
 		this.userInfo = null
 
-		this.emit("inactive-session", { previousState })
+		this.changeState("inactive-session")
 
 		this.log("[auth] Transitioned to inactive-session state")
 	}
@@ -302,9 +299,7 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 			this.log("[auth] Successfully authenticated with Roo Code Cloud")
 		} catch (error) {
 			this.log(`[auth] Error handling Roo Code Cloud callback: ${error}`)
-			const previousState = this.state
-			this.state = "logged-out"
-			this.emit("logged-out", { previousState })
+			this.changeState("logged-out")
 			throw new Error(`Failed to handle Roo Code Cloud callback: ${error}`)
 		}
 	}
@@ -388,12 +383,13 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 		try {
 			const previousState = this.state
 			this.sessionToken = await this.clerkCreateSessionToken()
-			this.state = "active-session"
 
 			if (previousState !== "active-session") {
+				this.changeState("active-session")
 				this.log("[auth] Transitioned to active-session state")
-				this.emit("active-session", { previousState })
 				this.fetchUserInfo()
+			} else {
+				this.state = "active-session"
 			}
 		} catch (error) {
 			if (error instanceof InvalidClientTokenError) {

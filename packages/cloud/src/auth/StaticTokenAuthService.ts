@@ -18,7 +18,7 @@ export class StaticTokenAuthService extends EventEmitter<AuthServiceEvents> impl
 	public async initialize(): Promise<void> {
 		const previousState: AuthState = "initializing"
 		this.state = "active-session"
-		this.emit("active-session", { previousState })
+		this.emit("auth-state-changed", { state: this.state, previousState })
 		this.log("[auth] Static token auth service initialized in active-session state")
 	}
 

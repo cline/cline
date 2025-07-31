@@ -9,7 +9,6 @@ import { CloudSettingsService } from "../CloudSettingsService"
 import { ShareService, TaskNotFoundError } from "../ShareService"
 import { TelemetryClient } from "../TelemetryClient"
 import { TelemetryService } from "@roo-code/telemetry"
-import { CloudServiceCallbacks } from "../types"
 
 vi.mock("vscode", () => ({
 	ExtensionContext: vi.fn(),
@@ -59,6 +58,8 @@ describe("CloudService", () => {
 		getSettings: ReturnType<typeof vi.fn>
 		getAllowList: ReturnType<typeof vi.fn>
 		dispose: ReturnType<typeof vi.fn>
+		on: ReturnType<typeof vi.fn>
+		off: ReturnType<typeof vi.fn>
 	}
 	let mockShareService: {
 		shareTask: ReturnType<typeof vi.fn>
@@ -131,6 +132,8 @@ describe("CloudService", () => {
 			getSettings: vi.fn(),
 			getAllowList: vi.fn(),
 			dispose: vi.fn(),
+			on: vi.fn(),
+			off: vi.fn(),
 		}
 
 		mockShareService = {
@@ -168,20 +171,21 @@ describe("CloudService", () => {
 
 	describe("createInstance", () => {
 		it("should create and initialize CloudService instance", async () => {
-			const callbacks = {
-				stateChanged: vi.fn(),
-			}
+			const mockLog = vi.fn()
 
-			const cloudService = await CloudService.createInstance(mockContext, callbacks)
+			const cloudService = await CloudService.createInstance(mockContext, mockLog)
 
 			expect(cloudService).toBeInstanceOf(CloudService)
 			expect(WebAuthService).toHaveBeenCalledWith(mockContext, expect.any(Function))
-			expect(CloudSettingsService).toHaveBeenCalledWith(
-				mockContext,
-				mockAuthService,
-				expect.any(Function),
-				expect.any(Function),
-			)
+			expect(CloudSettingsService).toHaveBeenCalledWith(mockContext, mockAuthService, expect.any(Function))
+		})
+
+		it("should set up event listeners for CloudSettingsService", async () => {
+			const mockLog = vi.fn()
+
+			await CloudService.createInstance(mockContext, mockLog)
+
+			expect(mockSettingsService.on).toHaveBeenCalledWith("settings-updated", expect.any(Function))
 		})
 
 		it("should throw error if instance already exists", async () => {
@@ -195,11 +199,9 @@ describe("CloudService", () => {
 
 	describe("authentication methods", () => {
 		let cloudService: CloudService
-		let callbacks: CloudServiceCallbacks
 
 		beforeEach(async () => {
-			callbacks = { stateChanged: vi.fn() }
-			cloudService = await CloudService.createInstance(mockContext, callbacks)
+			cloudService = await CloudService.createInstance(mockContext)
 		})
 
 		it("should delegate login to AuthService", async () => {
@@ -382,6 +384,105 @@ describe("CloudService", () => {
 
 			expect(mockSettingsService.dispose).toHaveBeenCalled()
 		})
+
+		it("should remove event listeners from CloudSettingsService", async () => {
+			// Create a mock that will pass the instanceof check
+			const mockCloudSettingsService = Object.create(CloudSettingsService.prototype)
+			Object.assign(mockCloudSettingsService, {
+				initialize: vi.fn(),
+				getSettings: vi.fn(),
+				getAllowList: vi.fn(),
+				dispose: vi.fn(),
+				on: vi.fn(),
+				off: vi.fn(),
+			})
+
+			// Override the mock to return our properly typed instance
+			vi.mocked(CloudSettingsService).mockImplementation(() => mockCloudSettingsService)
+
+			const cloudService = await CloudService.createInstance(mockContext)
+
+			// Verify the listener was added
+			expect(mockCloudSettingsService.on).toHaveBeenCalledWith("settings-updated", expect.any(Function))
+
+			// Get the listener function that was registered
+			const registeredListener = mockCloudSettingsService.on.mock.calls.find(
+				(call: unknown[]) => call[0] === "settings-updated",
+			)?.[1]
+
+			cloudService.dispose()
+
+			// Verify the listener was removed with the same function
+			expect(mockCloudSettingsService.off).toHaveBeenCalledWith("settings-updated", registeredListener)
+		})
+
+		it("should handle disposal when using StaticSettingsService", async () => {
+			// Reset the instance first
+			CloudService.resetInstance()
+
+			// Mock a StaticSettingsService (which doesn't extend CloudSettingsService)
+			const mockStaticSettingsService = {
+				initialize: vi.fn(),
+				getSettings: vi.fn(),
+				getAllowList: vi.fn(),
+				dispose: vi.fn(),
+				on: vi.fn(), // Add on method to avoid initialization error
+				off: vi.fn(), // Add off method for disposal
+			}
+
+			// Override the mock to return a service that won't pass instanceof check
+			vi.mocked(CloudSettingsService).mockImplementation(
+				() => mockStaticSettingsService as unknown as CloudSettingsService,
+			)
+
+			// This should not throw even though the service doesn't pass instanceof check
+			const _cloudService = await CloudService.createInstance(mockContext)
+
+			// Should not throw when disposing
+			expect(() => _cloudService.dispose()).not.toThrow()
+
+			// Should still call dispose on the settings service
+			expect(mockStaticSettingsService.dispose).toHaveBeenCalled()
+			// Should NOT call off method since it's not a CloudSettingsService instance
+			expect(mockStaticSettingsService.off).not.toHaveBeenCalled()
+		})
+	})
+
+	describe("settings event handling", () => {
+		let _cloudService: CloudService
+
+		beforeEach(async () => {
+			_cloudService = await CloudService.createInstance(mockContext)
+		})
+
+		it("should emit settings-updated event when settings are updated", async () => {
+			const settingsListener = vi.fn()
+			_cloudService.on("settings-updated", settingsListener)
+
+			// Get the settings listener that was registered with the settings service
+			const serviceSettingsListener = mockSettingsService.on.mock.calls.find(
+				(call) => call[0] === "settings-updated",
+			)?.[1]
+
+			expect(serviceSettingsListener).toBeDefined()
+
+			// Simulate settings update event
+			const settingsData = {
+				settings: {
+					version: 2,
+					defaultSettings: {},
+					allowList: { allowAll: true, providers: {} },
+				},
+				previousSettings: {
+					version: 1,
+					defaultSettings: {},
+					allowList: { allowAll: true, providers: {} },
+				},
+			}
+			serviceSettingsListener(settingsData)
+
+			expect(settingsListener).toHaveBeenCalledWith(settingsData)
+		})
 	})
 
 	describe("shareTask with ClineMessage retry logic", () => {
@@ -397,7 +498,7 @@ describe("CloudService", () => {
 			mockAuthService.hasOrIsAcquiringActiveSession.mockReturnValue(true)
 			mockAuthService.getState.mockReturnValue("active")
 
-			cloudService = await CloudService.createInstance(mockContext, {})
+			cloudService = await CloudService.createInstance(mockContext)
 		})
 
 		it("should call shareTask without retry when successful", async () => {

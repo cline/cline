@@ -2,10 +2,12 @@ import EventEmitter from "events"
 import type { CloudUserInfo } from "@roo-code/types"
 
 export interface AuthServiceEvents {
-	"attempting-session": [data: { previousState: AuthState }]
-	"inactive-session": [data: { previousState: AuthState }]
-	"active-session": [data: { previousState: AuthState }]
-	"logged-out": [data: { previousState: AuthState }]
+	"auth-state-changed": [
+		data: {
+			state: AuthState
+			previousState: AuthState
+		},
+	]
 	"user-info": [data: { userInfo: CloudUserInfo }]
 }
 

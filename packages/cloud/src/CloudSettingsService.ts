@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import EventEmitter from "events"
 
 import {
 	ORGANIZATION_ALLOW_ALL,
@@ -8,32 +9,38 @@ import {
 } from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./Config"
-import type { AuthService } from "./auth"
+import type { AuthService, AuthState } from "./auth"
 import { RefreshTimer } from "./RefreshTimer"
 import type { SettingsService } from "./SettingsService"
 
 const ORGANIZATION_SETTINGS_CACHE_KEY = "organization-settings"
 
-export class CloudSettingsService implements SettingsService {
+export interface SettingsServiceEvents {
+	"settings-updated": [
+		data: {
+			settings: OrganizationSettings
+			previousSettings: OrganizationSettings | undefined
+		},
+	]
+}
+
+export class CloudSettingsService extends EventEmitter<SettingsServiceEvents> implements SettingsService {
 	private context: vscode.ExtensionContext
 	private authService: AuthService
 	private settings: OrganizationSettings | undefined = undefined
 	private timer: RefreshTimer
 	private log: (...args: unknown[]) => void
 
-	constructor(
-		context: vscode.ExtensionContext,
-		authService: AuthService,
-		callback: () => void,
-		log?: (...args: unknown[]) => void,
-	) {
+	constructor(context: vscode.ExtensionContext, authService: AuthService, log?: (...args: unknown[]) => void) {
+		super()
+
 		this.context = context
 		this.authService = authService
 		this.log = log || console.log
 
 		this.timer = new RefreshTimer({
 			callback: async () => {
-				return await this.fetchSettings(callback)
+				return await this.fetchSettings()
 			},
 			successInterval: 30000,
 			initialBackoffMs: 1000,
@@ -49,13 +56,16 @@ export class CloudSettingsService implements SettingsService {
 			this.removeSettings()
 		}
 
-		this.authService.on("active-session", () => {
-			this.timer.start()
-		})
+		this.authService.on("auth-state-changed", (data: { state: AuthState; previousState: AuthState }) => {
+			if (data.state === "active-session") {
+				this.timer.start()
+			} else if (data.previousState === "active-session") {
+				this.timer.stop()
 
-		this.authService.on("logged-out", () => {
-			this.timer.stop()
-			this.removeSettings()
+				if (data.state === "logged-out") {
+					this.removeSettings()
+				}
+			}
 		})
 
 		if (this.authService.hasActiveSession()) {
@@ -63,7 +73,7 @@ export class CloudSettingsService implements SettingsService {
 		}
 	}
 
-	private async fetchSettings(callback: () => void): Promise<boolean> {
+	private async fetchSettings(): Promise<boolean> {
 		const token = this.authService.getSessionToken()
 
 		if (!token) {
@@ -97,9 +107,14 @@ export class CloudSettingsService implements SettingsService {
 			const newSettings = result.data
 
 			if (!this.settings || this.settings.version !== newSettings.version) {
+				const previousSettings = this.settings
 				this.settings = newSettings
 				await this.cacheSettings()
-				callback()
+
+				this.emit("settings-updated", {
+					settings: this.settings,
+					previousSettings,
+				})
 			}
 
 			return true
@@ -131,6 +146,7 @@ export class CloudSettingsService implements SettingsService {
 	}
 
 	public dispose(): void {
+		this.removeAllListeners()
 		this.timer.stop()
 	}
 }

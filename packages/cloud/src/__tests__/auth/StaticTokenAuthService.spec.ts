@@ -79,13 +79,13 @@ describe("StaticTokenAuthService", () => {
 			expect(authService.getState()).toBe("active-session")
 		})
 
-		it("should emit active-session event on initialize", async () => {
+		it("should emit auth-state-changed event on initialize", async () => {
 			const spy = vi.fn()
-			authService.on("active-session", spy)
+			authService.on("auth-state-changed", spy)
 
 			await authService.initialize()
 
-			expect(spy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(spy).toHaveBeenCalledWith({ state: "active-session", previousState: "initializing" })
 		})
 
 		it("should log successful initialization", async () => {
@@ -158,15 +158,15 @@ describe("StaticTokenAuthService", () => {
 
 	describe("event emission", () => {
 		it("should be able to register and emit events", async () => {
-			const activeSessionSpy = vi.fn()
+			const authStateChangedSpy = vi.fn()
 			const userInfoSpy = vi.fn()
 
-			authService.on("active-session", activeSessionSpy)
+			authService.on("auth-state-changed", authStateChangedSpy)
 			authService.on("user-info", userInfoSpy)
 
 			await authService.initialize()
 
-			expect(activeSessionSpy).toHaveBeenCalledWith({ previousState: "initializing" })
+			expect(authStateChangedSpy).toHaveBeenCalledWith({ state: "active-session", previousState: "initializing" })
 			// user-info event is not emitted in static token mode
 			expect(userInfoSpy).not.toHaveBeenCalled()
 		})
