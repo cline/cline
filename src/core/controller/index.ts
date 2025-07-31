@@ -733,7 +733,7 @@ export class Controller {
 			apiConfiguration,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
+			checkpointManagerErrorMessage: this.task?.taskState.checkpointManagerErrorMessage,
 			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
 			taskHistory: (taskHistory || [])
 				.filter((item) => item.ts && item.task)
