@@ -83,11 +83,12 @@
 			"errorOutput": "Sortie d'erreur : {{output}}",
 			"processExitedWithError": "Le processus Claude Code s'est terminé avec le code {{exitCode}}. Sortie d'erreur : {{output}}",
 			"stoppedWithReason": "Claude Code s'est arrêté pour la raison : {{reason}}",
-			"apiKeyModelPlanMismatch": "Les clés API et les plans d'abonnement permettent différents modèles. Assurez-vous que le modèle sélectionné est inclus dans votre plan."
+			"apiKeyModelPlanMismatch": "Les clés API et les plans d'abonnement permettent différents modèles. Assurez-vous que le modèle sélectionné est inclus dans votre plan.",
+			"notFound": "Exécutable Claude Code '{{claudePath}}' introuvable.\n\nVeuillez installer Claude Code CLI :\n1. Visitez {{installationUrl}} pour télécharger Claude Code\n2. Suivez les instructions d'installation pour votre système d'exploitation\n3. Assurez-vous que la commande 'claude' est disponible dans votre PATH\n4. Alternativement, configurez un chemin personnalisé dans les paramètres Roo sous 'Chemin de Claude Code'\n\nErreur originale : {{originalError}}"
 		},
 		"gemini": {
-			"generate_stream": "Erreur du flux de contexte de génération Gemini : {{error}}",
-			"generate_complete_prompt": "Erreur d'achèvement de Gemini : {{error}}",
+			"generate_stream": "Erreur du flux de contexte de génération Gemini : {{error}}",
+			"generate_complete_prompt": "Erreur d'achèvement de Gemini : {{error}}",
 			"sources": "Sources :"
 		}
 	},
