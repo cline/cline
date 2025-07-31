@@ -2480,11 +2480,20 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-235b-a22b-instruct-2507"
+export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b"
 export const cerebrasModels = {
+	"qwen-3-coder-480b": {
+		maxTokens: 128000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "SOTA coding model with ~2000 tokens/s",
+	},
 	"qwen-3-235b-a22b-instruct-2507": {
-		maxTokens: 64000,
-		contextWindow: 64000,
+		maxTokens: 20000,
+		contextWindow: 20000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -2509,7 +2518,7 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
 	},
-	"qwen-3-235b-a22b": {
+	"qwen-3-235b-a22b-thinking-2507": {
 		maxTokens: 40000,
 		contextWindow: 40000,
 		supportsImages: false,
