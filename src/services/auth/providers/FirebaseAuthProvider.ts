@@ -1,12 +1,12 @@
-import { getSecret, storeSecret } from "@/core/storage/state"
-import { ErrorService } from "@/services/error/ErrorService"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
-import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCredential } from "firebase/auth"
-import { ExtensionContext } from "vscode"
-import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { GithubAuthProvider, GoogleAuthProvider, getAuth, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
+import type { ExtensionContext } from "vscode"
 import { clineEnvConfig } from "@/config"
+import { getSecret, storeSecret } from "@/core/storage/state"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
+import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -89,8 +89,8 @@ export class FirebaseAuthProvider {
 			// return userCredential.user
 		} catch (error) {
 			console.error("Firebase restore token error", error)
-			ErrorService.logMessage("Firebase restore token error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase restore token error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}
@@ -125,16 +125,16 @@ export class FirebaseAuthProvider {
 			try {
 				await storeSecret(context, "clineAccountId", userCredential.refreshToken)
 			} catch (error) {
-				ErrorService.logMessage("Firebase store token error", "error")
-				ErrorService.logException(error)
+				errorService.logMessage("Firebase store token error", "error")
+				errorService.logException(error)
 				throw error
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
 			return await this.retrieveClineAuthInfo(context)
 		} catch (error) {
-			ErrorService.logMessage("Firebase sign-in error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase sign-in error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}

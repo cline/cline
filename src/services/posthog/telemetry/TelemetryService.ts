@@ -1,11 +1,9 @@
-import { PostHog } from "posthog-node"
-import * as vscode from "vscode"
-import { version as extensionVersion } from "../../../../package.json"
-
-import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import { posthogClientProvider } from "../PostHogClientProvider"
-import { Mode } from "@/shared/storage/types"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as vscode from "vscode"
+import { ENV_UID } from "@/services/logging/env"
+import type { Mode } from "@/shared/storage/types"
+import { version as extensionVersion } from "../../../../package.json"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -25,7 +23,7 @@ type TelemetryCategory = "checkpoints" | "browser"
  */
 const MAX_ERROR_MESSAGE_LENGTH = 500
 
-class TelemetryService {
+export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
@@ -91,25 +89,28 @@ class TelemetryService {
 		},
 	}
 
-	/** Singleton instance of the TelemetryService */
-	private static instance: TelemetryService
-	/** PostHog client instance for sending analytics events */
-	private client: PostHog
+	/** PostHogClientProvider instance for sending analytics events */
+	private provider: any // Will be typed properly when we import the type
 	/** Unique identifier for the current VSCode instance */
-	public distinctId: string = vscode.env.machineId
+	public distinctId: string = ENV_UID
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
-	private telemetryEnabled: boolean = false
+	private _telemetryEnabled: boolean = vscode?.env?.isTelemetryEnabled || true
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
 	/** Whether the extension is running in development mode */
 	private readonly isDev = process.env.IS_DEV
 
 	/**
-	 * Private constructor to enforce singleton pattern
-	 * Initializes PostHog client with configuration
+	 * Constructor that accepts a PostHogClientProvider instance
+	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	private constructor() {
-		this.client = posthogClientProvider.getClient()
+	public constructor(provider: any) {
+		this.provider = provider
+		console.info("[TelemetryService] Initialized with PostHogClientProvider")
+	}
+
+	private get telemetryEnabled(): boolean {
+		return this._telemetryEnabled && !!this.provider
 	}
 
 	private setDistinctId(installId: string) {
@@ -125,12 +126,11 @@ class TelemetryService {
 	 */
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
-		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
-		const globalTelemetryEnabled = telemetryLevel === "all"
+		const globalTelemetryEnabled = vscode.env.isTelemetryEnabled
 
 		// We only enable telemetry if global vscode telemetry is enabled
 		if (globalTelemetryEnabled) {
-			this.telemetryEnabled = didUserOptIn
+			this._telemetryEnabled = didUserOptIn
 		} else {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
@@ -145,34 +145,31 @@ class TelemetryService {
 						}
 					})
 			}
-			this.telemetryEnabled = false
+			this._telemetryEnabled = false
 		}
 
 		// Update PostHog client state based on telemetry preference
+		// Note: These operations still need direct client access for opt-in/out and identify
+		// The provider's log method handles the telemetry checks, so we use it for the opt-out event
 		if (this.telemetryEnabled) {
-			this.client.optIn()
-			this.client.identify({ distinctId: this.distinctId })
+			// Access client through the provider for opt-in and identify operations
+			const client = (this.provider as any).constructor.client
+			if (client) {
+				client.optIn()
+				client.identify({ distinctId: this.distinctId })
+			}
 		} else {
-			this.client.capture({
-				distinctId: this.distinctId,
-				event: TelemetryService.EVENTS.USER.OPT_OUT,
-				properties: this.addProperties({}),
-			})
+			// Use provider's log method for the opt-out event
+			this.provider.log(TelemetryService.EVENTS.USER.OPT_OUT, this.addProperties({}))
 
 			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
-			this.client.optOut()
-		}
-	}
 
-	/**
-	 * Gets or creates the singleton instance of TelemetryService
-	 * @returns The TelemetryService instance
-	 */
-	public static getInstance(): TelemetryService {
-		if (!TelemetryService.instance) {
-			TelemetryService.instance = new TelemetryService()
+			// Access client through the provider for opt-out operation
+			const client = (this.provider as any).constructor.client
+			if (client) {
+				client.optOut()
+			}
 		}
-		return TelemetryService.instance
 	}
 
 	private addProperties(properties: any): any {
@@ -194,20 +191,22 @@ class TelemetryService {
 
 		const propertiesWithVersion = this.addProperties(event.properties)
 
-		const capturedEvent = {
-			event: event.event,
-			properties: propertiesWithVersion,
-		}
-
-		this.client.capture({ ...capturedEvent, distinctId: this.distinctId })
+		// Use the provider's log method instead of direct client capture
+		this.provider.log(event.event, propertiesWithVersion)
 	}
 
 	public captureExtensionActivated(installId: string) {
 		this.setDistinctId(installId)
 
 		if (this.telemetryEnabled) {
-			this.client.identify({ distinctId: this.distinctId })
-			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
+			// Access client through the provider for identify operation
+			const client = (this.provider as any).constructor.client
+			if (client) {
+				client.identify({ distinctId: this.distinctId })
+			}
+
+			// Use provider's log method for the activation event
+			this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
 		}
 	}
 
@@ -329,7 +328,10 @@ class TelemetryService {
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
 	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
-		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
+		console.info("TelemetryService: Capturing task feedback", {
+			taskId,
+			feedbackType,
+		})
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FEEDBACK,
 			properties: {
@@ -665,8 +667,10 @@ class TelemetryService {
 	}
 
 	public async shutdown(): Promise<void> {
-		await this.client.shutdown()
+		// Access client through the provider for shutdown operation
+		const client = (this.provider as any).constructor.client
+		if (client) {
+			await client.shutdown()
+		}
 	}
 }
-
-export const telemetryService = TelemetryService.getInstance()

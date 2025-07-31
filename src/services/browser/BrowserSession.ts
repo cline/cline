@@ -1,22 +1,22 @@
-import * as vscode from "vscode"
-import * as fs from "fs/promises"
-import * as path from "path"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import type { Controller } from "@core/controller"
+import type { BrowserSettings } from "@shared/BrowserSettings"
+import type { BrowserActionResult } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
 import { exec, spawn } from "child_process"
-import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
-import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
+import * as chromeLauncher from "chrome-launcher"
+import * as fs from "fs/promises"
+import os from "os"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import pWaitFor from "p-wait-for"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import axios from "axios"
-import { fileExistsAtPath } from "@utils/fs"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
-import * as chromeLauncher from "chrome-launcher"
-import { Controller } from "@core/controller"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import os from "os"
+import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
+import { type Browser, connect, launch, type Page, TimeoutError } from "puppeteer-core"
+import * as vscode from "vscode"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -86,7 +86,10 @@ export class BrowserSession {
 		// First check browserSettings (from UI, stored in global state)
 		await this.migrateChromeExecutablePathSetting()
 		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
-			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
+			return {
+				path: this.browserSettings.chromeExecutablePath,
+				isBundled: false,
+			}
 		}
 
 		// Then try to find system Chrome
@@ -550,8 +553,8 @@ export class BrowserSession {
 		const minStableSizeIterations = 3
 
 		while (checkCounts++ <= maxChecks) {
-			let html = await page.content()
-			let currentHTMLSize = html.length
+			const html = await page.content()
+			const currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
 			console.info("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
