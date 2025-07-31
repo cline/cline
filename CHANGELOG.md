@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.21.0
+
+### Minor Changes
+
+- 708b785: Add Huawei Cloud MaaS Provider
+- fdc2e26: Add Cerebras Qwen 3 235B instruct
+
+### Patch Changes
+
+- 099bc44: Fix Global Rules directory documentation for Linux/WSL systems
+- dfbac3e: DeepSeek R1 0528 support under Hugging Face
+- 6050413: remove duplicate tool registration for claude4-experimental
+- 65c21e7: Fixed token counting when using VSCode LM API provider
+- a91878e: fix: only focus on editor panel that is visible and active to stop input field stealing issue
+- 25c5310: trim input value for URL fields
+
 ## [3.20.2]
 
 - Fixed issue with sap ai core client credentials storage
