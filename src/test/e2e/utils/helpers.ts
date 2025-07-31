@@ -129,7 +129,7 @@ export class E2ETestHelper {
 			name: "Search files by name (append",
 		})
 		await expect(editorSearchBar).toBeVisible()
-		await editorSearchBar.click()
+		await editorSearchBar.click({ delay: 100 }) // Ensure focus
 		await editorSearchBar.fill(`>${command}`)
 		await page.keyboard.press("Enter")
 	}
@@ -151,7 +151,7 @@ export class E2ETestHelper {
  * @extends test - Base Playwright test with multiple fixture extensions
  *
  * Fixtures provided:
- * - `server`: ClineApiServerMock instance for API mocking
+ * - `server`: Shared ClineApiServerMock instance for API mocking (reused across all tests)
  * - `workspaceDir`: Path to the test workspace directory
  * - `userDataDir`: Temporary directory for VS Code user data
  * - `extensionsDir`: Temporary directory for VS Code extensions
@@ -187,13 +187,19 @@ export class E2ETestHelper {
  * - Configures VS Code with disabled updates, workspace trust, and welcome screens
  */
 export const e2e = test
-	.extend<{ server: ClineApiServerMock }>({
-		server: [
-			async ({}, use) => {
-				ClineApiServerMock.run(async (server) => await use(server))
-			},
-			{ auto: true },
-		],
+	.extend<{ server: ClineApiServerMock | null }>({
+		server: async ({}, use) => {
+			console.log("=== SERVER FIXTURE CALLED ===")
+			// Start server if it doesn't exist
+			if (!ClineApiServerMock.globalSharedServer) {
+				console.log("Starting global server...")
+				await ClineApiServerMock.startGlobalServer()
+				console.log("Global server started successfully")
+			} else {
+				console.log("Using existing global server")
+			}
+			await use(ClineApiServerMock.globalSharedServer)
+		},
 	})
 	.extend<E2ETestDirectories>({
 		workspaceDir: async ({}, use) => {
@@ -268,12 +274,12 @@ export const e2e = test
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
 			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
-			await E2ETestHelper.openClineSidebar(page)
 			await use(page)
 		},
 	})
 	.extend<{ sidebar: Frame }>({
-		sidebar: async ({ page, helper }, use) => {
+		sidebar: async ({ page, helper, server }, use) => {
+			await E2ETestHelper.openClineSidebar(page)
 			const sidebar = await helper.getSidebar(page)
 			await use(sidebar)
 		},
