@@ -51,8 +51,11 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	maybeSetupHostProviders(context)
 
+	let installId = context.globalState.get<string>("installId")
+
 	// Initialize PostHog client provider
-	PostHogClientProvider.getInstance()
+	PostHogClientProvider.getInstance(installId)
+
 	Logger.log("Cline extension activated")
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
@@ -114,7 +117,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	// backup id in case vscMachineID doesn't work
-	let installId = context.globalState.get<string>("installId")
 
 	if (!installId) {
 		installId = uuidv4()

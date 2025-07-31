@@ -11,6 +11,9 @@ const E2E_API_SERVER_PORT = 7777
 export const MOCK_CLINE_API_SERVER_URL = `http://localhost:${E2E_API_SERVER_PORT}`
 
 export class ClineApiServerMock {
+	static globalSharedServer: ClineApiServerMock | null = null
+	static globalSockets: Set<Socket> = new Set()
+
 	private currentUser: UserResponse | null = null
 	private userBalance = 100.5 // Default sufficient balance
 	private orgBalance = 500.0
@@ -101,8 +104,12 @@ export class ClineApiServerMock {
 		return { matched: false }
 	}
 
-	// Runs a mock Cline API server for testing
-	public static async run<T>(around: (server: ClineApiServerMock) => Promise<T>): Promise<T> {
+	// Starts the global shared server
+	public static async startGlobalServer(): Promise<ClineApiServerMock> {
+		if (ClineApiServerMock.globalSharedServer) {
+			return ClineApiServerMock.globalSharedServer
+		}
+
 		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 			// Parse URL and method
 			const parsedUrl = parse(req.url || "", true)
@@ -151,14 +158,19 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				console.log(`Authenticating token: ${authToken}`)
-				const user = controller.API_USER.getUserByToken(authToken)
+				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
-				controller.setCurrentUser(user)
+				ClineApiServerMock.globalSharedServer!.setCurrentUser(user)
 			}
 
-			console.log("Received %s request for %s query %s", method, path, JSON.stringify(query))
+			console.log("=== MOCK SERVER REQUEST ===")
+			console.log("Method:", method)
+			console.log("Path:", path)
+			console.log("Query:", JSON.stringify(query))
+			console.log("Headers:", JSON.stringify(req.headers))
+			console.log("===============")
 
 			// Route handling
 			const handleRequest = async () => {
@@ -170,6 +182,7 @@ export class ClineApiServerMock {
 				}
 
 				const { baseRoute, endpoint, params = {} } = routeMatch
+				const controller = ClineApiServerMock.globalSharedServer!
 
 				// Health check endpoints
 				if (baseRoute === "/health") {
@@ -332,7 +345,7 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
-									setTimeout(sendChunk, 20)
+									setTimeout(sendChunk, 50)
 								} else {
 									const finalChunk = {
 										id: generationId,
@@ -452,20 +465,47 @@ export class ClineApiServerMock {
 
 		// Initialize the controller after the server is created
 		const controller = new ClineApiServerMock(server)
-
-		server.listen(E2E_API_SERVER_PORT)
+		ClineApiServerMock.globalSharedServer = controller
 
 		// Track connections for proper cleanup
-		const sockets = new Set<Socket>()
-		server.on("connection", (socket) => sockets.add(socket))
+		server.on("connection", (socket) => {
+			ClineApiServerMock.globalSockets.add(socket)
+			socket.on("close", () => {
+				ClineApiServerMock.globalSockets.delete(socket)
+			})
+		})
 
-		const result = await around(controller)
+		await new Promise<void>((resolve, reject) => {
+			server.listen(E2E_API_SERVER_PORT, (error?: Error) => {
+				if (error) {
+					console.error(`Failed to start server on port ${E2E_API_SERVER_PORT}:`, error)
+					reject(error)
+				} else {
+					console.log(`ClineApiServerMock listening on port ${E2E_API_SERVER_PORT}`)
+					resolve()
+				}
+			})
+		})
 
-		// Clean shutdown
-		const serverClosed = new Promise((resolve) => server.close(resolve))
-		sockets.forEach((socket) => socket.destroy())
-		await serverClosed
+		return controller
+	}
 
-		return result
+	// Stops the global shared server
+	public static async stopGlobalServer(): Promise<void> {
+		if (!ClineApiServerMock.globalSharedServer) {
+			return
+		}
+
+		const server = ClineApiServerMock.globalSharedServer.server
+
+		// Clean shutdown - destroy all socket connections first
+		ClineApiServerMock.globalSockets.forEach((socket) => socket.destroy())
+		ClineApiServerMock.globalSockets.clear()
+
+		await new Promise<void>((resolve) => {
+			server.close(() => resolve())
+		})
+
+		ClineApiServerMock.globalSharedServer = null
 	}
 }

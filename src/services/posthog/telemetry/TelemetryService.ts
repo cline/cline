@@ -1,9 +1,10 @@
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { ENV_UID } from "@/services/logging/env"
+import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import type { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../../package.json"
+import type { PostHogClientProvider } from "../PostHogClientProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -92,7 +93,7 @@ export class TelemetryService {
 	/** PostHogClientProvider instance for sending analytics events */
 	private provider: any // Will be typed properly when we import the type
 	/** Unique identifier for the current VSCode instance */
-	public distinctId: string = ENV_UID
+	public distinctId: string
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private _telemetryEnabled: boolean = vscode?.env?.isTelemetryEnabled || true
 	/** Current version of the extension */
@@ -104,8 +105,9 @@ export class TelemetryService {
 	 * Constructor that accepts a PostHogClientProvider instance
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	public constructor(provider: any) {
+	public constructor(provider: PostHogClientProvider, distinctId: string) {
 		this.provider = provider
+		this.distinctId = distinctId
 		console.info("[TelemetryService] Initialized with PostHogClientProvider")
 	}
 
@@ -151,25 +153,14 @@ export class TelemetryService {
 		// Update PostHog client state based on telemetry preference
 		// Note: These operations still need direct client access for opt-in/out and identify
 		// The provider's log method handles the telemetry checks, so we use it for the opt-out event
-		if (this.telemetryEnabled) {
-			// Access client through the provider for opt-in and identify operations
-			const client = (this.provider as any).constructor.client
-			if (client) {
-				client.optIn()
-				client.identify({ distinctId: this.distinctId })
-			}
-		} else {
+		if (!this.telemetryEnabled) {
 			// Use provider's log method for the opt-out event
 			this.provider.log(TelemetryService.EVENTS.USER.OPT_OUT, this.addProperties({}))
-
-			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
-
-			// Access client through the provider for opt-out operation
-			const client = (this.provider as any).constructor.client
-			if (client) {
-				client.optOut()
-			}
+			// Delay 1 second before opting out
+			await new Promise((resolve) => setTimeout(resolve, 1000))
 		}
+
+		this.provider.toggleOptIn(this.telemetryEnabled, this.distinctId)
 	}
 
 	private addProperties(properties: any): any {
@@ -200,14 +191,26 @@ export class TelemetryService {
 
 		if (this.telemetryEnabled) {
 			// Access client through the provider for identify operation
-			const client = (this.provider as any).constructor.client
-			if (client) {
-				client.identify({ distinctId: this.distinctId })
-			}
+			this.provider.identifyAccount({ distinctId: this.distinctId })
 
 			// Use provider's log method for the activation event
 			this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
 		}
+	}
+
+	/**
+	 * Identifies the accounts user
+	 * @param userInfo The user's information
+	 */
+	public identifyAccount(userInfo: ClineAccountUserInfo) {
+		if (!this.telemetryEnabled) {
+			return
+		}
+
+		const propertiesWithVersion = this.addProperties({})
+
+		// Use the provider's log method instead of direct client capture
+		this.provider.identifyAccount(userInfo, propertiesWithVersion)
 	}
 
 	// Task events
@@ -667,10 +670,8 @@ export class TelemetryService {
 	}
 
 	public async shutdown(): Promise<void> {
-		// Access client through the provider for shutdown operation
-		const client = (this.provider as any).constructor.client
-		if (client) {
-			await client.shutdown()
-		}
+		// No opt as we need to keep PostHog running for the shutdown process.
+		// Plus, the feature flags service is also using PostHog.
+		console.info("[TelemetryService] Shutting down Telemetry client")
 	}
 }

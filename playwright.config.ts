@@ -13,6 +13,20 @@ export default defineConfig({
 	},
 	fullyParallel: true,
 	reporter: isCI ? [["github"], ["list"]] : [["list"]],
-	globalSetup: require.resolve("./src/test/e2e/utils/setup"),
-	globalTeardown: require.resolve("./src/test/e2e/utils/teardown"),
+	projects: [
+		{
+			name: "setup test environment",
+			testMatch: /global\.setup\.ts/,
+		},
+		{
+			name: "e2e tests",
+			testMatch: /.*\.test\.ts/,
+			dependencies: ["setup test environment"],
+		},
+		{
+			name: "cleanup test environment",
+			testMatch: /global\.teardown\.ts/,
+			dependencies: ["e2e tests"],
+		},
+	],
 })

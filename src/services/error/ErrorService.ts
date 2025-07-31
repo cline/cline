@@ -8,7 +8,7 @@ const EXTENSION_ID = "saoudrizwan.claude-dev"
 export class ErrorService {
 	private posthogProvider: PostHogClientProvider
 
-	constructor(posthogProvider: PostHogClientProvider) {
+	constructor(posthogProvider: PostHogClientProvider, _distinctId: string) {
 		this.posthogProvider = posthogProvider
 		console.info("[ErrorService] Initialized with PostHogClientProvider")
 	}

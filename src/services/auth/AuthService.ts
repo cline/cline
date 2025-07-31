@@ -7,7 +7,7 @@ import { getRequestRegistry, type StreamingResponseHandler } from "@/core/contro
 import { storeSecret } from "@/core/storage/state"
 import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
 import { openExternal } from "@/utils/env"
-import { featureFlagsService } from "../posthog/PostHogClientProvider"
+import { featureFlagsService, telemetryService } from "../posthog/PostHogClientProvider"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
@@ -232,6 +232,10 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.signIn(this._context, token, provider)
 			this._authenticated = true
 
+			if (this._clineAuthInfo) {
+				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+			}
+
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
@@ -260,6 +264,7 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._context)
 			if (this._clineAuthInfo) {
 				this._authenticated = true
+				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")

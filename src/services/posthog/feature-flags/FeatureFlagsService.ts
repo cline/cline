@@ -1,5 +1,4 @@
 import type { PostHog } from "posthog-node"
-import { ENV_UID } from "@/services/logging/env"
 
 /**
  * FeatureFlagsService provides feature flag functionality that works independently
@@ -7,12 +6,10 @@ import { ENV_UID } from "@/services/logging/env"
  * functionality of the extension regardless of user's telemetry preferences.
  */
 export class FeatureFlagsService {
-	private readonly distinctId: string = ENV_UID
-
-	public constructor(private readonly client: PostHog) {
-		console.info("[FeatureFlagsService] Initializing with PostHog client")
-		// Use VSCode machine ID for feature flag identification
-		this.distinctId = ENV_UID
+	public constructor(
+		private readonly client: PostHog,
+		private readonly distinctId: string,
+	) {
 		console.log("[FeatureFlagsService] Initialized with distinctId:", this.distinctId)
 	}
 
@@ -31,7 +28,7 @@ export class FeatureFlagsService {
 				console.warn("[FeatureFlagsService] PostHog client is not initialized")
 				return false
 			}
-			const flagEnabled = await this.client.getFeatureFlag(flagName, ENV_UID)
+			const flagEnabled = await this.client.getFeatureFlag(flagName, this.distinctId)
 			console.log(`Feature flag ${flagName} is enabled:`, flagEnabled === true)
 			return flagEnabled === true
 		} catch (error) {
@@ -47,7 +44,7 @@ export class FeatureFlagsService {
 	 */
 	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
 		try {
-			return await this.client.getFeatureFlagPayload(flagName, ENV_UID)
+			return await this.client.getFeatureFlagPayload(flagName, this.distinctId)
 		} catch (error) {
 			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
 			return null
