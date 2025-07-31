@@ -1752,6 +1752,30 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
+		// LOG: Debug what messages are ACTUALLY sent to the API
+		console.log("=== ACTUAL API REQUEST MESSAGES ===")
+		console.log("System prompt length:", systemPrompt.length)
+		console.log("Total messages being sent to API:", contextManagementMetadata.truncatedConversationHistory.length)
+		console.log("Conversation history deleted range:", this.taskState.conversationHistoryDeletedRange)
+
+		contextManagementMetadata.truncatedConversationHistory.forEach((msg, index) => {
+			const preview = Array.isArray(msg.content)
+				? msg.content
+						.map((block) => {
+							if (block.type === "text") {
+								return `text(${block.text.length} chars): "${block.text.substring(0, 100)}..."`
+							}
+							return `${block.type}`
+						})
+						.join(", ")
+				: typeof msg.content === "string"
+					? `string(${msg.content.length} chars): "${msg.content.substring(0, 100)}..."`
+					: "other"
+
+			console.log(`API Message ${index} (${msg.role}): ${preview}`)
+		})
+		console.log("=== END API REQUEST MESSAGES ===")
+
 		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()

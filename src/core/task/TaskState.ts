@@ -41,6 +41,7 @@ export class TaskState {
 	didRejectTool = false
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
+	currentlySummarizing = false
 
 	// Consecutive request tracking
 	consecutiveAutoApprovedRequestsCount: number = 0

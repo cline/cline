@@ -153,19 +153,29 @@ export class ToolExecutor {
 			this.taskState.userMessageContent.push(...content)
 		}
 
-		// 2. CHECK IF WE NEED SUMMARIZATION
-		const { totalTokens, maxAllowedSize, contextWindow, shouldSummarize } = this.contextManager.shouldTriggerSummarization(
-			this.messageStateHandler.getApiConversationHistory(),
-			this.messageStateHandler.getClineMessages(),
-			this.api,
-		)
+		// 2. CHECK IF WE NEED SUMMARIZATION (only if not already summarizing)
+		if (!this.taskState.currentlySummarizing) {
+			const { totalTokens, maxAllowedSize, contextWindow, shouldSummarize } =
+				this.contextManager.shouldTriggerSummarization(
+					this.messageStateHandler.getApiConversationHistory(),
+					this.messageStateHandler.getClineMessages(),
+					this.api,
+				)
 
-		if (shouldSummarize) {
-			// 3. ADD SUMMARIZATION PROMPT AS SEPARATE MESSAGE
-			this.taskState.userMessageContent.push({
-				type: "text",
-				text: summarizeTask(totalTokens, maxAllowedSize, contextWindow),
-			})
+			if (shouldSummarize) {
+				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
+				console.log(
+					`Total Tokens: ${totalTokens}, Max Allowed Size: ${maxAllowedSize}, Context Window: ${contextWindow}, Should Summarize: ${shouldSummarize}`,
+				)
+				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
+
+				// 3. SET FLAG AND ADD SUMMARIZATION PROMPT
+				this.taskState.currentlySummarizing = true
+				this.taskState.userMessageContent.push({
+					type: "text",
+					text: summarizeTask(totalTokens, maxAllowedSize, contextWindow),
+				})
+			}
 		}
 
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
@@ -1824,13 +1834,13 @@ export class ToolExecutor {
 						await this.say("tool", completeMessage, undefined, undefined, false)
 
 						// Auto-execute conversation replacement (no user approval needed)
+						// Clear the existing user message content that triggered the summary.
+						this.taskState.userMessageContent = []
 						this.pushToolResult(formatResponse.toolResult(continuationPrompt(context)), block)
 
 						// Replace conversation history (same logic as condense when approved)
 						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
-						const lastMessage = apiConversationHistory[apiConversationHistory.length - 1]
-						const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
-						const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
+						const keepStrategy = "none"
 
 						// Clear the context history at this point in time
 						this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
@@ -1838,15 +1848,65 @@ export class ToolExecutor {
 							this.taskState.conversationHistoryDeletedRange,
 							keepStrategy,
 						)
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-							Date.now(),
-							await ensureTaskDirectoryExists(this.context, this.taskId),
+
+						// Actually apply the truncation to the stored conversation history
+						const truncatedHistory = this.contextManager.getTruncatedMessages(
+							apiConversationHistory,
+							this.taskState.conversationHistoryDeletedRange,
 						)
+						await this.messageStateHandler.overwriteApiConversationHistory(truncatedHistory)
+
+						// Clear the deleted range now that it has been applied
+						this.taskState.conversationHistoryDeletedRange = undefined
+
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+
+						// Reset the summarization flag
+						this.taskState.currentlySummarizing = false
+
+						// LOG: Debug what actually happens after summarization
+						console.log("=== SUMMARIZATION COMPLETE - DEBUG INFO ===")
+						console.log("Deleted Range:", this.taskState.conversationHistoryDeletedRange)
+
+						const currentApiHistory = this.messageStateHandler.getApiConversationHistory()
+						console.log("Total API messages after truncation:", currentApiHistory.length)
+
+						// Log the structure of what remains
+						currentApiHistory.forEach((msg, index) => {
+							const preview = Array.isArray(msg.content)
+								? msg.content
+										.map((block) => {
+											if (block.type === "text") {
+												return `text(${block.text.length} chars): "${block.text.substring(0, 100)}..."`
+											}
+											return `${block.type}`
+										})
+										.join(", ")
+								: typeof msg.content === "string"
+									? `string(${msg.content.length} chars): "${msg.content.substring(0, 100)}..."`
+									: "other"
+
+							console.log(`Message ${index} (${msg.role}): ${preview}`)
+						})
+
+						// Log what will be in the next API request
+						console.log("Current user message content that will be sent:")
+						this.taskState.userMessageContent.forEach((content, index) => {
+							if (content.type === "text") {
+								console.log(
+									`UserContent ${index}: text(${content.text.length} chars): "${content.text.substring(0, 200)}..."`,
+								)
+							} else {
+								console.log(`UserContent ${index}: ${content.type}`)
+							}
+						})
+						console.log("=== END SUMMARIZATION DEBUG ===")
 					}
 					await this.saveCheckpoint()
 					break
 				} catch (error) {
+					// Reset flag on error to prevent getting stuck
+					this.taskState.currentlySummarizing = false
 					await this.handleError("summarizing conversation", error, block)
 					await this.saveCheckpoint()
 					break
