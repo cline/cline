@@ -1395,6 +1395,83 @@ describe("read_file tool XML output structure", () => {
 			expect(result).not.toContain("Use line_range")
 			expect(result).not.toContain("File exceeds available context space")
 		})
+
+		it("should not include line_range instructions for single-line files", async () => {
+			// Mock a single-line file that exceeds context
+			vi.mocked(countFileLines).mockResolvedValue(1)
+
+			// Mock contextValidator to return shouldLimit true with single-line file message
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: true,
+				safeMaxLines: 1,
+				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 50% (5000 of 10000 characters) can be loaded. This is a hard limit - no additional content from this file can be accessed.",
+			})
+
+			// Mock extractTextFromFile to return truncated content
+			vi.mocked(extractTextFromFile).mockResolvedValue("1 | const a=1;const b=2;...truncated")
+
+			const result = await executeReadFileTool(
+				{ args: `<file><path>minified.js</path></file>` },
+				{ totalLines: 1, maxReadFileLine: -1 },
+			)
+
+			// Verify the result contains the notice but NOT the line_range instructions
+			expect(result).toContain("<notice>")
+			expect(result).toContain("Large single-line file")
+			expect(result).toContain("This is a hard limit")
+			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
+			expect(result).not.toContain("Use line_range")
+		})
+
+		it("should include line_range instructions for multi-line files that exceed context", async () => {
+			// Mock a multi-line file that exceeds context
+			vi.mocked(countFileLines).mockResolvedValue(5000)
+
+			// Mock contextValidator to return shouldLimit true with multi-line file message
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: true,
+				safeMaxLines: 1000,
+				reason: "File exceeds available context space. Safely read 1000 lines out of 5000 total lines.",
+			})
+
+			// Mock readLines to return truncated content
+			vi.mocked(readLines).mockResolvedValue("Line 1\nLine 2\n...truncated...")
+
+			const result = await executeReadFileTool(
+				{ args: `<file><path>large-file.ts</path></file>` },
+				{ totalLines: 5000, maxReadFileLine: -1 },
+			)
+
+			// Verify the result contains both the notice AND the line_range instructions
+			expect(result).toContain("<notice>")
+			expect(result).toContain("File exceeds available context space")
+			expect(result).toContain("tools:readFile.contextLimitInstructions</notice>")
+		})
+
+		it("should handle normal file read section for single-line files with validation notice", async () => {
+			// Mock a single-line file that has shouldLimit true but fits after truncation
+			vi.mocked(countFileLines).mockResolvedValue(1)
+
+			// Mock contextValidator to return shouldLimit true with a single-line file notice
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: true,
+				safeMaxLines: 1,
+				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 80% can be loaded.",
+			})
+
+			// Mock extractTextFromFile
+			vi.mocked(extractTextFromFile).mockResolvedValue("1 | const a=1;const b=2;const c=3;")
+
+			const result = await executeReadFileTool(
+				{ args: `<file><path>semi-large.js</path></file>` },
+				{ totalLines: 1, maxReadFileLine: -1 },
+			)
+
+			// Verify single-line file notice doesn't include line_range instructions
+			expect(result).toContain("<notice>")
+			expect(result).toContain("Large single-line file")
+			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
+		})
 	})
 })
 

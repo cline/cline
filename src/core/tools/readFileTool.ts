@@ -597,9 +597,15 @@ export async function readFileTool(
 
 						// Add appropriate notice based on whether this was a preemptive limit or user setting
 						if (validationNotice) {
-							// When shouldLimit is true, always provide inline instructions
-							const instructions = t("tools:readFile.contextLimitInstructions", { path: relPath })
-							xmlInfo += `<notice>${validationNotice}\n\n${instructions}</notice>\n`
+							// Check if this is a single-line file
+							if (totalLines === 1 && validationNotice.includes("single-line file")) {
+								// For single-line files, don't suggest line_range tool
+								xmlInfo += `<notice>${validationNotice}</notice>\n`
+							} else {
+								// For multi-line files, provide inline instructions to use line_range
+								const instructions = t("tools:readFile.contextLimitInstructions", { path: relPath })
+								xmlInfo += `<notice>${validationNotice}\n\n${instructions}</notice>\n`
+							}
 						} else {
 							xmlInfo += `<notice>${t("tools:readFile.showingOnlyLines", { shown: effectiveMaxReadFileLine, total: totalLines })}</notice>\n`
 						}
@@ -626,6 +632,16 @@ export async function readFileTool(
 
 				if (totalLines === 0) {
 					xmlInfo += `<notice>File is empty</notice>\n`
+				} else if (validationNotice) {
+					// Check if this is a single-line file
+					if (totalLines === 1 && validationNotice.includes("single-line file")) {
+						// For single-line files, don't suggest line_range tool
+						xmlInfo += `<notice>${validationNotice}</notice>\n`
+					} else {
+						// For multi-line files, provide inline instructions to use line_range
+						const instructions = t("tools:readFile.contextLimitInstructions", { path: relPath })
+						xmlInfo += `<notice>${validationNotice}\n\n${instructions}</notice>\n`
+					}
 				}
 
 				// Track file read

@@ -113,7 +113,7 @@ async function shouldSkipValidation(filePath: string, totalLines: number, cline:
 
 /**
  * Validates a single-line file (likely minified) to see if it fits in context
- * NOTE: because we cannot chunk lines in file reads, we still cannot handle single-line files that do not fit in context
+ * Uses the same heuristic and backoff strategy as multi-line files
  */
 async function validateSingleLineFile(
 	filePath: string,
@@ -123,25 +123,48 @@ async function validateSingleLineFile(
 	console.log(`[validateFileSizeForContext] Single-line file detected: ${filePath} - checking if it fits in context`)
 
 	try {
-		// Read the entire single line
-		const fileContent = await readLines(filePath, 0, 0)
+		// Phase 1: Use char/3 heuristic to estimate safe content size
+		const estimatedSafeChars = contextInfo.targetTokenLimit * CHARS_PER_TOKEN_ESTIMATE
 
-		// Count tokens for the single line
-		const actualTokens = await cline.api.countTokens([{ type: "text", text: fileContent }])
+		// Read the single line
+		const fullContent = await readLines(filePath, 0, 0)
 
-		console.log(
-			`[validateFileSizeForContext] Single-line file: ${actualTokens} tokens, available: ${contextInfo.targetTokenLimit} tokens`,
+		// If the full content fits within our estimated safe chars, try it
+		let contentToValidate = fullContent
+		if (fullContent.length > estimatedSafeChars) {
+			// Content is too large, start with estimated safe portion
+			contentToValidate = fullContent.substring(0, estimatedSafeChars)
+			console.log(
+				`[validateFileSizeForContext] Single-line file exceeds estimated safe chars (${fullContent.length} > ${estimatedSafeChars}), starting with truncated content`,
+			)
+		}
+
+		// Phase 2: Use shared validation function with cutback
+		const { finalContent, actualTokens } = await validateAndCutbackContent(
+			contentToValidate,
+			contextInfo.targetTokenLimit,
+			cline,
+			true,
 		)
 
-		if (actualTokens <= contextInfo.targetTokenLimit) {
-			// The single line fits within context
+		// Determine the result based on what we could read
+		if (finalContent.length === fullContent.length) {
+			// The entire single line fits
 			return { shouldLimit: false, safeMaxLines: -1 }
+		} else if (finalContent.length > 0) {
+			// Only a portion of the line fits
+			const percentageRead = Math.round((finalContent.length / fullContent.length) * 100)
+			return {
+				shouldLimit: true,
+				safeMaxLines: 1, // Still technically 1 line, but truncated
+				reason: `Large single-line file (likely minified) exceeds available context space. Only the first ${percentageRead}% (${finalContent.length} of ${fullContent.length} characters) can be loaded. The file contains ${actualTokens} tokens of the available ${contextInfo.targetTokenLimit} tokens. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). This is a hard limit - no additional content from this file can be accessed.`,
+			}
 		} else {
-			// Single line is too large for context
+			// Can't fit any content
 			return {
 				shouldLimit: true,
 				safeMaxLines: 0,
-				reason: `Minified file exceeds available context space. The single line contains ${actualTokens} tokens but only ${contextInfo.targetTokenLimit} tokens are available. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). Consider using search_files to find specific content.`,
+				reason: `Single-line file is too large to read any portion within available context space. The file would require more than ${contextInfo.targetTokenLimit} tokens, but context is already ${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}% full (${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used). This file cannot be accessed.`,
 			}
 		}
 	} catch (error) {
@@ -194,28 +217,28 @@ async function readFileInBatches(
 }
 
 /**
- * Validates content with actual API and cuts back if needed
+ * Shared function to validate content with actual API and apply cutback if needed
+ * Works for both single-line and multi-line content
  */
-async function validateAndAdjustContent(
-	accumulatedContent: string,
-	initialLineCount: number,
-	lineToCharMap: Map<number, number>,
+async function validateAndCutbackContent(
+	content: string,
 	targetTokenLimit: number,
-	totalLines: number,
 	cline: Task,
-): Promise<{ finalContent: string; finalLineCount: number }> {
-	let finalContent = accumulatedContent
-	let finalLineCount = initialLineCount
+	isSingleLine: boolean = false,
+): Promise<{ finalContent: string; actualTokens: number; didCutback: boolean }> {
+	let finalContent = content
 	let apiCallCount = 0
+	let actualTokens = 0
+	let didCutback = false
 
 	while (apiCallCount < MAX_API_CALLS) {
 		apiCallCount++
 
 		// Make the actual API call to count tokens
-		const actualTokens = await cline.api.countTokens([{ type: "text", text: finalContent }])
+		actualTokens = await cline.api.countTokens([{ type: "text", text: finalContent }])
 
 		console.log(
-			`[validateFileSizeForContext] API call ${apiCallCount}: ${actualTokens} tokens for ${finalContent.length} chars (${finalLineCount} lines)`,
+			`[validateFileSizeForContext] API call ${apiCallCount}: ${actualTokens} tokens for ${finalContent.length} chars${isSingleLine ? " (single-line)" : ""}`,
 		)
 
 		if (actualTokens <= targetTokenLimit) {
@@ -226,35 +249,62 @@ async function validateAndAdjustContent(
 		// We're over the limit - cut back by CUTBACK_PERCENTAGE
 		const targetLength = Math.floor(finalContent.length * (1 - CUTBACK_PERCENTAGE))
 
-		// Find the line that gets us closest to the target length
-		let cutoffLine = 0
-		for (const [lineNum, charPos] of lineToCharMap.entries()) {
-			if (charPos > targetLength) {
-				break
-			}
-			cutoffLine = lineNum
-		}
-
-		// Ensure we don't cut back too far
-		if (cutoffLine < 10) {
-			console.warn(
-				`[validateFileSizeForContext] Cutback resulted in too few lines (${cutoffLine}), using minimum`,
-			)
-			cutoffLine = Math.min(MIN_USEFUL_LINES, totalLines)
-		}
-
-		// Get the character position for the cutoff line
-		const cutoffCharPos = lineToCharMap.get(cutoffLine) || 0
-		finalContent = accumulatedContent.substring(0, cutoffCharPos)
-		finalLineCount = cutoffLine
-
 		// Safety check
-		if (finalContent.length === 0) {
+		if (targetLength === 0 || targetLength === finalContent.length) {
 			break
 		}
+
+		finalContent = finalContent.substring(0, targetLength)
+		didCutback = true
 	}
 
-	return { finalContent, finalLineCount }
+	return { finalContent, actualTokens, didCutback }
+}
+
+/**
+ * Validates content with actual API and cuts back if needed (for multi-line files)
+ */
+async function validateAndAdjustContent(
+	accumulatedContent: string,
+	initialLineCount: number,
+	lineToCharMap: Map<number, number>,
+	targetTokenLimit: number,
+	totalLines: number,
+	cline: Task,
+): Promise<{ finalContent: string; finalLineCount: number }> {
+	// Use the shared validation function
+	const { finalContent, didCutback } = await validateAndCutbackContent(
+		accumulatedContent,
+		targetTokenLimit,
+		cline,
+		false,
+	)
+
+	// If no cutback was needed, return original line count
+	if (!didCutback) {
+		return { finalContent, finalLineCount: initialLineCount }
+	}
+
+	// Find the line that corresponds to the cut content length
+	let cutoffLine = 0
+	for (const [lineNum, charPos] of lineToCharMap.entries()) {
+		if (charPos > finalContent.length) {
+			break
+		}
+		cutoffLine = lineNum
+	}
+
+	// Ensure we don't cut back too far
+	if (cutoffLine < 10) {
+		console.warn(`[validateFileSizeForContext] Cutback resulted in too few lines (${cutoffLine}), using minimum`)
+		cutoffLine = Math.min(MIN_USEFUL_LINES, totalLines)
+	}
+
+	// Get the character position for the cutoff line
+	const cutoffCharPos = lineToCharMap.get(cutoffLine) || 0
+	const adjustedContent = accumulatedContent.substring(0, cutoffCharPos)
+
+	return { finalContent: adjustedContent, finalLineCount: cutoffLine }
 }
 
 /**

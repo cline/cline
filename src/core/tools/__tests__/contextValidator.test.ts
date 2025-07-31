@@ -313,8 +313,8 @@ describe("contextValidator", () => {
 			// With the new implementation, when content exceeds limit even after cutback,
 			// it returns MIN_USEFUL_LINES (50) as the minimum
 			expect(result.safeMaxLines).toBe(50)
-			expect(result.reason).toContain("File exceeds available context space")
-			expect(result.reason).toContain("Safely read 50 lines")
+			expect(result.reason).toContain("Very limited context space")
+			expect(result.reason).toContain("Limited to 50 lines")
 		})
 
 		it("should handle negative available space gracefully", async () => {
@@ -353,8 +353,8 @@ describe("contextValidator", () => {
 			expect(result.shouldLimit).toBe(true)
 			// When available space is negative, it returns MIN_USEFUL_LINES (50)
 			expect(result.safeMaxLines).toBe(50) // MIN_USEFUL_LINES from the refactored code
-			expect(result.reason).toContain("File exceeds available context space")
-			expect(result.reason).toContain("Safely read 50 lines")
+			expect(result.reason).toContain("Very limited context space")
+			expect(result.reason).toContain("Limited to 50 lines")
 		})
 
 		it("should limit file when it is too large and would be truncated", async () => {
@@ -418,7 +418,7 @@ describe("contextValidator", () => {
 			expect(result.shouldLimit).toBe(true)
 			// With the new implementation, when space is very limited and content exceeds,
 			// it returns the minimal safe value
-			expect(result.reason).toContain("File exceeds available context space")
+			expect(result.reason).toContain("Very limited context space")
 		})
 
 		it("should not limit when file fits within context", async () => {
@@ -677,14 +677,133 @@ describe("contextValidator", () => {
 
 			// Should limit the file
 			expect(result.shouldLimit).toBe(true)
-			expect(result.safeMaxLines).toBe(0)
-			expect(result.reason).toContain("Minified file exceeds available context space")
-			expect(result.reason).toContain("80000 tokens")
-			expect(result.reason).toContain("Consider using search_files")
+			expect(result.safeMaxLines).toBe(1) // Single-line files return 1 when truncated
+			expect(result.reason).toContain("Large single-line file")
+			expect(result.reason).toContain("Only the first")
 
 			// Should have attempted to read and count tokens
 			expect(readLines).toHaveBeenCalledWith(filePath, 0, 0)
-			expect(mockTask.api.countTokens).toHaveBeenCalledWith([{ type: "text", text: hugeMinifiedContent }])
+			expect(mockTask.api.countTokens).toHaveBeenCalled()
+		})
+
+		it("should apply char/3 heuristic and 20% backoff for large single-line files", async () => {
+			const filePath = "/test/large-minified.js"
+			const totalLines = 1
+			const currentMaxReadFileLine = -1
+
+			// Mock a large single-line file
+			vi.mocked(fs.stat).mockResolvedValue({
+				size: 2 * 1024 * 1024, // 2MB
+			} as any)
+
+			// Create a very large single line that exceeds estimated safe chars
+			const largeContent = "x".repeat(300000) // 300K chars
+			vi.mocked(readLines).mockResolvedValue(largeContent)
+
+			// Mock token counting to always exceed limit, forcing maximum cutbacks
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(100000) // Always exceeds ~57k limit
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// After maximum cutbacks, it should still limit the file
+			expect(result.shouldLimit).toBe(true)
+
+			// Check that it either returns safeMaxLines: 1 (truncated) or 0 (can't fit any)
+			expect([0, 1]).toContain(result.safeMaxLines)
+
+			if (result.safeMaxLines === 1) {
+				expect(result.reason).toContain("Large single-line file")
+				expect(result.reason).toContain("Only the first")
+				expect(result.reason).toContain("This is a hard limit")
+			} else {
+				expect(result.reason).toContain("Single-line file is too large")
+				expect(result.reason).toContain("This file cannot be accessed")
+			}
+
+			// Should have made multiple API calls due to cutbacks
+			expect(mockTask.api.countTokens).toHaveBeenCalledTimes(5) // MAX_API_CALLS
+		})
+
+		it("should handle single-line files that fit after cutback", async () => {
+			const filePath = "/test/borderline-minified.js"
+			const totalLines = 1
+			const currentMaxReadFileLine = -1
+
+			// Mock file size
+			vi.mocked(fs.stat).mockResolvedValue({
+				size: 800 * 1024, // 800KB
+			} as any)
+
+			// Create content that's just over the limit
+			const content = "const x=1;".repeat(20000) // ~200KB
+			vi.mocked(readLines).mockResolvedValue(content)
+
+			// Mock token counting - first call exceeds, second fits
+			let callCount = 0
+			mockTask.api.countTokens = vi.fn().mockImplementation(async (content) => {
+				callCount++
+				const text = content[0].text
+				if (callCount === 1) {
+					return 65000 // Just over the ~57k limit
+				}
+				// After 20% cutback
+				return 45000 // Now fits comfortably
+			})
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should limit but allow partial read
+			expect(result.shouldLimit).toBe(true)
+			expect(result.safeMaxLines).toBe(1)
+			expect(result.reason).toContain("Large single-line file")
+
+			// Verify percentage calculation in reason
+			if (result.reason) {
+				const match = result.reason.match(/Only the first (\d+)%/)
+				expect(match).toBeTruthy()
+				if (match) {
+					const percentage = parseInt(match[1])
+					expect(percentage).toBeGreaterThan(0)
+					expect(percentage).toBeLessThan(100)
+				}
+			}
+
+			// Should have made 2 API calls (initial + after cutback)
+			expect(mockTask.api.countTokens).toHaveBeenCalledTimes(2)
+		})
+
+		it("should handle single-line files that cannot fit any content", async () => {
+			const filePath = "/test/impossible-minified.js"
+			const totalLines = 1
+			const currentMaxReadFileLine = -1
+
+			// Mock file size
+			vi.mocked(fs.stat).mockResolvedValue({
+				size: 10 * 1024 * 1024, // 10MB
+			} as any)
+
+			// Mock very high context usage
+			mockTask.getTokenUsage = vi.fn().mockReturnValue({
+				contextTokens: 99000, // 99% used
+			})
+
+			// Create massive content
+			const content = "x".repeat(1000000)
+			vi.mocked(readLines).mockResolvedValue(content)
+
+			// Mock token counting - always exceeds even after cutbacks
+			mockTask.api.countTokens = vi.fn().mockResolvedValue(100000)
+
+			const result = await validateFileSizeForContext(filePath, totalLines, currentMaxReadFileLine, mockTask)
+
+			// Should completely block the file
+			expect(result.shouldLimit).toBe(true)
+			expect(result.safeMaxLines).toBe(0)
+			expect(result.reason).toContain("Single-line file is too large to read any portion")
+			expect(result.reason).toContain("This file cannot be accessed")
+
+			// Should have tried multiple times
+			expect(mockTask.api.countTokens).toHaveBeenCalled()
 		})
 
 		it("should fall back to regular validation if single-line processing fails", async () => {
