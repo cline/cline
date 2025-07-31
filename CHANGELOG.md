@@ -1,5 +1,20 @@
 # Roo Code Changelog
 
+## [3.25.4] - 2025-07-30
+
+- feat: add SambaNova provider integration (#6077 by @snova-jorgep, PR by @snova-jorgep)
+- feat: add Doubao provider integration (thanks @AntiMoron!)
+- feat: set horizon-alpha model max tokens to 32k for OpenRouter (thanks @app/roomote!)
+- feat: add zai-org/GLM-4.5-FP8 model to Chutes AI provider (#6440 by @leakless21, PR by @app/roomote)
+- feat: add symlink support for AGENTS.md file loading (thanks @app/roomote!)
+- feat: optionally add task history context to prompt enhancement (thanks @liwilliam2021!)
+- fix: remove misleading task resumption message (#5850 by @KJ7LNW, PR by @KJ7LNW)
+- feat: add pattern to support Databricks /invocations endpoints (thanks @adambrand!)
+- fix: resolve navigator global error by updating mammoth and bluebird dependencies (#6356 by @hishtadlut, PR by @app/roomote)
+- feat: enhance token counting by extracting text from messages using VSCode LM API (#6112 by @sebinseban, PR by @NaccOll)
+- feat: auto-refresh marketplace data when organization settings change (thanks @app/roomote!)
+- fix: kill button for execute_command tool (thanks @daniel-lxs!)
+
 ## [3.25.3] - 2025-07-30
 
 - Allow queueing messages with images
