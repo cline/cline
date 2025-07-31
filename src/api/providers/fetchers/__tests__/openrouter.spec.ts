@@ -11,7 +11,7 @@ import {
 	OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS,
 } from "@roo-code/types"
 
-import { getOpenRouterModelEndpoints, getOpenRouterModels } from "../openrouter"
+import { getOpenRouterModelEndpoints, getOpenRouterModels, parseOpenRouterModel } from "../openrouter"
 
 nockBack.fixtures = path.join(__dirname, "fixtures")
 nockBack.setMode("lockdown")
@@ -249,6 +249,54 @@ describe("OpenRouter API", () => {
 			})
 
 			nockDone()
+		})
+	})
+
+	describe("parseOpenRouterModel", () => {
+		it("sets horizon-alpha model to 32k max tokens", () => {
+			const mockModel = {
+				name: "Horizon Alpha",
+				description: "Test model",
+				context_length: 128000,
+				max_completion_tokens: 128000,
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/horizon-alpha",
+				model: mockModel,
+				modality: "text",
+				maxTokens: 128000,
+			})
+
+			expect(result.maxTokens).toBe(32768)
+			expect(result.contextWindow).toBe(128000)
+		})
+
+		it("does not override max tokens for other models", () => {
+			const mockModel = {
+				name: "Other Model",
+				description: "Test model",
+				context_length: 128000,
+				max_completion_tokens: 64000,
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/other-model",
+				model: mockModel,
+				modality: "text",
+				maxTokens: 64000,
+			})
+
+			expect(result.maxTokens).toBe(64000)
+			expect(result.contextWindow).toBe(128000)
 		})
 	})
 })
