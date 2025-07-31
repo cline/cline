@@ -2,13 +2,8 @@
 
 ## 3.21.0
 
-### Minor Changes
-
 - 708b785: Add Huawei Cloud MaaS Provider
 - fdc2e26: Add Cerebras Qwen 3 235B instruct
-
-### Patch Changes
-
 - 099bc44: Fix Global Rules directory documentation for Linux/WSL systems
 - dfbac3e: DeepSeek R1 0528 support under Hugging Face
 - 6050413: remove duplicate tool registration for claude4-experimental
