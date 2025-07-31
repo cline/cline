@@ -5,7 +5,7 @@ on:
         branches:
             - main
         paths:
-            - "apps/web-roo-code/**"
+            - 'apps/web-roo-code/**'
     workflow_dispatch:
 
 env:
@@ -21,11 +21,11 @@ jobs:
             - name: Check if VERCEL_TOKEN exists
               id: check
               run: |
-                  if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
-                    echo "has-vercel-token=true" >> $GITHUB_OUTPUT
-                  else
-                    echo "has-vercel-token=false" >> $GITHUB_OUTPUT
-                  fi
+                if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+                  echo "has-vercel-token=true" >> $GITHUB_OUTPUT
+                else
+                  echo "has-vercel-token=false" >> $GITHUB_OUTPUT
+                fi
 
     deploy:
         runs-on: ubuntu-latest
@@ -36,11 +36,6 @@ jobs:
               uses: actions/checkout@v4
             - name: Setup Node.js and pnpm
               uses: ./.github/actions/setup-node-pnpm
-            - name: Migrate evals database
-              run: pnpm db:migrate:production
-              working-directory: packages/evals
-              env:
-                  DATABASE_URL: ${{ secrets.EVALS_DATABASE_URL }}
             - name: Install Vercel CLI
               run: npm install --global vercel@canary
             - name: Pull Vercel Environment Information
