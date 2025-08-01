@@ -102,6 +102,7 @@ export class CerebrasHandler implements ApiHandler {
 				messages: cerebrasMessages,
 				temperature: 0,
 				stream: true,
+				max_tokens: this.getModel().info.maxTokens,
 			})
 
 			// Handle streaming response
