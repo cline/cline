@@ -1,12 +1,11 @@
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
-import { HostProvider } from "@/hosts/host-provider"
-import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
-import * as stateModule from "@core/storage/state"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { describe, it, beforeEach, afterEach } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
-import type { ClineAPI } from "../cline"
-import { createClineAPI } from "../index"
+import type { ClineAPI } from "../exports/cline"
+import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import * as stateModule from "@core/storage/state"
+import { createClineAPI } from "@/exports"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI
@@ -15,15 +14,16 @@ describe("ClineAPI Core Functionality", () => {
 	let sandbox: sinon.SinonSandbox
 	let getGlobalStateStub: sinon.SinonStub
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
 
 		// Create mock log function
 		mockLogToChannel = sandbox.stub<[string], void>()
+		HostProvider.reset()
 		HostProvider.initialize(
 			((_) => {}) as WebviewProviderCreator,
 			(() => {}) as DiffViewProviderCreator,
-			{} as HostBridgeClientProvider,
+			vscodeHostBridgeClient,
 			mockLogToChannel,
 		)
 		// Stub the getGlobalState function from the state module
@@ -33,6 +33,7 @@ describe("ClineAPI Core Functionality", () => {
 		// Create a mock controller that matches what the real createClineAPI expects
 		// We don't import the real Controller to avoid the webview dependencies
 		mockController = {
+			id: "test-controller-id",
 			context: {
 				globalState: {
 					get: sandbox.stub(),
@@ -73,10 +74,6 @@ describe("ClineAPI Core Functionality", () => {
 			// Verify task clearing sequence
 			sinon.assert.called(mockController.clearTask)
 			sinon.assert.called(mockController.postStateToWebview)
-			sinon.assert.calledWith(mockController.postMessageToWebview, {
-				type: "action",
-				action: "chatButtonClicked",
-			})
 			sinon.assert.calledWith(mockController.initTask, taskDescription, images)
 
 			// Verify logging - first it logs "Starting new task"

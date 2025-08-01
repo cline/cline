@@ -5,7 +5,6 @@ import { execa } from "execa"
 import { Logger } from "@services/logging/Logger"
 import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
 import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
 import { updateGlobalState, getAllExtensionState, storeSecret } from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
@@ -14,6 +13,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
+import { askResponse } from "@core/controller/task/askResponse"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -621,9 +621,10 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 		// we use the default "yesButtonClicked" to approve the action
 	}
 
-	// Send the response message
+	// Send the response message using the backend controller method
 	try {
-		await TaskServiceClient.askResponse(
+		await askResponse(
+			webviewProvider.controller,
 			AskResponseRequest.create({
 				responseType,
 				text: responseText,
