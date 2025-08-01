@@ -7,7 +7,7 @@ import { ErrorService } from "../error/ErrorService"
 import { FeatureFlagsService } from "./feature-flags/FeatureFlagsService"
 import { TelemetryService } from "./telemetry/TelemetryService"
 
-export const ENV_UID = vscode?.env?.machineId ?? uuidv4()
+const ENV_ID = vscode?.env?.machineId ?? process?.env?.UUID ?? uuidv4()
 export class PostHogClientProvider {
 	private static instance: PostHogClientProvider | null = null
 
@@ -19,19 +19,11 @@ export class PostHogClientProvider {
 	private cachedTelemetryLevel: string | null = null
 	private isShuttingDown = false
 
-	private static _distinctId: string
-
-	public static get distinctId(): string {
-		return PostHogClientProvider._distinctId
-	}
-
-	private constructor(uid?: string) {
-		const distinctId = uid || ENV_UID
-		PostHogClientProvider._distinctId = distinctId
+	private constructor(protected distinctId = ENV_ID) {
 		// Initialize PostHog client
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
-			enableExceptionAutocapture: false,
+			enableExceptionAutocapture: true,
 		})
 
 		// Initialize services
@@ -70,9 +62,9 @@ export class PostHogClientProvider {
 	/**
 	 * Gets or creates the singleton instance
 	 */
-	public static getInstance(uid?: string): PostHogClientProvider {
+	public static getInstance(id?: string): PostHogClientProvider {
 		if (!PostHogClientProvider.instance) {
-			PostHogClientProvider.instance = new PostHogClientProvider(uid)
+			PostHogClientProvider.instance = new PostHogClientProvider(id)
 		}
 		return PostHogClientProvider.instance
 	}
@@ -96,14 +88,10 @@ export class PostHogClientProvider {
 	/**
 	 * Identifies the accounts user
 	 * If userInfo is provided, it will use that to identify the user.
-	 * Otherwise, it will use the ENV_UID as the distinct ID.
+	 * Otherwise, it will use the DISTINCT_ID as the distinct ID.
 	 * @param userInfo The user's information
 	 */
-	public identifyAccount(
-		userInfo?: ClineAccountUserInfo,
-		properties: Record<string, any> = {},
-		distinctId = PostHogClientProvider.distinctId,
-	): void {
+	public identifyAccount(userInfo?: ClineAccountUserInfo, properties: Record<string, any> = {}): void {
 		if (!vscode?.env?.isTelemetryEnabled || this.isShuttingDown) {
 			return
 		}
@@ -113,7 +101,8 @@ export class PostHogClientProvider {
 			return
 		}
 
-		if (userInfo?.id) {
+		if (userInfo && userInfo?.id !== this.distinctId) {
+			this.distinctId = userInfo.id
 			this.client.identify({
 				distinctId: userInfo.id,
 				properties: {
@@ -123,10 +112,9 @@ export class PostHogClientProvider {
 					...properties,
 				},
 			})
-			return
 		}
 
-		this.client.identify({ distinctId })
+		this.client.identify({ distinctId: this.distinctId })
 	}
 
 	public log(event: string, properties?: Record<string, any>): void {
@@ -144,7 +132,7 @@ export class PostHogClientProvider {
 		}
 
 		this.client.capture({
-			distinctId: PostHogClientProvider.distinctId,
+			distinctId: this.distinctId,
 			event,
 			properties,
 		})
@@ -187,4 +175,3 @@ export const getErrorService = (): ErrorService => PostHogClientProvider.getInst
 export const featureFlagsService = getFeatureFlagsService()
 export const telemetryService = getTelemetryService()
 export const errorService = getErrorService()
-export const distinctId = PostHogClientProvider.distinctId
