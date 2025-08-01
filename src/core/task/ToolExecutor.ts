@@ -153,31 +153,6 @@ export class ToolExecutor {
 			this.taskState.userMessageContent.push(...content)
 		}
 
-		// 2. CHECK IF WE NEED SUMMARIZATION (only if not already summarizing)
-		if (!this.taskState.currentlySummarizing) {
-			const { totalTokens, maxAllowedSize, contextWindow, shouldSummarize } =
-				this.contextManager.shouldTriggerSummarization(
-					this.messageStateHandler.getApiConversationHistory(),
-					this.messageStateHandler.getClineMessages(),
-					this.api,
-				)
-
-			if (shouldSummarize) {
-				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
-				console.log(
-					`Total Tokens: ${totalTokens}, Max Allowed Size: ${maxAllowedSize}, Context Window: ${contextWindow}, Should Summarize: ${shouldSummarize}`,
-				)
-				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
-
-				// 3. SET FLAG AND ADD SUMMARIZATION PROMPT
-				this.taskState.currentlySummarizing = true
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: summarizeTask(totalTokens, maxAllowedSize, contextWindow),
-				})
-			}
-		}
-
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		this.taskState.didAlreadyUseTool = true
 	}
@@ -1861,9 +1836,7 @@ export class ToolExecutor {
 
 						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-						// Reset the summarization flag
-						this.taskState.currentlySummarizing = false
-
+						console.log("TOOLEXECUTOR: ARE WE CURRENTLY SUMMARIZING?", this.taskState.currentlySummarizing)
 						// LOG: Debug what actually happens after summarization
 						console.log("=== SUMMARIZATION COMPLETE - DEBUG INFO ===")
 						console.log("Deleted Range:", this.taskState.conversationHistoryDeletedRange)

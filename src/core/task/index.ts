@@ -82,6 +82,7 @@ import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-uti
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
+import { summarizeTask } from "../prompts/contextManagement"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
@@ -1744,6 +1745,7 @@ export class Task {
 			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			this.taskState,
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -2119,6 +2121,35 @@ export class Task {
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
+
+		console.log("ARE WE CURRENTLY SUMMARIZING?", this.taskState.currentlySummarizing)
+		// CHECK IF WE NEED SUMMARIZATION (only if not already summarizing)
+
+		if (this.taskState.currentlySummarizing) {
+			this.taskState.currentlySummarizing = false
+		} else {
+			const { totalTokens, maxAllowedSize, contextWindow, shouldSummarize } =
+				this.contextManager.shouldTriggerSummarization(
+					this.messageStateHandler.getApiConversationHistory(),
+					this.messageStateHandler.getClineMessages(),
+					this.api,
+				)
+
+			if (shouldSummarize) {
+				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
+				console.log(
+					`Total Tokens: ${totalTokens}, Max Allowed Size: ${maxAllowedSize}, Context Window: ${contextWindow}, Should Summarize: ${shouldSummarize}`,
+				)
+				console.log("----------- WE SHOULD SUMMARIZE, SENDING SUMMARIZATION REQUEST -------------")
+
+				// SET FLAG AND ADD SUMMARIZATION PROMPT
+				this.taskState.currentlySummarizing = true
+				userContent.push({
+					type: "text",
+					text: summarizeTask(totalTokens, maxAllowedSize, contextWindow),
+				})
+			}
+		}
 
 		// Save checkpoint if this is the first API request
 		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0

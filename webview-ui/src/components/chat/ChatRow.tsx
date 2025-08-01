@@ -601,8 +601,6 @@ export const ChatRowContent = memo(
 								<div
 									style={{
 										color: "var(--vscode-descriptionForeground)",
-										display: "flex",
-										alignItems: "center",
 										padding: "9px 10px",
 										cursor: "pointer",
 										userSelect: "none",
@@ -610,26 +608,53 @@ export const ChatRowContent = memo(
 										MozUserSelect: "none",
 										msUserSelect: "none",
 									}}
-									onClick={() => {}}>
-									<span
-										className="ph-no-capture"
-										style={{
-											whiteSpace: "nowrap",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											marginRight: "8px",
-											direction: "rtl",
-											textAlign: "left",
-										}}>
-										{tool.content + "\u200E"}
-									</span>
-									<div style={{ flexGrow: 1 }}></div>
-									<span
-										className={`codicon codicon-chevron-down`}
-										style={{
-											fontSize: 13.5,
-											margin: "1px 0",
-										}}></span>
+									onClick={handleToggle}>
+									{isExpanded ? (
+										<div>
+											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
+												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Summary:</span>
+												<div style={{ flexGrow: 1 }}></div>
+												<span
+													className="codicon codicon-chevron-up"
+													style={{
+														fontSize: 13.5,
+														margin: "1px 0",
+													}}></span>
+											</div>
+											<span
+												className="ph-no-capture"
+												style={{
+													whiteSpace: "pre-wrap",
+													wordBreak: "break-word",
+													overflowWrap: "anywhere",
+												}}>
+												{tool.content}
+											</span>
+										</div>
+									) : (
+										<div style={{ display: "flex", alignItems: "center" }}>
+											<span
+												className="ph-no-capture"
+												style={{
+													whiteSpace: "nowrap",
+													overflow: "hidden",
+													textOverflow: "ellipsis",
+													marginRight: "8px",
+													direction: "rtl",
+													textAlign: "left",
+													flex: 1,
+												}}>
+												{tool.content + "\u200E"}
+											</span>
+											<span
+												className="codicon codicon-chevron-down"
+												style={{
+													fontSize: 13.5,
+													margin: "1px 0",
+													flexShrink: 0,
+												}}></span>
+										</div>
+									)}
 								</div>
 							</div>
 						</>

@@ -10,6 +10,9 @@ import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { findLastIndex } from "@shared/array"
 
+import { TaskState } from "../../task/TaskState"
+import { summarizeTask } from "../../prompts/contextManagement"
+
 enum EditType {
 	UNDEFINED = 0,
 	NO_FILE_READ = 1,
@@ -116,6 +119,7 @@ export class ContextManager {
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
+		taskState: TaskState,
 	) {
 		let updatedConversationHistoryDeletedRange = false
 
@@ -123,56 +127,11 @@ export class ContextManager {
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
-				const timestamp = previousRequest.ts
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const { maxAllowedSize } = getContextWindowInfo(api)
+				const { maxAllowedSize, contextWindow } = getContextWindowInfo(api)
 
-				// This is the most reliable way to know when we're close to hitting the context window.
-				// if (totalTokens >= maxAllowedSize) {
-				// 	// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-				// 	// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-				// 	const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
-
-				// 	// we later check how many chars we trim to determine if we should still truncate history
-				// 	let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
-				// 		apiConversationHistory,
-				// 		conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
-				// 		timestamp,
-				// 	)
-
-				// 	let needToTruncate = true
-				// 	if (anyContextUpdates) {
-				// 		// determine whether we've saved enough chars to not truncate
-				// 		const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
-				// 			apiConversationHistory,
-				// 			conversationHistoryDeletedRange,
-				// 			uniqueFileReadIndices,
-				// 		)
-				// 		if (charactersSavedPercentage >= 0.3) {
-				// 			needToTruncate = false
-				// 		}
-				// 	}
-
-				// 	if (needToTruncate) {
-				// 		// go ahead with truncation
-				// 		anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
-
-				// 		// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-				// 		conversationHistoryDeletedRange = this.getNextTruncationRange(
-				// 			apiConversationHistory,
-				// 			conversationHistoryDeletedRange,
-				// 			keep,
-				// 		)
-
-				// 		updatedConversationHistoryDeletedRange = true
-				// 	}
-
-				// 	// if we alter the context history, save the updated version to disk
-				// 	if (anyContextUpdates) {
-				// 		await this.saveContextHistory(taskDirectory)
-				// 	}
-				// }
+				// Context window management logic can be added here if needed
 			}
 		}
 
