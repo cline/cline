@@ -85,7 +85,7 @@ directApiRuleTester.run("no-direct-vscode-api", noDirectVscodeApiRule, {
 			filename: "workspace.ts",
 			errors: [
 				{
-					messageId: "useHostBridge",
+					messageId: "useHostBridgeWorkspace",
 				},
 			],
 		},
