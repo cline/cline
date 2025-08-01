@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.21.0
+## [3.20.4]
 
-- aca4f84: Add new Cerebras models + update rate limits
-- 768df13: Fix for delete task dialog
-- c8abcbf: Do not ignore `pkg` folder
+- Add new Cerebras models
+- Update rate limits for existing Cerebras models
+- Fix for delete task dialog
 
 ## [3.20.3]
 
