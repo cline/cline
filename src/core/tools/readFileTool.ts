@@ -12,6 +12,7 @@ import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { getReadablePath } from "../../utils/path"
 import { countFileLines } from "../../integrations/misc/line-counter"
 import { readLines } from "../../integrations/misc/read-lines"
+import { readPartialSingleLineContent } from "../../integrations/misc/read-partial-content"
 import { extractTextFromFile, addLineNumbers, getSupportedBinaryFormats } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { parseXml } from "../../utils/xml"
@@ -462,14 +463,11 @@ export async function readFileTool(
 				let effectiveMaxReadFileLine = maxReadFileLine
 				let validationNotice = ""
 
-				if (validation.shouldLimit && maxReadFileLine === -1) {
-					// Only apply limitation if maxReadFileLine is -1 (unlimited)
-					// If user has already set a limit, respect their choice
+				// For single-line files, ALWAYS apply validation regardless of maxReadFileLine setting
+				// For multi-line files, only apply if maxReadFileLine is -1 (unlimited)
+				if (validation.shouldLimit && (totalLines === 1 || maxReadFileLine === -1)) {
 					effectiveMaxReadFileLine = validation.safeMaxLines
 					validationNotice = validation.reason || ""
-					console.log(
-						`[read_file] Applied preemptive size limit to ${relPath}: ${validation.safeMaxLines} lines`,
-					)
 				}
 
 				// Handle binary files (but allow specific file types that extractTextFromFile can handle)
@@ -584,9 +582,34 @@ export async function readFileTool(
 				}
 
 				// Handle files exceeding line threshold (including preemptive limits)
-				if (effectiveMaxReadFileLine > 0 && totalLines > effectiveMaxReadFileLine) {
-					const content = addLineNumbers(await readLines(fullPath, effectiveMaxReadFileLine - 1, 0))
-					const lineRangeAttr = ` lines="1-${effectiveMaxReadFileLine}"`
+				// For single-line files with validation limits, ALWAYS use partial reading
+				// Also check if this is an effectively single-line file (includes minified files with long lines)
+				const isEffectivelySingleLine =
+					totalLines <= 5 &&
+					validation.shouldLimit &&
+					validationNotice &&
+					validationNotice.includes("single-line file")
+
+				const shouldUsePartialRead =
+					(effectiveMaxReadFileLine > 0 && totalLines > effectiveMaxReadFileLine) ||
+					(totalLines === 1 && validation.shouldLimit && effectiveMaxReadFileLine > 0) ||
+					(isEffectivelySingleLine && effectiveMaxReadFileLine > 0)
+
+				if (shouldUsePartialRead) {
+					let content: string
+					let lineRangeAttr: string
+
+					// Special handling for single-line files where effectiveMaxReadFileLine represents character count
+					if (totalLines === 1 || isEffectivelySingleLine) {
+						// For single-line or effectively single-line files, effectiveMaxReadFileLine is actually a character count
+						const partialContent = await readPartialSingleLineContent(fullPath, effectiveMaxReadFileLine)
+						content = addLineNumbers(partialContent, 1)
+						lineRangeAttr = ` lines="1"`
+					} else {
+						// For multi-line files, use normal line-based reading
+						content = addLineNumbers(await readLines(fullPath, effectiveMaxReadFileLine - 1, 0))
+						lineRangeAttr = ` lines="1-${effectiveMaxReadFileLine}"`
+					}
 					let xmlInfo = `<content${lineRangeAttr}>\n${content}</content>\n`
 
 					try {
@@ -626,7 +649,20 @@ export async function readFileTool(
 				}
 
 				// Handle normal file read
+				// CRITICAL: Check if this is a single-line or effectively single-line file that should have been limited
+				const isEffSingleLine =
+					totalLines <= 5 && validationNotice && validationNotice.includes("single-line file")
+				if ((totalLines === 1 || isEffSingleLine) && validation.shouldLimit) {
+					console.error(
+						`[read_file] ERROR: ${isEffSingleLine ? "Effectively " : ""}Single-line file ${relPath} with validation limits is being read in full! This should not happen.`,
+					)
+					console.error(
+						`[read_file] Debug info: effectiveMaxReadFileLine=${effectiveMaxReadFileLine}, validation.safeMaxLines=${validation.safeMaxLines}`,
+					)
+				}
+
 				const content = await extractTextFromFile(fullPath)
+
 				const lineRangeAttr = ` lines="1-${totalLines}"`
 				let xmlInfo = totalLines > 0 ? `<content${lineRangeAttr}>\n${content}</content>\n` : `<content/>`
 
