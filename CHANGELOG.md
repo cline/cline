@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.20.5]
+
+- Fix authentication persistence issues that could cause users to be logged out unexpectedly
+
 ## [3.20.4]
 
 - Add new Cerebras models
