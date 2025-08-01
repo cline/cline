@@ -2,12 +2,7 @@
 
 ## 3.21.0
 
-### Minor Changes
-
 - aca4f84: Add new Cerebras models + update rate limits
-
-### Patch Changes
-
 - 768df13: Fix for delete task dialog
 - c8abcbf: Do not ignore `pkg` folder
 
