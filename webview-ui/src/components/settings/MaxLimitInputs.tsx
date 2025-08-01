@@ -20,7 +20,7 @@ export const MaxLimitInputs: React.FC<MaxLimitInputsProps> = ({
 
 	return (
 		<div className="space-y-2">
-			<div className="flex justify-stretch">
+			<div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-2 items-center">
 				<MaxRequestsInput allowedMaxRequests={allowedMaxRequests} onValueChange={onMaxRequestsChange} />
 				<MaxCostInput allowedMaxCost={allowedMaxCost} onValueChange={onMaxCostChange} />
 			</div>

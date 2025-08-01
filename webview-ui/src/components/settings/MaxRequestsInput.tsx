@@ -20,21 +20,19 @@ export function MaxRequestsInput({ allowedMaxRequests, onValueChange }: MaxReque
 	)
 
 	return (
-		<div className="flex flex-col gap-3 pl-3 flex-auto">
-			<div className="flex items-center gap-4 font-bold">
+		<>
+			<label className="flex items-center gap-2 text-sm font-medium whitespace-nowrap">
 				<span className="codicon codicon-pulse" />
-				<div>{t("settings:autoApprove.apiRequestLimit.title")}</div>
-			</div>
-			<div className="flex items-center gap-2">
-				<FormattedTextField
-					value={allowedMaxRequests}
-					onValueChange={handleValueChange}
-					formatter={unlimitedIntegerFormatter}
-					placeholder={t("settings:autoApprove.apiRequestLimit.unlimited")}
-					style={{ flex: 1, maxWidth: "200px" }}
-					data-testid="max-requests-input"
-				/>
-			</div>
-		</div>
+				{t("settings:autoApprove.apiRequestLimit.title")}:
+			</label>
+			<FormattedTextField
+				value={allowedMaxRequests}
+				onValueChange={handleValueChange}
+				formatter={unlimitedIntegerFormatter}
+				placeholder={t("settings:autoApprove.apiRequestLimit.unlimited")}
+				style={{ maxWidth: "200px" }}
+				data-testid="max-requests-input"
+			/>
+		</>
 	)
 }

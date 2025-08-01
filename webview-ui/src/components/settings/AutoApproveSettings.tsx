@@ -1,5 +1,5 @@
 import { HTMLAttributes, useState } from "react"
-import { X } from "lucide-react"
+import { X, CheckCheck } from "lucide-react"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -114,57 +114,68 @@ export const AutoApproveSettings = ({
 
 	return (
 		<div {...props}>
-			<SectionHeader description={t("settings:autoApprove.description")}>
+			<SectionHeader>
 				<div className="flex items-center gap-2">
-					{!hasEnabledOptions ? (
-						<StandardTooltip content={t("settings:autoApprove.selectOptionsFirst")}>
-							<VSCodeCheckbox
-								checked={effectiveAutoApprovalEnabled}
-								disabled={!hasEnabledOptions}
-								aria-label={t("settings:autoApprove.disabledAriaLabel")}
-								onChange={() => {
-									// Do nothing when no options are enabled
-									return
-								}}
-							/>
-						</StandardTooltip>
-					) : (
-						<VSCodeCheckbox
-							checked={effectiveAutoApprovalEnabled}
-							disabled={!hasEnabledOptions}
-							aria-label={t("settings:autoApprove.toggleAriaLabel")}
-							onChange={() => {
-								const newValue = !(autoApprovalEnabled ?? false)
-								setAutoApprovalEnabled(newValue)
-								vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
-							}}
-						/>
-					)}
-					<span className="codicon codicon-check w-4" />
+					<CheckCheck className="w-4 h-4" />
 					<div>{t("settings:sections.autoApprove")}</div>
 				</div>
 			</SectionHeader>
 
 			<Section>
-				<AutoApproveToggle
-					alwaysAllowReadOnly={alwaysAllowReadOnly}
-					alwaysAllowWrite={alwaysAllowWrite}
-					alwaysAllowBrowser={alwaysAllowBrowser}
-					alwaysApproveResubmit={alwaysApproveResubmit}
-					alwaysAllowMcp={alwaysAllowMcp}
-					alwaysAllowModeSwitch={alwaysAllowModeSwitch}
-					alwaysAllowSubtasks={alwaysAllowSubtasks}
-					alwaysAllowExecute={alwaysAllowExecute}
-					alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
-					alwaysAllowUpdateTodoList={alwaysAllowUpdateTodoList}
-					onToggle={(key, value) => setCachedStateField(key, value)}
-				/>
-				<MaxLimitInputs
-					allowedMaxRequests={allowedMaxRequests}
-					allowedMaxCost={allowedMaxCost}
-					onMaxRequestsChange={(value) => setCachedStateField("allowedMaxRequests", value)}
-					onMaxCostChange={(value) => setCachedStateField("allowedMaxCost", value)}
-				/>
+				<div className="space-y-4">
+					<div>
+						{!hasEnabledOptions ? (
+							<StandardTooltip content={t("settings:autoApprove.selectOptionsFirst")}>
+								<VSCodeCheckbox
+									checked={effectiveAutoApprovalEnabled}
+									disabled={!hasEnabledOptions}
+									aria-label={t("settings:autoApprove.disabledAriaLabel")}
+									onChange={() => {
+										// Do nothing when no options are enabled
+										return
+									}}>
+									<span className="font-medium">{t("settings:autoApprove.enabled")}</span>
+								</VSCodeCheckbox>
+							</StandardTooltip>
+						) : (
+							<VSCodeCheckbox
+								checked={effectiveAutoApprovalEnabled}
+								disabled={!hasEnabledOptions}
+								aria-label={t("settings:autoApprove.toggleAriaLabel")}
+								onChange={() => {
+									const newValue = !(autoApprovalEnabled ?? false)
+									setAutoApprovalEnabled(newValue)
+									vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
+								}}>
+								<span className="font-medium">{t("settings:autoApprove.enabled")}</span>
+							</VSCodeCheckbox>
+						)}
+						<div className="text-vscode-descriptionForeground text-sm mt-1">
+							{t("settings:autoApprove.description")}
+						</div>
+					</div>
+
+					<AutoApproveToggle
+						alwaysAllowReadOnly={alwaysAllowReadOnly}
+						alwaysAllowWrite={alwaysAllowWrite}
+						alwaysAllowBrowser={alwaysAllowBrowser}
+						alwaysApproveResubmit={alwaysApproveResubmit}
+						alwaysAllowMcp={alwaysAllowMcp}
+						alwaysAllowModeSwitch={alwaysAllowModeSwitch}
+						alwaysAllowSubtasks={alwaysAllowSubtasks}
+						alwaysAllowExecute={alwaysAllowExecute}
+						alwaysAllowFollowupQuestions={alwaysAllowFollowupQuestions}
+						alwaysAllowUpdateTodoList={alwaysAllowUpdateTodoList}
+						onToggle={(key, value) => setCachedStateField(key, value)}
+					/>
+
+					<MaxLimitInputs
+						allowedMaxRequests={allowedMaxRequests}
+						allowedMaxCost={allowedMaxCost}
+						onMaxRequestsChange={(value) => setCachedStateField("allowedMaxRequests", value)}
+						onMaxCostChange={(value) => setCachedStateField("allowedMaxCost", value)}
+					/>
+				</div>
 
 				{/* ADDITIONAL SETTINGS */}
 

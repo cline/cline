@@ -6,7 +6,6 @@ import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { AutoApproveToggle, AutoApproveSetting, autoApproveSettingsConfig } from "../settings/AutoApproveToggle"
-import { MaxLimitInputs } from "../settings/MaxLimitInputs"
 import { StandardTooltip } from "@src/components/ui"
 import { useAutoApprovalState } from "@src/hooks/useAutoApprovalState"
 import { useAutoApprovalToggles } from "@src/hooks/useAutoApprovalToggles"
@@ -22,8 +21,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		autoApprovalEnabled,
 		setAutoApprovalEnabled,
 		alwaysApproveResubmit,
-		allowedMaxRequests,
-		allowedMaxCost,
 		setAlwaysAllowReadOnly,
 		setAlwaysAllowWrite,
 		setAlwaysAllowExecute,
@@ -34,8 +31,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		setAlwaysApproveResubmit,
 		setAlwaysAllowFollowupQuestions,
 		setAlwaysAllowUpdateTodoList,
-		setAllowedMaxRequests,
-		setAllowedMaxCost,
 	} = useExtensionState()
 
 	const { t } = useAppTranslation()
@@ -245,13 +240,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					</div>
 
 					<AutoApproveToggle {...toggles} onToggle={onAutoApproveToggle} />
-
-					<MaxLimitInputs
-						allowedMaxRequests={allowedMaxRequests ?? undefined}
-						allowedMaxCost={allowedMaxCost ?? undefined}
-						onMaxRequestsChange={(value) => setAllowedMaxRequests(value)}
-						onMaxCostChange={(value) => setAllowedMaxCost(value)}
-					/>
 				</div>
 			)}
 		</div>

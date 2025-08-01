@@ -109,13 +109,7 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 	const { t } = useAppTranslation()
 
 	return (
-		<div
-			className={cn(
-				"flex flex-row flex-wrap justify-center gap-2 max-w-[600px] mx-auto my-2 ",
-				"[@media(min-width:600px)]:gap-4",
-				"[@media(min-width:800px)]:max-w-[900px]",
-				"[@media(min-width:1200px)]:max-w-[1800px]",
-			)}>
+		<div className={cn("flex flex-row flex-wrap gap-2 py-2")}>
 			{Object.values(autoApproveSettingsConfig).map(({ key, descriptionKey, labelKey, icon, testId }) => (
 				<StandardTooltip key={key} content={t(descriptionKey || "")}>
 					<Button
@@ -124,11 +118,12 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 						aria-label={t(labelKey)}
 						aria-pressed={!!props[key]}
 						data-testid={testId}
-						className={cn(" aspect-square h-[80px]", !props[key] && "opacity-50")}>
-						<span className={cn("flex flex-col items-center gap-1")}>
-							<span className={`codicon codicon-${icon}`} />
-							<span className="text-sm text-center">{t(labelKey)}</span>
-						</span>
+						className={cn(
+							"h-7 px-2 rounded-md flex items-center gap-1.5 text-xs whitespace-nowrap",
+							!props[key] && "opacity-50",
+						)}>
+						<span className={`codicon codicon-${icon} text-sm`} />
+						<span>{t(labelKey)}</span>
 					</Button>
 				</StandardTooltip>
 			))}
