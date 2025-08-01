@@ -55,7 +55,7 @@ import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { Mode } from "@shared/storage/types"
+import { Mode, MessageType } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -110,7 +110,7 @@ export class ToolExecutor {
 		) => Promise<{ response: ClineAskResponse; text?: string; images?: string[]; files?: string[] }>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
-		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
+		private removeLastPartialMessageIfExistsWithType: (type: MessageType, askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 	) {

@@ -86,7 +86,7 @@ import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { Mode, OpenaiReasoningEffort, MessageType } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
@@ -1003,7 +1003,7 @@ export class Task {
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
-	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay) {
+	async removeLastPartialMessageIfExistsWithType(type: MessageType, askOrSay: ClineAsk | ClineSay) {
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {

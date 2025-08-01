@@ -2,7 +2,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
+import { Mode, OpenaiReasoningEffort, MessageType } from "./storage/types"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
@@ -66,7 +66,7 @@ export interface ExtensionState {
 
 export interface ClineMessage {
 	ts: number
-	type: "ask" | "say"
+	type: MessageType
 	ask?: ClineAsk
 	say?: ClineSay
 	text?: string
