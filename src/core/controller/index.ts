@@ -292,7 +292,7 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.mode = modeToSwitchTo
+			this.task.updateMode(modeToSwitchTo)
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message

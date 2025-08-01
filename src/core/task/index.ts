@@ -340,6 +340,11 @@ export class Task {
 		)
 	}
 
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+		this.toolExecutor.updateMode(mode)
+	}
+
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
 	private getContext(): vscode.ExtensionContext {

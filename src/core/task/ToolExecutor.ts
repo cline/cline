@@ -72,6 +72,17 @@ export class ToolExecutor {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
 	}
 
+	private readonly strictPlanModeEnabled = true
+
+	/**
+	 * Defines the tools which should be restricted in plan mode
+	 */
+	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+		const planModeRestrictedTools: ToolUseName[] = ["write_to_file", "replace_in_file"]
+
+		return planModeRestrictedTools.includes(toolName)
+	}
+
 	constructor(
 		// Core Services & Managers
 		private context: vscode.ExtensionContext,
@@ -251,6 +262,10 @@ export class ToolExecutor {
 			}
 			return true
 		}
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
 	}
 
 	private handleError = async (action: string, error: Error, block: ToolUse) => {
@@ -434,6 +449,15 @@ export class ToolExecutor {
 				type: "text",
 				text: formatResponse.toolAlreadyUsed(block.name),
 			})
+			return
+		}
+
+		// Logic for plan-model tool call restrictions
+		if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
+			await this.say("error", errorMessage)
+			this.pushToolResult(formatResponse.toolError(errorMessage), block)
+			await this.saveCheckpoint()
 			return
 		}
 
