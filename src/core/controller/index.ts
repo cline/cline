@@ -96,7 +96,7 @@ export class Controller {
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 		this.accountService = ClineAccountService.getInstance()
-		this.authService = AuthService.getInstance(context)
+		this.authService = AuthService.getInstance(this)
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
@@ -132,7 +132,7 @@ export class Controller {
 	async handleSignOut() {
 		try {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			await storeSecret(this.context, "clineAccountId", undefined)
+			this.cacheService.setSecret("clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
 
 			// Update API providers through cache service

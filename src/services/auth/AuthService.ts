@@ -56,7 +56,7 @@ export class AuthService {
 	protected _clineAuthInfo: ClineAuthInfo | null = null
 	protected _provider: { provider: FirebaseAuthProvider } | null = null
 	protected _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
-	protected _context: vscode.ExtensionContext
+	protected _controller: Controller
 
 	/**
 	 * Creates an instance of AuthService.
@@ -64,7 +64,7 @@ export class AuthService {
 	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 */
-	protected constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
+	protected constructor(controller: Controller, config: ServiceConfig, authProvider?: any) {
 		const providerName = authProvider || "firebase"
 		this._config = Object.assign({ URI: DefaultClineAccountURI }, config)
 
@@ -95,7 +95,7 @@ export class AuthService {
 
 		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
 
-		this._context = context
+		this._controller = controller
 	}
 
 	/**
@@ -105,29 +105,29 @@ export class AuthService {
 	 * @param controller - Optional reference to the Controller instance.
 	 * @returns The singleton instance of AuthService.
 	 */
-	public static getInstance(context?: vscode.ExtensionContext, config?: ServiceConfig, authProvider?: any): AuthService {
+	public static getInstance(controller?: Controller, config?: ServiceConfig, authProvider?: any): AuthService {
 		if (!AuthService.instance) {
-			if (!context) {
+			if (!controller) {
 				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
-				context = {} as vscode.ExtensionContext
+				controller = {} as Controller
 			}
 			if (process.env.E2E_TEST) {
 				// Use require instead of import to avoid circular dependency issues
 				// eslint-disable-next-line @typescript-eslint/no-var-requires
 				const { AuthServiceMock } = require("./AuthServiceMock")
-				AuthService.instance = AuthServiceMock.getInstance(context, config || {}, authProvider)
+				AuthService.instance = AuthServiceMock.getInstance(controller, config || {}, authProvider)
 			} else {
-				AuthService.instance = new AuthService(context, config || {}, authProvider)
+				AuthService.instance = new AuthService(controller, config || {}, authProvider)
 			}
 		}
-		if (context !== undefined && AuthService.instance) {
-			AuthService.instance.context = context
+		if (controller !== undefined && AuthService.instance) {
+			AuthService.instance.controller = controller
 		}
 		return AuthService.instance!
 	}
 
-	set context(context: vscode.ExtensionContext) {
-		this._context = context
+	set controller(controller: Controller) {
+		this._controller = controller
 	}
 
 	get authProvider(): any {
@@ -228,7 +228,7 @@ export class AuthService {
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.signIn(this._context, token, provider)
+			this._clineAuthInfo = await this._provider.provider.signIn(this._controller, token, provider)
 			this._authenticated = true
 
 			if (this._clineAuthInfo) {
@@ -248,7 +248,7 @@ export class AuthService {
 	 * This is typically called when the user logs out.
 	 */
 	async clearAuthToken(): Promise<void> {
-		await storeSecret(this._context, "clineAccountId", undefined)
+		this._controller.cacheService.setSecret("clineAccountId", undefined)
 	}
 
 	/**
@@ -261,7 +261,7 @@ export class AuthService {
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._context)
+			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._controller)
 			if (this._clineAuthInfo) {
 				this._authenticated = true
 				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)

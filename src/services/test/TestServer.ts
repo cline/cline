@@ -262,7 +262,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						}
 
 						// Store the API key securely
-						await storeSecret(visibleWebview.controller.context, "clineAccountId", apiKey)
+						visibleWebview.controller.cacheService.setSecret("clineAccountId", apiKey)
 
 						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
 
