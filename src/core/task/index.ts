@@ -1,17 +1,49 @@
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import type { Anthropic } from "@anthropic-ai/sdk"
-import { type ApiHandler, buildApiHandler } from "@api/index"
+import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler, buildApiHandler } from "@api/index"
 import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
-import type { ApiStream } from "@api/transform/stream"
-import { parseAssistantMessageV2, parseAssistantMessageV3, type ToolUseName } from "@core/assistant-message"
-import { ContextManager } from "@core/context/context-management/ContextManager"
+import { ApiStream } from "@api/transform/stream"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
+import { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex } from "@shared/array"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
+import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { getGitRemoteUrls } from "@utils/git"
+import { arePathsEqual, getDesktopDir } from "@utils/path"
+import cloneDeep from "clone-deep"
+import { execa } from "execa"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pTimeout from "p-timeout"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import * as vscode from "vscode"
+
+import { HostProvider } from "@/hosts/host-provider"
+import { ClineErrorType } from "@/services/error/ClineError"
+import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -34,50 +66,16 @@ import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
-	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	GlobalFileNames,
 } from "@core/storage/disk"
 import { getGlobalState } from "@core/storage/state"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import type WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { listFiles } from "@services/glob/list-files"
-import { Logger } from "@services/logging/Logger"
-import type { McpHub } from "@services/mcp/McpHub"
-import { errorService, telemetryService } from "@services/posthog/PostHogClientProvider"
-import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { ApiConfiguration } from "@shared/api"
-import { findLast, findLastIndex } from "@shared/array"
-import type { BrowserSettings } from "@shared/BrowserSettings"
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import type { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import type { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import type { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import type { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
-import { arePathsEqual, getDesktopDir } from "@utils/path"
-import cloneDeep from "clone-deep"
-import { execa } from "execa"
-import pTimeout from "p-timeout"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
-import { ShowMessageType } from "@/shared/proto/index.host"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -85,6 +83,9 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { ShowMessageType } from "@/shared/proto/index.host"
+import { errorService, telemetryService } from "@services/posthog/PostHogClientProvider"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -1688,7 +1689,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		const isNextGenModel =
+			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)

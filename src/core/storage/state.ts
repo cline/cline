@@ -271,7 +271,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
 	])
 
-	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
+	const [localClineRulesToggles, localWindsurfRulesToggles, localCursorRulesToggles, localWorkflowToggles] = await Promise.all([
+		getWorkspaceState(context, "localClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "localWindsurfRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "localCursorRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "workflowToggles") as Promise<ClineRulesToggles | undefined>,
+	])
 
 	const [
 		preferredLanguage,
@@ -550,7 +555,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		globalClineRulesToggles: globalClineRulesToggles || {},
-		localClineRulesToggles: localClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		preferredLanguage: preferredLanguage || "English",
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
@@ -567,6 +571,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
+		localClineRulesToggles: localClineRulesToggles || {},
+		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+		localCursorRulesToggles: localCursorRulesToggles || {},
+		localWorkflowToggles: localWorkflowToggles || {},
 	}
 }
 

@@ -36,6 +36,7 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { Logger } from "@/services/logging/Logger"
+import { getLatestAnnouncementId } from "@/extension"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -54,9 +55,6 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
-	get latestAnnouncementId(): string {
-		return this.context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
-	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -716,32 +714,38 @@ export class Controller {
 			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			localClineRulesToggles,
+			localWindsurfRulesToggles,
+			localCursorRulesToggles,
+			localWorkflowToggles,
 		} = await getAllExtensionState(this.context)
 
-		const localClineRulesToggles =
-			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
+		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
+		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
 
-		const localWindsurfRulesToggles =
-			((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+		const processedTaskHistory = (taskHistory || [])
+			.filter((item) => item.ts && item.task)
+			.sort((a, b) => b.ts - a.ts)
+			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const localCursorRulesToggles =
-			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
-
-		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
+		const platform = process.platform as Platform
+		const distinctId = telemetryService.distinctId
+		const version = this.context.extension?.packageJSON?.version ?? ""
+		const uriScheme = vscode.env.uriScheme
 
 		return {
-			version: this.context.extension?.packageJSON?.version ?? "",
+			version,
 			apiConfiguration,
-			uriScheme: vscode.env.uriScheme,
-			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
-			taskHistory: (taskHistory || [])
-				.filter((item) => item.ts && item.task)
-				.sort((a, b) => b.ts - a.ts)
-				.slice(0, 100), // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
-			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
-			platform: process.platform as Platform,
+			uriScheme,
+			currentTaskItem,
+			checkpointTrackerErrorMessage,
+			clineMessages,
+			taskHistory: processedTaskHistory,
+			shouldShowAnnouncement,
+			platform,
 			autoApprovalSettings,
 			browserSettings,
 			preferredLanguage,
