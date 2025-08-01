@@ -4,6 +4,7 @@ import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
+import { estimateTokens } from "@utils/tokenCounter"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
@@ -252,18 +253,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
-		// For Claude models, use character-to-token ratio instead of VSCode LM's inaccurate counting
-		if (this.isClaudeModel()) {
-			const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
-			// Use 4 character-to-token ratio for Claude models
-			return Math.ceil(textContent.length / 4)
-		}
-		// For other models, use an appropriate counting method because VSCode LM's countTokens is not reliable
-		// It gives incorrect counts for text parts, so we use an approx counting method
-		// This is necessary to avoid model hallucinations due to incorrect token counts
+		// Use tiktoken-based token counting for all models instead of VSCode LM's inaccurate counting
+		// This provides better accuracy across different model types
 		const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
-		// Use 4 character-to-token ratio for Claude models
-		return Math.ceil(textContent.length / 3)
+		return await estimateTokens(textContent)
 	}
 
 	private async calculateTotalInputTokens(vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {

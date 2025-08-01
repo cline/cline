@@ -487,6 +487,7 @@
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
+		"tiktoken": "^1.0.21",
 		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
