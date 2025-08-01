@@ -4,10 +4,11 @@ import { clineEnvConfig } from "@/config"
 import { WebviewProvider } from "@/core/webview"
 import type { UserResponse } from "@/shared/ClineAccount"
 import { AuthService, type ServiceConfig } from "./AuthService"
+import { Controller } from "@/core/controller"
 
 export class AuthServiceMock extends AuthService {
-	protected constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
-		super(context, config, authProvider)
+	protected constructor(controller: Controller, config: ServiceConfig, authProvider?: any) {
+		super(controller, config, authProvider)
 
 		if (process?.env?.CLINE_ENVIRONMENT !== "local") {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
@@ -18,26 +19,22 @@ export class AuthServiceMock extends AuthService {
 		const providerName = "firebase"
 		this._setProvider(providerName)
 
-		this._context = context
+		this._controller = controller
 	}
 
 	/**
 	 * Gets the singleton instance of AuthServiceMock.
 	 */
-	public static override getInstance(
-		context?: vscode.ExtensionContext,
-		config?: ServiceConfig,
-		authProvider?: any,
-	): AuthServiceMock {
+	public static override getInstance(controller?: Controller, config?: ServiceConfig, authProvider?: any): AuthServiceMock {
 		if (!AuthServiceMock.instance) {
-			if (!context) {
-				console.warn("Extension context was not provided to AuthServiceMock.getInstance, using default context")
-				context = {} as vscode.ExtensionContext
+			if (!controller) {
+				console.error("Extension controller was not provided to AuthServiceMock.getInstance")
+				throw new Error("Extension controller was not provided to AuthServiceMock.getInstance")
 			}
-			AuthServiceMock.instance = new AuthServiceMock(context, config || {}, authProvider)
+			AuthServiceMock.instance = new AuthServiceMock(controller, config || {}, authProvider)
 		}
-		if (context !== undefined) {
-			AuthServiceMock.instance.context = context
+		if (controller !== undefined) {
+			AuthServiceMock.instance.controller = controller
 		}
 		return AuthServiceMock.instance
 	}

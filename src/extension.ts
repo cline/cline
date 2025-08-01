@@ -664,7 +664,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (event.key === "clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get("clineAccountId")
-				const authService = AuthService.getInstance(context)
+				const activeWebviewProvider = WebviewProvider.getVisibleInstance()
+				const controller = activeWebviewProvider?.controller
+
+				const authService = AuthService.getInstance(controller)
 				if (secretValue) {
 					// Secret was added or updated - restore auth info (login from another window)
 					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
