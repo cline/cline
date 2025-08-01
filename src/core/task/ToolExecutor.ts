@@ -72,17 +72,6 @@ export class ToolExecutor {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
 	}
 
-	private readonly strictPlanModeEnabled = true
-
-	/**
-	 * Defines the tools which should be restricted in plan mode
-	 */
-	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
-		const planModeRestrictedTools: ToolUseName[] = ["write_to_file", "replace_in_file"]
-
-		return planModeRestrictedTools.includes(toolName)
-	}
-
 	constructor(
 		// Core Services & Managers
 		private context: vscode.ExtensionContext,
@@ -105,6 +94,7 @@ export class ToolExecutor {
 		private cwd: string,
 		private taskId: string,
 		private mode: Mode,
+		private strictPlanModeEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -133,6 +123,22 @@ export class ToolExecutor {
 	 */
 	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
 		this.autoApprover.updateSettings(settings)
+	}
+
+	/**
+	 * Defines the tools which should be restricted in plan mode
+	 */
+	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+		const planModeRestrictedTools: ToolUseName[] = ["write_to_file", "replace_in_file"]
+		return planModeRestrictedTools.includes(toolName)
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+	}
+
+	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
+		this.strictPlanModeEnabled = strictPlanModeEnabled
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
@@ -262,10 +268,6 @@ export class ToolExecutor {
 			}
 			return true
 		}
-	}
-
-	public updateMode(mode: Mode): void {
-		this.mode = mode
 	}
 
 	private handleError = async (action: string, error: Error, block: ToolUse) => {

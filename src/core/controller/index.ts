@@ -180,6 +180,7 @@ export class Controller {
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
+			strictPlanModeEnabled,
 		} = await getAllExtensionState(this.context)
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -211,6 +212,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
+			strictPlanModeEnabled ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
