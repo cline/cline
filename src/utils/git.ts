@@ -162,21 +162,31 @@ export async function getWorkingState(cwd: string): Promise<string> {
 		}
 
 		// Get status of working directory
-		const { stdout: status } = await execAsync("git status --short", { cwd })
+		let status = (await execAsync("git status --short", { cwd })).stdout
 		if (!status.trim()) {
 			return "No changes in working directory"
 		}
 
-		// Check if repo has any commits before trying to diff against HEAD
-		let diff = ""
-		if (await checkGitRepoHasCommits(cwd)) {
-			// Only run git diff if there are commits
-			const { stdout: diffOutput } = await execAsync("git diff HEAD", { cwd })
-			diff = diffOutput
+		// Smart commit behaviour "git.enableSmartCommit"
+		let diff = (await execAsync("git diff --staged", { cwd })).stdout
+		if (diff.trim()) {
+			// Filter the git status output to keep only staged files
+			const unstaged = [" ", "?", "!"]
+			status = status
+				.split("\n")
+				.filter((line) => line && !unstaged.includes(line[0]))
+				.join("\n")
 		} else {
-			// No commits yet, use status output only
-			return `Working directory changes (new repository):\n\n${status}`
+			// This is more performant in this case
+			// than 2 pass "checkGitRepoHasCommits"
+			try {
+				diff = (await execAsync("git diff HEAD", { cwd })).stdout
+			} catch {
+				// No commits yet, use status output only
+				return `Working directory changes (new repository):\n\n${status}`
+			}
 		}
+
 		const output = `Working directory changes:\n\n${status}\n\n${diff}`.trim()
 		return truncateOutput(output)
 	} catch (error) {
