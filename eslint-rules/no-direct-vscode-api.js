@@ -187,10 +187,6 @@ module.exports = createRule({
 			if (filename.includes("/standalone/runtime-files/")) {
 				return true
 			}
-			// Skip unit tests
-			if (filename.endsWith(".test.ts")) {
-				return true
-			}
 		}
 
 		return {
