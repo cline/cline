@@ -2,8 +2,6 @@
 
 ## 3.20.5
 
-### Patch Changes
-
 - cbb67b4: Fix auth login logout
 
 ## [3.20.4]
