@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.20.5
+## [3.20.5]
 
-- cbb67b4: Fix auth login logout
+- Fix authentication persistence issues that could cause users to be logged out unexpectedly
 
 ## [3.20.4]
 
