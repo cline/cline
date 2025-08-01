@@ -124,7 +124,8 @@ export class E2ETestHelper {
 	}
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
-		await page.locator("li").filter({ hasText: "[Extension Development Host]" }).first().click()
+		const editorMenu = page.locator("li").filter({ hasText: "[Extension Development Host]" }).first()
+		await editorMenu.click()
 		const editorSearchBar = page.getByRole("textbox", {
 			name: "Search files by name (append",
 		})
@@ -273,6 +274,7 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
+			// Disable notifications before opening sidebar
 			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
 			await use(page)
 		},
