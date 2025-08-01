@@ -6,7 +6,7 @@ import { storeSecret } from "@/core/storage/state"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { AuthHandler } from "./AuthHandler"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
 

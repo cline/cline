@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
 import { extensionContext, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
-import { AuthHandler } from "@/services/auth/AuthHandler"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
