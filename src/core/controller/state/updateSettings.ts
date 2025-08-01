@@ -1,11 +1,10 @@
 import { Controller } from ".."
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "../../../api"
-import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
+import { TelemetrySetting } from "@/shared/TelemetrySetting"
+import { OpenaiReasoningEffort } from "@/shared/storage/types"
 
 /**
  * Updates multiple extension settings in a single request
@@ -18,7 +17,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update API configuration
 		if (request.apiConfiguration) {
 			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			await updateApiConfiguration(controller.context, apiConfiguration)
+			controller.cacheService.setApiConfiguration(apiConfiguration)
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
