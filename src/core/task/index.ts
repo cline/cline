@@ -77,7 +77,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -85,6 +85,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
 
@@ -130,6 +131,9 @@ export class Task {
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
+	// Cache service
+	private cacheService: CacheService
+
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -159,6 +163,7 @@ export class Task {
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		cwd: string,
+		cacheService: CacheService,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -202,6 +207,7 @@ export class Task {
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
+		this.cacheService = cacheService
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
@@ -318,6 +324,7 @@ export class Task {
 			this.clineIgnoreController,
 			this.workspaceTracker,
 			this.contextManager,
+			this.cacheService,
 			this.autoApprovalSettings,
 			this.browserSettings,
 			cwd,
@@ -1661,10 +1668,8 @@ export class Task {
 
 	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
-		const providerId =
-			this.mode === "plan"
-				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
-				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
+		const apiConfig = this.cacheService.getApiConfiguration()
+		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		return { modelId, providerId }
 	}
 
@@ -1682,7 +1687,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		const isNextGenModel =
+			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)

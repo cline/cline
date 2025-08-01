@@ -35,7 +35,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -50,7 +50,7 @@ import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
 import { ensureTaskDirectoryExists } from "../storage/disk"
-import { getGlobalState, getWorkspaceState } from "../storage/state"
+import { CacheService } from "../storage/CacheService"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
@@ -86,6 +86,7 @@ export class ToolExecutor {
 		private clineIgnoreController: ClineIgnoreController,
 		private workspaceTracker: WorkspaceTracker,
 		private contextManager: ContextManager,
+		private cacheService: CacheService,
 
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
@@ -124,7 +125,8 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+		const isNextGenModel =
+			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
 
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
@@ -489,7 +491,8 @@ export class ToolExecutor {
 
 						const currentFullJson = block.params.diff
 						// Check if we should use streaming (e.g., for specific models)
-						const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+						const isNextGenModel =
+							isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
 						// Going through claude family of models
 						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
@@ -1182,7 +1185,9 @@ export class ToolExecutor {
 							// Re-make browserSession to make sure latest settings apply
 							if (this.context) {
 								await this.browserSession.dispose()
-								this.browserSession = new BrowserSession(this.context, this.browserSettings)
+
+								let useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")
 							}
@@ -1927,10 +1932,8 @@ export class ToolExecutor {
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
 						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
-						const apiProvider =
-							currentMode === "plan"
-								? await getGlobalState(this.context, "planModeApiProvider")
-								: await getGlobalState(this.context, "actModeApiProvider")
+						const apiConfig = this.cacheService.getApiConfiguration()
+						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 
 						// Ask user for confirmation

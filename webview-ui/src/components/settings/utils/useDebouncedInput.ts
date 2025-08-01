@@ -18,11 +18,6 @@ export function useDebouncedInput<T>(
 	// Local state to prevent jumpy input - initialize once
 	const [localValue, setLocalValue] = useState(initialValue)
 
-	// Update local value when initialValue changes (e.g., when component remounts with new data)
-	useEffect(() => {
-		setLocalValue(initialValue)
-	}, [initialValue])
-
 	// Debounced backend save - saves after user stops changing value
 	useDebounceEffect(
 		() => {

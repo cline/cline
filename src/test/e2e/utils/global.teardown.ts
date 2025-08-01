@@ -1,9 +1,10 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import type { FullConfig } from "playwright/test"
+import { test as teardown } from "@playwright/test"
+import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
-export default async function (_: FullConfig) {
+teardown("cleanup test environment", async () => {
 	const assetsDir = getResultsDir()
 
 	try {
@@ -21,10 +22,12 @@ export default async function (_: FullConfig) {
 					}
 				}),
 		)
+		await ClineApiServerMock.stopGlobalServer()
+		console.log("ClineApiServerMock stopped successfully.")
 	} catch (error) {
 		// Silently handle case where assets directory doesn't exist
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 			throw error
 		}
 	}
-}
+})
