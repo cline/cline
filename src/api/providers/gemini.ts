@@ -1,12 +1,13 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, type Part } from "@google/genai"
-import { type GeminiModelId, geminiDefaultModelId, geminiModels, type ModelInfo } from "@shared/api"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import type { ApiHandler } from "../"
+import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
+import { Part } from "@google/genai"
+import { ApiHandler } from "../"
+import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
-import type { ApiStream } from "../transform/stream"
+import { ApiStream } from "../transform/stream"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
