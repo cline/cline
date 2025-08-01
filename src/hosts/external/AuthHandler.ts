@@ -135,7 +135,7 @@ export class AuthHandler {
 				this.sendResponse(res, 400, "text/plain", "Bad request")
 			}
 		} catch (error) {
-			console.error("AuthTokenHandler: Error processing request", error)
+			console.error("AuthHandler: Error processing request", error)
 			this.sendResponse(res, 400, "text/plain", "Bad request")
 		} finally {
 			// Stop the server after handling any request (success or failure)
