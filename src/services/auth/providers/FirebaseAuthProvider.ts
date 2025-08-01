@@ -1,12 +1,12 @@
-import axios from "axios"
-import { initializeApp } from "firebase/app"
-import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
-import { jwtDecode } from "jwt-decode"
-import type { ExtensionContext } from "vscode"
-import { clineEnvConfig } from "@/config"
 import { getSecret, storeSecret } from "@/core/storage/state"
 import { errorService } from "@/services/posthog/PostHogClientProvider"
-import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import axios from "axios"
+import { initializeApp } from "firebase/app"
+import { GithubAuthProvider, GoogleAuthProvider, OAuthCredential, User, getAuth, signInWithCredential } from "firebase/auth"
+import { ExtensionContext } from "vscode"
+import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { jwtDecode } from "jwt-decode"
+import { clineEnvConfig } from "@/config"
 
 export class FirebaseAuthProvider {
 	private _config: any

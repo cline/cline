@@ -83,6 +83,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { errorService, telemetryService } from "@services/posthog/PostHogClientProvider"
@@ -129,6 +130,9 @@ export class Task {
 	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	private cancelTask: () => Promise<void>
 
+	// Cache service
+	private cacheService: CacheService
+
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -158,6 +162,7 @@ export class Task {
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		cwd: string,
+		cacheService: CacheService,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -201,6 +206,7 @@ export class Task {
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
+		this.cacheService = cacheService
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
@@ -317,6 +323,7 @@ export class Task {
 			this.clineIgnoreController,
 			this.workspaceTracker,
 			this.contextManager,
+			this.cacheService,
 			this.autoApprovalSettings,
 			this.browserSettings,
 			cwd,
@@ -1666,10 +1673,8 @@ export class Task {
 		providerId: string
 	}> {
 		const modelId = this.api.getModel()?.id
-		const providerId =
-			this.mode === "plan"
-				? ((await getGlobalState(this.getContext(), "planModeApiProvider")) as string)
-				: ((await getGlobalState(this.getContext(), "actModeApiProvider")) as string)
+		const apiConfig = this.cacheService.getApiConfiguration()
+		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		return { modelId, providerId }
 	}
 

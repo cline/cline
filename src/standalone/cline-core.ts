@@ -1,5 +1,6 @@
 import { activate } from "@/extension"
 import { Controller } from "@core/controller"
+import { CacheService } from "@core/storage/CacheService"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
@@ -21,7 +22,12 @@ async function main() {
 	setupGlobalErrorHandlers()
 
 	activate(extensionContext)
-	const controller = new Controller(extensionContext, postMessage, uuidv4())
+	// Create and initialize cache service
+	const cacheService = new CacheService(extensionContext)
+	await cacheService.initialize()
+
+	// Create controller with cache service
+	const controller = new Controller(extensionContext, postMessage, uuidv4(), cacheService)
 	startProtobusService(controller)
 }
 
