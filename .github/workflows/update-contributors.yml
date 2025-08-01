@@ -24,7 +24,7 @@ jobs:
       - name: Update contributors and format
         run: |
           pnpm update-contributors
-          npx prettier --write README.md
+          npx prettier --write README.md locales/*/README.md
           if git diff --quiet; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
         id: check-changes
         env:
