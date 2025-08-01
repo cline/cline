@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.20.4]
+
+- Add new Cerebras models
+- Update rate limits for existing Cerebras models
+- Fix for delete task dialog
+
 ## [3.20.3]
 
 - Add Huawei Cloud MaaS Provider (Thanks @ddling!)
