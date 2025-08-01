@@ -5,7 +5,7 @@ import { Node } from "web-tree-sitter"
 import { LanguageParser, loadRequiredLanguageParsers } from "../../tree-sitter/languageParser"
 import { parseMarkdown } from "../../tree-sitter/markdownParser"
 import { ICodeParser, CodeBlock } from "../interfaces"
-import { scannerExtensions } from "../shared/supported-extensions"
+import { scannerExtensions, shouldUseFallbackChunking } from "../shared/supported-extensions"
 import { MAX_BLOCK_CHARS, MIN_BLOCK_CHARS, MIN_CHUNK_REMAINDER_CHARS, MAX_CHARS_TOLERANCE_FACTOR } from "../constants"
 import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName } from "@roo-code/types"
@@ -99,6 +99,11 @@ export class CodeParser implements ICodeParser {
 		// Handle markdown files specially
 		if (ext === "md" || ext === "markdown") {
 			return this.parseMarkdownContent(filePath, content, fileHash, seenSegmentHashes)
+		}
+
+		// Check if this extension should use fallback chunking
+		if (shouldUseFallbackChunking(`.${ext}`)) {
+			return this._performFallbackChunking(filePath, content, fileHash, seenSegmentHashes)
 		}
 
 		// Check if we already have the parser loaded
