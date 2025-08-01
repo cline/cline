@@ -2530,7 +2530,7 @@ export const cerebrasModels = {
 		description: "SOTA coding performance with ~2500 tokens/s",
 	},
 	"qwen-3-235b-a22b-thinking-2507": {
-		maxTokens: 40000,
+		maxTokens: 32000,
 		contextWindow: 65000,
 		supportsImages: false,
 		supportsPromptCache: false,
