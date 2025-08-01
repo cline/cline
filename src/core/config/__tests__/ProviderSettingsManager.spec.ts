@@ -4,7 +4,7 @@ import { ExtensionContext } from "vscode"
 
 import type { ProviderSettings } from "@roo-code/types"
 
-import { ProviderSettingsManager, ProviderProfiles } from "../ProviderSettingsManager"
+import { ProviderSettingsManager, ProviderProfiles, SyncCloudProfilesResult } from "../ProviderSettingsManager"
 
 // Mock VSCode ExtensionContext
 const mockSecrets = {
@@ -676,6 +676,449 @@ describe("ProviderSettingsManager", () => {
 			await expect(providerSettingsManager.hasConfig("test")).rejects.toThrow(
 				"Failed to check config existence: Error: Failed to read provider profiles from secrets: Error: Storage failed",
 			)
+		})
+	})
+
+	describe("syncCloudProfiles", () => {
+		it("should add new cloud profiles without secret keys", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+				},
+				cloudProfileIds: [],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"cloud-profile": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+					apiKey: "secret-key", // This should be removed
+					apiModelId: "claude-3-opus-20240229",
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["cloud-profile"]).toEqual({
+				id: "cloud-id-1",
+				apiProvider: "anthropic",
+				apiModelId: "claude-3-opus-20240229",
+				// apiKey should be removed
+			})
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1"])
+		})
+
+		it("should update existing cloud profiles by ID, preserving secret keys", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"existing-cloud": {
+						id: "cloud-id-1",
+						apiProvider: "anthropic" as const,
+						apiKey: "existing-secret",
+						apiModelId: "claude-3-haiku-20240307",
+					},
+				},
+				cloudProfileIds: ["cloud-id-1"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"updated-name": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+					apiKey: "new-secret", // Should be ignored
+					apiModelId: "claude-3-opus-20240229",
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["updated-name"]).toEqual({
+				id: "cloud-id-1",
+				apiProvider: "anthropic",
+				apiKey: "existing-secret", // Preserved
+				apiModelId: "claude-3-opus-20240229", // Updated
+			})
+			expect(storedConfig.apiConfigs["existing-cloud"]).toBeUndefined()
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1"])
+		})
+
+		it("should delete cloud profiles not in the new cloud profiles", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"cloud-profile-1": { id: "cloud-id-1", apiProvider: "anthropic" as const },
+					"cloud-profile-2": { id: "cloud-id-2", apiProvider: "openai" as const },
+				},
+				cloudProfileIds: ["cloud-id-1", "cloud-id-2"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"cloud-profile-1": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+				},
+				// cloud-profile-2 is missing, should be deleted
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["cloud-profile-1"]).toBeDefined()
+			expect(storedConfig.apiConfigs["cloud-profile-2"]).toBeUndefined()
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1"])
+		})
+
+		it("should rename existing non-cloud profile when cloud profile has same name", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"conflict-name": { id: "local-id", apiProvider: "openai" as const },
+				},
+				cloudProfileIds: [],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"conflict-name": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["conflict-name"]).toEqual({
+				id: "cloud-id-1",
+				apiProvider: "anthropic",
+			})
+			expect(storedConfig.apiConfigs["conflict-name_local"]).toEqual({
+				id: "local-id",
+				apiProvider: "openai",
+			})
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1"])
+		})
+
+		it("should handle multiple naming conflicts with incremental suffixes", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"conflict-name": { id: "local-id-1", apiProvider: "openai" as const },
+					"conflict-name_local": { id: "local-id-2", apiProvider: "vertex" as const },
+				},
+				cloudProfileIds: [],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"conflict-name": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["conflict-name"]).toEqual({
+				id: "cloud-id-1",
+				apiProvider: "anthropic",
+			})
+			expect(storedConfig.apiConfigs["conflict-name_1"]).toEqual({
+				id: "local-id-1",
+				apiProvider: "openai",
+			})
+			expect(storedConfig.apiConfigs["conflict-name_local"]).toEqual({
+				id: "local-id-2",
+				apiProvider: "vertex",
+			})
+		})
+
+		it("should handle empty cloud profiles by deleting all cloud-managed profiles", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"cloud-profile-1": { id: "cloud-id-1", apiProvider: "anthropic" as const },
+					"cloud-profile-2": { id: "cloud-id-2", apiProvider: "openai" as const },
+				},
+				cloudProfileIds: ["cloud-id-1", "cloud-id-2"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["cloud-profile-1"]).toBeUndefined()
+			expect(storedConfig.apiConfigs["cloud-profile-2"]).toBeUndefined()
+			expect(storedConfig.apiConfigs["default"]).toBeDefined()
+			expect(storedConfig.cloudProfileIds).toEqual([])
+		})
+
+		it("should skip cloud profiles without IDs", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+				},
+				cloudProfileIds: [],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"valid-profile": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+				},
+				"invalid-profile": {
+					// Missing id
+					apiProvider: "openai" as const,
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["valid-profile"]).toBeDefined()
+			expect(storedConfig.apiConfigs["invalid-profile"]).toBeUndefined()
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1"])
+		})
+
+		it("should handle complex sync scenario with multiple operations", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "default",
+				apiConfigs: {
+					default: { id: "default-id" },
+					"keep-cloud": { id: "cloud-id-1", apiProvider: "anthropic" as const, apiKey: "secret1" },
+					"delete-cloud": { id: "cloud-id-2", apiProvider: "openai" as const },
+					"rename-me": { id: "local-id", apiProvider: "vertex" as const },
+				},
+				cloudProfileIds: ["cloud-id-1", "cloud-id-2"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"updated-keep": {
+					id: "cloud-id-1",
+					apiProvider: "anthropic" as const,
+					apiKey: "new-secret", // Should be ignored
+					apiModelId: "claude-3-opus-20240229",
+				},
+				"rename-me": {
+					id: "cloud-id-3",
+					apiProvider: "openai" as const,
+				},
+				// delete-cloud is missing (should be deleted)
+				// new profile
+				"new-cloud": {
+					id: "cloud-id-4",
+					apiProvider: "vertex" as const,
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles)
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("")
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+
+			// Check deletions
+			expect(storedConfig.apiConfigs["delete-cloud"]).toBeUndefined()
+			expect(storedConfig.apiConfigs["keep-cloud"]).toBeUndefined()
+
+			// Check updates
+			expect(storedConfig.apiConfigs["updated-keep"]).toEqual({
+				id: "cloud-id-1",
+				apiProvider: "anthropic",
+				apiKey: "secret1", // preserved
+				apiModelId: "claude-3-opus-20240229",
+			})
+
+			// Check renames
+			expect(storedConfig.apiConfigs["rename-me_local"]).toEqual({
+				id: "local-id",
+				apiProvider: "vertex",
+			})
+			expect(storedConfig.apiConfigs["rename-me"]).toEqual({
+				id: "cloud-id-3",
+				apiProvider: "openai",
+			})
+
+			// Check new additions
+			expect(storedConfig.apiConfigs["new-cloud"]).toEqual({
+				id: "cloud-id-4",
+				apiProvider: "vertex",
+			})
+
+			expect(storedConfig.cloudProfileIds).toEqual(["cloud-id-1", "cloud-id-3", "cloud-id-4"])
+		})
+
+		it("should throw error if secrets storage fails", async () => {
+			mockSecrets.get.mockResolvedValue(
+				JSON.stringify({
+					currentApiConfigName: "default",
+					apiConfigs: { default: { id: "default-id" } },
+					cloudProfileIds: [],
+				}),
+			)
+			mockSecrets.store.mockRejectedValue(new Error("Storage failed"))
+
+			await expect(providerSettingsManager.syncCloudProfiles({})).rejects.toThrow(
+				"Failed to sync cloud profiles: Error: Failed to write provider profiles to secrets: Error: Storage failed",
+			)
+		})
+
+		it("should track active profile changes when active profile is updated", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "active-profile",
+				apiConfigs: {
+					"active-profile": {
+						id: "active-id",
+						apiProvider: "anthropic" as const,
+						apiKey: "old-key",
+					},
+				},
+				cloudProfileIds: ["active-id"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"active-profile": {
+					id: "active-id",
+					apiProvider: "anthropic" as const,
+					apiModelId: "claude-3-opus-20240229", // Updated setting
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles, "active-profile")
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(true)
+			expect(result.activeProfileId).toBe("active-id")
+		})
+
+		it("should track active profile changes when active profile is deleted", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "active-profile",
+				apiConfigs: {
+					"active-profile": { id: "active-id", apiProvider: "anthropic" as const },
+					"backup-profile": { id: "backup-id", apiProvider: "openai" as const },
+				},
+				cloudProfileIds: ["active-id"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {} // Active profile deleted
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles, "active-profile")
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(true)
+			expect(result.activeProfileId).toBe("backup-id") // Should switch to first available
+		})
+
+		it("should create default profile when all profiles are deleted", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "only-profile",
+				apiConfigs: {
+					"only-profile": { id: "only-id", apiProvider: "anthropic" as const },
+				},
+				cloudProfileIds: ["only-id"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {} // All profiles deleted
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles, "only-profile")
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(true)
+			expect(result.activeProfileId).toBeTruthy() // Should have new default profile ID
+
+			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			expect(storedConfig.apiConfigs["default"]).toBeDefined()
+			expect(storedConfig.apiConfigs["default"].id).toBe(result.activeProfileId)
+		})
+
+		it("should not mark active profile as changed when it's not affected", async () => {
+			const existingConfig: ProviderProfiles = {
+				currentApiConfigName: "local-profile",
+				apiConfigs: {
+					"local-profile": { id: "local-id", apiProvider: "anthropic" as const },
+					"cloud-profile": { id: "cloud-id", apiProvider: "openai" as const },
+				},
+				cloudProfileIds: ["cloud-id"],
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+			const cloudProfiles = {
+				"cloud-profile": {
+					id: "cloud-id",
+					apiProvider: "openai" as const,
+					apiModelId: "gpt-4", // Updated cloud profile
+				},
+			}
+
+			const result = await providerSettingsManager.syncCloudProfiles(cloudProfiles, "local-profile")
+
+			expect(result.hasChanges).toBe(true)
+			expect(result.activeProfileChanged).toBe(false)
+			expect(result.activeProfileId).toBe("local-id")
 		})
 	})
 })

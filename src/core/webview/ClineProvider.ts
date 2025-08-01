@@ -15,6 +15,7 @@ import {
 	type ProviderSettings,
 	type RooCodeSettings,
 	type ProviderSettingsEntry,
+	type ProviderSettingsWithId,
 	type TelemetryProperties,
 	type TelemetryPropertiesProvider,
 	type CodeActionId,
@@ -153,6 +154,76 @@ export class ClineProvider
 			})
 
 		this.marketplaceManager = new MarketplaceManager(this.context, this.customModesManager)
+
+		// Initialize cloud profile sync
+		this.initializeCloudProfileSync().catch((error) => {
+			this.log(`Failed to initialize cloud profile sync: ${error}`)
+		})
+	}
+
+	/**
+	 * Initialize cloud profile synchronization
+	 */
+	private async initializeCloudProfileSync() {
+		try {
+			// Check if authenticated and sync profiles
+			if (CloudService.hasInstance() && CloudService.instance.isAuthenticated()) {
+				await this.syncCloudProfiles()
+			}
+
+			// Set up listener for future updates
+			if (CloudService.hasInstance()) {
+				CloudService.instance.on("settings-updated", this.handleCloudSettingsUpdate)
+			}
+		} catch (error) {
+			this.log(`Error in initializeCloudProfileSync: ${error}`)
+		}
+	}
+
+	/**
+	 * Handle cloud settings updates
+	 */
+	private handleCloudSettingsUpdate = async () => {
+		try {
+			await this.syncCloudProfiles()
+		} catch (error) {
+			this.log(`Error handling cloud settings update: ${error}`)
+		}
+	}
+
+	/**
+	 * Synchronize cloud profiles with local profiles
+	 */
+	private async syncCloudProfiles() {
+		try {
+			const settings = CloudService.instance.getOrganizationSettings()
+			if (!settings?.providerProfiles) {
+				return
+			}
+
+			const currentApiConfigName = this.getGlobalState("currentApiConfigName")
+			const result = await this.providerSettingsManager.syncCloudProfiles(
+				settings.providerProfiles,
+				currentApiConfigName,
+			)
+
+			if (result.hasChanges) {
+				// Update list
+				await this.updateGlobalState("listApiConfigMeta", await this.providerSettingsManager.listConfig())
+
+				if (result.activeProfileChanged && result.activeProfileId) {
+					// Reload full settings for new active profile
+					const profile = await this.providerSettingsManager.getProfile({
+						id: result.activeProfileId,
+					})
+					await this.activateProviderProfile({ name: profile.name })
+				}
+
+				await this.postStateToWebview()
+			}
+		} catch (error) {
+			this.log(`Error syncing cloud profiles: ${error}`)
+		}
 	}
 
 	// Adds a new Cline instance to clineStack, marking the start of a new task.
@@ -281,6 +352,11 @@ export class ClineProvider
 		}
 
 		this.clearWebviewResources()
+
+		// Clean up cloud service event listener
+		if (CloudService.hasInstance()) {
+			CloudService.instance.off("settings-updated", this.handleCloudSettingsUpdate)
+		}
 
 		while (this.disposables.length) {
 			const x = this.disposables.pop()

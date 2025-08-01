@@ -1,27 +1,30 @@
 import { ExtensionContext } from "vscode"
 import { z, ZodError } from "zod"
+import deepEqual from "fast-deep-equal"
 
 import {
-	type ProviderSettingsEntry,
-	providerSettingsSchema,
-	providerSettingsSchemaDiscriminated,
+	type ProviderSettingsWithId,
+	providerSettingsWithIdSchema,
+	discriminatedProviderSettingsWithIdSchema,
+	isSecretStateKey,
+	ProviderSettingsEntry,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { Mode, modes } from "../../shared/modes"
 
-const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
-const discriminatedProviderSettingsWithIdSchema = providerSettingsSchemaDiscriminated.and(
-	z.object({ id: z.string().optional() }),
-)
-
-type ProviderSettingsWithId = z.infer<typeof providerSettingsWithIdSchema>
+export interface SyncCloudProfilesResult {
+	hasChanges: boolean
+	activeProfileChanged: boolean
+	activeProfileId: string
+}
 
 export const providerProfilesSchema = z.object({
 	currentApiConfigName: z.string(),
 	apiConfigs: z.record(z.string(), providerSettingsWithIdSchema),
 	modeApiConfigs: z.record(z.string(), z.string()).optional(),
+	cloudProfileIds: z.array(z.string()).optional(),
 	migrations: z
 		.object({
 			rateLimitSecondsMigrated: z.boolean().optional(),
@@ -304,7 +307,7 @@ export class ProviderSettingsManager {
 				const id = config.id || existingId || this.generateId()
 
 				// Filter out settings from other providers.
-				const filteredConfig = providerSettingsSchemaDiscriminated.parse(config)
+				const filteredConfig = discriminatedProviderSettingsWithIdSchema.parse(config)
 				providerProfiles.apiConfigs[name] = { ...filteredConfig, id }
 				await this.store(providerProfiles)
 				return id
@@ -527,6 +530,211 @@ export class ProviderSettingsManager {
 			await this.context.secrets.store(this.secretsKey, JSON.stringify(providerProfiles, null, 2))
 		} catch (error) {
 			throw new Error(`Failed to write provider profiles to secrets: ${error}`)
+		}
+	}
+
+	private findUniqueProfileName(baseName: string, existingNames: Set<string>): string {
+		if (!existingNames.has(baseName)) {
+			return baseName
+		}
+
+		// Try _local first
+		const localName = `${baseName}_local`
+		if (!existingNames.has(localName)) {
+			return localName
+		}
+
+		// Try _1, _2, etc.
+		let counter = 1
+		let candidateName: string
+		do {
+			candidateName = `${baseName}_${counter}`
+			counter++
+		} while (existingNames.has(candidateName))
+
+		return candidateName
+	}
+
+	public async syncCloudProfiles(
+		cloudProfiles: Record<string, ProviderSettingsWithId>,
+		currentActiveProfileName?: string,
+	): Promise<SyncCloudProfilesResult> {
+		try {
+			return await this.lock(async () => {
+				const providerProfiles = await this.load()
+				const changedProfiles: string[] = []
+				const existingNames = new Set(Object.keys(providerProfiles.apiConfigs))
+
+				let activeProfileChanged = false
+				let activeProfileId = ""
+
+				if (currentActiveProfileName && providerProfiles.apiConfigs[currentActiveProfileName]) {
+					activeProfileId = providerProfiles.apiConfigs[currentActiveProfileName].id || ""
+				}
+
+				const currentCloudIds = new Set(providerProfiles.cloudProfileIds || [])
+				const newCloudIds = new Set(
+					Object.values(cloudProfiles)
+						.map((p) => p.id)
+						.filter((id): id is string => Boolean(id)),
+				)
+
+				// Step 1: Delete profiles that are cloud-managed but not in the new cloud profiles
+				for (const [name, profile] of Object.entries(providerProfiles.apiConfigs)) {
+					if (profile.id && currentCloudIds.has(profile.id) && !newCloudIds.has(profile.id)) {
+						// Check if we're deleting the active profile
+						if (name === currentActiveProfileName) {
+							activeProfileChanged = true
+							activeProfileId = "" // Clear the active profile ID since it's being deleted
+						}
+						delete providerProfiles.apiConfigs[name]
+						changedProfiles.push(name)
+						existingNames.delete(name)
+					}
+				}
+
+				// Step 2: Process each cloud profile
+				for (const [cloudName, cloudProfile] of Object.entries(cloudProfiles)) {
+					if (!cloudProfile.id) {
+						continue // Skip profiles without IDs
+					}
+
+					// Find existing profile with matching ID
+					const existingEntry = Object.entries(providerProfiles.apiConfigs).find(
+						([_, profile]) => profile.id === cloudProfile.id,
+					)
+
+					if (existingEntry) {
+						// Step 3: Update existing profile
+						const [existingName, existingProfile] = existingEntry
+
+						// Check if this is the active profile
+						const isActiveProfile = existingName === currentActiveProfileName
+
+						// Merge settings, preserving secret keys
+						const updatedProfile: ProviderSettingsWithId = { ...cloudProfile }
+						for (const [key, value] of Object.entries(existingProfile)) {
+							if (isSecretStateKey(key) && value !== undefined) {
+								;(updatedProfile as any)[key] = value
+							}
+						}
+
+						// Check if the profile actually changed using deepEqual
+						const profileChanged = !deepEqual(existingProfile, updatedProfile)
+
+						// Handle name change
+						if (existingName !== cloudName) {
+							// Remove old entry
+							delete providerProfiles.apiConfigs[existingName]
+							existingNames.delete(existingName)
+
+							// Handle name conflict
+							let finalName = cloudName
+							if (existingNames.has(cloudName)) {
+								// There's a conflict - rename the existing non-cloud profile
+								const conflictingProfile = providerProfiles.apiConfigs[cloudName]
+								if (conflictingProfile.id !== cloudProfile.id) {
+									const newName = this.findUniqueProfileName(cloudName, existingNames)
+									providerProfiles.apiConfigs[newName] = conflictingProfile
+									existingNames.add(newName)
+									changedProfiles.push(newName)
+								}
+								delete providerProfiles.apiConfigs[cloudName]
+								existingNames.delete(cloudName)
+							}
+
+							// Add updated profile with new name
+							providerProfiles.apiConfigs[finalName] = updatedProfile
+							existingNames.add(finalName)
+							changedProfiles.push(finalName)
+							if (existingName !== finalName) {
+								changedProfiles.push(existingName) // Mark old name as changed (deleted)
+							}
+
+							// If this was the active profile, mark it as changed
+							if (isActiveProfile) {
+								activeProfileChanged = true
+								activeProfileId = cloudProfile.id || ""
+							}
+						} else if (profileChanged) {
+							// Same name, but profile content changed - update in place
+							providerProfiles.apiConfigs[existingName] = updatedProfile
+							changedProfiles.push(existingName)
+
+							// If this was the active profile and settings changed, mark it as changed
+							if (isActiveProfile) {
+								activeProfileChanged = true
+								activeProfileId = cloudProfile.id || ""
+							}
+						}
+						// If name is the same and profile hasn't changed, do nothing
+					} else {
+						// Step 4: Add new cloud profile
+						let finalName = cloudName
+
+						// Handle name conflict with existing non-cloud profile
+						if (existingNames.has(cloudName)) {
+							const existingProfile = providerProfiles.apiConfigs[cloudName]
+							if (existingProfile.id !== cloudProfile.id) {
+								// Rename the existing profile
+								const newName = this.findUniqueProfileName(cloudName, existingNames)
+								providerProfiles.apiConfigs[newName] = existingProfile
+								existingNames.add(newName)
+								changedProfiles.push(newName)
+
+								// Remove the old entry
+								delete providerProfiles.apiConfigs[cloudName]
+								existingNames.delete(cloudName)
+							}
+						}
+
+						// Add the new cloud profile (without secret keys)
+						const newProfile: ProviderSettingsWithId = { ...cloudProfile }
+						// Remove any secret keys from cloud profile
+						for (const key of Object.keys(newProfile)) {
+							if (isSecretStateKey(key)) {
+								delete (newProfile as any)[key]
+							}
+						}
+
+						providerProfiles.apiConfigs[finalName] = newProfile
+						existingNames.add(finalName)
+						changedProfiles.push(finalName)
+					}
+				}
+
+				// Step 5: Handle case where all profiles might be deleted
+				if (Object.keys(providerProfiles.apiConfigs).length === 0 && changedProfiles.length > 0) {
+					// Create a default profile only if we have changed profiles
+					const defaultProfile = { id: this.generateId() }
+					providerProfiles.apiConfigs["default"] = defaultProfile
+					activeProfileChanged = true
+					activeProfileId = defaultProfile.id || ""
+					changedProfiles.push("default")
+				}
+
+				// Step 6: If active profile was deleted, find a replacement
+				if (activeProfileChanged && !activeProfileId) {
+					const firstProfile = Object.values(providerProfiles.apiConfigs)[0]
+					if (firstProfile?.id) {
+						activeProfileId = firstProfile.id
+					}
+				}
+
+				// Step 7: Update cloudProfileIds
+				providerProfiles.cloudProfileIds = Array.from(newCloudIds)
+
+				// Save the updated profiles
+				await this.store(providerProfiles)
+
+				return {
+					hasChanges: changedProfiles.length > 0,
+					activeProfileChanged,
+					activeProfileId,
+				}
+			})
+		} catch (error) {
+			throw new Error(`Failed to sync cloud profiles: ${error}`)
 		}
 	}
 }
