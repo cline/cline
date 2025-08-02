@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import {
 	ModelInfo,
 	mainlandQwenModels,
@@ -16,7 +16,7 @@ import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { withRetry } from "../retry"
 
-interface QwenHandlerOptions {
+interface QwenHandlerOptions extends CommonApiHandlerOptions {
 	qwenApiKey?: string
 	qwenApiLine?: QwenApiRegions
 	apiModelId?: string

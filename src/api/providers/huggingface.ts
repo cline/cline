@@ -1,13 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, HuggingFaceModelId, ModelInfo, huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { HuggingFaceModelId, ModelInfo, huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface HuggingFaceHandlerOptions {
+interface HuggingFaceHandlerOptions extends CommonApiHandlerOptions {
 	huggingFaceApiKey?: string
 	huggingFaceModelId?: string
 	huggingFaceModelInfo?: ModelInfo
