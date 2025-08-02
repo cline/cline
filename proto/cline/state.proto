@@ -110,6 +110,7 @@ message UpdateSettingsRequest {
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   optional string openai_reasoning_effort = 15;
+  optional bool strict_plan_mode_enabled = 16;
 }
 
 // Complete API Configuration message

@@ -283,6 +283,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		preferredLanguage,
 		openaiReasoningEffort,
 		mode,
+		strictPlanModeEnabled,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -341,6 +342,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
 		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
+		getGlobalState(context, "strictPlanModeEnabled") as Promise<boolean | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "planModeApiModelId") as Promise<string | undefined>,
@@ -560,6 +562,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		preferredLanguage: preferredLanguage || "English",
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 		mode: mode || "act",
+		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,

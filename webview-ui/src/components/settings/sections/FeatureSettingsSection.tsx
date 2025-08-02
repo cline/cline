@@ -12,8 +12,14 @@ interface FeatureSettingsSectionProps {
 }
 
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
-	const { enableCheckpointsSetting, mcpMarketplaceEnabled, mcpDisplayMode, mcpResponsesCollapsed, openaiReasoningEffort } =
-		useExtensionState()
+	const {
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		mcpDisplayMode,
+		mcpResponsesCollapsed,
+		openaiReasoningEffort,
+		strictPlanModeEnabled,
+	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
 		updateSetting("openaiReasoningEffort", newValue)
@@ -101,6 +107,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</VSCodeDropdown>
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
+						</p>
+					</div>
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={strictPlanModeEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("strictPlanModeEnabled", checked)
+							}}>
+							Enable strict plan mode
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							Enforces strict tool use while in plan mode, preventing file edits.
 						</p>
 					</div>
 				</div>
