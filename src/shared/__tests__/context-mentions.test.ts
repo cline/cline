@@ -47,6 +47,11 @@ describe("Mention Regex", () => {
 				assertMatch(result)
 			})
 		})
+		it("handles unquoted paths with spaces correctly", () => {
+			// Should stop at the space
+			const match = mentionRegex.exec("@/path with spaces/file.txt")
+			expect(match?.[0]).to.equal("@/path")
+		})
 	})
 
 	describe("Existing Functionality", () => {
@@ -107,6 +112,7 @@ describe("Mention Regex", () => {
 				["C:\\folder\\file.txt", null],
 				["@", null],
 				["@ C:\\file.txt", null],
+				["@'/path/file.tar.gz'", null],
 			]
 
 			cases.forEach(([input, expected]) => {
@@ -185,6 +191,230 @@ describe("Mention Regex", () => {
 			cases.forEach(([input, expected]) => {
 				const result = testMention(input, expected)
 				assertMatch(result)
+			})
+		})
+	})
+	describe("Git Hash Edge Cases", () => {
+		it("matches git hashes of various valid lengths", () => {
+			const cases: Array<[string, string | null]> = [
+				// Valid lengths (7-40 characters)
+				["@abcdef1", "@abcdef1"], // 7 chars (minimum)
+				["@abcdef12", "@abcdef12"], // 8 chars
+				["@abcdef1234567890", "@abcdef1234567890"], // 16 chars
+				["@abcdef1234567890abcdef1234567890abcdef12", "@abcdef1234567890abcdef1234567890abcdef12"], // 40 chars (maximum)
+
+				// Invalid lengths
+				["@abcdef", null], // 6 chars (too short)
+				["@abcdef1234567890abcdef1234567890abcdef123", null], // 41 chars (too long, but would match first 40)
+
+				// Invalid characters
+				["@ghijklm", null], // Contains non-hex characters
+				["@ABCDEF1", null], // Uppercase not allowed
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				const actual = match ? match[0] : null
+				if (expected && expected.includes("41 chars")) {
+					// Special case: should match first 40 chars
+					expect(actual).to.equal("@abcdef1234567890abcdef1234567890abcdef12")
+				} else {
+					expect(actual).to.equal(expected)
+				}
+			})
+		})
+	})
+
+	describe("Punctuation at Boundaries", () => {
+		it("excludes all types of trailing punctuation", () => {
+			const cases: Array<[string, string]> = [
+				["@/path/file.txt.", "@/path/file.txt"],
+				["@problems:", "@problems"],
+				["@terminal;", "@terminal"],
+				["@/path/file.txt!", "@/path/file.txt"],
+				["@/path/file.txt?", "@/path/file.txt"],
+				["@git-changes,", "@git-changes"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+
+		it("handles multiple punctuation marks", () => {
+			const cases: Array<[string, string]> = [
+				["@/path/file.txt!?", "@/path/file.txt"],
+				["@problems...", "@problems"],
+				["@terminal!!", "@terminal"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+
+		it("doesn't match trailing punctuation in context", () => {
+			const cases: Array<[string, string[]]> = [
+				["Check the file at @/C:\\folder\\file.txt! for details.", ["@/C:\\folder\\file.txt"]],
+				["Review @problems, and @git-changes.", ["@problems", "@git-changes"]],
+				["Multiple: @/file1.txt, and @/C:\\file2.txt; and @terminal?", ["@/file1.txt", "@/C:\\file2.txt", "@terminal"]],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const matches = input.match(mentionRegexGlobal)
+				expect(matches).deep.eq(expected)
+			})
+		})
+	})
+
+	describe("URL Protocol Variations", () => {
+		it("matches various URL protocols", () => {
+			const cases: Array<[string, string]> = [
+				["@file://localhost/path/to/file", "@file://localhost/path/to/file"],
+				["@custom://app/resource", "@custom://app/resource"],
+				["@app://settings", "@app://settings"],
+				["@ssh://git@github.com/repo", "@ssh://git@github.com/repo"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+
+		it("matches URLs with complex structures", () => {
+			const cases: Array<[string, string]> = [
+				["@https://example.com?q=test&p=1", "@https://example.com?q=test&p=1"],
+				["@https://example.com#section", "@https://example.com#section"],
+				["@http://localhost:3000", "@http://localhost:3000"],
+				["@https://user:pass@example.com", "@https://user:pass@example.com"],
+				["@https://example.com/", "@https://example.com/"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+	})
+
+	describe("End of String Handling", () => {
+		it("matches mentions at end of string", () => {
+			const cases: Array<[string, string]> = [
+				["Check @/path/file.txt", "@/path/file.txt"],
+				["Review @problems", "@problems"],
+				["Open @terminal", "@terminal"],
+				["See @git-changes", "@git-changes"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+	})
+
+	describe("Complex Real-World Scenarios", () => {
+		it("handles mentions in markdown-like text", () => {
+			const text = "See @/docs/README.md, check @problems, and visit @https://example.com."
+			const matches = text.match(mentionRegexGlobal)
+			expect(matches).to.deep.equal(["@/docs/README.md", "@problems", "@https://example.com"])
+		})
+
+		it("handles mentions in code comments", () => {
+			const text = "// TODO: Fix @problems in @/src/index.js (see @git-changes)"
+			const matches = text.match(mentionRegexGlobal)
+			expect(matches).to.deep.equal(["@problems", "@/src/index.js", "@git-changes"])
+		})
+	})
+	describe("Quoted file paths", () => {
+		it("handles quoted paths correctly", () => {
+			const cases: Array<[string, string]> = [
+				['@"/path with space.txt"', '@"/path with space.txt"'],
+				['@"/path/ends/with-space "', '@"/path/ends/with-space "'],
+				['@"/ path-starts-with-space.txt"', '@"/ path-starts-with-space.txt"'],
+				['@"/path with space.txt!"', '@"/path with space.txt!"'],
+				['@"/path with space.txt!"!', '@"/path with space.txt!"'],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+		it("handles quotes inside file paths correctly", () => {
+			const cases: Array<[string, string]> = [
+				['@/"path/file.txt', '@/"path/file.txt'],
+				['@/path"/file".tar.gz', '@/path"/file".tar.gz'],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+	})
+	describe("Path Edge Cases", () => {
+		it("matches various path structures", () => {
+			const cases: Array<[string, string]> = [
+				["@/", "@/"], // root directory
+				['@"/"', '@"/"'], // quoted root directory
+				["@/path/to/.hidden/file", "@/path/to/.hidden/file"],
+				["@/path/file...txt", "@/path/file...txt"],
+				["@/path/file.tar.gz", "@/path/file.tar.gz"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+	})
+	describe("Whitespace Handling", () => {
+		it("stops at various whitespace characters", () => {
+			const cases: Array<[string, string]> = [
+				["@/path/file.txt\trest", "@/path/file.txt"],
+				["@/path/file.txt\nrest", "@/path/file.txt"],
+				["@/path/file.txt\rrest", "@/path/file.txt"],
+				["@/path/file.txt rest", "@/path/file.txt"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
+			})
+		})
+	})
+
+	describe("Keyword Boundaries", () => {
+		it("only matches exact keywords", () => {
+			const cases: Array<[string, string | null]> = [
+				["@problemsolver", null], // Should not match
+				["@terminals", null], // Should not match
+				["@git-changeset", null], // Should not match
+				["@problem", null], // Should not match
+				["@git-change", null], // Should not match
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				const actual = match ? match[0] : null
+				expect(actual).to.equal(expected)
+			})
+		})
+
+		it("matches keywords with trailing punctuation", () => {
+			const cases: Array<[string, string]> = [
+				["@problems!", "@problems"],
+				["@terminal.", "@terminal"],
+				["@git-changes,", "@git-changes"],
+			]
+
+			cases.forEach(([input, expected]) => {
+				const match = mentionRegex.exec(input)
+				expect(match?.[0]).to.equal(expected)
 			})
 		})
 	})
