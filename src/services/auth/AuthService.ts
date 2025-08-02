@@ -333,6 +333,10 @@ export class AuthService {
 					false, // Not the last message
 				)
 
+				if (this._clineAuthInfo) {
+					telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+				}
+
 				// Update the state in the webview
 				if (controller) {
 					await controller.postStateToWebview()
