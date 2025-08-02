@@ -6,6 +6,7 @@ import { storeSecret } from "@/core/storage/state"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
 
@@ -195,7 +196,9 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackUrl = `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`
+		const callbackHost =
+			(await AuthHandler.getInstance().getCallbackUri()) || `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
+		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(this._config.URI)
