@@ -45,7 +45,7 @@ export const Navbar = () => {
 	return (
 		<nav
 			id="cline-navbar-container"
-			className="fixed top-0 right-2 inline-flex justify-end bg-transparent shadow-sm max-h-[20px] w-full gap-2 mb-1 z-10 border-none items-center">
+			className="flex-none inline-flex justify-end bg-transparent shadow-sm gap-2 mb-1 z-10 border-none items-center mr-4!">
 			{SETTINGS_TABS.map((tab) => (
 				<TabTrigger
 					key={`navbar-trigger-${tab.id}`}

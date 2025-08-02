@@ -17,12 +17,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ isHidden, children }) =>
 const ChatLayoutContainer = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isHidden"].includes(prop),
 })<{ isHidden: boolean }>`
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
 	display: ${(props) => (props.isHidden ? "none" : "flex")};
 	flex-direction: column;
 	overflow: hidden;
+	padding: 0;
+	margin: 0;
+	width: 100%;
+	height: 100%;
+	min-height: 100vh;
 `
