@@ -315,6 +315,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -988,35 +989,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, openRouterModels])
 
-		const onModeToggle = useCallback(() => {
-			// if (textAreaDisabled) return
-			let changeModeDelay = 0
-			if (showModelSelector) {
-				// user has model selector open, so we should save it before switching modes
-				submitApiConfig()
-				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+		const onModeToggle = useCallback(async () => {
+			if (isSwitchingMode) return // prevent double toggling
+			setIsSwitchingMode(true)
+			const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+			const response = await StateServiceClient.togglePlanActModeProto({
+				mode: convertedProtoMode,
+				chatContent: {
+					message: inputValue.trim() ? inputValue : undefined,
+					images: selectedImages,
+					files: selectedFiles,
+				},
+			})
+			if (response?.value) {
+				setInputValue("")
 			}
-			setTimeout(async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages,
-							files: selectedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			}, changeModeDelay)
-		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+			textAreaRef.current?.focus()
+			setIsSwitchingMode(false)
+		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, isSwitchingMode])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1741,7 +1731,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<SwitchContainer data-testid="mode-switch" disabled={isSwitchingMode} onClick={onModeToggle}>
 							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
 								isActive={mode === "plan"}

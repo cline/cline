@@ -2456,6 +2456,14 @@ export class Task {
 					content: [{ type: "text", text: assistantMessage }],
 				})
 
+				// Check if assistant message contains "toggle to Act mode" pattern - if so, end the loop to wait for user's response
+				const trimmedAssistantMessage = assistantMessage?.toLowerCase().trim()
+				const hasPlanModeResponseTag = trimmedAssistantMessage?.includes("</plan_mode_respond>")
+				if (hasPlanModeResponseTag && trimmedAssistantMessage && /toggle to act mode\b/i.test(trimmedAssistantMessage)) {
+					this.taskState.isAwaitingPlanResponse = true
+					return true
+				}
+
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
