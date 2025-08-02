@@ -8,6 +8,7 @@ import { FeatureFlagsService } from "./feature-flags/FeatureFlagsService"
 import { TelemetryService } from "./telemetry/TelemetryService"
 
 const ENV_ID = vscode?.env?.machineId ?? process?.env?.UUID ?? uuidv4()
+
 export class PostHogClientProvider {
 	private static instance: PostHogClientProvider | null = null
 
@@ -15,6 +16,8 @@ export class PostHogClientProvider {
 	public readonly featureFlags: FeatureFlagsService
 	public readonly telemetry: TelemetryService
 	public readonly error: ErrorService
+
+	protected telemetryEnabled: boolean = vscode?.env?.isTelemetryEnabled ?? true
 
 	private cachedTelemetryLevel: string | null = null
 	private isShuttingDown = false
@@ -27,26 +30,32 @@ export class PostHogClientProvider {
 		})
 
 		// Initialize services
-		this.featureFlags = new FeatureFlagsService(this.client, distinctId)
-		this.telemetry = new TelemetryService(this, distinctId)
-		this.error = new ErrorService(this, distinctId)
+		this.featureFlags = new FeatureFlagsService(this.client, this.distinctId)
+		this.telemetry = new TelemetryService(this, this.distinctId)
+		this.error = new ErrorService(this, this.distinctId)
 
 		// Set up telemetry change listener
 		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-			if (!isTelemetryEnabled) {
-				this.log("telemetry_disabled")
-			}
+			this.setTelemetryEnabled(isTelemetryEnabled)
 		})
 
 		// Cache initial telemetry level
 		this.updateTelemetryLevel()
+		this.setTelemetryEnabled(this.isTelemetryEnabled)
+	}
 
-		// Listen for configuration changes
-		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration("cline.telemetryLevel")) {
-				this.updateTelemetryLevel()
-			}
-		})
+	private setTelemetryEnabled(enabled: boolean): void {
+		if (!enabled) {
+			this.log("telemetry_disabled")
+		}
+		this.telemetryEnabled = enabled
+		this.updateTelemetryLevel()
+	}
+
+	private get isTelemetryEnabled(): boolean {
+		const config = vscode.workspace.getConfiguration("cline")
+		const hasClineTelemetry = config.get("telemetrySetting") !== "disabled"
+		return vscode?.env?.isTelemetryEnabled && hasClineTelemetry
 	}
 
 	private updateTelemetryLevel(): void {
@@ -54,6 +63,7 @@ export class PostHogClientProvider {
 		this.cachedTelemetryLevel = config?.get<string>("telemetryLevel") || "all"
 	}
 
+	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private get telemetryLevel(): string {
 		const cached = this.cachedTelemetryLevel
 		return cached === "crash" || cached === "error" ? "error" : cached || "all"
@@ -120,6 +130,7 @@ export class PostHogClientProvider {
 	public log(event: string, properties?: Record<string, any>): void {
 		console.info(`PostHog Logging event: ${event}`, properties)
 		if (!vscode?.env?.isTelemetryEnabled || this.isShuttingDown) {
+			// Do not log if telemetry is disabled or shutting down
 			return
 		}
 		if (!PostHogClientProvider.instance?.isActive()) {

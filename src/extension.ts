@@ -6,7 +6,6 @@ import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cl
 import assert from "node:assert"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
-import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
@@ -51,7 +50,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	maybeSetupHostProviders(context)
 
-	let installId = context.globalState.get<string>("installId")
+	const installId = context.globalState.get<string>("installId")
 
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance(installId)
@@ -116,14 +115,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
 	}
 
-	// backup id in case vscMachineID doesn't work
-
-	if (!installId) {
-		installId = uuidv4()
-		await context.globalState.update("installId", installId)
-	}
-
-	telemetryService.captureExtensionActivated(installId)
+	telemetryService.captureExtensionActivated()
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
