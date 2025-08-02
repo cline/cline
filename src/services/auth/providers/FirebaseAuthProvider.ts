@@ -5,8 +5,8 @@ import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, 
 import { jwtDecode } from "jwt-decode"
 import type { ExtensionContext } from "vscode"
 import { clineEnvConfig } from "@/config"
-import { getSecret, storeSecret } from "@/core/storage/state"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { Controller } from "@/core/controller"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -41,8 +41,8 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
-	async retrieveClineAuthInfo(context: ExtensionContext): Promise<ClineAuthInfo | null> {
-		const userRefreshToken = await getSecret(context, "clineAccountId")
+	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
+		const userRefreshToken = controller.cacheService.getSecretKey("clineAccountId")
 		if (!userRefreshToken) {
 			console.error("No stored authentication credential found.")
 			return null
@@ -100,7 +100,7 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the sign-in fails.
 	 */
-	async signIn(context: ExtensionContext, token: string, provider: string): Promise<ClineAuthInfo | null> {
+	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
 			let credential: OAuthCredential
 			switch (provider) {
@@ -123,7 +123,7 @@ export class FirebaseAuthProvider {
 
 			// store the long-lived refresh token in secret storage
 			try {
-				await storeSecret(context, "clineAccountId", userCredential.refreshToken)
+				controller.cacheService.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
 				errorService.logMessage("Firebase store token error", "error")
 				errorService.logException(error)
@@ -131,7 +131,7 @@ export class FirebaseAuthProvider {
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
-			return await this.retrieveClineAuthInfo(context)
+			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
 			errorService.logMessage("Firebase sign-in error", "error")
 			errorService.logException(error)

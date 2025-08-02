@@ -30,7 +30,7 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 		options: { modal: true, items: ["Delete"] },
 	})
 
-	if (userChoice === undefined) {
+	if (userChoice.selectedOption !== "Delete") {
 		return Empty.create()
 	}
 
