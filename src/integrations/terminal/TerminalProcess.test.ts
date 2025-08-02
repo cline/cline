@@ -4,6 +4,8 @@ import * as sinon from "sinon"
 import { TerminalProcess } from "./TerminalProcess"
 import * as vscode from "vscode"
 import { TerminalRegistry } from "./TerminalRegistry"
+import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
@@ -36,6 +38,13 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox({ useFakeTimers: true })
+		HostProvider.reset()
+		HostProvider.initialize(
+			((_) => {}) as WebviewProviderCreator,
+			(() => {}) as DiffViewProviderCreator,
+			vscodeHostBridgeClient,
+			(s: string) => console.log(s),
+		)
 		process = new TerminalProcess()
 	})
 
