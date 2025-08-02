@@ -4,6 +4,7 @@ import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
+import { estimateTokens } from "@utils/tokenCounter"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
@@ -252,77 +253,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
-		// For Claude models, use character-to-token ratio instead of VSCode LM's inaccurate counting
-		if (this.isClaudeModel()) {
-			const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
-			// Use 4 character-to-token ratio for Claude models
-			return Math.ceil(textContent.length / 4)
-		}
-
-		// Check for required dependencies
-		if (!this.client) {
-			console.warn("Cline <Language Model API>: No client available for token counting")
-			return 0
-		}
-
-		if (!this.currentRequestCancellation) {
-			console.warn("Cline <Language Model API>: No cancellation token available for token counting")
-			return 0
-		}
-
-		// Validate input
-		if (!text) {
-			console.debug("Cline <Language Model API>: Empty text provided for token counting")
-			return 0
-		}
-
-		try {
-			// Handle different input types
-			let tokenCount: number
-
-			if (typeof text === "string") {
-				tokenCount = await this.client.countTokens(text, this.currentRequestCancellation.token)
-			} else if (text instanceof vscode.LanguageModelChatMessage) {
-				// For chat messages, ensure we have content
-				if (!text.content || (Array.isArray(text.content) && text.content.length === 0)) {
-					console.debug("Cline <Language Model API>: Empty chat message content")
-					return 0
-				}
-				tokenCount = await this.client.countTokens(text, this.currentRequestCancellation.token)
-			} else {
-				console.warn("Cline <Language Model API>: Invalid input type for token counting")
-				return 0
-			}
-
-			// Validate the result
-			if (typeof tokenCount !== "number") {
-				console.warn("Cline <Language Model API>: Non-numeric token count received:", tokenCount)
-				return 0
-			}
-
-			if (tokenCount < 0) {
-				console.warn("Cline <Language Model API>: Negative token count received:", tokenCount)
-				return 0
-			}
-
-			return tokenCount
-		} catch (error) {
-			// Handle specific error types
-			if (error instanceof vscode.CancellationError) {
-				console.debug("Cline <Language Model API>: Token counting cancelled by user")
-				return 0
-			}
-
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.warn("Cline <Language Model API>: Token counting failed:", errorMessage)
-
-			// Log additional error details if available
-			if (error instanceof Error && error.stack) {
-				console.debug("Token counting error stack:", error.stack)
-			}
-
-			return 0 // Fallback to prevent stream interruption
-		}
+		// Use tiktoken-based token counting for all models instead of VSCode LM's inaccurate counting
+		// This provides better accuracy across different model types
+		const textContent = typeof text === "string" ? text : this.extractTextFromMessage(text)
+		return await estimateTokens(textContent)
 	}
 
 	private async calculateTotalInputTokens(vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {
