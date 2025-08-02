@@ -13,6 +13,8 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -36,6 +38,7 @@ import * as vscode from "vscode"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -85,8 +88,6 @@ import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
-import { errorService } from "@services/posthog/PostHogClientProvider"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -241,7 +242,7 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Prepare effective API configuration
-		const effectiveApiConfiguration: ApiConfiguration = {
+		let effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
@@ -375,7 +376,7 @@ export class Task {
 		const lastMessageWithHash = clineMessages[lastHashIndex]
 
 		if (!message) {
-			console.error("Message not found for timestamp: " + messageTs)
+			console.error("Message not found", clineMessages)
 			return
 		}
 
@@ -405,8 +406,7 @@ export class Task {
 						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						console.log("Failed to initialize checkpoint tracker:")
-						console.error(errorMessage)
+						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.taskState.checkpointTrackerErrorMessage = errorMessage
 						await this.postStateToWebview()
 						HostProvider.window.showMessage({
@@ -463,7 +463,7 @@ export class Task {
 		if (!didWorkspaceRestoreFail) {
 			switch (restoreType) {
 				case "task":
-				case "taskAndWorkspace": {
+				case "taskAndWorkspace":
 					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -506,7 +506,6 @@ export class Task {
 						} satisfies ClineApiReqInfo),
 					)
 					break
-				}
 				case "workspace":
 					break
 			}
@@ -594,8 +593,7 @@ export class Task {
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.log(`Failed to initialize checkpoint tracker: ${errorMessage}`)
-				console.error(error)
+				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.taskState.checkpointTrackerErrorMessage = errorMessage
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
@@ -732,7 +730,7 @@ export class Task {
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:" + errorMessage)
+				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				return false
 			}
 		}
@@ -1034,9 +1032,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
-		const userContent: UserContent = [
+		let userContent: UserContent = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1163,7 +1161,7 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		const newUserContent: UserContent = [...modifiedOldUserContent]
+		let newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1320,7 +1318,7 @@ export class Task {
 					)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error(`Failed to initialize checkpoint tracker: ${errorMessage}`)
+					console.error("Failed to initialize checkpoint tracker:", errorMessage)
 					this.taskState.checkpointTrackerErrorMessage = errorMessage
 					await this.postStateToWebview()
 					return
@@ -1365,7 +1363,7 @@ export class Task {
 					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error(`Failed to initialize checkpoint tracker for attempt completion: ${errorMessage}`)
+					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
 					return
 				}
 			}
@@ -1467,7 +1465,7 @@ export class Task {
 			// Race between command completion and timeout
 			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
 				// If we get here due to timeout, return a partial result with timeout flag
-				console.info(`Command timed out after 30s: ${command}`)
+				Logger.info(`Command timed out after 30s: ${command}`)
 				return {
 					stdout: "",
 					stderr: "",
@@ -1484,7 +1482,7 @@ export class Task {
 				output = result.stdout || result.stderr || ""
 			}
 
-			console.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
+			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
 
 			// Add termination message if the command was terminated
 			if (wasTerminated) {
@@ -1506,15 +1504,15 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		console.info("IS_TEST: " + isInTestMode())
+		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
 		if (isInTestMode()) {
 			// In test mode, execute the command directly in Node
-			console.info("Executing command in Node: " + command)
+			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
-		console.info("Executing command in terminal: " + command)
+		Logger.info("Executing command in terminal: " + command)
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
@@ -1558,7 +1556,7 @@ export class Task {
 				didContinue = true
 				process.continue()
 			} catch {
-				console.error("Error while asking for command output")
+				Logger.error("Error while asking for command output")
 			} finally {
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
@@ -1619,7 +1617,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		const result = this.terminalManager.processOutput(outputLines)
+		let result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1668,10 +1666,7 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{
-		modelId: string
-		providerId: string
-	}> {
+	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
@@ -1680,9 +1675,7 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
-			timeout: 10_000,
-		}).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
@@ -1759,7 +1752,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1778,6 +1771,7 @@ export class Task {
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
+			// TODO: Move into errorService
 			errorService.logMessage(clineError.message)
 			errorService.logException(clineError)
 
@@ -2145,7 +2139,7 @@ export class Task {
 				}
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:" + errorMessage)
+				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 
 				// If the error was a timeout, we disabled all checkpoint operations for the rest of the task
 				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
@@ -2322,7 +2316,7 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
-						case "text": {
+						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
@@ -2343,7 +2337,6 @@ export class Task {
 							// present content to user
 							this.presentAssistantMessage()
 							break
-						}
 					}
 
 					if (this.taskState.abort) {
