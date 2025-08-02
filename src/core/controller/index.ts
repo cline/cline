@@ -1,7 +1,7 @@
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -36,6 +36,7 @@ import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { Logger } from "@/services/logging/Logger"
 import { getLatestAnnouncementId } from "@/extension"
 
 /*
@@ -101,7 +102,7 @@ export class Controller {
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
-			console.error("Failed to cleanup legacy checkpoints:", error)
+			Logger.error("Failed to cleanup legacy checkpoints:", error)
 		})
 	}
 
@@ -125,7 +126,7 @@ export class Controller {
 		this.workspaceTracker.dispose()
 		this.mcpHub.dispose()
 
-		console.error("Controller disposed")
+		Logger.error("Controller disposed")
 	}
 
 	// Auth methods
@@ -319,7 +320,7 @@ export class Controller {
 			try {
 				await this.task.abortTask()
 			} catch (error) {
-				console.error("Failed to abort task", error)
+				Logger.error("Failed to abort task", error)
 			}
 			await pWaitFor(
 				() =>
@@ -331,7 +332,7 @@ export class Controller {
 					timeout: 3_000,
 				},
 			).catch(() => {
-				console.error("Failed to abort task")
+				Logger.error("Failed to abort task")
 			})
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
@@ -382,7 +383,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to handle auth callback:", error)
+			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
@@ -418,7 +419,7 @@ export class Controller {
 			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
+			Logger.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
 				HostProvider.window.showMessage({
@@ -456,7 +457,7 @@ export class Controller {
 			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
+			Logger.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
 				throw new Error(errorMessage)
@@ -472,7 +473,7 @@ export class Controller {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace:", error)
+			Logger.error("Failed to silently refresh MCP marketplace:", error)
 		}
 	}
 
@@ -485,7 +486,7 @@ export class Controller {
 		try {
 			return await this.fetchMcpMarketplaceFromApiRPC(true)
 		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			Logger.error("Failed to silently refresh MCP marketplace (RPC):", error)
 			return undefined
 		}
 	}
@@ -506,7 +507,7 @@ export class Controller {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
-			console.error("Failed to handle cached MCP marketplace:", error)
+			Logger.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -527,7 +528,7 @@ export class Controller {
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			console.error("Error exchanging code for API key:", error)
+			Logger.error("Error exchanging code for API key:", error)
 			throw error
 		}
 

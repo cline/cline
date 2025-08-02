@@ -1,7 +1,7 @@
-import { useEffect, type ReactNode } from "react"
-import { PostHogProvider } from "posthog-js/react"
-import posthog from "posthog-js"
 import { posthogConfig } from "@shared/services/config/posthog-config"
+import posthog from "posthog-js"
+import { PostHogProvider } from "posthog-js/react"
+import { type ReactNode, useEffect } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
@@ -23,6 +23,10 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			disable_session_recording: true,
 			capture_pageview: false,
 			capture_dead_clicks: true,
+			// Feature flags should work regardless of telemetry opt-out
+			advanced_disable_decide: false,
+			// Autocapture should respect telemetry settings
+			autocapture: false,
 		})
 	}, [])
 
@@ -32,7 +36,12 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 		}
 
 		posthog.set_config({
-			before_send: (payload: any) => {
+			before_send: (payload) => {
+				// Only filter out events if telemetry is disabled, but allow feature flag requests
+				if (!isTelemetryEnabled && payload?.event !== "$feature_flag_called") {
+					return null
+				}
+
 				if (payload?.properties) {
 					payload.properties.extension_version = version
 					payload.properties.distinct_id = distinctId
@@ -48,6 +57,9 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			posthog.opt_in_capturing()
 			posthog.identify(distinctId)
 		} else if (!isTelemetryEnabled && !optedOut) {
+			// For feature flags to work, we need to identify the user even when telemetry is disabled
+			posthog.identify(distinctId)
+			// Then opt out of capturing other events
 			posthog.opt_out_capturing()
 		}
 	}, [isTelemetryEnabled, distinctId, version])

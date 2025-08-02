@@ -1,13 +1,14 @@
-import { Controller } from ".."
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
-import { groqModels } from "../../../shared/api"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
-import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo, type OpenRouterModelInfo } from "@shared/proto/cline/models"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { groqModels } from "../../../shared/api"
+import { getAllExtensionState } from "../../storage/state"
+import type { Controller } from ".."
 
 /**
  * Refreshes the Groq models and returns the updated model list
@@ -91,7 +92,7 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 			console.log("Groq models fetched and saved", models)
 		}
 	} catch (error) {
-		console.error("Error fetching Groq models:", error)
+		console.error("Failed to fetch Groq models:", error)
 
 		// Provide more specific error messages
 		let errorMessage = "Unknown error occurred"
@@ -111,7 +112,12 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 			errorMessage = error.message
 		}
 
-		console.error("Groq API Error:", errorMessage)
+		telemetryService.captureProviderApiError({
+			taskId: controller.task?.taskId || "",
+			errorMessage,
+			errorStatus: error.status,
+			model: "groq",
+		})
 
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readGroqModels(controller)
@@ -181,7 +187,7 @@ async function readGroqModels(controller: Controller): Promise<Record<string, Pa
  */
 function isValidChatModel(rawModel: any): boolean {
 	// Check if model is active (if the property exists)
-	if (rawModel.hasOwnProperty("active") && !rawModel.active) {
+	if (Object.hasOwn(rawModel, "active") && !rawModel.active) {
 		return false
 	}
 	// Filter out non-chat models (whisper, TTS, guard models, etc.)

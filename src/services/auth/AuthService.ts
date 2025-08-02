@@ -1,13 +1,14 @@
-import vscode from "vscode"
-import { clineEnvConfig } from "@/config"
-import { Controller } from "@/core/controller"
-import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { storeSecret } from "@/core/storage/state"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import vscode from "vscode"
+import { clineEnvConfig } from "@/config"
+import type { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { storeSecret } from "@/core/storage/state"
+import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
 import { openExternal } from "@/utils/env"
+import { featureFlagsService, telemetryService } from "../posthog/PostHogClientProvider"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -236,7 +237,6 @@ export class AuthService {
 			}
 
 			await this.sendAuthStatusUpdate()
-			// return this._clineAuthInfo
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
@@ -276,6 +276,10 @@ export class AuthService {
 			this._authenticated = false
 			this._clineAuthInfo = null
 			return
+		}
+
+		for (const flag of Object.values(FEATURE_FLAGS)) {
+			await featureFlagsService?.isFeatureFlagEnabled(flag)
 		}
 	}
 
@@ -328,6 +332,10 @@ export class AuthService {
 					authInfo,
 					false, // Not the last message
 				)
+
+				if (this._clineAuthInfo) {
+					telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+				}
 
 				// Update the state in the webview
 				if (controller) {

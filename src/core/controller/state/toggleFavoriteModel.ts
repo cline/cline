@@ -1,7 +1,7 @@
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { Controller } from ".."
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { updateGlobalState } from "@/core/storage/state"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import type { Controller } from ".."
 
 /**
  * Toggles a model's favorite status
