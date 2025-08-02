@@ -612,7 +612,7 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
-	// TODO: Re-enable or remove these tests. 
+	// TODO: Re-enable or remove these tests.
 	// describe("getModelId", () => {
 	// 	it("should return raw model ID for custom models", async () => {
 	// 		const customOptions: ApiHandlerOptions = {
