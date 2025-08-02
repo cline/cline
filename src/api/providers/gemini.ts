@@ -7,7 +7,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
@@ -336,25 +336,13 @@ export class GeminiHandler implements ApiHandler {
 
 		// Create the trace object for debugging
 		const trace: Record<string, { price: number; tokens: number; cost: number }> = {
-			input: {
-				price: inputPrice,
-				tokens: uncachedInputTokens,
-				cost: inputTokensCost,
-			},
-			output: {
-				price: outputPrice,
-				tokens: outputTokens,
-				cost: responseTokensCost,
-			},
+			input: { price: inputPrice, tokens: uncachedInputTokens, cost: inputTokensCost },
+			output: { price: outputPrice, tokens: outputTokens, cost: responseTokensCost },
 		}
 
 		// Only include cache read costs in the trace (cache write costs are tracked separately)
 		if ((cacheReadTokens ?? 0) > 0) {
-			trace.cacheRead = {
-				price: cacheReadsPrice,
-				tokens: cacheReadTokens ?? 0,
-				cost: cacheReadCost,
-			}
+			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
 		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)

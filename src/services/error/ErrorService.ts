@@ -3,7 +3,7 @@ import type { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import { ClineError } from "./ClineError"
 
 const isDev = process.env.IS_DEV === "true"
-const EXTENSION_ID = "saoudrizwan.claude-dev"
+// const EXTENSION_ID = "saoudrizwan.claude-dev"
 
 export class ErrorService {
 	private posthogProvider: PostHogClientProvider
@@ -15,10 +15,10 @@ export class ErrorService {
 
 	public logException(error: Error | ClineError): void {
 		console.error("[ErrorService] logException", error)
-		const isClineExtError = error.stack?.includes(EXTENSION_ID)
-		if (!isClineExtError) {
-			return
-		}
+		// const isClineExtError = error.stack?.includes(EXTENSION_ID)
+		// if (!isClineExtError) {
+		// 	return
+		// }
 
 		const errorDetails = {
 			message: error.message,

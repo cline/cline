@@ -1,61 +1,61 @@
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import type Anthropic from "@anthropic-ai/sdk"
+import type { ApiHandler } from "@api/index"
+import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { extractFileContent } from "@integrations/misc/extract-file-content"
+import { processFilesIntoText } from "@integrations/misc/extract-text"
+import type WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import type { McpHub } from "@services/mcp/McpHub"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { BrowserSettings } from "@shared/BrowserSettings"
+import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import {
+	type BrowserAction,
+	type BrowserActionResult,
+	browserActions,
+	type ClineAsk,
+	type ClineAskQuestion,
+	type ClineAskUseMcpServer,
+	type ClinePlanModeResponse,
+	type ClineSay,
+	type ClineSayBrowserAction,
+	type ClineSayTool,
+	COMPLETION_RESULT_CHANGES_FLAG,
+} from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
+import type { ClineAskResponse } from "@shared/WebviewMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
+import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import os from "os"
+import * as path from "path"
+import { serializeError } from "serialize-error"
+import * as vscode from "vscode"
 import { showSystemNotification } from "@/integrations/notifications"
 import { listFiles } from "@/services/glob/list-files"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { regexSearchFiles } from "@/services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
 import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
 import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
-import Anthropic from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { McpHub } from "@services/mcp/McpHub"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import {
-	BrowserAction,
-	BrowserActionResult,
-	browserActions,
-	ClineAsk,
-	ClineAskQuestion,
-	ClineAskUseMcpServer,
-	ClinePlanModeResponse,
-	ClineSay,
-	ClineSayBrowserAction,
-	ClineSayTool,
-	COMPLETION_RESULT_CHANGES_FLAG,
-} from "@shared/ExtensionMessage"
-import { ClineAskResponse } from "@shared/WebviewMessage"
-import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
-import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { fileExistsAtPath } from "@utils/fs"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
-import * as path from "path"
-import { serializeError } from "serialize-error"
-import * as vscode from "vscode"
-import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
-import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
+import type { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
 import { constructNewFileContent } from "../assistant-message/diff"
-import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
-import { ContextManager } from "../context/context-management/ContextManager"
+import { type ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
+import type { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
+import type { CacheService } from "../storage/CacheService"
 import { ensureTaskDirectoryExists } from "../storage/disk"
-import { CacheService } from "../storage/CacheService"
-import { TaskState } from "./TaskState"
-import { MessageStateHandler } from "./message-state"
+import { type ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
+import type { MessageStateHandler } from "./message-state"
+import type { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { Mode } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove

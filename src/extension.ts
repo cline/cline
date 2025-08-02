@@ -20,7 +20,8 @@ import {
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
-import { telemetryService, PostHogClientProvider, getPostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
@@ -50,10 +51,9 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	maybeSetupHostProviders(context)
 
-	const installId = context.globalState.get<string>("installId")
-
 	// Initialize PostHog client provider
-	PostHogClientProvider.getInstance(installId)
+	const distinctId = context.globalState.get<string>("cline.distinctId")
+	PostHogClientProvider.getInstance(distinctId)
 
 	Logger.log("Cline extension activated")
 
@@ -695,12 +695,13 @@ function maybeSetupHostProviders(context: ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	PostHogClientProvider.getInstance().dispose()
+
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
 
 	// Clean up test mode
 	cleanupTestMode()
-	await getPostHogClientProvider().shutdown()
 
 	Logger.log("Cline extension deactivated")
 }

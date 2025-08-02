@@ -1,11 +1,11 @@
 import { GlobalFileNames } from "@core/storage/disk"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, type OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { groqModels } from "../../../shared/api"
 import { getAllExtensionState } from "../../storage/state"
 import type { Controller } from ".."
@@ -92,7 +92,7 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 			console.log("Groq models fetched and saved", models)
 		}
 	} catch (error) {
-		console.error("Failed to fetch Groq models:", error)
+		console.error("Error fetching Groq models:", error)
 
 		// Provide more specific error messages
 		let errorMessage = "Unknown error occurred"

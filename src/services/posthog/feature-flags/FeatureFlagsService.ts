@@ -1,5 +1,3 @@
-import type { PostHog } from "posthog-node"
-
 /**
  * FeatureFlagsService provides feature flag functionality that works independently
  * of telemetry settings. Feature flags are always available to ensure proper
@@ -7,10 +5,10 @@ import type { PostHog } from "posthog-node"
  */
 export class FeatureFlagsService {
 	public constructor(
-		private readonly client: PostHog,
-		private readonly distinctId: string,
+		private readonly getFeatureFlag: (flag: string) => Promise<boolean | string | undefined>,
+		private readonly getFeatureFlagPayload: (flag: string) => Promise<unknown>,
 	) {
-		console.log("[FeatureFlagsService] Initialized with distinctId:", this.distinctId)
+		console.log("[FeatureFlagsService] Initialized with distinctId:")
 	}
 
 	/**
@@ -24,11 +22,7 @@ export class FeatureFlagsService {
 	public async isFeatureFlagEnabled(flagName: string): Promise<boolean> {
 		console.info("[FeatureFlagsService] Checking feature flag:", flagName)
 		try {
-			if (!this.client) {
-				console.warn("[FeatureFlagsService] PostHog client is not initialized")
-				return false
-			}
-			const flagEnabled = await this.client.getFeatureFlag(flagName, this.distinctId)
+			const flagEnabled = await this.getFeatureFlag(flagName)
 			console.log(`Feature flag ${flagName} is enabled:`, flagEnabled === true)
 			return flagEnabled === true
 		} catch (error) {
@@ -42,9 +36,9 @@ export class FeatureFlagsService {
 	 * @param flagName The feature flag key
 	 * @returns The feature flag payload or null if not found
 	 */
-	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
+	public async getPayload(flagName: string): Promise<unknown> {
 		try {
-			return await this.client.getFeatureFlagPayload(flagName, this.distinctId)
+			return await this.getFeatureFlagPayload(flagName)
 		} catch (error) {
 			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
 			return null

@@ -1,9 +1,9 @@
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
 import simpleGit, { type SimpleGit } from "simple-git"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 
 interface CheckpointAddResult {

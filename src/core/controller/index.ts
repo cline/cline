@@ -1,43 +1,42 @@
-import { clineEnvConfig } from "@/config"
-import { HostProvider } from "@/hosts/host-provider"
-import { AuthService } from "@/services/auth/AuthService"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "@/shared/proto/host/window"
-import { getCwd, getDesktopDir } from "@/utils/path"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
-import { ApiProvider, ModelInfo } from "@shared/api"
-import { ChatContent } from "@shared/ChatContent"
-import { Mode } from "@shared/storage/types"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
-import { McpMarketplaceCatalog } from "@shared/mcp"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { UserInfo } from "@shared/UserInfo"
-import { WebviewMessage } from "@shared/WebviewMessage"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import type { ApiProvider, ModelInfo } from "@shared/api"
+import type { ChatContent } from "@shared/ChatContent"
+import type { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
+import type { McpMarketplaceCatalog } from "@shared/mcp"
+import type { Mode } from "@shared/storage/types"
+import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { UserInfo } from "@shared/UserInfo"
+import type { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { clineEnvConfig } from "@/config"
+import { getLatestAnnouncementId } from "@/extension"
+import { HostProvider } from "@/hosts/host-provider"
+import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { getCwd, getDesktopDir } from "@/utils/path"
+import type { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
-import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { Logger } from "@/services/logging/Logger"
-import { getLatestAnnouncementId } from "@/extension"
+import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -97,12 +96,12 @@ export class Controller {
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 		this.accountService = ClineAccountService.getInstance()
-		this.authService = AuthService.getInstance(context)
+		this.authService = AuthService.getInstance(this)
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
-			Logger.error("Failed to cleanup legacy checkpoints:", error)
+			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
 	}
 
@@ -126,14 +125,14 @@ export class Controller {
 		this.workspaceTracker.dispose()
 		this.mcpHub.dispose()
 
-		Logger.error("Controller disposed")
+		console.error("Controller disposed")
 	}
 
 	// Auth methods
 	async handleSignOut() {
 		try {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			await storeSecret(this.context, "clineAccountId", undefined)
+			this.cacheService.setSecret("clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
 
 			// Update API providers through cache service
@@ -320,7 +319,7 @@ export class Controller {
 			try {
 				await this.task.abortTask()
 			} catch (error) {
-				Logger.error("Failed to abort task", error)
+				console.error("Failed to abort task", error)
 			}
 			await pWaitFor(
 				() =>
@@ -332,7 +331,7 @@ export class Controller {
 					timeout: 3_000,
 				},
 			).catch(() => {
-				Logger.error("Failed to abort task")
+				console.error("Failed to abort task")
 			})
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
@@ -356,7 +355,7 @@ export class Controller {
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.cacheService.getApiConfiguration()
 
-			let updatedConfig = { ...currentApiConfiguration }
+			const updatedConfig = { ...currentApiConfiguration }
 
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
@@ -383,7 +382,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			Logger.error("Failed to handle auth callback:", error)
+			console.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
@@ -419,7 +418,7 @@ export class Controller {
 			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
-			Logger.error("Failed to fetch MCP marketplace:", error)
+			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
 				HostProvider.window.showMessage({
@@ -457,7 +456,7 @@ export class Controller {
 			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
-			Logger.error("Failed to fetch MCP marketplace:", error)
+			console.error("Failed to fetch MCP marketplace:", error)
 			if (!silent) {
 				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
 				throw new Error(errorMessage)
@@ -473,7 +472,7 @@ export class Controller {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
-			Logger.error("Failed to silently refresh MCP marketplace:", error)
+			console.error("Failed to silently refresh MCP marketplace:", error)
 		}
 	}
 
@@ -486,7 +485,7 @@ export class Controller {
 		try {
 			return await this.fetchMcpMarketplaceFromApiRPC(true)
 		} catch (error) {
-			Logger.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
 			return undefined
 		}
 	}
@@ -507,7 +506,7 @@ export class Controller {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
 		} catch (error) {
-			Logger.error("Failed to handle cached MCP marketplace:", error)
+			console.error("Failed to handle cached MCP marketplace:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -528,7 +527,7 @@ export class Controller {
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			Logger.error("Error exchanging code for API key:", error)
+			console.error("Error exchanging code for API key:", error)
 			throw error
 		}
 
@@ -765,7 +764,7 @@ export class Controller {
 		const latestAnnouncementId = getLatestAnnouncementId(this.context)
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
-		const distinctId = telemetryService.distinctId
+		const distinctId = PostHogClientProvider.getInstance().distinctId
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
 

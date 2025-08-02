@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import type { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../../package.json"
-import type { PostHogClientProvider } from "../PostHogClientProvider"
+import { PostHogClientProvider } from "../PostHogClientProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -37,6 +37,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 		},
 		TASK: {
@@ -90,10 +91,6 @@ export class TelemetryService {
 		},
 	}
 
-	/** PostHogClientProvider instance for sending analytics events */
-	private provider: any // Will be typed properly when we import the type
-	/** Unique identifier for the current VSCode instance */
-	public distinctId: string
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
 	/** Whether the extension is running in development mode */
@@ -103,9 +100,8 @@ export class TelemetryService {
 	 * Constructor that accepts a PostHogClientProvider instance
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	public constructor(provider: PostHogClientProvider, distinctId: string) {
-		this.provider = provider
-		this.distinctId = distinctId
+	public constructor(private provider: PostHogClientProvider) {
+		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 		console.info("[TelemetryService] Initialized with PostHogClientProvider")
 	}
 
@@ -116,12 +112,9 @@ export class TelemetryService {
 	 */
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
-		const globalTelemetryEnabled = vscode.env.isTelemetryEnabled
 
 		// We only enable telemetry if global vscode telemetry is enabled
-		if (globalTelemetryEnabled) {
-			this.provider.telemetryLevel = didUserOptIn
-		} else {
+		if (!vscode.env.isTelemetryEnabled) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
 				void vscode.window
@@ -135,10 +128,9 @@ export class TelemetryService {
 						}
 					})
 			}
-			this.provider.telemetryLevel = false
 		}
 
-		this.provider.toggleOptIn(this.distinctId)
+		this.provider.toggleOptIn(didUserOptIn)
 	}
 
 	private addProperties(properties: any): any {
@@ -153,7 +145,7 @@ export class TelemetryService {
 	 * Captures a telemetry event if telemetry is enabled
 	 * @param event The event to capture with its properties
 	 */
-	public capture(event: { event: string; properties?: any }): void {
+	public capture(event: { event: string; properties?: unknown }): void {
 		const propertiesWithVersion = this.addProperties(event.properties)
 
 		// Use the provider's log method instead of direct client capture
@@ -161,9 +153,6 @@ export class TelemetryService {
 	}
 
 	public captureExtensionActivated() {
-		// Access client through the provider for identify operation
-		// this.provider.identifyAccount({ distinctId: this.distinctId })
-
 		// Use provider's log method for the activation event
 		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
 	}
@@ -242,7 +231,7 @@ export class TelemetryService {
 			return
 		}
 
-		const properties: Record<string, any> = {
+		const properties: Record<string, unknown> = {
 			taskId,
 			provider,
 			model,
@@ -481,7 +470,7 @@ export class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
-			[key: string]: any
+			[key: string]: unknown
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
@@ -618,14 +607,6 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Checks if telemetry is enabled
-	 * @returns Boolean indicating whether telemetry is enabled
-	 */
-	public isTelemetryEnabled(): boolean {
-		return this.provider.telemetryEnabled
-	}
-
-	/**
 	 * Checks if a specific telemetry category is enabled
 	 * @param category The telemetry category to check
 	 * @returns Boolean indicating whether the specified telemetry category is enabled
@@ -634,10 +615,8 @@ export class TelemetryService {
 		// Default to true if category has not been explicitly configured
 		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
-
-	public async shutdown(): Promise<void> {
-		// No opt as we need to keep PostHog running for the shutdown process.
-		// Plus, the feature flags service is also using PostHog.
-		console.info("[TelemetryService] Shutting down Telemetry client")
-	}
 }
+
+const getTelemetryService = (): TelemetryService => PostHogClientProvider.getInstance().telemetry
+
+export const telemetryService = getTelemetryService()

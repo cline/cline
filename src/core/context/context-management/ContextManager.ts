@@ -8,7 +8,6 @@ import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Logger } from "@/services/logging/Logger"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -82,7 +81,7 @@ export class ContextManager {
 				)
 			}
 		} catch (error) {
-			Logger.error("Failed to load context history:", error)
+			console.error("Failed to load context history:", error)
 		}
 		return new Map()
 	}
@@ -102,7 +101,7 @@ export class ContextManager {
 				"utf8",
 			)
 		} catch (error) {
-			Logger.error("Failed to save context history:", error)
+			console.error("Failed to save context history:", error)
 		}
 	}
 

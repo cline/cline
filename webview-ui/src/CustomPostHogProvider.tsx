@@ -1,22 +1,22 @@
 import { posthogConfig } from "@shared/services/config/posthog-config"
 import posthog from "posthog-js"
 import { PostHogProvider } from "posthog-js/react"
-import { type ReactNode, useEffect } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { telemetrySetting, distinctId, version } = useExtensionState()
-	const isTelemetryEnabled = telemetrySetting !== "disabled"
+	const { telemetrySetting, distinctId, version, userInfo } = useExtensionState()
 
 	// NOTE: This is a hack to stop recording webview click events temporarily.
 	// Remove this to re-enable.
-	const temporaryDisabled = true
+	// const isTelemetryEnabled = telemetrySetting !== "disabled";
+	const isTelemetryEnabled = false
+	const [isActive, setIsActive] = useState(false)
 
 	useEffect(() => {
-		if (temporaryDisabled) {
+		if (isActive || !isTelemetryEnabled) {
 			return
 		}
-
 		posthog.init(posthogConfig.apiKey, {
 			api_host: posthogConfig.host,
 			ui_host: posthogConfig.uiHost,
@@ -28,10 +28,11 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			// Autocapture should respect telemetry settings
 			autocapture: false,
 		})
+		setIsActive(true)
 	}, [])
 
 	useEffect(() => {
-		if (temporaryDisabled || distinctId.length === 0 || version.length === 0) {
+		if (!isTelemetryEnabled || !isActive || !distinctId || !version) {
 			return
 		}
 
@@ -52,17 +53,20 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 
 		const optedIn = posthog.has_opted_in_capturing()
 		const optedOut = posthog.has_opted_out_capturing()
-
+		const args = {
+			email: userInfo?.email,
+			name: userInfo?.displayName,
+		}
 		if (isTelemetryEnabled && !optedIn) {
 			posthog.opt_in_capturing()
-			posthog.identify(distinctId)
+			posthog.identify(distinctId, args)
 		} else if (!isTelemetryEnabled && !optedOut) {
 			// For feature flags to work, we need to identify the user even when telemetry is disabled
-			posthog.identify(distinctId)
+			posthog.identify(distinctId, args)
 			// Then opt out of capturing other events
 			posthog.opt_out_capturing()
 		}
-	}, [isTelemetryEnabled, distinctId, version])
+	}, [isActive, isTelemetryEnabled, distinctId, version])
 
 	return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }

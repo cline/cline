@@ -1,5 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { Controller } from "@core/controller"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
@@ -15,7 +16,6 @@ import PCR from "puppeteer-chromium-resolver"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { type Browser, connect, launch, type Page, TimeoutError } from "puppeteer-core"
 import * as vscode from "vscode"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
 interface PCRStats {

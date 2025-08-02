@@ -9,90 +9,90 @@ import { TelemetryService } from "./telemetry/TelemetryService"
 
 const ENV_ID = vscode?.env?.machineId ?? process?.env?.UUID ?? uuidv4()
 
+interface TelemetrySettings {
+	cline: boolean
+	host: boolean
+	level?: "all" | "off" | "error" | "crash"
+}
+
 export class PostHogClientProvider {
-	private static instance: PostHogClientProvider | null = null
+	private static _instance: PostHogClientProvider | null = null
+
+	public static getInstance(id?: string): PostHogClientProvider {
+		if (!PostHogClientProvider._instance) {
+			PostHogClientProvider._instance = new PostHogClientProvider(id)
+		}
+		return PostHogClientProvider._instance
+	}
+
+	protected telemetrySettings: TelemetrySettings = {
+		cline: true,
+		host: true,
+		level: "all",
+	}
 
 	public readonly client: PostHog
+
 	public readonly featureFlags: FeatureFlagsService
 	public readonly telemetry: TelemetryService
 	public readonly error: ErrorService
 
-	protected telemetryEnabled: boolean = vscode?.env?.isTelemetryEnabled ?? true
-
-	private cachedTelemetryLevel: string | null = null
-	private isShuttingDown = false
-
-	private constructor(protected distinctId = ENV_ID) {
+	private constructor(public distinctId = ENV_ID) {
 		// Initialize PostHog client
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
 			enableExceptionAutocapture: true,
 		})
 
-		// Initialize services
-		this.featureFlags = new FeatureFlagsService(this.client, this.distinctId)
-		this.telemetry = new TelemetryService(this, this.distinctId)
-		this.error = new ErrorService(this, this.distinctId)
-
-		// Set up telemetry change listener
 		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-			this.setTelemetryEnabled(isTelemetryEnabled)
+			this.telemetrySettings.host = isTelemetryEnabled
 		})
 
-		// Cache initial telemetry level
-		this.updateTelemetryLevel()
-		this.setTelemetryEnabled(this.isTelemetryEnabled)
-	}
-
-	private setTelemetryEnabled(enabled: boolean): void {
-		if (!enabled) {
-			this.log("telemetry_disabled")
+		if (vscode?.env?.isTelemetryEnabled === false) {
+			this.telemetrySettings.host = false
 		}
-		this.telemetryEnabled = enabled
-		this.updateTelemetryLevel()
+
+		const config = vscode.workspace.getConfiguration("cline")
+		if (config.get("telemetrySetting") === "disabled") {
+			this.telemetrySettings.cline = false
+		}
+
+		this.telemetrySettings.level = this.telemetryLevel
+
+		console.log("Is activating PostHogClientProvider with distinctId:", this.distinctId)
+
+		// Initialize services
+		this.telemetry = new TelemetryService(this)
+		this.error = new ErrorService(this, this.distinctId)
+		this.featureFlags = new FeatureFlagsService(
+			(flag: string) => this.client.getFeatureFlag(flag, this.distinctId),
+			(flag: string) => this.client.getFeatureFlagPayload(flag, this.distinctId),
+		)
 	}
 
 	private get isTelemetryEnabled(): boolean {
-		const config = vscode.workspace.getConfiguration("cline")
-		const hasClineTelemetry = config.get("telemetrySetting") !== "disabled"
-		return vscode?.env?.isTelemetryEnabled && hasClineTelemetry
-	}
-
-	private updateTelemetryLevel(): void {
-		const config = vscode.workspace.getConfiguration("cline")
-		this.cachedTelemetryLevel = config?.get<string>("telemetryLevel") || "all"
+		console.log("Telemetry is enabled:", this.telemetrySettings)
+		return this.telemetrySettings.cline && this.telemetrySettings.host
 	}
 
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
-	private get telemetryLevel(): string {
-		const cached = this.cachedTelemetryLevel
-		return cached === "crash" || cached === "error" ? "error" : cached || "all"
-	}
-
-	/**
-	 * Gets or creates the singleton instance
-	 */
-	public static getInstance(id?: string): PostHogClientProvider {
-		if (!PostHogClientProvider.instance) {
-			PostHogClientProvider.instance = new PostHogClientProvider(id)
+	private get telemetryLevel(): TelemetrySettings["level"] {
+		if (!vscode?.env?.isTelemetryEnabled) {
+			return "off"
 		}
-		return PostHogClientProvider.instance
-	}
-
-	/**
-	 * Checks if instance exists
-	 */
-	public isActive(): boolean {
-		return PostHogClientProvider.instance !== null
+		const config = vscode.workspace.getConfiguration("telemetry")
+		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
 	}
 
 	public toggleOptIn(optIn: boolean): void {
-		if (optIn) {
+		console.log("Telemetry opt-in status:", optIn)
+		if (optIn && !this.telemetrySettings.cline) {
 			this.client.optIn()
-		} else {
+		}
+		if (!optIn && this.telemetrySettings.cline) {
 			this.client.optOut()
 		}
-		this.identifyAccount()
+		this.telemetrySettings.cline = optIn
 	}
 
 	/**
@@ -101,18 +101,11 @@ export class PostHogClientProvider {
 	 * Otherwise, it will use the DISTINCT_ID as the distinct ID.
 	 * @param userInfo The user's information
 	 */
-	public identifyAccount(userInfo?: ClineAccountUserInfo, properties: Record<string, any> = {}): void {
-		if (!vscode?.env?.isTelemetryEnabled || this.isShuttingDown) {
+	public identifyAccount(userInfo?: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
+		if (!this.isTelemetryEnabled) {
 			return
 		}
-
-		if (!PostHogClientProvider.instance?.isActive()) {
-			console.warn("Telemetry client not initialized to identifyAccount.")
-			return
-		}
-
 		if (userInfo && userInfo?.id !== this.distinctId) {
-			this.distinctId = userInfo.id
 			this.client.identify({
 				distinctId: userInfo.id,
 				properties: {
@@ -120,26 +113,23 @@ export class PostHogClientProvider {
 					email: userInfo.email,
 					name: userInfo.displayName,
 					...properties,
+					alias: this.distinctId,
 				},
 			})
+			this.distinctId = userInfo.id
 		}
-
-		this.client.identify({ distinctId: this.distinctId })
 	}
 
-	public log(event: string, properties?: Record<string, any>): void {
-		console.info(`PostHog Logging event: ${event}`, properties)
-		if (!vscode?.env?.isTelemetryEnabled || this.isShuttingDown) {
-			// Do not log if telemetry is disabled or shutting down
-			return
-		}
-		if (!PostHogClientProvider.instance?.isActive()) {
-			console.warn("PostHogClientProvider is not active..")
+	public log(event: string, properties?: Record<string, unknown>): void {
+		if (!this.isTelemetryEnabled) {
 			return
 		}
 		// Filter events based on telemetry level
-		if (event.includes("error") && this.telemetryLevel !== "error" && this.telemetryLevel !== "all") {
-			return
+		if (this.telemetryLevel !== "error" && this.telemetryLevel !== "all") {
+			console.log("Loging", event)
+			if (!event.includes("error")) {
+				return
+			}
 		}
 
 		this.client.capture({
@@ -149,40 +139,14 @@ export class PostHogClientProvider {
 		})
 	}
 
-	public async shutdown(): Promise<void> {
-		if (this.isShuttingDown) {
-			return
-		}
-
-		this.isShuttingDown = true
-
-		try {
-			await Promise.all([this.client.shutdown(), this.telemetry.shutdown()])
-		} catch (error) {
-			console.error("Error shutting down PostHog client:", error)
-		}
-	}
-
 	public dispose(): void {
-		this.shutdown().catch(() => {
-			// Silently handle shutdown errors in dispose
-		})
+		this.client.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
 	}
 }
 
-// Convenience functions
-export function getPostHogClientProvider(): PostHogClientProvider {
-	return PostHogClientProvider.getInstance()
-}
+const getFeatureFlagsService = (): FeatureFlagsService => PostHogClientProvider.getInstance().featureFlags
+const getErrorService = (): ErrorService => PostHogClientProvider.getInstance().error
 
 // Service accessors
-export const getFeatureFlagsService = (): FeatureFlagsService => PostHogClientProvider.getInstance().featureFlags
-
-export const getTelemetryService = (): TelemetryService => PostHogClientProvider.getInstance().telemetry
-
-export const getErrorService = (): ErrorService => PostHogClientProvider.getInstance().error
-
-// Legacy exports for backward compatibility
 export const featureFlagsService = getFeatureFlagsService()
-export const telemetryService = getTelemetryService()
 export const errorService = getErrorService()
