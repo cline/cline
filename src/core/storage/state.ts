@@ -562,7 +562,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		preferredLanguage: preferredLanguage || "English",
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 		mode: mode || "act",
-		strictPlanModeEnabled: strictPlanModeEnabled,
+		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,
