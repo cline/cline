@@ -28,6 +28,7 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -198,8 +199,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState, isStreaming)
-	const { handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick, handleTaskCloseButtonClick } =
-		messageHandlers
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode)
@@ -347,17 +346,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					showHistoryView={showHistoryView}
 				/>
 			)}
-
 			{task && (
-				<>
-					<MessagesArea
-						task={task}
-						groupedMessages={groupedMessages}
-						modifiedMessages={modifiedMessages}
-						scrollBehavior={scrollBehavior}
-						chatState={chatState}
-						messageHandlers={messageHandlers}
-					/>
+				<MessagesArea
+					task={task}
+					groupedMessages={groupedMessages}
+					modifiedMessages={modifiedMessages}
+					scrollBehavior={scrollBehavior}
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+				/>
+			)}
+			<footer className="flex-shrink-0 justify-end">
+				<AutoApproveBar />
+				{task && (
 					<ActionButtons
 						chatState={chatState}
 						messageHandlers={messageHandlers}
@@ -368,17 +369,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							showScrollToBottom: scrollBehavior.showScrollToBottom,
 						}}
 					/>
-				</>
-			)}
-
-			<InputSection
-				chatState={chatState}
-				messageHandlers={messageHandlers}
-				scrollBehavior={scrollBehavior}
-				placeholderText={placeholderText}
-				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
-				selectFilesAndImages={selectFilesAndImages}
-			/>
+				)}
+				<InputSection
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+					scrollBehavior={scrollBehavior}
+					placeholderText={placeholderText}
+					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					selectFilesAndImages={selectFilesAndImages}
+				/>
+			</footer>
 		</ChatLayout>
 	)
 }

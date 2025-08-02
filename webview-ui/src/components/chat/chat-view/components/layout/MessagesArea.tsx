@@ -62,8 +62,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	)
 
 	return (
-		<>
-			<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
+		<div className="overflow-hidden flex flex-col h-full">
+			<div className="flex-grow flex" ref={scrollContainerRef}>
 				<Virtuoso
 					ref={virtuosoRef}
 					key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
@@ -93,7 +93,6 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					initialTopMostItemIndex={groupedMessages.length - 1}
 				/>
 			</div>
-			<AutoApproveBar />
-		</>
+		</div>
 	)
 }
