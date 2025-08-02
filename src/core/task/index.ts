@@ -75,7 +75,6 @@ import {
 } from "@core/storage/disk"
 import { getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { isClaude4ModelFamily, isGemini2dot5ModelFamily } from "@utils/model-utils"
@@ -105,7 +104,6 @@ export class Task {
 	// Core dependencies
 	private context: vscode.ExtensionContext
 	private mcpHub: McpHub
-	private workspaceTracker: WorkspaceTracker
 
 	// Service handlers
 	api: ApiHandler
@@ -138,7 +136,6 @@ export class Task {
 	constructor(
 		context: vscode.ExtensionContext,
 		mcpHub: McpHub,
-		workspaceTracker: WorkspaceTracker,
 		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
 		postStateToWebview: () => Promise<void>,
 		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
@@ -161,7 +158,6 @@ export class Task {
 		this.taskState = new TaskState()
 		this.context = context
 		this.mcpHub = mcpHub
-		this.workspaceTracker = workspaceTracker
 		this.updateTaskHistory = updateTaskHistory
 		this.postStateToWebview = postStateToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
@@ -309,7 +305,6 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
-			this.workspaceTracker,
 			this.contextManager,
 			this.autoApprovalSettings,
 			this.browserSettings,

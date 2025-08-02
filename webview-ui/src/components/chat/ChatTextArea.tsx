@@ -272,15 +272,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const {
-			filePaths,
-			chatSettings,
-			apiConfiguration,
-			openRouterModels,
-			platform,
-			localWorkflowToggles,
-			globalWorkflowToggles,
-		} = useExtensionState()
+		const { chatSettings, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
+			useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -353,14 +346,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
 				...gitCommits,
-				...filePaths
-					.map((file) => "/" + file)
-					.map((path) => ({
-						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-						value: path,
-					})),
 			]
-		}, [filePaths, gitCommits])
+		}, [gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -732,7 +719,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery(query)
 					currentSearchQueryRef.current = query
 
-					if (query.length > 0 && !selectedType) {
+					if (!selectedType) {
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout

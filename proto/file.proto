@@ -54,9 +54,6 @@ service FileService {
   
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
-
-  // Subscribe to workspace file updates
-  rpc subscribeToWorkspaceUpdates(EmptyRequest) returns (stream StringArray);
 }
 
 // Response for refreshRules operation
