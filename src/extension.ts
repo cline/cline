@@ -38,6 +38,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -265,44 +266,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
-	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
-		console.log("URI Handler called with:", {
-			path: uri.path,
-			query: uri.query,
-			scheme: uri.scheme,
-		})
-
-		const path = uri.path
-		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleWebview = WebviewProvider.getVisibleInstance()
-		if (!visibleWebview) {
-			return
-		}
-		switch (path) {
-			case "/openrouter": {
-				const code = query.get("code")
-				if (code) {
-					await visibleWebview?.controller.handleOpenRouterCallback(code)
-				}
-				break
-			}
-			case "/auth": {
-				console.log("Auth callback received:", uri.toString())
-
-				const token = query.get("idToken")
-				const provider = query.get("provider")
-
-				console.log("Auth callback received:", { provider })
-
-				if (token) {
-					await visibleWebview?.controller.handleAuthCallback(token, provider)
-					// await authService.handleAuthCallback(token)
-				}
-				break
-			}
-			default:
-				break
+		const success = await SharedUriHandler.handleUri(uri)
+		if (!success) {
+			console.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
