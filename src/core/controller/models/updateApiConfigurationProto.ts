@@ -33,7 +33,7 @@ export async function updateApiConfigurationProto(
 		}
 
 		// Post updated state to webview
-		await controller.postStateToWebview()
+		await controller.postStateToWebview({ apiConfiguration: appApiConfiguration })
 
 		return Empty.create()
 	} catch (error) {

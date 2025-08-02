@@ -714,8 +714,8 @@ export class Controller {
 		return updatedTaskHistory
 	}
 
-	async postStateToWebview() {
-		const state = await this.getStateToPostToWebview()
+	async postStateToWebview(partialState?: Partial<ExtensionState>) {
+		const state = partialState || (await this.getStateToPostToWebview())
 		await sendStateUpdate(this.id, state)
 	}
 

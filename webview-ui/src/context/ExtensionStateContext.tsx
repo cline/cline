@@ -266,6 +266,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
 							const newState = {
+								...prevState,
 								...stateData,
 								autoApprovalSettings: shouldUpdateAutoApproval
 									? stateData.autoApprovalSettings
