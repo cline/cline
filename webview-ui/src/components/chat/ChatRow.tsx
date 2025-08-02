@@ -1047,6 +1047,58 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
+					case "conversation_summary":
+						const summaryInfo: ClineApiReqInfo = message.text ? JSON.parse(message.text) : {}
+						return (
+							<>
+								<div
+									style={{
+										...headerStyle,
+										marginBottom: "10px",
+										justifyContent: "space-between",
+									}}>
+									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+										<span
+											className="codicon codicon-archive"
+											style={{
+												color: "var(--vscode-charts-blue)",
+												marginBottom: "-1.5px",
+											}}></span>
+										<span style={{ color: "var(--vscode-charts-blue)", fontWeight: "bold" }}>
+											Conversation Summarized
+										</span>
+									</div>
+									{summaryInfo.cost !== undefined && (
+										<div
+											style={{
+												fontSize: "12px",
+												color: "var(--vscode-descriptionForeground)",
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+											}}>
+											{summaryInfo.tokensIn && summaryInfo.tokensOut && (
+												<span>
+													{summaryInfo.tokensIn.toLocaleString()} →{" "}
+													{summaryInfo.tokensOut.toLocaleString()} tokens
+												</span>
+											)}
+											{summaryInfo.cacheReads && (
+												<span>
+													<i className="codicon codicon-database" style={{ marginRight: "2px" }} />
+													{summaryInfo.cacheReads.toLocaleString()} cached
+												</span>
+											)}
+											<span>${summaryInfo.cost.toFixed(4)}</span>
+										</div>
+									)}
+								</div>
+								<p style={pStyle}>
+									The conversation history was summarized to free up context space. Previous messages have been
+									consolidated into a summary to continue the conversation efficiently.
+								</p>
+							</>
+						)
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
