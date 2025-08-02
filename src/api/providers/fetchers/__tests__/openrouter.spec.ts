@@ -276,6 +276,29 @@ describe("OpenRouter API", () => {
 			expect(result.contextWindow).toBe(128000)
 		})
 
+		it("sets horizon-beta model to 32k max tokens", () => {
+			const mockModel = {
+				name: "Horizon Beta",
+				description: "Test model",
+				context_length: 128000,
+				max_completion_tokens: 128000,
+				pricing: {
+					prompt: "0.000003",
+					completion: "0.000015",
+				},
+			}
+
+			const result = parseOpenRouterModel({
+				id: "openrouter/horizon-beta",
+				model: mockModel,
+				modality: "text",
+				maxTokens: 128000,
+			})
+
+			expect(result.maxTokens).toBe(32768)
+			expect(result.contextWindow).toBe(128000)
+		})
+
 		it("does not override max tokens for other models", () => {
 			const mockModel = {
 				name: "Other Model",
