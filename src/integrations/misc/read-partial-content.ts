@@ -10,12 +10,18 @@ import { createReadStream } from "fs"
  */
 export function readPartialSingleLineContent(filePath: string, maxChars: number): Promise<string> {
 	return new Promise((resolve, reject) => {
+		// Handle edge cases
+		if (maxChars <= 0) {
+			resolve("")
+			return
+		}
+
 		// Use smaller chunks and set end position to limit reading
 		const stream = createReadStream(filePath, {
 			encoding: "utf8",
 			highWaterMark: 16 * 1024, // Smaller 16KB chunks for better control
 			start: 0,
-			end: Math.min(maxChars * 2, maxChars + 1024 * 1024), // Read at most 2x maxChars or maxChars + 1MB buffer
+			end: Math.max(0, Math.min(maxChars * 2, maxChars + 1024 * 1024)), // Read at most 2x maxChars or maxChars + 1MB buffer
 		})
 		let content = ""
 		let totalRead = 0

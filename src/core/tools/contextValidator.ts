@@ -10,8 +10,14 @@ import * as fs from "fs/promises"
  * when reading files without affecting other context window calculations.
  */
 const FILE_READ_BUFFER_PERCENTAGE = 0.25 // 25% buffer for file reads
+
+/**
+ * Constants for the 2-phase validation approach
+ */
 const CHARS_PER_TOKEN_ESTIMATE = 3
+const CUTBACK_PERCENTAGE = 0.2 // 20% reduction when over limit
 const READ_BATCH_SIZE = 50 // Read 50 lines at a time for efficiency
+const MAX_API_CALLS = 5 // Safety limit to prevent infinite loops
 const MIN_USEFUL_LINES = 50 // Minimum lines to consider useful
 
 /**
@@ -22,7 +28,7 @@ const SMALL_FILE_SIZE = 100 * 1024 // 100KB - safe if context is mostly empty
 
 export interface ContextValidationResult {
 	shouldLimit: boolean
-	safeMaxLines: number // For single-line files, this represents character count; for multi-line files, it's line count
+	safeContentLimit: number // For single-line files, this represents character count; for multi-line files, it's line count
 	reason?: string
 }
 
@@ -108,6 +114,7 @@ async function shouldSkipValidation(filePath: string, totalLines: number, cline:
 /**
  * Detects if a file is effectively a single-line file (1-5 lines with only one non-empty line)
  * This handles cases where minified files might have a few empty lines but are essentially single-line
+ * TODO: make this more robust
  */
 async function isEffectivelySingleLine(filePath: string, totalLines: number): Promise<boolean> {
 	// Only check files with 1-5 lines
@@ -157,44 +164,53 @@ async function isEffectivelySingleLine(filePath: string, totalLines: number): Pr
 
 /**
  * Validates a single-line file (likely minified) to see if it fits in context
- * Uses only heuristic estimation without actual token counting
+ * Uses character-based estimation only (no token validation to avoid API hangs)
+ * TODO: handle 2-phase validation once we have better partial line reading
  */
 async function validateSingleLineFile(
 	filePath: string,
 	cline: Task,
 	contextInfo: ContextInfo,
 ): Promise<ContextValidationResult | null> {
+	console.log(
+		`[validateFileSizeForContext] Single-line file detected: ${filePath} - using character-based estimation`,
+	)
+
 	try {
-		// Use char heuristic to estimate safe content size with additional safety margin
+		// Use char heuristic to estimate safe content size
 		const estimatedSafeChars = contextInfo.targetTokenLimit * CHARS_PER_TOKEN_ESTIMATE
 
-		// Read only up to the limited chars to avoid loading huge files into memory
-		const partialContent = await readPartialSingleLineContent(filePath, estimatedSafeChars)
-
-		// Get the full file size to determine if we read the entire file
+		// Get file size
 		const stats = await fs.stat(filePath)
 		const fullFileSize = stats.size
-		const isPartialRead = partialContent.length < fullFileSize
 
-		if (!isPartialRead) {
-			// The entire single line fits
-			return { shouldLimit: false, safeMaxLines: -1 }
-		} else if (partialContent.length > 0) {
-			// Only a portion of the line fits
-			const percentageRead = Math.round((partialContent.length / fullFileSize) * 100)
+		// If file is smaller than our estimated safe chars, it should fit
+		if (fullFileSize <= estimatedSafeChars) {
+			console.log(
+				`[validateFileSizeForContext] Single-line file fits within estimated safe chars (${fullFileSize} <= ${estimatedSafeChars})`,
+			)
+			return { shouldLimit: false, safeContentLimit: -1 }
+		}
 
+		// File is larger than estimated safe chars
+		const percentageRead = Math.round((estimatedSafeChars / fullFileSize) * 100)
+		console.log(
+			`[validateFileSizeForContext] Single-line file exceeds estimated safe chars (${fullFileSize} > ${estimatedSafeChars}), limiting to ${percentageRead}%`,
+		)
+
+		// Special case: if we can't read any meaningful content
+		if (estimatedSafeChars === 0 || percentageRead === 0) {
 			return {
 				shouldLimit: true,
-				safeMaxLines: partialContent.length, // Return actual character count for single-line files
-				reason: `Large single-line file (likely minified) exceeds available context space. Only the first ${percentageRead}% (${partialContent.length} of ${fullFileSize} characters) can be loaded. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). This is a hard limit - no additional content from this file can be accessed.`,
+				safeContentLimit: 0,
+				reason: `Single-line file is too large to read any portion. File size: ${fullFileSize} characters. Available context space: ${contextInfo.availableTokensForFile} tokens. This file cannot be accessed.`,
 			}
-		} else {
-			// Can't fit any content
-			return {
-				shouldLimit: true,
-				safeMaxLines: 0,
-				reason: `Single-line file is too large to read any portion within available context space. The file would require more than ${contextInfo.targetTokenLimit} tokens, but context is already ${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}% full (${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used). This file cannot be accessed.`,
-			}
+		}
+
+		return {
+			shouldLimit: true,
+			safeContentLimit: estimatedSafeChars, // Return character count limit
+			reason: `Large single-line file (likely minified) exceeds available context space. Only the first ${percentageRead}% (${estimatedSafeChars} of ${fullFileSize} characters) can be loaded. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). This is a hard limit - no additional content from this file can be accessed.`,
 		}
 	} catch (error) {
 		// Check for specific error types that indicate memory issues
@@ -208,12 +224,13 @@ async function validateSingleLineFile(
 				// Return a safe fallback instead of crashing
 				return {
 					shouldLimit: true,
-					safeMaxLines: 0,
+					safeContentLimit: 0,
 					reason: `File is too large to process due to memory constraints. Error: ${error.message}. This file cannot be accessed.`,
 				}
 			}
 		}
 
+		console.warn(`[validateFileSizeForContext] Error processing single-line file: ${error}`)
 		return null // Fall through to regular validation for other errors
 	}
 }
@@ -262,6 +279,97 @@ async function readFileInBatches(
 }
 
 /**
+ * Shared function to validate content with actual API and apply cutback if needed
+ * Works for both single-line and multi-line content
+ */
+async function validateAndCutbackContent(
+	content: string,
+	targetTokenLimit: number,
+	cline: Task,
+	isSingleLine: boolean = false,
+): Promise<{ finalContent: string; actualTokens: number; didCutback: boolean }> {
+	let finalContent = content
+	let apiCallCount = 0
+	let actualTokens = 0
+	let didCutback = false
+
+	while (apiCallCount < MAX_API_CALLS) {
+		apiCallCount++
+
+		// Make the actual API call to count tokens
+		actualTokens = await cline.api.countTokens([{ type: "text", text: finalContent }])
+
+		console.log(
+			`[validateFileSizeForContext] API call ${apiCallCount}: ${actualTokens} tokens for ${finalContent.length} chars${isSingleLine ? " (single-line)" : ""}`,
+		)
+
+		if (actualTokens <= targetTokenLimit) {
+			// We're under the limit, we're done!
+			break
+		}
+
+		// We're over the limit - cut back by CUTBACK_PERCENTAGE
+		const targetLength = Math.floor(finalContent.length * (1 - CUTBACK_PERCENTAGE))
+
+		// Safety check
+		if (targetLength === 0 || targetLength === finalContent.length) {
+			break
+		}
+
+		finalContent = finalContent.substring(0, targetLength)
+		didCutback = true
+	}
+
+	return { finalContent, actualTokens, didCutback }
+}
+
+/**
+ * Validates content with actual API and cuts back if needed (for multi-line files)
+ */
+async function validateAndAdjustContent(
+	accumulatedContent: string,
+	initialLineCount: number,
+	lineToCharMap: Map<number, number>,
+	targetTokenLimit: number,
+	totalLines: number,
+	cline: Task,
+): Promise<{ finalContent: string; finalLineCount: number }> {
+	// Use the shared validation function
+	const { finalContent, didCutback } = await validateAndCutbackContent(
+		accumulatedContent,
+		targetTokenLimit,
+		cline,
+		false,
+	)
+
+	// If no cutback was needed, return original line count
+	if (!didCutback) {
+		return { finalContent, finalLineCount: initialLineCount }
+	}
+
+	// Find the line that corresponds to the cut content length
+	let cutoffLine = 0
+	for (const [lineNum, charPos] of lineToCharMap.entries()) {
+		if (charPos > finalContent.length) {
+			break
+		}
+		cutoffLine = lineNum
+	}
+
+	// Ensure we don't cut back too far
+	if (cutoffLine < 10) {
+		console.warn(`[validateFileSizeForContext] Cutback resulted in too few lines (${cutoffLine}), using minimum`)
+		cutoffLine = Math.min(MIN_USEFUL_LINES, totalLines)
+	}
+
+	// Get the character position for the cutoff line
+	const cutoffCharPos = lineToCharMap.get(cutoffLine) || 0
+	const adjustedContent = accumulatedContent.substring(0, cutoffCharPos)
+
+	return { finalContent: adjustedContent, finalLineCount: cutoffLine }
+}
+
+/**
  * Handles error cases with conservative fallback
  */
 async function handleValidationError(
@@ -270,6 +378,8 @@ async function handleValidationError(
 	currentMaxReadFileLine: number,
 	error: unknown,
 ): Promise<ContextValidationResult> {
+	console.warn(`[validateFileSizeForContext] Error accessing runtime state: ${error}`)
+
 	// In error cases, we can't check context state, so use simple file size heuristics
 	try {
 		const stats = await fs.stat(filePath)
@@ -277,20 +387,21 @@ async function handleValidationError(
 
 		// Very small files are safe
 		if (fileSizeBytes < TINY_FILE_SIZE) {
-			return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
+			return { shouldLimit: false, safeContentLimit: currentMaxReadFileLine }
 		}
 	} catch (statError) {
 		// If we can't even stat the file, proceed with conservative defaults
+		console.warn(`[validateFileSizeForContext] Could not stat file: ${statError}`)
 	}
 
 	if (totalLines > 10000) {
 		return {
 			shouldLimit: true,
-			safeMaxLines: 1000,
+			safeContentLimit: 1000,
 			reason: "Large file detected (>10,000 lines). Limited to 1000 lines to prevent context overflow (runtime state unavailable).",
 		}
 	}
-	return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
+	return { shouldLimit: false, safeContentLimit: currentMaxReadFileLine }
 }
 
 /**
@@ -307,7 +418,7 @@ export async function validateFileSizeForContext(
 	try {
 		// Check if we can skip validation
 		if (await shouldSkipValidation(filePath, totalLines, cline)) {
-			return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
+			return { shouldLimit: false, safeContentLimit: currentMaxReadFileLine }
 		}
 
 		// Get context information
@@ -323,44 +434,45 @@ export async function validateFileSizeForContext(
 			// Fall through to regular validation if single-line validation failed
 		}
 
-		// Read content up to estimated safe character limit
+		// Phase 1: Read content up to estimated safe character limit
 		const estimatedSafeChars = contextInfo.targetTokenLimit * CHARS_PER_TOKEN_ESTIMATE
-		console.log(`[validateFileSizeForContext] Estimated safe chars for ${filePath}: ${estimatedSafeChars}`)
+		const { content, lineCount, lineToCharMap } = await readFileInBatches(filePath, totalLines, estimatedSafeChars)
 
-		const { content, lineCount } = await readFileInBatches(filePath, totalLines, estimatedSafeChars)
-		console.log(`[validateFileSizeForContext] Read ${lineCount} lines (${content.length} chars) from ${filePath}`)
-
-		// If we read the entire file without hitting the character limit, no limitation needed
-		if (lineCount >= totalLines) {
-			console.log(`[validateFileSizeForContext] Read entire file ${filePath} without hitting limit`)
-			return { shouldLimit: false, safeMaxLines: currentMaxReadFileLine }
-		}
-
-		// We hit the character limit before reading all lines
-		// Ensure we provide at least a minimum useful amount
-		const finalSafeMaxLines = Math.max(MIN_USEFUL_LINES, lineCount)
-		console.log(
-			`[validateFileSizeForContext] Hit character limit for ${filePath}: lineCount=${lineCount}, finalSafeMaxLines=${finalSafeMaxLines}`,
+		// Phase 2: Validate with actual API and cutback if needed
+		const { finalContent, finalLineCount } = await validateAndAdjustContent(
+			content,
+			lineCount,
+			lineToCharMap,
+			contextInfo.targetTokenLimit,
+			totalLines,
+			cline,
 		)
 
-		// If we couldn't read even the minimum useful lines
-		if (lineCount < MIN_USEFUL_LINES) {
-			const result = {
-				shouldLimit: true,
-				safeMaxLines: finalSafeMaxLines,
-				reason: `Very limited context space. Could only safely read ${lineCount} lines before exceeding token limit. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). Limited to ${finalSafeMaxLines} lines. Consider using search_files or line_range for specific sections.`,
-			}
-			console.log(`[validateFileSizeForContext] Returning very limited context result for ${filePath}:`, result)
-			return result
+		// Log final statistics
+		console.log(`[validateFileSizeForContext] Final: ${finalLineCount} lines, ${finalContent.length} chars`)
+
+		// Ensure we provide at least a minimum useful amount
+		const finalSafeContentLimit = Math.max(MIN_USEFUL_LINES, finalLineCount)
+
+		// If we read the entire file without exceeding the limit, no limitation needed
+		if (finalLineCount >= totalLines) {
+			return { shouldLimit: false, safeContentLimit: currentMaxReadFileLine }
 		}
 
-		const result = {
-			shouldLimit: true,
-			safeMaxLines: finalSafeMaxLines,
-			reason: `File exceeds available context space. Safely read ${finalSafeMaxLines} lines out of ${totalLines} total lines. Context usage: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). Use line_range to read specific sections.`,
+		// If we couldn't read even the minimum useful lines
+		if (finalLineCount < MIN_USEFUL_LINES) {
+			return {
+				shouldLimit: true,
+				safeContentLimit: finalSafeContentLimit,
+				reason: `Very limited context space. Could only safely read ${finalLineCount} lines before exceeding token limit. Context: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens used (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). Limited to ${finalSafeContentLimit} lines. Consider using search_files or line_range for specific sections.`,
+			}
 		}
-		console.log(`[validateFileSizeForContext] Returning limited context result for ${filePath}:`, result)
-		return result
+
+		return {
+			shouldLimit: true,
+			safeContentLimit: finalSafeContentLimit,
+			reason: `File exceeds available context space. Safely read ${finalSafeContentLimit} lines out of ${totalLines} total lines. Context usage: ${contextInfo.currentlyUsed}/${contextInfo.contextWindow} tokens (${Math.round((contextInfo.currentlyUsed / contextInfo.contextWindow) * 100)}%). Use line_range to read specific sections.`,
+		}
 	} catch (error) {
 		return handleValidationError(filePath, totalLines, currentMaxReadFileLine, error)
 	}

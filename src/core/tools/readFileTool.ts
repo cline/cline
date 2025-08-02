@@ -466,7 +466,7 @@ export async function readFileTool(
 				// For single-line files, ALWAYS apply validation regardless of maxReadFileLine setting
 				// For multi-line files, only apply if maxReadFileLine is -1 (unlimited)
 				if (validation.shouldLimit && (totalLines === 1 || maxReadFileLine === -1)) {
-					effectiveMaxReadFileLine = validation.safeMaxLines
+					effectiveMaxReadFileLine = validation.safeContentLimit
 					validationNotice = validation.reason || ""
 				}
 
@@ -657,7 +657,7 @@ export async function readFileTool(
 						`[read_file] ERROR: ${isEffSingleLine ? "Effectively " : ""}Single-line file ${relPath} with validation limits is being read in full! This should not happen.`,
 					)
 					console.error(
-						`[read_file] Debug info: effectiveMaxReadFileLine=${effectiveMaxReadFileLine}, validation.safeMaxLines=${validation.safeMaxLines}`,
+						`[read_file] Debug info: effectiveMaxReadFileLine=${effectiveMaxReadFileLine}, validation.safeContentLimit=${validation.safeContentLimit}`,
 					)
 				}
 

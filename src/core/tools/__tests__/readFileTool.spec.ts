@@ -4,7 +4,7 @@ import * as path from "path"
 
 import { countFileLines } from "../../../integrations/misc/line-counter"
 import { readLines } from "../../../integrations/misc/read-lines"
-import { extractTextFromFile, addLineNumbers } from "../../../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers, getSupportedBinaryFormats } from "../../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
 import { ReadFileToolUse, ToolParamName, ToolResponse } from "../../../shared/tools"
@@ -31,12 +31,17 @@ vi.mock("path", async () => {
 vi.mock("isbinaryfile")
 
 vi.mock("../../../integrations/misc/line-counter")
-vi.mock("../../../integrations/misc/read-lines")
+vi.mock("../../../integrations/misc/read-lines", () => ({
+	readLines: vi.fn().mockResolvedValue("mocked line content"),
+}))
+vi.mock("../../../integrations/misc/read-partial-content", () => ({
+	readPartialSingleLineContent: vi.fn().mockResolvedValue("mocked partial content"),
+}))
 vi.mock("../contextValidator")
 
 // Mock fs/promises readFile for image tests
 const fsPromises = vi.hoisted(() => ({
-	readFile: vi.fn(),
+	readFile: vi.fn().mockResolvedValue(Buffer.from("mock file content")),
 	stat: vi.fn().mockResolvedValue({ size: 1024 }),
 }))
 vi.mock("fs/promises", () => fsPromises)
@@ -121,7 +126,7 @@ vi.mock("../../ignore/RooIgnoreController", () => ({
 }))
 
 vi.mock("../../../utils/fs", () => ({
-	fileExistsAtPath: vi.fn().mockReturnValue(true),
+	fileExistsAtPath: vi.fn().mockResolvedValue(true),
 }))
 
 // Global beforeEach to ensure clean mock state between all test suites
@@ -272,7 +277,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		// Default mock for validateFileSizeForContext - no limit
 		vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 			shouldLimit: false,
-			safeMaxLines: -1,
+			safeContentLimit: -1,
 		})
 
 		mockInputContent = fileContent
@@ -534,6 +539,7 @@ describe("read_file tool XML output structure", () => {
 
 		mockedPathResolve.mockReturnValue(absoluteFilePath)
 		mockedIsBinaryFile.mockResolvedValue(false)
+		mockedCountFileLines.mockResolvedValue(5) // Default line count
 
 		// Set default implementation for extractTextFromFile
 		mockedExtractTextFromFile.mockImplementation((filePath) => {
@@ -1360,7 +1366,7 @@ describe("read_file tool XML output structure", () => {
 			// Mock contextValidator to return shouldLimit true
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
-				safeMaxLines: 2000,
+				safeContentLimit: 2000,
 				reason: "File exceeds available context space",
 			})
 
@@ -1383,7 +1389,7 @@ describe("read_file tool XML output structure", () => {
 			vi.mocked(countFileLines).mockResolvedValue(100)
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: false,
-				safeMaxLines: -1,
+				safeContentLimit: -1,
 			})
 
 			const result = await executeReadFileTool({ args: `<file><path>small-file.ts</path></file>` })
@@ -1403,7 +1409,7 @@ describe("read_file tool XML output structure", () => {
 			// Mock contextValidator to return shouldLimit true with single-line file message
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
-				safeMaxLines: 1,
+				safeContentLimit: 1,
 				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 50% (5000 of 10000 characters) can be loaded. This is a hard limit - no additional content from this file can be accessed.",
 			})
 
@@ -1430,7 +1436,7 @@ describe("read_file tool XML output structure", () => {
 			// Mock contextValidator to return shouldLimit true with multi-line file message
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
-				safeMaxLines: 1000,
+				safeContentLimit: 1000,
 				reason: "File exceeds available context space. Safely read 1000 lines out of 5000 total lines.",
 			})
 
@@ -1455,7 +1461,7 @@ describe("read_file tool XML output structure", () => {
 			// Mock contextValidator to return shouldLimit true with a single-line file notice
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
-				safeMaxLines: 1,
+				safeContentLimit: 1,
 				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 80% can be loaded.",
 			})
 
@@ -1738,12 +1744,24 @@ describe("read_file tool with image support", () => {
 			mockedPathResolve.mockReturnValue(absolutePath)
 			mockedExtractTextFromFile.mockResolvedValue("PDF content extracted")
 
+			// Ensure the file is treated as binary and PDF is in supported formats
+			mockedIsBinaryFile.mockResolvedValue(true)
+			mockedCountFileLines.mockResolvedValue(0)
+			vi.mocked(getSupportedBinaryFormats).mockReturnValue([".pdf", ".docx", ".ipynb"])
+
+			// Mock contextValidator to not interfere with PDF processing
+			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
+				shouldLimit: false,
+				safeContentLimit: -1,
+			})
+
 			// Execute
 			const result = await executeReadImageTool(binaryPath)
 
-			// Verify it uses extractTextFromFile instead
+			// Verify it doesn't treat the PDF as an image
 			expect(result).not.toContain("<image_data>")
-			// Make the test platform-agnostic by checking the call was made (path normalization can vary)
+
+			// Should call extractTextFromFile for PDF processing
 			expect(mockedExtractTextFromFile).toHaveBeenCalledTimes(1)
 			const callArgs = mockedExtractTextFromFile.mock.calls[0]
 			expect(callArgs[0]).toMatch(/[\\\/]test[\\\/]document\.pdf$/)
