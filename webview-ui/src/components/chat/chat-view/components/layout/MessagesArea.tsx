@@ -49,7 +49,16 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			inputValue,
 			messageHandlers,
 		),
-		[],
+		[
+			groupedMessages,
+			modifiedMessages,
+			expandedRows,
+			toggleRowExpansion,
+			handleRowHeightChange,
+			setActiveQuote,
+			inputValue,
+			messageHandlers,
+		],
 	)
 
 	return (
