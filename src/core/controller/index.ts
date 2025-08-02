@@ -630,6 +630,44 @@ export class Controller {
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
 
+	/**
+	 * Adds a prompt to the chat input or submits it directly as a new task.
+	 * @param prompt The text to add or submit.
+	 * @param submit If true, the prompt is submitted immediately. Defaults to false.
+	 */
+	async addPromptToChat(prompt: string, submit: boolean = false) {
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await setTimeoutPromise(200)
+
+		if (submit) {
+			await this.initTask(prompt)
+			console.log("addPromptToChat (submitted)", prompt)
+		} else {
+			await sendAddToInputEvent(prompt)
+			console.log("addPromptToChat (added to input)", prompt)
+		}
+	}
+
+	/**
+	 * Adds a file mention to the chat input or submits it directly as a new task.
+	 * @param filePath The absolute path to the file to mention.
+	 * @param submit If true, the mention is submitted immediately. Defaults to false.
+	 */
+	async addFileMentionToChat(filePath: string, submit: boolean = false) {
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await setTimeoutPromise(200)
+
+		const fileMention = await this.getFileMentionFromPath(filePath)
+
+		if (submit) {
+			await this.initTask(fileMention)
+			console.log("addFileMentionToChat (submitted)", fileMention)
+		} else {
+			await sendAddToInputEvent(fileMention)
+			console.log("addFileMentionToChat (added to input)", fileMention)
+		}
+	}
+
 	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
 		let problemsString = ""
 		for (const diagnostic of diagnostics) {
