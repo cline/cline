@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import type { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../../package.json"
-import { PostHogClientProvider } from "../PostHogClientProvider"
+import type { PostHogClientProvider } from "../PostHogClientProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -616,7 +616,3 @@ export class TelemetryService {
 		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
 }
-
-const getTelemetryService = (): TelemetryService => PostHogClientProvider.getInstance().telemetry
-
-export const telemetryService = getTelemetryService()

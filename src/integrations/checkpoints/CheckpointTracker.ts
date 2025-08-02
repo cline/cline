@@ -1,4 +1,4 @@
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"

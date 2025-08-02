@@ -146,7 +146,9 @@ export class PostHogClientProvider {
 
 const getFeatureFlagsService = (): FeatureFlagsService => PostHogClientProvider.getInstance().featureFlags
 const getErrorService = (): ErrorService => PostHogClientProvider.getInstance().error
+const getTelemetryService = (): TelemetryService => PostHogClientProvider.getInstance().telemetry
 
 // Service accessors
 export const featureFlagsService = getFeatureFlagsService()
 export const errorService = getErrorService()
+export const telemetryService = getTelemetryService()

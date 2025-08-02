@@ -1,15 +1,14 @@
-import vscode from "vscode"
-import { clineEnvConfig } from "@/config"
-import { Controller } from "@/core/controller"
-import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { storeSecret } from "@/core/storage/state"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { openExternal } from "@/utils/env"
+import vscode from "vscode"
+import { clineEnvConfig } from "@/config"
+import type { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
+import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../posthog/PostHogClientProvider"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []

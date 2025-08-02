@@ -1,4 +1,4 @@
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import type { Controller } from ".."
 
