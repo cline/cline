@@ -1,17 +1,17 @@
-// npx vitest run src/__tests__/AuthService.spec.ts
+// npx vitest run src/__tests__/auth/WebAuthService.spec.ts
 
-import { vi, Mock, beforeEach, afterEach, describe, it, expect } from "vitest"
+import { type Mock } from "vitest"
 import crypto from "crypto"
 import * as vscode from "vscode"
 
 import { WebAuthService } from "../../auth/WebAuthService"
 import { RefreshTimer } from "../../RefreshTimer"
-import * as Config from "../../Config"
-import * as utils from "../../utils"
+import { getClerkBaseUrl, getRooCodeApiUrl } from "../../config"
+import { getUserAgent } from "../../utils"
 
 // Mock external dependencies
 vi.mock("../../RefreshTimer")
-vi.mock("../../Config")
+vi.mock("../../config")
 vi.mock("../../utils")
 vi.mock("crypto")
 
@@ -101,11 +101,11 @@ describe("WebAuthService", () => {
 		MockedRefreshTimer.mockImplementation(() => mockTimer as unknown as RefreshTimer)
 
 		// Setup config mocks - use production URL by default to maintain existing test behavior
-		vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
-		vi.mocked(Config.getRooCodeApiUrl).mockReturnValue("https://api.test.com")
+		vi.mocked(getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
+		vi.mocked(getRooCodeApiUrl).mockReturnValue("https://api.test.com")
 
 		// Setup utils mock
-		vi.mocked(utils.getUserAgent).mockReturnValue("Roo-Code 1.0.0")
+		vi.mocked(getUserAgent).mockReturnValue("Roo-Code 1.0.0")
 
 		// Setup crypto mock
 		vi.mocked(crypto.randomBytes).mockReturnValue(Buffer.from("test-random-bytes") as never)
@@ -977,7 +977,7 @@ describe("WebAuthService", () => {
 	describe("auth credentials key scoping", () => {
 		it("should use default key when getClerkBaseUrl returns production URL", async () => {
 			// Mock getClerkBaseUrl to return production URL
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
+			vi.mocked(getClerkBaseUrl).mockReturnValue("https://clerk.roocode.com")
 
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
@@ -994,7 +994,7 @@ describe("WebAuthService", () => {
 		it("should use scoped key when getClerkBaseUrl returns custom URL", async () => {
 			const customUrl = "https://custom.clerk.com"
 			// Mock getClerkBaseUrl to return custom URL
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
@@ -1010,7 +1010,7 @@ describe("WebAuthService", () => {
 
 		it("should load credentials using scoped key", async () => {
 			const customUrl = "https://custom.clerk.com"
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 			const credentials = { clientToken: "test-token", sessionId: "test-session" }
@@ -1025,7 +1025,7 @@ describe("WebAuthService", () => {
 
 		it("should clear credentials using scoped key", async () => {
 			const customUrl = "https://custom.clerk.com"
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			const service = new WebAuthService(mockContext as unknown as vscode.ExtensionContext, mockLog)
 
@@ -1037,7 +1037,7 @@ describe("WebAuthService", () => {
 
 		it("should listen for changes on scoped key", async () => {
 			const customUrl = "https://custom.clerk.com"
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			let onDidChangeCallback: (e: { key: string }) => void
 
@@ -1064,7 +1064,7 @@ describe("WebAuthService", () => {
 
 		it("should not respond to changes on different scoped keys", async () => {
 			const customUrl = "https://custom.clerk.com"
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			let onDidChangeCallback: (e: { key: string }) => void
 
@@ -1088,7 +1088,7 @@ describe("WebAuthService", () => {
 
 		it("should not respond to changes on default key when using scoped key", async () => {
 			const customUrl = "https://custom.clerk.com"
-			vi.mocked(Config.getClerkBaseUrl).mockReturnValue(customUrl)
+			vi.mocked(getClerkBaseUrl).mockReturnValue(customUrl)
 
 			let onDidChangeCallback: (e: { key: string }) => void
 

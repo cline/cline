@@ -36,6 +36,6 @@ export class StaticSettingsService implements SettingsService {
 	}
 
 	public dispose(): void {
-		// No resources to clean up for static settings
+		// No resources to clean up for static settings.
 	}
 }

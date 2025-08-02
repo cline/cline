@@ -1,4 +1,4 @@
-import type { RooCodeAPI } from "@roo-code/types"
+import { RooCodeEventName, type RooCodeAPI } from "@roo-code/types"
 
 type WaitForOptions = {
 	timeout?: number
@@ -46,7 +46,7 @@ type WaitUntilAbortedOptions = WaitForOptions & {
 
 export const waitUntilAborted = async ({ api, taskId, ...options }: WaitUntilAbortedOptions) => {
 	const set = new Set<string>()
-	api.on("taskAborted", (taskId) => set.add(taskId))
+	api.on(RooCodeEventName.TaskAborted, (taskId) => set.add(taskId))
 	await waitFor(() => set.has(taskId), options)
 }
 
@@ -57,7 +57,7 @@ type WaitUntilCompletedOptions = WaitForOptions & {
 
 export const waitUntilCompleted = async ({ api, taskId, ...options }: WaitUntilCompletedOptions) => {
 	const set = new Set<string>()
-	api.on("taskCompleted", (taskId) => set.add(taskId))
+	api.on(RooCodeEventName.TaskCompleted, (taskId) => set.add(taskId))
 	await waitFor(() => set.has(taskId), options)
 }
 

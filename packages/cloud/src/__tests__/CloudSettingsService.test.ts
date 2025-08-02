@@ -6,8 +6,8 @@ import type { OrganizationSettings } from "@roo-code/types"
 
 // Mock dependencies
 vi.mock("../RefreshTimer")
-vi.mock("../Config", () => ({
-	getRooCodeApiUrl: vi.fn().mockReturnValue("https://api.example.com"),
+vi.mock("../config", () => ({
+	getRooCodeApiUrl: vi.fn().mockReturnValue("https://app.roocode.com"),
 }))
 
 // Mock fetch globally
@@ -338,7 +338,7 @@ describe("CloudSettingsService", () => {
 			const result = await timerCallback()
 
 			expect(result).toBe(true)
-			expect(fetch).toHaveBeenCalledWith("https://api.example.com/api/organization-settings", {
+			expect(fetch).toHaveBeenCalledWith("https://app.roocode.com/api/organization-settings", {
 				headers: {
 					Authorization: "Bearer valid-token",
 				},

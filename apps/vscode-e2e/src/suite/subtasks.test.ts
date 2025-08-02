@@ -1,6 +1,6 @@
 import * as assert from "assert"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { sleep, waitFor, waitUntilCompleted } from "./utils"
 
@@ -10,7 +10,7 @@ suite.skip("Roo Code Subtasks", () => {
 
 		const messages: Record<string, ClineMessage[]> = {}
 
-		api.on("message", ({ taskId, message }) => {
+		api.on(RooCodeEventName.Message, ({ taskId, message }) => {
 			if (message.type === "say" && message.partial === false) {
 				messages[taskId] = messages[taskId] || []
 				messages[taskId].push(message)
@@ -37,7 +37,7 @@ suite.skip("Roo Code Subtasks", () => {
 		let spawnedTaskId: string | undefined = undefined
 
 		// Wait for the subtask to be spawned and then cancel it.
-		api.on("taskSpawned", (_, childTaskId) => (spawnedTaskId = childTaskId))
+		api.on(RooCodeEventName.TaskSpawned, (_, childTaskId) => (spawnedTaskId = childTaskId))
 		await waitFor(() => !!spawnedTaskId)
 		await sleep(1_000) // Give the task a chance to start and populate the history.
 		await api.cancelCurrentTask()

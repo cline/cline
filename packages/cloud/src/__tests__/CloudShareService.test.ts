@@ -3,9 +3,11 @@
 import type { MockedFunction } from "vitest"
 import * as vscode from "vscode"
 
-import { ShareService, TaskNotFoundError } from "../ShareService"
-import type { AuthService } from "../auth"
+import { CloudAPI } from "../CloudAPI"
+import { CloudShareService } from "../CloudShareService"
 import type { SettingsService } from "../SettingsService"
+import type { AuthService } from "../auth"
+import { CloudAPIError, TaskNotFoundError } from "../errors"
 
 // Mock fetch
 const mockFetch = vi.fn()
@@ -44,10 +46,11 @@ vi.mock("../utils", () => ({
 	getUserAgent: () => "Roo-Code 1.0.0",
 }))
 
-describe("ShareService", () => {
-	let shareService: ShareService
+describe("CloudShareService", () => {
+	let shareService: CloudShareService
 	let mockAuthService: AuthService
 	let mockSettingsService: SettingsService
+	let mockCloudAPI: CloudAPI
 	let mockLog: MockedFunction<(...args: unknown[]) => void>
 
 	beforeEach(() => {
@@ -65,7 +68,8 @@ describe("ShareService", () => {
 			getSettings: vi.fn(),
 		} as any
 
-		shareService = new ShareService(mockAuthService, mockSettingsService, mockLog)
+		mockCloudAPI = new CloudAPI(mockAuthService, mockLog)
+		shareService = new CloudShareService(mockCloudAPI, mockSettingsService, mockLog)
 	})
 
 	describe("shareTask", () => {
@@ -189,12 +193,12 @@ describe("ShareService", () => {
 				ok: false,
 				status: 404,
 				statusText: "Not Found",
+				json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
+				text: vi.fn().mockResolvedValue("Not Found"),
 			})
 
 			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow(TaskNotFoundError)
-			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow(
-				"Task 'task-123' not found",
-			)
+			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow("Task not found")
 		})
 
 		it("should throw generic Error for non-404 HTTP errors", async () => {
@@ -203,12 +207,14 @@ describe("ShareService", () => {
 				ok: false,
 				status: 500,
 				statusText: "Internal Server Error",
+				json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
+				text: vi.fn().mockResolvedValue("Internal Server Error"),
 			})
 
+			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow(CloudAPIError)
 			await expect(shareService.shareTask("task-123", "organization")).rejects.toThrow(
 				"HTTP 500: Internal Server Error",
 			)
-			await expect(shareService.shareTask("task-123", "organization")).rejects.not.toThrow(TaskNotFoundError)
 		})
 
 		it("should create TaskNotFoundError with correct properties", async () => {
@@ -217,6 +223,8 @@ describe("ShareService", () => {
 				ok: false,
 				status: 404,
 				statusText: "Not Found",
+				json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
+				text: vi.fn().mockResolvedValue("Not Found"),
 			})
 
 			try {
@@ -225,7 +233,7 @@ describe("ShareService", () => {
 			} catch (error) {
 				expect(error).toBeInstanceOf(TaskNotFoundError)
 				expect(error).toBeInstanceOf(Error)
-				expect((error as TaskNotFoundError).message).toBe("Task 'task-123' not found")
+				expect((error as TaskNotFoundError).message).toBe("Task not found")
 			}
 		})
 	})
@@ -277,8 +285,8 @@ describe("ShareService", () => {
 			expect(result).toBe(false)
 		})
 
-		it("should return false when not authenticated", async () => {
-			;(mockAuthService.isAuthenticated as any).mockReturnValue(false)
+		it("should return false when settings service returns undefined", async () => {
+			;(mockSettingsService.getSettings as any).mockReturnValue(undefined)
 
 			const result = await shareService.canShareTask()
 
@@ -286,13 +294,17 @@ describe("ShareService", () => {
 		})
 
 		it("should handle errors gracefully", async () => {
-			;(mockAuthService.isAuthenticated as any).mockImplementation(() => {
-				throw new Error("Auth error")
+			;(mockSettingsService.getSettings as any).mockImplementation(() => {
+				throw new Error("Settings error")
 			})
 
 			const result = await shareService.canShareTask()
 
 			expect(result).toBe(false)
+			expect(mockLog).toHaveBeenCalledWith(
+				"[ShareService] Error checking if task can be shared:",
+				expect.any(Error),
+			)
 		})
 	})
 })

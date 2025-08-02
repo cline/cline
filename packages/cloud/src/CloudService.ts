@@ -12,13 +12,15 @@ import type {
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { CloudServiceEvents } from "./types"
+import { TaskNotFoundError } from "./errors"
 import type { AuthService } from "./auth"
 import { WebAuthService, StaticTokenAuthService } from "./auth"
 import type { SettingsService } from "./SettingsService"
 import { CloudSettingsService } from "./CloudSettingsService"
 import { StaticSettingsService } from "./StaticSettingsService"
 import { TelemetryClient } from "./TelemetryClient"
-import { ShareService, TaskNotFoundError } from "./ShareService"
+import { CloudShareService } from "./CloudShareService"
+import { CloudAPI } from "./CloudAPI"
 
 type AuthStateChangedPayload = CloudServiceEvents["auth-state-changed"][0]
 type AuthUserInfoPayload = CloudServiceEvents["user-info"][0]
@@ -34,7 +36,8 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements vs
 	private settingsListener: (data: SettingsPayload) => void
 	private settingsService: SettingsService | null = null
 	private telemetryClient: TelemetryClient | null = null
-	private shareService: ShareService | null = null
+	private shareService: CloudShareService | null = null
+	private cloudAPI: CloudAPI | null = null
 	private isInitialized = false
 	private log: (...args: unknown[]) => void
 
@@ -87,8 +90,9 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements vs
 				this.settingsService = cloudSettingsService
 			}
 
+			this.cloudAPI = new CloudAPI(this.authService, this.log)
 			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
-			this.shareService = new ShareService(this.authService, this.settingsService, this.log)
+			this.shareService = new CloudShareService(this.cloudAPI, this.settingsService, this.log)
 
 			try {
 				TelemetryService.instance.register(this.telemetryClient)
@@ -209,7 +213,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements vs
 			return await this.shareService!.shareTask(taskId, visibility)
 		} catch (error) {
 			if (error instanceof TaskNotFoundError && clineMessages) {
-				// Backfill messages and retry
+				// Backfill messages and retry.
 				await this.telemetryClient!.backfillMessages(clineMessages, taskId)
 				return await this.shareService!.shareTask(taskId, visibility)
 			}
@@ -229,6 +233,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements vs
 			this.authService.off("auth-state-changed", this.authStateListener)
 			this.authService.off("user-info", this.authUserInfoListener)
 		}
+
 		if (this.settingsService) {
 			if (this.settingsService instanceof CloudSettingsService) {
 				this.settingsService.off("settings-updated", this.settingsListener)

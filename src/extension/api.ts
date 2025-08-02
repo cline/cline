@@ -5,22 +5,21 @@ import * as path from "path"
 import * as os from "os"
 
 import {
-	RooCodeAPI,
-	RooCodeSettings,
-	RooCodeEvents,
+	type RooCodeAPI,
+	type RooCodeSettings,
+	type RooCodeEvents,
+	type ProviderSettings,
+	type ProviderSettingsEntry,
+	type TaskEvent,
 	RooCodeEventName,
-	ProviderSettings,
-	ProviderSettingsEntry,
+	TaskCommandName,
 	isSecretStateKey,
 	IpcOrigin,
 	IpcMessageType,
-	TaskCommandName,
-	TaskEvent,
 } from "@roo-code/types"
 import { IpcServer } from "@roo-code/ipc"
 
 import { Package } from "../shared/package"
-import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
 
@@ -214,58 +213,86 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	}
 
 	private registerListeners(provider: ClineProvider) {
-		provider.on("taskCreated", (cline) => {
-			cline.on("taskStarted", async () => {
-				this.emit(RooCodeEventName.TaskStarted, cline.taskId)
-				this.taskMap.set(cline.taskId, provider)
-				await this.fileLog(`[${new Date().toISOString()}] taskStarted -> ${cline.taskId}\n`)
+		provider.on(RooCodeEventName.TaskCreated, (task) => {
+			// Task Lifecycle
+
+			task.on(RooCodeEventName.TaskStarted, async () => {
+				this.emit(RooCodeEventName.TaskStarted, task.taskId)
+				this.taskMap.set(task.taskId, provider)
+				await this.fileLog(`[${new Date().toISOString()}] taskStarted -> ${task.taskId}\n`)
 			})
 
-			cline.on("message", async (message) => {
-				this.emit(RooCodeEventName.Message, { taskId: cline.taskId, ...message })
+			task.on(RooCodeEventName.TaskCompleted, async (_, tokenUsage, toolUsage) => {
+				let isSubtask = false
+
+				if (typeof task.rootTask !== "undefined") {
+					isSubtask = true
+				}
+
+				this.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage, { isSubtask: isSubtask })
+				this.taskMap.delete(task.taskId)
+
+				await this.fileLog(
+					`[${new Date().toISOString()}] taskCompleted -> ${task.taskId} | ${JSON.stringify(tokenUsage, null, 2)} | ${JSON.stringify(toolUsage, null, 2)}\n`,
+				)
+			})
+
+			task.on(RooCodeEventName.TaskAborted, () => {
+				this.emit(RooCodeEventName.TaskAborted, task.taskId)
+				this.taskMap.delete(task.taskId)
+			})
+
+			// Optional:
+			// RooCodeEventName.TaskFocused
+			// RooCodeEventName.TaskUnfocused
+			// RooCodeEventName.TaskActive
+			// RooCodeEventName.TaskIdle
+
+			// Subtask Lifecycle
+
+			task.on(RooCodeEventName.TaskPaused, () => {
+				this.emit(RooCodeEventName.TaskPaused, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskUnpaused, () => {
+				this.emit(RooCodeEventName.TaskUnpaused, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskSpawned, (childTaskId) => {
+				this.emit(RooCodeEventName.TaskSpawned, task.taskId, childTaskId)
+			})
+
+			// Task Execution
+
+			task.on(RooCodeEventName.Message, async (message) => {
+				this.emit(RooCodeEventName.Message, { taskId: task.taskId, ...message })
 
 				if (message.message.partial !== true) {
 					await this.fileLog(`[${new Date().toISOString()}] ${JSON.stringify(message.message, null, 2)}\n`)
 				}
 			})
 
-			cline.on("taskModeSwitched", (taskId, mode) => this.emit(RooCodeEventName.TaskModeSwitched, taskId, mode))
-
-			cline.on("taskAskResponded", () => this.emit(RooCodeEventName.TaskAskResponded, cline.taskId))
-
-			cline.on("taskAborted", () => {
-				this.emit(RooCodeEventName.TaskAborted, cline.taskId)
-				this.taskMap.delete(cline.taskId)
+			task.on(RooCodeEventName.TaskModeSwitched, (taskId, mode) => {
+				this.emit(RooCodeEventName.TaskModeSwitched, taskId, mode)
 			})
 
-			cline.on("taskCompleted", async (_, tokenUsage, toolUsage) => {
-				let isSubtask = false
-
-				if (cline.rootTask != undefined) {
-					isSubtask = true
-				}
-
-				this.emit(RooCodeEventName.TaskCompleted, cline.taskId, tokenUsage, toolUsage, { isSubtask: isSubtask })
-				this.taskMap.delete(cline.taskId)
-
-				await this.fileLog(
-					`[${new Date().toISOString()}] taskCompleted -> ${cline.taskId} | ${JSON.stringify(tokenUsage, null, 2)} | ${JSON.stringify(toolUsage, null, 2)}\n`,
-				)
+			task.on(RooCodeEventName.TaskAskResponded, () => {
+				this.emit(RooCodeEventName.TaskAskResponded, task.taskId)
 			})
 
-			cline.on("taskSpawned", (childTaskId) => this.emit(RooCodeEventName.TaskSpawned, cline.taskId, childTaskId))
-			cline.on("taskPaused", () => this.emit(RooCodeEventName.TaskPaused, cline.taskId))
-			cline.on("taskUnpaused", () => this.emit(RooCodeEventName.TaskUnpaused, cline.taskId))
+			// Task Analytics
 
-			cline.on("taskTokenUsageUpdated", (_, usage) =>
-				this.emit(RooCodeEventName.TaskTokenUsageUpdated, cline.taskId, usage),
-			)
+			task.on(RooCodeEventName.TaskToolFailed, (taskId, tool, error) => {
+				this.emit(RooCodeEventName.TaskToolFailed, taskId, tool, error)
+			})
 
-			cline.on("taskToolFailed", (taskId, tool, error) =>
-				this.emit(RooCodeEventName.TaskToolFailed, taskId, tool, error),
-			)
+			task.on(RooCodeEventName.TaskTokenUsageUpdated, (_, usage) => {
+				this.emit(RooCodeEventName.TaskTokenUsageUpdated, task.taskId, usage)
+			})
 
-			this.emit(RooCodeEventName.TaskCreated, cline.taskId)
+			// Let's go!
+
+			this.emit(RooCodeEventName.TaskCreated, task.taskId)
 		})
 	}
 

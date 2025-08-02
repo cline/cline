@@ -9,6 +9,7 @@ import { discriminatedProviderSettingsWithIdSchema } from "./provider-settings.j
  */
 
 export interface CloudUserInfo {
+	id?: string
 	name?: string
 	email?: string
 	picture?: string

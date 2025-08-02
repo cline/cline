@@ -1,4 +1,5 @@
 import EventEmitter from "events"
+
 import type { CloudUserInfo } from "@roo-code/types"
 
 export interface AuthServiceEvents {

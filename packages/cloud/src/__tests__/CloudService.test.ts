@@ -1,14 +1,16 @@
 // npx vitest run src/__tests__/CloudService.test.ts
 
 import * as vscode from "vscode"
+
 import type { ClineMessage } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 import { CloudService } from "../CloudService"
 import { WebAuthService } from "../auth/WebAuthService"
 import { CloudSettingsService } from "../CloudSettingsService"
-import { ShareService, TaskNotFoundError } from "../ShareService"
+import { CloudShareService } from "../CloudShareService"
 import { TelemetryClient } from "../TelemetryClient"
-import { TelemetryService } from "@roo-code/telemetry"
+import { TaskNotFoundError } from "../errors"
 
 vi.mock("vscode", () => ({
 	ExtensionContext: vi.fn(),
@@ -30,7 +32,7 @@ vi.mock("../auth/WebAuthService")
 
 vi.mock("../CloudSettingsService")
 
-vi.mock("../ShareService")
+vi.mock("../CloudShareService")
 
 vi.mock("../TelemetryClient")
 
@@ -154,7 +156,7 @@ describe("CloudService", () => {
 
 		vi.mocked(WebAuthService).mockImplementation(() => mockAuthService as unknown as WebAuthService)
 		vi.mocked(CloudSettingsService).mockImplementation(() => mockSettingsService as unknown as CloudSettingsService)
-		vi.mocked(ShareService).mockImplementation(() => mockShareService as unknown as ShareService)
+		vi.mocked(CloudShareService).mockImplementation(() => mockShareService as unknown as CloudShareService)
 		vi.mocked(TelemetryClient).mockImplementation(() => mockTelemetryClient as unknown as TelemetryClient)
 
 		vi.mocked(TelemetryService.hasInstance).mockReturnValue(true)

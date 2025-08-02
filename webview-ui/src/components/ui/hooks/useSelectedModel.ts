@@ -251,7 +251,7 @@ function getSelectedModel({
 		case "cerebras": {
 			const id = apiConfiguration.apiModelId ?? cerebrasDefaultModelId
 			const info = cerebrasModels[id as keyof typeof cerebrasModels]
-      return { id, info }
+			return { id, info }
 		}
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? sambaNovaDefaultModelId
