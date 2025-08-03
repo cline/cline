@@ -2,8 +2,6 @@
 
 ## 3.20.7
 
-### Patch Changes
-
 - 8894759: Fix errors in publish pipeline tests
 - ef4d11d: fix circular dependency that affect the github workflow Tests / test (pull_request)
 
