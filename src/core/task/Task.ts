@@ -240,6 +240,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	isWaitingForFirstChunk = false
 	isStreaming = false
 	currentStreamingContentIndex = 0
+	currentStreamingDidCheckpoint = false
 	assistantMessageContent: AssistantMessageContent[] = []
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
@@ -1543,6 +1544,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			// Reset streaming state.
 			this.currentStreamingContentIndex = 0
+			this.currentStreamingDidCheckpoint = false
 			this.assistantMessageContent = []
 			this.didCompleteReadingStream = false
 			this.userMessageContent = []

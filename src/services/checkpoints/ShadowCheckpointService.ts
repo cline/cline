@@ -38,6 +38,10 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		return !!this.git
 	}
 
+	public getCheckpoints(): string[] {
+		return this._checkpoints.slice()
+	}
+
 	constructor(taskId: string, checkpointsDir: string, workspaceDir: string, log: (message: string) => void) {
 		super()
 
