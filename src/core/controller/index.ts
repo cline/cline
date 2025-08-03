@@ -342,9 +342,9 @@ export class Controller {
 		}
 	}
 
-	async handleAuthCallback(customToken: string, provider: string | null = null) {
+	async handleAuthCallback(firebaseJwtToken: string) {
 		try {
-			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authService.handleAuthCallback(firebaseJwtToken)
 
 			const clineProvider: ApiProvider = "cline"
 

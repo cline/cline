@@ -102,7 +102,7 @@ export class AuthServiceMock extends AuthService {
 			console.log(`Successfully authenticated with mock server as ${userData.displayName} (${userData.email})`)
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
-			await visibleWebview?.controller.handleAuthCallback(testToken, "mock")
+			await visibleWebview?.controller.handleAuthCallback(testToken)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
 			this._authenticated = false
@@ -113,7 +113,7 @@ export class AuthServiceMock extends AuthService {
 		return String.create({ value: authUrlString })
 	}
 
-	override async handleAuthCallback(_token: string, _provider: string): Promise<void> {
+	override async handleAuthCallback(_token: string): Promise<void> {
 		try {
 			this._authenticated = true
 			await this.sendAuthStatusUpdate()

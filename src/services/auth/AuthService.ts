@@ -225,13 +225,13 @@ export class AuthService {
 		}
 	}
 
-	async handleAuthCallback(token: string, provider: string): Promise<void> {
+	async handleAuthCallback(token: string): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.signIn(this._controller, token, provider)
+			this._clineAuthInfo = await this._provider.provider.signIn(this._controller, token)
 			this._authenticated = true
 
 			if (this._clineAuthInfo) {
