@@ -39,7 +39,6 @@ import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
-import { getLatestAnnouncementId } from "./utils/announcements"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
