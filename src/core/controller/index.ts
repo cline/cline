@@ -54,20 +54,30 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	authService: AuthService
 	readonly cacheService: CacheService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
-		cacheService: CacheService,
 	) {
 		this.id = id
 
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.postMessage = postMessage
-		this.cacheService = cacheService
+		this.accountService = ClineAccountService.getInstance()
+		this.cacheService = new CacheService(context)
+		const authService = AuthService.getInstance(this)
+
+		// Initialize cache service asynchronously - critical for extension functionality
+		this.cacheService
+			.initialize()
+			.then(() => {
+				authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			})
+			.catch((error) => {
+				console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
+			})
 
 		// Set up persistence error recovery
 		this.cacheService.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
@@ -95,9 +105,6 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
-		this.accountService = ClineAccountService.getInstance()
-		this.authService = AuthService.getInstance(this)
-		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
@@ -344,7 +351,7 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
+			await AuthService.getInstance(this).handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
