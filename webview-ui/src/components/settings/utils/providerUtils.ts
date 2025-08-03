@@ -50,6 +50,8 @@ import {
 	groqDefaultModelId,
 	huaweiCloudMaasModels,
 	huaweiCloudMaasDefaultModelId,
+	zaiModels,
+	zaiDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -266,6 +268,8 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "zai":
+			return getProviderData(zaiModels, zaiDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -504,6 +508,7 @@ export async function syncModeConfigurations(
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":
+		case "zai":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId

@@ -31,6 +31,7 @@ export type ApiProvider =
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
+	| "zai"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -94,6 +95,7 @@ export interface ApiHandlerOptions {
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
 	huaweiCloudMaasApiKey?: string
+	zaiApiKey?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -2882,5 +2884,29 @@ export const huaweiCloudMaasModels = {
 			maxBudget: 4096,
 			outputPrice: 1.1,
 		},
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Z AI
+// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/overview/pricing
+export type zaiModelId = keyof typeof zaiModels
+export const zaiDefaultModelId: zaiModelId = "glm-4.5"
+export const zaiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
+	"glm-4.5-air": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.1,
 	},
 } as const satisfies Record<string, ModelInfo>

@@ -39,6 +39,7 @@ import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers
 import { GroqProvider } from "./providers/GroqProvider"
 import { Mode } from "@shared/storage/types"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
+import { ZAiProvider } from "./providers/ZAiProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -166,6 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					<VSCodeOption value="zai">Z AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -284,6 +286,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
 				<HuaweiCloudMaasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
+
+			{apiConfiguration && selectedProvider === "zai" && (
+				<ZAiProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiErrorMessage && (

@@ -29,6 +29,7 @@ export type SecretKey =
 	| "sapAiCoreClientSecret"
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
+	| "zaiApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
