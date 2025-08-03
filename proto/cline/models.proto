@@ -27,6 +27,8 @@ service ModelsService {
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
    // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from SAP AI Core
+  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (StringArray);
 }
 
 // List of VS Code LM models
@@ -90,6 +92,16 @@ message OpenAiModelsRequest {
   Metadata metadata = 1;
   string base_url = 2;
   string api_key = 3;
+}
+
+// Request for fetching SAP AI Core models
+message SapAiCoreModelsRequest {
+  Metadata metadata = 1;
+  string client_id = 2;
+  string client_secret = 3;
+  string base_url = 4;
+  string token_url = 5;
+  string resource_group = 6;
 }
 
 // Request for updating API configuration

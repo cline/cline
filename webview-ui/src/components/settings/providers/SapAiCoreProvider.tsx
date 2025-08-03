@@ -1,12 +1,14 @@
-import { sapAiCoreModels } from "@shared/api"
+import { useState, useCallback, useEffect } from "react"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 /**
  * Props for the SapAiCoreProvider component
  */
@@ -24,6 +26,75 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// State for dynamic model fetching
+	const [deployedModelsArray, setDeployedModelsArray] = useState<string[]>([])
+	const [isLoadingModels, setIsLoadingModels] = useState(false)
+	const [modelError, setModelError] = useState<string | null>(null)
+
+	// Check if all required credentials are available
+	const hasRequiredCredentials =
+		apiConfiguration?.sapAiCoreClientId &&
+		apiConfiguration?.sapAiCoreClientSecret &&
+		apiConfiguration?.sapAiCoreBaseUrl &&
+		apiConfiguration?.sapAiCoreTokenUrl &&
+		apiConfiguration?.sapAiResourceGroup
+
+	// Function to fetch SAP AI Core models
+	const fetchSapAiCoreModels = useCallback(async () => {
+		if (!hasRequiredCredentials) {
+			setDeployedModelsArray([])
+			return
+		}
+
+		setIsLoadingModels(true)
+		setModelError(null)
+
+		try {
+			const response = await ModelsServiceClient.getSapAiCoreModels(
+				SapAiCoreModelsRequest.create({
+					clientId: apiConfiguration.sapAiCoreClientId,
+					clientSecret: apiConfiguration.sapAiCoreClientSecret,
+					baseUrl: apiConfiguration.sapAiCoreBaseUrl,
+					tokenUrl: apiConfiguration.sapAiCoreTokenUrl,
+					resourceGroup: apiConfiguration.sapAiResourceGroup,
+				}),
+			)
+
+			if (response && response.values) {
+				setDeployedModelsArray(response.values)
+			} else {
+				setDeployedModelsArray([])
+			}
+		} catch (error) {
+			console.error("Error fetching SAP AI Core models:", error)
+			setModelError("Failed to fetch models. Please check your configuration.")
+			setDeployedModelsArray([])
+		} finally {
+			setIsLoadingModels(false)
+		}
+	}, [
+		apiConfiguration?.sapAiCoreClientId,
+		apiConfiguration?.sapAiCoreClientSecret,
+		apiConfiguration?.sapAiCoreBaseUrl,
+		apiConfiguration?.sapAiCoreTokenUrl,
+		apiConfiguration?.sapAiResourceGroup,
+	])
+
+	// Fetch models when configuration changes
+	useEffect(() => {
+		if (showModelOptions && hasRequiredCredentials) {
+			fetchSapAiCoreModels()
+		}
+	}, [showModelOptions, hasRequiredCredentials, fetchSapAiCoreModels])
+
+	// Handle model selection
+	const handleModelChange = useCallback(
+		(modelId: string) => {
+			handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+		},
+		[handleModeFieldChange, currentMode],
+	)
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -95,18 +166,51 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 
 			{showModelOptions && (
 				<>
-					<ModelSelector
-						models={sapAiCoreModels}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						label="Model"
-					/>
+					<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+						{isLoadingModels ? (
+							<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+								Loading models...
+							</div>
+						) : modelError ? (
+							<div style={{ fontSize: "12px", color: "var(--vscode-errorForeground)" }}>
+								{modelError}
+								<button
+									onClick={fetchSapAiCoreModels}
+									style={{
+										marginLeft: "8px",
+										fontSize: "11px",
+										padding: "2px 6px",
+										background: "var(--vscode-button-background)",
+										color: "var(--vscode-button-foreground)",
+										border: "none",
+										borderRadius: "2px",
+										cursor: "pointer",
+									}}>
+									Retry
+								</button>
+							</div>
+						) : hasRequiredCredentials ? (
+							<>
+								{deployedModelsArray.length === 0 && (
+									<div
+										style={{ fontSize: "12px", color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>
+										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
+										configuration or ensure your deployments are deployed and running in the service instance
+									</div>
+								)}
+								<SapAiCoreModelPicker
+									sapAiCoreDeployedModels={deployedModelsArray}
+									selectedModelId={selectedModelId || ""}
+									onModelChange={handleModelChange}
+									placeholder="Select a model..."
+								/>
+							</>
+						) : (
+							<div style={{ fontSize: "12px", color: "var(--vscode-errorForeground)" }}>
+								Please configure your SAP AI Core credentials to see available models.
+							</div>
+						)}
+					</div>
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>
