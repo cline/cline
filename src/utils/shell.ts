@@ -183,7 +183,7 @@ function getShellFromEnv(): string | null {
 // 4) Terminal Profile Interface and Utilities
 // -----------------------------------------------------
 
-import { TerminalProfile } from "../shared/proto/state"
+import { TerminalProfile } from "@shared/proto/cline/state"
 
 /** Gets available terminal profiles for the current platform */
 export function getAvailableTerminalProfiles(): TerminalProfile[] {

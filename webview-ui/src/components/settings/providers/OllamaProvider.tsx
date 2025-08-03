@@ -3,14 +3,13 @@ import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import OllamaModelPicker from "../OllamaModelPicker"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the OllamaProvider component
  */

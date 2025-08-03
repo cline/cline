@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.20.1",
+	"version": "3.20.5",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -119,7 +119,8 @@
 				{
 					"type": "webview",
 					"id": "claude-dev.SidebarProvider",
-					"name": ""
+					"name": "",
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
@@ -338,14 +339,14 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.js --standalone",
+		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
+		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.js --watch",
+		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
-		"protos": "node scripts/build-proto.mjs && node scripts/generate-protobus-setup.mjs && node scripts/generate-host-bridge-client.mjs",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
+		"protos": "node scripts/build-proto.mjs",
 		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
 		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"compile-tests": "node ./scripts/build-tests.js",

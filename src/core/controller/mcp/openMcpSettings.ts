@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { Empty, EmptyRequest } from "@shared/proto/common"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 
 /**

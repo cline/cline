@@ -1,5 +1,5 @@
 import { ApiConfiguration, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
-import { OpenAiModelsRequest } from "@shared/proto/models"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -11,8 +11,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the OpenAICompatibleProvider component
  */

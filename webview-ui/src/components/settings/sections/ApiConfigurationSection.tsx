@@ -4,19 +4,18 @@ import ApiOptions from "../ApiOptions"
 import Section from "../Section"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest } from "@shared/proto/state"
+import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { useState } from "react"
 import { syncModeConfigurations } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 interface ApiConfigurationSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
 const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectionProps) => {
-	const { planActSeparateModelsSetting, chatSettings, apiConfiguration } = useExtensionState()
-	const [currentTab, setCurrentTab] = useState<Mode>(chatSettings.mode)
+	const { planActSeparateModelsSetting, mode, apiConfiguration } = useExtensionState()
+	const [currentTab, setCurrentTab] = useState<Mode>(mode)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	return (
 		<div>
@@ -54,7 +53,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 						</div>
 					</div>
 				) : (
-					<ApiOptions showModelOptions={true} currentMode={chatSettings.mode} />
+					<ApiOptions showModelOptions={true} currentMode={mode} />
 				)}
 
 				<div className="mb-[5px]">

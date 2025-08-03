@@ -1,9 +1,6 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const open = require("open").default
-const fs = require("fs")
-const path = require("path")
 const { StandaloneTerminalManager } = require("./enhanced-terminal")
 
 // Import the base vscode object from stubs
@@ -42,14 +39,6 @@ vscode.window = {
 	showTextDocument: async (...args) => {
 		console.log("Stubbed showTextDocument:", ...args)
 		return {}
-	},
-	createOutputChannel: (name) => {
-		console.log("Stubbed createOutputChannel:", name)
-		return {
-			appendLine: console.log,
-			show: () => {},
-			dispose: () => {},
-		}
 	},
 	createTerminal: (...args) => {
 		console.log("Enhanced createTerminal:", ...args)
@@ -172,13 +161,6 @@ vscode.Uri = {
 		const joined = segments.map((s) => (typeof s === "string" ? s : s.path)).join("/")
 		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
 	},
-}
-
-vscode.env.openExternal = async (uri) => {
-	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
-	console.log("Opening browser:", url)
-	await open(url)
-	return true
 }
 
 // Export the terminal manager globally for Cline core to use

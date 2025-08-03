@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { GitCommits } from "@shared/proto/file"
-import { StringRequest } from "@shared/proto/common"
+import { GitCommits } from "@shared/proto/cline/file"
+import { StringRequest } from "@shared/proto/cline/common"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
 import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"

@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { DEFAULT_CHAT_SETTINGS, Mode } from "@shared/ChatSettings"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
@@ -7,12 +7,12 @@ import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@share
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { StoredChatSettings } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
+import { Controller } from "../controller"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -110,7 +110,6 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: L
 }
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
-	const firstBatchStart = performance.now()
 	const [
 		isNewUser,
 		welcomeViewCompleted,
@@ -190,6 +189,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		claudeCodePath,
+		huaweiCloudMaasApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -269,14 +269,20 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiCoreTokenUrl") as Promise<string | undefined>,
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
+		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
 	])
 
-	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
+	const [localClineRulesToggles, localWindsurfRulesToggles, localCursorRulesToggles, localWorkflowToggles] = await Promise.all([
+		getWorkspaceState(context, "localClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "localWindsurfRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "localCursorRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "workflowToggles") as Promise<ClineRulesToggles | undefined>,
+	])
 
-	const secondBatchStart = performance.now()
 	const [
-		chatSettings,
-		currentMode,
+		preferredLanguage,
+		openaiReasoningEffort,
+		mode,
 		// Plan mode configurations
 		planModeApiProvider,
 		planModeApiModelId,
@@ -302,6 +308,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeGroqModelInfo,
 		planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo,
+		planModeHuaweiCloudMaasModelId,
+		planModeHuaweiCloudMaasModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -327,8 +335,11 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeGroqModelInfo,
 		actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo,
+		actModeHuaweiCloudMaasModelId,
+		actModeHuaweiCloudMaasModelInfo,
 	] = await Promise.all([
-		getGlobalState(context, "chatSettings") as Promise<StoredChatSettings | undefined>,
+		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
+		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
 		getGlobalState(context, "mode") as Promise<Mode | undefined>,
 		// Plan mode configurations
 		getGlobalState(context, "planModeApiProvider") as Promise<ApiProvider | undefined>,
@@ -355,6 +366,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -380,9 +393,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeGroqModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
-	const processingStart = performance.now()
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
 		apiProvider = planModeApiProvider
@@ -480,6 +494,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			huggingFaceApiKey,
+			huaweiCloudMaasApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -505,6 +520,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeHuaweiCloudMaasModelId,
+			planModeHuaweiCloudMaasModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -530,6 +547,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeHuaweiCloudMaasModelId,
+			actModeHuaweiCloudMaasModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -537,13 +556,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		globalClineRulesToggles: globalClineRulesToggles || {},
-		localClineRulesToggles: localClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
-		chatSettings: {
-			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
-			...(chatSettings || {}), // Spread fetched global chatSettings, which includes preferredLanguage, and openAIReasoningEffort
-			mode: currentMode || "act", // Merge mode from global state
-		},
+		preferredLanguage: preferredLanguage || "English",
+		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
+		mode: mode || "act",
 		userInfo,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,
@@ -556,256 +572,25 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
+		localClineRulesToggles: localClineRulesToggles || {},
+		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+		localCursorRulesToggles: localCursorRulesToggles || {},
+		localWorkflowToggles: localWorkflowToggles || {},
 	}
 }
 
-export async function updateApiConfiguration(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
-	const {
-		apiKey,
-		openRouterApiKey,
-		awsAccessKey,
-		awsSecretKey,
-		awsSessionToken,
-		awsRegion,
-		awsUseCrossRegionInference,
-		awsBedrockUsePromptCache,
-		awsBedrockEndpoint,
-		awsBedrockApiKey,
-		awsProfile,
-		awsUseProfile,
-		awsAuthentication,
-		vertexProjectId,
-		vertexRegion,
-		openAiBaseUrl,
-		openAiApiKey,
-		openAiHeaders,
-		ollamaBaseUrl,
-		ollamaApiOptionsCtxNum,
-		lmStudioBaseUrl,
-		anthropicBaseUrl,
-		geminiApiKey,
-		geminiBaseUrl,
-		openAiNativeApiKey,
-		deepSeekApiKey,
-		requestyApiKey,
-		togetherApiKey,
-		qwenApiKey,
-		doubaoApiKey,
-		mistralApiKey,
-		azureApiVersion,
-		openRouterProviderSorting,
-		liteLlmBaseUrl,
-		liteLlmApiKey,
-		liteLlmUsePromptCache,
-		qwenApiLine,
-		moonshotApiLine,
-		asksageApiKey,
-		asksageApiUrl,
-		xaiApiKey,
-		clineAccountId,
-		sambanovaApiKey,
-		cerebrasApiKey,
-		groqApiKey,
-		moonshotApiKey,
-		nebiusApiKey,
-		favoritedModelIds,
-		fireworksApiKey,
-		fireworksModelMaxCompletionTokens,
-		fireworksModelMaxTokens,
-		sapAiCoreClientId,
-		sapAiCoreClientSecret,
-		sapAiCoreBaseUrl,
-		sapAiCoreTokenUrl,
-		sapAiResourceGroup,
-		claudeCodePath,
-		huggingFaceApiKey,
-		// Plan mode configurations
-		planModeApiProvider,
-		planModeApiModelId,
-		planModeThinkingBudgetTokens,
-		planModeReasoningEffort,
-		planModeVsCodeLmModelSelector,
-		planModeAwsBedrockCustomSelected,
-		planModeAwsBedrockCustomModelBaseId,
-		planModeOpenRouterModelId,
-		planModeOpenRouterModelInfo,
-		planModeOpenAiModelId,
-		planModeOpenAiModelInfo,
-		planModeOllamaModelId,
-		planModeLmStudioModelId,
-		planModeLiteLlmModelId,
-		planModeLiteLlmModelInfo,
-		planModeRequestyModelId,
-		planModeRequestyModelInfo,
-		planModeTogetherModelId,
-		planModeFireworksModelId,
-		planModeSapAiCoreModelId,
-		planModeGroqModelId,
-		planModeGroqModelInfo,
-		planModeHuggingFaceModelId,
-		planModeHuggingFaceModelInfo,
-		// Act mode configurations
-		actModeApiProvider,
-		actModeApiModelId,
-		actModeThinkingBudgetTokens,
-		actModeReasoningEffort,
-		actModeVsCodeLmModelSelector,
-		actModeAwsBedrockCustomSelected,
-		actModeAwsBedrockCustomModelBaseId,
-		actModeOpenRouterModelId,
-		actModeOpenRouterModelInfo,
-		actModeOpenAiModelId,
-		actModeOpenAiModelInfo,
-		actModeOllamaModelId,
-		actModeLmStudioModelId,
-		actModeLiteLlmModelId,
-		actModeLiteLlmModelInfo,
-		actModeRequestyModelId,
-		actModeRequestyModelInfo,
-		actModeTogetherModelId,
-		actModeFireworksModelId,
-		actModeSapAiCoreModelId,
-		actModeGroqModelId,
-		actModeGroqModelInfo,
-		actModeHuggingFaceModelId,
-		actModeHuggingFaceModelInfo,
-	} = apiConfiguration
+export async function resetWorkspaceState(controller: Controller) {
+	const context = controller.context
+	await Promise.all(context.workspaceState.keys().map((key) => controller.context.workspaceState.update(key, undefined)))
 
-	// OPTIMIZED: Batch all global state updates into 2 operations instead of 47
-	const batchedGlobalUpdates = {
-		// Plan mode configuration updates
-		planModeApiProvider,
-		planModeApiModelId,
-		planModeThinkingBudgetTokens,
-		planModeReasoningEffort,
-		planModeVsCodeLmModelSelector,
-		planModeAwsBedrockCustomSelected,
-		planModeAwsBedrockCustomModelBaseId,
-		planModeOpenRouterModelId,
-		planModeOpenRouterModelInfo,
-		planModeOpenAiModelId,
-		planModeOpenAiModelInfo,
-		planModeOllamaModelId,
-		planModeLmStudioModelId,
-		planModeLiteLlmModelId,
-		planModeLiteLlmModelInfo,
-		planModeRequestyModelId,
-		planModeRequestyModelInfo,
-		planModeTogetherModelId,
-		planModeFireworksModelId,
-		planModeSapAiCoreModelId,
-		planModeGroqModelId,
-		planModeGroqModelInfo,
-		planModeHuggingFaceModelId,
-		planModeHuggingFaceModelInfo,
-
-		// Act mode configuration updates
-		actModeApiProvider,
-		actModeApiModelId,
-		actModeThinkingBudgetTokens,
-		actModeReasoningEffort,
-		actModeVsCodeLmModelSelector,
-		actModeAwsBedrockCustomSelected,
-		actModeAwsBedrockCustomModelBaseId,
-		actModeOpenRouterModelId,
-		actModeOpenRouterModelInfo,
-		actModeOpenAiModelId,
-		actModeOpenAiModelInfo,
-		actModeOllamaModelId,
-		actModeLmStudioModelId,
-		actModeLiteLlmModelId,
-		actModeLiteLlmModelInfo,
-		actModeRequestyModelId,
-		actModeRequestyModelInfo,
-		actModeTogetherModelId,
-		actModeFireworksModelId,
-		actModeSapAiCoreModelId,
-		actModeGroqModelId,
-		actModeGroqModelInfo,
-		actModeHuggingFaceModelId,
-		actModeHuggingFaceModelInfo,
-
-		// Global state updates (27 keys)
-		awsRegion,
-		awsUseCrossRegionInference,
-		awsBedrockUsePromptCache,
-		awsBedrockEndpoint,
-		awsProfile,
-		awsUseProfile,
-		awsAuthentication,
-		vertexProjectId,
-		vertexRegion,
-		openAiBaseUrl,
-		openAiHeaders: openAiHeaders || {},
-		ollamaBaseUrl,
-		ollamaApiOptionsCtxNum,
-		lmStudioBaseUrl,
-		anthropicBaseUrl,
-		geminiBaseUrl,
-		azureApiVersion,
-		openRouterProviderSorting,
-		liteLlmBaseUrl,
-		liteLlmUsePromptCache,
-		qwenApiLine,
-		moonshotApiLine,
-		asksageApiUrl,
-		favoritedModelIds,
-		requestTimeoutMs: apiConfiguration.requestTimeoutMs,
-		fireworksModelMaxCompletionTokens,
-		fireworksModelMaxTokens,
-		sapAiCoreBaseUrl,
-		sapAiCoreTokenUrl,
-		sapAiResourceGroup,
-		claudeCodePath,
-	}
-
-	// OPTIMIZED: Batch all secret updates into 1 operation instead of 23
-	const batchedSecretUpdates = {
-		apiKey,
-		openRouterApiKey,
-		clineAccountId,
-		awsAccessKey,
-		awsSecretKey,
-		awsSessionToken,
-		awsBedrockApiKey,
-		openAiApiKey,
-		geminiApiKey,
-		openAiNativeApiKey,
-		deepSeekApiKey,
-		requestyApiKey,
-		togetherApiKey,
-		qwenApiKey,
-		doubaoApiKey,
-		mistralApiKey,
-		liteLlmApiKey,
-		fireworksApiKey,
-		asksageApiKey,
-		xaiApiKey,
-		sambanovaApiKey,
-		cerebrasApiKey,
-		groqApiKey,
-		moonshotApiKey,
-		nebiusApiKey,
-		sapAiCoreClientId,
-		sapAiCoreClientSecret,
-		huggingFaceApiKey,
-	}
-
-	// Execute batched operations in parallel for maximum performance
-	await Promise.all([updateGlobalStateBatch(context, batchedGlobalUpdates), updateSecretsBatch(context, batchedSecretUpdates)])
+	await controller.cacheService.reInitialize()
 }
 
-export async function resetWorkspaceState(context: vscode.ExtensionContext) {
-	for (const key of context.workspaceState.keys()) {
-		await context.workspaceState.update(key, undefined)
-	}
-}
-
-export async function resetGlobalState(context: vscode.ExtensionContext) {
+export async function resetGlobalState(controller: Controller) {
 	// TODO: Reset all workspace states?
-	for (const key of context.globalState.keys()) {
-		await context.globalState.update(key, undefined)
-	}
+	const context = controller.context
+
+	await Promise.all(context.globalState.keys().map((key) => context.globalState.update(key, undefined)))
 	const secretKeys: SecretKey[] = [
 		"apiKey",
 		"openRouterApiKey",
@@ -833,8 +618,8 @@ export async function resetGlobalState(context: vscode.ExtensionContext) {
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",
+		"huaweiCloudMaasApiKey",
 	]
-	for (const key of secretKeys) {
-		await storeSecret(context, key, undefined)
-	}
+	await Promise.all(secretKeys.map((key) => storeSecret(context, key, undefined)))
+	await controller.cacheService.reInitialize()
 }

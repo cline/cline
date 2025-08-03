@@ -31,6 +31,7 @@ export type ApiProvider =
 	| "sapaicore"
 	| "groq"
 	| "huggingface"
+	| "huawei-cloud-maas"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -95,6 +96,7 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	huaweiCloudMaasApiKey?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -120,6 +122,8 @@ export interface ApiHandlerOptions {
 	planModeGroqModelInfo?: ModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
+	planModeHuaweiCloudMaasModelId?: string
+	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -145,6 +149,8 @@ export interface ApiHandlerOptions {
 	actModeGroqModelInfo?: ModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
+	actModeHuaweiCloudMaasModelId?: string
+	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1273,6 +1279,15 @@ export const huggingFaceModels = {
 		outputPrice: 0,
 		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
 	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 64_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model's latest version with step-by-step thinking capabilities",
+	},
 	"meta-llama/Llama-3.1-8B-Instruct": {
 		maxTokens: 8192,
 		contextWindow: 128_000,
@@ -1286,10 +1301,7 @@ export const huggingFaceModels = {
 
 // Qwen
 // https://bailian.console.aliyun.com/
-export type MainlandQwenModelId = keyof typeof mainlandQwenModels
-export type InternationalQwenModelId = keyof typeof internationalQwenModels
-export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
-export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
+// The first model in the list is used as the default model for each region
 export const internationalQwenModels = {
 	"qwen3-coder-plus": {
 		maxTokens: 65_536,
@@ -1971,6 +1983,17 @@ export const mainlandQwenModels = {
 		cacheReadsPrice: 4.5,
 	},
 } as const satisfies Record<string, ModelInfo>
+export enum QwenApiRegions {
+	CHINA = "china",
+	INTERNATIONAL = "international",
+}
+export type MainlandQwenModelId = keyof typeof mainlandQwenModels
+export type InternationalQwenModelId = keyof typeof internationalQwenModels
+// Set first model in the list as the default model for each region
+export const internationalQwenDefaultModelId: InternationalQwenModelId = Object.keys(
+	internationalQwenModels,
+)[0] as InternationalQwenModelId
+export const mainlandQwenDefaultModelId: MainlandQwenModelId = Object.keys(mainlandQwenModels)[0] as MainlandQwenModelId
 
 // Doubao
 // https://www.volcengine.com/docs/82379/1298459
@@ -2592,8 +2615,37 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-32b"
+export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
 export const cerebrasModels = {
+	"qwen-3-coder-480b-free": {
+		maxTokens: 40000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"SOTA coding model with ~2000 tokens/s ($0 free tier)\n\n• Use this if you don't have a Cerebras subscription\n• 64K context window\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\n\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)",
+	},
+	"qwen-3-coder-480b": {
+		maxTokens: 40000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\n\n• Use this if you have a Cerebras subscription\n• 131K context window with higher rate limits",
+	},
+	"qwen-3-235b-a22b-instruct-2507": {
+		maxTokens: 64000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent model with ~1400 tokens/s",
+	},
 	"llama-3.3-70b": {
 		maxTokens: 64000,
 		contextWindow: 64000,
@@ -2612,9 +2664,9 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
 	},
-	"qwen-3-235b-a22b": {
-		maxTokens: 40000,
-		contextWindow: 40000,
+	"qwen-3-235b-a22b-thinking-2507": {
+		maxTokens: 32000,
+		contextWindow: 65000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -2895,3 +2947,75 @@ export const moonshotModels = {
 } as const satisfies Record<string, ModelInfo>
 export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
+
+// Huawei Cloud MaaS
+export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
+export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
+export const huaweiCloudMaasModels = {
+	"DeepSeek-V3": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"DeepSeek-R1": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"deepseek-r1-250528": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"qwen3-235b-a22b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+	"qwen3-32b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+} as const satisfies Record<string, ModelInfo>

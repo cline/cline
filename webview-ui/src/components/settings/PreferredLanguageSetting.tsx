@@ -2,21 +2,12 @@ import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
-import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 
 const PreferredLanguageSetting: React.FC = () => {
-	const { chatSettings } = useExtensionState()
+	const { preferredLanguage } = useExtensionState()
 
 	const handleLanguageChange = (newLanguage: string) => {
-		if (!chatSettings) return
-
-		const updatedChatSettings = {
-			...chatSettings,
-			preferredLanguage: newLanguage,
-		}
-
-		const protoChatSettings = convertChatSettingsToProtoChatSettings(updatedChatSettings)
-		updateSetting("chatSettings", protoChatSettings)
+		updateSetting("preferredLanguage", newLanguage)
 	}
 
 	return (
@@ -26,7 +17,7 @@ const PreferredLanguageSetting: React.FC = () => {
 			</label>
 			<VSCodeDropdown
 				id="preferred-language-dropdown"
-				currentValue={chatSettings.preferredLanguage || "English"}
+				currentValue={preferredLanguage || "English"}
 				onChange={(e: any) => {
 					handleLanguageChange(e.target.value)
 				}}

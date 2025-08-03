@@ -11,7 +11,19 @@ You can create a rule by clicking the `+` button in the Rules tab. This will ope
 Once you save the file:
 
 -   Your rule will be stored in the `.clinerules/` directory in your project (if it's a Workspace Rule)
--   Or in the `Documents/Cline/Rules` directory (if it's a Global Rule).
+-   Or in the Global Rules directory (if it's a Global Rule):
+
+### Global Rules Directory Location
+
+The location of your Global Rules directory depends on your operating system:
+
+| Operating System | Default Location | Notes |
+|------------------|------------------|-------|
+| **Windows** | `Documents\Cline\Rules` | Uses system Documents folder |
+| **macOS** | `~/Documents/Cline/Rules` | Uses user Documents folder |
+| **Linux/WSL** | `~/Documents/Cline/Rules` | May fall back to `~/Cline/Rules` on some systems |
+
+> **Note for Linux/WSL users**: If you don't find your global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules` as the location may vary depending on your system configuration and whether the Documents directory exists.
 
 You can also have Cline create a rule for you by using the [`/newrule` slash command](/features/slash-commands/new-rule) in the chat.
 

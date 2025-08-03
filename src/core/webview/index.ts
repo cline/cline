@@ -4,6 +4,7 @@ import { getNonce } from "./getNonce"
 
 import { WebviewProviderType } from "@/shared/webview/types"
 import { Controller } from "@core/controller/index"
+import { CacheService } from "@core/storage/CacheService"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
@@ -11,7 +12,7 @@ import { v4 as uuidv4 } from "uuid"
 import { Uri } from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -21,16 +22,32 @@ export abstract class WebviewProvider {
 	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
+	private cacheService: CacheService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		protected readonly outputChannel: vscode.OutputChannel,
+
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
-		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
+
+		// Create and initialize cache service
+		this.cacheService = new CacheService(context)
+
+		// Create controller with cache service
+		this.controller = new Controller(
+			context,
+			(message) => this.postMessageToWebview(message),
+			this.clientId,
+			this.cacheService,
+		)
+
+		// Initialize cache service asynchronously - critical for extension functionality
+		this.cacheService.initialize().catch((error) => {
+			console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
+		})
 	}
 
 	// Add a method to get the client ID
@@ -262,8 +279,8 @@ export abstract class WebviewProvider {
 		try {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
-			// Only show the error message if not in development mode.
-			if (!process.env.IS_DEV) {
+			// Only show the error message when in development mode.
+			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message:
@@ -304,7 +321,7 @@ export abstract class WebviewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
-					<script src="http://localhost:8097"></script> 
+					${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ""}
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">

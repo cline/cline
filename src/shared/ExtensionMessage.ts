@@ -2,7 +2,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
-import { ChatSettings } from "./ChatSettings"
+import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
@@ -33,7 +33,9 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
-	chatSettings: ChatSettings
+	preferredLanguage?: string
+	openaiReasoningEffort?: OpenaiReasoningEffort
+	mode: Mode
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem

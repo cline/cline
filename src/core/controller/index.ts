@@ -13,7 +13,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ChatSettings, Mode, StoredChatSettings } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -30,11 +30,13 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
+import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { getLatestAnnouncementId } from "@/extension"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -53,19 +55,38 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
-	get latestAnnouncementId(): string {
-		return this.context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
-	}
+	readonly cacheService: CacheService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel,
 		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
+		cacheService: CacheService,
 	) {
 		this.id = id
-		this.outputChannel.appendLine("ClineProvider instantiated")
+
+		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.postMessage = postMessage
+		this.cacheService = cacheService
+
+		// Set up persistence error recovery
+		this.cacheService.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
+			console.error("Cache persistence failed, recovering:", error)
+			try {
+				await this.cacheService.reInitialize()
+				await this.postStateToWebview()
+				HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "Saving settings to storage failed.",
+				})
+			} catch (recoveryError) {
+				console.error("Cache recovery failed:", recoveryError)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to save settings. Please restart the extension.",
+				})
+			}
+		}
 
 		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
@@ -75,11 +96,11 @@ export class Controller {
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 		this.accountService = ClineAccountService.getInstance()
-		this.authService = AuthService.getInstance(context)
+		this.authService = AuthService.getInstance(this)
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
+		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
 	}
@@ -111,12 +132,18 @@ export class Controller {
 	async handleSignOut() {
 		try {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			await storeSecret(this.context, "clineAccountId", undefined)
+			this.cacheService.setSecret("clineAccountId", undefined)
 			await updateGlobalState(this.context, "userInfo", undefined)
-			await Promise.all([
-				updateGlobalState(this.context, "planModeApiProvider", "openrouter"),
-				updateGlobalState(this.context, "actModeApiProvider", "openrouter"),
-			])
+
+			// Update API providers through cache service
+			const apiConfiguration = this.cacheService.getApiConfiguration()
+			const updatedConfig = {
+				...apiConfiguration,
+				planModeApiProvider: "openrouter" as ApiProvider,
+				actModeApiProvider: "openrouter" as ApiProvider,
+			}
+			this.cacheService.setApiConfiguration(updatedConfig)
+
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -136,11 +163,16 @@ export class Controller {
 
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+
+		// Get API configuration from cache for immediate access
+		const apiConfiguration = this.cacheService.getApiConfiguration()
+
 		const {
-			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings: storedChatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
@@ -149,15 +181,6 @@ export class Controller {
 			isNewUser,
 			taskHistory,
 		} = await getAllExtensionState(this.context)
-
-		// Get current mode using helper function
-		const currentMode = await this.getCurrentMode()
-
-		// Reconstruct ChatSettings with mode from global state and stored preferences
-		const chatSettings: ChatSettings = {
-			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: currentMode, // Use mode from global state
-		}
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -185,13 +208,16 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
 			await getCwd(getDesktopDir()),
+			this.cacheService,
 			task,
 			images,
 			files,
@@ -248,28 +274,25 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent): Promise<boolean> {
-		const didSwitchToActMode = chatSettings.mode === "act"
+	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		const didSwitchToActMode = modeToSwitchTo === "act"
 
 		// Store mode to global state
-		await updateGlobalState(this.context, "mode", chatSettings.mode)
+		await updateGlobalState(this.context, "mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
-		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", chatSettings.mode)
+		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
-			const { apiConfiguration } = await getAllExtensionState(this.context)
-			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, chatSettings.mode)
+			const apiConfiguration = this.cacheService.getApiConfiguration()
+			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
 		}
 
-		// Save only non-mode properties to global storage
-		const { mode, ...persistentChatSettings }: { mode: string } & StoredChatSettings = chatSettings
-		await updateGlobalState(this.context, "chatSettings", persistentChatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.chatSettings = chatSettings
+			this.task.mode = modeToSwitchTo
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
@@ -329,27 +352,26 @@ export class Controller {
 			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
 			const currentMode = await this.getCurrentMode()
 
+			// Get current API configuration from cache
+			const currentApiConfiguration = this.cacheService.getApiConfiguration()
+
+			let updatedConfig = { ...currentApiConfiguration }
+
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
 				if (currentMode === "plan") {
-					await updateGlobalState(this.context, "planModeApiProvider", clineProvider)
+					updatedConfig.planModeApiProvider = clineProvider
 				} else {
-					await updateGlobalState(this.context, "actModeApiProvider", clineProvider)
+					updatedConfig.actModeApiProvider = clineProvider
 				}
 			} else {
 				// Update both modes to keep them in sync
-				await Promise.all([
-					updateGlobalState(this.context, "planModeApiProvider", clineProvider),
-					updateGlobalState(this.context, "actModeApiProvider", clineProvider),
-				])
+				updatedConfig.planModeApiProvider = clineProvider
+				updatedConfig.actModeApiProvider = clineProvider
 			}
 
-			// Get the updated API configuration (now includes the updated providers)
-			const { apiConfiguration } = await getAllExtensionState(this.context)
-			const updatedConfig = {
-				...apiConfiguration,
-				apiProvider: clineProvider,
-			}
+			// Update the API configuration through cache service
+			this.cacheService.setApiConfiguration(updatedConfig)
 
 			// Mark welcome view as completed since user has successfully logged in
 			await updateGlobalState(this.context, "welcomeViewCompleted", true)
@@ -511,21 +533,20 @@ export class Controller {
 
 		const openrouter: ApiProvider = "openrouter"
 		const currentMode = await this.getCurrentMode()
-		await Promise.all([
-			updateGlobalState(this.context, "planModeApiProvider", openrouter),
-			updateGlobalState(this.context, "actModeApiProvider", openrouter),
-		])
-		await storeSecret(this.context, "openRouterApiKey", apiKey)
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = this.cacheService.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: openrouter,
+			actModeApiProvider: openrouter,
+			openRouterApiKey: apiKey,
+		}
+		this.cacheService.setApiConfiguration(updatedConfig)
+
 		await this.postStateToWebview()
 		if (this.task) {
-			// Get the updated API configuration (now includes the updated providers)
-			const { apiConfiguration } = await getAllExtensionState(this.context)
-			const updatedConfig = {
-				...apiConfiguration,
-				openRouterApiKey: apiKey,
-				taskId: this.task.taskId,
-			}
-			this.task.api = buildApiHandler(updatedConfig, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -699,13 +720,17 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		// Get API configuration from cache for immediate access
+		const apiConfiguration = this.cacheService.getApiConfiguration()
+
 		const {
-			apiConfiguration,
 			lastShownAnnouncementId,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings: storedChatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -721,51 +746,50 @@ export class Controller {
 			welcomeViewCompleted,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			localClineRulesToggles,
+			localWindsurfRulesToggles,
+			localCursorRulesToggles,
+			localWorkflowToggles,
 		} = await getAllExtensionState(this.context)
 
-		// Get current mode using helper function
-		const currentMode = await this.getCurrentMode()
+		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
+		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
+		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
 
-		// Reconstruct ChatSettings with mode from global state and stored preferences
-		const chatSettings: ChatSettings = {
-			...storedChatSettings, // Spread stored preferences (preferredLanguage, openAIReasoningEffort)
-			mode: currentMode, // Use mode from global state
-		}
+		const processedTaskHistory = (taskHistory || [])
+			.filter((item) => item.ts && item.task)
+			.sort((a, b) => b.ts - a.ts)
+			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const localClineRulesToggles =
-			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
-
-		const localWindsurfRulesToggles =
-			((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
-
-		const localCursorRulesToggles =
-			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
-
-		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
+		const platform = process.platform as Platform
+		const distinctId = telemetryService.distinctId
+		const version = this.context.extension?.packageJSON?.version ?? ""
+		const uriScheme = vscode.env.uriScheme
 
 		return {
-			version: this.context.extension?.packageJSON?.version ?? "",
+			version,
 			apiConfiguration,
-			uriScheme: vscode.env.uriScheme,
-			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
-			checkpointTrackerErrorMessage: this.task?.taskState.checkpointTrackerErrorMessage,
-			clineMessages: this.task?.messageStateHandler.getClineMessages() || [],
-			taskHistory: (taskHistory || [])
-				.filter((item) => item.ts && item.task)
-				.sort((a, b) => b.ts - a.ts)
-				.slice(0, 100), // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
-			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
-			platform: process.platform as Platform,
+			uriScheme,
+			currentTaskItem,
+			checkpointTrackerErrorMessage,
+			clineMessages,
+			taskHistory: processedTaskHistory,
+			shouldShowAnnouncement,
+			platform,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			distinctId: telemetryService.distinctId,
+			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
@@ -840,18 +864,4 @@ export class Controller {
 		await updateGlobalState(this.context, "taskHistory", history)
 		return history
 	}
-
-	// private async clearState() {
-	// 	this.context.workspaceState.keys().forEach((key) => {
-	// 		this.context.workspaceState.update(key, undefined)
-	// 	})
-	// 	this.context.globalState.keys().forEach((key) => {
-	// 		this.context.globalState.update(key, undefined)
-	// 	})
-	// 	this.context.secrets.delete("apiKey")
-	// }
-
-	// secrets
-
-	// dev
 }
