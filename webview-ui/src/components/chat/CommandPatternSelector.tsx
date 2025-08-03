@@ -11,7 +11,6 @@ interface CommandPattern {
 }
 
 interface CommandPatternSelectorProps {
-	command: string
 	patterns: CommandPattern[]
 	allowedCommands: string[]
 	deniedCommands: string[]
@@ -20,7 +19,6 @@ interface CommandPatternSelectorProps {
 }
 
 export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
-	command,
 	patterns,
 	allowedCommands,
 	deniedCommands,
@@ -37,13 +35,8 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 
 	// Create a combined list with full command first, then patterns
 	const allPatterns = useMemo(() => {
-		// Trim the command to ensure consistency with extracted patterns
-		const trimmedCommand = command.trim()
-		const fullCommandPattern: CommandPattern = { pattern: trimmedCommand }
-
 		// Create a set to track unique patterns we've already seen
 		const seenPatterns = new Set<string>()
-		seenPatterns.add(trimmedCommand) // Add the trimmed full command first
 
 		// Filter out any patterns that are duplicates or are the same as the full command
 		const uniquePatterns = patterns.filter((p) => {
@@ -54,8 +47,8 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 			return true
 		})
 
-		return [fullCommandPattern, ...uniquePatterns]
-	}, [command, patterns])
+		return uniquePatterns
+	}, [patterns])
 
 	const getPatternStatus = (pattern: string): "allowed" | "denied" | "none" => {
 		if (allowedCommands.includes(pattern)) return "allowed"
