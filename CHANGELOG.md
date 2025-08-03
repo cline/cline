@@ -2,8 +2,6 @@
 
 ## 3.20.6
 
-### Patch Changes
-
 - 07ab6b1: Fix login check on extension restart
 
 ## [3.20.5]
