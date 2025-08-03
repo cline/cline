@@ -17,7 +17,7 @@ import { memo } from "react"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { Mode } from "@shared/ChatSettings"
+import type { Mode } from "@shared/storage/types"
 
 interface GeminiCliProviderProps {
 	apiConfiguration: ApiConfiguration

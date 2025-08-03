@@ -16,6 +16,8 @@ export function getContextWindowInfo(api: ApiHandler) {
 		contextWindow = 64_000
 	}
 
+	console.log(`[context-window-utils] model: ${api.getModel().id}, contextWindow: ${contextWindow}`)
+
 	let maxAllowedSize: number
 	switch (contextWindow) {
 		case 64_000: // deepseek models

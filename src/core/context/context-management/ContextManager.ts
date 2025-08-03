@@ -119,11 +119,12 @@ export class ContextManager {
 		let updatedConversationHistoryDeletedRange = false
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-		if (previousApiReqIndex >= 0) {
+		if (false) {
+			// if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
 				const timestamp = previousRequest.ts
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
+				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text || "")
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				const { maxAllowedSize } = getContextWindowInfo(api)
 
@@ -136,7 +137,7 @@ export class ContextManager {
 					// we later check how many chars we trim to determine if we should still truncate history
 					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
 						apiConversationHistory,
-						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+						conversationHistoryDeletedRange ? (conversationHistoryDeletedRange?.[1] || 0) + 1 : 2,
 						timestamp,
 					)
 
