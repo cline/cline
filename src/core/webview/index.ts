@@ -22,7 +22,6 @@ export abstract class WebviewProvider {
 	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
-	private cacheService: CacheService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -33,21 +32,8 @@ export abstract class WebviewProvider {
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
 
-		// Create and initialize cache service
-		this.cacheService = new CacheService(context)
-
 		// Create controller with cache service
-		this.controller = new Controller(
-			context,
-			(message) => this.postMessageToWebview(message),
-			this.clientId,
-			this.cacheService,
-		)
-
-		// Initialize cache service asynchronously - critical for extension functionality
-		this.cacheService.initialize().catch((error) => {
-			console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
-		})
+		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
 	}
 
 	// Add a method to get the client ID
