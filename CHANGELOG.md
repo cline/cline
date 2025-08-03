@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.20.7]
+
+- Fix circular dependency that affect the github workflow Tests / test (pull_request)
+
 ## [3.20.6]
 
 - Fix login check on extension restart
