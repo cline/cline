@@ -1,9 +1,8 @@
 # Changelog
 
-## 3.20.7
+## [3.20.7]
 
-- 8894759: Fix errors in publish pipeline tests
-- ef4d11d: fix circular dependency that affect the github workflow Tests / test (pull_request)
+- Fix circular dependency that affect the github workflow Tests / test (pull_request)
 
 ## [3.20.6]
 
