@@ -4,9 +4,10 @@
 		"definitionsOnly": " (définitions uniquement)",
 		"maxLines": " (max {{max}} lignes)",
 		"showingOnlyLines": "Affichage de seulement {{shown}} sur {{total}} lignes totales. Utilise line_range si tu as besoin de lire plus de lignes",
-		"contextLimitInstructions": "Pour lire des sections spécifiques de ce fichier, utilise le format suivant :\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>début-fin</line_range>\n  </file>\n</args>\n</read_file>\n\nPar exemple, pour lire les lignes 2001-3000 :\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
 		"imageTooLarge": "Le fichier image est trop volumineux ({{size}} MB). La taille maximale autorisée est {{max}} MB.",
-		"imageWithSize": "Fichier image ({{size}} Ko)"
+		"imageWithSize": "Fichier image ({{size}} Ko)",
+		"partialReadSingleLine": "Lu {{charactersRead}} sur {{totalCharacters}} caractères ({{percentRead}}%) de ce fichier d'une seule ligne. Ceci est une lecture partielle - le contenu restant ne peut pas être accédé en raison de limitations de contexte.",
+		"partialReadMultiLine": "Lu {{charactersRead}} sur {{totalCharacters}} caractères ({{percentRead}}%), jusqu'à la ligne {{lastLineRead}} sur {{totalLines}}. Pour lire des sections spécifiques de ce fichier, utilise le format suivant :\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nPar exemple, pour lire les lignes {{nextLineStart}}-{{suggestedLineEnd}} :\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo semble être bloqué dans une boucle, tentant la même action ({{toolName}}) de façon répétée. Cela pourrait indiquer un problème avec sa stratégie actuelle. Envisage de reformuler la tâche, de fournir des instructions plus spécifiques ou de le guider vers une approche différente.",
 	"codebaseSearch": {

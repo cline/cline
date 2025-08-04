@@ -4,7 +4,8 @@
 		"definitionsOnly": " (definitions only)",
 		"maxLines": " (max {{max}} lines)",
 		"showingOnlyLines": "Showing only {{shown}} of {{total}} total lines. Use line_range if you need to read more lines",
-		"contextLimitInstructions": "To read specific sections of this file, use the following format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nFor example, to read lines 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
+		"partialReadSingleLine": "Read {{charactersRead}} of {{totalCharacters}} characters ({{percentRead}}%) from this single-line file. This is a partial read - the remaining content cannot be accessed due to context limitations.",
+		"partialReadMultiLine": "Read {{charactersRead}} of {{totalCharacters}} characters ({{percentRead}}%), up to line {{lastLineRead}} of {{totalLines}}. To read specific sections of this file, use the following format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nFor example, to read lines {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>",
 		"imageTooLarge": "Image file is too large ({{size}} MB). The maximum allowed size is {{max}} MB.",
 		"imageWithSize": "Image file ({{size}} KB)"
 	},

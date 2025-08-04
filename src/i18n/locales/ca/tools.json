@@ -4,9 +4,10 @@
 		"definitionsOnly": " (només definicions)",
 		"maxLines": " (màxim {{max}} línies)",
 		"showingOnlyLines": "Mostrant només {{shown}} de {{total}} línies totals. Utilitza line_range si necessites llegir més línies",
-		"contextLimitInstructions": "Per llegir seccions específiques d'aquest fitxer, utilitza el següent format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>inici-final</line_range>\n  </file>\n</args>\n</read_file>\n\nPer exemple, per llegir les línies 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
 		"imageTooLarge": "El fitxer d'imatge és massa gran ({{size}} MB). La mida màxima permesa és {{max}} MB.",
-		"imageWithSize": "Fitxer d'imatge ({{size}} KB)"
+		"imageWithSize": "Fitxer d'imatge ({{size}} KB)",
+		"partialReadSingleLine": "Llegits {{charactersRead}} de {{totalCharacters}} caràcters ({{percentRead}}%) d'aquest fitxer d'una sola línia. Aquesta és una lectura parcial - el contingut restant no es pot accedir a causa de limitacions de context.",
+		"partialReadMultiLine": "Llegits {{charactersRead}} de {{totalCharacters}} caràcters ({{percentRead}}%), fins a la línia {{lastLineRead}} de {{totalLines}}. Per llegir seccions específiques d'aquest fitxer, utilitza el següent format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nPer exemple, per llegir les línies {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo sembla estar atrapat en un bucle, intentant la mateixa acció ({{toolName}}) repetidament. Això podria indicar un problema amb la seva estratègia actual. Considera reformular la tasca, proporcionar instruccions més específiques o guiar-lo cap a un enfocament diferent.",
 	"codebaseSearch": {

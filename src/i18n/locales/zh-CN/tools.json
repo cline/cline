@@ -4,9 +4,10 @@
 		"definitionsOnly": " (仅定义)",
 		"maxLines": " (最多 {{max}} 行)",
 		"showingOnlyLines": "仅显示 {{shown}} 行，共 {{total}} 行。如需阅读更多行请使用 line_range",
-		"contextLimitInstructions": "要阅读此文件的特定部分，请使用以下格式：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>开始-结束</line_range>\n  </file>\n</args>\n</read_file>\n\n例如，要阅读第 2001-3000 行：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
 		"imageTooLarge": "图片文件过大 ({{size}} MB)。允许的最大大小为 {{max}} MB。",
-		"imageWithSize": "图片文件 ({{size}} KB)"
+		"imageWithSize": "图片文件 ({{size}} KB)",
+		"partialReadSingleLine": "已读取此单行文件中 {{totalCharacters}} 个字符中的 {{charactersRead}} 个字符 ({{percentRead}}%)。这是部分读取 - 由于上下文限制，无法访问剩余内容。",
+		"partialReadMultiLine": "已读取 {{totalCharacters}} 个字符中的 {{charactersRead}} 个字符 ({{percentRead}}%)，读取到第 {{lastLineRead}} 行，共 {{totalLines}} 行。要读取此文件的特定部分，请使用以下格式：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\n例如，要读取第 {{nextLineStart}}-{{suggestedLineEnd}} 行：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo 似乎陷入循环，反复尝试同一操作 ({{toolName}})。这可能表明当前策略存在问题。请考虑重新描述任务、提供更具体的指示或引导其尝试不同的方法。",
 	"codebaseSearch": {

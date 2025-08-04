@@ -4,9 +4,10 @@
 		"definitionsOnly": " (apenas definições)",
 		"maxLines": " (máx. {{max}} linhas)",
 		"showingOnlyLines": "Mostrando apenas {{shown}} de {{total}} linhas totais. Use line_range se precisar ler mais linhas",
-		"contextLimitInstructions": "Para ler seções específicas deste arquivo, use o seguinte formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>início-fim</line_range>\n  </file>\n</args>\n</read_file>\n\nPor exemplo, para ler as linhas 2001-3000:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>2001-3000</line_range>\n  </file>\n</args>\n</read_file>",
 		"imageTooLarge": "Arquivo de imagem é muito grande ({{size}} MB). O tamanho máximo permitido é {{max}} MB.",
-		"imageWithSize": "Arquivo de imagem ({{size}} KB)"
+		"imageWithSize": "Arquivo de imagem ({{size}} KB)",
+		"partialReadSingleLine": "Lidos {{charactersRead}} de {{totalCharacters}} caracteres ({{percentRead}}%) deste arquivo de linha única. Esta é uma leitura parcial - o conteúdo restante não pode ser acessado devido a limitações de contexto.",
+		"partialReadMultiLine": "Lidos {{charactersRead}} de {{totalCharacters}} caracteres ({{percentRead}}%), até a linha {{lastLineRead}} de {{totalLines}}. Para ler seções específicas deste arquivo, use o seguinte formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nPor exemplo, para ler as linhas {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
 	},
 	"toolRepetitionLimitReached": "Roo parece estar preso em um loop, tentando a mesma ação ({{toolName}}) repetidamente. Isso pode indicar um problema com sua estratégia atual. Considere reformular a tarefa, fornecer instruções mais específicas ou guiá-lo para uma abordagem diferente.",
 	"codebaseSearch": {
