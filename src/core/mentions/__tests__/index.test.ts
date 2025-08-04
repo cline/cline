@@ -1,16 +1,16 @@
-import { expect } from "chai"
-import * as sinon from "sinon"
-import * as path from "path"
-import { parseMentions } from "../index"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import * as extractTextModule from "@integrations/misc/extract-text"
-import * as isBinaryFileModule from "isbinaryfile"
 import * as terminalModule from "@integrations/terminal/get-latest-output"
+import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import * as gitModule from "@utils/git"
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { expect } from "chai"
 import * as fs from "fs"
+import * as isBinaryFileModule from "isbinaryfile"
+import * as path from "path"
+import * as sinon from "sinon"
+import { type DiffViewProviderCreator, HostProvider, type WebviewProviderCreator } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { parseMentions } from "../index"
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -35,6 +35,7 @@ describe("parseMentions", () => {
 			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
 			(_) => {},
+			async () => "http://localhost:3000/callback",
 		)
 		// Create stubs for dependencies
 		urlContentFetcherStub = {

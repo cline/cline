@@ -1,11 +1,11 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import * as sinon from "sinon"
-import { TerminalProcess } from "./TerminalProcess"
 import * as vscode from "vscode"
-import { TerminalRegistry } from "./TerminalRegistry"
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { type DiffViewProviderCreator, HostProvider, type WebviewProviderCreator } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { TerminalProcess } from "./TerminalProcess"
+import { TerminalRegistry } from "./TerminalRegistry"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
@@ -44,6 +44,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
 			(s: string) => console.log(s),
+			async () => "http://localhost:3000/callback",
 		)
 		process = new TerminalProcess()
 	})
@@ -234,7 +235,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 	// The following tests require shell integration and controlled terminal output
 	describe("Shell integration tests", () => {
 		// We'll mock the terminal run process and TerminalProcess for these tests
-		it("should emit completed and continue events when command finishes", async function () {
+		it("should emit completed and continue events when command finishes", async () => {
 			// Create a terminal to ensure proper interface, but we'll use mocking under the hood
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -269,7 +270,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 	// Tests with controlled output
 	describe("Controlled output tests", () => {
-		it("should emit line events for each line of output", async function () {
+		it("should emit line events for each line of output", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -294,7 +295,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "line3").should.be.true()
 		})
 
-		it("should properly handle process hot state (e.g. compiling)", async function () {
+		it("should properly handle process hot state (e.g. compiling)", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -322,7 +323,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			foundCompilingTimeout.length.should.be.greaterThan(0)
 		})
 
-		it("should handle standard commands with normal hot timeout", async function () {
+		it("should handle standard commands with normal hot timeout", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -352,7 +353,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
-		it("should correctly filter command echoes based on current implementation", async function () {
+		it("should correctly filter command echoes based on current implementation", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -383,7 +384,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command").should.be.false()
 		})
 
-		it("should handle npm run commands", async function () {
+		it("should handle npm run commands", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
