@@ -358,9 +358,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer
-				className="bg-[var(--vscode-editor-background)] border-t border-[var(--vscode-editorGroup-border)]"
-				style={{ gridRow: "2" }}>
+			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				{task && (
 					<ActionButtons
