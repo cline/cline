@@ -131,8 +131,6 @@ export async function searchWorkspaceFiles(
 		// Get all files and directories
 		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
 
-		console.log("allItems", allItems)
-
 		// Combine active files with all items, removing duplicates (like the old WorkspaceTracker)
 		const combinedItems = [...activeFiles]
 		for (const item of allItems) {
