@@ -5,7 +5,7 @@ body:
     - type: markdown
       attributes:
           value: |
-              **Important:** All bug reports must be reproducible using Claude 3.5 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
+              **Important:** All bug reports must be reproducible using Claude 4 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
     - type: textarea
       id: what-happened
       attributes:
@@ -24,7 +24,7 @@ body:
               2.
               3.
       validations:
-          required: true
+          required: false
     - type: textarea
       id: logs
       attributes:
@@ -39,20 +39,19 @@ body:
           placeholder: "e.g., cline:anthropic/claude-3.7-sonnet, gemini:gemini-2.5-pro-exp-03-25"
       validations:
           required: true
-    - type: input
-      id: operating-system
-      attributes:
-          label: Operating System
-          description: What operating system are you using?
-          placeholder: "e.g., Windows 11, macOS Sonoma, Ubuntu 22.04"
-      validations:
-          required: true
     - type: textarea
       id: system-info
       attributes:
-          label: System Info
-          description: What system information is relevant to the issue?
-          placeholder: "e.g., CPU: Intel Core i7-11700K, GPU: NVIDIA GeForce RTX 3070, RAM: 32GB DDR4"
+          label: System Information
+          description: What operating system and hardware are you using?
+          placeholder: |
+              Operating System: Windows 11, macOS Sonoma, Ubuntu 22.04, etc.
+              Hardware: CPU, GPU, RAM specifications if relevant
+              e.g.,
+              OS: Windows 11
+              CPU: Intel Core i7-11700K
+              GPU: NVIDIA GeForce RTX 3070
+              RAM: 32GB DDR4
       validations:
           required: true
     - type: input
@@ -63,8 +62,3 @@ body:
           placeholder: "e.g., 1.2.3"
       validations:
           required: true
-    - type: textarea
-      id: additional-context
-      attributes:
-          label: Additional context
-          description: Add any other context about the problem here, such as screenshots or related issues.

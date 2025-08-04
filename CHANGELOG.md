@@ -1,5 +1,51 @@
 # Changelog
 
+## [3.20.8]
+
+- Add navbar tooltips on hover
+
+## [3.20.7]
+
+- Fix circular dependency that affect the github workflow Tests / test (pull_request)
+
+## [3.20.6]
+
+- Fix login check on extension restart
+
+## [3.20.5]
+
+- Fix authentication persistence issues that could cause users to be logged out unexpectedly
+
+## [3.20.4]
+
+- Add new Cerebras models
+- Update rate limits for existing Cerebras models
+- Fix for delete task dialog
+
+## [3.20.3]
+
+- Add Huawei Cloud MaaS Provider (Thanks @ddling!)
+- Add Cerebras Qwen 3 235B instruct model (Thanks @kevint-cerebras!)
+- Add DeepSeek R1 0528 support under Hugging Face (Thanks @0ne0rZer0!)
+- Fix Global Rules directory documentation for Linux/WSL systems
+- Fix token counting when using VSCode LM API provider
+- Fix input field stealing focus issue by only focusing on visible and active editor panels
+- Fix duplicate tool registration for claude4-experimental
+- Trim input value for URL fields
+
+## [3.20.2]
+
+- Fixed issue with sap ai core client credentials storage
+- Fix Qwen Api option inconsistency between UI and API layer
+- Fix credit balance out of sync issue on account switching
+- Fix Claude Code CLAUDE_CODE_MAX_OUTPUT_TOKENS
+- Fix cursor state after restoring files to be disabled after checked out
+- Fix issue where checkpointing blocked UI
+
+## [3.20.1]
+
+- Fix for files being deleted when switching modes or closing tasks
+
 ## [3.20.0]
 
 - Add account balance display for all organization members, allowing non-admin users to view their organization's credit balance and add credits
