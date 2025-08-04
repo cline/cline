@@ -1,6 +1,8 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../../package.json"
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
@@ -135,13 +137,17 @@ class TelemetryService {
 		} else {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
-				void vscode.window
-					.showWarningMessage(
-						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-						"Open Settings",
-					)
-					.then((selection) => {
-						if (selection === "Open Settings") {
+				void HostProvider.window
+					.showMessage({
+						type: ShowMessageType.WARNING,
+						message:
+							"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						options: {
+							items: ["Open Settings"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings") {
 							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
 						}
 					})
