@@ -43,7 +43,7 @@ export async function refreshVercelAiGatewayModels(
 
 				const modelInfo = OpenRouterModelInfo.create({
 					maxTokens: rawModel.max_tokens ?? 0,
-					contextWindow: rawModel.context_length ?? 0,
+					contextWindow: rawModel.context_window ?? 0,
 					inputPrice: parsePrice(rawModel.pricing?.input) ?? 0,
 					outputPrice: parsePrice(rawModel.pricing?.output) ?? 0,
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write) ?? 0,
