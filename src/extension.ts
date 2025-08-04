@@ -528,10 +528,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Interactive fallback if no prompt was provided
 				if (!prompt) {
-					prompt = await vscode.window.showInputBox({
-						prompt: "Enter the prompt to send to Cline",
-						placeHolder: "e.g., Explain this code",
-					})
+					prompt = (
+						await HostProvider.window.showInputBox({
+							title: "Enter Prompt", // Added missing title property
+							prompt: "Enter the prompt to send to Cline",
+							value: "e.g., Explain this code",
+						})
+					).response
 					if (!prompt) return
 				}
 
@@ -541,7 +544,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				const visibleWebview = WebviewProvider.getVisibleInstance()
 				if (!visibleWebview) {
-					vscode.window.showErrorMessage("Could not find an active Cline chat window.")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Could not find an active Cline chat window.",
+					})
 					return
 				}
 
@@ -569,14 +575,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Interactive fallback if no path was provided
 				if (!filePath) {
-					const fileUris = await vscode.window.showOpenDialog({
-						canSelectFiles: true,
-						canSelectFolders: false,
-						canSelectMany: false,
-						openLabel: "Select File to Mention",
-					})
+					const fileUris = (
+						await HostProvider.window.showOpenDialogue({
+							// Corrected method name
+							canSelectMany: false,
+							openLabel: "Select File to Mention",
+						})
+					).paths // Changed .response to .paths
 					if (!fileUris || fileUris.length === 0) return
-					filePath = fileUris[0].fsPath
+					filePath = fileUris[0] // Removed non-null assertion as it should be a string now
 				}
 
 				// Get the active Cline webview instance.
@@ -585,7 +592,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				const visibleWebview = WebviewProvider.getVisibleInstance()
 				if (!visibleWebview) {
-					vscode.window.showErrorMessage("Could not find an active Cline chat window.")
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Could not find an active Cline chat window.",
+					})
 					return
 				}
 
