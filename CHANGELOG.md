@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.20.8]
+
+- Add navbar tooltips on hover
+
+## [3.20.7]
+
+- Fix circular dependency that affect the github workflow Tests / test (pull_request)
+
+## [3.20.6]
+
+- Fix login check on extension restart
+
+## [3.20.5]
+
+- Fix authentication persistence issues that could cause users to be logged out unexpectedly
+
+## [3.20.4]
+
+- Add new Cerebras models
+- Update rate limits for existing Cerebras models
+- Fix for delete task dialog
+
 ## [3.20.3]
 
 - Add Huawei Cloud MaaS Provider (Thanks @ddling!)

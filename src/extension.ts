@@ -38,6 +38,8 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { getLatestAnnouncementId } from "./utils/announcements"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -91,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Use the same condition as announcements: focus when there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
-			const latestAnnouncementId = context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+			const latestAnnouncementId = getLatestAnnouncementId(context)
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
 				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
@@ -265,44 +267,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
-	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
-		console.log("URI Handler called with:", {
-			path: uri.path,
-			query: uri.query,
-			scheme: uri.scheme,
-		})
-
-		const path = uri.path
-		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleWebview = WebviewProvider.getVisibleInstance()
-		if (!visibleWebview) {
-			return
-		}
-		switch (path) {
-			case "/openrouter": {
-				const code = query.get("code")
-				if (code) {
-					await visibleWebview?.controller.handleOpenRouterCallback(code)
-				}
-				break
-			}
-			case "/auth": {
-				console.log("Auth callback received:", uri.toString())
-
-				const token = query.get("idToken")
-				const provider = query.get("provider")
-
-				console.log("Auth callback received:", { provider })
-
-				if (token) {
-					await visibleWebview?.controller.handleAuthCallback(token, provider)
-					// await authService.handleAuthCallback(token)
-				}
-				break
-			}
-			default:
-				break
+		const success = await SharedUriHandler.handleUri(uri)
+		if (!success) {
+			console.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
@@ -664,7 +632,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (event.key === "clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get("clineAccountId")
-				const authService = AuthService.getInstance(context)
+				const activeWebviewProvider = WebviewProvider.getVisibleInstance()
+				const controller = activeWebviewProvider?.controller
+
+				const authService = AuthService.getInstance(controller)
 				if (secretValue) {
 					// Secret was added or updated - restore auth info (login from another window)
 					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
@@ -677,10 +648,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(sidebarWebview.controller)
-}
-
-export function getLatestAnnouncementId(context: vscode.ExtensionContext) {
-	return context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
 }
 
 function maybeSetupHostProviders(context: ExtensionContext) {

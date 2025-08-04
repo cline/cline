@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
 import { extensionContext, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
@@ -23,12 +24,12 @@ async function main() {
 
 	activate(extensionContext)
 	// Create and initialize cache service
-	const cacheService = new CacheService(extensionContext)
-	await cacheService.initialize()
 
 	// Create controller with cache service
-	const controller = new Controller(extensionContext, postMessage, uuidv4(), cacheService)
+	const controller = new Controller(extensionContext, postMessage, uuidv4())
 	startProtobusService(controller)
+
+	AuthHandler.getInstance().setEnabled(true)
 }
 
 function setupHostProvider() {

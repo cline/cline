@@ -124,11 +124,11 @@ export class E2ETestHelper {
 	}
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
-		await page.locator("li").filter({ hasText: "[Extension Development Host]" }).first().click()
+		const editorMenu = page.locator("li").filter({ hasText: "[Extension Development Host]" }).first()
+		await editorMenu.click({ delay: 100 })
 		const editorSearchBar = page.getByRole("textbox", {
 			name: "Search files by name (append",
 		})
-		await expect(editorSearchBar).toBeVisible()
 		await editorSearchBar.click({ delay: 100 }) // Ensure focus
 		await editorSearchBar.fill(`>${command}`)
 		await page.keyboard.press("Enter")
@@ -273,7 +273,6 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
 			await use(page)
 		},
 	})
