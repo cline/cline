@@ -140,10 +140,10 @@ jobs:
                   # Check if any of the test steps failed
                   # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
                   if [ "${{ steps.extension_coverage.outcome }}" != "success" ]; then
-                      echo "Extension integration tests failed."
+                      echo "Extension Integration Tests failed, see previous step for test output."
                   fi
                   if [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
-                      echo "Webview tests failed."
+                      echo "Webview Tests failed, see previous step for test output."
                   fi
                   if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
                       exit 1
