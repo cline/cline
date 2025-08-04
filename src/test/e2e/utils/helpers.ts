@@ -273,8 +273,6 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			// Disable notifications before opening sidebar
-			await E2ETestHelper.runCommandPalette(page, "notifications: toggle do not disturb")
 			await use(page)
 		},
 	})
