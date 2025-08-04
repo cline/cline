@@ -25,7 +25,6 @@ describe("ClineAPI Core Functionality", () => {
 			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
 			mockLogToChannel,
-			async () => "",
 		)
 		// Stub the getGlobalState function from the state module
 		// This is needed because the real createClineAPI uses it for getCustomInstructions
