@@ -5,6 +5,8 @@ import * as childProcess from "child_process"
 import * as readline from "readline"
 import { getBinPath } from "../ripgrep"
 import type { Fzf, FzfResultItem } from "fzf"
+import { HostProvider } from "@/hosts/host-provider"
+import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
@@ -90,13 +92,11 @@ export async function executeRipgrepForFiles(
 	})
 }
 
-// Get currently active/open files from VSCode tabs
-function getActiveFiles(): Set<string> {
-	return new Set(
-		vscode.window.tabGroups.activeTabGroup.tabs
-			.filter((tab) => tab.input instanceof vscode.TabInputText)
-			.map((tab) => (tab.input as vscode.TabInputText).uri.fsPath),
-	)
+// Get currently active/open files from VSCode tabs using hostbridge
+async function getActiveFiles(): Promise<Set<string>> {
+	const request = GetOpenTabsRequest.create({})
+	const response = await HostProvider.window.getOpenTabs(request)
+	return new Set(response.paths)
 }
 
 export async function searchWorkspaceFiles(
@@ -113,7 +113,7 @@ export async function searchWorkspaceFiles(
 		}
 
 		// Get currently active files and convert to search format
-		const activeFilePaths = getActiveFiles()
+		const activeFilePaths = await getActiveFiles()
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
 		for (const filePath of activeFilePaths) {
