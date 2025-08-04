@@ -36,18 +36,18 @@ type ShellToken = string | { op: string } | { command: string }
  *
  * ## Command Processing Pipeline:
  *
- * 1. **Subshell Detection**: Commands containing $() or `` are blocked if denylist exists
- * 2. **Command Parsing**: Split chained commands (&&, ||, ;, |) into individual commands
- * 3. **Pattern Matching**: For each command, find longest matching prefixes in both lists
- * 4. **Decision Logic**: Apply longest prefix match rule to determine approval/denial
- * 5. **Aggregation**: Combine decisions (any denial blocks the entire command chain)
+ * 1. **Subshell Detection**: Commands containing dangerous patterns like $(), ``, or (cmd1; cmd2) are flagged as security risks
+ * 2. **Command Parsing**: Split chained commands (&&, ||, ;, |, &) into individual commands for separate validation
+ * 3. **Pattern Matching**: For each individual command, find the longest matching prefix in both allowlist and denylist
+ * 4. **Decision Logic**: Apply longest prefix match rule - more specific (longer) matches take precedence
+ * 5. **Aggregation**: Combine individual decisions - if any command is denied, the entire chain is denied
  *
  * ## Security Considerations:
  *
- * - **Subshell Protection**: Prevents command injection via $(command), `command`, or process substitution
- * - **Chain Analysis**: Each command in a chain (cmd1 && cmd2) is validated separately
- * - **Case Insensitive**: All matching is case-insensitive for consistency
- * - **Whitespace Handling**: Commands are trimmed and normalized before matching
+ * - **Subshell Protection**: Detects and blocks command injection attempts via command substitution, process substitution, and subshell grouping
+ * - **Chain Analysis**: Each command in a chain (cmd1 && cmd2) is validated separately to prevent bypassing via chaining
+ * - **Case Insensitive**: All pattern matching is case-insensitive for consistent behavior across different input styles
+ * - **Whitespace Handling**: Commands are trimmed and normalized before matching to prevent whitespace-based bypasses
  *
  * ## Configuration Merging:
  *
@@ -59,37 +59,73 @@ type ShellToken = string | { op: string } | { command: string }
  */
 
 /**
- * Detect subshell usage and command substitution patterns:
- * - $() - command substitution
- * - `` - backticks (legacy command substitution)
- * - <() - process substitution (input)
- * - >() - process substitution (output)
- * - $(()) - arithmetic expansion
- * - $[] - arithmetic expansion (alternative syntax)
+ * Detect subshell usage and command substitution patterns that could be security risks.
+ *
+ * Subshells allow executing commands in isolated environments and can be used to bypass
+ * command validation by hiding dangerous commands inside substitution patterns.
+ *
+ * Detected patterns:
+ * - $() - command substitution: executes command and substitutes output
+ * - `` - backticks (legacy command substitution): same as $() but older syntax
+ * - <() - process substitution (input): creates temporary file descriptor for command output
+ * - >() - process substitution (output): creates temporary file descriptor for command input
+ * - $(()) - arithmetic expansion: evaluates mathematical expressions (can contain commands)
+ * - $[] - arithmetic expansion (alternative syntax): same as $(()) but older syntax
+ * - (cmd1; cmd2) - subshell grouping: executes multiple commands in isolated subshell
+ *
+ * @param source - The command string to analyze for subshell patterns
+ * @returns true if any subshell patterns are detected, false otherwise
  *
  * @example
  * ```typescript
- * containsSubshell("echo $(date)")     // true - command substitution
- * containsSubshell("echo `date`")      // true - backtick substitution
- * containsSubshell("diff <(sort f1)")  // true - process substitution
- * containsSubshell("echo $((1+2))")    // true - arithmetic expansion
- * containsSubshell("echo $[1+2]")      // true - arithmetic expansion (alt)
- * containsSubshell("echo hello")       // false - no subshells
+ * // Command substitution - executes 'date' and substitutes its output
+ * containsSubshell("echo $(date)")     // true
+ *
+ * // Backtick substitution - legacy syntax for command substitution
+ * containsSubshell("echo `date`")      // true
+ *
+ * // Process substitution - creates file descriptor for command output
+ * containsSubshell("diff <(sort f1)")  // true
+ *
+ * // Arithmetic expansion - can contain command execution
+ * containsSubshell("echo $((1+2))")    // true
+ * containsSubshell("echo $[1+2]")      // true
+ *
+ * // Subshell grouping - executes commands in isolated environment
+ * containsSubshell("(ls; rm file)")    // true
+ * containsSubshell("(cd /tmp && rm -rf *)")  // true
+ *
+ * // Safe patterns that should NOT be flagged
+ * containsSubshell("func(arg1, arg2)") // false - function call, not subshell
+ * containsSubshell("echo hello")       // false - no subshell patterns
+ * containsSubshell("(simple text)")    // false - no shell operators in parentheses
  * ```
  */
 export function containsSubshell(source: string): boolean {
-	return /(\$\()|`|(<\(|>\()|(\$\(\()|(\$\[)/.test(source)
+	// Check for command substitution, process substitution, and arithmetic expansion patterns
+	// These patterns allow executing commands and substituting their output, which can bypass validation
+	const commandSubstitutionPatterns = /(\$\()|`|(<\(|>\()|(\$\(\()|(\$\[)/.test(source)
+
+	// Check for subshell grouping: parentheses containing shell command operators
+	// Pattern explanation: \( = literal opening paren, [^)]* = any chars except closing paren,
+	// [;&|]+ = one or more shell operators (semicolon, ampersand, pipe), [^)]* = any chars except closing paren, \) = literal closing paren
+	// This detects dangerous patterns like: (cmd1; cmd2), (cmd1 && cmd2), (cmd1 || cmd2), (cmd1 | cmd2), (cmd1 & cmd2)
+	// But avoids false positives like function calls: func(arg1, arg2) - no shell operators inside
+	const subshellGroupingPattern = /\([^)]*[;&|]+[^)]*\)/.test(source)
+
+	// Return true if any subshell pattern is detected
+	return commandSubstitutionPatterns || subshellGroupingPattern
 }
 
 /**
  * Split a command string into individual sub-commands by
- * chaining operators (&&, ||, ;, or |) and newlines.
+ * chaining operators (&&, ||, ;, |, or &) and newlines.
  *
  * Uses shell-quote to properly handle:
  * - Quoted strings (preserves quotes)
  * - Subshell commands ($(cmd), `cmd`, <(cmd), >(cmd))
  * - PowerShell redirections (2>&1)
- * - Chain operators (&&, ||, ;, |)
+ * - Chain operators (&&, ||, ;, |, &)
  * - Newlines as command separators
  */
 export function parseCommand(command: string): string[] {
@@ -228,7 +264,7 @@ function parseCommandLine(command: string): string[] {
 
 		// Simple fallback: split by common operators
 		const fallbackCommands = processedCommand
-			.split(/(?:&&|\|\||;|\|)/)
+			.split(/(?:&&|\|\||;|\||&)/)
 			.map((cmd) => cmd.trim())
 			.filter((cmd) => cmd.length > 0)
 
@@ -253,13 +289,13 @@ function parseCommandLine(command: string): string[] {
 	for (const token of tokens) {
 		if (typeof token === "object" && "op" in token) {
 			// Chain operator - split command
-			if (["&&", "||", ";", "|"].includes(token.op)) {
+			if (["&&", "||", ";", "|", "&"].includes(token.op)) {
 				if (currentCommand.length > 0) {
 					commands.push(currentCommand.join(" "))
 					currentCommand = []
 				}
 			} else {
-				// Other operators (>, &) are part of the command
+				// Other operators (>) are part of the command
 				currentCommand.push(token.op)
 			}
 		} else if (typeof token === "string") {
@@ -436,7 +472,7 @@ export type CommandDecision = "auto_approve" | "auto_deny" | "ask_user"
  *
  * **Decision Logic:**
  * 1. **Subshell Protection**: If subshells ($() or ``) are present and denylist exists → auto-deny
- * 2. **Command Parsing**: Split command chains (&&, ||, ;, |) into individual commands
+ * 2. **Command Parsing**: Split command chains (&&, ||, ;, |, &) into individual commands
  * 3. **Individual Validation**: For each sub-command, apply longest prefix match rule
  * 4. **Aggregation**: Combine decisions using "any denial blocks all" principle
  *

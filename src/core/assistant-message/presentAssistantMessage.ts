@@ -25,7 +25,6 @@ import { switchModeTool } from "../tools/switchModeTool"
 import { attemptCompletionTool } from "../tools/attemptCompletionTool"
 import { newTaskTool } from "../tools/newTaskTool"
 
-import { checkpointSave } from "../checkpoints"
 import { updateTodoListTool } from "../tools/updateTodoListTool"
 
 import { formatResponse } from "../prompts/responses"
@@ -411,6 +410,7 @@ export async function presentAssistantMessage(cline: Task) {
 
 			switch (block.name) {
 				case "write_to_file":
+					await checkpointSaveAndMark(cline)
 					await writeToFileTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					break
 				case "update_todo_list":
@@ -430,8 +430,10 @@ export async function presentAssistantMessage(cline: Task) {
 					}
 
 					if (isMultiFileApplyDiffEnabled) {
+						await checkpointSaveAndMark(cline)
 						await applyDiffTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					} else {
+						await checkpointSaveAndMark(cline)
 						await applyDiffToolLegacy(
 							cline,
 							block,
@@ -444,9 +446,11 @@ export async function presentAssistantMessage(cline: Task) {
 					break
 				}
 				case "insert_content":
+					await checkpointSaveAndMark(cline)
 					await insertContentTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					break
 				case "search_and_replace":
+					await checkpointSaveAndMark(cline)
 					await searchAndReplaceTool(cline, block, askApproval, handleError, pushToolResult, removeClosingTag)
 					break
 				case "read_file":
@@ -527,14 +531,6 @@ export async function presentAssistantMessage(cline: Task) {
 			break
 	}
 
-	const recentlyModifiedFiles = cline.fileContextTracker.getAndClearCheckpointPossibleFile()
-
-	if (recentlyModifiedFiles.length > 0) {
-		// TODO: We can track what file changes were made and only
-		// checkpoint those files, this will be save storage.
-		await checkpointSave(cline)
-	}
-
 	// Seeing out of bounds is fine, it means that the next too call is being
 	// built up and ready to add to assistantMessageContent to present.
 	// When you see the UI inactive during this, it means that a tool is
@@ -581,5 +577,22 @@ export async function presentAssistantMessage(cline: Task) {
 	// Block is partial, but the read stream may have finished.
 	if (cline.presentAssistantMessageHasPendingUpdates) {
 		presentAssistantMessage(cline)
+	}
+}
+
+/**
+ * save checkpoint and mark done in the current streaming task.
+ * @param task The Task instance to checkpoint save and mark.
+ * @returns
+ */
+async function checkpointSaveAndMark(task: Task) {
+	if (task.currentStreamingDidCheckpoint) {
+		return
+	}
+	try {
+		await task.checkpointSave(true)
+		task.currentStreamingDidCheckpoint = true
+	} catch (error) {
+		console.error(`[Task#presentAssistantMessage] Error saving checkpoint: ${error.message}`, error)
 	}
 }

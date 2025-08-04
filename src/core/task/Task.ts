@@ -10,21 +10,26 @@ import pWaitFor from "p-wait-for"
 import { serializeError } from "serialize-error"
 
 import {
+	type TaskLike,
+	type TaskEvents,
 	type ProviderSettings,
 	type TokenUsage,
 	type ToolUsage,
 	type ToolName,
 	type ContextCondense,
-	type ClineAsk,
 	type ClineMessage,
 	type ClineSay,
+	type ClineAsk,
+	type BlockingAsk,
 	type ToolProgressStatus,
-	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	type HistoryItem,
+	RooCodeEventName,
 	TelemetryEventName,
 	TodoItem,
 	getApiProtocol,
 	getModelId,
+	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
+	isBlockingAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
@@ -92,23 +97,9 @@ import { ApiMessage } from "../task-persistence/apiMessages"
 import { getMessagesSinceLastSummary, summarizeConversation } from "../condense"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 import { restoreTodoListForTask } from "../tools/updateTodoListTool"
+import { AutoApprovalHandler } from "./AutoApprovalHandler"
 
-// Constants
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
-
-export type ClineEvents = {
-	message: [{ action: "created" | "updated"; message: ClineMessage }]
-	taskStarted: []
-	taskModeSwitched: [taskId: string, mode: string]
-	taskPaused: []
-	taskUnpaused: []
-	taskAskResponded: []
-	taskAborted: []
-	taskSpawned: [taskId: string]
-	taskCompleted: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage]
-	taskTokenUsageUpdated: [taskId: string, tokenUsage: TokenUsage]
-	taskToolFailed: [taskId: string, tool: ToolName, error: string]
-}
 
 export type TaskOptions = {
 	provider: ClineProvider
@@ -125,10 +116,10 @@ export type TaskOptions = {
 	rootTask?: Task
 	parentTask?: Task
 	taskNumber?: number
-	onCreated?: (cline: Task) => void
+	onCreated?: (task: Task) => void
 }
 
-export class Task extends EventEmitter<ClineEvents> {
+export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	todoList?: TodoItem[]
 	readonly taskId: string
 	readonly instanceId: string
@@ -137,6 +128,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
+
 	/**
 	 * The mode associated with this task. Persisted across sessions
 	 * to maintain user context when reopening tasks from history.
@@ -184,6 +176,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
 	abort: boolean = false
+	blockingAsk?: BlockingAsk
 	didFinishAbortingStream = false
 	abandoned = false
 	isInitialized = false
@@ -195,7 +188,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	readonly apiConfiguration: ProviderSettings
 	api: ApiHandler
 	private static lastGlobalApiRequestTime?: number
-	private consecutiveAutoApprovedRequestsCount: number = 0
+	private autoApprovalHandler: AutoApprovalHandler
 
 	/**
 	 * Reset the global API request timestamp. This should only be used for testing.
@@ -247,6 +240,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	isWaitingForFirstChunk = false
 	isStreaming = false
 	currentStreamingContentIndex = 0
+	currentStreamingDidCheckpoint = false
 	assistantMessageContent: AssistantMessageContent[] = []
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
@@ -279,10 +273,12 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
-		// normal use-case is usually retry similar history task with new workspace
+
+		// Normal use-case is usually retry similar history task with new workspace.
 		this.workspacePath = parentTask
 			? parentTask.workspacePath
 			: getWorkspacePath(path.join(os.homedir(), "Desktop"))
+
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
 
@@ -296,6 +292,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
+		this.autoApprovalHandler = new AutoApprovalHandler()
 
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
@@ -311,25 +308,26 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.parentTask = parentTask
 		this.taskNumber = taskNumber
 
-		// Store the task's mode when it's created
-		// For history items, use the stored mode; for new tasks, we'll set it after getting state
+		// Store the task's mode when it's created.
+		// For history items, use the stored mode; for new tasks, we'll set it
+		// after getting state.
 		if (historyItem) {
 			this._taskMode = historyItem.mode || defaultModeSlug
 			this.taskModeReady = Promise.resolve()
 			TelemetryService.instance.captureTaskRestarted(this.taskId)
 		} else {
-			// For new tasks, don't set the mode yet - wait for async initialization
+			// For new tasks, don't set the mode yet - wait for async initialization.
 			this._taskMode = undefined
 			this.taskModeReady = this.initializeTaskMode(provider)
 			TelemetryService.instance.captureTaskCreated(this.taskId)
 		}
 
-		// Only set up diff strategy if diff is enabled
+		// Only set up diff strategy if diff is enabled.
 		if (this.diffEnabled) {
-			// Default to old strategy, will be updated if experiment is enabled
+			// Default to old strategy, will be updated if experiment is enabled.
 			this.diffStrategy = new MultiSearchReplaceDiffStrategy(this.fuzzyMatchThreshold)
 
-			// Check experiment asynchronously and update strategy if needed
+			// Check experiment asynchronously and update strategy if needed.
 			provider.getState().then((state) => {
 				const isMultiFileApplyDiffEnabled = experiments.isEnabled(
 					state.experiments ?? {},
@@ -536,7 +534,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.clineMessages.push(message)
 		const provider = this.providerRef.deref()
 		await provider?.postStateToWebview()
-		this.emit("message", { action: "created", message })
+		this.emit(RooCodeEventName.Message, { action: "created", message })
 		await this.saveClineMessages()
 
 		const shouldCaptureMessage = message.partial !== true && CloudService.isEnabled()
@@ -558,7 +556,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	private async updateClineMessage(message: ClineMessage) {
 		const provider = this.providerRef.deref()
 		await provider?.postMessageToWebview({ type: "messageUpdated", clineMessage: message })
-		this.emit("message", { action: "updated", message })
+		this.emit(RooCodeEventName.Message, { action: "updated", message })
 
 		const shouldCaptureMessage = message.partial !== true && CloudService.isEnabled()
 
@@ -587,7 +585,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode
 			})
 
-			this.emit("taskTokenUsageUpdated", this.taskId, tokenUsage)
+			this.emit(RooCodeEventName.TaskTokenUsageUpdated, this.taskId, tokenUsage)
 
 			await this.providerRef.deref()?.updateTaskHistory(historyItem)
 		} catch (error) {
@@ -693,7 +691,17 @@ export class Task extends EventEmitter<ClineEvents> {
 			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, isProtected })
 		}
 
+		// Detect if the task will enter an idle state.
+		const isReady = this.askResponse !== undefined || this.lastMessageTs !== askTs
+
+		if (!partial && !isReady && isBlockingAsk(type)) {
+			this.blockingAsk = type
+			this.emit(RooCodeEventName.TaskIdle, this.taskId)
+		}
+
+		console.log(`[Task#${this.taskId}] pWaitFor askResponse(${type}) -> blocking`)
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
+		console.log(`[Task#${this.taskId}] pWaitFor askResponse(${type}) -> unblocked (${this.askResponse})`)
 
 		if (this.lastMessageTs !== askTs) {
 			// Could happen if we send multiple asks in a row i.e. with
@@ -706,11 +714,22 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.askResponse = undefined
 		this.askResponseText = undefined
 		this.askResponseImages = undefined
-		this.emit("taskAskResponded")
+
+		// Switch back to an active state.
+		if (this.blockingAsk) {
+			this.blockingAsk = undefined
+			this.emit(RooCodeEventName.TaskActive, this.taskId)
+		}
+
+		this.emit(RooCodeEventName.TaskAskResponded)
 		return result
 	}
 
-	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
+	public setMessageResponse(text: string, images?: string[]) {
+		this.handleWebviewAskResponse("messageResponse", text, images)
+	}
+
+	handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
@@ -938,7 +957,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	public async resumePausedTask(lastMessage: string) {
 		// Release this Cline instance from paused state.
 		this.isPaused = false
-		this.emit("taskUnpaused")
+		this.emit(RooCodeEventName.TaskUnpaused)
 
 		// Fake an answer from the subtask that it has completed running and
 		// this is the result of what it has done  add the message to the chat
@@ -972,7 +991,10 @@ export class Task extends EventEmitter<ClineEvents> {
 			modifiedClineMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
-		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
+		// Since we don't use `api_req_finished` anymore, we need to check if the
+		// last `api_req_started` has a cost value, if it doesn't and no
+		// cancellation reason to present, then we remove it since it indicates
+		// an api request without any partial content streamed.
 		const lastApiReqStartedIndex = findLastIndex(
 			modifiedClineMessages,
 			(m) => m.type === "say" && m.say === "api_req_started",
@@ -981,6 +1003,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		if (lastApiReqStartedIndex !== -1) {
 			const lastApiReqStarted = modifiedClineMessages[lastApiReqStartedIndex]
 			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+
 			if (cost === undefined && cancelReason === undefined) {
 				modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
 			}
@@ -1000,7 +1023,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		const lastClineMessage = this.clineMessages
 			.slice()
 			.reverse()
-			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // Could be multiple resume tasks.
 
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
@@ -1011,9 +1034,11 @@ export class Task extends EventEmitter<ClineEvents> {
 
 		this.isInitialized = true
 
-		const { response, text, images } = await this.ask(askType) // calls poststatetowebview
+		const { response, text, images } = await this.ask(askType) // Calls `postStateToWebview`.
+
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
+
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images)
 			responseText = text
@@ -1163,30 +1188,24 @@ export class Task extends EventEmitter<ClineEvents> {
 			return "just now"
 		})()
 
-		const lastTaskResumptionIndex = newUserContent.findIndex(
-			(x) => x.type === "text" && x.text.startsWith("[TASK RESUMPTION]"),
-		)
-		if (lastTaskResumptionIndex !== -1) {
-			newUserContent.splice(lastTaskResumptionIndex, newUserContent.length - lastTaskResumptionIndex)
+		if (responseText) {
+			newUserContent.push({
+				type: "text",
+				text: `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`,
+			})
 		}
-
-		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
-
-		newUserContent.push({
-			type: "text",
-			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
-					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
-						: ""
-				}` +
-				(responseText
-					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
-					: ""),
-		})
 
 		if (responseImages && responseImages.length > 0) {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
+		}
+
+		// Ensure we have at least some content to send to the API
+		// If newUserContent is empty, add a minimal resumption message
+		if (newUserContent.length === 0) {
+			newUserContent.push({
+				type: "text",
+				text: "[TASK RESUMPTION] Resuming task...",
+			})
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -1197,6 +1216,8 @@ export class Task extends EventEmitter<ClineEvents> {
 	}
 
 	public dispose(): void {
+		console.log(`[Task] disposing task ${this.taskId}.${this.instanceId}`)
+
 		// Stop waiting for child task completion.
 		if (this.pauseInterval) {
 			clearInterval(this.pauseInterval)
@@ -1230,7 +1251,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			}
 		} catch (error) {
 			console.error("Error disposing RooIgnoreController:", error)
-			// This is the critical one for the leak fix
+			// This is the critical one for the leak fix.
 		}
 
 		try {
@@ -1240,7 +1261,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		try {
-			// If we're not streaming then `abortStream` won't be called
+			// If we're not streaming then `abortStream` won't be called.
 			if (this.isStreaming && this.diffViewProvider.isEditing) {
 				this.diffViewProvider.revertChanges().catch(console.error)
 			}
@@ -1258,7 +1279,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		this.abort = true
-		this.emit("taskAborted")
+		this.emit(RooCodeEventName.TaskAborted)
 
 		try {
 			this.dispose() // Call the centralized dispose method
@@ -1300,11 +1321,11 @@ export class Task extends EventEmitter<ClineEvents> {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 
-		this.emit("taskStarted")
+		this.emit(RooCodeEventName.TaskStarted)
 
 		while (!this.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
-			includeFileDetails = false // we only need file details the first time
+			includeFileDetails = false // We only need file details the first time.
 
 			// The way this agentic loop works is that cline will be given a
 			// task that he then calls tools to complete. Unless there's an
@@ -1523,6 +1544,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 			// Reset streaming state.
 			this.currentStreamingContentIndex = 0
+			this.currentStreamingDidCheckpoint = false
 			this.assistantMessageContent = []
 			this.didCompleteReadingStream = false
 			this.userMessageContent = []
@@ -1630,13 +1652,13 @@ export class Task extends EventEmitter<ClineEvents> {
 					// If this.abort is already true, it means the user clicked cancel, so we should
 					// treat this as "user_cancelled" rather than "streaming_failed"
 					const cancelReason = this.abort ? "user_cancelled" : "streaming_failed"
+
 					const streamingFailedMessage = this.abort
 						? undefined
 						: (error.message ?? JSON.stringify(serializeError(error), null, 2))
 
-					// Now call abortTask after determining the cancel reason
+					// Now call abortTask after determining the cancel reason.
 					await this.abortTask()
-
 					await abortStream(cancelReason, streamingFailedMessage)
 
 					const history = await provider?.getTaskWithId(this.taskId)
@@ -1847,6 +1869,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 	public async *attemptApiRequest(retryAttempt: number = 0): ApiStream {
 		const state = await this.providerRef.deref()?.getState()
+
 		const {
 			apiConfiguration,
 			autoApprovalEnabled,
@@ -1858,21 +1881,24 @@ export class Task extends EventEmitter<ClineEvents> {
 			profileThresholds = {},
 		} = state ?? {}
 
-		// Get condensing configuration for automatic triggers
+		// Get condensing configuration for automatic triggers.
 		const customCondensingPrompt = state?.customCondensingPrompt
 		const condensingApiConfigId = state?.condensingApiConfigId
 		const listApiConfigMeta = state?.listApiConfigMeta
 
-		// Determine API handler to use for condensing
+		// Determine API handler to use for condensing.
 		let condensingApiHandler: ApiHandler | undefined
+
 		if (condensingApiConfigId && listApiConfigMeta && Array.isArray(listApiConfigMeta)) {
-			// Using type assertion for the id property to avoid implicit any
+			// Using type assertion for the id property to avoid implicit any.
 			const matchingConfig = listApiConfigMeta.find((config: any) => config.id === condensingApiConfigId)
+
 			if (matchingConfig) {
 				const profile = await this.providerRef.deref()?.providerSettingsManager.getProfile({
 					id: condensingApiConfigId,
 				})
-				// Ensure profile and apiProvider exist before trying to build handler
+
+				// Ensure profile and apiProvider exist before trying to build handler.
 				if (profile && profile.apiProvider) {
 					condensingApiHandler = buildApiHandler(profile)
 				}
@@ -1963,18 +1989,16 @@ export class Task extends EventEmitter<ClineEvents> {
 			({ role, content }) => ({ role, content }),
 		)
 
-		// Check if we've reached the maximum number of auto-approved requests
-		const maxRequests = state?.allowedMaxRequests || Infinity
+		// Check auto-approval limits
+		const approvalResult = await this.autoApprovalHandler.checkAutoApprovalLimits(
+			state,
+			this.combineMessages(this.clineMessages.slice(1)),
+			async (type, data) => this.ask(type, data),
+		)
 
-		// Increment the counter for each new API request
-		this.consecutiveAutoApprovedRequestsCount++
-
-		if (this.consecutiveAutoApprovedRequestsCount > maxRequests) {
-			const { response } = await this.ask("auto_approval_max_req_reached", JSON.stringify({ count: maxRequests }))
-			// If we get past the promise, it means the user approved and did not start a new task
-			if (response === "yesButtonClicked") {
-				this.consecutiveAutoApprovedRequestsCount = 0
-			}
+		if (!approvalResult.shouldProceed) {
+			// User did not approve, task should be aborted
+			throw new Error("Auto-approval limit reached and user did not approve continuation")
 		}
 
 		const metadata: ApiHandlerCreateMessageMetadata = {
@@ -2121,7 +2145,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.toolUsage[toolName].failures++
 
 		if (error) {
-			this.emit("taskToolFailed", this.taskId, toolName, error)
+			this.emit(RooCodeEventName.TaskToolFailed, this.taskId, toolName, error)
 		}
 	}
 

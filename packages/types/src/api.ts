@@ -1,27 +1,12 @@
 import type { EventEmitter } from "events"
 import type { Socket } from "net"
 
+import type { RooCodeEvents } from "./events.js"
 import type { RooCodeSettings } from "./global-settings.js"
 import type { ProviderSettingsEntry, ProviderSettings } from "./provider-settings.js"
-import type { ClineMessage, TokenUsage } from "./message.js"
-import type { ToolUsage, ToolName } from "./tool.js"
-import type { IpcMessage, IpcServerEvents, IsSubtask } from "./ipc.js"
+import type { IpcMessage, IpcServerEvents } from "./ipc.js"
 
-// TODO: Make sure this matches `RooCodeEvents` from `@roo-code/types`.
-export interface RooCodeAPIEvents {
-	message: [data: { taskId: string; action: "created" | "updated"; message: ClineMessage }]
-	taskCreated: [taskId: string]
-	taskStarted: [taskId: string]
-	taskModeSwitched: [taskId: string, mode: string]
-	taskPaused: [taskId: string]
-	taskUnpaused: [taskId: string]
-	taskAskResponded: [taskId: string]
-	taskAborted: [taskId: string]
-	taskSpawned: [parentTaskId: string, childTaskId: string]
-	taskCompleted: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage, isSubtask: IsSubtask]
-	taskTokenUsageUpdated: [taskId: string, tokenUsage: TokenUsage]
-	taskToolFailed: [taskId: string, toolName: ToolName, error: string]
-}
+export type RooCodeAPIEvents = RooCodeEvents
 
 export interface RooCodeAPI extends EventEmitter<RooCodeAPIEvents> {
 	/**

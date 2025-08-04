@@ -232,5 +232,15 @@ export const parseOpenRouterModel = ({
 		modelInfo.maxTokens = anthropicModels["claude-3-7-sonnet-20250219:thinking"].maxTokens
 	}
 
+	// Set horizon-alpha model to 32k max tokens
+	if (id === "openrouter/horizon-alpha") {
+		modelInfo.maxTokens = 32768
+	}
+
+	// Set horizon-beta model to 32k max tokens
+	if (id === "openrouter/horizon-beta") {
+		modelInfo.maxTokens = 32768
+	}
+
 	return modelInfo
 }

@@ -25,7 +25,6 @@ export interface CheckpointEventMap {
 	initialize: { type: "initialize"; workspaceDir: string; baseHash: string; created: boolean; duration: number }
 	checkpoint: {
 		type: "checkpoint"
-		isFirst: boolean
 		fromHash: string
 		toHash: string
 		duration: number

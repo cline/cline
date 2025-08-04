@@ -900,12 +900,18 @@ describe("ClineProvider - Sticky Mode", () => {
 		it("should handle errors during mode switch gracefully", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
 
-			// Create a mock task that throws on emit
+			// Create a mock task that throws on emit only for specific events
+			let emitCallCount = 0
 			const mockTask = {
 				taskId: "test-task-id",
 				_taskMode: "code",
-				emit: vi.fn().mockImplementation(() => {
-					throw new Error("Emit failed")
+				emit: vi.fn().mockImplementation((event) => {
+					emitCallCount++
+					// Only throw on the second emit call (taskModeSwitched event)
+					// The first call is for TaskFocused in addClineToStack
+					if (emitCallCount === 2 && event === "taskModeSwitched") {
+						throw new Error("Emit failed")
+					}
 				}),
 				saveClineMessages: vi.fn(),
 				clineMessages: [],
@@ -915,12 +921,41 @@ describe("ClineProvider - Sticky Mode", () => {
 			// Add task to provider stack
 			await provider.addClineToStack(mockTask as any)
 
+			// Mock getGlobalState to return task history
+			vi.spyOn(provider as any, "getGlobalState").mockReturnValue([
+				{
+					id: mockTask.taskId,
+					ts: Date.now(),
+					task: "Test task",
+					number: 1,
+					tokensIn: 0,
+					tokensOut: 0,
+					cacheWrites: 0,
+					cacheReads: 0,
+					totalCost: 0,
+				},
+			])
+
+			// Mock updateTaskHistory
+			vi.spyOn(provider, "updateTaskHistory").mockImplementation(() => Promise.resolve([]))
+
 			// Mock console.error to suppress error output
 			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 
+			// Clear previous mock calls to isolate this test
+			vi.mocked(mockContext.globalState.update).mockClear()
+
 			// The handleModeSwitch method doesn't catch errors from emit, so it will throw
-			// This is the actual behavior based on the test failure
+			// The error is thrown before the task's mode is updated
 			await expect(provider.handleModeSwitch("architect")).rejects.toThrow("Emit failed")
+
+			// Since the error is thrown before updating the task's _taskMode,
+			// neither the task mode nor global state are updated
+			const modeCalls = vi.mocked(mockContext.globalState.update).mock.calls.filter((call) => call[0] === "mode")
+			expect(modeCalls.length).toBe(0)
+
+			// The task's mode should NOT have been updated since the error occurred first
+			expect(mockTask._taskMode).toBe("code")
 
 			consoleErrorSpy.mockRestore()
 		})

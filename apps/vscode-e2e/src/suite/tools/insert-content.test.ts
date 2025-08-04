@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
 import { setDefaultSuiteTimeout } from "../test-utils"
@@ -145,7 +145,7 @@ ${testFile.content}`
 					}
 				}
 			}
-			api.on("message", messageHandler)
+			api.on(RooCodeEventName.Message, messageHandler)
 
 			// Listen for task events
 			const taskStartedHandler = (id: string) => {
@@ -154,7 +154,7 @@ ${testFile.content}`
 					console.log("Task started:", id)
 				}
 			}
-			api.on("taskStarted", taskStartedHandler)
+			api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 			const taskCompletedHandler = (id: string) => {
 				if (id === taskId) {
@@ -162,7 +162,7 @@ ${testFile.content}`
 					console.log("Task completed:", id)
 				}
 			}
-			api.on("taskCompleted", taskCompletedHandler)
+			api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 			let taskId: string
 			try {
@@ -221,9 +221,9 @@ Assume the file exists and you can modify it directly.`,
 
 				console.log("Test passed! insert_content tool executed and content inserted at beginning successfully")
 			} finally {
-				api.off("message", messageHandler)
-				api.off("taskStarted", taskStartedHandler)
-				api.off("taskCompleted", taskCompletedHandler)
+				api.off(RooCodeEventName.Message, messageHandler)
+				api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+				api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 			}
 		})
 		try {
@@ -286,7 +286,7 @@ ${insertContent}`
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -295,7 +295,7 @@ ${insertContent}`
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -303,7 +303,7 @@ ${insertContent}`
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -388,7 +388,7 @@ ${testFile.content}`
 						}
 					}
 				}
-				api.on("message", messageHandler)
+				api.on(RooCodeEventName.Message, messageHandler)
 
 				// Listen for task events
 				const taskStartedHandler = (id: string) => {
@@ -397,7 +397,7 @@ ${testFile.content}`
 						console.log("Task started:", id)
 					}
 				}
-				api.on("taskStarted", taskStartedHandler)
+				api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 				const taskCompletedHandler = (id: string) => {
 					if (id === taskId) {
@@ -405,7 +405,7 @@ ${testFile.content}`
 						console.log("Task completed:", id)
 					}
 				}
-				api.on("taskCompleted", taskCompletedHandler)
+				api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 				let taskId: string
 				try {
@@ -490,7 +490,7 @@ And this is the second line`
 								}
 							}
 						}
-						api.on("message", messageHandler)
+						api.on(RooCodeEventName.Message, messageHandler)
 
 						// Listen for task events
 						const taskStartedHandler = (id: string) => {
@@ -499,7 +499,7 @@ And this is the second line`
 								console.log("Task started:", id)
 							}
 						}
-						api.on("taskStarted", taskStartedHandler)
+						api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 						const taskCompletedHandler = (id: string) => {
 							if (id === taskId) {
@@ -507,7 +507,7 @@ And this is the second line`
 								console.log("Task completed:", id)
 							}
 						}
-						api.on("taskCompleted", taskCompletedHandler)
+						api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 						let taskId: string
 						try {
@@ -572,9 +572,9 @@ The file is currently empty. Assume the file exists and you can modify it direct
 								"Test passed! insert_content tool executed and content inserted into empty file successfully",
 							)
 						} finally {
-							api.off("message", messageHandler)
-							api.off("taskStarted", taskStartedHandler)
-							api.off("taskCompleted", taskCompletedHandler)
+							api.off(RooCodeEventName.Message, messageHandler)
+							api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+							api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 						}
 					})
 					// Check if the file was modified correctly
@@ -600,9 +600,9 @@ The file is currently empty. Assume the file exists and you can modify it direct
 
 					console.log("Test passed! insert_content tool executed and multiline content inserted successfully")
 				} finally {
-					api.off("message", messageHandler)
-					api.off("taskStarted", taskStartedHandler)
-					api.off("taskCompleted", taskCompletedHandler)
+					api.off(RooCodeEventName.Message, messageHandler)
+					api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+					api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 				}
 			})
 			assert.strictEqual(insertContentExecuted, true, "insert_content tool should have been executed")
@@ -619,9 +619,9 @@ The file is currently empty. Assume the file exists and you can modify it direct
 
 			console.log("Test passed! insert_content tool executed and content inserted at end successfully")
 		} finally {
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 	// Tests will be added here one by one

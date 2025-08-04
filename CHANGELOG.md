@@ -1,5 +1,54 @@
 # Roo Code Changelog
 
+## [3.25.6] - 2025-08-01
+
+- Set horizon-beta model max tokens to 32k for OpenRouter (requested by @hannesrudolph, PR by @app/roomote)
+- Add support for syncing provider profiles from the cloud
+
+## [3.25.5] - 2025-08-01
+
+- Fix: Improve Claude Code ENOENT error handling with installation guidance (#5866 by @JamieJ1, PR by @app/roomote)
+- Fix: LM Studio model context length (#5075 by @Angular-Angel, PR by @pwilkin)
+- Fix: VB.NET indexing by implementing fallback chunking system (#6420 by @JensvanZutphen, PR by @daniel-lxs)
+- Add auto-approved cost limits (thanks @hassoncs!)
+- Add Cerebras as a provider (thanks @kevint-cerebras!)
+- Add Qwen 3 Coder from Cerebras (thanks @kevint-cerebras!)
+- Fix: Handle Qdrant deletion errors gracefully to prevent indexing interruption (thanks @daniel-lxs!)
+- Fix: Restore message sending when clicking save button (thanks @daniel-lxs!)
+- Fix: Linter not applied to locales/\*/README.md (thanks @liwilliam2021!)
+- Handle more variations of chaining and subshell command validation
+- More tolerant search/replace match
+- Clean up the auto-approve UI (thanks @mrubens!)
+- Skip interpolation for non-existent slash commands (thanks @app/roomote!)
+
+## [3.25.4] - 2025-07-30
+
+- feat: add SambaNova provider integration (#6077 by @snova-jorgep, PR by @snova-jorgep)
+- feat: add Doubao provider integration (thanks @AntiMoron!)
+- feat: set horizon-alpha model max tokens to 32k for OpenRouter (thanks @app/roomote!)
+- feat: add zai-org/GLM-4.5-FP8 model to Chutes AI provider (#6440 by @leakless21, PR by @app/roomote)
+- feat: add symlink support for AGENTS.md file loading (thanks @app/roomote!)
+- feat: optionally add task history context to prompt enhancement (thanks @liwilliam2021!)
+- fix: remove misleading task resumption message (#5850 by @KJ7LNW, PR by @KJ7LNW)
+- feat: add pattern to support Databricks /invocations endpoints (thanks @adambrand!)
+- fix: resolve navigator global error by updating mammoth and bluebird dependencies (#6356 by @hishtadlut, PR by @app/roomote)
+- feat: enhance token counting by extracting text from messages using VSCode LM API (#6112 by @sebinseban, PR by @NaccOll)
+- feat: auto-refresh marketplace data when organization settings change (thanks @app/roomote!)
+- fix: kill button for execute_command tool (thanks @daniel-lxs!)
+
+## [3.25.3] - 2025-07-30
+
+- Allow queueing messages with images
+- Increase Claude Code default max output tokens to 16k (#6125 by @bpeterson1991, PR by @app/roomote)
+- Add docs link for slash commands
+- Hide Gemini checkboxes on the welcome view
+- Clarify apply_diff tool descriptions to emphasize surgical edits
+- Fix: Prevent input clearing when clicking chat buttons (thanks @hassoncs!)
+- Update PR reviewer rules and mode configuration (thanks @daniel-lxs!)
+- Add translation check action to pull_request.opened event (thanks @app/roomote!)
+- Remove "(prev Roo Cline)" from extension title in all languages (thanks @app/roomote!)
+- Remove event types mention from PR reviewer rules (thanks @daniel-lxs!)
+
 ## [3.25.2] - 2025-07-29
 
 - Fix: Show diff view before approval when background edits are disabled (thanks @daniel-lxs!)

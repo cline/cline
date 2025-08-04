@@ -82,12 +82,22 @@
 			"errorOutput": "錯誤輸出：{{output}}",
 			"processExitedWithError": "Claude Code 程序退出，退出碼：{{exitCode}}。錯誤輸出：{{output}}",
 			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
-			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。"
+			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。",
+			"notFound": "找不到 Claude Code 可執行檔案 '{{claudePath}}'。\n\n請安裝 Claude Code CLI：\n1. 造訪 {{installationUrl}} 下載 Claude Code\n2. 依照作業系統的安裝說明進行操作\n3. 確保 'claude' 指令在 PATH 中可用\n4. 或者在 Roo 設定中的 'Claude Code 路徑' 下設定自訂路徑\n\n原始錯誤：{{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Gemini 產生內容串流錯誤：{{error}}",
 			"generate_complete_prompt": "Gemini 完成錯誤：{{error}}",
 			"sources": "來源："
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API 驗證失敗。請檢查您的 API 金鑰是否有效且未過期。",
+			"accessForbidden": "Cerebras API 存取被拒絕。您的 API 金鑰可能無法存取所請求的模型或功能。",
+			"rateLimitExceeded": "Cerebras API 速率限制已超出。請稍候再發出另一個請求。",
+			"serverError": "Cerebras API 伺服器錯誤 ({{status}})。請稍後重試。",
+			"genericError": "Cerebras API 錯誤 ({{status}})：{{message}}",
+			"noResponseBody": "Cerebras API 錯誤：無回應主體",
+			"completionError": "Cerebras 完成錯誤：{{error}}"
 		},
 		"mode_import_failed": "匯入模式失敗：{{error}}"
 	},

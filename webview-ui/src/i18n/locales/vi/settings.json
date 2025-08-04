@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
+		"enabled": "Phê duyệt tự động đã bật",
 		"toggleAriaLabel": "Chuyển đổi tự động phê duyệt",
 		"disabledAriaLabel": "Tự động phê duyệt bị vô hiệu hóa - hãy chọn các tùy chọn trước",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "Tự động thực hiện số lượng API request này trước khi yêu cầu phê duyệt để tiếp tục với nhiệm vụ.",
 			"unlimited": "Không giới hạn"
 		},
-		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tự động phê duyệt"
+		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tự động phê duyệt",
+		"apiCostLimit": {
+			"title": "Chi phí tối đa",
+			"unlimited": "Không giới hạn"
+		},
+		"maxLimits": {
+			"description": "Tự động thực hiện các yêu cầu lên đến các giới hạn này trước khi xin phê duyệt để tiếp tục."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Tài liệu {{provider}}",
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Khóa API Anthropic",
 		"getAnthropicApiKey": "Lấy khóa API Anthropic",
 		"anthropicUseAuthToken": "Truyền khóa API Anthropic dưới dạng tiêu đề Authorization thay vì X-Api-Key",
+		"cerebrasApiKey": "Khóa API Cerebras",
+		"getCerebrasApiKey": "Lấy khóa API Cerebras",
 		"chutesApiKey": "Khóa API Chutes",
 		"getChutesApiKey": "Lấy khóa API Chutes",
 		"deepSeekApiKey": "Khóa API DeepSeek",
 		"getDeepSeekApiKey": "Lấy khóa API DeepSeek",
+		"doubaoApiKey": "Khóa API Doubao",
+		"getDoubaoApiKey": "Lấy khóa API Doubao",
 		"moonshotApiKey": "Khóa API Moonshot",
 		"getMoonshotApiKey": "Lấy khóa API Moonshot",
 		"moonshotBaseUrl": "Điểm vào Moonshot",
 		"geminiApiKey": "Khóa API Gemini",
 		"getGroqApiKey": "Lấy khóa API Groq",
 		"groqApiKey": "Khóa API Groq",
+		"getSambaNovaApiKey": "Lấy khóa API SambaNova",
+		"sambaNovaApiKey": "Khóa API SambaNova",
 		"getHuggingFaceApiKey": "Lấy Khóa API Hugging Face",
 		"huggingFaceApiKey": "Khóa API Hugging Face",
 		"huggingFaceModelId": "ID Mô hình",
@@ -314,7 +328,6 @@
 				"description": "Cho phép Gemini tìm kiếm trên Google để lấy thông tin mới nhất và căn cứ phản hồi dựa trên dữ liệu thời gian thực. Hữu ích cho các truy vấn yêu cầu thông tin cập nhật."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Để sử dụng Google Cloud Vertex AI, bạn cần:",
 			"step1": "1. Tạo tài khoản Google Cloud, kích hoạt Vertex AI API và kích hoạt các mô hình Claude mong muốn.",

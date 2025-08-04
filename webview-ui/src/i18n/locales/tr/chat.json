@@ -139,7 +139,6 @@
 		"streamingFailed": "API Akışı Başarısız"
 	},
 	"checkpoint": {
-		"initial": "İlk Kontrol Noktası",
 		"regular": "Kontrol Noktası",
 		"initializingWarning": "Kontrol noktası hala başlatılıyor... Bu çok uzun sürerse, <settingsLink>ayarlar</settingsLink> bölümünden kontrol noktalarını devre dışı bırakabilir ve görevinizi yeniden başlatabilirsiniz.",
 		"menu": {
@@ -313,6 +312,11 @@
 		"autoApprovedRequestLimitReached": {
 			"title": "Otomatik Onaylanan İstek Limiti Aşıldı",
 			"description": "Roo, {{count}} API isteği/istekleri için otomatik onaylanan limite ulaştı. Sayacı sıfırlamak ve göreve devam etmek istiyor musunuz?",
+			"button": "Sıfırla ve Devam Et"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Otomatik Onaylanan Maliyet Sınırına Ulaşıldı",
+			"description": "Roo otomatik olarak onaylanmış ${{count}} maliyet sınırına ulaştı. Maliyeti sıfırlamak ve göreve devam etmek ister misiniz?",
 			"button": "Sıfırla ve Devam Et"
 		}
 	},

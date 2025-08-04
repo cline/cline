@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
 import { setDefaultSuiteTimeout } from "../test-utils"
@@ -192,7 +192,7 @@ function validateInput(input) {
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -201,7 +201,7 @@ function validateInput(input) {
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -209,7 +209,7 @@ function validateInput(input) {
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -260,9 +260,9 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 			console.log("Test passed! apply_diff tool executed and file modified successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -305,7 +305,7 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -314,7 +314,7 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -322,7 +322,7 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -375,9 +375,9 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 			console.log("Test passed! apply_diff tool executed and multiple replacements applied successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -424,7 +424,7 @@ function keepThis() {
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -432,14 +432,14 @@ function keepThis() {
 				taskStarted = true
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -487,9 +487,9 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 			console.log("Test passed! apply_diff tool executed and targeted modification successful")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -532,7 +532,7 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -540,14 +540,14 @@ ${testFile.content}\nAssume the file exists and you can modify it directly.`,
 				taskStarted = true
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -598,9 +598,9 @@ Assume the file exists and you can modify it directly.`,
 			console.log("Test passed! apply_diff attempted and error handled gracefully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -663,7 +663,7 @@ function checkInput(input) {
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -672,7 +672,7 @@ function checkInput(input) {
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -680,7 +680,7 @@ function checkInput(input) {
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -742,9 +742,9 @@ Assume the file exists and you can modify it directly.`,
 			console.log("Test passed! apply_diff tool executed and multiple search/replace blocks applied successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 })

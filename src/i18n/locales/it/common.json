@@ -83,12 +83,22 @@
 			"errorOutput": "Output di errore: {{output}}",
 			"processExitedWithError": "Il processo Claude Code è terminato con codice {{exitCode}}. Output di errore: {{output}}",
 			"stoppedWithReason": "Claude Code si è fermato per il motivo: {{reason}}",
-			"apiKeyModelPlanMismatch": "Le chiavi API e i piani di abbonamento consentono modelli diversi. Assicurati che il modello selezionato sia incluso nel tuo piano."
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Errore del flusso di contesto di generazione Gemini: {{error}}",
 			"generate_complete_prompt": "Errore di completamento Gemini: {{error}}",
 			"sources": "Fonti:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Autenticazione API Cerebras fallita. Verifica che la tua chiave API sia valida e non scaduta.",
+			"accessForbidden": "Accesso API Cerebras negato. La tua chiave API potrebbe non avere accesso al modello o alla funzione richiesta.",
+			"rateLimitExceeded": "Limite di velocità API Cerebras superato. Attendi prima di fare un'altra richiesta.",
+			"serverError": "Errore del server API Cerebras ({{status}}). Riprova più tardi.",
+			"genericError": "Errore API Cerebras ({{status}}): {{message}}",
+			"noResponseBody": "Errore API Cerebras: Nessun corpo di risposta",
+			"completionError": "Errore di completamento Cerebras: {{error}}"
 		}
 	},
 	"warnings": {

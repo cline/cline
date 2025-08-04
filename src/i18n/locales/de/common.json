@@ -83,12 +83,22 @@
 			"errorOutput": "Fehlerausgabe: {{output}}",
 			"processExitedWithError": "Claude Code Prozess wurde mit Code {{exitCode}} beendet. Fehlerausgabe: {{output}}",
 			"stoppedWithReason": "Claude Code wurde mit Grund gestoppt: {{reason}}",
-			"apiKeyModelPlanMismatch": "API-Schlüssel und Abonnement-Pläne erlauben verschiedene Modelle. Stelle sicher, dass das ausgewählte Modell in deinem Plan enthalten ist."
+			"apiKeyModelPlanMismatch": "API-Schlüssel und Abonnement-Pläne erlauben verschiedene Modelle. Stelle sicher, dass das ausgewählte Modell in deinem Plan enthalten ist.",
+			"notFound": "Claude Code ausführbare Datei '{{claudePath}}' nicht gefunden.\n\nBitte installiere Claude Code CLI:\n1. Besuche {{installationUrl}} um Claude Code herunterzuladen\n2. Folge den Installationsanweisungen für dein Betriebssystem\n3. Stelle sicher, dass der 'claude' Befehl in deinem PATH verfügbar ist\n4. Alternativ konfiguriere einen benutzerdefinierten Pfad in den Roo-Einstellungen unter 'Claude Code Pfad'\n\nUrsprünglicher Fehler: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Fehler beim Generieren des Kontext-Streams von Gemini: {{error}}",
 			"generate_complete_prompt": "Fehler bei der Vervollständigung durch Gemini: {{error}}",
 			"sources": "Quellen:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API-Authentifizierung fehlgeschlagen. Bitte überprüfe, ob dein API-Schlüssel gültig und nicht abgelaufen ist.",
+			"accessForbidden": "Cerebras API-Zugriff verweigert. Dein API-Schlüssel hat möglicherweise keinen Zugriff auf das angeforderte Modell oder die Funktion.",
+			"rateLimitExceeded": "Cerebras API-Ratenlimit überschritten. Bitte warte, bevor du eine weitere Anfrage stellst.",
+			"serverError": "Cerebras API-Serverfehler ({{status}}). Bitte versuche es später erneut.",
+			"genericError": "Cerebras API-Fehler ({{status}}): {{message}}",
+			"noResponseBody": "Cerebras API-Fehler: Kein Antworttext vorhanden",
+			"completionError": "Cerebras-Vervollständigungsfehler: {{error}}"
 		}
 	},
 	"warnings": {

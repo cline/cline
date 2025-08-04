@@ -91,7 +91,9 @@
 			"useCurrentConfig": "使用目前選擇的 API 設定",
 			"testPromptPlaceholder": "輸入提示詞以測試增強效果",
 			"previewButton": "預覽提示詞增強",
-			"testEnhancement": "測試增強"
+			"testEnhancement": "測試增強",
+			"includeTaskHistory": "包含工作歷史作為內容",
+			"includeTaskHistoryDescription": "啟用後，目前對話的最後 10 則訊息將作為內容包含在增強提示詞時，有助於產生更相關和內容感知的建議。"
 		},
 		"condense": {
 			"apiConfiguration": "用於上下文壓縮的 API 設定",

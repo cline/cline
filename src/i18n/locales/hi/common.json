@@ -83,12 +83,22 @@
 			"errorOutput": "त्रुटि आउटपुट: {{output}}",
 			"processExitedWithError": "Claude Code प्रक्रिया कोड {{exitCode}} के साथ समाप्त हुई। त्रुटि आउटपुट: {{output}}",
 			"stoppedWithReason": "Claude Code इस कारण से रुका: {{reason}}",
-			"apiKeyModelPlanMismatch": "API कुंजी और सब्सक्रिप्शन प्लान अलग-अलग मॉडल की अनुमति देते हैं। सुनिश्चित करें कि चयनित मॉडल आपकी योजना में शामिल है।"
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "जेमिनी जनरेट कॉन्टेक्स्ट स्ट्रीम त्रुटि: {{error}}",
 			"generate_complete_prompt": "जेमिनी समापन त्रुटि: {{error}}",
 			"sources": "स्रोत:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API प्रमाणीकरण विफल हुआ। कृपया जांचें कि आपकी API कुंजी वैध है और समाप्त नहीं हुई है।",
+			"accessForbidden": "Cerebras API पहुंच निषेध। आपकी API कुंजी का अनुरोधित मॉडल या सुविधा तक पहुंच नहीं हो सकती है।",
+			"rateLimitExceeded": "Cerebras API दर सीमा पार हो गई। कृपया दूसरा अनुरोध करने से पहले प्रतीक्षा करें।",
+			"serverError": "Cerebras API सर्वर त्रुटि ({{status}})। कृपया बाद में पुनः प्रयास करें।",
+			"genericError": "Cerebras API त्रुटि ({{status}}): {{message}}",
+			"noResponseBody": "Cerebras API त्रुटि: कोई प्रतिक्रिया मुख्य भाग नहीं",
+			"completionError": "Cerebras पूर्णता त्रुटि: {{error}}"
 		}
 	},
 	"warnings": {

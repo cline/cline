@@ -91,7 +91,9 @@
 			"useCurrentConfig": "Sử dụng cấu hình API hiện tại đã chọn",
 			"testPromptPlaceholder": "Nhập lời nhắc để kiểm tra việc nâng cao",
 			"previewButton": "Xem trước nâng cao lời nhắc",
-			"testEnhancement": "Kiểm tra cải tiến"
+			"testEnhancement": "Kiểm tra cải tiến",
+			"includeTaskHistory": "Bao gồm lịch sử tác vụ làm ngữ cảnh",
+			"includeTaskHistoryDescription": "Khi được bật, 10 tin nhắn cuối cùng từ cuộc trò chuyện hiện tại sẽ được bao gồm làm ngữ cảnh khi nâng cao lời nhắc, giúp tạo ra các gợi ý phù hợp và nhận thức ngữ cảnh hơn."
 		},
 		"condense": {
 			"apiConfiguration": "Cấu hình API để cô đọng ngữ cảnh",

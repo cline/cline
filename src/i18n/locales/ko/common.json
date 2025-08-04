@@ -83,12 +83,22 @@
 			"errorOutput": "오류 출력: {{output}}",
 			"processExitedWithError": "Claude Code 프로세스가 코드 {{exitCode}}로 종료되었습니다. 오류 출력: {{output}}",
 			"stoppedWithReason": "Claude Code가 다음 이유로 중지되었습니다: {{reason}}",
-			"apiKeyModelPlanMismatch": "API 키와 구독 플랜에서 다른 모델을 허용합니다. 선택한 모델이 플랜에 포함되어 있는지 확인하세요."
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Gemini 생성 컨텍스트 스트림 오류: {{error}}",
 			"generate_complete_prompt": "Gemini 완료 오류: {{error}}",
 			"sources": "출처:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API 인증에 실패했습니다. API 키가 유효하고 만료되지 않았는지 확인하세요.",
+			"accessForbidden": "Cerebras API 액세스가 금지되었습니다. API 키가 요청된 모델이나 기능에 액세스할 수 없을 수 있습니다.",
+			"rateLimitExceeded": "Cerebras API 속도 제한을 초과했습니다. 다른 요청을 하기 전에 기다리세요.",
+			"serverError": "Cerebras API 서버 오류 ({{status}}). 나중에 다시 시도하세요.",
+			"genericError": "Cerebras API 오류 ({{status}}): {{message}}",
+			"noResponseBody": "Cerebras API 오류: 응답 본문 없음",
+			"completionError": "Cerebras 완료 오류: {{error}}"
 		}
 	},
 	"warnings": {

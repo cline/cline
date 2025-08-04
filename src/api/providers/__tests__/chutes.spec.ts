@@ -208,6 +208,29 @@ describe("ChutesHandler", () => {
 		)
 	})
 
+	it("should return zai-org/GLM-4.5-FP8 model with correct configuration", () => {
+		const testModelId: ChutesModelId = "zai-org/GLM-4.5-FP8"
+		const handlerWithModel = new ChutesHandler({
+			apiModelId: testModelId,
+			chutesApiKey: "test-chutes-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 32768,
+				contextWindow: 131072,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0,
+				outputPrice: 0,
+				description:
+					"GLM-4.5-FP8 model with 128k token context window, optimized for agent-based applications with MoE architecture.",
+				temperature: 0.5, // Default temperature for non-DeepSeek models
+			}),
+		)
+	})
+
 	it("completePrompt method should return text from Chutes API", async () => {
 		const expectedResponse = "This is a test response from Chutes"
 		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: expectedResponse } }] })

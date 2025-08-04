@@ -31,7 +31,7 @@
   - Use the GitHub API for submitting reviews to support inline comments
   - Construct proper JSON payloads with commit_id, body, event, and comments array
   - Each inline comment needs: path, body, line number, and side (RIGHT for new code)
-  - Choose appropriate review event: COMMENT, REQUEST_CHANGES, or APPROVE
+  - Use COMMENT when submitting the review
   - Use heredoc syntax (--input - <<EOF) to pass JSON directly
   - Offer the option to create individual tasks for each suggestion
   - When creating tasks, choose the appropriate mode for each type of work

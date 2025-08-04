@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
+		"enabled": "Auto-zatwierdzanie włączone",
 		"toggleAriaLabel": "Przełącz automatyczne zatwierdzanie",
 		"disabledAriaLabel": "Automatyczne zatwierdzanie wyłączone - najpierw wybierz opcje",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "Automatycznie wykonaj tyle żądań API przed poproszeniem o zgodę na kontynuowanie zadania.",
 			"unlimited": "Bez limitu"
 		},
-		"selectOptionsFirst": "Wybierz co najmniej jedną opcję poniżej, aby włączyć automatyczne zatwierdzanie"
+		"selectOptionsFirst": "Wybierz co najmniej jedną opcję poniżej, aby włączyć automatyczne zatwierdzanie",
+		"apiCostLimit": {
+			"title": "Maksymalny koszt",
+			"unlimited": "Bez limitu"
+		},
+		"maxLimits": {
+			"description": "Automatycznie składaj zapytania do tych limitów przed poproszeniem o zgodę na kontynuowanie."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "Dokumentacja {{provider}}",
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Klucz API Anthropic",
 		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",
 		"anthropicUseAuthToken": "Przekaż klucz API Anthropic jako nagłówek Authorization zamiast X-Api-Key",
+		"cerebrasApiKey": "Klucz API Cerebras",
+		"getCerebrasApiKey": "Pobierz klucz API Cerebras",
 		"chutesApiKey": "Klucz API Chutes",
 		"getChutesApiKey": "Uzyskaj klucz API Chutes",
 		"deepSeekApiKey": "Klucz API DeepSeek",
 		"getDeepSeekApiKey": "Uzyskaj klucz API DeepSeek",
+		"doubaoApiKey": "Klucz API Doubao",
+		"getDoubaoApiKey": "Uzyskaj klucz API Doubao",
 		"moonshotApiKey": "Klucz API Moonshot",
 		"getMoonshotApiKey": "Uzyskaj klucz API Moonshot",
 		"moonshotBaseUrl": "Punkt wejścia Moonshot",
 		"geminiApiKey": "Klucz API Gemini",
 		"getGroqApiKey": "Uzyskaj klucz API Groq",
 		"groqApiKey": "Klucz API Groq",
+		"getSambaNovaApiKey": "Uzyskaj klucz API SambaNova",
+		"sambaNovaApiKey": "Klucz API SambaNova",
 		"getGeminiApiKey": "Uzyskaj klucz API Gemini",
 		"getHuggingFaceApiKey": "Uzyskaj klucz API Hugging Face",
 		"huggingFaceApiKey": "Klucz API Hugging Face",
@@ -314,7 +328,6 @@
 				"description": "Pozwala Gemini przeszukiwać Google w celu uzyskania aktualnych informacji i opierać odpowiedzi na danych w czasie rzeczywistym. Przydatne w zapytaniach wymagających najnowszych informacji."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Aby korzystać z Google Cloud Vertex AI, potrzebujesz:",
 			"step1": "1. Utworzyć konto Google Cloud, włączyć API Vertex AI i włączyć żądane modele Claude.",

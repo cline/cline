@@ -60,10 +60,10 @@ export function FeaturesMobile() {
 					<div className="flex">
 						{features.map((feature, index) => (
 							<div className="flex min-w-0 flex-[0_0_100%] px-4" key={index}>
-								<div className="relative h-full min-h-[280px] rounded-2xl border border-border/50 bg-background/30 p-6 backdrop-blur-xl transition-colors duration-300 hover:border-border hover:bg-gray-900/20">
-									<div className="mb-2 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/5 to-cyan-500/5 p-2.5">
+								<div className="relative h-full min-h-[280px] rounded-2xl border border-border/50 bg-background/30 p-6 backdrop-blur-xl transition-all duration-300 hover:border-border hover:bg-background/50 dark:hover:border-border/80 dark:hover:bg-background/40">
+									<div className="mb-2 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
 										<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
-											<div className="text-foreground/90">{feature.icon}</div>
+											<div className="text-white">{feature.icon}</div>
 										</div>
 									</div>
 									<h3 className="mb-3 text-xl font-medium text-foreground/90">{feature.title}</h3>

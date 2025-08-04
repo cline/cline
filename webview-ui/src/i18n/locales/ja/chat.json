@@ -139,7 +139,6 @@
 		"streamingFailed": "APIストリーミング失敗"
 	},
 	"checkpoint": {
-		"initial": "初期チェックポイント",
 		"regular": "チェックポイント",
 		"initializingWarning": "チェックポイントの初期化中... 時間がかかりすぎる場合は、<settingsLink>設定</settingsLink>でチェックポイントを無効にしてタスクを再開できます。",
 		"menu": {
@@ -314,6 +313,11 @@
 			"title": "自動承認リクエスト制限に達しました",
 			"description": "Rooは{{count}}件のAPI自動承認リクエスト制限に達しました。カウントをリセットしてタスクを続行しますか？",
 			"button": "リセットして続行"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "自動承認コスト制限に達しました",
+			"description": "Rooは自動承認されたコスト制限の${{count}}に達しました。コストをリセットしてタスクを続行しますか？",
+			"button": "リセットして続ける"
 		}
 	},
 	"codebaseSearch": {

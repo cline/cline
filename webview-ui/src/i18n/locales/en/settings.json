@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
 			"label": "Read",
 			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button.",
@@ -191,9 +192,15 @@
 			"description": "Automatically update the to-do list without requiring approval"
 		},
 		"apiRequestLimit": {
-			"title": "Max Requests",
-			"description": "Automatically make this many API requests before asking for approval to continue with the task.",
+			"title": "Max Count",
 			"unlimited": "Unlimited"
+		},
+		"apiCostLimit": {
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
+		},
+		"maxLimits": {
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
 		},
 		"toggleAriaLabel": "Toggle auto-approval",
 		"disabledAriaLabel": "Auto-approval disabled - select options first",
@@ -249,16 +256,22 @@
 		"anthropicApiKey": "Anthropic API Key",
 		"getAnthropicApiKey": "Get Anthropic API Key",
 		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"cerebrasApiKey": "Cerebras API Key",
+		"getCerebrasApiKey": "Get Cerebras API Key",
 		"chutesApiKey": "Chutes API Key",
 		"getChutesApiKey": "Get Chutes API Key",
 		"deepSeekApiKey": "DeepSeek API Key",
 		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"doubaoApiKey": "Doubao API Key",
+		"getDoubaoApiKey": "Get Doubao API Key",
 		"moonshotApiKey": "Moonshot API Key",
 		"getMoonshotApiKey": "Get Moonshot API Key",
 		"moonshotBaseUrl": "Moonshot Entrypoint",
 		"geminiApiKey": "Gemini API Key",
 		"getGroqApiKey": "Get Groq API Key",
 		"groqApiKey": "Groq API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
 		"getHuggingFaceApiKey": "Get Hugging Face API Key",
 		"huggingFaceApiKey": "Hugging Face API Key",
 		"huggingFaceModelId": "Model ID",

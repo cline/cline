@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
+		"enabled": "Auto-Genehmigung aktiviert",
 		"toggleAriaLabel": "Automatische Genehmigung umschalten",
 		"disabledAriaLabel": "Automatische Genehmigung deaktiviert - zuerst Optionen auswählen",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "Automatisch so viele API-Anfragen stellen, bevor du um die Erlaubnis gebeten wirst, mit der Aufgabe fortzufahren.",
 			"unlimited": "Unbegrenzt"
 		},
-		"selectOptionsFirst": "Wähle mindestens eine Option unten aus, um die automatische Genehmigung zu aktivieren"
+		"selectOptionsFirst": "Wähle mindestens eine Option unten aus, um die automatische Genehmigung zu aktivieren",
+		"apiCostLimit": {
+			"title": "Maximale Kosten",
+			"unlimited": "Unbegrenzt"
+		},
+		"maxLimits": {
+			"description": "Anfragen bis zu diesen Grenzwerten automatisch stellen, bevor um Genehmigung zur Fortsetzung gebeten wird."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}}-Dokumentation",
@@ -225,6 +233,8 @@
 		"awsCustomArnDesc": "Stellen Sie sicher, dass die Region in der ARN mit Ihrer oben ausgewählten AWS-Region übereinstimmt.",
 		"openRouterApiKey": "OpenRouter API-Schlüssel",
 		"getOpenRouterApiKey": "OpenRouter API-Schlüssel erhalten",
+		"doubaoApiKey": "Doubao API-Schlüssel",
+		"getDoubaoApiKey": "Doubao API-Schlüssel erhalten",
 		"apiKeyStorageNotice": "API-Schlüssel werden sicher im VSCode Secret Storage gespeichert",
 		"glamaApiKey": "Glama API-Schlüssel",
 		"getGlamaApiKey": "Glama API-Schlüssel erhalten",
@@ -249,6 +259,8 @@
 		"anthropicApiKey": "Anthropic API-Schlüssel",
 		"getAnthropicApiKey": "Anthropic API-Schlüssel erhalten",
 		"anthropicUseAuthToken": "Anthropic API-Schlüssel als Authorization-Header anstelle von X-Api-Key übergeben",
+		"cerebrasApiKey": "Cerebras API-Schlüssel",
+		"getCerebrasApiKey": "Cerebras API-Schlüssel erhalten",
 		"chutesApiKey": "Chutes API-Schlüssel",
 		"getChutesApiKey": "Chutes API-Schlüssel erhalten",
 		"deepSeekApiKey": "DeepSeek API-Schlüssel",
@@ -259,6 +271,8 @@
 		"geminiApiKey": "Gemini API-Schlüssel",
 		"getGroqApiKey": "Groq API-Schlüssel erhalten",
 		"groqApiKey": "Groq API-Schlüssel",
+		"getSambaNovaApiKey": "SambaNova API-Schlüssel erhalten",
+		"sambaNovaApiKey": "SambaNova API-Schlüssel",
 		"getHuggingFaceApiKey": "Hugging Face API-Schlüssel erhalten",
 		"huggingFaceApiKey": "Hugging Face API-Schlüssel",
 		"huggingFaceModelId": "Modell-ID",
@@ -304,7 +318,6 @@
 		"cacheUsageNote": "Hinweis: Wenn Sie keine Cache-Nutzung sehen, versuchen Sie ein anderes Modell auszuwählen und dann Ihr gewünschtes Modell erneut auszuwählen.",
 		"vscodeLmModel": "Sprachmodell",
 		"vscodeLmWarning": "Hinweis: Dies ist eine sehr experimentelle Integration und die Anbieterunterstützung variiert. Wenn Sie einen Fehler über ein nicht unterstütztes Modell erhalten, liegt das Problem auf Anbieterseite.",
-
 		"geminiParameters": {
 			"urlContext": {
 				"title": "URL-Kontext aktivieren",

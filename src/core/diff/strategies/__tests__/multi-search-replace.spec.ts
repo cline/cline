@@ -13,6 +13,51 @@ describe("MultiSearchReplaceDiffStrategy", () => {
 			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
 		})
 
+		it("validates correct marker sequence with extra > in SEARCH", () => {
+			const diff = "<<<<<<< SEARCH>\n" + "some content\n" + "=======\n" + "new content\n" + ">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
+		it("validates correct marker sequence with multiple > in SEARCH", () => {
+			const diff = "<<<<<<< SEARCH>>\n" + "some content\n" + "=======\n" + "new content\n" + ">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(false)
+		})
+
+		it("validates mixed cases with and without extra > in the same diff", () => {
+			const diff =
+				"<<<<<<< SEARCH>\n" +
+				"content1\n" +
+				"=======\n" +
+				"new1\n" +
+				">>>>>>> REPLACE\n\n" +
+				"<<<<<<< SEARCH\n" +
+				"content2\n" +
+				"=======\n" +
+				"new2\n" +
+				">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
+		it("validates extra > with whitespace variations", () => {
+			const diff1 = "<<<<<<< SEARCH>  \n" + "some content\n" + "=======\n" + "new content\n" + ">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff1).success).toBe(true)
+
+			const diff2 = "<<<<<<< SEARCH  >\n" + "some content\n" + "=======\n" + "new content\n" + ">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff2).success).toBe(false)
+		})
+
+		it("validates extra > with line numbers", () => {
+			const diff =
+				"<<<<<<< SEARCH>\n" +
+				":start_line:10\n" +
+				"-------\n" +
+				"content1\n" +
+				"=======\n" +
+				"new1\n" +
+				">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
 		it("validates multiple correct marker sequences", () => {
 			const diff =
 				"<<<<<<< SEARCH\n" +

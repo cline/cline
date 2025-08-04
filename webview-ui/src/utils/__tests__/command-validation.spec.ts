@@ -21,6 +21,14 @@ describe("Command Validation", () => {
 			expect(parseCommand("npm test || npm run build")).toEqual(["npm test", "npm run build"])
 			expect(parseCommand("npm test; npm run build")).toEqual(["npm test", "npm run build"])
 			expect(parseCommand("npm test | npm run build")).toEqual(["npm test", "npm run build"])
+			expect(parseCommand("npm test & npm run build")).toEqual(["npm test", "npm run build"])
+		})
+
+		it("handles & operator for background execution", () => {
+			expect(parseCommand("ls & whoami")).toEqual(["ls", "whoami"])
+			expect(parseCommand("ls & whoami & pwd")).toEqual(["ls", "whoami", "pwd"])
+			expect(parseCommand("ls && whoami & pwd || echo done")).toEqual(["ls", "whoami", "pwd", "echo done"])
+			expect(parseCommand("ls&whoami")).toEqual(["ls", "whoami"])
 		})
 
 		it("preserves quoted content", () => {
@@ -46,6 +54,53 @@ describe("Command Validation", () => {
 			expect(containsSubshell("echo `date`")).toBe(true) // backtick substitution
 			expect(containsSubshell("diff <(sort f1) <(sort f2)")).toBe(true) // process substitution
 			expect(containsSubshell("echo hello")).toBe(false) // no subshells
+		})
+
+		it("detects subshell grouping patterns", () => {
+			// Basic subshell grouping with shell operators
+			expect(containsSubshell("(ls; rm file)")).toBe(true)
+			expect(containsSubshell("(cd /tmp && rm -rf *)")).toBe(true)
+			expect(containsSubshell("(command1 || command2)")).toBe(true)
+			expect(containsSubshell("(ls | grep test)")).toBe(true)
+			expect(containsSubshell("(sleep 10 & echo done)")).toBe(true)
+
+			// Nested subshells
+			expect(containsSubshell("(cd /tmp && (rm -rf * || echo failed))")).toBe(true)
+
+			// Multiple operators in subshell
+			expect(containsSubshell("(cmd1; cmd2 && cmd3 | cmd4)")).toBe(true)
+
+			// Subshell with spaces
+			expect(containsSubshell("( ls ; rm file )")).toBe(true)
+		})
+
+		it("does NOT detect legitimate parentheses usage", () => {
+			// Function calls should not be flagged as subshells
+			expect(containsSubshell("myfunction(arg1, arg2)")).toBe(false)
+			expect(containsSubshell("func( arg1, arg2 )")).toBe(false)
+
+			// Simple parentheses without operators
+			expect(containsSubshell("(simple text)")).toBe(false)
+
+			// Parentheses in strings
+			expect(containsSubshell('echo "this (has) parentheses"')).toBe(false)
+
+			// Empty parentheses
+			expect(containsSubshell("()")).toBe(false)
+		})
+
+		it("handles mixed subshell patterns", () => {
+			// Mixed subshell types
+			expect(containsSubshell("(echo $(date); rm file)")).toBe(true)
+
+			// Subshell with command substitution
+			expect(containsSubshell("(ls `pwd`; echo done)")).toBe(true)
+
+			// No subshells
+			expect(containsSubshell("echo hello world")).toBe(false)
+
+			// Empty string
+			expect(containsSubshell("")).toBe(false)
 		})
 
 		it("handles empty and whitespace input", () => {

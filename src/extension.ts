@@ -75,10 +75,28 @@ export async function activate(context: vscode.ExtensionContext) {
 	const cloudLogger = createDualLogger(createOutputChannelLogger(outputChannel))
 
 	// Initialize Roo Code Cloud service.
-	await CloudService.createInstance(context, {
-		stateChanged: () => ClineProvider.getVisibleInstance()?.postStateToWebview(),
-		log: cloudLogger,
-	})
+	const cloudService = await CloudService.createInstance(context, cloudLogger)
+
+	try {
+		if (cloudService.telemetryClient) {
+			TelemetryService.instance.register(cloudService.telemetryClient)
+		}
+	} catch (error) {
+		outputChannel.appendLine(
+			`[CloudService] Failed to register TelemetryClient: ${error instanceof Error ? error.message : String(error)}`,
+		)
+	}
+
+	const postStateListener = () => {
+		ClineProvider.getVisibleInstance()?.postStateToWebview()
+	}
+
+	cloudService.on("auth-state-changed", postStateListener)
+	cloudService.on("user-info", postStateListener)
+	cloudService.on("settings-updated", postStateListener)
+
+	// Add to subscriptions for proper cleanup on deactivate
+	context.subscriptions.push(cloudService)
 
 	// Initialize MDM service
 	const mdmService = await MdmService.createInstance(cloudLogger)

@@ -1,4 +1,4 @@
-import { Code, CheckCircle, Shield, Users, Zap, Workflow, Lock } from "lucide-react"
+import { Code, CheckCircle, Shield, Zap, Workflow, Lock, ArrowRight, DollarSign, Search, Network } from "lucide-react"
 
 import { Button } from "@/components/ui"
 import { AnimatedText } from "@/components/animated-text"
@@ -10,7 +10,7 @@ export default async function Enterprise() {
 	return (
 		<>
 			{/* Hero Section */}
-			<section className="relative flex h-[calc(100vh-theme(spacing.16))] items-center overflow-hidden">
+			<section className="relative flex h-[calc(100vh-theme(spacing.12))] items-center overflow-hidden">
 				<AnimatedBackground />
 				<div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="grid gap-8 md:gap-12 lg:grid-cols-2 lg:gap-16">
@@ -34,26 +34,19 @@ export default async function Enterprise() {
 							<div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0">
 								<Button
 									size="lg"
-									className="w-full hover:bg-gray-200 dark:bg-white dark:text-black sm:w-auto"
+									className="w-full bg-black text-white hover:bg-gray-800 hover:shadow-lg hover:shadow-black/20 dark:bg-white dark:text-black dark:hover:bg-gray-200 dark:hover:shadow-white/20 transition-all duration-300 sm:w-auto"
 									asChild>
 									<a href="#contact" className="flex w-full items-center justify-center">
 										Request a Demo
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											className="ml-2 h-4 w-4"
-											viewBox="0 0 20 20"
-											fill="currentColor">
-											<path
-												fillRule="evenodd"
-												d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-												clipRule="evenodd"
-											/>
-										</svg>
+										<ArrowRight className="ml-2 h-4 w-4" />
 									</a>
 								</Button>
-								<Button variant="outline" size="lg" className="w-full sm:w-auto">
+								<Button
+									variant="outline"
+									size="lg"
+									className="w-full sm:w-auto bg-white/20 dark:bg-white/10 backdrop-blur-sm border border-black/40 dark:border-white/30 hover:border-blue-400 hover:bg-white/30 dark:hover:bg-white/20 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300">
 									<a href="#benefits" className="flex w-full items-center justify-center">
-										Learn More
+										Why Roo Code
 									</a>
 								</Button>
 							</div>
@@ -110,9 +103,11 @@ export default async function Enterprise() {
 
 					<div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
 						{/* Card 1 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Zap className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<Network className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">Centralized AI Management Hub</h3>
 							<p className="text-muted-foreground">
@@ -136,9 +131,11 @@ export default async function Enterprise() {
 						</div>
 
 						{/* Card 2 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Users className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<Search className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">Real-Time Usage Visibility</h3>
 							<p className="text-muted-foreground">
@@ -161,9 +158,11 @@ export default async function Enterprise() {
 						</div>
 
 						{/* Card 3 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Shield className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<Shield className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">Enterprise-Grade Governance</h3>
 							<p className="text-muted-foreground">
@@ -187,9 +186,11 @@ export default async function Enterprise() {
 						</div>
 
 						{/* Card 4 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Workflow className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<Workflow className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">5-Minute Control-Plane Setup</h3>
 							<p className="text-muted-foreground">
@@ -213,9 +214,11 @@ export default async function Enterprise() {
 						</div>
 
 						{/* Card 5 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Users className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<DollarSign className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">Manage AI Development Costs</h3>
 							<p className="text-muted-foreground">
@@ -238,9 +241,11 @@ export default async function Enterprise() {
 						</div>
 
 						{/* Card 6 */}
-						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-							<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-								<Zap className="h-6 w-6 text-blue-500" />
+						<div className="rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:border-blue-400/50 dark:hover:shadow-blue-400/10">
+							<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+								<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+									<Zap className="h-6 w-6 text-white" />
+								</div>
 							</div>
 							<h3 className="mb-2 text-xl font-bold">Zero Friction for Developers</h3>
 							<p className="text-muted-foreground">
@@ -392,8 +397,10 @@ export default async function Enterprise() {
 					<div className="rounded-lg border border-border bg-card p-8 shadow-sm">
 						<div className="grid gap-8 md:grid-cols-2 md:items-center">
 							<div>
-								<div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-									<Shield className="h-6 w-6 text-blue-500" />
+								<div className="mb-5 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+									<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+										<Shield className="h-6 w-6 text-white" />
+									</div>
 								</div>
 								<h3 className="mb-4 text-2xl font-bold">Enterprise-Grade Security</h3>
 								<p className="mb-6 text-muted-foreground">
@@ -423,20 +430,31 @@ export default async function Enterprise() {
 									</li>
 								</ul>
 							</div>
-							<div className="flex flex-col items-center justify-center space-y-4">
+							<div className="flex flex-col items-center justify-center">
 								<div className="rounded-lg border border-border bg-secondary/50 p-6 text-center">
-									<Lock className="mx-auto mb-3 h-12 w-12 text-blue-500" />
+									<div className="mb-4 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-2.5 dark:from-blue-500/20 dark:to-cyan-500/20">
+										<div className="rounded-lg bg-gradient-to-r from-blue-500/80 to-cyan-500/80 p-2.5">
+											<Lock className="h-8 w-8 text-white" />
+										</div>
+									</div>
 									<h4 className="mb-2 text-lg font-semibold">Security-First Design</h4>
-									<p className="text-sm text-muted-foreground">
+									<p className="mb-4 text-sm text-muted-foreground">
 										Every feature built with enterprise security requirements in mind
 									</p>
+									<Button
+										size="lg"
+										asChild
+										className="bg-black text-white hover:bg-gray-800 hover:shadow-lg hover:shadow-black/20 dark:bg-white dark:text-black dark:hover:bg-gray-200 dark:hover:shadow-white/20 transition-all duration-300">
+										<a
+											href={EXTERNAL_LINKS.SECURITY}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="flex items-center">
+											View Security Details
+											<ArrowRight className="ml-2 h-4 w-4" />
+										</a>
+									</Button>
 								</div>
-								<Button size="lg" asChild className="w-full">
-									<a href={EXTERNAL_LINKS.SECURITY} target="_blank" rel="noopener noreferrer">
-										View Security Details
-										<Shield className="ml-2 h-4 w-4" />
-									</a>
-								</Button>
 							</div>
 						</div>
 					</div>
@@ -444,30 +462,44 @@ export default async function Enterprise() {
 			</section>
 
 			{/* CTA Section */}
-			<section id="contact" className="bg-secondary/50 py-16">
-				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="mx-auto max-w-3xl text-center">
-						<h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">
-							Ready to Transform Your Development Process?
-						</h2>
-						<p className="mb-8 text-lg text-muted-foreground">
-							Join our early access program and be among the first to experience the power of Roo Code
-							Cloud for Enterprise.
-						</p>
-						<div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
-							<div className="rounded-lg border border-border bg-card p-6 text-center shadow-sm">
-								<h3 className="mb-2 text-xl font-bold">Become an Early Access Partner</h3>
-								<p className="mb-4 text-muted-foreground">
-									Collaborate in shaping Roo Code&apos;s enterprise solution.
+			<section id="contact" className="relative overflow-hidden py-20 sm:py-24">
+				<div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-cyan-500/5 to-purple-500/5 dark:from-blue-500/10 dark:via-cyan-500/10 dark:to-purple-500/10" />
+				<div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
+					<div className="mx-auto max-w-4xl">
+						<div className="relative rounded-3xl border border-border/50 bg-gradient-to-br from-blue-500/5 via-cyan-500/5 to-purple-500/5 p-8 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:bg-gradient-to-br dark:from-gray-800 dark:via-gray-900 dark:to-black dark:shadow-[0_30px_90px_rgba(255,255,255,0.15)] sm:p-12">
+							<div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 dark:bg-gradient-to-br dark:from-white/[0.05] dark:via-transparent dark:to-white/[0.03]" />
+							<div className="relative text-center">
+								<h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">
+									Ready to Transform Your Development Process?
+								</h2>
+								<p className="mb-8 text-lg text-muted-foreground">
+									Join our early access program and be among the first to experience the power of Roo
+									Code Cloud for Enterprise.
 								</p>
-								<ContactForm formType="early-access" buttonText="Apply Now" buttonClassName="w-full" />
-							</div>
-							<div className="rounded-lg border border-border bg-card p-6 text-center shadow-sm">
-								<h3 className="mb-2 text-xl font-bold">Request a Demo</h3>
-								<p className="mb-4 text-muted-foreground">
-									See Roo Code&apos;s enterprise capabilities in action.
-								</p>
-								<ContactForm formType="demo" buttonText="Contact Us" buttonClassName="w-full" />
+								<div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+									<div className="rounded-lg border border-border bg-card/80 backdrop-blur-sm p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 dark:border-white/20 dark:bg-gray-800/80 dark:hover:border-white/40 dark:hover:bg-gray-700/90 dark:hover:shadow-[0_20px_50px_rgba(255,255,255,0.2)] dark:hover:scale-[1.02]">
+										<h3 className="mb-2 text-xl font-bold">Become an Early Access Partner</h3>
+										<p className="mb-4 text-muted-foreground">
+											Collaborate in shaping Roo Code&apos;s enterprise solution.
+										</p>
+										<ContactForm
+											formType="early-access"
+											buttonText="Apply Now"
+											buttonClassName="bg-black text-white hover:bg-gray-800 hover:shadow-lg hover:shadow-black/20 dark:bg-white dark:text-black dark:hover:bg-gray-200 dark:hover:shadow-white/20 transition-all duration-300"
+										/>
+									</div>
+									<div className="rounded-lg border border-border bg-card/80 backdrop-blur-sm p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 dark:border-white/20 dark:bg-gray-800/80 dark:hover:border-white/40 dark:hover:bg-gray-700/90 dark:hover:shadow-[0_20px_50px_rgba(255,255,255,0.2)] dark:hover:scale-[1.02]">
+										<h3 className="mb-2 text-xl font-bold">Request a Demo</h3>
+										<p className="mb-4 text-muted-foreground">
+											See Roo Code&apos;s enterprise capabilities in action.
+										</p>
+										<ContactForm
+											formType="demo"
+											buttonText="Contact Us"
+											buttonClassName="bg-black text-white hover:bg-gray-800 hover:shadow-lg hover:shadow-black/20 dark:bg-white dark:text-black dark:hover:bg-gray-200 dark:hover:shadow-white/20 transition-all duration-300"
+										/>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>

@@ -149,7 +149,7 @@ export function ContactForm({ formType, buttonText, buttonClassName }: ContactFo
 	return (
 		<Dialog open={isOpen} onOpenChange={setIsOpen}>
 			<DialogTrigger asChild>
-				<Button className={buttonClassName}>{buttonText}</Button>
+				<Button className={buttonClassName || ""}>{buttonText}</Button>
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-[425px]">
 				<DialogHeader>

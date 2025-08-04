@@ -127,4 +127,51 @@ describe("Gemini", () => {
 			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("enableGrounding", true)
 		})
 	})
+
+	describe("fromWelcomeView prop", () => {
+		it("should hide URL context and grounding checkboxes when fromWelcomeView is true, but keep custom base URL", () => {
+			render(
+				<Gemini
+					apiConfiguration={defaultApiConfiguration}
+					setApiConfigurationField={mockSetApiConfigurationField}
+					fromWelcomeView={true}
+				/>,
+			)
+
+			// Should still render custom base URL checkbox
+			expect(screen.getByTestId("checkbox-custom-base-url")).toBeInTheDocument()
+			// Should not render URL context and grounding checkboxes
+			expect(screen.queryByTestId("checkbox-url-context")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("checkbox-grounding-search")).not.toBeInTheDocument()
+		})
+
+		it("should show all checkboxes when fromWelcomeView is false", () => {
+			render(
+				<Gemini
+					apiConfiguration={defaultApiConfiguration}
+					setApiConfigurationField={mockSetApiConfigurationField}
+					fromWelcomeView={false}
+				/>,
+			)
+
+			// Should render all checkboxes
+			expect(screen.getByTestId("checkbox-custom-base-url")).toBeInTheDocument()
+			expect(screen.getByTestId("checkbox-url-context")).toBeInTheDocument()
+			expect(screen.getByTestId("checkbox-grounding-search")).toBeInTheDocument()
+		})
+
+		it("should show all checkboxes when fromWelcomeView is undefined (default behavior)", () => {
+			render(
+				<Gemini
+					apiConfiguration={defaultApiConfiguration}
+					setApiConfigurationField={mockSetApiConfigurationField}
+				/>,
+			)
+
+			// Should render all checkboxes (default behavior)
+			expect(screen.getByTestId("checkbox-custom-base-url")).toBeInTheDocument()
+			expect(screen.getByTestId("checkbox-url-context")).toBeInTheDocument()
+			expect(screen.getByTestId("checkbox-grounding-search")).toBeInTheDocument()
+		})
+	})
 })

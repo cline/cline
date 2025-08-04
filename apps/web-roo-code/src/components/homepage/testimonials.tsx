@@ -109,7 +109,7 @@ export function Testimonials() {
 							duration: 0.6,
 							ease: [0.21, 0.45, 0.27, 0.9],
 						}}>
-						<h2 className="bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
+						<h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
 							Empowering developers worldwide.
 						</h2>
 						<p className="mt-6 text-lg text-muted-foreground">
@@ -135,10 +135,10 @@ export function Testimonials() {
 								key={testimonial.id}
 								variants={itemVariants}
 								className={`group relative ${index % 2 === 0 ? "md:translate-y-4" : "md:translate-y-12"}`}>
-								<div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-blue-500/30 via-cyan-500/30 to-purple-500/30 opacity-0 blur-sm transition-all duration-500 ease-out group-hover:opacity-100" />
-								<div className="relative h-full rounded-2xl border border-border/50 bg-background/30 backdrop-blur-xl transition-all duration-500 ease-out group-hover:border-border group-hover:bg-background/40">
+								<div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-blue-500/30 via-cyan-500/30 to-purple-500/30 opacity-0 blur-sm transition-all duration-500 ease-out group-hover:opacity-100 dark:from-blue-400/40 dark:via-cyan-400/40 dark:to-purple-400/40" />
+								<div className="relative flex h-full flex-col rounded-2xl border border-border/50 bg-background/30 backdrop-blur-xl transition-all duration-500 ease-out group-hover:scale-[1.02] group-hover:border-border group-hover:bg-background/40 group-hover:shadow-2xl dark:border-border/70 dark:bg-background/40 dark:group-hover:border-border dark:group-hover:bg-background/60 dark:group-hover:shadow-[0_20px_50px_rgba(59,130,246,0.15)]">
 									{testimonial.image && (
-										<div className="absolute -right-3 -top-3 h-16 w-16 overflow-hidden rounded-xl border border-border/50 bg-background/50 p-1.5 backdrop-blur-xl transition-all duration-500 ease-out group-hover:scale-105">
+										<div className="absolute -right-3 -top-3 h-16 w-16 overflow-hidden rounded-xl border border-border/50 bg-background/50 p-1.5 backdrop-blur-xl transition-all duration-500 ease-out group-hover:scale-110 dark:border-border/70 dark:bg-background/60">
 											<div className="relative h-full w-full overflow-hidden rounded-lg">
 												<Image
 													src={testimonial.image || "/placeholder_pfp.png"}
@@ -150,24 +150,40 @@ export function Testimonials() {
 										</div>
 									)}
 
-									<div className="p-8">
-										<div className="mb-6">
-											<svg
-												className="h-8 w-8 text-blue-500/20"
-												fill="currentColor"
-												viewBox="0 0 32 32">
-												<path d="M9.352 4C4.456 7.456 1 13.12 1 19.36c0 5.088 3.072 8.064 6.624 8.064 3.36 0 5.856-2.688 5.856-5.856 0-3.168-2.208-5.472-5.088-5.472-.576 0-1.344.096-1.536.192.48-3.264 3.552-7.104 6.624-9.024L9.352 4zm16.512 0c-4.8 3.456-8.256 9.12-8.256 15.36 0 5.088 3.072 8.064 6.624 8.064 3.264 0 5.856-2.688 5.856-5.856 0-3.168-2.304-5.472-5.184-5.472-.576 0-1.248.096-1.44.192.48-3.264 3.456-7.104 6.528-9.024L25.864 4z" />
-											</svg>
+									<div className="flex flex-1 flex-col p-8">
+										<div className="flex-1">
+											<div className="mb-6">
+												<svg
+													className="h-8 w-8 text-blue-500/20 transition-all duration-500 group-hover:text-blue-500/30 dark:text-blue-400/40 dark:group-hover:text-blue-400/60"
+													fill="currentColor"
+													viewBox="0 0 32 32">
+													<defs>
+														<filter id="glow">
+															<feGaussianBlur stdDeviation="3" result="coloredBlur" />
+															<feMerge>
+																<feMergeNode in="coloredBlur" />
+																<feMergeNode in="SourceGraphic" />
+															</feMerge>
+														</filter>
+													</defs>
+													<path
+														d="M9.352 4C4.456 7.456 1 13.12 1 19.36c0 5.088 3.072 8.064 6.624 8.064 3.36 0 5.856-2.688 5.856-5.856 0-3.168-2.208-5.472-5.088-5.472-.576 0-1.344.096-1.536.192.48-3.264 3.552-7.104 6.624-9.024L9.352 4zm16.512 0c-4.8 3.456-8.256 9.12-8.256 15.36 0 5.088 3.072 8.064 6.624 8.064 3.264 0 5.856-2.688 5.856-5.856 0-3.168-2.304-5.472-5.184-5.472-.576 0-1.248.096-1.44.192.48-3.264 3.456-7.104 6.528-9.024L25.864 4z"
+														className="dark:filter dark:drop-shadow-[0_0_8px_rgba(96,165,250,0.4)]"
+													/>
+												</svg>
+											</div>
+
+											<p className="relative text-lg leading-relaxed text-muted-foreground transition-colors duration-300 group-hover:text-foreground/80 dark:text-foreground/70 dark:group-hover:text-foreground/90">
+												{testimonial.quote}
+											</p>
 										</div>
 
-										<p className="relative mb-6 text-lg leading-relaxed text-muted-foreground">
-											{testimonial.quote}
-										</p>
-
-										<div className="relative">
-											<div className="mb-4 h-px w-12 bg-gradient-to-r from-blue-500/50 to-transparent" />
-											<h3 className="font-medium text-foreground/90">{testimonial.name}</h3>
-											<p className="text-sm text-muted-foreground">
+										<div className="relative mt-6">
+											<div className="mb-4 h-px w-12 bg-gradient-to-r from-blue-500/50 to-transparent transition-all duration-500 group-hover:w-16 group-hover:from-blue-500/70 dark:from-blue-400/70 dark:group-hover:from-blue-400/90" />
+											<h3 className="font-medium text-foreground/90 transition-colors duration-300 dark:text-foreground">
+												{testimonial.name}
+											</h3>
+											<p className="text-sm text-muted-foreground transition-colors duration-300 dark:text-muted-foreground/80">
 												{testimonial.role} at {testimonial.company}
 											</p>
 										</div>

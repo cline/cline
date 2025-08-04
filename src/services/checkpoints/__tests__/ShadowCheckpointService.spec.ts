@@ -693,7 +693,6 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				expect(eventData.type).toBe("checkpoint")
 				expect(eventData.toHash).toBe(result?.commit)
 				expect(typeof eventData.duration).toBe("number")
-				expect(typeof eventData.isFirst).toBe("boolean") // Can be true or false depending on checkpoint history
 			})
 
 			it("does not emit checkpoint event when no changes and allowEmpty=false", async () => {

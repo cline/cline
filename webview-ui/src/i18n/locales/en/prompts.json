@@ -93,7 +93,9 @@
 			"useCurrentConfig": "Use currently selected API configuration",
 			"testPromptPlaceholder": "Enter a prompt to test the enhancement",
 			"previewButton": "Preview Prompt Enhancement",
-			"testEnhancement": "Test Enhancement"
+			"testEnhancement": "Test Enhancement",
+			"includeTaskHistory": "Include task history as context",
+			"includeTaskHistoryDescription": "When enabled, the last 10 messages from the current conversation will be included as context when enhancing prompts, helping to generate more relevant and context-aware suggestions."
 		},
 		"condense": {
 			"apiConfiguration": "API Configuration for Context Condensing",

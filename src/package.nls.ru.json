@@ -1,5 +1,5 @@
 {
-	"extension.displayName": "Roo Code (ранее Roo Cline)",
+	"extension.displayName": "Roo Code",
 	"extension.description": "Целая команда ИИ-разработчиков в вашем редакторе.",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

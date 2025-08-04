@@ -83,12 +83,22 @@
 			"errorOutput": "Foutuitvoer: {{output}}",
 			"processExitedWithError": "Claude Code proces beëindigd met code {{exitCode}}. Foutuitvoer: {{output}}",
 			"stoppedWithReason": "Claude Code gestopt om reden: {{reason}}",
-			"apiKeyModelPlanMismatch": "API-sleutels en abonnementsplannen staan verschillende modellen toe. Zorg ervoor dat het geselecteerde model is opgenomen in je plan."
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Fout bij het genereren van contextstream door Gemini: {{error}}",
 			"generate_complete_prompt": "Fout bij het voltooien door Gemini: {{error}}",
 			"sources": "Bronnen:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API-authenticatie mislukt. Controleer of je API-sleutel geldig is en niet verlopen.",
+			"accessForbidden": "Cerebras API-toegang geweigerd. Je API-sleutel heeft mogelijk geen toegang tot het gevraagde model of de functie.",
+			"rateLimitExceeded": "Cerebras API-snelheidslimiet overschreden. Wacht voordat je een ander verzoek doet.",
+			"serverError": "Cerebras API-serverfout ({{status}}). Probeer het later opnieuw.",
+			"genericError": "Cerebras API-fout ({{status}}): {{message}}",
+			"noResponseBody": "Cerebras API-fout: Geen responslichaam",
+			"completionError": "Cerebras-voltooiingsfout: {{error}}"
 		}
 	},
 	"warnings": {

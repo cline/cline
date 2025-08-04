@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
 import { setDefaultSuiteTimeout } from "../test-utils"
@@ -110,7 +110,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("AI response:", message.text?.substring(0, 200))
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -119,7 +119,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -127,7 +127,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -259,9 +259,9 @@ suite("Roo Code write_to_file Tool", function () {
 			console.log("write_to_file tool was properly executed")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -302,7 +302,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("Tool request:", message.text?.substring(0, 200))
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -311,7 +311,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -319,7 +319,7 @@ suite("Roo Code write_to_file Tool", function () {
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -440,9 +440,9 @@ suite("Roo Code write_to_file Tool", function () {
 			console.log("write_to_file tool was properly executed")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 })

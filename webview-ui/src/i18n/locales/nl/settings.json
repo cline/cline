@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
+		"enabled": "Auto-goedkeuren ingeschakeld",
 		"toggleAriaLabel": "Automatisch goedkeuren in-/uitschakelen",
 		"disabledAriaLabel": "Automatisch goedkeuren uitgeschakeld - selecteer eerst opties",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "Voer automatisch dit aantal API-verzoeken uit voordat om goedkeuring wordt gevraagd om door te gaan met de taak.",
 			"unlimited": "Onbeperkt"
 		},
-		"selectOptionsFirst": "Selecteer ten minste één optie hieronder om automatische goedkeuring in te schakelen"
+		"selectOptionsFirst": "Selecteer ten minste één optie hieronder om automatische goedkeuring in te schakelen",
+		"apiCostLimit": {
+			"title": "Max kosten",
+			"unlimited": "Onbeperkt"
+		},
+		"maxLimits": {
+			"description": "Automatisch verzoeken indienen tot aan deze limieten voordat om goedkeuring wordt gevraagd om door te gaan."
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Anthropic API-sleutel",
 		"getAnthropicApiKey": "Anthropic API-sleutel ophalen",
 		"anthropicUseAuthToken": "Anthropic API-sleutel als Authorization-header doorgeven in plaats van X-Api-Key",
+		"cerebrasApiKey": "Cerebras API-sleutel",
+		"getCerebrasApiKey": "Cerebras API-sleutel verkrijgen",
 		"chutesApiKey": "Chutes API-sleutel",
 		"getChutesApiKey": "Chutes API-sleutel ophalen",
 		"deepSeekApiKey": "DeepSeek API-sleutel",
 		"getDeepSeekApiKey": "DeepSeek API-sleutel ophalen",
+		"doubaoApiKey": "Doubao API-sleutel",
+		"getDoubaoApiKey": "Doubao API-sleutel ophalen",
 		"moonshotApiKey": "Moonshot API-sleutel",
 		"getMoonshotApiKey": "Moonshot API-sleutel ophalen",
 		"moonshotBaseUrl": "Moonshot-ingangspunt",
 		"geminiApiKey": "Gemini API-sleutel",
 		"getGroqApiKey": "Groq API-sleutel ophalen",
 		"groqApiKey": "Groq API-sleutel",
+		"getSambaNovaApiKey": "SambaNova API-sleutel ophalen",
+		"sambaNovaApiKey": "SambaNova API-sleutel",
 		"getGeminiApiKey": "Gemini API-sleutel ophalen",
 		"getHuggingFaceApiKey": "Hugging Face API-sleutel ophalen",
 		"huggingFaceApiKey": "Hugging Face API-sleutel",
@@ -314,7 +328,6 @@
 				"description": "Staat Gemini toe om Google te doorzoeken voor actuele informatie en antwoorden op realtime gegevens te baseren. Handig voor vragen die actuele informatie vereisen."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Om Google Cloud Vertex AI te gebruiken, moet je:",
 			"step1": "1. Maak een Google Cloud-account aan, schakel de Vertex AI API in en activeer de gewenste Claude-modellen.",

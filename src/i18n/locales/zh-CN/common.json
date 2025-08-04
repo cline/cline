@@ -88,12 +88,22 @@
 			"errorOutput": "错误输出：{{output}}",
 			"processExitedWithError": "Claude Code 进程退出，退出码：{{exitCode}}。错误输出：{{output}}",
 			"stoppedWithReason": "Claude Code 停止，原因：{{reason}}",
-			"apiKeyModelPlanMismatch": "API 密钥和订阅计划支持不同的模型。请确保所选模型包含在您的计划中。"
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Gemini 生成上下文流错误：{{error}}",
 			"generate_complete_prompt": "Gemini 完成错误：{{error}}",
 			"sources": "来源："
+		},
+		"cerebras": {
+			"authenticationFailed": "Cerebras API 身份验证失败。请检查你的 API 密钥是否有效且未过期。",
+			"accessForbidden": "Cerebras API 访问被禁止。你的 API 密钥可能无法访问请求的模型或功能。",
+			"rateLimitExceeded": "Cerebras API 速率限制已超出。请稍等后再发起另一个请求。",
+			"serverError": "Cerebras API 服务器错误 ({{status}})。请稍后重试。",
+			"genericError": "Cerebras API 错误 ({{status}})：{{message}}",
+			"noResponseBody": "Cerebras API 错误：无响应主体",
+			"completionError": "Cerebras 完成错误：{{error}}"
 		}
 	},
 	"warnings": {

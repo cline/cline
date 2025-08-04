@@ -3,6 +3,7 @@ import {
 	type ModelInfo,
 	anthropicModels,
 	bedrockModels,
+	cerebrasModels,
 	claudeCodeModels,
 	deepSeekModels,
 	moonshotModels,
@@ -13,13 +14,17 @@ import {
 	xaiModels,
 	groqModels,
 	chutesModels,
+	sambaNovaModels,
+	doubaoModels,
 } from "@roo-code/types"
 
 export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, ModelInfo>>> = {
 	anthropic: anthropicModels,
 	"claude-code": claudeCodeModels,
 	bedrock: bedrockModels,
+	cerebras: cerebrasModels,
 	deepseek: deepSeekModels,
+	doubao: doubaoModels,
 	moonshot: moonshotModels,
 	gemini: geminiModels,
 	mistral: mistralModels,
@@ -28,13 +33,16 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 	xai: xaiModels,
 	groq: groqModels,
 	chutes: chutesModels,
+	sambanova: sambaNovaModels,
 }
 
 export const PROVIDERS = [
 	{ value: "openrouter", label: "OpenRouter" },
 	{ value: "anthropic", label: "Anthropic" },
 	{ value: "claude-code", label: "Claude Code" },
+	{ value: "cerebras", label: "Cerebras" },
 	{ value: "gemini", label: "Google Gemini" },
+	{ value: "doubao", label: "Doubao" },
 	{ value: "deepseek", label: "DeepSeek" },
 	{ value: "moonshot", label: "Moonshot" },
 	{ value: "openai-native", label: "OpenAI" },
@@ -54,4 +62,5 @@ export const PROVIDERS = [
 	{ value: "huggingface", label: "Hugging Face" },
 	{ value: "chutes", label: "Chutes AI" },
 	{ value: "litellm", label: "LiteLLM" },
+	{ value: "sambanova", label: "SambaNova" },
 ].sort((a, b) => a.label.localeCompare(b.label))

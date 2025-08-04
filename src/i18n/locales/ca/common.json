@@ -86,12 +86,22 @@
 			"errorOutput": "Sortida d'error: {{output}}",
 			"processExitedWithError": "El procés Claude Code ha sortit amb codi {{exitCode}}. Sortida d'error: {{output}}",
 			"stoppedWithReason": "Claude Code s'ha aturat per la raó: {{reason}}",
-			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla."
+			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla.",
+			"notFound": "No s'ha trobat l'executable Claude Code '{{claudePath}}'.\n\nInstal·la Claude Code CLI:\n1. Visita {{installationUrl}} per descarregar Claude Code\n2. Segueix les instruccions d'instal·lació per al teu sistema operatiu\n3. Assegura't que la comanda 'claude' estigui disponible al teu PATH\n4. Alternativament, configura una ruta personalitzada a la configuració de Roo sota 'Ruta de Claude Code'\n\nError original: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Error del flux de context de generació de Gemini: {{error}}",
 			"generate_complete_prompt": "Error de finalització de Gemini: {{error}}",
 			"sources": "Fonts:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Ha fallat l'autenticació de l'API de Cerebras. Comproveu que la vostra clau d'API sigui vàlida i no hagi caducat.",
+			"accessForbidden": "Accés denegat a l'API de Cerebras. La vostra clau d'API pot no tenir accés al model o funcionalitat sol·licitats.",
+			"rateLimitExceeded": "S'ha superat el límit de velocitat de l'API de Cerebras. Espereu abans de fer una altra sol·licitud.",
+			"serverError": "Error del servidor de l'API de Cerebras ({{status}}). Torneu-ho a provar més tard.",
+			"genericError": "Error de l'API de Cerebras ({{status}}): {{message}}",
+			"noResponseBody": "Error de l'API de Cerebras: No hi ha cos de resposta",
+			"completionError": "Error de finalització de Cerebras: {{error}}"
 		},
 		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},

@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
 import { setDefaultSuiteTimeout } from "../test-utils"
@@ -175,7 +175,7 @@ Final content`,
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -184,7 +184,7 @@ Final content`,
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -192,7 +192,7 @@ Final content`,
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -249,9 +249,9 @@ Assume the file exists and you can modify it directly.`,
 			console.log("Test passed! search_and_replace tool executed and file modified successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -303,7 +303,7 @@ function anotherNewFunction() {
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -312,7 +312,7 @@ function anotherNewFunction() {
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -320,7 +320,7 @@ function anotherNewFunction() {
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -378,9 +378,9 @@ Use the search_and_replace tool twice - once for each replacement.`,
 			console.log("Test passed! search_and_replace tool executed with regex successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -429,7 +429,7 @@ Final content`
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -438,7 +438,7 @@ Final content`
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -446,7 +446,7 @@ Final content`
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -503,9 +503,9 @@ Assume the file exists and you can modify it directly.`,
 			console.log("Test passed! search_and_replace tool executed and replaced multiple matches successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -549,7 +549,7 @@ Assume the file exists and you can modify it directly.`,
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task events
 		const taskStartedHandler = (id: string) => {
@@ -558,7 +558,7 @@ Assume the file exists and you can modify it directly.`,
 				console.log("Task started:", id)
 			}
 		}
-		api.on("taskStarted", taskStartedHandler)
+		api.on(RooCodeEventName.TaskStarted, taskStartedHandler)
 
 		const taskCompletedHandler = (id: string) => {
 			if (id === taskId) {
@@ -566,7 +566,7 @@ Assume the file exists and you can modify it directly.`,
 				console.log("Task completed:", id)
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -623,9 +623,9 @@ Assume the file exists and you can modify it directly.`,
 			console.log("Test passed! search_and_replace tool executed and handled no matches correctly")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskStarted", taskStartedHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskStarted, taskStartedHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 })

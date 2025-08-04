@@ -3,7 +3,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import type { ClineMessage } from "@roo-code/types"
+import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { waitFor, sleep } from "../utils"
 import { setDefaultSuiteTimeout } from "../test-utils"
@@ -207,7 +207,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task completion
 		const taskCompletedHandler = (id: string) => {
@@ -215,7 +215,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -271,8 +271,8 @@ This directory contains various files and subdirectories for testing the list_fi
 			console.log("Test passed! Directory listing (non-recursive) executed successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -310,7 +310,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task completion
 		const taskCompletedHandler = (id: string) => {
@@ -318,7 +318,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -381,8 +381,8 @@ This directory contains various files and subdirectories for testing the list_fi
 			console.log("Test passed! Directory listing (recursive) executed successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -420,7 +420,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task completion
 		const taskCompletedHandler = (id: string) => {
@@ -428,7 +428,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -499,8 +499,8 @@ This directory contains various files and subdirectories for testing the list_fi
 			await fs.rm(testDir, { recursive: true, force: true })
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 
@@ -523,7 +523,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				}
 			}
 		}
-		api.on("message", messageHandler)
+		api.on(RooCodeEventName.Message, messageHandler)
 
 		// Listen for task completion
 		const taskCompletedHandler = (id: string) => {
@@ -531,7 +531,7 @@ This directory contains various files and subdirectories for testing the list_fi
 				taskCompleted = true
 			}
 		}
-		api.on("taskCompleted", taskCompletedHandler)
+		api.on(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 
 		let taskId: string
 		try {
@@ -569,8 +569,8 @@ This directory contains various files and subdirectories for testing the list_fi
 			console.log("Test passed! Workspace root directory listing executed successfully")
 		} finally {
 			// Clean up
-			api.off("message", messageHandler)
-			api.off("taskCompleted", taskCompletedHandler)
+			api.off(RooCodeEventName.Message, messageHandler)
+			api.off(RooCodeEventName.TaskCompleted, taskCompletedHandler)
 		}
 	})
 })

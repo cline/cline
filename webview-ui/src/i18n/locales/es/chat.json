@@ -139,7 +139,6 @@
 		"streamingFailed": "Transmisión API falló"
 	},
 	"checkpoint": {
-		"initial": "Punto de control inicial",
 		"regular": "Punto de control",
 		"initializingWarning": "Todavía inicializando el punto de control... Si esto tarda demasiado, puedes desactivar los puntos de control en la <settingsLink>configuración</settingsLink> y reiniciar tu tarea.",
 		"menu": {
@@ -314,6 +313,11 @@
 			"title": "Límite de Solicitudes Auto-aprobadas Alcanzado",
 			"description": "Roo ha alcanzado el límite auto-aprobado de {{count}} solicitud(es) API. ¿Deseas reiniciar el contador y continuar con la tarea?",
 			"button": "Reiniciar y Continuar"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Límite de Costo Auto-Aprobado Alcanzado",
+			"description": "Roo ha alcanzado el límite de costo autoaprobado de ${{count}}. ¿Le gustaría reiniciar el costo y continuar con la tarea?",
+			"button": "Reiniciar y continuar"
 		}
 	},
 	"codebaseSearch": {

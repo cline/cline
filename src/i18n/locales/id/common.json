@@ -83,12 +83,22 @@
 			"errorOutput": "Output error: {{output}}",
 			"processExitedWithError": "Proses Claude Code keluar dengan kode {{exitCode}}. Output error: {{output}}",
 			"stoppedWithReason": "Claude Code berhenti karena alasan: {{reason}}",
-			"apiKeyModelPlanMismatch": "Kunci API dan paket berlangganan memungkinkan model yang berbeda. Pastikan model yang dipilih termasuk dalam paket Anda."
+			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
+			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
 		"gemini": {
 			"generate_stream": "Kesalahan aliran konteks pembuatan Gemini: {{error}}",
 			"generate_complete_prompt": "Kesalahan penyelesaian Gemini: {{error}}",
 			"sources": "Sumber:"
+		},
+		"cerebras": {
+			"authenticationFailed": "Autentikasi API Cerebras gagal. Silakan periksa apakah kunci API Anda valid dan belum kedaluwarsa.",
+			"accessForbidden": "Akses API Cerebras ditolak. Kunci API Anda mungkin tidak memiliki akses ke model atau fitur yang diminta.",
+			"rateLimitExceeded": "Batas kecepatan API Cerebras terlampaui. Silakan tunggu sebelum membuat permintaan lain.",
+			"serverError": "Kesalahan server API Cerebras ({{status}}). Silakan coba lagi nanti.",
+			"genericError": "Kesalahan API Cerebras ({{status}}): {{message}}",
+			"noResponseBody": "Kesalahan API Cerebras: Tidak ada isi respons",
+			"completionError": "Kesalahan penyelesaian Cerebras: {{error}}"
 		}
 	},
 	"warnings": {

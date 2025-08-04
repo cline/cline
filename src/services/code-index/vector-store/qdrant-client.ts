@@ -423,27 +423,62 @@ export class QdrantVectorStore implements IVectorStore {
 		}
 
 		try {
+			// First check if the collection exists
+			const collectionExists = await this.collectionExists()
+			if (!collectionExists) {
+				console.warn(
+					`[QdrantVectorStore] Skipping deletion - collection "${this.collectionName}" does not exist`,
+				)
+				return
+			}
+
 			const workspaceRoot = getWorkspacePath()
-			const normalizedPaths = filePaths.map((filePath) => {
-				const absolutePath = path.resolve(workspaceRoot, filePath)
-				return path.normalize(absolutePath)
+
+			// Build filters using pathSegments to match the indexed fields
+			const filters = filePaths.map((filePath) => {
+				// IMPORTANT: Use the relative path to match what's stored in upsertPoints
+				// upsertPoints stores the relative filePath, not the absolute path
+				const relativePath = path.isAbsolute(filePath) ? path.relative(workspaceRoot, filePath) : filePath
+
+				// Normalize the relative path
+				const normalizedRelativePath = path.normalize(relativePath)
+
+				// Split the path into segments like we do in upsertPoints
+				const segments = normalizedRelativePath.split(path.sep).filter(Boolean)
+
+				// Create a filter that matches all segments of the path
+				// This ensures we only delete points that match the exact file path
+				const mustConditions = segments.map((segment, index) => ({
+					key: `pathSegments.${index}`,
+					match: { value: segment },
+				}))
+
+				return { must: mustConditions }
 			})
 
-			const filter = {
-				should: normalizedPaths.map((normalizedPath) => ({
-					key: "filePath",
-					match: {
-						value: normalizedPath,
-					},
-				})),
-			}
+			// Use 'should' to match any of the file paths (OR condition)
+			const filter = filters.length === 1 ? filters[0] : { should: filters }
 
 			await this.client.delete(this.collectionName, {
 				filter,
 				wait: true,
 			})
-		} catch (error) {
-			console.error("Failed to delete points by file paths:", error)
+		} catch (error: any) {
+			// Extract more detailed error information
+			const errorMessage = error?.message || String(error)
+			const errorStatus = error?.status || error?.response?.status || error?.statusCode
+			const errorDetails = error?.response?.data || error?.data || ""
+
+			console.error(`[QdrantVectorStore] Failed to delete points by file paths:`, {
+				error: errorMessage,
+				status: errorStatus,
+				details: errorDetails,
+				collection: this.collectionName,
+				fileCount: filePaths.length,
+				// Include first few file paths for debugging (avoid logging too many)
+				samplePaths: filePaths.slice(0, 3),
+			})
+
 			throw error
 		}
 	}

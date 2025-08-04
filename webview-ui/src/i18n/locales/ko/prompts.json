@@ -94,7 +94,9 @@
 			"useCurrentConfig": "현재 선택된 API 구성 사용",
 			"testPromptPlaceholder": "향상을 테스트할 프롬프트 입력",
 			"previewButton": "프롬프트 향상 미리보기",
-			"testEnhancement": "향상 테스트"
+			"testEnhancement": "향상 테스트",
+			"includeTaskHistory": "작업 기록을 컨텍스트로 포함",
+			"includeTaskHistoryDescription": "활성화하면 현재 대화의 마지막 10개 메시지가 프롬프트 향상 시 컨텍스트로 포함되어 더 관련성 높고 컨텍스트를 인식하는 제안을 생성하는 데 도움이 됩니다."
 		},
 		"condense": {
 			"apiConfiguration": "컨텍스트 압축을 위한 API 구성",

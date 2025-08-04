@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",
+		"enabled": "Auto-approbation activée",
 		"toggleAriaLabel": "Activer/désactiver l'approbation automatique",
 		"disabledAriaLabel": "Approbation automatique désactivée - sélectionnez d'abord les options",
 		"selectOptionsFirst": "Sélectionnez au moins une option ci-dessous pour activer l'approbation automatique",
@@ -197,6 +198,13 @@
 			"title": "Requêtes maximales",
 			"description": "Effectuer automatiquement ce nombre de requêtes API avant de demander l'approbation pour continuer la tâche.",
 			"unlimited": "Illimité"
+		},
+		"apiCostLimit": {
+			"unlimited": "Illimité",
+			"title": "Coût maximum"
+		},
+		"maxLimits": {
+			"description": "Effectuer automatiquement des requêtes jusqu'à ces limites avant de demander une autorisation pour continuer."
 		}
 	},
 	"providers": {
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Clé API Anthropic",
 		"getAnthropicApiKey": "Obtenir la clé API Anthropic",
 		"anthropicUseAuthToken": "Passer la clé API Anthropic comme en-tête d'autorisation au lieu de X-Api-Key",
+		"cerebrasApiKey": "Clé API Cerebras",
+		"getCerebrasApiKey": "Obtenir la clé API Cerebras",
 		"chutesApiKey": "Clé API Chutes",
 		"getChutesApiKey": "Obtenir la clé API Chutes",
 		"deepSeekApiKey": "Clé API DeepSeek",
 		"getDeepSeekApiKey": "Obtenir la clé API DeepSeek",
+		"doubaoApiKey": "Clé API Doubao",
+		"getDoubaoApiKey": "Obtenir la clé API Doubao",
 		"moonshotApiKey": "Clé API Moonshot",
 		"getMoonshotApiKey": "Obtenir la clé API Moonshot",
 		"moonshotBaseUrl": "Point d'entrée Moonshot",
 		"geminiApiKey": "Clé API Gemini",
 		"getGroqApiKey": "Obtenir la clé API Groq",
 		"groqApiKey": "Clé API Groq",
+		"getSambaNovaApiKey": "Obtenir la clé API SambaNova",
+		"sambaNovaApiKey": "Clé API SambaNova",
 		"getHuggingFaceApiKey": "Obtenir la clé API Hugging Face",
 		"huggingFaceApiKey": "Clé API Hugging Face",
 		"huggingFaceModelId": "ID du modèle",
@@ -314,7 +328,6 @@
 				"description": "Permet à Gemini d'effectuer des recherches sur Google pour obtenir des informations actuelles et fonder les réponses sur des données en temps réel. Utile pour les requêtes nécessitant des informations à jour."
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Pour utiliser Google Cloud Vertex AI, vous devez :",
 			"step1": "1. Créer un compte Google Cloud, activer l'API Vertex AI et activer les modèles Claude souhaités.",

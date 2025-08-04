@@ -45,6 +45,26 @@ export const clineAskSchema = z.enum(clineAsks)
 export type ClineAsk = z.infer<typeof clineAskSchema>
 
 /**
+ * BlockingAsk
+ */
+
+export const blockingAsks: ClineAsk[] = [
+	"api_req_failed",
+	"mistake_limit_reached",
+	"completion_result",
+	"resume_task",
+	"resume_completed_task",
+	"command_output",
+	"auto_approval_max_req_reached",
+] as const
+
+export type BlockingAsk = (typeof blockingAsks)[number]
+
+export function isBlockingAsk(ask: ClineAsk): ask is BlockingAsk {
+	return blockingAsks.includes(ask)
+}
+
+/**
  * ClineSay
  */
 

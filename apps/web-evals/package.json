@@ -9,7 +9,7 @@
 		"format": "prettier --write src",
 		"build": "next build",
 		"start": "next start",
-		"clean": "rimraf .next .turbo"
+		"clean": "rimraf tsconfig.tsbuildinfo .next .turbo"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.1.1",

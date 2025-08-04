@@ -26,8 +26,8 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => <TooltipPro
 
 describe("CommandPatternSelector", () => {
 	const defaultProps = {
-		command: "npm install express",
 		patterns: [
+			{ pattern: "npm install express", description: "Full command" },
 			{ pattern: "npm install", description: "Install npm packages" },
 			{ pattern: "npm *", description: "Any npm command" },
 		],
@@ -51,7 +51,7 @@ describe("CommandPatternSelector", () => {
 		expect(screen.getByText("chat:commandExecution.manageCommands")).toBeInTheDocument()
 	})
 
-	it("should show full command as first pattern when expanded", () => {
+	it("should show patterns when expanded", () => {
 		render(
 			<TestWrapper>
 				<CommandPatternSelector {...defaultProps} />
@@ -62,8 +62,9 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Check that the full command is shown
+		// Check that the patterns are shown
 		expect(screen.getByText("npm install express")).toBeInTheDocument()
+		expect(screen.getByText("- Full command")).toBeInTheDocument()
 	})
 
 	it("should show extracted patterns when expanded", () => {
@@ -95,9 +96,9 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Click on the full command pattern
-		const fullCommandDiv = screen.getByText("npm install express").closest("div")
-		fireEvent.click(fullCommandDiv!)
+		// Click on a pattern
+		const patternDiv = screen.getByText("npm install express").closest("div")
+		fireEvent.click(patternDiv!)
 
 		// An input should appear
 		const input = screen.getByDisplayValue("npm install express") as HTMLInputElement
@@ -168,9 +169,9 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Find the full command pattern row and click allow
-		const fullCommandPattern = screen.getByText("npm install express").closest(".ml-5")
-		const allowButton = fullCommandPattern?.querySelector('button[aria-label*="addToAllowed"]')
+		// Find a pattern row and click allow
+		const patternRow = screen.getByText("npm install express").closest(".ml-5")
+		const allowButton = patternRow?.querySelector('button[aria-label*="addToAllowed"]')
 		fireEvent.click(allowButton!)
 
 		// Check that the callback was called with the pattern
@@ -194,9 +195,9 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Find the full command pattern row and click deny
-		const fullCommandPattern = screen.getByText("npm install express").closest(".ml-5")
-		const denyButton = fullCommandPattern?.querySelector('button[aria-label*="addToDenied"]')
+		// Find a pattern row and click deny
+		const patternRow = screen.getByText("npm install express").closest(".ml-5")
+		const denyButton = patternRow?.querySelector('button[aria-label*="addToDenied"]')
 		fireEvent.click(denyButton!)
 
 		// Check that the callback was called with the pattern
@@ -220,11 +221,11 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Click on the full command pattern to edit
-		const fullCommandDiv = screen.getByText("npm install express").closest("div")
-		fireEvent.click(fullCommandDiv!)
+		// Click on a pattern to edit
+		const patternDiv = screen.getByText("npm install express").closest("div")
+		fireEvent.click(patternDiv!)
 
-		// Edit the command
+		// Edit the pattern
 		const input = screen.getByDisplayValue("npm install express") as HTMLInputElement
 		fireEvent.change(input, { target: { value: "npm install react" } })
 
@@ -254,11 +255,11 @@ describe("CommandPatternSelector", () => {
 		const expandButton = screen.getByRole("button")
 		fireEvent.click(expandButton)
 
-		// Click on the full command pattern to edit
-		const fullCommandDiv = screen.getByText("npm install express").closest("div")
-		fireEvent.click(fullCommandDiv!)
+		// Click on a pattern to edit
+		const patternDiv = screen.getByText("npm install express").closest("div")
+		fireEvent.click(patternDiv!)
 
-		// Edit the command
+		// Edit the pattern
 		const input = screen.getByDisplayValue("npm install express") as HTMLInputElement
 		fireEvent.change(input, { target: { value: "npm install react" } })
 

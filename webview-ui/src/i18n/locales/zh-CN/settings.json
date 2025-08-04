@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",
+		"enabled": "自动批准已启用",
 		"toggleAriaLabel": "切换自动批准",
 		"disabledAriaLabel": "自动批准已禁用 - 请先选择选项",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "在请求批准以继续执行任务之前，自动发出此数量的 API 请求。",
 			"unlimited": "无限制"
 		},
-		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准"
+		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准",
+		"apiCostLimit": {
+			"title": "最高费用",
+			"unlimited": "无限"
+		},
+		"maxLimits": {
+			"description": "在请求批准继续之前，自动发出请求，最多不超过这些限制。"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 文档",
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",
 		"anthropicUseAuthToken": "将 Anthropic API 密钥作为 Authorization 标头传递，而不是 X-Api-Key",
+		"cerebrasApiKey": "Cerebras API 密钥",
+		"getCerebrasApiKey": "获取 Cerebras API 密钥",
 		"chutesApiKey": "Chutes API 密钥",
 		"getChutesApiKey": "获取 Chutes API 密钥",
 		"deepSeekApiKey": "DeepSeek API 密钥",
 		"getDeepSeekApiKey": "获取 DeepSeek API 密钥",
+		"doubaoApiKey": "豆包 API 密钥",
+		"getDoubaoApiKey": "获取豆包 API 密钥",
 		"moonshotApiKey": "Moonshot API 密钥",
 		"getMoonshotApiKey": "获取 Moonshot API 密钥",
 		"moonshotBaseUrl": "Moonshot 服务站点",
 		"geminiApiKey": "Gemini API 密钥",
 		"getGroqApiKey": "获取 Groq API 密钥",
 		"groqApiKey": "Groq API 密钥",
+		"getSambaNovaApiKey": "获取 SambaNova API 密钥",
+		"sambaNovaApiKey": "SambaNova API 密钥",
 		"getHuggingFaceApiKey": "获取 Hugging Face API 密钥",
 		"huggingFaceApiKey": "Hugging Face API 密钥",
 		"huggingFaceModelId": "模型 ID",
@@ -304,7 +318,6 @@
 		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
-
 		"geminiParameters": {
 			"urlContext": {
 				"title": "启用 URL 上下文",

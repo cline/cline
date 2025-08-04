@@ -91,7 +91,9 @@
 			"useCurrentConfig": "使用当前选择的API配置",
 			"testPromptPlaceholder": "输入提示词以测试增强效果",
 			"previewButton": "测试提示词增强",
-			"testEnhancement": "测试增强"
+			"testEnhancement": "测试增强",
+			"includeTaskHistory": "包含任务历史作为上下文",
+			"includeTaskHistoryDescription": "启用后，当前对话的最后 10 条消息将作为上下文包含在增强提示词时，有助于生成更相关和上下文感知的建议。"
 		},
 		"condense": {
 			"apiConfiguration": "用于上下文压缩的 API 配置",

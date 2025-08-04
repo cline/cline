@@ -46,11 +46,6 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground max-lg:hidden">
 						Testimonials
 					</ScrollButton>
-					<ScrollButton
-						targetId="faq"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						FAQ
-					</ScrollButton>
 					<Link
 						href="/evals"
 						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
@@ -68,10 +63,11 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						Docs
 					</a>
 					<a
-						href={EXTERNAL_LINKS.CAREERS}
+						href={EXTERNAL_LINKS.DISCORD}
 						target="_blank"
+						rel="noopener noreferrer"
 						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Careers
+						Community
 					</a>
 					<div className="flex items-center rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 p-0.5 text-xs">
 						<div className="rounded-full bg-background px-2 py-1.5">
@@ -102,7 +98,7 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 					<Link
 						href={EXTERNAL_LINKS.MARKETPLACE}
 						target="_blank"
-						className="hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex">
+						className="hidden items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/80 hover:shadow-lg hover:scale-105 md:flex">
 						<VscVscode className="-mr-[2px] mt-[1px] h-4 w-4" />
 						<span>
 							Install <span className="font-black max-lg:text-xs">&middot;</span>
@@ -150,12 +146,6 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						onClick={() => setIsMenuOpen(false)}>
 						Testimonials
 					</ScrollButton>
-					<ScrollButton
-						targetId="faq"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						FAQ
-					</ScrollButton>
 					<Link
 						href="/evals"
 						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
@@ -184,11 +174,12 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 						Docs
 					</a>
 					<a
-						href={EXTERNAL_LINKS.CAREERS}
+						href={EXTERNAL_LINKS.DISCORD}
 						target="_blank"
+						rel="noopener noreferrer"
 						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
 						onClick={() => setIsMenuOpen(false)}>
-						Careers
+						Community
 					</a>
 
 					<hr className="mx-8 my-2 border-t border-border/50" />

@@ -127,6 +127,7 @@
 	},
 	"autoApprove": {
 		"description": "Roo को अनुमोदन की आवश्यकता के बिना स्वचालित रूप से ऑपरेशन करने की अनुमति दें। इन सेटिंग्स को केवल तभी सक्षम करें जब आप AI पर पूरी तरह से भरोसा करते हों और संबंधित सुरक्षा जोखिमों को समझते हों।",
+		"enabled": "स्वत:-अनुमोदन सक्षम",
 		"toggleAriaLabel": "स्वतः-अनुमोदन टॉगल करें",
 		"disabledAriaLabel": "स्वतः-अनुमोदन अक्षम - पहले विकल्प चुनें",
 		"readOnly": {
@@ -197,7 +198,14 @@
 			"description": "कार्य जारी रखने के लिए अनुमति मांगने से पहले स्वचालित रूप से इतने API अनुरोध करें।",
 			"unlimited": "असीमित"
 		},
-		"selectOptionsFirst": "स्वतः-अनुमोदन सक्षम करने के लिए नीचे से कम से कम एक विकल्प चुनें"
+		"selectOptionsFirst": "स्वतः-अनुमोदन सक्षम करने के लिए नीचे से कम से कम एक विकल्प चुनें",
+		"apiCostLimit": {
+			"unlimited": "असीमित",
+			"title": "अधिकतम लागत"
+		},
+		"maxLimits": {
+			"description": "स्वचालित रूप से जारी रखने के लिए अनुमोदन माँगने से पहले इन सीमाओं तक अनुरोध करें।"
+		}
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} दस्तावेज़ीकरण",
@@ -249,16 +257,22 @@
 		"anthropicApiKey": "Anthropic API कुंजी",
 		"getAnthropicApiKey": "Anthropic API कुंजी प्राप्त करें",
 		"anthropicUseAuthToken": "X-Api-Key के बजाय Anthropic API कुंजी को Authorization हेडर के रूप में पास करें",
+		"cerebrasApiKey": "Cerebras API कुंजी",
+		"getCerebrasApiKey": "Cerebras API कुंजी प्राप्त करें",
 		"chutesApiKey": "Chutes API कुंजी",
 		"getChutesApiKey": "Chutes API कुंजी प्राप्त करें",
 		"deepSeekApiKey": "DeepSeek API कुंजी",
 		"getDeepSeekApiKey": "DeepSeek API कुंजी प्राप्त करें",
+		"doubaoApiKey": "डौबाओ API कुंजी",
+		"getDoubaoApiKey": "डौबाओ API कुंजी प्राप्त करें",
 		"moonshotApiKey": "Moonshot API कुंजी",
 		"getMoonshotApiKey": "Moonshot API कुंजी प्राप्त करें",
 		"moonshotBaseUrl": "Moonshot प्रवेश बिंदु",
 		"geminiApiKey": "Gemini API कुंजी",
 		"getGroqApiKey": "Groq API कुंजी प्राप्त करें",
 		"groqApiKey": "Groq API कुंजी",
+		"getSambaNovaApiKey": "SambaNova API कुंजी प्राप्त करें",
+		"sambaNovaApiKey": "SambaNova API कुंजी",
 		"getHuggingFaceApiKey": "Hugging Face API कुंजी प्राप्त करें",
 		"huggingFaceApiKey": "Hugging Face API कुंजी",
 		"huggingFaceModelId": "मॉडल ID",
@@ -314,7 +328,6 @@
 				"description": "Gemini को वास्तविक समय के डेटा पर आधारित उत्तर प्रदान करने के लिए Google पर जानकारी खोजने और उत्तरों को ग्राउंड करने की अनुमति देता है। अद्यतित जानकारी की आवश्यकता वाली क्वेरीज़ के लिए उपयोगी।"
 			}
 		},
-
 		"googleCloudSetup": {
 			"title": "Google Cloud Vertex AI का उपयोग करने के लिए, आपको आवश्यकता है:",
 			"step1": "1. Google Cloud खाता बनाएं, Vertex AI API सक्षम करें और वांछित Claude मॉडल सक्षम करें।",
