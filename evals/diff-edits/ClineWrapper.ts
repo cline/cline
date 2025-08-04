@@ -1,5 +1,5 @@
 import { OpenRouterHandler } from "../../src/api/providers/openrouter"
-import { OpenAiHandler } from "../../src/api/providers/openai"
+import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
 import { ApiHandlerOptions } from "../../src/shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 
@@ -55,7 +55,7 @@ interface StreamResult {
  * Process the stream and return full response with timing data
  */
 async function processStream(
-	handler: OpenRouterHandler | OpenAiHandler,
+	handler: OpenRouterHandler | OpenAiNativeHandler,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 ): Promise<StreamResult> {
@@ -205,23 +205,14 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 		} else {
 			// Live mode: provider-specific API call logic
 			try {
-				let handler: OpenRouterHandler | OpenAiHandler
+				let handler: OpenRouterHandler | OpenAiNativeHandler
 				
 				if (provider === "openai") {
 					const openAiOptions = {
-						openAiApiKey: apiKey,
-						openAiModelId: modelId,
-						openAiModelInfo: {
-							maxTokens: 10_000,
-							contextWindow: 1_000_000,
-							supportsImages: true,
-							supportsPromptCache: true,
-							inputPrice: 0,
-							outputPrice: 0,
-							temperature: 0.7,
-						},
+						openAiNativeApiKey: apiKey,
+						apiModelId: modelId,
 					}
-					handler = new OpenAiHandler(openAiOptions)
+					handler = new OpenAiNativeHandler(openAiOptions)
 				} else {
 					const openRouterOptions = {
 						openRouterApiKey: apiKey,
