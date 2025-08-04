@@ -29,10 +29,10 @@ Mention regex:
       - **Exact Word ('terminal')**: Matches the exact word 'terminal'.
       - **Word Boundary (`\b`)**: Ensures that 'terminal' is matched as a whole word and not as part of another word (e.g., 'terminals').
 
-  - `(?=[.,;:!?]?(?=[\s\r\n]|$))`:
+  - `(?=[.,;:!?()]*(?=[\s\r\n]|$))`:
 	- **Positive Lookahead (`(?=...)`)**: Ensures that the match is followed by specific patterns without including them in the match.
-	- `[.,;:!?]?`: 
-	  - **Optional Punctuation (`[.,;:!?]?`)**: Matches zero or one of the specified punctuation marks.
+	- `[.,;:!?()]*`: 
+	  - **Optional Punctuation (`[.,;:!?()]*`)**: Matches zero or more of the specified punctuation marks (including parentheses).
 	- `(?=[\s\r\n]|$)`: 
 	  - **Nested Positive Lookahead (`(?=[\s\r\n]|$)`)**: Ensures that the punctuation (if present) is followed by a whitespace character, a line break, or the end of the string.
   
@@ -49,6 +49,16 @@ Mention regex:
   - `mentionRegexGlobal`: Creates a global version of the `mentionRegex` to find all matches within a given string.
 
 */
-export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
+export const mentionRegex = new RegExp(
+	`@(` +
+		`/[^\\s]*?` + // Simple file paths (can't contain)
+		`|"\\/[^"]*?"` + // Quoted file paths which can contain spaces
+		`|(?:\\w+:\\/\\/)[^\\s]+?` + // URLs
+		`|[a-f0-9]{7,40}\\b` + // Git commit hashes
+		`|problems\\b` + // Exact word 'problems'
+		`|terminal\\b` + // Exact word 'terminal'
+		`|git-changes\\b` + // Exact word 'git-changes'
+		`)` +
+		`(?=[.,;:!?()]*(?=[\\s\\r\\n]|$))`, // Lookahead for trailing punctuation (multiple allowed)
+)
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
