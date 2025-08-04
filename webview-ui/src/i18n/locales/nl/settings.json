@@ -687,6 +687,10 @@
 		"PREVENT_FOCUS_DISRUPTION": {
 			"name": "Achtergrondbewerking",
 			"description": "Voorkomt editor focus verstoring wanneer ingeschakeld. Bestandsbewerkingen gebeuren op de achtergrond zonder diff-weergaven te openen of focus te stelen. Je kunt ononderbroken doorwerken terwijl Roo wijzigingen aanbrengt. Bestanden kunnen zonder focus worden geopend om diagnostiek vast te leggen of volledig gesloten blijven."
+		},
+		"ASSISTANT_MESSAGE_PARSER": {
+			"name": "Nieuwe berichtparser gebruiken",
+			"description": "Schakel de experimentele streaming-berichtparser in die lange antwoorden sneller maakt door berichten efficiënter te verwerken."
 		}
 	},
 	"promptCaching": {

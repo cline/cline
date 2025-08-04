@@ -687,6 +687,10 @@
 		"PREVENT_FOCUS_DISRUPTION": {
 			"name": "Edycja w tle",
 			"description": "Zapobiega zakłócaniu fokusa edytora gdy włączone. Edycje plików odbywają się w tle bez otwierania widoków różnic lub kradzieży fokusa. Możesz kontynuować pracę bez przeszkód podczas gdy Roo wprowadza zmiany. Pliki mogą być otwierane bez fokusa aby przechwycić diagnostykę lub pozostać całkowicie zamknięte."
+		},
+		"ASSISTANT_MESSAGE_PARSER": {
+			"name": "Użyj nowego parsera wiadomości",
+			"description": "Włącz eksperymentalny parser wiadomości w strumieniu, który przyspiesza długie odpowiedzi dzięki bardziej wydajnemu przetwarzaniu wiadomości."
 		}
 	},
 	"promptCaching": {

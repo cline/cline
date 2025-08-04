@@ -687,6 +687,10 @@
 		"PREVENT_FOCUS_DISRUPTION": {
 			"name": "后台编辑",
 			"description": "启用后防止编辑器焦点干扰。文件编辑在后台进行，不会打开差异视图或抢夺焦点。你可以在 Roo 进行更改时继续不受干扰地工作。文件可以在不获取焦点的情况下打开以捕获诊断信息，或保持完全关闭状态。"
+		},
+		"ASSISTANT_MESSAGE_PARSER": {
+			"name": "使用新的消息解析器",
+			"description": "启用实验性的流式消息解析器。通过更高效地处理消息，可显著提升长回复的性能。"
 		}
 	},
 	"promptCaching": {
