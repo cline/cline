@@ -28,6 +28,7 @@ export async function searchFiles(_controller: Controller, request: FileSearchRe
 			request.query || "",
 			workspacePath,
 			request.limit || 20, // Use default limit of 20 if not specified
+			request.selectedType as "file" | "folder" | undefined,
 		)
 
 		// Convert search results to proto FileInfo objects using the conversion function

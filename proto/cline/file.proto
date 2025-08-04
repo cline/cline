@@ -90,6 +90,7 @@ message FileSearchRequest {
   string query = 2;                  // Search query string
   optional string mentions_request_id = 3;  // Optional request ID for tracking requests
   optional int32 limit = 4;          // Optional limit for results (default: 20)
+  optional string selected_type = 5;  // Optional selected type of 'file' or 'folder'
 }
 
 // Result for file search operations

@@ -103,6 +103,7 @@ export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
 	limit: number = 20,
+	selectedType?: "file" | "folder",
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
 		const rgPath = await getBinPath(vscode.env.appRoot)
@@ -141,6 +142,11 @@ export async function searchWorkspaceFiles(
 
 		// If no query, return the combined items
 		if (!query.trim()) {
+			if (selectedType === "file") {
+				return combinedItems.filter((item) => item.type === "file").slice(0, limit)
+			} else if (selectedType === "folder") {
+				return combinedItems.filter((item) => item.type === "folder").slice(0, limit)
+			}
 			return combinedItems.slice(0, limit)
 		}
 

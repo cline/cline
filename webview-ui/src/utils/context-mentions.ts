@@ -119,16 +119,20 @@ export function getContextMenuOptions(
 				.map((item) => ({
 					type: item.type,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
 			const folders = searchResultItems
-				.filter((item) => item.type === ContextMenuOptionType.Folder)
+				.filter((item) => item.type !== ContextMenuOptionType.File)
 				.map((item) => ({
 					type: ContextMenuOptionType.Folder,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}

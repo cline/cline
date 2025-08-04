@@ -404,6 +404,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedType(type)
 						setSearchQuery("")
 						setSelectedMenuIndex(0)
+
+						// Trigger search with the selected type
+						if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+							setSearchLoading(true)
+							FileServiceClient.searchFiles(
+								FileSearchRequest.create({
+									query: "",
+									mentionsRequestId: "",
+									selectedType: type,
+								}),
+							)
+								.then((results) => {
+									setFileSearchResults((results.results || []) as SearchResult[])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
+						}
 						return
 					}
 				}
@@ -724,7 +745,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery(query)
 					currentSearchQueryRef.current = query
 
-					if (!selectedType) {
+					if (query.length > 0 && !selectedType) {
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout
