@@ -322,41 +322,45 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			{IS_STANDALONE && <Navbar />}
-			{task ? (
-				<TaskSection
-					task={task}
-					apiMetrics={apiMetrics}
-					selectedModelInfo={{
-						supportsPromptCache: selectedModelInfo.supportsPromptCache,
-						supportsImages: selectedModelInfo.supportsImages || false,
-					}}
-					lastApiReqTotalTokens={lastApiReqTotalTokens}
-					messageHandlers={messageHandlers}
-					scrollBehavior={scrollBehavior}
-				/>
-			) : (
-				<WelcomeSection
-					telemetrySetting={telemetrySetting}
-					showAnnouncement={showAnnouncement}
-					version={version}
-					hideAnnouncement={hideAnnouncement}
-					shouldShowQuickWins={shouldShowQuickWins}
-					taskHistory={taskHistory}
-					showHistoryView={showHistoryView}
-				/>
-			)}
-			{task && (
-				<MessagesArea
-					task={task}
-					groupedMessages={groupedMessages}
-					modifiedMessages={modifiedMessages}
-					scrollBehavior={scrollBehavior}
-					chatState={chatState}
-					messageHandlers={messageHandlers}
-				/>
-			)}
-			<footer className="flex-shrink-0 justify-end">
+			<div className="flex flex-col flex-1 overflow-hidden">
+				{IS_STANDALONE && <Navbar />}
+				{task ? (
+					<TaskSection
+						task={task}
+						apiMetrics={apiMetrics}
+						selectedModelInfo={{
+							supportsPromptCache: selectedModelInfo.supportsPromptCache,
+							supportsImages: selectedModelInfo.supportsImages || false,
+						}}
+						lastApiReqTotalTokens={lastApiReqTotalTokens}
+						messageHandlers={messageHandlers}
+						scrollBehavior={scrollBehavior}
+					/>
+				) : (
+					<WelcomeSection
+						telemetrySetting={telemetrySetting}
+						showAnnouncement={showAnnouncement}
+						version={version}
+						hideAnnouncement={hideAnnouncement}
+						shouldShowQuickWins={shouldShowQuickWins}
+						taskHistory={taskHistory}
+						showHistoryView={showHistoryView}
+					/>
+				)}
+				{task && (
+					<MessagesArea
+						task={task}
+						groupedMessages={groupedMessages}
+						modifiedMessages={modifiedMessages}
+						scrollBehavior={scrollBehavior}
+						chatState={chatState}
+						messageHandlers={messageHandlers}
+					/>
+				)}
+			</div>
+			<footer
+				className="bg-[var(--vscode-editor-background)] border-t border-[var(--vscode-editorGroup-border)]"
+				style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				{task && (
 					<ActionButtons
