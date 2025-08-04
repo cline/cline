@@ -615,9 +615,9 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 									variant="combobox"
 									role="combobox"
 									aria-expanded={open}
-									className="justify-between w-60"
+									className="justify-between w-full"
 									data-testid="mode-select-trigger">
-									<div>{getCurrentMode()?.name || t("prompts:modes.selectMode")}</div>
+									<div className="truncate">{getCurrentMode()?.name || t("prompts:modes.selectMode")}</div>
 									<ChevronDown className="opacity-50" />
 								</Button>
 							</PopoverTrigger>
@@ -716,7 +716,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 										text: value,
 									})
 								}}>
-								<SelectTrigger className="w-60">
+								<SelectTrigger className="w-full">
 									<SelectValue placeholder={t("settings:common.select")} />
 								</SelectTrigger>
 								<SelectContent>
