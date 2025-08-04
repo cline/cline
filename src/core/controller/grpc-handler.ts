@@ -12,6 +12,9 @@ export type StreamingResponseHandler<TResponse> = (
 	sequenceNumber?: number,
 ) => Promise<void>
 
+/**
+ * Handles a gRPC request from the webview.
+ */
 export async function handleGrpcRequest(controller: Controller, request: GrpcRequest): Promise<void> {
 	if (request.is_streaming) {
 		await handleStreamingRequest(controller, request)
@@ -21,11 +24,9 @@ export async function handleGrpcRequest(controller: Controller, request: GrpcReq
 }
 
 /**
- * Handle a gRPC request from the webview
- * @param service The service name
- * @param method The method name
- * @param message The request message
- * @param requestId The request ID for response correlation
+ * Handles a gRPC unary request from the webview.
+ *
+ * Calls the handler using the service and method name, and then posts the result back to the webview.
  */
 async function handleUnaryRequest(controller: Controller, request: GrpcRequest): Promise<void> {
 	try {
@@ -56,11 +57,10 @@ async function handleUnaryRequest(controller: Controller, request: GrpcRequest):
 }
 
 /**
- * Handle a streaming gRPC request
- * @param service The service name
- * @param method The method name
- * @param message The request message
- * @param requestId The request ID for response correlation
+ * Handle a streaming gRPC request from the webview.
+ *
+ * Calls the handler using the service and method name, and creates a streaming response handler
+ * which posts results back to the webview.
  */
 async function handleStreamingRequest(controller: Controller, request: GrpcRequest): Promise<void> {
 	// Create a response stream function
@@ -104,7 +104,7 @@ async function handleStreamingRequest(controller: Controller, request: GrpcReque
 }
 
 /**
- * Handle a gRPC request cancellation from the webview
+ * Handles a gRPC request cancellation from the webview.
  * @param controller The controller instance
  * @param request The cancellation request
  */
@@ -126,6 +126,9 @@ export async function handleGrpcRequestCancel(controller: Controller, request: G
 	}
 }
 
+// Registry to track active gRPC requests and their cleanup functions
+const requestRegistry = new GrpcRequestRegistry()
+
 /**
  * Get the request registry instance
  * This allows other parts of the code to access the registry
@@ -133,9 +136,6 @@ export async function handleGrpcRequestCancel(controller: Controller, request: G
 export function getRequestRegistry(): GrpcRequestRegistry {
 	return requestRegistry
 }
-
-// Registry to track active gRPC requests and their cleanup functions
-const requestRegistry = new GrpcRequestRegistry()
 
 function getHandler(serviceName: string, methodName: string): any {
 	// Get the service handler from the config
