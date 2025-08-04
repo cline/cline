@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "온라인 작업 기록",
 	"cloudBenefitSharing": "공유 및 협업 기능",
 	"cloudBenefitMetrics": "작업, 토큰, 비용 기반 사용 메트릭",
+	"cloudBenefitWalkaway": "Roomote Control로 어디서나 작업을 팔로우하고 제어하세요",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Roo Code Cloud로 이 워크스페이스의 작업을 팔로우하고 상호작용할 수 있게 합니다",
 	"visitCloudWebsite": "Roo Code Cloud 방문"
 }

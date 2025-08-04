@@ -12,7 +12,7 @@ try {
 	console.warn("Failed to load environment variables:", e)
 }
 
-import { CloudService } from "@roo-code/cloud"
+import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
 import { TelemetryService, PostHogTelemetryClient } from "@roo-code/telemetry"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
@@ -29,6 +29,7 @@ import { CodeIndexManager } from "./services/code-index/manager"
 import { MdmService } from "./services/mdm/MdmService"
 import { migrateSettings } from "./utils/migrateSettings"
 import { autoImportSettings } from "./utils/autoImportSettings"
+import { isRemoteControlEnabled } from "./utils/remoteControl"
 import { API } from "./extension/api"
 
 import {
@@ -71,37 +72,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		console.warn("Failed to register PostHogTelemetryClient:", error)
 	}
 
-	// Create logger for cloud services
+	// Create logger for cloud services.
 	const cloudLogger = createDualLogger(createOutputChannelLogger(outputChannel))
-
-	// Initialize Roo Code Cloud service.
-	const cloudService = await CloudService.createInstance(context, cloudLogger)
-
-	try {
-		if (cloudService.telemetryClient) {
-			TelemetryService.instance.register(cloudService.telemetryClient)
-		}
-	} catch (error) {
-		outputChannel.appendLine(
-			`[CloudService] Failed to register TelemetryClient: ${error instanceof Error ? error.message : String(error)}`,
-		)
-	}
-
-	const postStateListener = () => {
-		ClineProvider.getVisibleInstance()?.postStateToWebview()
-	}
-
-	cloudService.on("auth-state-changed", postStateListener)
-	cloudService.on("user-info", postStateListener)
-	cloudService.on("settings-updated", postStateListener)
-
-	// Add to subscriptions for proper cleanup on deactivate
-	context.subscriptions.push(cloudService)
 
 	// Initialize MDM service
 	const mdmService = await MdmService.createInstance(cloudLogger)
 
-	// Initialize i18n for internationalization support
+	// Initialize i18n for internationalization support.
 	initializeI18n(context.globalState.get("language") ?? formatLanguage(vscode.env.language))
 
 	// Initialize terminal shell execution handlers.
@@ -126,6 +103,29 @@ export async function activate(context: vscode.ExtensionContext) {
 		)
 	}
 
+	// Initialize Roo Code Cloud service.
+	const cloudService = await CloudService.createInstance(context, cloudLogger)
+
+	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebview()
+
+	cloudService.on("auth-state-changed", postStateListener)
+	cloudService.on("settings-updated", postStateListener)
+
+	cloudService.on("user-info", ({ userInfo }) => {
+		postStateListener()
+
+		// Check if remote control is enabled in user settings
+		const remoteControlEnabled = contextProxy.getValue("remoteControlEnabled")
+
+		// Handle ExtensionBridgeService state using static method
+		ExtensionBridgeService.handleRemoteControlState(userInfo, remoteControlEnabled, provider, (message: string) =>
+			outputChannel.appendLine(message),
+		)
+	})
+
+	// Add to subscriptions for proper cleanup on deactivate.
+	context.subscriptions.push(cloudService)
+
 	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, codeIndexManager, mdmService)
 	TelemetryService.instance.setProvider(provider)
 
@@ -139,7 +139,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Auto-import configuration if specified in settings
+	// Auto-import configuration if specified in settings.
 	try {
 		await autoImportSettings(outputChannel, {
 			providerSettingsManager: provider.providerSettingsManager,
@@ -232,6 +232,14 @@ export async function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated.
 export async function deactivate() {
 	outputChannel.appendLine(`${Package.name} extension deactivated`)
+
+	// Cleanup Extension Bridge service.
+	const extensionBridgeService = ExtensionBridgeService.getInstance()
+
+	if (extensionBridgeService) {
+		await extensionBridgeService.disconnect()
+	}
+
 	await McpServerManager.cleanup(extensionContext)
 	TelemetryService.instance.shutdown()
 	TerminalRegistry.cleanup()

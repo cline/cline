@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "Riwayat tugas online",
 	"cloudBenefitSharing": "Fitur berbagi dan kolaborasi",
 	"cloudBenefitMetrics": "Metrik penggunaan berdasarkan tugas, token, dan biaya",
+	"cloudBenefitWalkaway": "Ikuti dan kontrol tugas dari mana saja dengan Roomote Control",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Memungkinkan mengikuti dan berinteraksi dengan tugas di workspace ini dengan Roo Code Cloud",
 	"visitCloudWebsite": "Kunjungi Roo Code Cloud"
 }

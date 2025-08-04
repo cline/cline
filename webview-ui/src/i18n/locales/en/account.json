@@ -4,11 +4,13 @@
 	"logOut": "Log out",
 	"testApiAuthentication": "Test API Authentication",
 	"signIn": "Connect to Roo Code Cloud",
-	"connect": "Connect",
+	"connect": "Connect Now",
 	"cloudBenefitsTitle": "Connect to Roo Code Cloud",
-	"cloudBenefitsSubtitle": "Sync your prompts and telemetry to enable:",
-	"cloudBenefitHistory": "Online task history",
-	"cloudBenefitSharing": "Sharing and collaboration features",
-	"cloudBenefitMetrics": "Task, token, and cost-based usage metrics",
-	"visitCloudWebsite": "Visit Roo Code Cloud"
+	"cloudBenefitWalkaway": "Follow and control tasks from anywhere with Roomote Control",
+	"cloudBenefitSharing": "Share tasks with others",
+	"cloudBenefitHistory": "Access your task history",
+	"cloudBenefitMetrics": "Get a holistic view of your token consumption",
+	"visitCloudWebsite": "Visit Roo Code Cloud",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Enable following and interacting with tasks in this workspace with Roo Code Cloud"
 }

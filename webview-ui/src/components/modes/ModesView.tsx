@@ -617,7 +617,9 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 									aria-expanded={open}
 									className="justify-between w-full"
 									data-testid="mode-select-trigger">
-									<div className="truncate">{getCurrentMode()?.name || t("prompts:modes.selectMode")}</div>
+									<div className="truncate">
+										{getCurrentMode()?.name || t("prompts:modes.selectMode")}
+									</div>
 									<ChevronDown className="opacity-50" />
 								</Button>
 							</PopoverTrigger>
