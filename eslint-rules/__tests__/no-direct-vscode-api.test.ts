@@ -34,25 +34,30 @@ directApiRuleTester.run("no-direct-vscode-api", noDirectVscodeApiRule, {
 		},
 		// Should allow other vscode API calls
 		{
-			code: `vscode.window.showInformationMessage("Hello")`,
-			filename: "test.ts",
+			code: `vscode.commands.registerCommand("Hello")`,
+			filename: "/foo/bar.ts",
 		},
 		// Should allow postMessage calls on other objects
 		{
 			code: `window.postMessage({ type: "test" }, "*")`,
-			filename: "test.ts",
+			filename: "/foo/bar.ts",
 		},
 		// Should allow variables named vscode but not calling postMessage
 		{
 			code: `const vscode = { other: "method" }; vscode.other()`,
-			filename: "test.ts",
+			filename: "/foo/bar.ts",
+		},
+		// Should allow vscode.postMessage in test files
+		{
+			code: `vscode.postMessage({ type: "newTask", text: message.text })`,
+			filename: "/foo/bar.test.ts",
 		},
 	],
 	invalid: [
 		// Should disallow vscode.postMessage in regular files
 		{
 			code: `vscode.postMessage({ type: "test", data: {} })`,
-			filename: "test.ts",
+			filename: "/foo/bar.ts",
 			errors: [
 				{
 					messageId: "useGrpcClient",
@@ -63,16 +68,6 @@ directApiRuleTester.run("no-direct-vscode-api", noDirectVscodeApiRule, {
 		{
 			code: `vscode.postMessage({ type: "apiConfiguration", apiConfiguration })`,
 			filename: "ApiOptions.tsx",
-			errors: [
-				{
-					messageId: "useGrpcClient",
-				},
-			],
-		},
-		// Should disallow vscode.postMessage in test files
-		{
-			code: `vscode.postMessage({ type: "newTask", text: message.text })`,
-			filename: "test.test.ts",
 			errors: [
 				{
 					messageId: "useGrpcClient",
