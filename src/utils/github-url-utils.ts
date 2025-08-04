@@ -13,11 +13,12 @@
  * fields containing special characters.
  */
 
-import * as vscode from "vscode"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
 import { writeTextToClipboard, openExternal } from "@/utils/env"
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 
 /**
  * Creates a properly encoded GitHub issue URL.
@@ -152,13 +153,16 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 			console.error(`Error with openExternal utility: ${openExternalError}`)
 
 			// Last fallback: Show a message with instructions
-			vscode.window
-				.showInformationMessage(
-					"Couldn't open the URL automatically. It has been copied to your clipboard.",
-					"Copy URL Again",
-				)
-				.then((selection) => {
-					if (selection === "Copy URL Again") {
+			HostProvider.window
+				.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "Couldn't open the URL automatically. It has been copied to your clipboard.",
+					options: {
+						items: ["Copy URL Again"],
+					},
+				})
+				.then((response) => {
+					if (response.selectedOption === "Copy URL Again") {
 						writeTextToClipboard(url)
 					}
 				})

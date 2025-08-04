@@ -39,6 +39,7 @@ import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { getLatestAnnouncementId } from "./utils/announcements"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -92,7 +93,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Use the same condition as announcements: focus when there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
-			const latestAnnouncementId = context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+			const latestAnnouncementId = getLatestAnnouncementId(context)
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
 				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
@@ -654,10 +655,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(sidebarWebview.controller)
-}
-
-export function getLatestAnnouncementId(context: vscode.ExtensionContext) {
-	return context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
 }
 
 function maybeSetupHostProviders(context: ExtensionContext) {
