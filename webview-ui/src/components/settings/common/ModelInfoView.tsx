@@ -11,6 +11,7 @@ import {
 	formatTokenPrice,
 	formatTokenLimit,
 } from "../utils/pricingUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Returns an array of formatted tier strings
@@ -99,6 +100,9 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	// Internal state management for description expansion
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
+	// Get extension state to check the current provider
+	const { apiConfiguration } = useExtensionState()
+
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
@@ -158,18 +162,22 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				isPopup={isPopup}
 			/>
 		),
-		<ModelInfoSupportsItem
-			key="supportsImages"
-			isSupported={supportsImages(modelInfo)}
-			supportsLabel="Supports images"
-			doesNotSupportLabel="Does not support images"
-		/>,
-		<ModelInfoSupportsItem
-			key="supportsBrowserUse"
-			isSupported={supportsBrowserUse(modelInfo)}
-			supportsLabel="Supports browser use"
-			doesNotSupportLabel="Does not support browser use"
-		/>,
+		(
+			<ModelInfoSupportsItem
+				key="supportsImages"
+				isSupported={supportsImages(modelInfo)}
+				supportsLabel="Supports images"
+				doesNotSupportLabel="Does not support images"
+			/>
+		),
+		(
+			<ModelInfoSupportsItem
+				key="supportsBrowserUse"
+				isSupported={supportsBrowserUse(modelInfo)}
+				supportsLabel="Supports browser use"
+				doesNotSupportLabel="Does not support browser use"
+			/>
+		),
 		!isGemini && (
 			<ModelInfoSupportsItem
 				key="supportsPromptCache"

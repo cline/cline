@@ -33,6 +33,7 @@ import { Mode } from "@shared/storage/types"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { BasetenHandler } from "./providers/baseten"
+import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -292,6 +293,12 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+			})
+		case "vercel-ai-gateway":
+			return new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
+				vercelAiGatewayModelId: mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
+				vercelAiGatewayModelInfo: mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

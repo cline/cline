@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "baseten"
+	| "vercel-ai-gateway"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -91,6 +92,7 @@ export interface ApiHandlerOptions {
 	cerebrasApiKey?: string
 	groqApiKey?: string
 	basetenApiKey?: string
+	vercelAiGatewayApiKey?: string
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
@@ -127,6 +129,8 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
+	planModeVercelAiGatewayModelId?: string
+	planModeVercelAiGatewayModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -156,6 +160,8 @@ export interface ApiHandlerOptions {
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
+	actModeVercelAiGatewayModelId?: string
+	actModeVercelAiGatewayModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -2709,11 +2715,29 @@ export const cerebrasModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// VERCEL AI GATEWAY MODELS
+export type VercelAIGatewayModelId = string
+
+export const vercelAiGatewayDefaultModelId = "anthropic/claude-4-sonnet"
+export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
+	maxTokens: 64_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+}
+
 // Groq
 // https://console.groq.com/docs/models
 // https://groq.com/pricing/
 export type GroqModelId = keyof typeof groqModels
 export const groqDefaultModelId: GroqModelId = "openai/gpt-oss-120b"
+
 export const groqModels = {
 	"openai/gpt-oss-120b": {
 		maxTokens: 32766, // Model fails if you try to use more than 32K tokens

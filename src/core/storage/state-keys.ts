@@ -44,6 +44,7 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "vercelAiGatewayApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -135,6 +136,8 @@ export type GlobalStateKey =
 	| "planModeHuggingFaceModelInfo"
 	| "planModeHuaweiCloudMaasModelId"
 	| "planModeHuaweiCloudMaasModelInfo"
+	| "planModeVercelAiGatewayModelId"
+	| "planModeVercelAiGatewayModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -164,6 +167,8 @@ export type GlobalStateKey =
 	| "actModeHuggingFaceModelInfo"
 	| "actModeHuaweiCloudMaasModelId"
 	| "actModeHuaweiCloudMaasModelInfo"
+	| "actModeVercelAiGatewayModelId"
+	| "actModeVercelAiGatewayModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
 
