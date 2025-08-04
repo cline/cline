@@ -5,9 +5,7 @@
 		"maxLines": " (최대 {{max}}행)",
 		"showingOnlyLines": "전체 {{total}}행 중 {{shown}}행만 표시하고 있습니다. 더 많은 행을 읽으려면 line_range를 사용하세요",
 		"imageTooLarge": "이미지 파일이 너무 큽니다 ({{size}} MB). 최대 허용 크기는 {{max}} MB입니다.",
-		"imageWithSize": "이미지 파일 ({{size}} KB)",
-		"partialReadSingleLine": "이 단일 행 파일에서 {{totalCharacters}}자 중 {{charactersRead}}자 ({{percentRead}}%)를 읽었습니다. 이는 부분 읽기입니다 - 컨텍스트 제한으로 인해 나머지 내용에 액세스할 수 없습니다.",
-		"partialReadMultiLine": "{{totalCharacters}}자 중 {{charactersRead}}자 ({{percentRead}}%)를 읽었습니다. {{totalLines}}행 중 {{lastLineRead}}행까지입니다. 이 파일의 특정 섹션을 읽으려면 다음 형식을 사용하세요:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\n예를 들어, {{nextLineStart}}-{{suggestedLineEnd}}행을 읽으려면:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "이미지 파일 ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo가 같은 동작({{toolName}})을 반복적으로 시도하면서 루프에 갇힌 것 같습니다. 이는 현재 전략에 문제가 있을 수 있음을 나타냅니다. 작업을 다시 표현하거나, 더 구체적인 지침을 제공하거나, 다른 접근 방식으로 안내해 보세요.",
 	"codebaseSearch": {

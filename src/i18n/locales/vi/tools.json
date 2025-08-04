@@ -5,9 +5,7 @@
 		"maxLines": " (tối đa {{max}} dòng)",
 		"showingOnlyLines": "Chỉ hiển thị {{shown}} trong tổng số {{total}} dòng. Sử dụng line_range nếu bạn cần đọc thêm dòng",
 		"imageTooLarge": "Tệp hình ảnh quá lớn ({{size}} MB). Kích thước tối đa cho phép là {{max}} MB.",
-		"imageWithSize": "Tệp hình ảnh ({{size}} KB)",
-		"partialReadSingleLine": "Đã đọc {{charactersRead}} trong số {{totalCharacters}} ký tự ({{percentRead}}%) từ tệp một dòng này. Đây là việc đọc một phần - nội dung còn lại không thể truy cập được do giới hạn ngữ cảnh.",
-		"partialReadMultiLine": "Đã đọc {{charactersRead}} trong số {{totalCharacters}} ký tự ({{percentRead}}%), đến dòng {{lastLineRead}} trong tổng số {{totalLines}} dòng. Để đọc các phần cụ thể của tệp này, hãy sử dụng định dạng sau:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nVí dụ, để đọc các dòng {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Tệp hình ảnh ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo dường như đang bị mắc kẹt trong một vòng lặp, liên tục cố gắng thực hiện cùng một hành động ({{toolName}}). Điều này có thể cho thấy vấn đề với chiến lược hiện tại. Hãy cân nhắc việc diễn đạt lại nhiệm vụ, cung cấp hướng dẫn cụ thể hơn, hoặc hướng Roo theo một cách tiếp cận khác.",
 	"codebaseSearch": {

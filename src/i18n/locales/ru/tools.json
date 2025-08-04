@@ -5,9 +5,7 @@
 		"maxLines": " (макс. {{max}} строк)",
 		"showingOnlyLines": "Показано только {{shown}} из {{total}} общих строк. Используй line_range если нужно прочитать больше строк",
 		"imageTooLarge": "Файл изображения слишком большой ({{size}} МБ). Максимально допустимый размер {{max}} МБ.",
-		"imageWithSize": "Файл изображения ({{size}} КБ)",
-		"partialReadSingleLine": "Прочитано {{charactersRead}} из {{totalCharacters}} символов ({{percentRead}}%) из этого однострочного файла. Это частичное чтение - оставшееся содержимое недоступно из-за ограничений контекста.",
-		"partialReadMultiLine": "Прочитано {{charactersRead}} из {{totalCharacters}} символов ({{percentRead}}%), до строки {{lastLineRead}} из {{totalLines}}. Чтобы прочитать определенные разделы этого файла, используйте следующий формат:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nНапример, чтобы прочитать строки {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Файл изображения ({{size}} КБ)"
 	},
 	"toolRepetitionLimitReached": "Похоже, что Roo застрял в цикле, многократно пытаясь выполнить одно и то же действие ({{toolName}}). Это может указывать на проблему с его текущей стратегией. Попробуйте переформулировать задачу, предоставить более конкретные инструкции или направить его к другому подходу.",
 	"codebaseSearch": {

@@ -5,9 +5,7 @@
 		"maxLines": " (máximo {{max}} líneas)",
 		"showingOnlyLines": "Mostrando solo {{shown}} de {{total}} líneas totales. Usa line_range si necesitas leer más líneas",
 		"imageTooLarge": "El archivo de imagen es demasiado grande ({{size}} MB). El tamaño máximo permitido es {{max}} MB.",
-		"imageWithSize": "Archivo de imagen ({{size}} KB)",
-		"partialReadSingleLine": "Leídos {{charactersRead}} de {{totalCharacters}} caracteres ({{percentRead}}%) de este archivo de una sola línea. Esta es una lectura parcial - el contenido restante no se puede acceder debido a limitaciones de contexto.",
-		"partialReadMultiLine": "Leídos {{charactersRead}} de {{totalCharacters}} caracteres ({{percentRead}}%), hasta la línea {{lastLineRead}} de {{totalLines}}. Para leer secciones específicas de este archivo, usa el siguiente formato:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nPor ejemplo, para leer las líneas {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Archivo de imagen ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo parece estar atrapado en un bucle, intentando la misma acción ({{toolName}}) repetidamente. Esto podría indicar un problema con su estrategia actual. Considera reformular la tarea, proporcionar instrucciones más específicas o guiarlo hacia un enfoque diferente.",
 	"codebaseSearch": {

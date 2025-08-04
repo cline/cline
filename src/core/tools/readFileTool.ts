@@ -586,52 +586,14 @@ export async function readFileTool(
 					const content = addLineNumbers(result.content, 1)
 					let xmlInfo = `<content${lineRangeAttr}>\n${content}</content>\n`
 
-					try {
-						const defResult = await parseSourceCodeDefinitionsForFile(fullPath, cline.rooIgnoreController)
-						if (defResult) {
-							xmlInfo += `<list_code_definition_names>${defResult}</list_code_definition_names>\n`
-						}
-
-						// Generate notice based on what was read
-						const percentRead = Math.round((result.charactersRead / result.totalCharacters) * 100)
-						if (result.linesRead === 1) {
-							// Single-line file
-							const notice = t("tools:readFile.partialReadSingleLine", {
-								charactersRead: result.charactersRead,
-								totalCharacters: result.totalCharacters,
-								percentRead,
-							})
-							xmlInfo += `<notice>${notice}</notice>\n`
-						} else {
-							// Multi-line file
-							const nextLineStart = result.lastLineRead + 1
-							const suggestedLineEnd = Math.min(result.lastLineRead + 1000, result.totalLines)
-							const notice = t("tools:readFile.partialReadMultiLine", {
-								charactersRead: result.charactersRead,
-								totalCharacters: result.totalCharacters,
-								percentRead,
-								lastLineRead: result.lastLineRead,
-								totalLines: result.totalLines,
-								path: relPath,
-								nextLineStart,
-								suggestedLineEnd,
-							})
-							xmlInfo += `<notice>${notice}</notice>\n`
-						}
-
-						const finalXml = `<file><path>${relPath}</path>\n${xmlInfo}</file>`
-						updateFileResult(relPath, {
-							xmlContent: finalXml,
-						})
-					} catch (error) {
-						if (error instanceof Error && error.message.startsWith("Unsupported language:")) {
-							console.warn(`[read_file] Warning: ${error.message}`)
-						} else {
-							console.error(
-								`[read_file] Unhandled error: ${error instanceof Error ? error.message : String(error)}`,
-							)
-						}
+					// Add simple notice about partial read
+					if (validation.reason) {
+						xmlInfo += `<notice>${validation.reason}</notice>\n`
 					}
+
+					updateFileResult(relPath, {
+						xmlContent: `<file><path>${relPath}</path>\n${xmlInfo}</file>`,
+					})
 					continue
 				}
 

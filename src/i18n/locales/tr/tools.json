@@ -5,9 +5,7 @@
 		"maxLines": " (maks. {{max}} satır)",
 		"showingOnlyLines": "Toplam {{total}} satırdan sadece {{shown}} tanesi gösteriliyor. Daha fazla satır okumak için line_range kullan",
 		"imageTooLarge": "Görüntü dosyası çok büyük ({{size}} MB). İzin verilen maksimum boyut {{max}} MB.",
-		"imageWithSize": "Görüntü dosyası ({{size}} KB)",
-		"partialReadSingleLine": "Bu tek satırlık dosyadan {{totalCharacters}} karakterden {{charactersRead}} karakter ({{percentRead}}%) okundu. Bu kısmi bir okuma - kalan içeriğe bağlam sınırlamaları nedeniyle erişilemiyor.",
-		"partialReadMultiLine": "{{totalCharacters}} karakterden {{charactersRead}} karakter ({{percentRead}}%) okundu, {{totalLines}} satırdan {{lastLineRead}}. satıra kadar. Bu dosyanın belirli bölümlerini okumak için aşağıdaki formatı kullan:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nÖrneğin, {{nextLineStart}}-{{suggestedLineEnd}} satırlarını okumak için:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Görüntü dosyası ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo bir döngüye takılmış gibi görünüyor, aynı eylemi ({{toolName}}) tekrar tekrar deniyor. Bu, mevcut stratejisinde bir sorun olduğunu gösterebilir. Görevi yeniden ifade etmeyi, daha spesifik talimatlar vermeyi veya onu farklı bir yaklaşıma yönlendirmeyi düşünün.",
 	"codebaseSearch": {

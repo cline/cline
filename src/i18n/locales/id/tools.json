@@ -5,9 +5,7 @@
 		"maxLines": " (maks {{max}} baris)",
 		"showingOnlyLines": "Menampilkan hanya {{shown}} dari {{total}} total baris. Gunakan line_range jika kamu perlu membaca lebih banyak baris",
 		"imageTooLarge": "File gambar terlalu besar ({{size}} MB). Ukuran maksimum yang diizinkan adalah {{max}} MB.",
-		"imageWithSize": "File gambar ({{size}} KB)",
-		"partialReadSingleLine": "Membaca {{charactersRead}} dari {{totalCharacters}} karakter ({{percentRead}}%) dari file satu baris ini. Ini adalah pembacaan parsial - konten yang tersisa tidak dapat diakses karena keterbatasan konteks.",
-		"partialReadMultiLine": "Membaca {{charactersRead}} dari {{totalCharacters}} karakter ({{percentRead}}%), hingga baris {{lastLineRead}} dari {{totalLines}}. Untuk membaca bagian tertentu dari file ini, gunakan format berikut:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nContoh, untuk membaca baris {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "File gambar ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo tampaknya terjebak dalam loop, mencoba aksi yang sama ({{toolName}}) berulang kali. Ini mungkin menunjukkan masalah dengan strategi saat ini. Pertimbangkan untuk mengubah frasa tugas, memberikan instruksi yang lebih spesifik, atau mengarahkannya ke pendekatan yang berbeda.",
 	"codebaseSearch": {

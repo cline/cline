@@ -5,9 +5,7 @@
 		"maxLines": " (maximal {{max}} Zeilen)",
 		"showingOnlyLines": "Zeige nur {{shown}} von {{total}} Zeilen insgesamt. Verwende line_range, wenn du mehr Zeilen lesen musst",
 		"imageTooLarge": "Die Bilddatei ist zu groß ({{size}} MB). Die maximal erlaubte Größe beträgt {{max}} MB.",
-		"imageWithSize": "Bilddatei ({{size}} KB)",
-		"partialReadSingleLine": "{{charactersRead}} von {{totalCharacters}} Zeichen ({{percentRead}}%) aus dieser einzeiligen Datei gelesen. Dies ist ein partieller Lesevorgang - der verbleibende Inhalt kann aufgrund von Kontextbeschränkungen nicht zugegriffen werden.",
-		"partialReadMultiLine": "{{charactersRead}} von {{totalCharacters}} Zeichen ({{percentRead}}%) gelesen, bis Zeile {{lastLineRead}} von {{totalLines}}. Um bestimmte Abschnitte dieser Datei zu lesen, verwende das folgende Format:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nZum Beispiel, um die Zeilen {{nextLineStart}}-{{suggestedLineEnd}} zu lesen:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Bilddatei ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo scheint in einer Schleife festzustecken und versucht wiederholt dieselbe Aktion ({{toolName}}). Dies könnte auf ein Problem mit der aktuellen Strategie hindeuten. Überlege dir, die Aufgabe umzuformulieren, genauere Anweisungen zu geben oder Roo zu einem anderen Ansatz zu führen.",
 	"codebaseSearch": {

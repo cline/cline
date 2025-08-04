@@ -5,9 +5,7 @@
 		"maxLines": " (最大{{max}}行)",
 		"showingOnlyLines": "全{{total}}行中{{shown}}行のみ表示しています。より多くの行を読む必要がある場合はline_rangeを使用してください",
 		"imageTooLarge": "画像ファイルが大きすぎます（{{size}} MB）。最大許可サイズは {{max}} MB です。",
-		"imageWithSize": "画像ファイル（{{size}} KB）",
-		"partialReadSingleLine": "この単一行ファイルから{{charactersRead}}文字中{{totalCharacters}}文字（{{percentRead}}%）を読み取りました。これは部分的な読み取りです - コンテキストの制限により、残りのコンテンツにはアクセスできません。",
-		"partialReadMultiLine": "{{charactersRead}}文字中{{totalCharacters}}文字（{{percentRead}}%）を読み取りました。{{totalLines}}行中{{lastLineRead}}行目まで。このファイルの特定のセクションを読み取るには、次の形式を使用してください：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\n例えば、{{nextLineStart}}-{{suggestedLineEnd}}行を読み取るには：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "画像ファイル（{{size}} KB）"
 	},
 	"toolRepetitionLimitReached": "Rooが同じ操作（{{toolName}}）を繰り返し試みるループに陥っているようです。これは現在の方法に問題がある可能性を示しています。タスクの言い換え、より具体的な指示の提供、または別のアプローチへの誘導を検討してください。",
 	"codebaseSearch": {

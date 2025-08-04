@@ -5,9 +5,7 @@
 		"maxLines": " (最多 {{max}} 行)",
 		"showingOnlyLines": "僅顯示 {{shown}} 行，共 {{total}} 行。如需閱讀更多行請使用 line_range",
 		"imageTooLarge": "圖片檔案過大 ({{size}} MB)。允許的最大大小為 {{max}} MB。",
-		"imageWithSize": "圖片檔案 ({{size}} KB)",
-		"partialReadSingleLine": "已讀取此單行檔案中 {{totalCharacters}} 個字元中的 {{charactersRead}} 個字元 ({{percentRead}}%)。這是部分讀取 - 由於內容限制，無法存取剩餘內容。",
-		"partialReadMultiLine": "已讀取 {{totalCharacters}} 個字元中的 {{charactersRead}} 個字元 ({{percentRead}}%)，讀取到第 {{lastLineRead}} 行，共 {{totalLines}} 行。要讀取此檔案的特定部分，請使用以下格式：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\n例如，要讀取第 {{nextLineStart}}-{{suggestedLineEnd}} 行：\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "圖片檔案 ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Roo 似乎陷入循環，反覆嘗試同一操作 ({{toolName}})。這可能表明目前策略存在問題。請考慮重新描述工作、提供更具體的指示或引導其嘗試不同的方法。",
 	"codebaseSearch": {

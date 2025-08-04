@@ -5,9 +5,7 @@
 		"maxLines": " (maks. {{max}} linii)",
 		"showingOnlyLines": "Pokazuję tylko {{shown}} z {{total}} wszystkich linii. Użyj line_range jeśli potrzebujesz przeczytać więcej linii",
 		"imageTooLarge": "Plik obrazu jest zbyt duży ({{size}} MB). Maksymalny dozwolony rozmiar to {{max}} MB.",
-		"imageWithSize": "Plik obrazu ({{size}} KB)",
-		"partialReadSingleLine": "Przeczytano {{charactersRead}} z {{totalCharacters}} znaków ({{percentRead}}%) z tego jednoliniowego pliku. To jest częściowy odczyt - pozostała zawartość nie może być dostępna z powodu ograniczeń kontekstu.",
-		"partialReadMultiLine": "Przeczytano {{charactersRead}} z {{totalCharacters}} znaków ({{percentRead}}%), do linii {{lastLineRead}} z {{totalLines}}. Aby przeczytać określone sekcje tego pliku, użyj następującego formatu:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>start-end</line_range>\n  </file>\n</args>\n</read_file>\n\nNa przykład, aby przeczytać linie {{nextLineStart}}-{{suggestedLineEnd}}:\n<read_file>\n<args>\n  <file>\n    <path>{{path}}</path>\n    <line_range>{{nextLineStart}}-{{suggestedLineEnd}}</line_range>\n  </file>\n</args>\n</read_file>"
+		"imageWithSize": "Plik obrazu ({{size}} KB)"
 	},
 	"toolRepetitionLimitReached": "Wygląda na to, że Roo utknął w pętli, wielokrotnie próbując wykonać tę samą akcję ({{toolName}}). Może to wskazywać na problem z jego obecną strategią. Rozważ przeformułowanie zadania, podanie bardziej szczegółowych instrukcji lub nakierowanie go na inne podejście.",
 	"codebaseSearch": {

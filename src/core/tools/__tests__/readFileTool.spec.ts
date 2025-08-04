@@ -1376,7 +1376,7 @@ describe("read_file tool XML output structure", () => {
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
 				safeContentLimit: 2000,
-				reason: "File exceeds available context space. Can read 2000 of 500000 characters (40%). Context usage: 10000/100000 tokens (10%).",
+				reason: "This is a partial read - the remaining content cannot be accessed due to context limitations.",
 			})
 
 			// Mock readPartialContent to return truncated content
@@ -1394,11 +1394,11 @@ describe("read_file tool XML output structure", () => {
 				{ totalLines: 10000, maxReadFileLine: -1 },
 			)
 
-			// Verify the result contains the partial read notice for multi-line files
+			// Verify the result contains the simplified partial read notice
 			expect(result).toContain("<notice>")
-			expect(result).toContain("tools:readFile.partialReadMultiLine")
-			// The current implementation doesn't include contextLimitInstructions
-			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
+			expect(result).toContain(
+				"This is a partial read - the remaining content cannot be accessed due to context limitations.",
+			)
 		})
 
 		it("should not show any special notice when file fits in context", async () => {
@@ -1427,7 +1427,7 @@ describe("read_file tool XML output structure", () => {
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
 				safeContentLimit: 5000,
-				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 50% (5000 of 10000 characters) can be loaded. This is a hard limit - no additional content from this file can be accessed.",
+				reason: "This is a partial read - the remaining content cannot be accessed due to context limitations.",
 			})
 
 			// Mock readPartialContent to return truncated content for single-line file
@@ -1445,11 +1445,11 @@ describe("read_file tool XML output structure", () => {
 				{ totalLines: 1, maxReadFileLine: -1 },
 			)
 
-			// Verify the result contains the notice but NOT the line_range instructions
+			// Verify the result contains the simplified partial read notice
 			expect(result).toContain("<notice>")
-			expect(result).toContain("tools:readFile.partialReadSingleLine")
-			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
-			expect(result).not.toContain("Use line_range")
+			expect(result).toContain(
+				"This is a partial read - the remaining content cannot be accessed due to context limitations.",
+			)
 		})
 
 		it("should include line_range instructions for multi-line files that exceed context", async () => {
@@ -1460,7 +1460,7 @@ describe("read_file tool XML output structure", () => {
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
 				safeContentLimit: 50000,
-				reason: "File exceeds available context space. Can read 50000 of 250000 characters (20%). Context usage: 50000/100000 tokens (50%).",
+				reason: "This is a partial read - the remaining content cannot be accessed due to context limitations.",
 			})
 
 			// Mock readPartialContent to return truncated content
@@ -1478,11 +1478,11 @@ describe("read_file tool XML output structure", () => {
 				{ totalLines: 5000, maxReadFileLine: -1 },
 			)
 
-			// Verify the result contains the partial read notice for multi-line files
+			// Verify the result contains the simplified partial read notice
 			expect(result).toContain("<notice>")
-			expect(result).toContain("tools:readFile.partialReadMultiLine")
-			// The current implementation doesn't include contextLimitInstructions
-			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
+			expect(result).toContain(
+				"This is a partial read - the remaining content cannot be accessed due to context limitations.",
+			)
 		})
 
 		it("should handle normal file read section for single-line files with validation notice", async () => {
@@ -1493,7 +1493,7 @@ describe("read_file tool XML output structure", () => {
 			vi.mocked(contextValidatorModule.validateFileSizeForContext).mockResolvedValue({
 				shouldLimit: true,
 				safeContentLimit: 8000,
-				reason: "Large single-line file (likely minified) exceeds available context space. Only the first 80% (8000 of 10000 characters) can be loaded.",
+				reason: "This is a partial read - the remaining content cannot be accessed due to context limitations.",
 			})
 
 			// Mock readPartialContent for single-line file
@@ -1511,10 +1511,11 @@ describe("read_file tool XML output structure", () => {
 				{ totalLines: 1, maxReadFileLine: -1 },
 			)
 
-			// Verify single-line file notice doesn't include line_range instructions
+			// Verify the result contains the simplified partial read notice
 			expect(result).toContain("<notice>")
-			expect(result).toContain("tools:readFile.partialReadSingleLine")
-			expect(result).not.toContain("tools:readFile.contextLimitInstructions")
+			expect(result).toContain(
+				"This is a partial read - the remaining content cannot be accessed due to context limitations.",
+			)
 		})
 	})
 })
