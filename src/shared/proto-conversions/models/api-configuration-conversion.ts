@@ -387,6 +387,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: config.huaweiCloudMaasApiKey,
+		zaiApiLine: config.zaiApiLine,
 		zaiApiKey: config.zaiApiKey,
 
 		// Plan mode configurations
@@ -514,6 +515,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: protoConfig.huaweiCloudMaasApiKey,
+		zaiApiLine: protoConfig.zaiApiLine,
 		zaiApiKey: protoConfig.zaiApiKey,
 
 		// Plan mode configurations

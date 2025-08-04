@@ -284,6 +284,7 @@ function createHandlerForProvider(
 			})
 		case "zai":
 			return new ZAiHandler({
+				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})

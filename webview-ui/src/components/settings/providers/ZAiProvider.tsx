@@ -1,10 +1,11 @@
 import { ApiConfiguration, zaiModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { Mode } from "@shared/storage/types"
 /**
  * Props for the ZAiProvider component
@@ -27,11 +28,40 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 
 	return (
 		<div>
+			<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
+				<label htmlFor="zai-entrypoint">
+					<span style={{ fontWeight: 500, marginTop: 5 }}>Z AI Entrypoint</span>
+				</label>
+				<VSCodeDropdown
+					id="zai-entrypoint"
+					value={apiConfiguration?.zaiApiLine || "international"}
+					onChange={(e) => handleFieldChange("zaiApiLine", (e.target as any).value)}
+					style={{
+						minWidth: 130,
+						position: "relative",
+					}}>
+					<VSCodeOption value="international">api.z.ai</VSCodeOption>
+					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
+				</VSCodeDropdown>
+			</DropdownContainer>
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: 3,
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn
+				. Otherwise, choose api.z.ai.
+			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.zaiApiKey || ""}
 				onChange={(value) => handleFieldChange("zaiApiKey", value)}
 				providerName="Z AI"
-				signupUrl="https://z.ai/manage-apikey/apikey-list"
+				signupUrl={
+					apiConfiguration?.zaiApiLine === "china"
+						? "https://open.bigmodel.cn/console/overview"
+						: "https://z.ai/manage-apikey/apikey-list"
+				}
 			/>
 
 			{showModelOptions && (

@@ -7,6 +7,7 @@ import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
 interface ZAiHandlerOptions {
+	zaiApiLine?: string
 	zaiApiKey?: string
 	apiModelId?: string
 }
@@ -25,7 +26,10 @@ export class ZAiHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.z.ai/api/paas/v4",
+					baseURL:
+						this.options.zaiApiLine === "china"
+							? "https://open.bigmodel.cn/api/paas/v4"
+							: "https://api.z.ai/api/paas/v4",
 					apiKey: this.options.zaiApiKey,
 				})
 			} catch (error) {
@@ -78,10 +82,8 @@ export class ZAiHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+					cacheWriteTokens: 0,
 				}
 			}
 		}

@@ -96,6 +96,7 @@ export interface ApiHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	huaweiCloudMaasApiKey?: string
 	zaiApiKey?: string
+	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -2890,9 +2891,9 @@ export const huaweiCloudMaasModels = {
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5
 // https://docs.z.ai/guides/overview/pricing
-export type zaiModelId = keyof typeof zaiModels
-export const zaiDefaultModelId: zaiModelId = "glm-4.5"
-export const zaiModels = {
+export type internationalZAiModelId = keyof typeof internationalZAiModels
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiModels = {
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -2900,6 +2901,10 @@ export const zaiModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.6,
 		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
 	},
 	"glm-4.5-air": {
 		maxTokens: 98_304,
@@ -2908,5 +2913,78 @@ export const zaiModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.2,
 		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.03,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type mainlandZAiModelId = keyof typeof mainlandZAiModels
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.29,
+		outputPrice: 1.14,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.057,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.21,
+				outputPrice: 1.0,
+				cacheReadsPrice: 0.043,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+		],
+	},
+	"glm-4.5-air": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.086,
+		outputPrice: 0.57,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.017,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.057,
+				outputPrice: 0.43,
+				cacheReadsPrice: 0.011,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+		],
 	},
 } as const satisfies Record<string, ModelInfo>

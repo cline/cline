@@ -64,6 +64,7 @@ export type GlobalStateKey =
 	| "fireworksModelMaxTokens"
 	| "qwenApiLine"
 	| "moonshotApiLine"
+	| "zaiApiLine"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
 	| "asksageApiUrl"
