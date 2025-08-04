@@ -87,6 +87,7 @@ export type GlobalStateKey =
 	// Settings around plan/act and ephemeral model configuration
 	| "preferredLanguage"
 	| "openaiReasoningEffort"
+	| "dictationSettings"
 	| "mode"
 	// Plan mode configurations
 	| "planModeApiProvider"

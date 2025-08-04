@@ -46,6 +46,7 @@ import ServersToggleModal from "./ServersToggleModal"
 import { Mode } from "@shared/storage/types"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
+import VoiceRecorder from "./VoiceRecorder"
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -277,8 +278,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
-			useExtensionState()
+		const {
+			filePaths,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			dictationSettings,
+			mode,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -1567,7 +1576,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 9px 9px",
+							padding: `9px ${dictationSettings?.voiceRecordingEnabled ? "48" : "28"}px 9px 9px`,
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1608,10 +1617,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							position: "absolute",
 							right: 23,
 							display: "flex",
-							alignItems: "flex-end",
+							alignItems: "center",
 							height: textAreaBaseHeight || 31,
 							bottom: 9.5, // should be 10 but doesn't look good on mac
-							paddingBottom: "8px",
 							zIndex: 2,
 						}}>
 						<div
@@ -1620,6 +1628,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								flexDirection: "row",
 								alignItems: "center",
 							}}>
+							{dictationSettings?.voiceRecordingEnabled === true && (
+								<VoiceRecorder
+									onTranscription={(text) => {
+										// Remove any processing text first
+										const cleanedValue = inputValue.replace(/\s*\[Transcribing\.\.\.\]$/, "")
+										// Append the transcribed text to the cleaned input
+										const newValue = cleanedValue + (cleanedValue ? " " : "") + text
+										setInputValue(newValue)
+										// Focus the textarea and move cursor to end
+										setTimeout(() => {
+											if (textAreaRef.current) {
+												textAreaRef.current.focus()
+												const length = newValue.length
+												textAreaRef.current.setSelectionRange(length, length)
+											}
+										}, 0)
+									}}
+									onProcessingStateChange={(isProcessing, message) => {
+										if (isProcessing && message) {
+											// Show processing message in input
+											const processingText = inputValue + (inputValue ? " " : "") + `[${message}]`
+											setInputValue(processingText)
+										}
+										// When processing is done, the onTranscription callback will handle the final text
+									}}
+									disabled={sendingDisabled}
+									language={dictationSettings?.dictationLanguage || "en"}
+								/>
+							)}
 							{/* <div
 								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 								onClick={() => {

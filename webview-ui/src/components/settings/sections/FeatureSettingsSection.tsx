@@ -106,7 +106,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<VSCodeOption value="high">High</VSCodeOption>
 						</VSCodeDropdown>
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
+							Reasoning effort for the OpenAI family of models (applies to all OpenAI model providers)
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>

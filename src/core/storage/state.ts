@@ -2,11 +2,13 @@ import * as vscode from "vscode"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { DEFAULT_DICTATION_SETTINGS } from "@shared/DictationSettings"
 import { GlobalStateKey, LocalStateKey, SecretKey } from "./state-keys"
 import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { DictationSettings } from "@shared/DictationSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -338,6 +340,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeHuggingFaceModelInfo,
 		actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo,
+		dictationSettings,
 	] = await Promise.all([
 		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
 		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
@@ -397,6 +400,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "dictationSettings") as Promise<DictationSettings | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -579,6 +583,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localWorkflowToggles: localWorkflowToggles || {},
+		dictationSettings: dictationSettings || DEFAULT_DICTATION_SETTINGS,
 	}
 }
 
