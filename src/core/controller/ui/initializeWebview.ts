@@ -1,14 +1,14 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import type { McpMarketplaceCatalog } from "@shared/mcp"
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState, getGlobalState } from "../../storage/state"
 import type { Controller } from "../index"
-import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
-import { refreshGroqModels } from "../models/refreshGroqModels"
-import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
+import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
+import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { McpMarketplaceCatalog } from "@shared/mcp"
+import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { refreshGroqModels } from "../models/refreshGroqModels"
 /**
  * Initialize webview when it launches
  * @param controller The controller instance

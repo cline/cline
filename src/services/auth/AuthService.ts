@@ -3,12 +3,13 @@ import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { storeSecret } from "@/core/storage/state"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
+import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
