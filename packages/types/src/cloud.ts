@@ -17,6 +17,7 @@ export interface CloudUserInfo {
 	organizationName?: string
 	organizationRole?: string
 	organizationImageUrl?: string
+	extensionBridgeEnabled?: boolean
 }
 
 /**
