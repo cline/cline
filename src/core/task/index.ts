@@ -155,6 +155,7 @@ export class Task {
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
+		strictPlanModeEnabled: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -328,6 +329,7 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.mode,
+			strictPlanModeEnabled,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -336,6 +338,15 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
 		)
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+		this.toolExecutor.updateMode(mode)
+	}
+
+	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
+		this.toolExecutor.updateStrictPlanModeEnabled(strictPlanModeEnabled)
 	}
 
 	// While a task is ref'd by a controller, it will always have access to the extension context
