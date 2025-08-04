@@ -2,6 +2,7 @@
 import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
 import * as vscode from "vscode"
+import pWaitFor from "p-wait-for"
 import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
@@ -54,8 +55,18 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
 		await createAndOpenTestDocument(2, vscode.ViewColumn.Two)
 
-		// Wait a bit for tabs to be fully created
-		await new Promise((resolve) => setTimeout(resolve, 100))
+		// Wait for tabs to be fully created
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.length === 2
+			},
+			{
+				timeout: 2000,
+				interval: 50,
+			},
+		)
 
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
@@ -74,8 +85,18 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		await createAndOpenTestDocument(2, vscode.ViewColumn.One)
 		await createAndOpenTestDocument(3, vscode.ViewColumn.One)
 
-		// Wait a bit for tabs to be fully created
-		await new Promise((resolve) => setTimeout(resolve, 100))
+		// Wait for tabs to be fully created
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.length === 3
+			},
+			{
+				timeout: 2000,
+				interval: 50,
+			},
+		)
 
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
