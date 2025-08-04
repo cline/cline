@@ -41,15 +41,17 @@ export class BrowserSession {
 	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
 	private isConnectedToRemote: boolean = false
+	private useWebp: boolean
 
 	// Telemetry tracking properties
 	private sessionStartTime: number = 0
 	private browserActions: string[] = []
 	private taskId?: string
 
-	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
+	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
 		this.context = context
 		this.browserSettings = browserSettings
+		this.useWebp = useWebp
 	}
 
 	// Tests remote browser connection
@@ -487,14 +489,16 @@ export class BrowserSession {
 			// },
 		}
 
+		const screenshotType = this.useWebp ? "webp" : "png"
 		let screenshotBase64 = await this.page.screenshot({
 			...options,
-			type: "webp",
+			type: screenshotType,
 		})
-		let screenshot = `data:image/webp;base64,${screenshotBase64}`
+		let screenshot = `data:image/${screenshotType};base64,${screenshotBase64}`
 
 		if (!screenshotBase64) {
-			console.info("webp screenshot failed, trying png")
+			// choosing to try screenshot again, regardless of the initial type
+			console.info(`${screenshotType} screenshot failed, trying png`)
 			screenshotBase64 = await this.page.screenshot({
 				...options,
 				type: "png",

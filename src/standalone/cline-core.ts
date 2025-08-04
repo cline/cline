@@ -1,5 +1,6 @@
 import { activate } from "@/extension"
 import { Controller } from "@core/controller"
+import { CacheService } from "@core/storage/CacheService"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
@@ -9,6 +10,7 @@ import { v4 as uuidv4 } from "uuid"
 import { log } from "./utils"
 import { extensionContext, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
@@ -21,8 +23,13 @@ async function main() {
 	setupGlobalErrorHandlers()
 
 	activate(extensionContext)
+	// Create and initialize cache service
+
+	// Create controller with cache service
 	const controller = new Controller(extensionContext, postMessage, uuidv4())
 	startProtobusService(controller)
+
+	AuthHandler.getInstance().setEnabled(true)
 }
 
 function setupHostProvider() {

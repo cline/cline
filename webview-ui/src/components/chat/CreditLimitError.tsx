@@ -2,6 +2,9 @@ import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+
+import { useExtensionState } from "@/context/ExtensionStateContext"
+
 import React from "react"
 
 interface CreditLimitErrorProps {
@@ -19,6 +22,12 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	message = "You have run out of credit.",
 	buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 }) => {
+	const { uriScheme } = useExtensionState()
+
+	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
+	const fullPurchaseUrl = new URL(buyCreditsUrl)
+	fullPurchaseUrl.searchParams.set("callback_url", callbackUrl)
+
 	// We have to divide because the balance is stored in microcredits
 	return (
 		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
@@ -34,7 +43,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			</div>
 
 			<VSCodeButtonLink
-				href={buyCreditsUrl}
+				href={fullPurchaseUrl.toString()}
 				style={{
 					width: "100%",
 					marginBottom: "8px",

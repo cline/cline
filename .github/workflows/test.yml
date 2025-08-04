@@ -96,16 +96,15 @@ jobs:
             - name: Build Tests and Extension
               run: npm run pretest
 
-            # Unit Tests disabled due to module system conflicts between backend and webview-ui
-            # - name: Unit Tests
-            #   run: npm run test:unit
+            - name: Unit Tests
+              run: npm run test:unit
 
             # Run extension tests with coverage
-            - name: Extension Tests with Coverage
+            - name: Extension Integration Tests with Coverage
               id: extension_coverage
               continue-on-error: true
               run: |
-                  node ./scripts/test-ci.js > extension_coverage.txt 2>&1
+                  node ./scripts/test-ci.js 2>&1 | tee extension_coverage.txt
                   # Default the encoding to UTF-8 - It's not the default on Windows
                   PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
@@ -117,7 +116,7 @@ jobs:
                   cd webview-ui
                   # Ensure coverage dependency is installed
                   npm install --no-save @vitest/coverage-v8
-                  npm run test:coverage > webview_coverage.txt 2>&1
+                  npm run test:coverage 2>&1 | tee webview_coverage.txt
                   cd ..
                   # Default the encoding to UTF-8 - It's not the default on Windows
                   PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
@@ -132,21 +131,19 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
-                  retention-period: workflow # Artifacts are automatically deleted when the workflow completes
 
             # Set the check as failed if any of the tests failed
-            - name: Print test results and check for failures
+            - name: Check for test failures
               run: |
-                  echo "Extension Tests Result: ${{ steps.extension_coverage.outcome }}"
-                  cat extension_coverage.txt
-
-                  echo "Webview Tests Result: ${{ steps.webview_coverage.outcome }}"
-                  cat webview-ui/webview_coverage.txt
-
                   # Check if any of the test steps failed
                   # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
+                  if [ "${{ steps.extension_coverage.outcome }}" != "success" ]; then
+                      echo "Extension Integration Tests failed, see previous step for test output."
+                  fi
+                  if [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
+                      echo "Webview Tests failed, see previous step for test output."
+                  fi
                   if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
-                      echo "Tests failed."
                       exit 1
                   fi
 

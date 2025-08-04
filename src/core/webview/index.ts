@@ -4,6 +4,7 @@ import { getNonce } from "./getNonce"
 
 import { WebviewProviderType } from "@/shared/webview/types"
 import { Controller } from "@core/controller/index"
+import { CacheService } from "@core/storage/CacheService"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
@@ -30,6 +31,8 @@ export abstract class WebviewProvider {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
+
+		// Create controller with cache service
 		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
 	}
 
