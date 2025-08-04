@@ -19,11 +19,12 @@ export abstract class ProtoBusClient {
 				if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
 					// Remove listener once we get our response
 					window.removeEventListener("message", handleResponse)
-
-					if (message.grpc_response.error) {
+					if (message.grpc_response.message) {
+						resolve(message.grpc_response.message)
+					} else if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
 					} else {
-						resolve(message.grpc_response.message)
+						console.error("Received ProtoBus message with no response or error ", JSON.stringify(message))
 					}
 				}
 			}
@@ -54,16 +55,18 @@ export abstract class ProtoBusClient {
 		const handleResponse = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
-				if (message.grpc_response.error) {
+				if (message.grpc_response.message) {
+					// Process streaming message
+					callbacks.onResponse(message.grpc_response.message)
+				} else if (message.grpc_response.error) {
 					// Handle error
 					if (callbacks.onError) {
 						callbacks.onError(new Error(message.grpc_response.error))
 					}
 					// Only remove the event listener on error
 					window.removeEventListener("message", handleResponse)
-				} else if (message.grpc_response.message) {
-					// Process streaming message
-					callbacks.onResponse(message.grpc_response.message)
+				} else {
+					console.error("Received ProtoBus message with no response or error ", JSON.stringify(message))
 				}
 				if (message.grpc_response.is_streaming === false) {
 					if (callbacks.onComplete) {
