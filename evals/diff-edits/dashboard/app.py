@@ -331,6 +331,42 @@ def get_performance_grade(success_rate):
     else:
         return "C", "poor"
 
+def get_error_description(error_enum, error_string=None):
+    """Map error enum values to user-friendly descriptions"""
+    error_map = {
+        1: "No tool calls - Model didn't use the replace_in_file tool",
+        2: "Multiple tool calls - Model called multiple tools instead of one", 
+        3: "Wrong tool call - Model used wrong tool (not replace_in_file)",
+        4: "Missing parameters - Tool call missing required path or diff",
+        5: "Wrong file edited - Model edited different file than expected",
+        6: "Wrong tool call - Model used wrong tool type",
+        7: "Wrong file edited - Model targeted incorrect file path",
+        8: "API/Stream error - Problem with model API connection",
+        9: "Configuration error - Invalid evaluation parameters",
+        10: "Function error - Invalid parsing/diff functions",
+        11: "Other error - Unexpected failure"
+    }
+    
+    base_description = error_map.get(error_enum, f"Unknown error (code: {error_enum})")
+    
+    if error_string:
+        return f"{base_description}: {error_string}"
+    return base_description
+
+def get_error_guidance(error_enum):
+    """Provide specific guidance based on error type"""
+    guidance_map = {
+        1: "💡 The model provided a response but didn't use the replace_in_file tool. Check the raw output to see what the model actually said.",
+        2: "💡 The model called multiple tools when it should only call replace_in_file once. Check the parsed tool call section.",
+        3: "💡 The model used a different tool instead of replace_in_file. This might indicate confusion about the task.",
+        4: "💡 The model called replace_in_file but didn't provide the required 'path' or 'diff' parameters.",
+        5: "💡 The model tried to edit a different file than expected. Check the parsed tool call to see which file it targeted.",
+        6: "💡 The model used the wrong tool type. Check the raw output to see what tool it attempted to use.",
+        7: "💡 The model tried to edit a different file path than expected. This could indicate path confusion or hallucination.",
+    }
+    
+    return guidance_map.get(error_enum, "")
+
 def render_hero_section(current_run, model_performance):
     """Render the hero section with key metrics"""
     run_title = current_run['description'] if current_run['description'] else f"Run {current_run['run_id'][:8]}..."
@@ -570,12 +606,16 @@ def render_result_detail(result):
     """Render detailed view of a single result"""
     st.markdown("### 🔬 Result Deep Dive")
     
-    # Check if this is a valid result
-    is_valid = (result['error_enum'] not in [1, 6, 7]) if not pd.isna(result['error_enum']) else True
+    # Check if this is a valid result (only invalid if no tool calls or wrong file)
+    is_valid = True
+    if not pd.isna(result['error_enum']):
+        # Only these specific errors make a result "invalid" for the benchmark:
+        # 1 = no_tool_calls, 5 = wrong_file_edited, 7 = wrong_file_edited
+        is_valid = result['error_enum'] not in [1, 5, 7]
     
     # Show validity warning if needed
     if not is_valid:
-        st.warning("⚠️ **This is an invalid result** - The model didn't properly call the diff edit tool or edited the wrong file. This result is excluded from success rate calculations.")
+        st.warning("⚠️ **This is an invalid result** - The model didn't call the replace_in_file tool or edited the wrong file. This result is excluded from success rate calculations.")
     
     # Result metadata
     col1, col2, col3, col4 = st.columns(4)
@@ -696,8 +736,46 @@ def render_file_and_edits_view(result):
             # Show error information
             st.error("❌ **Edit Failed**")
             
+            # Show detailed error reason
             if not pd.isna(result['error_enum']):
-                st.markdown(f"**Error Code:** {result['error_enum']}")
+                error_description = get_error_description(
+                    result['error_enum'], 
+                    result.get('error_string')
+                )
+                st.markdown(f"**Reason:** {error_description}")
+                
+                # Show specific guidance based on error type
+                guidance = get_error_guidance(result['error_enum'])
+                if guidance:
+                    st.info(guidance)
+            
+            # For valid results that failed, check for diff application failures
+            elif not result['succeeded']:
+                # This is a valid result that failed - likely due to diff application issues
+                raw_output = result.get('raw_model_output', '')
+                
+                # Check if we have specific error information in the raw output
+                if 'does not match anything in the file' in str(raw_output).lower():
+                    st.warning("⚠️ **Diff Application Failed**")
+                    st.info("💡 The SEARCH block in the diff didn't match any content in the original file. This usually means the model hallucinated code that doesn't exist.")
+                elif 'malformatted' in str(raw_output).lower() or 'malformed' in str(raw_output).lower():
+                    st.warning("⚠️ **Diff Format Error**")
+                    st.info("💡 The diff format was incorrect. Check the raw tool call to see the formatting issues.")
+                elif 'error:' in str(raw_output).lower():
+                    # Try to extract the specific error message
+                    lines = str(raw_output).split('\n')
+                    error_lines = [line for line in lines if 'error:' in line.lower()]
+                    if error_lines:
+                        error_msg = error_lines[0].strip()
+                        st.warning("⚠️ **Diff Application Failed**")
+                        st.info(f"💡 {error_msg}")
+                    else:
+                        st.warning("⚠️ **Diff Application Failed**")
+                        st.info("💡 The diff couldn't be applied to the original file. Check the raw output and parsed tool call for more details.")
+                else:
+                    # Generic diff application failure
+                    st.warning("⚠️ **Diff Application Failed**")
+                    st.info("💡 The model made a valid tool call but the diff couldn't be applied to the original file. This usually indicates a mismatch between the expected and actual file content.")
         else:
             # Show successful edit information
             st.success("✅ **Edit Successful**")
