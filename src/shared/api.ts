@@ -2737,7 +2737,6 @@ export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
 // https://groq.com/pricing/
 export type GroqModelId = keyof typeof groqModels
 export const groqDefaultModelId: GroqModelId = "openai/gpt-oss-120b"
-
 export const groqModels = {
 	"openai/gpt-oss-120b": {
 		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
