@@ -134,12 +134,12 @@ async function checkGitInstallation(
 			cline.checkpointServiceInitializing = false
 		})
 
-		service.on("checkpoint", ({ isFirst, fromHash: from, toHash: to }) => {
+		service.on("checkpoint", ({ fromHash: from, toHash: to }) => {
 			try {
 				provider?.postMessageToWebview({ type: "currentCheckpointUpdated", text: to })
 
 				cline
-					.say("checkpoint_saved", to, undefined, undefined, { isFirst, from, to }, undefined, {
+					.say("checkpoint_saved", to, undefined, undefined, { from, to }, undefined, {
 						isNonInteractive: true,
 					})
 					.catch((err) => {

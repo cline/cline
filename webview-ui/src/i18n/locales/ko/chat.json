@@ -139,7 +139,6 @@
 		"streamingFailed": "API 스트리밍 실패"
 	},
 	"checkpoint": {
-		"initial": "초기 체크포인트",
 		"regular": "체크포인트",
 		"initializingWarning": "체크포인트 초기화 중... 시간이 너무 오래 걸리면 <settingsLink>설정</settingsLink>에서 체크포인트를 비활성화하고 작업을 다시 시작할 수 있습니다.",
 		"menu": {

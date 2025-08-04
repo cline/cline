@@ -139,7 +139,6 @@
 		"streamingFailed": "Strumieniowanie API nie powiodło się"
 	},
 	"checkpoint": {
-		"initial": "Początkowy punkt kontrolny",
 		"regular": "Punkt kontrolny",
 		"initializingWarning": "Trwa inicjalizacja punktu kontrolnego... Jeśli to trwa zbyt długo, możesz wyłączyć punkty kontrolne w <settingsLink>ustawieniach</settingsLink> i uruchomić zadanie ponownie.",
 		"menu": {

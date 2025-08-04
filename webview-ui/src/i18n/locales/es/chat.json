@@ -139,7 +139,6 @@
 		"streamingFailed": "Transmisión API falló"
 	},
 	"checkpoint": {
-		"initial": "Punto de control inicial",
 		"regular": "Punto de control",
 		"initializingWarning": "Todavía inicializando el punto de control... Si esto tarda demasiado, puedes desactivar los puntos de control en la <settingsLink>configuración</settingsLink> y reiniciar tu tarea.",
 		"menu": {

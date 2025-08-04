@@ -134,7 +134,6 @@
 		"streamingFailed": "API-streaming mislukt"
 	},
 	"checkpoint": {
-		"initial": "Initiële checkpoint",
 		"regular": "Checkpoint",
 		"initializingWarning": "Checkpoint wordt nog steeds geïnitialiseerd... Als dit te lang duurt, kun je checkpoints uitschakelen in de <settingsLink>instellingen</settingsLink> en je taak opnieuw starten.",
 		"menu": {

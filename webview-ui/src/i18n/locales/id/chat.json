@@ -148,7 +148,6 @@
 		"streamingFailed": "Streaming API Gagal"
 	},
 	"checkpoint": {
-		"initial": "Checkpoint Awal",
 		"regular": "Checkpoint",
 		"initializingWarning": "Masih menginisialisasi checkpoint... Jika ini terlalu lama, kamu bisa menonaktifkan checkpoint di <settingsLink>pengaturan</settingsLink> dan restart tugas.",
 		"menu": {
