@@ -64,8 +64,10 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import type { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import type { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls } from "@utils/git"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -73,19 +75,16 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
 import { ErrorService } from "@/services/error/ErrorService"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
+import type { CacheService } from "../storage/CacheService"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { CacheService } from "../storage/CacheService"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { ShowMessageType } from "@/shared/proto/index.host"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -1872,11 +1871,6 @@ export class Task {
 					throw new Error("API request failed")
 				}
 
-				// Do not retry automatically again if currently unauthenticated
-				if (clineError.isErrorType(ClineErrorType.Auth)) {
-					return
-				}
-
 				// Clear streamingFailedMessage when user manually retries
 				const manualRetryApiReqIndex = findLastIndex(
 					this.messageStateHandler.getClineMessages(),
@@ -1892,6 +1886,9 @@ export class Task {
 				}
 
 				await this.say("api_req_retried")
+
+				// Reset the automatic retry flag so the request can proceed
+				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
