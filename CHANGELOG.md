@@ -2,8 +2,6 @@
 
 ## 3.20.8
 
-### Patch Changes
-
 - 3dd2ed9: Add comment about testing fix
 
 ## [3.20.7]
