@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
+import { clineEnvConfig } from "@/config"
 import { openExternal } from "@/utils/env"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
 
@@ -35,25 +36,30 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUri(): Promise<string> {
-		if (!this.enabled) {
-			throw Error("AuthHandler was not enabled")
-		}
-
-		if (!this.server) {
-			// If server creation is already in progress, wait for it
-			if (this.serverCreationPromise) {
-				await this.serverCreationPromise
-			} else {
-				// Start server creation and track the promise
-				this.serverCreationPromise = this.createServer()
-				await this.serverCreationPromise
+	public async getCallbackUri(): Promise<string | undefined> {
+		try {
+			if (!this.enabled) {
+				return undefined
 			}
-		} else {
-			this.updateTimeout()
-		}
 
-		return `http://127.0.0.1:${this.port}`
+			if (!this.server) {
+				// If server creation is already in progress, wait for it
+				if (this.serverCreationPromise) {
+					await this.serverCreationPromise
+				} else {
+					// Start server creation and track the promise
+					this.serverCreationPromise = this.createServer()
+					await this.serverCreationPromise
+				}
+			} else {
+				this.updateTimeout()
+			}
+
+			return `http://127.0.0.1:${this.port}`
+		} catch (error) {
+			console.error("AuthHandler.getCallbackUri error:", error)
+			return undefined
+		}
 	}
 
 	private async createServer(): Promise<void> {

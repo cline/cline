@@ -61,7 +61,6 @@ describe("FileContextTracker", () => {
 			(() => {}) as DiffViewProviderCreator,
 			vscodeHostBridgeClient,
 			(_) => {},
-			async () => "",
 		)
 
 		// Create tracker instance
