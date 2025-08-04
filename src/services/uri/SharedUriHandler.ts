@@ -12,17 +12,10 @@ export class SharedUriHandler {
 	 * @returns Promise<boolean> indicating success (true) or failure (false)
 	 */
 	public static async handleUri(uri: vscode.Uri, visibleWebview?: WebviewProvider): Promise<boolean> {
-		console.log("SharedUriHandler: Processing URI:", {
-			path: uri.path,
-			query: uri.query,
-			scheme: uri.scheme,
-		})
-
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 
 		if (!visibleWebview) {
-			console.warn("SharedUriHandler: No visible webview provided")
 			return false
 		}
 

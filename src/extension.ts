@@ -266,13 +266,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
-	const handleUri = async (uri: vscode.Uri) => {
-		const success = await SharedUriHandler.handleUri(uri)
+	const handleUri = async (uri: vscode.Uri): Promise<boolean> => {
+		const visibleWebview = WebviewProvider.getVisibleInstance()
+		const success = await SharedUriHandler.handleUri(uri, visibleWebview)
 		if (!success) {
 			console.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
+		return success
 	}
-	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// VSCode URI handler interface expects void return, so wrap our function
+	const vscodeUriHandler = async (uri: vscode.Uri): Promise<void> => {
+		await handleUri(uri)
+	}
+	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: vscodeUriHandler }))
 
 	// Register size testing commands in development mode
 	if (IS_DEV && IS_DEV === "true") {
