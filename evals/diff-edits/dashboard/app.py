@@ -591,7 +591,10 @@ def render_result_detail(result):
         st.markdown(f"**Round Trip:** {result['time_round_trip_ms']:.0f}ms")
     
     with col4:
-        st.markdown(f"**Cost:** ${result['cost_usd']:.4f}")
+        if pd.notna(result['cost_usd']) and result['cost_usd'] is not None:
+            st.markdown(f"**Cost:** ${result['cost_usd']:.4f}")
+        else:
+            st.markdown(f"**Cost:** Free")
     
     # Tabbed interface for different views
     tab1, tab2, tab3, tab4 = st.tabs(["📄 File & Edits", "🤖 Raw Output", "🔧 Parsed Tool Call", "📊 Metrics"])
@@ -725,8 +728,25 @@ def render_file_and_edits_view(result):
                     if len(edited_lines) > 50:
                         st.text(f"... ({len(edited_lines) - 50} more lines)")
         
-        # Show parsed tool call if available
+        # Show raw and parsed tool calls if available
         if not pd.isna(result['parsed_tool_call_json']):
+            with st.expander("View Raw Tool Call"):
+                # Extract the raw tool call text from the model output
+                raw_output = result['raw_model_output'] if not pd.isna(result['raw_model_output']) else ""
+                
+                # Try to extract just the tool call portion
+                if raw_output and '<replace_in_file>' in raw_output:
+                    # Find the tool call block
+                    start_idx = raw_output.find('<replace_in_file>')
+                    end_idx = raw_output.find('</replace_in_file>') + len('</replace_in_file>')
+                    if start_idx != -1 and end_idx != -1:
+                        raw_tool_call = raw_output[start_idx:end_idx]
+                        st.code(raw_tool_call, language='xml')
+                    else:
+                        st.text("Tool call not found in raw output")
+                else:
+                    st.text("No raw tool call available")
+            
             with st.expander("View Parsed Tool Call"):
                 try:
                     parsed_call = json.loads(result['parsed_tool_call_json'])
@@ -795,8 +815,10 @@ def render_metrics_view(result):
         if not pd.isna(result['completion_tokens']):
             st.metric("Completion Tokens", int(result['completion_tokens']))
         
-        if not pd.isna(result['cost_usd']):
+        if pd.notna(result['cost_usd']) and result['cost_usd'] is not None:
             st.metric("Cost", f"${result['cost_usd']:.4f}")
+        else:
+            st.metric("Cost", "Free")
         
         if not pd.isna(result['tokens_in_context']):
             st.metric("Context Tokens", int(result['tokens_in_context']))
