@@ -7,6 +7,7 @@ import { getBinPath } from "../ripgrep"
 import type { Fzf, FzfResultItem } from "fzf"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { isLocatedInWorkspace, asRelativePath } from "@/utils/path"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
@@ -117,10 +118,9 @@ export async function searchWorkspaceFiles(
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
 		for (const filePath of activeFilePaths) {
-			const relativePath = path.relative(workspacePath, filePath)
-			// Only include files that are within the workspace
-			if (!relativePath.startsWith("..") && relativePath !== filePath) {
-				const normalizedPath = relativePath.replace(/\\/g, "/") // Normalize path separators
+			if (await isLocatedInWorkspace(filePath)) {
+				const relativePath = await asRelativePath(filePath)
+				const normalizedPath = relativePath.toPosix()
 				activeFiles.push({
 					path: normalizedPath,
 					type: "file",
