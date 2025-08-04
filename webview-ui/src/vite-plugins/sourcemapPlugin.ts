@@ -88,8 +88,8 @@ export function sourcemapPlugin(): Plugin {
 								})
 							}
 
-							// Write back the updated source map
-							fs.writeFileSync(mapPath, JSON.stringify(mapContent))
+							// Write back the updated source map with proper formatting
+							fs.writeFileSync(mapPath, JSON.stringify(mapContent, null, 2))
 							console.log(`Updated source map for ${jsFile}`)
 						} catch (error) {
 							console.error(`Error processing source map for ${jsFile}:`, error)

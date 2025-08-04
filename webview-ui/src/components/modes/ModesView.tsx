@@ -755,17 +755,25 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 											}
 										}}
 										onChange={(e) => {
-											setLocalModeName(e.target.value)
+											const newName = e.target.value
+											// Allow users to type freely, including emptying the field
+											setLocalModeName(newName)
 										}}
 										onBlur={() => {
 											const customMode = findModeBySlug(visualMode, customModes)
-											if (customMode && localModeName.trim()) {
+											if (customMode) {
+												const trimmedName = localModeName.trim()
 												// Only update if the name is not empty
-												updateCustomMode(visualMode, {
-													...customMode,
-													name: localModeName,
-													source: customMode.source || "global",
-												})
+												if (trimmedName) {
+													updateCustomMode(visualMode, {
+														...customMode,
+														name: trimmedName,
+														source: customMode.source || "global",
+													})
+												} else {
+													// Revert to the original name if empty
+													setLocalModeName(customMode.name)
+												}
 											}
 											// Clear the editing state
 											setCurrentEditingModeSlug(null)
