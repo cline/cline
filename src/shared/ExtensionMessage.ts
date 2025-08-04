@@ -62,6 +62,7 @@ export interface ExtensionState {
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
+	strictPlanModeEnabled?: boolean
 }
 
 export interface ClineMessage {
