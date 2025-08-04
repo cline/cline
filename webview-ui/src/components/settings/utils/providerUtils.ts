@@ -50,8 +50,10 @@ import {
 	groqDefaultModelId,
 	huaweiCloudMaasModels,
 	huaweiCloudMaasDefaultModelId,
-	zaiModels,
-	zaiDefaultModelId,
+	mainlandZAiModels,
+	internationalZAiModels,
+	mainlandZAiDefaultModelId,
+	internationalZAiDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -269,7 +271,10 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
 		case "zai":
-			return getProviderData(zaiModels, zaiDefaultModelId)
+			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+			const zaiDefaultId =
+				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+			return getProviderData(zaiModels, zaiDefaultId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

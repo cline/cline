@@ -1,4 +1,4 @@
-import { ApiConfiguration, zaiModels } from "@shared/api"
+import { ApiConfiguration, mainlandZAiModels, internationalZAiModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -7,6 +7,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { Mode } from "@shared/storage/types"
+import { useMemo } from "react"
 /**
  * Props for the ZAiProvider component
  */
@@ -25,6 +26,12 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// Determine which models to use based on API line selection
+	const zaiModels = useMemo(
+		() => (apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels),
+		[apiConfiguration?.zaiApiLine],
+	)
 
 	return (
 		<div>

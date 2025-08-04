@@ -1,5 +1,13 @@
 import { ApiHandler } from ".."
-import { zaiDefaultModelId, zaiModelId, zaiModels, ModelInfo } from "@shared/api"
+import {
+	ModelInfo,
+	mainlandZAiModels,
+	internationalZAiModels,
+	mainlandZAiDefaultModelId,
+	internationalZAiDefaultModelId,
+	mainlandZAiModelId,
+	internationalZAiModelId,
+} from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -19,6 +27,10 @@ export class ZAiHandler implements ApiHandler {
 		this.options = options
 	}
 
+	private useChinaApi(): boolean {
+		return this.options.zaiApiLine === "china"
+	}
+
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.zaiApiKey) {
@@ -26,28 +38,30 @@ export class ZAiHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL:
-						this.options.zaiApiLine === "china"
-							? "https://open.bigmodel.cn/api/paas/v4"
-							: "https://api.z.ai/api/paas/v4",
+					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
 					apiKey: this.options.zaiApiKey,
 				})
-			} catch (error) {
+			} catch (error: any) {
 				throw new Error(`Error creating Z AI client: ${error.message}`)
 			}
 		}
 		return this.client
 	}
 
-	getModel(): { id: zaiModelId; info: ModelInfo } {
+	getModel(): { id: mainlandZAiModelId | internationalZAiModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in zaiModels) {
-			const id = modelId as zaiModelId
-			return { id, info: zaiModels[id] }
-		}
-		return {
-			id: zaiDefaultModelId,
-			info: zaiModels[zaiDefaultModelId],
+		if (this.useChinaApi()) {
+			return {
+				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
+				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
+			}
+		} else {
+			return {
+				id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
+				info:
+					internationalZAiModels[modelId as internationalZAiModelId] ??
+					internationalZAiModels[internationalZAiDefaultModelId],
+			}
 		}
 	}
 
