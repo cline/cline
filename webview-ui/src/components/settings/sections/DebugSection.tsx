@@ -10,6 +10,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 	return (
 		<div>
 			{renderSectionHeader("debug")}
+
 			<Section>
 				<VSCodeButton
 					onClick={() => onResetState()}

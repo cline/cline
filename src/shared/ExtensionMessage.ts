@@ -11,7 +11,7 @@ import { McpDisplayMode } from "./McpDisplayMode"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" // New type for gRPC responses
+	type: "grpc_response" | "latency_pong" // New type for gRPC responses and latency measurement
 
 	grpc_response?: {
 		message?: any // JSON serialized protobuf message
@@ -20,6 +20,8 @@ export interface ExtensionMessage {
 		is_streaming?: boolean // Whether this is part of a streaming response
 		sequence_number?: number // For ordering chunks in streaming responses
 	}
+	timestamp?: number // For latency measurement
+	latency?: number // Calculated latency in ms
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"

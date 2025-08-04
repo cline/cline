@@ -1,6 +1,7 @@
 import Section from "../Section"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
+import LatencyTester from "../LatencyTester"
 interface AboutSectionProps {
 	version: string
 	renderSectionHeader: (tabId: string) => JSX.Element | null
@@ -20,6 +21,9 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 					</p>
 					<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
 				</div>
+			</Section>
+			<Section>
+				<LatencyTester />
 			</Section>
 		</div>
 	)

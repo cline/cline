@@ -13,6 +13,7 @@ export interface WebviewMessage {
 		| "telemetrySetting"
 		| "grpc_request"
 		| "grpc_request_cancel"
+		| "latency_ping"
 
 	text?: string
 	disabled?: boolean
@@ -66,6 +67,7 @@ export interface WebviewMessage {
 	shellIntegrationTimeout?: number
 	terminalReuseEnabled?: boolean
 	defaultTerminalProfile?: string
+	timestamp?: number // For latency measurement
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

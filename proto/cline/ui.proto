@@ -190,6 +190,13 @@ message ClineApiReqInfo {
   ApiReqRetryStatus retry_status = 9;
 }
 
+// Message for ping requests with payload size
+message PingRequest {
+  Metadata metadata = 1;
+  int64 timestamp = 2;
+  int32 payload_size_kb = 3; // Size in KB (1, 100, 1024)
+}
+
 // Main ClineMessage type
 message ClineMessage {
   int64 ts = 1;
@@ -267,4 +274,7 @@ service UiService {
   
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);
+  
+  // Ping method for measuring gRPC latency with variable payload sizes
+  rpc ping(PingRequest) returns (KeyValuePair);
 }

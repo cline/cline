@@ -261,6 +261,22 @@ export class Controller {
 				}
 				break
 			}
+			case "latency_ping": {
+				const receivedTime = performance.now()
+				const latency = message.timestamp ? receivedTime - message.timestamp : 0
+
+				// Log to both console and output channel
+				console.log(`🏓 LATENCY MEASUREMENT: ${latency.toFixed(2)}ms`)
+				HostProvider.get().logToChannel(`🏓 LATENCY MEASUREMENT: ${latency.toFixed(2)}ms`)
+
+				// Send pong response back to webview
+				await this.postMessageToWebview({
+					type: "latency_pong",
+					timestamp: message.timestamp,
+					latency: latency,
+				})
+				break
+			}
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
