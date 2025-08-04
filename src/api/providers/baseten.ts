@@ -115,6 +115,8 @@ export class BasetenHandler implements ApiHandler {
 			temperature: 0,
 		})
 
+		let didOutputUsage = false
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 
@@ -136,9 +138,10 @@ export class BasetenHandler implements ApiHandler {
 				}
 			}
 
-			// Handle usage information
-			if (chunk.usage) {
+			// Handle usage information - only output once
+			if (!didOutputUsage && chunk.usage) {
 				yield* this.yieldUsage(model.info, chunk.usage)
+				didOutputUsage = true
 			}
 		}
 	}
