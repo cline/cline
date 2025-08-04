@@ -102,7 +102,7 @@ jobs:
             #   run: npm run test:unit
 
             # Run extension tests with coverage
-            - name: Extension Tests with Coverage
+            - name: Extension Integration Tests with Coverage
               id: extension_coverage
               continue-on-error: true
               run: |
@@ -133,7 +133,6 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
-                  retention-period: workflow # Artifacts are automatically deleted when the workflow completes
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
