@@ -125,11 +125,10 @@ export class E2ETestHelper {
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
 		const editorMenu = page.locator("li").filter({ hasText: "[Extension Development Host]" }).first()
-		await editorMenu.click()
+		await editorMenu.click({ delay: 100 })
 		const editorSearchBar = page.getByRole("textbox", {
 			name: "Search files by name (append",
 		})
-		await expect(editorSearchBar).toBeVisible()
 		await editorSearchBar.click({ delay: 100 }) // Ensure focus
 		await editorSearchBar.fill(`>${command}`)
 		await page.keyboard.press("Enter")
