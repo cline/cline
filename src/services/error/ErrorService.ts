@@ -3,23 +3,15 @@ import type { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import { ClineError } from "./ClineError"
 
 const isDev = process.env.IS_DEV === "true"
-// const EXTENSION_ID = "saoudrizwan.claude-dev"
 
 export class ErrorService {
 	private posthogProvider: PostHogClientProvider
 
 	constructor(posthogProvider: PostHogClientProvider, _distinctId: string) {
 		this.posthogProvider = posthogProvider
-		console.info("[ErrorService] Initialized with PostHogClientProvider")
 	}
 
 	public logException(error: Error | ClineError): void {
-		console.error("[ErrorService] logException", error)
-		// const isClineExtError = error.stack?.includes(EXTENSION_ID)
-		// if (!isClineExtError) {
-		// 	return
-		// }
-
 		const errorDetails = {
 			message: error.message,
 			stack: error.stack,

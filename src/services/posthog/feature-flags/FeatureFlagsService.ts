@@ -20,10 +20,8 @@ export class FeatureFlagsService {
 	 * @returns Boolean indicating if the feature is enabled
 	 */
 	public async isFeatureFlagEnabled(flagName: string): Promise<boolean> {
-		console.info("[FeatureFlagsService] Checking feature flag:", flagName)
 		try {
 			const flagEnabled = await this.getFeatureFlag(flagName)
-			console.log(`Feature flag ${flagName} is enabled:`, flagEnabled === true)
 			return flagEnabled === true
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)

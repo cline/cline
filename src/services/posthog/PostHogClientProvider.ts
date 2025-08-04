@@ -59,8 +59,6 @@ export class PostHogClientProvider {
 
 		this.telemetrySettings.level = this.telemetryLevel
 
-		console.log("Is activating PostHogClientProvider with distinctId:", this.distinctId)
-
 		// Initialize services
 		this.telemetry = new TelemetryService(this)
 		this.error = new ErrorService(this, this.distinctId)
@@ -71,7 +69,6 @@ export class PostHogClientProvider {
 	}
 
 	private get isTelemetryEnabled(): boolean {
-		console.log("Telemetry is enabled:", this.telemetrySettings)
 		return this.telemetrySettings.cline && this.telemetrySettings.host
 	}
 
@@ -85,7 +82,6 @@ export class PostHogClientProvider {
 	}
 
 	public toggleOptIn(optIn: boolean): void {
-		console.log("Telemetry opt-in status:", optIn)
 		if (optIn && !this.telemetrySettings.cline) {
 			this.client.optIn()
 		}
@@ -121,12 +117,11 @@ export class PostHogClientProvider {
 	}
 
 	public log(event: string, properties?: Record<string, unknown>): void {
-		if (!this.isTelemetryEnabled) {
+		if (!this.isTelemetryEnabled || this.telemetryLevel === "off") {
 			return
 		}
 		// Filter events based on telemetry level
-		if (this.telemetryLevel !== "error" && this.telemetryLevel !== "all") {
-			console.log("Loging", event)
+		if (this.telemetryLevel === "error") {
 			if (!event.includes("error")) {
 				return
 			}
