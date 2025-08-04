@@ -240,7 +240,7 @@ function isFileMention(mention: string): boolean {
 function getFilePathFromMention(mention: string): string {
 	// Remove quotes
 	const match = mention.match(/^"(.*)"$/)
-	var filePath = match ? match[1] : mention
+	const filePath = match ? match[1] : mention
 	// Remove leading slash
 	return filePath.slice(1)
 }
