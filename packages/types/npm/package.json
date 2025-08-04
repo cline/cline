@@ -1,6 +1,6 @@
 {
 	"name": "@roo-code/types",
-	"version": "1.42.0",
+	"version": "1.43.0",
 	"description": "TypeScript type definitions for Roo Code.",
 	"publishConfig": {
 		"access": "public",
@@ -37,5 +37,8 @@
 	},
 	"files": [
 		"dist"
-	]
+	],
+	"dependencies": {
+		"zod": "^3.25.61"
+	}
 }

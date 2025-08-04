@@ -18,8 +18,7 @@
 		"check-types": "tsc --noEmit",
 		"test": "vitest run",
 		"build": "tsup",
-		"npm:publish:test": "tsup --outDir npm/dist && cd npm && npm publish --dry-run",
-		"npm:publish": "tsup --outDir npm/dist && cd npm && npm publish",
+		"npm:publish": "cd npm && npm version minor && cd - && tsup --outDir npm/dist && cd npm && npm publish",
 		"clean": "rimraf dist npm/dist .turbo"
 	},
 	"dependencies": {
