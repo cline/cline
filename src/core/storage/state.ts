@@ -171,6 +171,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		moonshotApiKey,
 		nebiusApiKey,
 		huggingFaceApiKey,
+		vercelAiGatewayApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 		globalClineRulesToggles,
@@ -252,6 +253,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "moonshotApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getSecret(context, "huggingFaceApiKey") as Promise<string | undefined>,
+		getSecret(context, "vercelAiGatewayApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
@@ -315,6 +317,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planModeHuggingFaceModelInfo,
 		planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo,
+		planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo,
 		// Act mode configurations
 		actModeApiProvider,
 		actModeApiModelId,
@@ -344,6 +348,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		actModeHuggingFaceModelInfo,
 		actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo,
+		actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "preferredLanguage") as Promise<string | undefined>,
 		getGlobalState(context, "openaiReasoningEffort") as Promise<OpenaiReasoningEffort | undefined>,
@@ -378,6 +384,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "planModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "planModeVercelAiGatewayModelId") as Promise<string | undefined>,
+		getGlobalState(context, "planModeVercelAiGatewayModelInfo") as Promise<ModelInfo | undefined>,
 		// Act mode configurations
 		getGlobalState(context, "actModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "actModeApiModelId") as Promise<string | undefined>,
@@ -407,6 +415,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "actModeHuggingFaceModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelId") as Promise<string | undefined>,
 		getGlobalState(context, "actModeHuaweiCloudMaasModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "actModeVercelAiGatewayModelId") as Promise<string | undefined>,
+		getGlobalState(context, "actModeVercelAiGatewayModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -499,6 +509,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			basetenApiKey,
 			moonshotApiKey,
 			nebiusApiKey,
+			vercelAiGatewayApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
 			sapAiCoreClientId,
@@ -537,6 +548,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -566,6 +579,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		},
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
@@ -638,6 +653,7 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"vercelAiGatewayApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => storeSecret(context, key, undefined)))
 	await controller.cacheService.reInitialize()
