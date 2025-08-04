@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.20.8
+## [3.20.8]
 
-- 3dd2ed9: Add comment about testing fix
+- Add navbar tooltips on hover
 
 ## [3.20.7]
 
