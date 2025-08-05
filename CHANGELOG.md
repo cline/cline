@@ -1,5 +1,23 @@
 # Roo Code Changelog
 
+## [3.25.7] - 2025-08-05
+
+- Add support for Claude Opus 4.1
+- Add Fireworks AI provider (#6653 by @ershang-fireworks, PR by @ershang-fireworks)
+- Add Z AI provider (thanks @jues!)
+- Add Groq support for GPT-OSS
+- Add code indexing support for multiple folders similar to task history (#6197 by @NaccOll, PR by @NaccOll)
+- Make mode selection dropdowns responsive (#6423 by @AyazKaan, PR by @AyazKaan)
+- Redesigned task header and task history (thanks @brunobergher!)
+- Fix checkpoints timing and ensure checkpoints work properly (#4827 by @mrubens, PR by @NaccOll)
+- Fix empty mode names from being saved (#5766 by @kfxmvp, PR by @app/roomote)
+- Fix MCP server creation when setting is disabled (#6607 by @characharm, PR by @app/roomote)
+- Update highlight layer style and align to textarea (#6647 by @NaccOll, PR by @NaccOll)
+- Fix UI for approving chained commands
+- Use assistantMessageParser class instead of parseAssistantMessage (#5340 by @qdaxb, PR by @qdaxb)
+- Conditionally include reminder section based on todo list config (thanks @NaccOll!)
+- Task and TaskProvider event emitter cleanup with new events (thanks @cte!)
+
 ## [3.25.6] - 2025-08-01
 
 - Set horizon-beta model max tokens to 32k for OpenRouter (requested by @hannesrudolph, PR by @app/roomote)
