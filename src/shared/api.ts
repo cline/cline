@@ -2562,7 +2562,7 @@ export const cerebrasModels = {
 export type GroqModelId = keyof typeof groqModels
 export const groqDefaultModelId: GroqModelId = "moonshotai/kimi-k2-instruct"
 export const groqModels = {
-	"gpt-oss-120B": {
+	"openai/gpt-oss-120b": {
 		maxTokens: 8192,
 		contextWindow: 128000,
 		supportsImages: false,
@@ -2572,7 +2572,7 @@ export const groqModels = {
 		description:
 			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
 	},
-	"gpt-oss-20B": {
+	"openai/gpt-oss-20b": {
 		maxTokens: 8192,
 		contextWindow: 128000,
 		supportsImages: false,
