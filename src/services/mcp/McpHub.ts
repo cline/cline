@@ -1,8 +1,11 @@
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
+import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
-import ReconnectingEventSource from "reconnecting-eventsource"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -10,16 +13,7 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import chokidar, { FSWatcher } from "chokidar"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import deepEqual from "fast-deep-equal"
-import * as fs from "fs/promises"
-import * as path from "path"
-import * as vscode from "vscode"
-import { z } from "zod"
-import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpResource,
@@ -30,19 +24,24 @@ import {
 	McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fileExistsAtPath } from "@utils/fs"
 import { secondsToMs } from "@utils/time"
-import { GlobalFileNames } from "@core/storage/disk"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import chokidar, { FSWatcher } from "chokidar"
+import deepEqual from "fast-deep-equal"
+import * as fs from "fs/promises"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import * as path from "path"
+import ReconnectingEventSource from "reconnecting-eventsource"
+import * as vscode from "vscode"
+import { z } from "zod"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
-import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
-	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
 	private clientVersion: string
 
 	private disposables: vscode.Disposable[] = []
@@ -65,12 +64,10 @@ export class McpHub {
 	constructor(
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
-		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
 		clientVersion: string,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
-		this.postMessageToWebview = postMessageToWebview
 		this.clientVersion = clientVersion
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
@@ -397,20 +394,6 @@ export class McpHub {
 							message,
 							timestamp: Date.now(),
 						})
-					}
-
-					// Forward to webview if available
-					if (this.postMessageToWebview) {
-						await this.postMessageToWebview({
-							type: "mcpNotification",
-							serverName: name,
-							notification: {
-								level,
-								data,
-								logger,
-								timestamp: Date.now(),
-							},
-						} as any)
 					}
 				})
 				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)

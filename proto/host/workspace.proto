@@ -4,14 +4,14 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
-import "cline/common.proto";
-
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
-  // Saves an open document if it's dirty
-  rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (cline.Empty);
+  // Saves an open document if it's open in the editor and has unsaved changes. 
+  // Returns true if the document was saved, returns false if the document was not found, or did not
+  // need to be saved.
+  rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -28,6 +28,9 @@ message GetWorkspacePathsResponse {
 }
 
 message SaveOpenDocumentIfDirtyRequest {
-  cline.Metadata metadata = 1;
-  string file_path = 2;
+  optional string file_path = 2;
+}
+message SaveOpenDocumentIfDirtyResponse {
+  // Returns true if the document was saved. 
+  optional bool was_saved = 1;
 }

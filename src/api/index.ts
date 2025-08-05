@@ -33,6 +33,7 @@ import { GroqHandler } from "./providers/groq"
 import { Mode } from "@shared/storage/types"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
+import { BasetenHandler } from "./providers/baseten"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -258,6 +259,13 @@ function createHandlerForProvider(
 				groqApiKey: options.groqApiKey,
 				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
 				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "baseten":
+			return new BasetenHandler({
+				basetenApiKey: options.basetenApiKey,
+				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
+				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "sapaicore":

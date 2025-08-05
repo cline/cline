@@ -242,6 +242,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CEREBRAS
 		case "groq":
 			return ProtoApiProvider.GROQ
+		case "baseten":
+			return ProtoApiProvider.BASETEN
 		case "sapaicore":
 			return ProtoApiProvider.SAPAICORE
 		case "claude-code":
@@ -312,6 +314,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "cerebras"
 		case ProtoApiProvider.GROQ:
 			return "groq"
+		case ProtoApiProvider.BASETEN:
+			return "baseten"
 		case ProtoApiProvider.SAPAICORE:
 			return "sapaicore"
 		case ProtoApiProvider.CLAUDE_CODE:
@@ -380,6 +384,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
 		groqApiKey: config.groqApiKey,
+		basetenApiKey: config.basetenApiKey,
 		requestTimeoutMs: config.requestTimeoutMs,
 		sapAiCoreClientId: config.sapAiCoreClientId,
 		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
@@ -410,6 +415,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeFireworksModelId: config.planModeFireworksModelId,
 		planModeGroqModelId: config.planModeGroqModelId,
 		planModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.planModeGroqModelInfo),
+		planModeBasetenModelId: config.planModeBasetenModelId,
+		planModeBasetenModelInfo: convertModelInfoToProtoOpenRouter(config.planModeBasetenModelInfo),
 		planModeHuggingFaceModelId: config.planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuggingFaceModelInfo),
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
@@ -438,6 +445,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeFireworksModelId: config.actModeFireworksModelId,
 		actModeGroqModelId: config.actModeGroqModelId,
 		actModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.actModeGroqModelInfo),
+		actModeBasetenModelId: config.actModeBasetenModelId,
+		actModeBasetenModelInfo: convertModelInfoToProtoOpenRouter(config.actModeBasetenModelInfo),
 		actModeHuggingFaceModelId: config.actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuggingFaceModelInfo),
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
@@ -508,6 +517,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
 		groqApiKey: protoConfig.groqApiKey,
+		basetenApiKey: protoConfig.basetenApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
 		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
 		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
@@ -541,6 +551,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeGroqModelId: protoConfig.planModeGroqModelId,
 		planModeGroqModelInfo: convertProtoToModelInfo(protoConfig.planModeGroqModelInfo),
+		planModeBasetenModelId: protoConfig.planModeBasetenModelId,
+		planModeBasetenModelInfo: convertProtoToModelInfo(protoConfig.planModeBasetenModelInfo),
 		planModeHuggingFaceModelId: protoConfig.planModeHuggingFaceModelId,
 		planModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.planModeHuggingFaceModelInfo),
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
@@ -570,6 +582,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeGroqModelId: protoConfig.actModeGroqModelId,
 		actModeGroqModelInfo: convertProtoToModelInfo(protoConfig.actModeGroqModelInfo),
+		actModeBasetenModelId: protoConfig.actModeBasetenModelId,
+		actModeBasetenModelInfo: convertProtoToModelInfo(protoConfig.actModeBasetenModelInfo),
 		actModeHuggingFaceModelId: protoConfig.actModeHuggingFaceModelId,
 		actModeHuggingFaceModelInfo: convertProtoToModelInfo(protoConfig.actModeHuggingFaceModelInfo),
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,

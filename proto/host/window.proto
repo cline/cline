@@ -84,6 +84,8 @@ message ShowSaveDialogRequest {
 
 message ShowSaveDialogOptions {
   optional string default_path = 1;
+  // A map of file types to extensions, e.g
+  // "Text Files": { "extensions": ["txt", "md"] }
   map<string, FileExtensionList> filters = 2;
 }
 
@@ -92,6 +94,7 @@ message FileExtensionList {
 }
 
 message ShowSaveDialogResponse {
+  // If the user cancelled the dialog, this will be empty.
   optional string selected_path = 1;
 }
 

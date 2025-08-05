@@ -27,6 +27,8 @@ service ModelsService {
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
    // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Baseten models
+  rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -131,6 +133,7 @@ enum ApiProvider {
   MOONSHOT = 28;
   HUGGINGFACE = 29;
   HUAWEI_CLOUD_MAAS = 30;
+  BASETEN = 31;
 }
 
 // Model info for OpenAI-compatible models
@@ -234,6 +237,7 @@ message ModelsApiConfiguration {
   optional string gemini_cli_oauth_path = 61;
   optional string gemini_cli_project_id = 62;
   optional string huawei_cloud_maas_api_key = 63;
+  optional string baseten_api_key = 64;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -262,6 +266,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
   optional string plan_mode_huawei_cloud_maas_model_id = 124;
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125;
+  optional string plan_mode_baseten_model_id = 126;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -290,6 +296,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
   optional string act_mode_huawei_cloud_maas_model_id = 224;
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
+  optional string act_mode_baseten_model_id = 226;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
 
   repeated string favorited_model_ids = 300;
 }

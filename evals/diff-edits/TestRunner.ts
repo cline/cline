@@ -49,16 +49,25 @@ type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] 
 
 class NodeTestRunner {
 	private apiKey: string | undefined
+	private provider: string
 	private currentRunId: string | null = null
 	private systemPromptHash: string | null = null
 	private processingFunctionsHash: string | null = null
 	private caseIdMap: Map<string, string> = new Map() // test_id -> case_id mapping
 
-	constructor(isReplay: boolean) {
+	constructor(isReplay: boolean, provider: string = "openrouter") {
+		this.provider = provider
 		if (!isReplay) {
-			this.apiKey = process.env.OPENROUTER_API_KEY
-			if (!this.apiKey) {
-				throw new Error("OPENROUTER_API_KEY environment variable not set for a non-replay run.")
+			if (provider === "openai") {
+				this.apiKey = process.env.OPENAI_API_KEY
+				if (!this.apiKey) {
+					throw new Error("OPENAI_API_KEY environment variable not set for a non-replay run with OpenAI provider.")
+				}
+			} else {
+				this.apiKey = process.env.OPENROUTER_API_KEY
+				if (!this.apiKey) {
+					throw new Error("OPENROUTER_API_KEY environment variable not set for a non-replay run with OpenRouter provider.")
+				}
 			}
 		}
 	}
@@ -635,6 +644,7 @@ class NodeTestRunner {
 			thinkingBudgetTokens: testConfig.thinking_tokens_budget,
 			originalDiffEditToolCallMessage: testConfig.replay ? testCase.original_diff_edit_tool_call_message : undefined,
 			diffApplyFile: testConfig.diff_apply_file,
+			provider: this.provider,
 			isVerbose: isVerbose,
 		}
 
@@ -927,6 +937,7 @@ async function main() {
 		.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 		.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-26-25")
 		.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
+		.option("--provider <provider>", "API provider to use (openrouter, openai)", "openrouter")
 		.option("--parallel", "Run tests in parallel", false)
 		.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 		.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")
@@ -959,7 +970,7 @@ async function main() {
 		? parseInt(options.maxAttemptsPerCase, 10)
 		: validAttemptsPerCase * 10;
 
-	const runner = new NodeTestRunner(options.replay || !!options.replayRunId)
+	const runner = new NodeTestRunner(options.replay || !!options.replayRunId, options.provider)
 
 	if (options.replayRunId) {
 		if (!options.diffApplyFile) {
@@ -979,7 +990,7 @@ async function main() {
 			log(isVerbose, "Warning: Could not load OpenRouter model data. Context window filtering might be affected for OpenRouter models.");
 		}
 
-		const runner = new NodeTestRunner(options.replay)
+		const runner = new NodeTestRunner(options.replay, options.provider)
 		let allLoadedTestCases = runner.loadTestCases(testPath, isVerbose) // Pass isVerbose
 		
 		const allProcessedTestCasesGlobal: ProcessedTestCase[] = allLoadedTestCases.map((tc) => ({
