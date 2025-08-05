@@ -225,13 +225,11 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	console.log("🏷️  @PROBLEMS: Getting workspace problems via hostbridge")
 	const diagnostics = await getAllDiagnostics()
 	const result = await diagnosticsToProblemsString(diagnostics, [
 		vscode.DiagnosticSeverity.Error,
 		vscode.DiagnosticSeverity.Warning,
 	])
-	console.log(`🏷️  @PROBLEMS: Processed ${diagnostics.length} diagnostic entries`)
 	if (!result) {
 		return "No errors or warnings detected."
 	}

@@ -10,11 +10,8 @@ import {
 } from "@/shared/proto/host/diff"
 
 export async function getDiagnostics(request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
-	console.log("🔧 HOSTBRIDGE: getDiagnostics called via DiffService")
-
 	// Get all diagnostics from VS Code
 	const vscodeAllDiagnostics = vscode.languages.getDiagnostics()
-	console.log(`🔧 HOSTBRIDGE: Found ${vscodeAllDiagnostics.length} files with diagnostics`)
 
 	const fileDiagnostics: FileDiagnostics[] = []
 
@@ -66,10 +63,7 @@ export async function getDiagnostics(request: GetDiagnosticsRequest): Promise<Ge
 		}
 	}
 
-	const response = GetDiagnosticsResponse.create({
+	return GetDiagnosticsResponse.create({
 		fileDiagnostics: fileDiagnostics,
 	})
-
-	console.log(`🔧 HOSTBRIDGE: Returning ${fileDiagnostics.length} files with diagnostics to client`)
-	return response
 }

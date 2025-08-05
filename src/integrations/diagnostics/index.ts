@@ -13,15 +13,11 @@ export type DiagnosticTuple = [vscode.Uri, vscode.Diagnostic[]]
  * Get all diagnostics from the host bridge
  */
 export async function getAllDiagnostics(): Promise<DiagnosticTuple[]> {
-	console.log("📞 CLIENT: Calling HostProvider.diff.getDiagnostics() via hostbridge")
-
 	const response = await HostProvider.diff.getDiagnostics(
 		GetDiagnosticsRequest.create({
 			metadata: Metadata.create({}),
 		}),
 	)
-
-	console.log(`📞 CLIENT: Received ${response.fileDiagnostics.length} files with diagnostics from hostbridge`)
 
 	const result: DiagnosticTuple[] = []
 
