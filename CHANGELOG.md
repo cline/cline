@@ -1,9 +1,8 @@
 # Changelog
 
-## 3.20.10
+## [3.20.10]
 
-- 6e5d4a3: hugging face listing new oss openai models
-groq listing new oss openai models
+- Add OpenAI's new open-source models (GPT-OSS-120B and GPT-OSS-20B) to Hugging Face and Groq providers
 
 ## [3.20.9]
 
