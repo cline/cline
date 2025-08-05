@@ -34,6 +34,7 @@ import {
 	SambaNovaHandler,
 	DoubaoHandler,
 	ZAiHandler,
+	FireworksHandler,
 } from "./providers"
 
 export interface SingleCompletionHandler {
@@ -127,6 +128,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new SambaNovaHandler(options)
 		case "zai":
 			return new ZAiHandler(options)
+		case "fireworks":
+			return new FireworksHandler(options)
 		default:
 			apiProvider satisfies "gemini-cli" | undefined
 			return new AnthropicHandler(options)

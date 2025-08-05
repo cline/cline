@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Cerebras API Anahtarını Al",
 		"chutesApiKey": "Chutes API Anahtarı",
 		"getChutesApiKey": "Chutes API Anahtarı Al",
+		"fireworksApiKey": "Fireworks API Anahtarı",
+		"getFireworksApiKey": "Fireworks API Anahtarı Al",
 		"deepSeekApiKey": "DeepSeek API Anahtarı",
 		"getDeepSeekApiKey": "DeepSeek API Anahtarı Al",
 		"doubaoApiKey": "Doubao API Anahtarı",

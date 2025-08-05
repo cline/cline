@@ -193,6 +193,7 @@ export const SECRET_STATE_KEYS = [
 	"codebaseIndexMistralApiKey",
 	"huggingFaceApiKey",
 	"sambaNovaApiKey",
+	"fireworksApiKey",
 ] as const satisfies readonly (keyof ProviderSettings)[]
 export type SecretState = Pick<ProviderSettings, (typeof SECRET_STATE_KEYS)[number]>
 

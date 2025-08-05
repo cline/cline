@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "取得 Cerebras API 金鑰",
 		"chutesApiKey": "Chutes API 金鑰",
 		"getChutesApiKey": "取得 Chutes API 金鑰",
+		"fireworksApiKey": "Fireworks API 金鑰",
+		"getFireworksApiKey": "取得 Fireworks API 金鑰",
 		"deepSeekApiKey": "DeepSeek API 金鑰",
 		"getDeepSeekApiKey": "取得 DeepSeek API 金鑰",
 		"doubaoApiKey": "豆包 API 金鑰",

@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Lấy khóa API Cerebras",
 		"chutesApiKey": "Khóa API Chutes",
 		"getChutesApiKey": "Lấy khóa API Chutes",
+		"fireworksApiKey": "Khóa API Fireworks",
+		"getFireworksApiKey": "Lấy khóa API Fireworks",
 		"deepSeekApiKey": "Khóa API DeepSeek",
 		"getDeepSeekApiKey": "Lấy khóa API DeepSeek",
 		"doubaoApiKey": "Khóa API Doubao",

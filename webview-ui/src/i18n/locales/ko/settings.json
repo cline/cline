@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Cerebras API 키 가져오기",
 		"chutesApiKey": "Chutes API 키",
 		"getChutesApiKey": "Chutes API 키 받기",
+		"fireworksApiKey": "Fireworks API 키",
+		"getFireworksApiKey": "Fireworks API 키 받기",
 		"deepSeekApiKey": "DeepSeek API 키",
 		"getDeepSeekApiKey": "DeepSeek API 키 받기",
 		"doubaoApiKey": "Doubao API 키",

@@ -25,6 +25,7 @@ body:
         - AWS Bedrock
         - Chutes AI
         - DeepSeek
+        - Fireworks AI
         - Glama
         - Google Gemini
         - Google Vertex AI

@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Pobierz klucz API Cerebras",
 		"chutesApiKey": "Klucz API Chutes",
 		"getChutesApiKey": "Uzyskaj klucz API Chutes",
+		"fireworksApiKey": "Klucz API Fireworks",
+		"getFireworksApiKey": "Uzyskaj klucz API Fireworks",
 		"deepSeekApiKey": "Klucz API DeepSeek",
 		"getDeepSeekApiKey": "Uzyskaj klucz API DeepSeek",
 		"doubaoApiKey": "Klucz API Doubao",

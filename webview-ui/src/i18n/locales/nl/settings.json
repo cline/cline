@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Cerebras API-sleutel verkrijgen",
 		"chutesApiKey": "Chutes API-sleutel",
 		"getChutesApiKey": "Chutes API-sleutel ophalen",
+		"fireworksApiKey": "Fireworks API-sleutel",
+		"getFireworksApiKey": "Fireworks API-sleutel ophalen",
 		"deepSeekApiKey": "DeepSeek API-sleutel",
 		"getDeepSeekApiKey": "DeepSeek API-sleutel ophalen",
 		"doubaoApiKey": "Doubao API-sleutel",

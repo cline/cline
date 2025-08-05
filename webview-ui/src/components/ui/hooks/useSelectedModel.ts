@@ -44,6 +44,8 @@ import {
 	mainlandZAiDefaultModelId,
 	internationalZAiModels,
 	mainlandZAiModels,
+	fireworksModels,
+	fireworksDefaultModelId,
 } from "@roo-code/types"
 
 import type { ModelRecord, RouterModels } from "@roo/api"
@@ -268,6 +270,11 @@ function getSelectedModel({
 		case "sambanova": {
 			const id = apiConfiguration.apiModelId ?? sambaNovaDefaultModelId
 			const info = sambaNovaModels[id as keyof typeof sambaNovaModels]
+			return { id, info }
+		}
+		case "fireworks": {
+			const id = apiConfiguration.apiModelId ?? fireworksDefaultModelId
+			const info = fireworksModels[id as keyof typeof fireworksModels]
 			return { id, info }
 		}
 		// case "anthropic":

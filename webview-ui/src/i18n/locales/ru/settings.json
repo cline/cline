@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Получить Cerebras API-ключ",
 		"chutesApiKey": "Chutes API-ключ",
 		"getChutesApiKey": "Получить Chutes API-ключ",
+		"fireworksApiKey": "Fireworks API-ключ",
+		"getFireworksApiKey": "Получить Fireworks API-ключ",
 		"deepSeekApiKey": "DeepSeek API-ключ",
 		"getDeepSeekApiKey": "Получить DeepSeek API-ключ",
 		"doubaoApiKey": "Doubao API-ключ",

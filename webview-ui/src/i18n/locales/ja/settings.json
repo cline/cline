@@ -261,6 +261,8 @@
 		"getCerebrasApiKey": "Cerebras APIキーを取得",
 		"chutesApiKey": "Chutes APIキー",
 		"getChutesApiKey": "Chutes APIキーを取得",
+		"fireworksApiKey": "Fireworks APIキー",
+		"getFireworksApiKey": "Fireworks APIキーを取得",
 		"deepSeekApiKey": "DeepSeek APIキー",
 		"getDeepSeekApiKey": "DeepSeek APIキーを取得",
 		"doubaoApiKey": "Doubao APIキー",
