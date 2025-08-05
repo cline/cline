@@ -2,10 +2,8 @@
 
 ## 3.20.10
 
-### Patch Changes
-
 - 6e5d4a3: hugging face listing new oss openai models
-  groq listing new oss openai models
+groq listing new oss openai models
 
 ## [3.20.9]
 
