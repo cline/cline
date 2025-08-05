@@ -3,6 +3,7 @@ import { type ModelInfo, type ProviderSettings, ANTHROPIC_DEFAULT_MAX_TOKENS } f
 import {
 	DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
 	DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
+	GEMINI_25_PRO_MIN_THINKING_TOKENS,
 	shouldUseReasoningBudget,
 	shouldUseReasoningEffort,
 	getModelMaxOutputTokens,
@@ -90,8 +91,15 @@ export function getModelParams({
 	let reasoningEffort: ModelParams["reasoningEffort"] = undefined
 
 	if (shouldUseReasoningBudget({ model, settings })) {
+		// Check if this is a Gemini 2.5 Pro model
+		const isGemini25Pro = modelId.includes("gemini-2.5-pro")
+
 		// If `customMaxThinkingTokens` is not specified use the default.
-		reasoningBudget = customMaxThinkingTokens ?? DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS
+		// For Gemini 2.5 Pro, default to 128 instead of 8192
+		const defaultThinkingTokens = isGemini25Pro
+			? GEMINI_25_PRO_MIN_THINKING_TOKENS
+			: DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS
+		reasoningBudget = customMaxThinkingTokens ?? defaultThinkingTokens
 
 		// Reasoning cannot exceed 80% of the `maxTokens` value.
 		// maxTokens should always be defined for reasoning budget models, but add a guard just in case
@@ -99,9 +107,12 @@ export function getModelParams({
 			reasoningBudget = Math.floor(maxTokens * 0.8)
 		}
 
-		// Reasoning cannot be less than 1024 tokens.
-		if (reasoningBudget < 1024) {
-			reasoningBudget = 1024
+		// Reasoning cannot be less than minimum tokens.
+		// For Gemini 2.5 Pro models, the minimum is 128 tokens
+		// For other models, the minimum is 1024 tokens
+		const minThinkingTokens = isGemini25Pro ? GEMINI_25_PRO_MIN_THINKING_TOKENS : 1024
+		if (reasoningBudget < minThinkingTokens) {
+			reasoningBudget = minThinkingTokens
 		}
 
 		// Let's assume that "Hybrid" reasoning models require a temperature of

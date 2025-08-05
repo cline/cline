@@ -3,10 +3,15 @@ import { Checkbox } from "vscrui"
 
 import { type ProviderSettings, type ModelInfo, type ReasoningEffort, reasoningEfforts } from "@roo-code/types"
 
-import { DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS, DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS } from "@roo/api"
+import {
+	DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
+	DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
+	GEMINI_25_PRO_MIN_THINKING_TOKENS,
+} from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Slider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
+import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 
 interface ThinkingBudgetProps {
 	apiConfiguration: ProviderSettings
@@ -16,6 +21,11 @@ interface ThinkingBudgetProps {
 
 export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, modelInfo }: ThinkingBudgetProps) => {
 	const { t } = useAppTranslation()
+	const { id: selectedModelId } = useSelectedModel(apiConfiguration)
+
+	// Check if this is a Gemini 2.5 Pro model
+	const isGemini25Pro = selectedModelId && selectedModelId.includes("gemini-2.5-pro")
+	const minThinkingTokens = isGemini25Pro ? GEMINI_25_PRO_MIN_THINKING_TOKENS : 1024
 
 	const isReasoningBudgetSupported = !!modelInfo && modelInfo.supportsReasoningBudget
 	const isReasoningBudgetRequired = !!modelInfo && modelInfo.requiredReasoningBudget
@@ -81,9 +91,9 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 						<div className="font-medium">{t("settings:thinkingBudget.maxThinkingTokens")}</div>
 						<div className="flex items-center gap-1" data-testid="reasoning-budget">
 							<Slider
-								min={1024}
+								min={minThinkingTokens}
 								max={modelMaxThinkingTokens}
-								step={1024}
+								step={minThinkingTokens === 128 ? 128 : 1024}
 								value={[customMaxThinkingTokens]}
 								onValueChange={([value]) => setApiConfigurationField("modelMaxThinkingTokens", value)}
 							/>

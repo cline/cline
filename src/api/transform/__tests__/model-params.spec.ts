@@ -331,6 +331,57 @@ describe("getModelParams", () => {
 			})
 		})
 
+		it("should clamp Gemini 2.5 Pro thinking budget to at least 128 tokens", () => {
+			const model: ModelInfo = {
+				...baseModel,
+				requiredReasoningBudget: true,
+			}
+
+			expect(
+				getModelParams({
+					modelId: "gemini-2.5-pro",
+					format: "gemini" as const,
+					settings: { modelMaxTokens: 2000, modelMaxThinkingTokens: 50 },
+					model,
+				}),
+			).toEqual({
+				format: "gemini",
+				maxTokens: 2000,
+				temperature: 1.0,
+				reasoningEffort: undefined,
+				reasoningBudget: 128, // Minimum is 128 for Gemini 2.5 Pro
+				reasoning: {
+					thinkingBudget: 128,
+					includeThoughts: true,
+				},
+			})
+		})
+
+		it("should use 128 as default thinking budget for Gemini 2.5 Pro", () => {
+			const model: ModelInfo = {
+				...baseModel,
+				requiredReasoningBudget: true,
+			}
+
+			expect(
+				getModelParams({
+					modelId: "google/gemini-2.5-pro",
+					format: "openrouter" as const,
+					settings: { modelMaxTokens: 4000 },
+					model,
+				}),
+			).toEqual({
+				format: "openrouter",
+				maxTokens: 4000,
+				temperature: 1.0,
+				reasoningEffort: undefined,
+				reasoningBudget: 128, // Default is 128 for Gemini 2.5 Pro
+				reasoning: {
+					max_tokens: 128,
+				},
+			})
+		})
+
 		it("should clamp thinking budget to at most 80% of max tokens", () => {
 			const model: ModelInfo = {
 				...baseModel,
