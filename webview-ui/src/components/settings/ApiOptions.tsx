@@ -37,7 +37,7 @@ import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { GroqProvider } from "./providers/GroqProvider"
-import { Provider } from "./providers/BasetenProvider"
+import { BasetenProvider } from "./providers/BasetenProvider"
 import { Mode } from "@shared/storage/types"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 
