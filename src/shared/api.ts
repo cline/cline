@@ -2525,7 +2525,7 @@ export const cerebrasModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intellignet general purpose model with 3,000 tokens/s",
+		description: "Intelligent general purpose model with 3,000 tokens/s",
 	},
 	"qwen-3-coder-480b-free": {
 		maxTokens: 40000,
