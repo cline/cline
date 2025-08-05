@@ -1,9 +1,10 @@
 import { Controller } from ".."
-import { StartRecordingRequest, RecordingResult } from "@shared/proto/voice"
+import { StartRecordingRequest, RecordingResult } from "@shared/proto/cline/voice"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
-import { VoiceMethodHandler } from "./index"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { AuthService } from "@/services/auth/AuthService"
 
 /**
  * Starts audio recording using the Extension Host
@@ -11,14 +12,11 @@ import * as vscode from "vscode"
  * @param request StartRecordingRequest
  * @returns RecordingResult with success status
  */
-export const startRecording: VoiceMethodHandler = async (
-	controller: Controller,
-	_request: StartRecordingRequest,
-): Promise<RecordingResult> => {
+export const startRecording = async (controller: Controller, _request: StartRecordingRequest): Promise<RecordingResult> => {
 	const taskId = controller.task?.taskId
 
 	try {
-		const userInfo = controller.authService.getInfo()
+		const userInfo = AuthService.getInstance().getInfo()
 		if (!userInfo?.user?.uid) {
 			throw new Error("User is not authenticated. Please log in first.")
 		}
@@ -37,7 +35,10 @@ export const startRecording: VoiceMethodHandler = async (
 	} catch (error) {
 		console.error("Error starting recording:", error)
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-		vscode.window.showErrorMessage(`Voice recording error: ${errorMessage}`)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Voice recording error: ${errorMessage}`,
+		})
 		return RecordingResult.create({
 			success: false,
 			error: errorMessage,

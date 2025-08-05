@@ -94,6 +94,12 @@ message TelemetrySettingRequest {
   TelemetrySettingEnum setting = 2;
 }
 
+message DictationSettings {
+  bool dictation_enabled = 1;
+  string dictation_language = 2;
+}
+
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -111,8 +117,7 @@ message UpdateSettingsRequest {
   optional string preferred_language = 14;
   optional string openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
-  optional bool dictation_enabled = 17;
-  optional string dictation_language = 18;
+  optional DictationSettings dictation_settings = 17;
 }
 
 // Complete API Configuration message

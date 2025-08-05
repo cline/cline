@@ -5,7 +5,7 @@ import {
 	StopRecordingRequest,
 	TranscribeAudioRequest,
 	GetRecordingStatusRequest,
-} from "@shared/proto/voice"
+} from "@shared/proto/cline/voice"
 
 import HeroTooltip from "../common/HeroTooltip"
 import { formatSeconds } from "@/utils/format"

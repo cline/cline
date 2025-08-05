@@ -128,12 +128,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
-							checked={dictationSettings?.voiceRecordingEnabled}
+							checked={dictationSettings?.dictationEnabled}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
 								const updatedDictationSettings = {
 									...dictationSettings,
-									voiceRecordingEnabled: checked,
+									dictationEnabled: checked,
 								}
 								const protoDictationSettings =
 									convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
@@ -148,8 +148,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					</div>
 
 					{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
-					<CollapsibleContent isOpen={dictationSettings?.voiceRecordingEnabled}> */}
-					<div className={dictationSettings?.voiceRecordingEnabled ? "mt-4" : "hidden"}>
+					<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
+					<div className={dictationSettings?.dictationEnabled ? "mt-4" : "hidden"}>
 						<label
 							htmlFor="dictation-language-dropdown"
 							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">

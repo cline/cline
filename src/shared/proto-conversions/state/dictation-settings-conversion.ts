@@ -1,4 +1,4 @@
-import { DictationSettings as ProtoDictationSettings } from "../../proto/state"
+import { DictationSettings as ProtoDictationSettings } from "../../proto/cline/state"
 import { DictationSettings } from "../../DictationSettings"
 
 /**
@@ -8,17 +8,17 @@ export function convertProtoDictationSettingsToDictationSettings(
 	protoDictationSettings: ProtoDictationSettings,
 ): DictationSettings {
 	return {
-		voiceRecordingEnabled: protoDictationSettings.voiceRecordingEnabled,
+		dictationEnabled: protoDictationSettings.dictationEnabled,
 		dictationLanguage: protoDictationSettings.dictationLanguage,
 	}
 }
 
 /**
- * Converts TypeScript DictationSettings to proto DictationSettings
+ * Converts TypeScript DictationSettings to proxto DictationSettings
  */
 export function convertDictationSettingsToProtoDictationSettings(dictationSettings: DictationSettings): ProtoDictationSettings {
 	return ProtoDictationSettings.create({
-		voiceRecordingEnabled: dictationSettings.voiceRecordingEnabled,
+		dictationEnabled: dictationSettings.dictationEnabled,
 		dictationLanguage: dictationSettings.dictationLanguage,
 	})
 }

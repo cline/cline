@@ -705,17 +705,14 @@ class TelemetryService {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.VOICE.RECORDING_STARTED,
-				properties: {
-					taskId,
-					platform: platform || process.platform,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.VOICE.RECORDING_STARTED,
+			properties: {
+				taskId,
+				platform: platform || process.platform,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -737,19 +734,16 @@ class TelemetryService {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.VOICE.RECORDING_STOPPED,
-				properties: {
-					taskId,
-					durationMs,
-					success,
-					platform: platform || process.platform,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.VOICE.RECORDING_STOPPED,
+			properties: {
+				taskId,
+				durationMs,
+				success,
+				platform: platform || process.platform,
+				timestamp: new Date().toISOString(),
 			},
-			collect || false,
-		)
+		})
 	}
 
 	/**
@@ -769,18 +763,15 @@ class TelemetryService {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_STARTED,
-				properties: {
-					taskId,
-					audioSizeBytes,
-					language,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_STARTED,
+			properties: {
+				taskId,
+				audioSizeBytes,
+				language,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -802,19 +793,16 @@ class TelemetryService {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_COMPLETED,
-				properties: {
-					taskId,
-					transcriptionLength,
-					durationMs,
-					language,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_COMPLETED,
+			properties: {
+				taskId,
+				transcriptionLength,
+				durationMs,
+				language,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -836,19 +824,16 @@ class TelemetryService {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_ERROR,
-				properties: {
-					taskId,
-					errorType,
-					errorMessage,
-					durationMs,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.VOICE.TRANSCRIPTION_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				durationMs,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**

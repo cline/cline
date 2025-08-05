@@ -1,9 +1,9 @@
 import { Controller } from ".."
-import { TranscribeAudioRequest, Transcription } from "@shared/proto/voice"
+import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/voice"
 import { voiceTranscriptionService } from "@/services/dictation/VoiceTranscriptionService"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
-import { VoiceMethodHandler } from "./index"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Transcribes audio using Cline transcription service
@@ -11,10 +11,7 @@ import * as vscode from "vscode"
  * @param request TranscribeAudioRequest containing base64 audio data
  * @returns Transcription with transcribed text or error
  */
-export const transcribeAudio: VoiceMethodHandler = async (
-	controller: Controller,
-	request: TranscribeAudioRequest,
-): Promise<Transcription> => {
+export const transcribeAudio = async (controller: Controller, request: TranscribeAudioRequest): Promise<Transcription> => {
 	const taskId = controller.task?.taskId
 	const startTime = Date.now()
 
@@ -48,16 +45,22 @@ export const transcribeAudio: VoiceMethodHandler = async (
 			// Capture telemetry for transcription error
 			telemetryService.captureVoiceTranscriptionError(taskId, errorType, result.error, durationMs)
 
+			let errorMessage = ""
 			// Show error notification if transcription failed
 			if (result.error.includes("Authentication failed")) {
-				vscode.window.showErrorMessage("Authentication failed. ")
+				errorMessage = "Authentication failed. Please log in again."
 			} else if (result.error.includes("Insufficient credits")) {
-				vscode.window.showWarningMessage("Insufficient credits for transcription service.")
+				errorMessage = "Insufficient credits for transcription service."
 			} else if (result.error.includes("Cannot connect")) {
-				vscode.window.showErrorMessage("Cannot connect to transcription service. ")
+				errorMessage = "Cannot connect to transcription service."
 			} else {
-				vscode.window.showErrorMessage(`Voice transcription failed: ${result.error}`)
+				errorMessage = `Voice transcription failed: ${result.error}`
 			}
+
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: errorMessage,
+			})
 		} else if (result.text) {
 			// Capture telemetry for successful transcription
 			telemetryService.captureVoiceTranscriptionCompleted(taskId, result.text.length, durationMs, request.language || "en")

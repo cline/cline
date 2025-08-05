@@ -1,10 +1,10 @@
 export interface DictationSettings {
-	voiceRecordingEnabled: boolean
+	dictationEnabled: boolean
 	dictationLanguage: string
 }
 
 export const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
-	voiceRecordingEnabled: true,
+	dictationEnabled: true,
 	dictationLanguage: "en",
 }
 

@@ -1,12 +1,11 @@
-import { RecordingStatus } from "@shared/proto/voice"
+import { RecordingStatus } from "@shared/proto/cline/voice"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
-import { VoiceMethodHandler } from "./index"
 
 /**
  * Gets the current recording status
  * @returns RecordingStatus with current status
  */
-export const getRecordingStatus: VoiceMethodHandler = async (): Promise<RecordingStatus> => {
+export const getRecordingStatus = async (): Promise<RecordingStatus> => {
 	try {
 		const status = audioRecordingService.getRecordingStatus()
 

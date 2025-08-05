@@ -1,8 +1,7 @@
 import { Controller } from ".."
-import { StopRecordingRequest, RecordedAudio } from "@shared/proto/voice"
+import { StopRecordingRequest, RecordedAudio } from "@shared/proto/cline/voice"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
-import { VoiceMethodHandler } from "./index"
 
 /**
  * Stops audio recording and returns the recorded audio
@@ -10,10 +9,7 @@ import { VoiceMethodHandler } from "./index"
  * @param request StopRecordingRequest
  * @returns RecordedAudio with audio data
  */
-export const stopRecording: VoiceMethodHandler = async (
-	controller: Controller,
-	_request: StopRecordingRequest,
-): Promise<RecordedAudio> => {
+export const stopRecording = async (controller: Controller, _request: StopRecordingRequest): Promise<RecordedAudio> => {
 	const taskId = controller.task?.taskId
 	const recordingStatus = audioRecordingService.getRecordingStatus()
 	const recordingDuration = recordingStatus.durationSeconds * 1000 // Convert to milliseconds
