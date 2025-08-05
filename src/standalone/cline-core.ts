@@ -17,6 +17,8 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
+	AuthHandler.getInstance().setEnabled(true)
+
 	setupHostProvider()
 
 	// Set up global error handlers to prevent process crashes
@@ -28,8 +30,6 @@ async function main() {
 	// Create controller with cache service
 	const controller = new Controller(extensionContext, postMessage, uuidv4())
 	startProtobusService(controller)
-
-	AuthHandler.getInstance().setEnabled(true)
 }
 
 function setupHostProvider() {
@@ -39,8 +39,11 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
+	const getCallbackUri = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUri()
+	}
 
-	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log)
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log, getCallbackUri)
 }
 
 /**
