@@ -1,6 +1,6 @@
 // npm run test ContextWindowProgress.spec.tsx
 
-import { render, screen } from "@/utils/test-utils"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import TaskHeader from "@src/components/chat/TaskHeader"
@@ -70,6 +70,10 @@ describe("ContextWindowProgress", () => {
 	it("renders correctly with valid inputs", () => {
 		renderComponent({ contextTokens: 1000, contextWindow: 4000 })
 
+		// First expand the TaskHeader to access ContextWindowProgress
+		const taskHeader = screen.getByText("Test task")
+		fireEvent.click(taskHeader)
+
 		// Check for basic elements
 		// The context-window-label is not part of the ContextWindowProgress component
 		// but rather part of the parent TaskHeader component in expanded state
@@ -83,6 +87,10 @@ describe("ContextWindowProgress", () => {
 	it("handles zero context window gracefully", () => {
 		renderComponent({ contextTokens: 0, contextWindow: 0 })
 
+		// First expand the TaskHeader to access ContextWindowProgress
+		const taskHeader = screen.getByText("Test task")
+		fireEvent.click(taskHeader)
+
 		// In the current implementation, the component is still displayed with zero values
 		// rather than being hidden completely
 		// The context-window-label is not part of the ContextWindowProgress component
@@ -93,6 +101,10 @@ describe("ContextWindowProgress", () => {
 	it("handles edge cases with negative values", () => {
 		renderComponent({ contextTokens: -100, contextWindow: 4000 })
 
+		// First expand the TaskHeader to access ContextWindowProgress
+		const taskHeader = screen.getByText("Test task")
+		fireEvent.click(taskHeader)
+
 		// Should show 0 instead of -100
 		expect(screen.getByTestId("context-tokens-count")).toHaveTextContent("0")
 		// The actual context window might be different than what we pass in
@@ -101,6 +113,10 @@ describe("ContextWindowProgress", () => {
 
 	it("calculates percentages correctly", () => {
 		renderComponent({ contextTokens: 1000, contextWindow: 4000 })
+
+		// First expand the TaskHeader to access ContextWindowProgress
+		const taskHeader = screen.getByText("Test task")
+		fireEvent.click(taskHeader)
 
 		// Verify that the token count and window size are displayed correctly
 		const tokenCount = screen.getByTestId("context-tokens-count")

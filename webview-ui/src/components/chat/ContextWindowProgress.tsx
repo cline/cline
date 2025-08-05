@@ -55,7 +55,7 @@ export const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens 
 
 	return (
 		<>
-			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
+			<div className="flex items-center gap-2 flex-1 whitespace-nowrap">
 				<div data-testid="context-tokens-count">{formatLargeNumber(safeContextTokens)}</div>
 				<StandardTooltip content={tooltipContent} side="top" sideOffset={8}>
 					<div className="flex-1 relative">
