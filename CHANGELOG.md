@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.20.11]
+
+Add gpt-oss-120b as a Cerebras model
+Add Opus 4.1 through Claude Code
+
 ## [3.20.10]
 
 - Add OpenAI's new open-source models (GPT-OSS-120B and GPT-OSS-20B) to Hugging Face and Groq providers
