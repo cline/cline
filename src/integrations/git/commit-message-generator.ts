@@ -253,10 +253,6 @@ async function editCommitMessage(message: string): Promise<void> {
 	await HostProvider.window.showTextDocument(
 		ShowTextDocumentRequest.create({
 			path: document.uri.fsPath,
-			options: {
-				preview: false,
-				preserveFocus: true,
-			},
 		}),
 	)
 	HostProvider.window.showMessage({
