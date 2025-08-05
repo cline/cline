@@ -11,6 +11,7 @@ import * as gitModule from "@utils/git"
 import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import * as fs from "fs"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -29,13 +30,7 @@ describe("parseMentions", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-			(_) => {},
-		)
+		setVscodeHostProviderMock()
 		// Create stubs for dependencies
 		urlContentFetcherStub = {
 			launchBrowser: sandbox.stub().resolves(),

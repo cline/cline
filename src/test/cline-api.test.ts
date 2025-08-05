@@ -6,6 +6,7 @@ import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 import * as stateModule from "@core/storage/state"
 import { createClineAPI } from "@/exports"
+import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI
@@ -19,14 +20,8 @@ describe("ClineAPI Core Functionality", () => {
 
 		// Create mock log function
 		mockLogToChannel = sandbox.stub<[string], void>()
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-			mockLogToChannel,
-			async () => "",
-		)
+		setVscodeHostProviderMock({ logToChannel: mockLogToChannel })
+
 		// Stub the getGlobalState function from the state module
 		// This is needed because the real createClineAPI uses it for getCustomInstructions
 		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")
