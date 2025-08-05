@@ -146,9 +146,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		const notDeployedHeader = screen.getByText("── Not Deployed Models ──")
 		expect(notDeployedHeader).toBeInTheDocument()
 
-		// Check for not deployed model options (should have "(not deployed)" suffix)
-		const haikuOption = screen.getByText("anthropic--claude-3-haiku (not deployed)")
-		const geminiOption = screen.getByText("gemini-2.5-pro (not deployed)")
+		// Check for not deployed model options
+		const haikuOption = screen.getByText("anthropic--claude-3-haiku")
+		const geminiOption = screen.getByText("gemini-2.5-pro")
 		expect(haikuOption).toBeInTheDocument()
 		expect(geminiOption).toBeInTheDocument()
 	})
@@ -164,13 +164,13 @@ describe("SapAiCoreModelPicker Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		// Deployed models should appear without "(not deployed)" suffix
+		// Deployed models should appear
 		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
 
-		// Not deployed models should appear with "(not deployed)" suffix
-		expect(screen.getByText("anthropic--claude-3-haiku (not deployed)")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro (not deployed)")).toBeInTheDocument()
+		// Not deployed models should appear
+		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
+		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
 	})
 
 	it("calls onModelChange when a model is selected", () => {
@@ -206,14 +206,14 @@ describe("SapAiCoreModelPicker Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		// Test that not deployed models are properly displayed with "(not deployed)" suffix
+		// Test that not deployed models are properly displayed
 		const dropdown = screen.getByRole("combobox")
 		expect(dropdown).toBeInTheDocument()
 		expect(dropdown).toHaveValue("anthropic--claude-3.5-sonnet")
 
 		// Verify that not deployed models are shown with proper labeling
-		expect(screen.getByText("anthropic--claude-3-haiku (not deployed)")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro (not deployed)")).toBeInTheDocument()
+		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
+		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
 	})
 
 	it("updates selected value when selectedModelId prop changes", () => {
@@ -259,10 +259,10 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(notDeployedHeader).toBeInTheDocument()
 
 		// All models should be marked as not deployed
-		expect(screen.getByText("anthropic--claude-3.5-sonnet (not deployed)")).toBeInTheDocument()
-		expect(screen.getByText("anthropic--claude-3-haiku (not deployed)")).toBeInTheDocument()
-		expect(screen.getByText("gpt-4o (not deployed)")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro (not deployed)")).toBeInTheDocument()
+		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
+		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
+		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
+		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
 	})
 
 	it("handles case where all supported models are deployed", () => {
@@ -285,7 +285,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		// Should not show not deployed models section
 		expect(screen.queryByText("── Not Deployed Models ──")).not.toBeInTheDocument()
 
-		// All models should appear without "(not deployed)" suffix
+		// All models should appear
 		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
 		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
@@ -309,7 +309,7 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(screen.queryByText("unsupported-model")).not.toBeInTheDocument()
 
 		// Other supported models should appear in not deployed section
-		expect(screen.getByText("anthropic--claude-3-haiku (not deployed)")).toBeInTheDocument()
+		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
 	})
 
 	it("maintains correct dropdown structure with sections", () => {

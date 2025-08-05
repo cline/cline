@@ -97,7 +97,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			categorizedModels.supported.forEach((model) => {
 				options.push(
 					<VSCodeOption key={model.id} value={model.id} style={{ opacity: 0.6 }}>
-						{model.id} (not deployed)
+						{model.id}
 					</VSCodeOption>,
 				)
 			})
