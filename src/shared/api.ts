@@ -2920,7 +2920,7 @@ export const basetenModels = {
 	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
 		maxTokens: 8192,
 		contextWindow: 131072,
-		supportsImages: true,
+		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.19,
 		outputPrice: 0.72,
@@ -2931,7 +2931,7 @@ export const basetenModels = {
 	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
 		maxTokens: 8192,
 		contextWindow: 131072,
-		supportsImages: true,
+		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.13,
 		outputPrice: 0.5,
