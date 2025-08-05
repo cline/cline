@@ -167,7 +167,6 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			{showModelOptions && (
 				<>
 					<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-						ex{" "}
 						{isLoadingModels ? (
 							<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
 								Loading models...
