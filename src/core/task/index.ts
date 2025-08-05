@@ -243,7 +243,7 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Prepare effective API configuration
-		let effectiveApiConfiguration: ApiConfiguration = {
+		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
@@ -474,7 +474,7 @@ export class Task {
 		if (!didWorkspaceRestoreFail) {
 			switch (restoreType) {
 				case "task":
-				case "taskAndWorkspace":
+				case "taskAndWorkspace": {
 					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -517,6 +517,7 @@ export class Task {
 						} satisfies ClineApiReqInfo),
 					)
 					break
+				}
 				case "workspace":
 					break
 			}
@@ -1043,9 +1044,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
-		let userContent: UserContent = [
+		const userContent: UserContent = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1172,7 +1173,7 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		let newUserContent: UserContent = [...modifiedOldUserContent]
+		const newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1628,7 +1629,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		let result = this.terminalManager.processOutput(outputLines)
+		const result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1763,7 +1764,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1868,12 +1869,24 @@ export class Task {
 					throw new Error("API request failed")
 				}
 
-				// Do not retry automatically again if currently unauthenticated
-				if (clineError.isErrorType(ClineErrorType.Auth)) {
-					return
+				// Clear streamingFailedMessage when user manually retries
+				const manualRetryApiReqIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "api_req_started",
+				)
+				if (manualRetryApiReqIndex !== -1) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[manualRetryApiReqIndex].text || "{}")
+					delete currentApiReqInfo.streamingFailedMessage
+					await this.messageStateHandler.updateClineMessage(manualRetryApiReqIndex, {
+						text: JSON.stringify(currentApiReqInfo),
+					})
 				}
 
 				await this.say("api_req_retried")
+
+				// Reset the automatic retry flag so the request can proceed
+				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
@@ -2332,7 +2345,7 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
-						case "text":
+						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
@@ -2353,6 +2366,7 @@ export class Task {
 							// present content to user
 							this.presentAssistantMessage()
 							break
+						}
 					}
 
 					if (this.taskState.abort) {
