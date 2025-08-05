@@ -1,6 +1,6 @@
 import { showSystemNotification } from "@/integrations/notifications"
 import { listFiles } from "@/services/glob/list-files"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { regexSearchFiles } from "@/services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
@@ -108,7 +108,12 @@ export class ToolExecutor {
 			type: ClineAsk,
 			text?: string,
 			partial?: boolean,
-		) => Promise<{ response: ClineAskResponse; text?: string; images?: string[]; files?: string[] }>,
+		) => Promise<{
+			response: ClineAskResponse
+			text?: string
+			images?: string[]
+			files?: string[]
+		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
@@ -472,7 +477,7 @@ export class ToolExecutor {
 			case "write_to_file":
 			case "replace_in_file": {
 				const relPath: string | undefined = block.params.path
-				let content: string | undefined = block.params.content // for write_to_file
+				const content: string | undefined = block.params.content // for write_to_file
 				let diff: string | undefined = block.params.diff // for replace_in_file
 				if (!relPath || (!content && !diff)) {
 					// checking for content/diff ensures relPath is complete
@@ -1212,7 +1217,7 @@ export class ToolExecutor {
 							if (this.context) {
 								await this.browserSession.dispose()
 
-								let useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								const useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
 								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")

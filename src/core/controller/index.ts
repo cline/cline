@@ -1,7 +1,7 @@
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -37,7 +37,6 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { getLatestAnnouncementId } from "@/utils/announcements"
-
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 
@@ -359,7 +358,7 @@ export class Controller {
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.cacheService.getApiConfiguration()
 
-			let updatedConfig = { ...currentApiConfiguration }
+			const updatedConfig = { ...currentApiConfiguration }
 
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
@@ -744,7 +743,7 @@ export class Controller {
 		const latestAnnouncementId = getLatestAnnouncementId(this.context)
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
-		const distinctId = telemetryService.distinctId
+		const distinctId = PostHogClientProvider.getInstance().distinctId
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
 

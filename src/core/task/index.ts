@@ -14,7 +14,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -38,7 +38,7 @@ import * as vscode from "vscode"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
-import { ErrorService } from "@/services/error/ErrorService"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -1678,7 +1678,10 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
+	private async getCurrentProviderInfo(): Promise<{
+		modelId: string
+		providerId: string
+	}> {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
@@ -1687,7 +1690,9 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
+			timeout: 10_000,
+		}).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
@@ -1780,17 +1785,12 @@ export class Task {
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
-			const clineError = ErrorService.toClineError(error, modelId, providerId)
+			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
-			// TODO: Move into ErrorService
-			telemetryService.captureProviderApiError({
-				taskId: this.taskId,
-				model: modelInfo.id,
-				errorMessage: clineError.message,
-				errorStatus: clineError._error?.status,
-				requestId: clineError._error?.request_id,
-			})
+			// TODO: Move into errorService
+			errorService.logMessage(clineError.message)
+			errorService.logException(clineError)
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
@@ -2397,7 +2397,7 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const clineError = ErrorService.toClineError(error, this.api.getModel().id)
+					const clineError = errorService.toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)
