@@ -32,6 +32,7 @@ describe("OpenRouter API", () => {
 				"google/gemini-2.5-pro-preview", // Excluded due to lag issue (#4487)
 				"google/gemini-2.5-flash", // OpenRouter doesn't report this as supporting prompt caching
 				"google/gemini-2.5-flash-lite-preview-06-17", // OpenRouter doesn't report this as supporting prompt caching
+				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
 			])
 
 			const ourCachingModels = Array.from(OPEN_ROUTER_PROMPT_CACHING_MODELS).filter(
@@ -48,12 +49,20 @@ describe("OpenRouter API", () => {
 
 			expect(ourCachingModels.sort()).toEqual(expectedCachingModels)
 
+			const excludedComputerUseModels = new Set([
+				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
+			])
+
+			const expectedComputerUseModels = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)
+				.filter((id) => !excludedComputerUseModels.has(id))
+				.sort()
+
 			expect(
 				Object.entries(models)
 					.filter(([_, model]) => model.supportsComputerUse)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual(Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS).sort())
+			).toEqual(expectedComputerUseModels)
 
 			expect(
 				Object.entries(models)
@@ -67,6 +76,7 @@ describe("OpenRouter API", () => {
 				"anthropic/claude-3.7-sonnet:beta",
 				"anthropic/claude-3.7-sonnet:thinking",
 				"anthropic/claude-opus-4",
+				// "anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
 				"anthropic/claude-sonnet-4",
 				"arliai/qwq-32b-arliai-rpr-v1:free",
 				"cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
@@ -122,6 +132,7 @@ describe("OpenRouter API", () => {
 				"google/gemini-2.5-flash",
 				"google/gemini-2.5-flash-lite-preview-06-17",
 				"google/gemini-2.5-pro",
+				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
 			])
 
 			const expectedReasoningBudgetModels = Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS)

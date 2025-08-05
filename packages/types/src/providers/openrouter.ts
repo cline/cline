@@ -39,6 +39,7 @@ export const OPEN_ROUTER_PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:thinking",
 	"anthropic/claude-sonnet-4",
 	"anthropic/claude-opus-4",
+	"anthropic/claude-opus-4.1",
 	"google/gemini-2.5-flash-preview",
 	"google/gemini-2.5-flash-preview:thinking",
 	"google/gemini-2.5-flash-preview-05-20",
@@ -59,6 +60,7 @@ export const OPEN_ROUTER_COMPUTER_USE_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:thinking",
 	"anthropic/claude-sonnet-4",
 	"anthropic/claude-opus-4",
+	"anthropic/claude-opus-4.1",
 ])
 
 // When we first launched these models we didn't have support for
@@ -77,6 +79,7 @@ export const OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS = new Set([
 export const OPEN_ROUTER_REASONING_BUDGET_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:beta",
 	"anthropic/claude-opus-4",
+	"anthropic/claude-opus-4.1",
 	"anthropic/claude-sonnet-4",
 	"google/gemini-2.5-pro-preview",
 	"google/gemini-2.5-pro",
