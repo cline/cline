@@ -1134,8 +1134,8 @@ export type HuggingFaceModelId = keyof typeof huggingFaceModels
 export const huggingFaceDefaultModelId: HuggingFaceModelId = "moonshotai/Kimi-K2-Instruct"
 export const huggingFaceModels = {
 	"openai/gpt-oss-120b": {
-		maxTokens: 131_072,
-		contextWindow: 32767,
+		maxTokens: 32766,
+		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1144,8 +1144,8 @@ export const huggingFaceModels = {
 			"Large open-weight reasoning model for high-end desktops and data centers, built for complex coding, math, and general AI tasks.",
 	},
 	"openai/gpt-oss-20b": {
-		maxTokens: 131_072,
-		contextWindow: 32767,
+		maxTokens: 32766,
+		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
