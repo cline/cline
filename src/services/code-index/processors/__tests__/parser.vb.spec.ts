@@ -243,6 +243,7 @@ describe("Fallback Extensions Configuration", () => {
 		// Extensions that should use fallback
 		expect(shouldUseFallbackChunking(".vb")).toBe(true)
 		expect(shouldUseFallbackChunking(".scala")).toBe(true)
+		expect(shouldUseFallbackChunking(".swift")).toBe(true)
 
 		// Extensions that should not use fallback (have working parsers)
 		expect(shouldUseFallbackChunking(".js")).toBe(false)
