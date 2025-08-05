@@ -1,12 +1,13 @@
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
-import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { SUPPORTED_DICTATION_LANGUAGES } from "@shared/DictationSettings"
 // import CollapsibleContent from "../CollapsibleContent"
-import { updateSetting } from "../utils/settingsHandlers"
-import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/dictation-settings-conversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { updateSetting } from "../utils/settingsHandlers"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
+import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
@@ -17,22 +18,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
-		mcpRichDisplayEnabled,
+		mcpDisplayMode,
 		mcpResponsesCollapsed,
-		chatSettings,
+		openaiReasoningEffort,
+		strictPlanModeEnabled,
 		dictationSettings,
 	} = useExtensionState()
 
-	const handleReasoningEffortChange = (newValue: OpenAIReasoningEffort) => {
-		if (!chatSettings) return
-
-		const updatedChatSettings = {
-			...chatSettings,
-			openAIReasoningEffort: newValue,
-		}
-
-		const protoChatSettings = convertChatSettingsToProtoChatSettings(updatedChatSettings)
-		updateSetting("chatSettings", protoChatSettings)
+	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
+		updateSetting("openaiReasoningEffort", newValue)
 	}
 
 	return (
@@ -68,16 +62,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpRichDisplayEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpRichDisplayEnabled", checked)
-							}}>
-							Enable Rich MCP Display
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enables rich formatting for MCP responses. When disabled, responses will be shown in plain text.
+						<label
+							htmlFor="mcp-display-mode-dropdown"
+							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+							MCP Display Mode
+						</label>
+						<McpDisplayModeDropdown
+							id="mcp-display-mode-dropdown"
+							value={mcpDisplayMode}
+							onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
+							className="w-full"
+						/>
+						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
+							rendering.
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -101,9 +99,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</label>
 						<VSCodeDropdown
 							id="openai-reasoning-effort-dropdown"
-							currentValue={chatSettings.openAIReasoningEffort || "medium"}
+							currentValue={openaiReasoningEffort || "medium"}
 							onChange={(e: any) => {
-								const newValue = e.target.currentValue as OpenAIReasoningEffort
+								const newValue = e.target.currentValue as OpenaiReasoningEffort
 								handleReasoningEffortChange(newValue)
 							}}
 							className="w-full">
@@ -116,61 +114,72 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<div>
-							<VSCodeCheckbox
-								checked={dictationSettings?.voiceRecordingEnabled}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									const updatedDictationSettings = {
-										...dictationSettings,
-										voiceRecordingEnabled: checked,
-									}
-									const protoDictationSettings =
-										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
-									updateSetting("dictationSettings", protoDictationSettings)
-								}}>
-								Enable Dictation
-							</VSCodeCheckbox>
-							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-								Enables voice recording with automatic transcription. Requires a Cline Account for the
-								transcription model. $0.006 per minute of audio processed.
-							</p>
-						</div>
-
-						{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
-						<CollapsibleContent isOpen={dictationSettings?.voiceRecordingEnabled}> */}
-						<div className={dictationSettings?.voiceRecordingEnabled ? "mt-4" : "hidden"}>
-							<label
-								htmlFor="dictation-language-dropdown"
-								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
-								Dictation Language
-							</label>
-							<VSCodeDropdown
-								id="dictation-language-dropdown"
-								currentValue={dictationSettings?.dictationLanguage || "en"}
-								onChange={(e: any) => {
-									const newValue = e.target.value
-									const updatedDictationSettings = {
-										...dictationSettings,
-										dictationLanguage: newValue,
-									}
-									const protoDictationSettings =
-										convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
-									updateSetting("dictationSettings", protoDictationSettings)
-								}}
-								className="w-full">
-								{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
-									<VSCodeOption key={language.code} value={language.code} className="py-0.5">
-										{language.name}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
-							<p className="text-xs mt-1 text-[var(--vscode-descriptionForeground)]">
-								The language you want to speak to the Dictation service in. Separate from preferred UI language.
-							</p>
-						</div>
-						{/* </CollapsibleContent> */}
+						<VSCodeCheckbox
+							checked={strictPlanModeEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("strictPlanModeEnabled", checked)
+							}}>
+							Enable strict plan mode
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							Enforces strict tool use while in plan mode, preventing file edits.
+						</p>
 					</div>
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={dictationSettings?.voiceRecordingEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								const updatedDictationSettings = {
+									...dictationSettings,
+									voiceRecordingEnabled: checked,
+								}
+								const protoDictationSettings =
+									convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+								updateSetting("dictationSettings", protoDictationSettings)
+							}}>
+							Enable Dictation
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+							Enables voice recording with automatic transcription. Requires a Cline Account for the transcription
+							model. $0.006 per minute of audio processed.
+						</p>
+					</div>
+
+					{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
+					<CollapsibleContent isOpen={dictationSettings?.voiceRecordingEnabled}> */}
+					<div className={dictationSettings?.voiceRecordingEnabled ? "mt-4" : "hidden"}>
+						<label
+							htmlFor="dictation-language-dropdown"
+							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+							Dictation Language
+						</label>
+						<VSCodeDropdown
+							id="dictation-language-dropdown"
+							currentValue={dictationSettings?.dictationLanguage || "en"}
+							onChange={(e: any) => {
+								const newValue = e.target.value
+								const updatedDictationSettings = {
+									...dictationSettings,
+									dictationLanguage: newValue,
+								}
+								const protoDictationSettings =
+									convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
+								updateSetting("dictationSettings", protoDictationSettings)
+							}}
+							className="w-full">
+							{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
+								<VSCodeOption key={language.code} value={language.code} className="py-0.5">
+									{language.name}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+						<p className="text-xs mt-1 text-[var(--vscode-descriptionForeground)]">
+							The language you want to speak to the Dictation service in. Separate from preferred UI language.
+						</p>
+					</div>
+					{/* </CollapsibleContent> */}
 				</div>
 			</Section>
 		</div>

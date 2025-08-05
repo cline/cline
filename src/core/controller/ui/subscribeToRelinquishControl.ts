@@ -1,9 +1,9 @@
 import { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
+import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active subscriptions
-const activeRelinquishControlSubscriptions = new Set<StreamingResponseHandler>()
+const activeRelinquishControlSubscriptions = new Set<StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to relinquish control events
@@ -13,9 +13,9 @@ const activeRelinquishControlSubscriptions = new Set<StreamingResponseHandler>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToRelinquishControl(
-	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions

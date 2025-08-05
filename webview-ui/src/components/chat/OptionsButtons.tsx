@@ -1,6 +1,6 @@
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { AskResponseRequest } from "@shared/proto/task"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import styled from "styled-components"
 
 const OptionButton = styled.button<{ isSelected?: boolean; isNotSelectable?: boolean }>`

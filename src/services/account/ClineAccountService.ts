@@ -8,14 +8,12 @@ import type {
 	UserResponse,
 } from "@shared/ClineAccount"
 import { AuthService } from "../auth/AuthService"
+import { clineEnvConfig } from "@/config"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
@@ -79,42 +77,6 @@ export class ClineAccountService {
 			return {} as T // Return empty object if no content
 		} else {
 			return response.data.data as T
-		}
-	}
-
-	/**
-	 * Validates if the user has sufficient credits to make API requests.
-	 * This checks the user's balance and throws an error if the balance is insufficient or if the request fails.
-	 * @throws Error if the user has insufficient credits or if the request fails
-	 * @returns {Promise<void>} A promise that resolves if the user has sufficient credits.
-	 */
-	async validateRequest(): Promise<void> {
-		try {
-			const { organizations, id } = await this.authenticatedRequest<UserResponse>(`/api/v1/users/me`)
-			const activeOrganization = organizations.find((org) => org.active)
-			console.log("SwitchAuthToken: Active Organization", activeOrganization?.name || "No active organization")
-
-			// Skip balance check for active organizations
-			if (activeOrganization) {
-				return
-			}
-
-			const balance = await this.authenticatedRequest<BalanceResponse>(`/api/v1/users/${id}/balance`)
-			const currentBalance = Number(balance?.balance) || 0
-
-			// Throw error if insufficient credits (balance <= 0)
-			if (currentBalance <= 0) {
-				throw new Error(
-					JSON.stringify({
-						code: "insufficient_credits",
-						current_balance: currentBalance,
-						message: "Not enough credits available",
-					}),
-				)
-			}
-		} catch (error) {
-			console.error("Invalid Cline API request:", error)
-			throw error instanceof Error ? error : new Error(`Invalid Request: ${error}`)
 		}
 	}
 

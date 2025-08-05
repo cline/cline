@@ -8,6 +8,10 @@ option java_multiple_files = true;
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+  // Saves an open document if it's open in the editor and has unsaved changes. 
+  // Returns true if the document was saved, returns false if the document was not found, or did not
+  // need to be saved.
+  rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -21,4 +25,12 @@ message GetWorkspacePathsResponse {
   // The unique ID for the workspace/project.
   optional string id = 1;
   repeated string paths = 2;
+}
+
+message SaveOpenDocumentIfDirtyRequest {
+  optional string file_path = 2;
+}
+message SaveOpenDocumentIfDirtyResponse {
+  // Returns true if the document was saved. 
+  optional bool was_saved = 1;
 }

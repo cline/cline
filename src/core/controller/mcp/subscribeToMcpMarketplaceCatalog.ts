@@ -1,10 +1,10 @@
 import { Controller } from "../index"
-import { EmptyRequest } from "@shared/proto/common"
-import { McpMarketplaceCatalog } from "@shared/proto/mcp"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active subscriptions
-const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler>()
+const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler<McpMarketplaceCatalog>>()
 
 /**
  * Subscribe to MCP marketplace catalog updates
@@ -14,9 +14,9 @@ const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToMcpMarketplaceCatalog(
-	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<McpMarketplaceCatalog>,
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions

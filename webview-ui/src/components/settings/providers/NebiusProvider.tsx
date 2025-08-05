@@ -5,24 +5,24 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the NebiusProvider component
  */
 interface NebiusProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Nebius AI Studio provider configuration component
  */
-export const NebiusProvider = ({ showModelOptions, isPopup }: NebiusProviderProps) => {
+export const NebiusProvider = ({ showModelOptions, isPopup, currentMode }: NebiusProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -39,7 +39,13 @@ export const NebiusProvider = ({ showModelOptions, isPopup }: NebiusProviderProp
 					<ModelSelector
 						models={nebiusModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

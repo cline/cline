@@ -4,7 +4,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
-		"lib": ["es2022", "esnext.disposable", "DOM"],
+		"lib": ["es2022", "DOM"],
 		"module": "esnext",
 		"moduleResolution": "Bundler",
 		"noFallthroughCasesInSwitch": true,
@@ -34,5 +34,5 @@
 		}
 	},
 	"include": ["src/**/*", "scripts/**/*"],
-	"exclude": ["node_modules", ".vscode-test", "webview-ui"]
+	"exclude": ["node_modules", ".vscode-test", "webview-ui", "src/test/e2e/**/*"]
 }

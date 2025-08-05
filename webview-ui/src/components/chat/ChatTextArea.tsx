@@ -1,23 +1,33 @@
-import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
-
-const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import type React from "react"
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { useClickAway, useWindowSize } from "react-use"
+import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
+import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions from "@/components/settings/ApiOptions"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, StateServiceClient, ModelsServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
-	getContextMenuOptions,
 	getContextMenuOptionIndex,
+	getContextMenuOptions,
 	insertMention,
 	insertMentionDirectly,
 	removeMention,
-	SearchResult,
+	type SearchResult,
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
@@ -25,27 +35,18 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
+	type SlashCommand,
 	shouldShowSlashCommandsMenu,
-	SlashCommand,
 	slashCommandDeleteRegex,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
-import { ChatSettings } from "@shared/ChatSettings"
-import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useEvent, useWindowSize } from "react-use"
-import styled from "styled-components"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
 import VoiceRecorder from "./VoiceRecorder"
+import { Mode } from "@shared/storage/types"
+
+const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -94,7 +95,9 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
 
-const SwitchOption = styled.div<{ isActive: boolean }>`
+const SwitchOption = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isActive"].includes(prop),
+})<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
 	z-index: 1;
@@ -123,7 +126,9 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	user-select: none; // Prevent text selection
 `
 
-const Slider = styled.div<{ isAct: boolean; isPlan?: boolean }>`
+const Slider = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
+})<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
@@ -275,7 +280,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const {
 			filePaths,
-			chatSettings,
+			mode,
 			apiConfiguration,
 			openRouterModels,
 			platform,
@@ -312,7 +317,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
-		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
@@ -753,7 +758,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}),
 							)
 								.then((results) => {
-									setFileSearchResults(results.results || [])
+									setFileSearchResults((results.results || []) as SearchResult[])
 									setSearchLoading(false)
 								})
 								.catch((error) => {
@@ -968,8 +973,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(async () => {
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+			const apiValidationResult = validateApiConfiguration(mode, apiConfiguration)
+			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels)
 
 			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
 				try {
@@ -1001,18 +1006,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(async () => {
-				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActMode(
+				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				const response = await StateServiceClient.togglePlanActModeProto(
 					TogglePlanActModeRequest.create({
-						chatSettings: {
-							mode: newMode,
-							preferredLanguage: chatSettings.preferredLanguage,
-							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-						},
+						mode: convertedProtoMode,
 						chatContent: {
 							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages.length > 0 ? selectedImages : undefined,
-							files: selectedFiles.length > 0 ? selectedFiles : undefined,
+							images: selectedImages,
+							files: selectedFiles,
 						},
 					}),
 				)
@@ -1024,7 +1025,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1091,7 +1092,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
-			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
+			const {
+				vsCodeLmModelSelector,
+				togetherModelId,
+				fireworksModelId,
+				lmStudioModelId,
+				ollamaModelId,
+				liteLlmModelId,
+				requestyModelId,
+			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
@@ -1100,25 +1110,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
-					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+					return `vscode-lm:${vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				case "together":
-					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+					return `${selectedProvider}:${togetherModelId}`
 				case "fireworks":
-					return `fireworks:${apiConfiguration.fireworksModelId}`
+					return `fireworks:${fireworksModelId}`
 				case "lmstudio":
-					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
+					return `${selectedProvider}:${lmStudioModelId}`
 				case "ollama":
-					return `${selectedProvider}:${apiConfiguration.ollamaModelId}`
+					return `${selectedProvider}:${ollamaModelId}`
 				case "litellm":
-					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
+					return `${selectedProvider}:${liteLlmModelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+					return `${selectedProvider}:${requestyModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration])
+		}, [apiConfiguration, mode])
 
 		// Calculate arrow position and menu position based on button location
 		useEffect(() => {
@@ -1574,7 +1584,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
 									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
-										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
 										: "none",
 							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
@@ -1755,6 +1765,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											apiErrorMessage={undefined}
 											modelIdErrorMessage={undefined}
 											isPopup={true}
+											currentMode={mode}
 										/>
 									</ModelSelectorTooltip>
 								)}
@@ -1768,19 +1779,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
-								isActive={chatSettings.mode === "plan"}
+								isActive={mode === "plan"}
 								role="switch"
-								aria-checked={chatSettings.mode === "plan"}
+								aria-checked={mode === "plan"}
 								onMouseOver={() => setShownTooltipMode("plan")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Plan
 							</SwitchOption>
 							<SwitchOption
-								isActive={chatSettings.mode === "act"}
+								isActive={mode === "act"}
 								role="switch"
-								aria-checked={chatSettings.mode === "act"}
+								aria-checked={mode === "act"}
 								onMouseOver={() => setShownTooltipMode("act")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
 								Act

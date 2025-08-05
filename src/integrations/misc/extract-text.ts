@@ -31,7 +31,16 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
+
+	return callTextExtractionFunctions(filePath)
+}
+
+/**
+ * Expects the fs.access call to have already been performed prior to calling
+ */
+export async function callTextExtractionFunctions(filePath: string): Promise<string> {
 	const fileExtension = path.extname(filePath).toLowerCase()
+
 	switch (fileExtension) {
 		case ".pdf":
 			return extractTextFromPDF(filePath)

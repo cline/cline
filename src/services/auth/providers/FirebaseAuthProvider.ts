@@ -6,6 +6,8 @@ import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCreden
 import { ExtensionContext } from "vscode"
 import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { jwtDecode } from "jwt-decode"
+import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -40,8 +42,8 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
-	async retrieveClineAuthInfo(context: ExtensionContext): Promise<ClineAuthInfo | null> {
-		const userRefreshToken = await getSecret(context, "clineAccountId")
+	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
+		const userRefreshToken = controller.cacheService.getSecretKey("clineAccountId")
 		if (!userRefreshToken) {
 			console.error("No stored authentication credential found.")
 			return null
@@ -69,7 +71,7 @@ export class FirebaseAuthProvider {
 			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
 			// TODO: consolidate with fetchMe() instead of making the call directly here
-			const userResponse = await axios.get("https://api.cline.bot/api/v1/users/me", {
+			const userResponse = await axios.get(`${clineEnvConfig.apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer ${idToken}`,
 				},
@@ -99,7 +101,7 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the sign-in fails.
 	 */
-	async signIn(context: ExtensionContext, token: string, provider: string): Promise<ClineAuthInfo | null> {
+	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
 			let credential
 			switch (provider) {
@@ -122,7 +124,7 @@ export class FirebaseAuthProvider {
 
 			// store the long-lived refresh token in secret storage
 			try {
-				await storeSecret(context, "clineAccountId", userCredential.refreshToken)
+				controller.cacheService.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
 				ErrorService.logMessage("Firebase store token error", "error")
 				ErrorService.logException(error)
@@ -130,7 +132,7 @@ export class FirebaseAuthProvider {
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
-			return await this.retrieveClineAuthInfo(context)
+			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
 			ErrorService.logMessage("Firebase sign-in error", "error")
 			ErrorService.logException(error)

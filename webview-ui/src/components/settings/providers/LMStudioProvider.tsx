@@ -3,25 +3,29 @@ import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the LMStudioProvider component
  */
 interface LMStudioProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The LM Studio provider configuration component
  */
-export const LMStudioProvider = ({ showModelOptions, isPopup }: LMStudioProviderProps) => {
+export const LMStudioProvider = ({ showModelOptions, isPopup, currentMode }: LMStudioProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 
@@ -58,8 +62,10 @@ export const LMStudioProvider = ({ showModelOptions, isPopup }: LMStudioProvider
 			/>
 
 			<DebouncedTextField
-				initialValue={apiConfiguration?.lmStudioModelId || ""}
-				onChange={(value) => handleFieldChange("lmStudioModelId", value)}
+				initialValue={lmStudioModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeLmStudioModelId", act: "actModeLmStudioModelId" }, value, currentMode)
+				}
 				style={{ width: "100%" }}
 				placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -67,18 +73,20 @@ export const LMStudioProvider = ({ showModelOptions, isPopup }: LMStudioProvider
 
 			{lmStudioModels.length > 0 && (
 				<VSCodeRadioGroup
-					value={
-						lmStudioModels.includes(apiConfiguration?.lmStudioModelId || "") ? apiConfiguration?.lmStudioModelId : ""
-					}
+					value={lmStudioModels.includes(lmStudioModelId || "") ? lmStudioModelId : ""}
 					onChange={(e) => {
 						const value = (e.target as HTMLInputElement)?.value
 						// need to check value first since radio group returns empty string sometimes
 						if (value) {
-							handleFieldChange("lmStudioModelId", value)
+							handleModeFieldChange(
+								{ plan: "planModeLmStudioModelId", act: "actModeLmStudioModelId" },
+								value,
+								currentMode,
+							)
 						}
 					}}>
 					{lmStudioModels.map((model) => (
-						<VSCodeRadio key={model} value={model} checked={apiConfiguration?.lmStudioModelId === model}>
+						<VSCodeRadio key={model} value={model} checked={lmStudioModelId === model}>
 							{model}
 						</VSCodeRadio>
 					))}

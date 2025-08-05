@@ -6,23 +6,24 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the SapAiCoreProvider component
  */
 interface SapAiCoreProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The SAP AI Core provider configuration component
  */
-export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProviderProps) => {
+export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: SapAiCoreProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -41,7 +42,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProvid
 			)}
 
 			<DebouncedTextField
-				initialValue={apiConfiguration?.sapAiCoreClientSecret ? "********" : ""}
+				initialValue={apiConfiguration?.sapAiCoreClientSecret || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
 				style={{ width: "100%" }}
 				type="password"
@@ -97,7 +98,13 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup }: SapAiCoreProvid
 					<ModelSelector
 						models={sapAiCoreModels}
 						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

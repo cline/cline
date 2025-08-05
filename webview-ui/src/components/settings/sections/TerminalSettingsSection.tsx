@@ -3,9 +3,10 @@ import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
 import { StateServiceClient } from "../../../services/grpc-client"
-import { Int64, Int64Request, StringRequest } from "@shared/proto/common"
+import { Int64, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
+import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
 
 interface TerminalSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
@@ -31,15 +32,16 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 		}
 
 		setInputError(null)
-		const timeout = Math.round(seconds * 1000)
+		const timeoutMs = Math.round(seconds * 1000)
 
-		StateServiceClient.updateTerminalConnectionTimeout({
-			value: timeout,
-		} as Int64Request)
-			.then((response: Int64) => {
+		StateServiceClient.updateTerminalConnectionTimeout({ timeoutMs })
+			.then((response: UpdateTerminalConnectionTimeoutResponse) => {
+				const timeoutMs = response.timeoutMs
 				// Backend calls postStateToWebview(), so state will update via subscription
 				// Just sync the input value with the confirmed backend value
-				setInputValue((response.value / 1000).toString())
+				if (timeoutMs !== undefined) {
+					setInputValue((timeoutMs / 1000).toString())
+				}
 			})
 			.catch((error) => {
 				console.error("Failed to update terminal connection timeout:", error)
