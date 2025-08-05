@@ -105,6 +105,7 @@ ${getToolDescriptionsForMode(
 	experiments,
 	partialReadsEnabled,
 	settings,
+	enableMcpServerCreation,
 )}
 
 ${getToolUseGuidelinesSection(codeIndexManager)}

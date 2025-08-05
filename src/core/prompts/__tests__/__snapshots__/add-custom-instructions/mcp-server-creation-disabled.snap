@@ -99,13 +99,12 @@ IMPORTANT: You MUST use this Efficient Reading Strategy:
 Description: Request to fetch instructions to perform a task
 Parameters:
 - task: (required) The task to get instructions for.  This can take the following values:
-  create_mcp_server
   create_mode
 
-Example: Requesting instructions to create an MCP Server
+Example: Requesting instructions to create a Mode
 
 <fetch_instructions>
-<task>create_mcp_server</task>
+<task>create_mode</task>
 </fetch_instructions>
 
 ## search_files
