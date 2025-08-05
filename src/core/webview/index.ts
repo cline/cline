@@ -4,7 +4,6 @@ import { getNonce } from "./getNonce"
 
 import { WebviewProviderType } from "@/shared/webview/types"
 import { Controller } from "@core/controller/index"
-import { CacheService } from "@core/storage/CacheService"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
@@ -19,7 +18,6 @@ export abstract class WebviewProvider {
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
-	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
 
@@ -47,12 +45,6 @@ export abstract class WebviewProvider {
 	}
 
 	async dispose() {
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
 		// Remove from client ID map
