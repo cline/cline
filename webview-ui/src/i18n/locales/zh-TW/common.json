@@ -67,5 +67,21 @@
 		"editMessage": "編輯訊息",
 		"editWarning": "編輯此訊息將刪除對話中的所有後續訊息。是否繼續？",
 		"proceed": "繼續"
+	},
+	"time_ago": {
+		"just_now": "剛剛",
+		"seconds_ago": "{{count}}秒前",
+		"minute_ago": "1分鐘前",
+		"minutes_ago": "{{count}}分鐘前",
+		"hour_ago": "1小時前",
+		"hours_ago": "{{count}}小時前",
+		"day_ago": "1天前",
+		"days_ago": "{{count}}天前",
+		"week_ago": "1週前",
+		"weeks_ago": "{{count}}週前",
+		"month_ago": "1個月前",
+		"months_ago": "{{count}}個月前",
+		"year_ago": "1年前",
+		"years_ago": "{{count}}年前"
 	}
 }

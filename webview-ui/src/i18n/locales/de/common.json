@@ -67,5 +67,21 @@
 		"editMessage": "Nachricht bearbeiten",
 		"editWarning": "Das Bearbeiten dieser Nachricht wird alle nachfolgenden Nachrichten in der Unterhaltung löschen. Möchtest du fortfahren?",
 		"proceed": "Fortfahren"
+	},
+	"time_ago": {
+		"just_now": "gerade eben",
+		"seconds_ago": "vor {{count}} Sekunden",
+		"minute_ago": "vor einer Minute",
+		"minutes_ago": "vor {{count}} Minuten",
+		"hour_ago": "vor einer Stunde",
+		"hours_ago": "vor {{count}} Stunden",
+		"day_ago": "vor einem Tag",
+		"days_ago": "vor {{count}} Tagen",
+		"week_ago": "vor einer Woche",
+		"weeks_ago": "vor {{count}} Wochen",
+		"month_ago": "vor einem Monat",
+		"months_ago": "vor {{count}} Monaten",
+		"year_ago": "vor einem Jahr",
+		"years_ago": "vor {{count}} Jahren"
 	}
 }

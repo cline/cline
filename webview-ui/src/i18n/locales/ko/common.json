@@ -67,5 +67,21 @@
 		"editMessage": "메시지 편집",
 		"editWarning": "이 메시지를 편집하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
 		"proceed": "계속"
+	},
+	"time_ago": {
+		"just_now": "방금",
+		"seconds_ago": "{{count}}초 전",
+		"minute_ago": "1분 전",
+		"minutes_ago": "{{count}}분 전",
+		"hour_ago": "1시간 전",
+		"hours_ago": "{{count}}시간 전",
+		"day_ago": "1일 전",
+		"days_ago": "{{count}}일 전",
+		"week_ago": "1주일 전",
+		"weeks_ago": "{{count}}주일 전",
+		"month_ago": "1개월 전",
+		"months_ago": "{{count}}개월 전",
+		"year_ago": "1년 전",
+		"years_ago": "{{count}}년 전"
 	}
 }

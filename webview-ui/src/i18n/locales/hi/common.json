@@ -67,5 +67,21 @@
 		"editMessage": "संदेश संपादित करें",
 		"editWarning": "इस संदेश को संपादित करने से बातचीत के सभी बाद के संदेश हट जाएंगे। क्या आप जारी रखना चाहते हैं?",
 		"proceed": "जारी रखें"
+	},
+	"time_ago": {
+		"just_now": "अभी",
+		"seconds_ago": "{{count}} सेकंड पहले",
+		"minute_ago": "एक मिनट पहले",
+		"minutes_ago": "{{count}} मिनट पहले",
+		"hour_ago": "एक घंटे पहले",
+		"hours_ago": "{{count}} घंटे पहले",
+		"day_ago": "एक दिन पहले",
+		"days_ago": "{{count}} दिन पहले",
+		"week_ago": "एक सप्ताह पहले",
+		"weeks_ago": "{{count}} सप्ताह पहले",
+		"month_ago": "एक महीने पहले",
+		"months_ago": "{{count}} महीने पहले",
+		"year_ago": "एक साल पहले",
+		"years_ago": "{{count}} साल पहले"
 	}
 }

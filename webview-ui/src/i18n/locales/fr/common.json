@@ -67,5 +67,21 @@
 		"editMessage": "Modifier le message",
 		"editWarning": "Modifier ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
 		"proceed": "Continuer"
+	},
+	"time_ago": {
+		"just_now": "à l'instant",
+		"seconds_ago": "il y a {{count}} secondes",
+		"minute_ago": "il y a une minute",
+		"minutes_ago": "il y a {{count}} minutes",
+		"hour_ago": "il y a une heure",
+		"hours_ago": "il y a {{count}} heures",
+		"day_ago": "il y a un jour",
+		"days_ago": "il y a {{count}} jours",
+		"week_ago": "il y a une semaine",
+		"weeks_ago": "il y a {{count}} semaines",
+		"month_ago": "il y a un mois",
+		"months_ago": "il y a {{count}} mois",
+		"year_ago": "il y a un an",
+		"years_ago": "il y a {{count}} ans"
 	}
 }

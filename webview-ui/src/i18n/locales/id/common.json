@@ -67,5 +67,21 @@
 		"editMessage": "Edit Pesan",
 		"editWarning": "Mengedit pesan ini akan menghapus semua pesan selanjutnya dalam percakapan. Apakah kamu ingin melanjutkan?",
 		"proceed": "Lanjutkan"
+	},
+	"time_ago": {
+		"just_now": "baru saja",
+		"seconds_ago": "{{count}} detik yang lalu",
+		"minute_ago": "satu menit yang lalu",
+		"minutes_ago": "{{count}} menit yang lalu",
+		"hour_ago": "satu jam yang lalu",
+		"hours_ago": "{{count}} jam yang lalu",
+		"day_ago": "satu hari yang lalu",
+		"days_ago": "{{count}} hari yang lalu",
+		"week_ago": "satu minggu yang lalu",
+		"weeks_ago": "{{count}} minggu yang lalu",
+		"month_ago": "satu bulan yang lalu",
+		"months_ago": "{{count}} bulan yang lalu",
+		"year_ago": "satu tahun yang lalu",
+		"years_ago": "{{count}} tahun yang lalu"
 	}
 }

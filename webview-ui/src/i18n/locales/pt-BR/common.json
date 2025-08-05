@@ -67,5 +67,21 @@
 		"editMessage": "Editar Mensagem",
 		"editWarning": "Editar esta mensagem irá excluir todas as mensagens subsequentes na conversa. Deseja prosseguir?",
 		"proceed": "Prosseguir"
+	},
+	"time_ago": {
+		"just_now": "agora mesmo",
+		"seconds_ago": "há {{count}} segundos",
+		"minute_ago": "há um minuto",
+		"minutes_ago": "há {{count}} minutos",
+		"hour_ago": "há uma hora",
+		"hours_ago": "há {{count}} horas",
+		"day_ago": "há um dia",
+		"days_ago": "há {{count}} dias",
+		"week_ago": "há uma semana",
+		"weeks_ago": "há {{count}} semanas",
+		"month_ago": "há um mês",
+		"months_ago": "há {{count}} meses",
+		"year_ago": "há um ano",
+		"years_ago": "há {{count}} anos"
 	}
 }

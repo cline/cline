@@ -67,5 +67,21 @@
 		"editMessage": "Editar missatge",
 		"editWarning": "Editar aquest missatge eliminarà tots els missatges posteriors de la conversa. Vols continuar?",
 		"proceed": "Continuar"
+	},
+	"time_ago": {
+		"just_now": "ara mateix",
+		"seconds_ago": "fa {{count}} segons",
+		"minute_ago": "fa un minut",
+		"minutes_ago": "fa {{count}} minuts",
+		"hour_ago": "fa una hora",
+		"hours_ago": "fa {{count}} hores",
+		"day_ago": "fa un dia",
+		"days_ago": "fa {{count}} dies",
+		"week_ago": "fa una setmana",
+		"weeks_ago": "fa {{count}} setmanes",
+		"month_ago": "fa un mes",
+		"months_ago": "fa {{count}} mesos",
+		"year_ago": "fa un any",
+		"years_ago": "fa {{count}} anys"
 	}
 }

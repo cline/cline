@@ -67,5 +67,21 @@
 		"editMessage": "Edytuj Wiadomość",
 		"editWarning": "Edycja tej wiadomości spowoduje usunięcie wszystkich kolejnych wiadomości w rozmowie. Czy chcesz kontynuować?",
 		"proceed": "Kontynuuj"
+	},
+	"time_ago": {
+		"just_now": "przed chwilą",
+		"seconds_ago": "{{count}} sekund temu",
+		"minute_ago": "minutę temu",
+		"minutes_ago": "{{count}} minut temu",
+		"hour_ago": "godzinę temu",
+		"hours_ago": "{{count}} godzin temu",
+		"day_ago": "dzień temu",
+		"days_ago": "{{count}} dni temu",
+		"week_ago": "tydzień temu",
+		"weeks_ago": "{{count}} tygodni temu",
+		"month_ago": "miesiąc temu",
+		"months_ago": "{{count}} miesięcy temu",
+		"year_ago": "rok temu",
+		"years_ago": "{{count}} lat temu"
 	}
 }

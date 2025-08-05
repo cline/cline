@@ -148,6 +148,8 @@ describe("HistoryPreview", () => {
 		expect(screen.getByTestId("task-item-task-2")).toBeInTheDocument()
 		expect(screen.getByTestId("task-item-task-3")).toBeInTheDocument()
 		expect(screen.queryByTestId("task-item-task-4")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("task-item-task-5")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("task-item-task-6")).not.toBeInTheDocument()
 	})
 
 	it("renders only 1 task when there is only 1 task", () => {

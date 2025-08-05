@@ -67,5 +67,21 @@
 		"editMessage": "Chỉnh Sửa Tin Nhắn",
 		"editWarning": "Chỉnh sửa tin nhắn này sẽ xóa tất cả các tin nhắn tiếp theo trong cuộc trò chuyện. Bạn có muốn tiếp tục không?",
 		"proceed": "Tiếp Tục"
+	},
+	"time_ago": {
+		"just_now": "vừa xong",
+		"seconds_ago": "{{count}} giây trước",
+		"minute_ago": "một phút trước",
+		"minutes_ago": "{{count}} phút trước",
+		"hour_ago": "một giờ trước",
+		"hours_ago": "{{count}} giờ trước",
+		"day_ago": "một ngày trước",
+		"days_ago": "{{count}} ngày trước",
+		"week_ago": "một tuần trước",
+		"weeks_ago": "{{count}} tuần trước",
+		"month_ago": "một tháng trước",
+		"months_ago": "{{count}} tháng trước",
+		"year_ago": "một năm trước",
+		"years_ago": "{{count}} năm trước"
 	}
 }

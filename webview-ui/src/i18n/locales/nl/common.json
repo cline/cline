@@ -67,5 +67,21 @@
 		"editMessage": "Bericht Bewerken",
 		"editWarning": "Het bewerken van dit bericht zal alle volgende berichten in het gesprek verwijderen. Wil je doorgaan?",
 		"proceed": "Doorgaan"
+	},
+	"time_ago": {
+		"just_now": "zojuist",
+		"seconds_ago": "{{count}} seconden geleden",
+		"minute_ago": "een minuut geleden",
+		"minutes_ago": "{{count}} minuten geleden",
+		"hour_ago": "een uur geleden",
+		"hours_ago": "{{count}} uur geleden",
+		"day_ago": "een dag geleden",
+		"days_ago": "{{count}} dagen geleden",
+		"week_ago": "een week geleden",
+		"weeks_ago": "{{count}} weken geleden",
+		"month_ago": "een maand geleden",
+		"months_ago": "{{count}} maanden geleden",
+		"year_ago": "een jaar geleden",
+		"years_ago": "{{count}} jaar geleden"
 	}
 }

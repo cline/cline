@@ -67,5 +67,21 @@
 		"editMessage": "Edit Message",
 		"editWarning": "Editing this message will delete all subsequent messages in the conversation. Do you want to proceed?",
 		"proceed": "Proceed"
+	},
+	"time_ago": {
+		"just_now": "just now",
+		"seconds_ago": "{{count}} seconds ago",
+		"minute_ago": "a minute ago",
+		"minutes_ago": "{{count}} minutes ago",
+		"hour_ago": "an hour ago",
+		"hours_ago": "{{count}} hours ago",
+		"day_ago": "a day ago",
+		"days_ago": "{{count}} days ago",
+		"week_ago": "a week ago",
+		"weeks_ago": "{{count}} weeks ago",
+		"month_ago": "a month ago",
+		"months_ago": "{{count}} months ago",
+		"year_ago": "a year ago",
+		"years_ago": "{{count}} years ago"
 	}
 }

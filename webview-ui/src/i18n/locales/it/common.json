@@ -67,5 +67,21 @@
 		"editMessage": "Modifica Messaggio",
 		"editWarning": "Modificando questo messaggio verranno eliminati tutti i messaggi successivi nella conversazione. Vuoi procedere?",
 		"proceed": "Procedi"
+	},
+	"time_ago": {
+		"just_now": "proprio ora",
+		"seconds_ago": "{{count}} secondi fa",
+		"minute_ago": "un minuto fa",
+		"minutes_ago": "{{count}} minuti fa",
+		"hour_ago": "un'ora fa",
+		"hours_ago": "{{count}} ore fa",
+		"day_ago": "un giorno fa",
+		"days_ago": "{{count}} giorni fa",
+		"week_ago": "una settimana fa",
+		"weeks_ago": "{{count}} settimane fa",
+		"month_ago": "un mese fa",
+		"months_ago": "{{count}} mesi fa",
+		"year_ago": "un anno fa",
+		"years_ago": "{{count}} anni fa"
 	}
 }

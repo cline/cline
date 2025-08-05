@@ -67,5 +67,21 @@
 		"editMessage": "编辑消息",
 		"editWarning": "编辑此消息将删除对话中的所有后续消息。是否继续？",
 		"proceed": "继续"
+	},
+	"time_ago": {
+		"just_now": "刚刚",
+		"seconds_ago": "{{count}}秒前",
+		"minute_ago": "1分钟前",
+		"minutes_ago": "{{count}}分钟前",
+		"hour_ago": "1小时前",
+		"hours_ago": "{{count}}小时前",
+		"day_ago": "1天前",
+		"days_ago": "{{count}}天前",
+		"week_ago": "1周前",
+		"weeks_ago": "{{count}}周前",
+		"month_ago": "1个月前",
+		"months_ago": "{{count}}个月前",
+		"year_ago": "1年前",
+		"years_ago": "{{count}}年前"
 	}
 }

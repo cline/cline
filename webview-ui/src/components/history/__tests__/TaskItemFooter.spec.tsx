@@ -8,6 +8,12 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 	}),
 }))
 
+vi.mock("@/utils/format", () => ({
+	formatTimeAgo: vi.fn(() => "2 hours ago"),
+	formatDate: vi.fn(() => "January 15 at 2:30 PM"),
+	formatLargeNumber: vi.fn((num: number) => num.toString()),
+}))
+
 const mockItem = {
 	id: "1",
 	number: 1,
@@ -20,12 +26,11 @@ const mockItem = {
 }
 
 describe("TaskItemFooter", () => {
-	it("renders token information", () => {
+	it("renders time ago information", () => {
 		render(<TaskItemFooter item={mockItem} variant="full" />)
 
-		// Check for token counts using testids since the text is split across elements
-		expect(screen.getByTestId("tokens-in-footer-compact")).toBeInTheDocument()
-		expect(screen.getByTestId("tokens-out-footer-compact")).toBeInTheDocument()
+		// Should show time ago format
+		expect(screen.getByText(/ago/)).toBeInTheDocument()
 	})
 
 	it("renders cost information", () => {
@@ -43,31 +48,38 @@ describe("TaskItemFooter", () => {
 		expect(screen.getByTestId("export")).toBeInTheDocument()
 	})
 
-	it("renders cache information when present", () => {
-		const mockItemWithCache = {
-			...mockItem,
-			cacheReads: 5,
-			cacheWrites: 3,
-		}
+	it("hides export button in compact variant", () => {
+		render(<TaskItemFooter item={mockItem} variant="compact" />)
 
-		render(<TaskItemFooter item={mockItemWithCache} variant="full" />)
-
-		// Check for cache display using testid
-		expect(screen.getByTestId("cache-compact")).toBeInTheDocument()
-		expect(screen.getByText("3")).toBeInTheDocument() // cache writes
-		expect(screen.getByText("5")).toBeInTheDocument() // cache reads
+		// Should show copy button but not export button
+		expect(screen.getByTestId("copy-prompt-button")).toBeInTheDocument()
+		expect(screen.queryByTestId("export")).not.toBeInTheDocument()
 	})
 
-	it("does not render cache information when not present", () => {
-		const mockItemWithoutCache = {
-			...mockItem,
-			cacheReads: 0,
-			cacheWrites: 0,
-		}
+	it("hides action buttons in selection mode", () => {
+		render(<TaskItemFooter item={mockItem} variant="full" isSelectionMode={true} />)
 
-		render(<TaskItemFooter item={mockItemWithoutCache} variant="full" />)
+		// Should not show any action buttons
+		expect(screen.queryByTestId("copy-prompt-button")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("export")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("delete-task-button")).not.toBeInTheDocument()
+	})
 
-		// Cache section should not be present
-		expect(screen.queryByTestId("cache-compact")).not.toBeInTheDocument()
+	it("shows delete button when not in selection mode and onDelete is provided", () => {
+		render(<TaskItemFooter item={mockItem} variant="full" isSelectionMode={false} onDelete={vi.fn()} />)
+
+		expect(screen.getByTestId("delete-task-button")).toBeInTheDocument()
+	})
+
+	it("does not show delete button in selection mode", () => {
+		render(<TaskItemFooter item={mockItem} variant="full" isSelectionMode={true} onDelete={vi.fn()} />)
+
+		expect(screen.queryByTestId("delete-task-button")).not.toBeInTheDocument()
+	})
+
+	it("does not show delete button when onDelete is not provided", () => {
+		render(<TaskItemFooter item={mockItem} variant="full" isSelectionMode={false} />)
+
+		expect(screen.queryByTestId("delete-task-button")).not.toBeInTheDocument()
 	})
 })
