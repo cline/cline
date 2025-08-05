@@ -1,7 +1,7 @@
 import { BrowserConnection } from "@shared/proto/cline/browser"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
+import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 

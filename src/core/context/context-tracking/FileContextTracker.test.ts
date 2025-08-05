@@ -9,10 +9,11 @@ import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
 import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { Controller } from "@/core/controller"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
-	let mockContext: vscode.ExtensionContext
+	let mockController: Controller
 	let mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
 	let tracker: FileContextTracker
@@ -45,9 +46,9 @@ describe("FileContextTracker", () => {
 		}
 
 		// Mock controller and context
-		mockContext = {
-			globalStorageUri: { fsPath: "/mock/storage" },
-		} as unknown as vscode.ExtensionContext
+		mockController = {
+			context: { globalStorageUri: { fsPath: "/mock/storage" } } as vscode.ExtensionContext,
+		} as unknown as Controller
 
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
@@ -65,7 +66,7 @@ describe("FileContextTracker", () => {
 
 		// Create tracker instance
 		taskId = "test-task-id"
-		tracker = new FileContextTracker(mockContext, taskId)
+		tracker = new FileContextTracker(mockController, taskId)
 	})
 
 	afterEach(() => {

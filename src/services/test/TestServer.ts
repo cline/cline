@@ -6,7 +6,6 @@ import { Logger } from "@services/logging/Logger"
 import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState, storeSecret } from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -14,6 +13,7 @@ import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/sto
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
 import { askResponse } from "@core/controller/task/askResponse"
+import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -110,7 +110,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		provider?.controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state

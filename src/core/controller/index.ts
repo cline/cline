@@ -14,7 +14,6 @@ import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { Mode } from "@shared/storage/types"
-import { ClineRulesToggles } from "@shared/cline-rules"
 import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
@@ -29,13 +28,13 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { getAllExtensionState } from "../storage/utils/state-helpers"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 
 /*
@@ -112,7 +111,7 @@ export class Controller {
 	}
 
 	async getCurrentMode(): Promise<Mode> {
-		return ((await getGlobalState(this.context, "mode")) as Mode | undefined) || "act"
+		return (this.cacheService.getGlobalStateKey("mode") as Mode | undefined) || "act"
 	}
 
 	/*
@@ -139,7 +138,7 @@ export class Controller {
 		try {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
 			this.cacheService.setSecret("clineAccountId", undefined)
-			await updateGlobalState(this.context, "userInfo", undefined)
+			this.cacheService.setGlobalState("userInfo", undefined)
 
 			// Update API providers through cache service
 			const apiConfiguration = this.cacheService.getApiConfiguration()
@@ -164,7 +163,7 @@ export class Controller {
 	}
 
 	async setUserInfo(info?: UserInfo) {
-		await updateGlobalState(this.context, "userInfo", info)
+		this.cacheService.setGlobalState("userInfo", info)
 	}
 
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
@@ -193,7 +192,7 @@ export class Controller {
 
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
 		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
-			await updateGlobalState(this.context, "isNewUser", false)
+			this.cacheService.setGlobalState("isNewUser", false)
 			await this.postStateToWebview()
 		}
 
@@ -202,10 +201,10 @@ export class Controller {
 				...autoApprovalSettings,
 				version: (autoApprovalSettings.version ?? 1) + 1,
 			}
-			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
+			this.cacheService.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
 		this.task = new Task(
-			this.context,
+			this,
 			this.mcpHub,
 			this.workspaceTracker,
 			(historyItem) => this.updateTaskHistory(historyItem),
@@ -272,7 +271,7 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		await updateGlobalState(this.context, "telemetrySetting", telemetrySetting)
+		this.cacheService.setGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting !== "disabled"
 		telemetryService.updateTelemetryState(isOptedIn)
 		await this.postStateToWebview()
@@ -282,7 +281,7 @@ export class Controller {
 		const didSwitchToActMode = modeToSwitchTo === "act"
 
 		// Store mode to global state
-		await updateGlobalState(this.context, "mode", modeToSwitchTo)
+		this.cacheService.setGlobalState("mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
 		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
@@ -378,7 +377,7 @@ export class Controller {
 			this.cacheService.setApiConfiguration(updatedConfig)
 
 			// Mark welcome view as completed since user has successfully logged in
-			await updateGlobalState(this.context, "welcomeViewCompleted", true)
+			this.cacheService.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
 				this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
@@ -419,7 +418,7 @@ export class Controller {
 			}
 
 			// Store in global state
-			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			this.cacheService.setGlobalState("mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -457,7 +456,7 @@ export class Controller {
 			}
 
 			// Store in global state
-			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			this.cacheService.setGlobalState("mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -648,7 +647,7 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
+		const history = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
@@ -683,9 +682,9 @@ export class Controller {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
+		const taskHistory = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		await updateGlobalState(this.context, "taskHistory", updatedTaskHistory)
+		this.cacheService.setGlobalState("taskHistory", updatedTaskHistory)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -812,37 +811,15 @@ export class Controller {
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 
-	// getApiConversationHistory(): Anthropic.MessageParam[] {
-	// 	// const history = (await this.getGlobalState(
-	// 	// 	this.getApiConversationHistoryStateKey()
-	// 	// )) as Anthropic.MessageParam[]
-	// 	// return history || []
-	// 	return this.apiConversationHistory
-	// }
-
-	// setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
-	// 	// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
-	// 	this.apiConversationHistory = history || []
-	// }
-
-	// addMessageToApiConversationHistory(message: Anthropic.MessageParam): Anthropic.MessageParam[] {
-	// 	// const history = await this.getApiConversationHistory()
-	// 	// history.push(message)
-	// 	// await this.setApiConversationHistory(history)
-	// 	// return history
-	// 	this.apiConversationHistory.push(message)
-	// 	return this.apiConversationHistory
-	// }
-
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
+		const history = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[]) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
 		} else {
 			history.push(item)
 		}
-		await updateGlobalState(this.context, "taskHistory", history)
+		this.cacheService.setGlobalState("taskHistory", history)
 		return history
 	}
 }

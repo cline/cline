@@ -1,13 +1,13 @@
 import { Controller } from ".."
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
 import { groqModels } from "../../../shared/api"
 import axios from "axios"
 import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
+import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Refreshes the Groq models and returns the updated model list

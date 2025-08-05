@@ -1,7 +1,7 @@
 import { ChromePath } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "../../storage/state"
+import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
 
 /**

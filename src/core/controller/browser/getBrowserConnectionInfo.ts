@@ -1,7 +1,7 @@
 import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
+import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Get information about the current browser connection

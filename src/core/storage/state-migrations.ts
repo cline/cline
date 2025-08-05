@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
-import { updateGlobalState, getAllExtensionState, getGlobalState } from "./state"
+import { getAllExtensionState } from "./utils/state-helpers"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -506,7 +506,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
 	try {
 		// Check if welcomeViewCompleted is already set
-		const welcomeViewCompleted = await getGlobalState(context, "welcomeViewCompleted")
+		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")
 
 		if (welcomeViewCompleted === undefined) {
 			console.log("Migrating welcomeViewCompleted setting...")
@@ -548,7 +548,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				: false
 
 			// Set welcomeViewCompleted based on whether user has keys
-			await updateGlobalState(context, "welcomeViewCompleted", hasKey)
+			await context.globalState.update("welcomeViewCompleted", hasKey)
 
 			console.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
 		}

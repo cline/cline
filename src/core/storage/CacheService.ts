@@ -1,8 +1,8 @@
 import { ApiConfiguration } from "@shared/api"
-import { updateGlobalState, updateWorkspaceState, getAllExtensionState, storeSecret } from "./state"
 import { SecretKey, GlobalStateKey, LocalStateKey } from "./state-keys"
 import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
 import type { ExtensionContext } from "vscode"
+import { getAllExtensionState } from "./utils/state-helpers"
 
 /**
  * Interface for persistence error event data

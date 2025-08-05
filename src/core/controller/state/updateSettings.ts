@@ -32,27 +32,27 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update plan/act separate models setting
 		if (request.planActSeparateModelsSetting !== undefined) {
-			await controller.context.globalState.update("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
+			controller.cacheService.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
 		}
 
 		// Update checkpoints setting
 		if (request.enableCheckpointsSetting !== undefined) {
-			await controller.context.globalState.update("enableCheckpointsSetting", request.enableCheckpointsSetting)
+			controller.cacheService.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
 		}
 
 		// Update MCP marketplace setting
 		if (request.mcpMarketplaceEnabled !== undefined) {
-			await controller.context.globalState.update("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
+			controller.cacheService.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
 		}
 
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
-			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
+			controller.cacheService.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
 		// Update MCP display mode setting
 		if (request.mcpDisplayMode !== undefined) {
-			await controller.context.globalState.update("mcpDisplayMode", request.mcpDisplayMode)
+			controller.cacheService.setGlobalState("mcpDisplayMode", request.mcpDisplayMode)
 		}
 
 		if (request.mode !== undefined) {
@@ -60,36 +60,36 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.updateMode(mode)
 			}
-			await controller.context.globalState.update("mode", request.mode)
+			controller.cacheService.setGlobalState("mode", request.mode)
 		}
 
 		if (request.openaiReasoningEffort !== undefined) {
 			if (controller.task) {
 				controller.task.openaiReasoningEffort = request.openaiReasoningEffort as OpenaiReasoningEffort
 			}
-			await controller.context.globalState.update("openaiReasoningEffort", request.openaiReasoningEffort)
+			controller.cacheService.setGlobalState("openaiReasoningEffort", request.openaiReasoningEffort)
 		}
 
 		if (request.preferredLanguage !== undefined) {
 			if (controller.task) {
 				controller.task.preferredLanguage = request.preferredLanguage
 			}
-			await controller.context.globalState.update("preferredLanguage", request.preferredLanguage)
+			controller.cacheService.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
-			await controller.context.globalState.update("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
+			controller.cacheService.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
 		}
 
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
-			await controller.context.globalState.update("terminalReuseEnabled", request.terminalReuseEnabled)
+			controller.cacheService.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
 		}
 
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
-			await controller.context.globalState.update("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+			controller.cacheService.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
 		}
 
 		// Update strict plan mode setting
@@ -97,7 +97,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
-			await controller.context.globalState.update("strictPlanModeEnabled", request.strictPlanModeEnabled)
+			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
 		// Post updated state to webview

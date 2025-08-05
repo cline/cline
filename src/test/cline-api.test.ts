@@ -4,7 +4,6 @@ import * as sinon from "sinon"
 import type { ClineAPI } from "../exports/cline"
 import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
-import * as stateModule from "@core/storage/state"
 import { createClineAPI } from "@/exports"
 
 describe("ClineAPI Core Functionality", () => {
@@ -26,9 +25,6 @@ describe("ClineAPI Core Functionality", () => {
 			vscodeHostBridgeClient,
 			mockLogToChannel,
 		)
-		// Stub the getGlobalState function from the state module
-		// This is needed because the real createClineAPI uses it for getCustomInstructions
-		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")
 
 		// Create a mock controller that matches what the real createClineAPI expects
 		// We don't import the real Controller to avoid the webview dependencies
