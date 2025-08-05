@@ -1133,6 +1133,26 @@ export const deepSeekModels = {
 export type HuggingFaceModelId = keyof typeof huggingFaceModels
 export const huggingFaceDefaultModelId: HuggingFaceModelId = "moonshotai/Kimi-K2-Instruct"
 export const huggingFaceModels = {
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Large open-weight reasoning model for high-end desktops and data centers, built for complex coding, math, and general AI tasks.",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Medium open-weight reasoning model that runs on most desktops, balancing strong reasoning with broad accessibility.",
+	},
 	"moonshotai/Kimi-K2-Instruct": {
 		maxTokens: 131_072,
 		contextWindow: 131_072,
@@ -2498,6 +2518,15 @@ export const sambanovaModels = {
 export type CerebrasModelId = keyof typeof cerebrasModels
 export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
 export const cerebrasModels = {
+	"gpt-oss-120b": {
+		maxTokens: 65536,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent general purpose model with 3,000 tokens/s",
+	},
 	"qwen-3-coder-480b-free": {
 		maxTokens: 40000,
 		contextWindow: 64000,
@@ -2560,8 +2589,28 @@ export const cerebrasModels = {
 // https://console.groq.com/docs/models
 // https://groq.com/pricing/
 export type GroqModelId = keyof typeof groqModels
-export const groqDefaultModelId: GroqModelId = "moonshotai/kimi-k2-instruct"
+export const groqDefaultModelId: GroqModelId = "openai/gpt-oss-120b"
 export const groqModels = {
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.75,
+		description:
+			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		description:
+			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+	},
 	// Compound Beta Models - Hybrid architectures optimized for tool use
 	"compound-beta": {
 		maxTokens: 8192,

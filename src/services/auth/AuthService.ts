@@ -1,15 +1,13 @@
-import vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { storeSecret } from "@/core/storage/state"
 import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
 import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
+import { HostProvider } from "@/hosts/host-provider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -197,8 +195,7 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackHost =
-			(await AuthHandler.getInstance().getCallbackUri()) || `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
+		const callbackHost = await HostProvider.get().getCallbackUri()
 		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction
