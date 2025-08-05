@@ -6,6 +6,7 @@
 - Add Fireworks AI provider (#6653 by @ershang-fireworks, PR by @ershang-fireworks)
 - Add Z AI provider (thanks @jues!)
 - Add Groq support for GPT-OSS
+- Add Cerebras support for GPT-OSS
 - Add code indexing support for multiple folders similar to task history (#6197 by @NaccOll, PR by @NaccOll)
 - Make mode selection dropdowns responsive (#6423 by @AyazKaan, PR by @AyazKaan)
 - Redesigned task header and task history (thanks @brunobergher!)
