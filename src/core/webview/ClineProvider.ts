@@ -104,6 +104,7 @@ export class ClineProvider
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Task[] = []
 	private codeIndexStatusSubscription?: vscode.Disposable
+	private currentWorkspaceManager?: CodeIndexManager
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
 	public get workspaceTracker(): WorkspaceTracker | undefined {
 		return this._workspaceTracker
@@ -125,7 +126,6 @@ export class ClineProvider
 		private readonly outputChannel: vscode.OutputChannel,
 		private readonly renderContext: "sidebar" | "editor" = "sidebar",
 		public readonly contextProxy: ContextProxy,
-		public readonly codeIndexManager?: CodeIndexManager,
 		mdmService?: MdmService,
 	) {
 		super()
@@ -133,7 +133,6 @@ export class ClineProvider
 		this.log("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 
-		this.codeIndexManager = codeIndexManager
 		this.mdmService = mdmService
 		this.updateGlobalState("codebaseIndexModels", EMBEDDING_MODEL_PROFILES)
 
@@ -602,16 +601,15 @@ export class ClineProvider
 		// and executes code based on the message that is received
 		this.setWebviewMessageListener(webviewView.webview)
 
-		// Subscribe to code index status updates if the manager exists
-		if (this.codeIndexManager) {
-			this.codeIndexStatusSubscription = this.codeIndexManager.onProgressUpdate((update: IndexProgressUpdate) => {
-				this.postMessageToWebview({
-					type: "indexingStatusUpdate",
-					values: update,
-				})
-			})
-			this.webviewDisposables.push(this.codeIndexStatusSubscription)
-		}
+		// Initialize code index status subscription for the current workspace
+		this.updateCodeIndexStatusSubscription()
+
+		// Listen for active editor changes to update code index status for the current workspace
+		const activeEditorSubscription = vscode.window.onDidChangeActiveTextEditor(() => {
+			// Update subscription when workspace might have changed
+			this.updateCodeIndexStatusSubscription()
+		})
+		this.webviewDisposables.push(activeEditorSubscription)
 
 		// Logs show up in bottom panel > Debug Console
 		//console.log("registering listener")
@@ -647,8 +645,8 @@ export class ClineProvider
 				} else {
 					this.log("Clearing webview resources for sidebar view")
 					this.clearWebviewResources()
-					this.codeIndexStatusSubscription?.dispose()
-					this.codeIndexStatusSubscription = undefined
+					// Reset current workspace manager reference when view is disposed
+					this.currentWorkspaceManager = undefined
 				}
 			},
 			null,
@@ -2221,6 +2219,61 @@ export class ClineProvider
 			cloudIsAuthenticated,
 			...(todos && { todos }),
 			...gitInfo,
+		}
+	}
+
+	/**
+	 * Gets the CodeIndexManager for the current active workspace
+	 * @returns CodeIndexManager instance for the current workspace or the default one
+	 */
+	public getCurrentWorkspaceCodeIndexManager(): CodeIndexManager | undefined {
+		return CodeIndexManager.getInstance(this.context)
+	}
+
+	/**
+	 * Updates the code index status subscription to listen to the current workspace manager
+	 */
+	private updateCodeIndexStatusSubscription(): void {
+		// Get the current workspace manager
+		const currentManager = this.getCurrentWorkspaceCodeIndexManager()
+
+		// If the manager hasn't changed, no need to update subscription
+		if (currentManager === this.currentWorkspaceManager) {
+			return
+		}
+
+		// Dispose the old subscription if it exists
+		if (this.codeIndexStatusSubscription) {
+			this.codeIndexStatusSubscription.dispose()
+			this.codeIndexStatusSubscription = undefined
+		}
+
+		// Update the current workspace manager reference
+		this.currentWorkspaceManager = currentManager
+
+		// Subscribe to the new manager's progress updates if it exists
+		if (currentManager) {
+			this.codeIndexStatusSubscription = currentManager.onProgressUpdate((update: IndexProgressUpdate) => {
+				// Only send updates if this manager is still the current one
+				if (currentManager === this.getCurrentWorkspaceCodeIndexManager()) {
+					// Get the full status from the manager to ensure we have all fields correctly formatted
+					const fullStatus = currentManager.getCurrentStatus()
+					this.postMessageToWebview({
+						type: "indexingStatusUpdate",
+						values: fullStatus,
+					})
+				}
+			})
+
+			if (this.view) {
+				this.webviewDisposables.push(this.codeIndexStatusSubscription)
+			}
+
+			// Send initial status for the current workspace
+			this.postMessageToWebview({
+				type: "indexingStatusUpdate",
+				values: currentManager.getCurrentStatus(),
+			})
 		}
 	}
 }

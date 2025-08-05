@@ -1,4 +1,22 @@
 // Mocks must come first, before imports
+vi.mock("vscode", () => ({
+	env: {
+		language: "en",
+	},
+	workspace: {
+		workspaceFolders: [{ uri: { fsPath: "/test/path" } }],
+		getWorkspaceFolder: vi.fn().mockReturnValue({ uri: { fsPath: "/test/path" } }),
+	},
+	window: {
+		activeTextEditor: undefined,
+	},
+	EventEmitter: vi.fn().mockImplementation(() => ({
+		event: vi.fn(),
+		fire: vi.fn(),
+		dispose: vi.fn(),
+	})),
+}))
+
 vi.mock("fs/promises", () => {
 	const mockReadFile = vi.fn()
 	const mockMkdir = vi.fn().mockResolvedValue(undefined)

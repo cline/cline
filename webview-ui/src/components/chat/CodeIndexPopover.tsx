@@ -147,7 +147,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 }) => {
 	const SECRET_PLACEHOLDER = "••••••••••••••••"
 	const { t } = useAppTranslation()
-	const { codebaseIndexConfig, codebaseIndexModels } = useExtensionState()
+	const { codebaseIndexConfig, codebaseIndexModels, cwd } = useExtensionState()
 	const [open, setOpen] = useState(false)
 	const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false)
 	const [isSetupSettingsOpen, setIsSetupSettingsOpen] = useState(false)
@@ -229,6 +229,18 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 			vscode.postMessage({ type: "requestIndexingStatus" })
 			vscode.postMessage({ type: "requestCodeIndexSecretStatus" })
 		}
+		const handleMessage = (event: MessageEvent) => {
+			if (event.data.type === "workspaceUpdated") {
+				// When workspace changes, request updated indexing status
+				if (open) {
+					vscode.postMessage({ type: "requestIndexingStatus" })
+					vscode.postMessage({ type: "requestCodeIndexSecretStatus" })
+				}
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
 	}, [open])
 
 	// Use a ref to capture current settings for the save handler
@@ -239,13 +251,15 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<any>) => {
 			if (event.data.type === "indexingStatusUpdate") {
-				setIndexingStatus({
-					systemStatus: event.data.values.systemStatus,
-					message: event.data.values.message || "",
-					processedItems: event.data.values.processedItems,
-					totalItems: event.data.values.totalItems,
-					currentItemUnit: event.data.values.currentItemUnit || "items",
-				})
+				if (!event.data.values.workspacePath || event.data.values.workspacePath === cwd) {
+					setIndexingStatus({
+						systemStatus: event.data.values.systemStatus,
+						message: event.data.values.message || "",
+						processedItems: event.data.values.processedItems,
+						totalItems: event.data.values.totalItems,
+						currentItemUnit: event.data.values.currentItemUnit || "items",
+					})
+				}
 			} else if (event.data.type === "codeIndexSettingsSaved") {
 				if (event.data.success) {
 					setSaveStatus("saved")
@@ -273,7 +287,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 
 		window.addEventListener("message", handleMessage)
 		return () => window.removeEventListener("message", handleMessage)
-	}, [t])
+	}, [t, cwd])
 
 	// Listen for secret status
 	useEffect(() => {

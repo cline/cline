@@ -4,6 +4,9 @@ import type { MockedClass } from "vitest"
 
 // Mock vscode module
 vi.mock("vscode", () => ({
+	window: {
+		activeTextEditor: null,
+	},
 	workspace: {
 		workspaceFolders: [
 			{

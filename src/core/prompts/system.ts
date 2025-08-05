@@ -85,7 +85,7 @@ async function generatePrompt(
 			: Promise.resolve(""),
 	])
 
-	const codeIndexManager = CodeIndexManager.getInstance(context)
+	const codeIndexManager = CodeIndexManager.getInstance(context, cwd)
 
 	const basePrompt = `${roleDefinition}
 

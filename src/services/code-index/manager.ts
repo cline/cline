@@ -28,17 +28,24 @@ export class CodeIndexManager {
 	private _searchService: CodeIndexSearchService | undefined
 	private _cacheManager: CacheManager | undefined
 
-	public static getInstance(context: vscode.ExtensionContext): CodeIndexManager | undefined {
-		// Use first workspace folder consistently
-		const workspaceFolders = vscode.workspace.workspaceFolders
-		if (!workspaceFolders || workspaceFolders.length === 0) {
-			return undefined
-		}
+	public static getInstance(context: vscode.ExtensionContext, workspacePath?: string): CodeIndexManager | undefined {
+		// If workspacePath is not provided, try to get it from the active editor or first workspace folder
+		if (!workspacePath) {
+			const activeEditor = vscode.window.activeTextEditor
+			if (activeEditor) {
+				const workspaceFolder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri)
+				workspacePath = workspaceFolder?.uri.fsPath
+			}
 
-		// Always use the first workspace folder for consistency across all indexing operations.
-		// This ensures that the same workspace context is used throughout the indexing pipeline,
-		// preventing path resolution errors in multi-workspace scenarios.
-		const workspacePath = workspaceFolders[0].uri.fsPath
+			if (!workspacePath) {
+				const workspaceFolders = vscode.workspace.workspaceFolders
+				if (!workspaceFolders || workspaceFolders.length === 0) {
+					return undefined
+				}
+				// Use the first workspace folder as fallback
+				workspacePath = workspaceFolders[0].uri.fsPath
+			}
+		}
 
 		if (!CodeIndexManager.instances.has(workspacePath)) {
 			CodeIndexManager.instances.set(workspacePath, new CodeIndexManager(workspacePath, context))
@@ -205,7 +212,11 @@ export class CodeIndexManager {
 	// --- Private Helpers ---
 
 	public getCurrentStatus() {
-		return this._stateManager.getCurrentStatus()
+		const status = this._stateManager.getCurrentStatus()
+		return {
+			...status,
+			workspacePath: this.workspacePath,
+		}
 	}
 
 	public async searchIndex(query: string, directoryPrefix?: string): Promise<VectorStoreSearchResult[]> {
