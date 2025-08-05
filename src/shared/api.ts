@@ -2519,7 +2519,7 @@ export type CerebrasModelId = keyof typeof cerebrasModels
 export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
 export const cerebrasModels = {
 	"gpt-oss-120b": {
-		maxTokens: 40000,
+		maxTokens: 65536,
 		contextWindow: 128000,
 		supportsImages: false,
 		supportsPromptCache: false,
