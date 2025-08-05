@@ -1,5 +1,5 @@
 import { sapAiCoreModels } from "@shared/api"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -78,6 +78,21 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				placeholder="Enter AI Core Resource Group...">
 				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
 			</DebouncedTextField>
+
+			<div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 15 }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.useOrchestration ?? false}
+						onChange={(e) => handleFieldChange("useOrchestration", (e.target as HTMLInputElement).checked)}
+					/>
+					<span style={{ fontWeight: 500 }}>Use Orchestration API</span>
+				</div>
+
+				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+					Enable to use the harmonized API that provides access to all available models without requiring individual
+					deployments. When disabled, uses the traditional AI Core deployment-based approach.
+				</p>
+			</div>
 
 			<p
 				style={{

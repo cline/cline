@@ -1,6 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
+import { ScenarioApi } from "@sap-ai-sdk/ai-api"
+import { OrchestrationClient, LlmModuleConfig, TemplatingModuleConfig, ChatMessages } from "@sap-ai-sdk/orchestration"
 import { ApiHandler } from "../"
 import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -13,6 +15,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
+	useOrchestration?: boolean
 }
 
 interface Deployment {
@@ -121,6 +124,45 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		if (this.options.useOrchestration) {
+			yield* this.createMessageWithOrchestration(systemPrompt, messages)
+		} else {
+			yield* this.createMessageWithDeployments(systemPrompt, messages)
+		}
+	}
+
+	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
+		// Define the LLM to be used by the Orchestration pipeline
+		const llm: LlmModuleConfig = {
+			model_name: model.id,
+		}
+
+		const templating: TemplatingModuleConfig = {
+			template: [
+				{
+					role: "system",
+					content: systemPrompt,
+				},
+			],
+		}
+
+		const orchestrationClient = new OrchestrationClient({ llm, templating })
+
+		const response = await orchestrationClient.stream({
+			messagesHistory: this.convertMessageParamToSAPMessages(messages),
+		})
+
+		for await (const chunk of response.stream) {
+			const delta = chunk.getDeltaContent()
+			if (delta) {
+				yield { type: "text", text: delta }
+			}
+		}
+	}
+
+	private async *createMessageWithDeployments(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
@@ -687,5 +729,42 @@ export class SapAiCoreHandler implements ApiHandler {
 				content: contentBlocks,
 			}
 		})
+	}
+
+	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
+		return messages
+			.map((message) => {
+				// Keep every role the SDK supports
+				if (
+					message.role === "user" ||
+					message.role === "assistant" ||
+					message.role === "system" ||
+					message.role === "tool" ||
+					message.role === "function"
+				) {
+					return {
+						role: message.role,
+						content:
+							typeof message.content === "string"
+								? message.content
+								: message.content.map((m) => {
+										if (m.type === "text") {
+											return { ...m }
+										} else if (m.type === "image") {
+											return {
+												type: "image_url",
+												image_url: {
+													url: (m as any).image_url?.url ?? (m as any).image ?? "",
+													detail: (m as any).image_url?.detail ?? "auto",
+												},
+											}
+										}
+										throw new Error(`Unsupported message type: ${(m as any).type}`)
+									}),
+					}
+				}
+				return null
+			})
+			.filter((message) => message !== null) as ChatMessages
 	}
 }
