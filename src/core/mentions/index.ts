@@ -6,7 +6,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { diagnosticsToProblemsString, getAllDiagnostics } from "@/integrations/diagnostics"
 import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
@@ -225,8 +225,13 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(diagnostics, [vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning])
+	console.log("🏷️  @PROBLEMS: Getting workspace problems via hostbridge")
+	const diagnostics = await getAllDiagnostics()
+	const result = await diagnosticsToProblemsString(diagnostics, [
+		vscode.DiagnosticSeverity.Error,
+		vscode.DiagnosticSeverity.Warning,
+	])
+	console.log(`🏷️  @PROBLEMS: Processed ${diagnostics.length} diagnostic entries`)
 	if (!result) {
 		return "No errors or warnings detected."
 	}

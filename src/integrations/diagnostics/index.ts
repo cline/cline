@@ -2,12 +2,71 @@ import * as vscode from "vscode"
 import * as path from "path"
 import deepEqual from "fast-deep-equal"
 import { getCwd } from "@/utils/path"
+import { HostProvider } from "@/hosts/host-provider"
+import { GetDiagnosticsRequest, DiagnosticSeverity } from "@/shared/proto/host/diff"
+import { Metadata } from "@/shared/proto/cline/common"
 
-export function getNewDiagnostics(
-	oldDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-	newDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-): [vscode.Uri, vscode.Diagnostic[]][] {
-	const newProblems: [vscode.Uri, vscode.Diagnostic[]][] = []
+// Type alias for compatibility
+export type DiagnosticTuple = [vscode.Uri, vscode.Diagnostic[]]
+
+/**
+ * Get all diagnostics from the host bridge
+ */
+export async function getAllDiagnostics(): Promise<DiagnosticTuple[]> {
+	console.log("📞 CLIENT: Calling HostProvider.diff.getDiagnostics() via hostbridge")
+
+	const response = await HostProvider.diff.getDiagnostics(
+		GetDiagnosticsRequest.create({
+			metadata: Metadata.create({}),
+		}),
+	)
+
+	console.log(`📞 CLIENT: Received ${response.fileDiagnostics.length} files with diagnostics from hostbridge`)
+
+	const result: DiagnosticTuple[] = []
+
+	for (const fileDiagnostics of response.fileDiagnostics) {
+		if (fileDiagnostics.diagnostics.length > 0) {
+			const uri = vscode.Uri.file(fileDiagnostics.filePath)
+			const diagnostics: vscode.Diagnostic[] = fileDiagnostics.diagnostics.map((d) => {
+				// Convert proto severity back to VS Code severity
+				let severity: vscode.DiagnosticSeverity
+				switch (d.severity) {
+					case DiagnosticSeverity.DIAGNOSTIC_ERROR:
+						severity = vscode.DiagnosticSeverity.Error
+						break
+					case DiagnosticSeverity.DIAGNOSTIC_WARNING:
+						severity = vscode.DiagnosticSeverity.Warning
+						break
+					case DiagnosticSeverity.DIAGNOSTIC_INFORMATION:
+						severity = vscode.DiagnosticSeverity.Information
+						break
+					case DiagnosticSeverity.DIAGNOSTIC_HINT:
+						severity = vscode.DiagnosticSeverity.Hint
+						break
+					default:
+						severity = vscode.DiagnosticSeverity.Error
+				}
+
+				return new vscode.Diagnostic(
+					new vscode.Range(
+						new vscode.Position(d.range?.start?.line || 0, d.range?.start?.character || 0),
+						new vscode.Position(d.range?.end?.line || 0, d.range?.end?.character || 0),
+					),
+					d.message,
+					severity,
+				)
+			})
+
+			result.push([uri, diagnostics])
+		}
+	}
+
+	return result
+}
+
+export function getNewDiagnostics(oldDiagnostics: DiagnosticTuple[], newDiagnostics: DiagnosticTuple[]): DiagnosticTuple[] {
+	const newProblems: DiagnosticTuple[] = []
 	const oldMap = new Map(oldDiagnostics)
 
 	for (const [uri, newDiags] of newDiagnostics) {
@@ -72,7 +131,7 @@ export function getNewDiagnostics(
 
 // will return empty string if no problems with the given severity are found
 export async function diagnosticsToProblemsString(
-	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
+	diagnostics: DiagnosticTuple[],
 	severities: vscode.DiagnosticSeverity[],
 ): Promise<string> {
 	const cwd = await getCwd()
