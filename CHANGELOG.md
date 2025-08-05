@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.21.0
+## [3.20.11]
 
-- 5f21a91: add gpt-oss-120b as a Cerebras model
-- de61663: change completion tokens for gpt-oss-120b
-- 8a65f0c: feat: Add Opus 4.1 through Claude Code
+Add gpt-oss-120b as a Cerebras model
+Add Opus 4.1 through Claude Code
 
 ## [3.20.10]
 
