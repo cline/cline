@@ -14,7 +14,8 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class VscodeWebviewProvider extends WebviewProvider implements vscode.WebviewViewProvider {
-	public webview?: vscode.WebviewView | vscode.WebviewPanel
+	private webview?: vscode.WebviewView | vscode.WebviewPanel
+	private disposables: vscode.Disposable[] = []
 
 	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
 		super(context, providerType)
@@ -165,6 +166,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	override async dispose() {
 		if (this.webview && "dispose" in this.webview) {
 			this.webview.dispose()
+		}
+		while (this.disposables.length) {
+			const x = this.disposables.pop()
+			if (x) {
+				x.dispose()
+			}
 		}
 		super.dispose()
 	}
