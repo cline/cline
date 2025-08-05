@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.20.9]
+
+- Add support for Claude Opus 4.1 model in Anthropic provider
+- Add Baseten as a new API provider with support for DeepSeek, Llama, and Kimi K2 models (Thanks @AlexKer!)
+- Fix error messages not clearing from UI when retrying failed tasks
+- Fix chat input box positioning issues
+
 ## [3.20.8]
 
 - Add navbar tooltips on hover
