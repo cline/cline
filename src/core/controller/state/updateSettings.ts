@@ -58,7 +58,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.mode !== undefined) {
 			const mode = request.mode === PlanActMode.PLAN ? "plan" : "act"
 			if (controller.task) {
-				controller.task.mode = mode
+				controller.task.updateMode(mode)
 			}
 			await controller.context.globalState.update("mode", request.mode)
 		}
@@ -90,6 +90,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
 			await controller.context.globalState.update("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+		}
+
+		// Update strict plan mode setting
+		if (request.strictPlanModeEnabled !== undefined) {
+			if (controller.task) {
+				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
+			}
+			await controller.context.globalState.update("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
 		// Post updated state to webview

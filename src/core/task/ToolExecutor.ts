@@ -94,6 +94,7 @@ export class ToolExecutor {
 		private cwd: string,
 		private taskId: string,
 		private mode: Mode,
+		private strictPlanModeEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -122,6 +123,22 @@ export class ToolExecutor {
 	 */
 	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
 		this.autoApprover.updateSettings(settings)
+	}
+
+	/**
+	 * Defines the tools which should be restricted in plan mode
+	 */
+	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+		const planModeRestrictedTools: ToolUseName[] = ["write_to_file", "replace_in_file"]
+		return planModeRestrictedTools.includes(toolName)
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+	}
+
+	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
+		this.strictPlanModeEnabled = strictPlanModeEnabled
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
@@ -434,6 +451,15 @@ export class ToolExecutor {
 				type: "text",
 				text: formatResponse.toolAlreadyUsed(block.name),
 			})
+			return
+		}
+
+		// Logic for plan-model tool call restrictions
+		if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
+			await this.say("error", errorMessage)
+			this.pushToolResult(formatResponse.toolError(errorMessage), block)
+			await this.saveCheckpoint()
 			return
 		}
 

@@ -11,7 +11,8 @@ const log = (...args: unknown[]) => {
 function getPackageDefinition() {
 	// Load service definitions.
 	const descriptorSet = fs.readFileSync("proto/descriptor_set.pb")
-	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
+	const options = { longs: Number } // Encode int64 fields as numbers
+	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet, options)
 	const healthDef = protoLoader.loadSync(health.protoPath)
 	const packageDefinition = { ...descriptorDefs, ...healthDef }
 	return packageDefinition

@@ -102,7 +102,6 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
-			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 
@@ -187,6 +186,7 @@ export class Controller {
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
+			strictPlanModeEnabled,
 		} = await getAllExtensionState(this.context)
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -218,6 +218,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
+			strictPlanModeEnabled ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -252,10 +253,6 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
-			case "fetchMcpMarketplace": {
-				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
@@ -268,9 +265,9 @@ export class Controller {
 				}
 				break
 			}
-
-			// Add more switch case statements here as more webview message commands
-			// are created within the webview context (i.e. inside media/main.js)
+			default: {
+				console.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
+			}
 		}
 	}
 
@@ -299,7 +296,7 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.mode = modeToSwitchTo
+			this.task.updateMode(modeToSwitchTo)
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
@@ -494,31 +491,6 @@ export class Controller {
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
 			return undefined
-		}
-	}
-
-	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
-		try {
-			// Check if we have cached data
-			const cachedCatalog = (await getGlobalState(this.context, "mcpMarketplaceCatalog")) as
-				| McpMarketplaceCatalog
-				| undefined
-			if (!forceRefresh && cachedCatalog?.items) {
-				await sendMcpMarketplaceCatalogEvent(cachedCatalog)
-				return
-			}
-
-			const catalog = await this.fetchMcpMarketplaceFromApi(false)
-			if (catalog) {
-				await sendMcpMarketplaceCatalogEvent(catalog)
-			}
-		} catch (error) {
-			console.error("Failed to handle cached MCP marketplace:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: errorMessage,
-			})
 		}
 	}
 
@@ -738,6 +710,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
+			strictPlanModeEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -790,6 +763,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
+			strictPlanModeEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
