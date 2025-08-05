@@ -7,12 +7,5 @@
 	"access": "restricted",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": [
-		"@roo-code/types",
-		"@roo-code/web-evals",
-		"@roo-code/web-roo-code",
-		"@roo-code/evals",
-		"@roo-code/ipc",
-		"@roo-code/telemetry"
-	]
+	"ignore": []
 }
