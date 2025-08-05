@@ -11,6 +11,8 @@ export type GroqModelId =
 	| "qwen/qwen3-32b"
 	| "deepseek-r1-distill-llama-70b"
 	| "moonshotai/kimi-k2-instruct"
+	| "openai/gpt-oss-120b"
+	| "openai/gpt-oss-20b"
 
 export const groqDefaultModelId: GroqModelId = "llama-3.3-70b-versatile" // Defaulting to Llama3 70B Versatile
 
@@ -96,5 +98,25 @@ export const groqModels = {
 		inputPrice: 1.0,
 		outputPrice: 3.0,
 		description: "Moonshot AI Kimi K2 Instruct 1T model, 128K context.",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.75,
+		description:
+			"GPT-OSS 120B is OpenAI's flagship open source model, built on a Mixture-of-Experts (MoE) architecture with 20 billion parameters and 128 experts.",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		description:
+			"GPT-OSS 20B is OpenAI's flagship open source model, built on a Mixture-of-Experts (MoE) architecture with 20 billion parameters and 32 experts.",
 	},
 } as const satisfies Record<string, ModelInfo>
