@@ -1,11 +1,9 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { createClineAPI } from "@/exports"
+import * as stateModule from "@core/storage/state"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
 import type { ClineAPI } from "../exports/cline"
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
-import * as stateModule from "@core/storage/state"
-import { createClineAPI } from "@/exports"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 describe("ClineAPI Core Functionality", () => {
