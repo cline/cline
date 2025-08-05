@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.20.10
+
+### Patch Changes
+
+- 6e5d4a3: hugging face listing new oss openai models
+  groq listing new oss openai models
+
 ## [3.20.9]
 
 - Add support for Claude Opus 4.1 model in Anthropic provider
