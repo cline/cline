@@ -41,7 +41,7 @@ export async function refreshBasetenModels(
 					outputPrice: modelInfo.outputPrice,
 					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
 					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: modelInfo.description || `${modelId} model`,
+					description: (modelInfo as any).description || `${modelId} model`,
 				}
 			}
 		} else {
@@ -71,18 +71,24 @@ export async function refreshBasetenModels(
 						continue
 					}
 
+					// Only include models that are listed in the static basetenModels
+					if (!(rawModel.id in basetenModels)) {
+						console.log(`Skipping model ${rawModel.id} - not in static basetenModels list`)
+						continue
+					}
+
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 
 					const modelInfo: Partial<OpenRouterModelInfo> = {
-						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
-						contextWindow: rawModel.context_window || staticModelInfo?.contextWindow || 8192,
-						supportsImages: detectImageSupport(rawModel, staticModelInfo),
+						maxTokens: staticModelInfo?.maxTokens || 8192,
+						contextWindow: staticModelInfo?.contextWindow || 8192,
+						supportsImages: staticModelInfo?.supportsImages || false,
 						supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
 						inputPrice: staticModelInfo?.inputPrice || 0,
 						outputPrice: staticModelInfo?.outputPrice || 0,
-						cacheWritesPrice: (staticModelInfo as any)?.cacheWritesPrice || 0,
-						cacheReadsPrice: (staticModelInfo as any).cacheReadsPrice || 0,
+						cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
+						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 					}
 
@@ -121,7 +127,12 @@ export async function refreshBasetenModels(
 		const cachedModels = await readBasetenModels(controller)
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
 			console.log("Using cached Baseten models")
-			models = cachedModels
+			// Filter cached models to only include those in static basetenModels
+			for (const [modelId, modelInfo] of Object.entries(cachedModels)) {
+				if (modelId in basetenModels) {
+					models[modelId] = modelInfo
+				}
+			}
 		} else {
 			// Fall back to static models from shared/api.ts
 			console.log("Using static Baseten models as fallback")
@@ -135,7 +146,7 @@ export async function refreshBasetenModels(
 					outputPrice: modelInfo.outputPrice,
 					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
 					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: modelInfo.description || `${modelId} model`,
+					description: (modelInfo as any).description || `${modelId} model`,
 				}
 			}
 		}
@@ -193,10 +204,6 @@ async function readBasetenModels(controller: Controller): Promise<Record<string,
  * Validates if a model is suitable for chat completions
  */
 function isValidChatModel(rawModel: any): boolean {
-	// Check if model is active (if the property exists)
-	if (rawModel.hasOwnProperty("active") && !rawModel.active) {
-		return false
-	}
 	// Filter out non-chat models (whisper, TTS, guard models, etc.)
 	if (rawModel.id.includes("whisper") || rawModel.id.includes("tts") || rawModel.id.includes("embedding")) {
 		return false
@@ -211,25 +218,6 @@ function isValidChatModel(rawModel: any): boolean {
 }
 
 /**
- * Detects image support for a model
- */
-function detectImageSupport(rawModel: any, staticModelInfo?: any): boolean {
-	// Use static model info if available
-	if (staticModelInfo?.supportsImages !== undefined) {
-		return staticModelInfo.supportsImages
-	}
-
-	// Check model capabilities from API response
-	if (rawModel.capabilities && Array.isArray(rawModel.capabilities)) {
-		return rawModel.capabilities.includes("vision") || rawModel.capabilities.includes("image")
-	}
-
-	// Check model name for vision indicators
-	const modelId = rawModel.id.toLowerCase()
-	return modelId.includes("vision") || modelId.includes("multimodal")
-}
-
-/**
  * Generates a descriptive name for the model
  */
 function generateModelDescription(rawModel: any, staticModelInfo?: any): string {
@@ -240,8 +228,7 @@ function generateModelDescription(rawModel: any, staticModelInfo?: any): string 
 
 	// Generate description based on model characteristics
 	const modelId = rawModel.id
-	const contextWindow = rawModel.context_window || 8192
 	const ownedBy = rawModel.owned_by || "Unknown"
 
-	return `${ownedBy} model with ${contextWindow.toLocaleString()} token context window`
+	return `${ownedBy} model: ${modelId}`
 }

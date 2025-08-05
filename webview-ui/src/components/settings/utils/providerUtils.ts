@@ -261,10 +261,9 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: finalBasetenModelId,
-				selectedModelInfo:
-					basetenModelInfo ||
+				selectedModelInfo: basetenModelInfo ||
 					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
-					basetenModels[basetenDefaultModelId],
+					basetenModels[basetenDefaultModelId] || { description: "Baseten model" },
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
