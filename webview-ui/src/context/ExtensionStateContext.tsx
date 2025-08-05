@@ -4,6 +4,7 @@ import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_DICTATION_SETTINGS, type DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
@@ -74,6 +75,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setDictationSettings: (value: DictationSettings) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -178,8 +180,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		preferredLanguage: "English",
-		openaiReasoningEffort: "medium",
+		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
@@ -273,6 +274,9 @@ export const ExtensionStateContextProvider: React.FC<{
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
+							// Always preserve chat settings from the current state
+							// This prevents the backend from overwriting user changes
+
 							const newState = {
 								...stateData,
 								autoApprovalSettings: shouldUpdateAutoApproval
@@ -283,9 +287,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Update welcome screen state based on API configuration
 							setShowWelcome(!newState.welcomeViewCompleted)
 							setDidHydrateState(true)
-
 							console.log("[DEBUG] returning new state in ESC")
-
 							return newState
 						})
 					} catch (error) {
@@ -731,6 +733,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		setDictationSettings: (value: DictationSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				dictationSettings: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
