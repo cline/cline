@@ -65,6 +65,7 @@
 		"no_internet": "No hi ha connexió a internet. Comprova la teva connexió de xarxa i torna-ho a provar.",
 		"url_forbidden": "L'accés a aquest lloc web està prohibit. El lloc pot bloquejar l'accés automatitzat o requerir autenticació.",
 		"url_page_not_found": "No s'ha trobat la pàgina. Comprova si la URL és correcta.",
+		"url_request_aborted": "La sol·licitud per obtenir la URL s'ha cancel·lat. Això pot passar si el lloc bloqueja l'accés automatitzat, requereix autenticació o si hi ha un problema de xarxa. Torna-ho a provar o comprova si la URL és accessible en un navegador normal.",
 		"url_fetch_failed": "Error en obtenir el contingut de la URL: {{error}}",
 		"url_fetch_error_with_url": "Error en obtenir contingut per {{url}}: {{error}}",
 		"command_timeout": "L'execució de la comanda ha superat el temps d'espera de {{seconds}} segons",

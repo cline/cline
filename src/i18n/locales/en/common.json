@@ -61,6 +61,7 @@
 		"no_internet": "No internet connection. Please check your network connection and try again.",
 		"url_forbidden": "Access to this website is forbidden. The site may block automated access or require authentication.",
 		"url_page_not_found": "The page was not found. Please check if the URL is correct.",
+		"url_request_aborted": "The request to fetch the URL was aborted. This may happen if the site blocks automated access, requires authentication, or if there's a network issue. Please try again or check if the URL is accessible in a regular browser.",
 		"url_fetch_failed": "Failed to fetch URL content: {{error}}",
 		"url_fetch_error_with_url": "Error fetching content for {{url}}: {{error}}",
 		"command_timeout": "Command execution timed out after {{seconds}} seconds",

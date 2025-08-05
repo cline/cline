@@ -61,6 +61,7 @@
 		"no_internet": "Brak połączenia z internetem. Sprawdź połączenie sieciowe i spróbuj ponownie.",
 		"url_forbidden": "Dostęp do tej strony internetowej jest zabroniony. Strona może blokować automatyczny dostęp lub wymagać uwierzytelnienia.",
 		"url_page_not_found": "Strona nie została znaleziona. Sprawdź, czy URL jest poprawny.",
+		"url_request_aborted": "Żądanie pobrania URL zostało przerwane. Może to się zdarzyć, jeśli strona blokuje automatyczny dostęp, wymaga uwierzytelnienia lub występuje problem z siecią. Spróbuj ponownie lub sprawdź, czy URL jest dostępny w normalnej przeglądarce.",
 		"url_fetch_failed": "Błąd pobierania zawartości URL: {{error}}",
 		"url_fetch_error_with_url": "Błąd pobierania zawartości dla {{url}}: {{error}}",
 		"command_timeout": "Przekroczono limit czasu wykonania polecenia po {{seconds}} sekundach",

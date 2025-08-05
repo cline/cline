@@ -61,6 +61,7 @@
 		"no_internet": "Nessuna connessione internet. Verifica la tua connessione di rete e riprova.",
 		"url_forbidden": "L'accesso a questo sito web è vietato. Il sito potrebbe bloccare l'accesso automatizzato o richiedere autenticazione.",
 		"url_page_not_found": "La pagina non è stata trovata. Verifica se l'URL è corretto.",
+		"url_request_aborted": "La richiesta per recuperare l'URL è stata interrotta. Questo può accadere se il sito blocca l'accesso automatizzato, richiede autenticazione o se c'è un problema di rete. Riprova o verifica se l'URL è accessibile in un browser normale.",
 		"url_fetch_failed": "Errore nel recupero del contenuto URL: {{error}}",
 		"url_fetch_error_with_url": "Errore nel recupero del contenuto per {{url}}: {{error}}",
 		"command_timeout": "Esecuzione del comando scaduta dopo {{seconds}} secondi",

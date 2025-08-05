@@ -65,6 +65,7 @@
 		"no_internet": "Sem conexão com a internet. Verifique sua conexão de rede e tente novamente.",
 		"url_forbidden": "O acesso a este site está proibido. O site pode bloquear acesso automatizado ou exigir autenticação.",
 		"url_page_not_found": "A página não foi encontrada. Verifique se a URL está correta.",
+		"url_request_aborted": "A solicitação para buscar a URL foi cancelada. Isso pode acontecer se o site bloqueia acesso automatizado, requer autenticação ou se há um problema de rede. Tente novamente ou verifique se a URL é acessível em um navegador normal.",
 		"url_fetch_failed": "Falha ao buscar conteúdo da URL: {{error}}",
 		"url_fetch_error_with_url": "Erro ao buscar conteúdo para {{url}}: {{error}}",
 		"command_timeout": "A execução do comando excedeu o tempo limite após {{seconds}} segundos",

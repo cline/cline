@@ -61,6 +61,7 @@
 		"no_internet": "無網路連線。請檢查網路連線並重試。",
 		"url_forbidden": "存取此網站被禁止。該網站可能封鎖自動存取或需要身分驗證。",
 		"url_page_not_found": "找不到頁面。請檢查 URL 是否正確。",
+		"url_request_aborted": "取得 URL 的請求被中止。如果網站封鎖自動存取、需要身分驗證或存在網路問題，就可能發生這種情況。請重試或檢查 URL 是否可以在一般瀏覽器中存取。",
 		"url_fetch_failed": "取得 URL 內容失敗：{{error}}",
 		"url_fetch_error_with_url": "取得 {{url}} 內容時發生錯誤：{{error}}",
 		"command_timeout": "命令執行超時，{{seconds}} 秒後",

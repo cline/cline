@@ -61,6 +61,7 @@
 		"no_internet": "Tidak ada koneksi internet. Silakan periksa koneksi jaringan kamu dan coba lagi.",
 		"url_forbidden": "Akses ke situs web ini dilarang. Situs mungkin memblokir akses otomatis atau memerlukan autentikasi.",
 		"url_page_not_found": "Halaman tidak ditemukan. Silakan periksa apakah URL sudah benar.",
+		"url_request_aborted": "Permintaan untuk mengambil URL dibatalkan. Ini bisa terjadi jika situs memblokir akses otomatis, memerlukan autentikasi, atau ada masalah jaringan. Silakan coba lagi atau periksa apakah URL dapat diakses di browser biasa.",
 		"url_fetch_failed": "Gagal mengambil konten URL: {{error}}",
 		"url_fetch_error_with_url": "Error mengambil konten untuk {{url}}: {{error}}",
 		"command_timeout": "Eksekusi perintah waktu habis setelah {{seconds}} detik",

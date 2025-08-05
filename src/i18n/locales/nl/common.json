@@ -61,6 +61,7 @@
 		"no_internet": "Geen internetverbinding. Controleer je netwerkverbinding en probeer opnieuw.",
 		"url_forbidden": "Toegang tot deze website is verboden. De site kan geautomatiseerde toegang blokkeren of authenticatie vereisen.",
 		"url_page_not_found": "De pagina werd niet gevonden. Controleer of de URL correct is.",
+		"url_request_aborted": "Het verzoek om de URL op te halen is afgebroken. Dit kan gebeuren als de site geautomatiseerde toegang blokkeert, authenticatie vereist of als er een netwerkprobleem is. Probeer het opnieuw of controleer of de URL toegankelijk is in een normale browser.",
 		"url_fetch_failed": "Fout bij ophalen van URL-inhoud: {{error}}",
 		"url_fetch_error_with_url": "Fout bij ophalen van inhoud voor {{url}}: {{error}}",
 		"command_timeout": "Time-out bij uitvoeren van commando na {{seconds}} seconden",

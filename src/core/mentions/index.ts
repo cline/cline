@@ -35,6 +35,9 @@ function getUrlErrorMessage(error: unknown): string {
 	if (errorMessage.includes("net::ERR_INTERNET_DISCONNECTED")) {
 		return t("common:errors.no_internet")
 	}
+	if (errorMessage.includes("net::ERR_ABORTED")) {
+		return t("common:errors.url_request_aborted")
+	}
 	if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
 		return t("common:errors.url_forbidden")
 	}

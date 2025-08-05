@@ -61,6 +61,7 @@
 		"no_internet": "İnternet bağlantısı yok. Ağ bağlantını kontrol et ve tekrar dene.",
 		"url_forbidden": "Bu web sitesine erişim yasak. Site otomatik erişimi engelliyor veya kimlik doğrulama gerektiriyor olabilir.",
 		"url_page_not_found": "Sayfa bulunamadı. URL'nin doğru olup olmadığını kontrol et.",
+		"url_request_aborted": "URL'yi getirme isteği iptal edildi. Bu, sitenin otomatik erişimi engellemesi, kimlik doğrulama gerektirmesi veya bir ağ sorunu olması durumunda gerçekleşebilir. Tekrar dene veya URL'nin normal bir tarayıcıda erişilebilir olup olmadığını kontrol et.",
 		"url_fetch_failed": "URL içeriği getirme hatası: {{error}}",
 		"url_fetch_error_with_url": "{{url}} için içerik getirme hatası: {{error}}",
 		"command_timeout": "Komut çalıştırma {{seconds}} saniye sonra zaman aşımına uğradı",

@@ -61,6 +61,7 @@
 		"no_internet": "Pas de connexion internet. Vérifie ta connexion réseau et réessaie.",
 		"url_forbidden": "L'accès à ce site web est interdit. Le site peut bloquer l'accès automatisé ou nécessiter une authentification.",
 		"url_page_not_found": "La page n'a pas été trouvée. Vérifie si l'URL est correcte.",
+		"url_request_aborted": "La demande de récupération de l'URL a été interrompue. Cela peut se produire si le site bloque l'accès automatisé, nécessite une authentification ou s'il y a un problème de réseau. Réessaie ou vérifie si l'URL est accessible dans un navigateur normal.",
 		"url_fetch_failed": "Échec de récupération du contenu de l'URL : {{error}}",
 		"url_fetch_error_with_url": "Erreur lors de la récupération du contenu pour {{url}} : {{error}}",
 		"command_timeout": "L'exécution de la commande a expiré après {{seconds}} secondes",

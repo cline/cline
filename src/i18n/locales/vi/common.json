@@ -61,6 +61,7 @@
 		"no_internet": "Không có kết nối internet. Vui lòng kiểm tra kết nối mạng và thử lại.",
 		"url_forbidden": "Truy cập vào trang web này bị cấm. Trang có thể chặn truy cập tự động hoặc yêu cầu xác thực.",
 		"url_page_not_found": "Không tìm thấy trang. Vui lòng kiểm tra URL có đúng không.",
+		"url_request_aborted": "Yêu cầu lấy URL đã bị hủy. Điều này có thể xảy ra nếu trang web chặn truy cập tự động, yêu cầu xác thực hoặc có vấn đề về mạng. Vui lòng thử lại hoặc kiểm tra xem URL có thể truy cập được trong trình duyệt thông thường không.",
 		"url_fetch_failed": "Lỗi lấy nội dung URL: {{error}}",
 		"url_fetch_error_with_url": "Lỗi lấy nội dung cho {{url}}: {{error}}",
 		"command_timeout": "Thực thi lệnh đã hết thời gian chờ sau {{seconds}} giây",
