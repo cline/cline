@@ -2518,6 +2518,15 @@ export const sambanovaModels = {
 export type CerebrasModelId = keyof typeof cerebrasModels
 export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
 export const cerebrasModels = {
+	"gpt-oss-120b": {
+		maxTokens: 40000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent general purpose model with 3,000 tokens/s",
+	},
 	"qwen-3-coder-480b-free": {
 		maxTokens: 40000,
 		contextWindow: 64000,
