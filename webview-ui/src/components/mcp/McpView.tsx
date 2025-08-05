@@ -206,6 +206,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		return configTimeout ?? 60 // Default 1 minute (60 seconds)
 	})
 
+	// Computed property to check if server is expandable
+	const isExpandable = server.status === "connected" && !server.disabled
+
 	const timeoutOptions = [
 		{ value: 15, label: t("mcp:networkTimeout.options.15seconds") },
 		{ value: 30, label: t("mcp:networkTimeout.options.30seconds") },
@@ -218,6 +221,11 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 	]
 
 	const getStatusColor = () => {
+		// Disabled servers should always show grey regardless of connection status
+		if (server.disabled) {
+			return "var(--vscode-descriptionForeground)"
+		}
+
 		switch (server.status) {
 			case "connected":
 				return "var(--vscode-testing-iconPassed)"
@@ -229,7 +237,8 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 	}
 
 	const handleRowClick = () => {
-		if (server.status === "connected") {
+		// Only allow expansion for connected and enabled servers
+		if (isExpandable) {
 			setIsExpanded(!isExpanded)
 		}
 	}
@@ -270,12 +279,12 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 					alignItems: "center",
 					padding: "8px",
 					background: "var(--vscode-textCodeBlock-background)",
-					cursor: server.status === "connected" ? "pointer" : "default",
-					borderRadius: isExpanded || server.status === "connected" ? "4px" : "4px 4px 0 0",
+					cursor: isExpandable ? "pointer" : "default",
+					borderRadius: isExpanded || isExpandable ? "4px" : "4px 4px 0 0",
 					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
-				{server.status === "connected" && (
+				{isExpandable && (
 					<span
 						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
 						style={{ marginRight: "8px" }}
@@ -342,176 +351,195 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 				</div>
 			</div>
 
-			{server.status === "connected" ? (
-				isExpanded && (
-					<div
-						style={{
-							background: "var(--vscode-textCodeBlock-background)",
-							padding: "0 10px 10px 10px",
-							fontSize: "13px",
-							borderRadius: "0 0 4px 4px",
-						}}>
-						<VSCodePanels style={{ marginBottom: "10px" }}>
-							<VSCodePanelTab id="tools">
-								{t("mcp:tabs.tools")} ({server.tools?.length || 0})
-							</VSCodePanelTab>
-							<VSCodePanelTab id="resources">
-								{t("mcp:tabs.resources")} (
-								{[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
-							</VSCodePanelTab>
-							{server.instructions && (
-								<VSCodePanelTab id="instructions">{t("mcp:instructions")}</VSCodePanelTab>
-							)}
-							<VSCodePanelTab id="errors">
-								{t("mcp:tabs.errors")} ({server.errorHistory?.length || 0})
-							</VSCodePanelTab>
-
-							<VSCodePanelView id="tools-view">
-								{server.tools && server.tools.length > 0 ? (
-									<div
-										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-										{server.tools.map((tool) => (
-											<McpToolRow
-												key={`${tool.name}-${server.name}-${server.source || "global"}`}
-												tool={tool}
-												serverName={server.name}
-												serverSource={server.source || "global"}
-												alwaysAllowMcp={alwaysAllowMcp}
-											/>
-										))}
-									</div>
-								) : (
-									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
-										{t("mcp:emptyState.noTools")}
-									</div>
+			{isExpandable
+				? isExpanded && (
+						<div
+							style={{
+								background: "var(--vscode-textCodeBlock-background)",
+								padding: "0 10px 10px 10px",
+								fontSize: "13px",
+								borderRadius: "0 0 4px 4px",
+							}}>
+							<VSCodePanels style={{ marginBottom: "10px" }}>
+								<VSCodePanelTab id="tools">
+									{t("mcp:tabs.tools")} ({server.tools?.length || 0})
+								</VSCodePanelTab>
+								<VSCodePanelTab id="resources">
+									{t("mcp:tabs.resources")} (
+									{[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
+								</VSCodePanelTab>
+								{server.instructions && (
+									<VSCodePanelTab id="instructions">{t("mcp:instructions")}</VSCodePanelTab>
 								)}
-							</VSCodePanelView>
+								<VSCodePanelTab id="errors">
+									{t("mcp:tabs.errors")} ({server.errorHistory?.length || 0})
+								</VSCodePanelTab>
 
-							<VSCodePanelView id="resources-view">
-								{(server.resources && server.resources.length > 0) ||
-								(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
-									<div
-										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-										{[...(server.resourceTemplates || []), ...(server.resources || [])].map(
-											(item) => (
-												<McpResourceRow
-													key={"uriTemplate" in item ? item.uriTemplate : item.uri}
-													item={item}
+								<VSCodePanelView id="tools-view">
+									{server.tools && server.tools.length > 0 ? (
+										<div
+											style={{
+												display: "flex",
+												flexDirection: "column",
+												gap: "8px",
+												width: "100%",
+											}}>
+											{server.tools.map((tool) => (
+												<McpToolRow
+													key={`${tool.name}-${server.name}-${server.source || "global"}`}
+													tool={tool}
+													serverName={server.name}
+													serverSource={server.source || "global"}
+													alwaysAllowMcp={alwaysAllowMcp}
 												/>
-											),
-										)}
-									</div>
-								) : (
-									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
-										{t("mcp:emptyState.noResources")}
-									</div>
-								)}
-							</VSCodePanelView>
-
-							{server.instructions && (
-								<VSCodePanelView id="instructions-view">
-									<div style={{ padding: "10px 0", fontSize: "12px" }}>
-										<div className="opacity-80 whitespace-pre-wrap break-words">
-											{server.instructions}
-										</div>
-									</div>
-								</VSCodePanelView>
-							)}
-
-							<VSCodePanelView id="errors-view">
-								{server.errorHistory && server.errorHistory.length > 0 ? (
-									<div
-										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-										{[...server.errorHistory]
-											.sort((a, b) => b.timestamp - a.timestamp)
-											.map((error, index) => (
-												<McpErrorRow key={`${error.timestamp}-${index}`} error={error} />
 											))}
-									</div>
-								) : (
-									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
-										{t("mcp:emptyState.noErrors")}
-									</div>
-								)}
-							</VSCodePanelView>
-						</VSCodePanels>
+										</div>
+									) : (
+										<div
+											style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
+											{t("mcp:emptyState.noTools")}
+										</div>
+									)}
+								</VSCodePanelView>
 
-						{/* Network Timeout */}
-						<div style={{ padding: "10px 7px" }}>
+								<VSCodePanelView id="resources-view">
+									{(server.resources && server.resources.length > 0) ||
+									(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
+										<div
+											style={{
+												display: "flex",
+												flexDirection: "column",
+												gap: "8px",
+												width: "100%",
+											}}>
+											{[...(server.resourceTemplates || []), ...(server.resources || [])].map(
+												(item) => (
+													<McpResourceRow
+														key={"uriTemplate" in item ? item.uriTemplate : item.uri}
+														item={item}
+													/>
+												),
+											)}
+										</div>
+									) : (
+										<div
+											style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
+											{t("mcp:emptyState.noResources")}
+										</div>
+									)}
+								</VSCodePanelView>
+
+								{server.instructions && (
+									<VSCodePanelView id="instructions-view">
+										<div style={{ padding: "10px 0", fontSize: "12px" }}>
+											<div className="opacity-80 whitespace-pre-wrap break-words">
+												{server.instructions}
+											</div>
+										</div>
+									</VSCodePanelView>
+								)}
+
+								<VSCodePanelView id="errors-view">
+									{server.errorHistory && server.errorHistory.length > 0 ? (
+										<div
+											style={{
+												display: "flex",
+												flexDirection: "column",
+												gap: "8px",
+												width: "100%",
+											}}>
+											{[...server.errorHistory]
+												.sort((a, b) => b.timestamp - a.timestamp)
+												.map((error, index) => (
+													<McpErrorRow key={`${error.timestamp}-${index}`} error={error} />
+												))}
+										</div>
+									) : (
+										<div
+											style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
+											{t("mcp:emptyState.noErrors")}
+										</div>
+									)}
+								</VSCodePanelView>
+							</VSCodePanels>
+
+							{/* Network Timeout */}
+							<div style={{ padding: "10px 7px" }}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "10px",
+										marginBottom: "8px",
+									}}>
+									<span>{t("mcp:networkTimeout.label")}</span>
+									<select
+										value={timeoutValue}
+										onChange={handleTimeoutChange}
+										style={{
+											flex: 1,
+											padding: "4px",
+											background: "var(--vscode-dropdown-background)",
+											color: "var(--vscode-dropdown-foreground)",
+											border: "1px solid var(--vscode-dropdown-border)",
+											borderRadius: "2px",
+											outline: "none",
+											cursor: "pointer",
+										}}>
+										{timeoutOptions.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+								</div>
+								<span
+									style={{
+										fontSize: "12px",
+										color: "var(--vscode-descriptionForeground)",
+										display: "block",
+									}}>
+									{t("mcp:networkTimeout.description")}
+								</span>
+							</div>
+						</div>
+					)
+				: // Only show error UI for non-disabled servers
+					!server.disabled && (
+						<div
+							style={{
+								fontSize: "13px",
+								background: "var(--vscode-textCodeBlock-background)",
+								borderRadius: "0 0 4px 4px",
+								width: "100%",
+							}}>
 							<div
 								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: "10px",
+									color: "var(--vscode-testing-iconFailed)",
 									marginBottom: "8px",
+									padding: "0 10px",
+									overflowWrap: "break-word",
+									wordBreak: "break-word",
 								}}>
-								<span>{t("mcp:networkTimeout.label")}</span>
-								<select
-									value={timeoutValue}
-									onChange={handleTimeoutChange}
-									style={{
-										flex: 1,
-										padding: "4px",
-										background: "var(--vscode-dropdown-background)",
-										color: "var(--vscode-dropdown-foreground)",
-										border: "1px solid var(--vscode-dropdown-border)",
-										borderRadius: "2px",
-										outline: "none",
-										cursor: "pointer",
-									}}>
-									{timeoutOptions.map((option) => (
-										<option key={option.value} value={option.value}>
-											{option.label}
-										</option>
+								{server.error &&
+									server.error.split("\n").map((item, index) => (
+										<React.Fragment key={index}>
+											{index > 0 && <br />}
+											{item}
+										</React.Fragment>
 									))}
-								</select>
 							</div>
-							<span
-								style={{
-									fontSize: "12px",
-									color: "var(--vscode-descriptionForeground)",
-									display: "block",
-								}}>
-								{t("mcp:networkTimeout.description")}
-							</span>
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleRestart}
+								disabled={server.status === "connecting"}
+								style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
+								{server.status === "connecting"
+									? t("mcp:serverStatus.retrying")
+									: t("mcp:serverStatus.retryConnection")}
+							</VSCodeButton>
 						</div>
-					</div>
-				)
-			) : (
-				<div
-					style={{
-						fontSize: "13px",
-						background: "var(--vscode-textCodeBlock-background)",
-						borderRadius: "0 0 4px 4px",
-						width: "100%",
-					}}>
-					<div
-						style={{
-							color: "var(--vscode-testing-iconFailed)",
-							marginBottom: "8px",
-							padding: "0 10px",
-							overflowWrap: "break-word",
-							wordBreak: "break-word",
-						}}>
-						{server.error &&
-							server.error.split("\n").map((item, index) => (
-								<React.Fragment key={index}>
-									{index > 0 && <br />}
-									{item}
-								</React.Fragment>
-							))}
-					</div>
-					<VSCodeButton
-						appearance="secondary"
-						onClick={handleRestart}
-						disabled={server.status === "connecting"}
-						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
-						{server.status === "connecting"
-							? t("mcp:serverStatus.retrying")
-							: t("mcp:serverStatus.retryConnection")}
-					</VSCodeButton>
-				</div>
-			)}
+					)}
 
 			{/* Delete Confirmation Dialog */}
 			<Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
