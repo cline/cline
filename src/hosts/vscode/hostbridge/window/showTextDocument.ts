@@ -15,6 +15,7 @@ export async function showTextDocument(request: ShowTextDocumentRequest): Promis
 	if (request.options?.viewColumn !== undefined) {
 		options.viewColumn = request.options.viewColumn
 	}
+	options.preserveFocus = true
 
 	const editor = await vscode.window.showTextDocument(uri, options)
 

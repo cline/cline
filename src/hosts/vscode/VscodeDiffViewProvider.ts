@@ -56,41 +56,57 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				preserveFocus: true,
 			})
 		} else {
-			// Open new diff editor.
-			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
-				const fileName = path.basename(uri.fsPath)
-				const fileExists = this.editType === "modify"
-				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-					if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
-						disposable.dispose()
-						resolve(editor)
-					}
+			// Open new diff editor without forcing a focus change.
+			const fileName = path.basename(uri.fsPath)
+			const fileExists = this.editType === "modify"
+
+			// Trigger the diff command with preserveFocus, but do NOT wait for the editor to become active.
+			await vscode.commands.executeCommand(
+				"vscode.diff",
+				vscode.Uri.from({
+					scheme: DIFF_VIEW_URI_SCHEME,
+					path: fileName,
+					query: Buffer.from(this.originalContent ?? "").toString("base64"),
+				}),
+				uri,
+				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+				{
+					preserveFocus: true,
+				},
+			)
+
+			// Try to get the modified (visible) editor without activating it to avoid stealing focus.
+			const start = Date.now()
+			while (!this.activeDiffEditor && Date.now() - start < 10_000) {
+				const visibleEditors = vscode.window.visibleTextEditors
+				const editor = visibleEditors.find((e) => arePathsEqual(e.document.uri.fsPath, uri.fsPath))
+				if (editor) {
+					this.activeDiffEditor = editor
+					break
+				}
+				await new Promise((r) => setTimeout(r, 50))
+			}
+
+			// Fallback: obtain a handle while still requesting preserveFocus.
+			if (!this.activeDiffEditor) {
+				this.activeDiffEditor = await vscode.window.showTextDocument(uri, {
+					preserveFocus: true,
 				})
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.from({
-						scheme: DIFF_VIEW_URI_SCHEME,
-						path: fileName,
-						query: Buffer.from(this.originalContent ?? "").toString("base64"),
-					}),
-					uri,
-					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
-					{
-						preserveFocus: true,
-					},
-				)
-				// This may happen on very slow machines ie project idx
-				setTimeout(() => {
-					disposable.dispose()
-					reject(new Error("Failed to open diff editor, please try again..."))
-				}, 10_000)
-			})
+			}
 		}
 
 		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
 		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
 		// Apply faded overlay to all lines initially
 		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
+
+		// Return focus to the Cline chat input to avoid stealing cursor focus from the chat box.
+		// This is best-effort; if the command isn't available, ignore the error.
+		setTimeout(() => {
+			try {
+				void vscode.commands.executeCommand("cline.focusChatInput")
+			} catch {}
+		}, 0)
 	}
 
 	override async replaceText(
