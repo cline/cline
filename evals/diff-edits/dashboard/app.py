@@ -331,6 +331,42 @@ def get_performance_grade(success_rate):
     else:
         return "C", "poor"
 
+def get_error_description(error_enum, error_string=None):
+    """Map error enum values to user-friendly descriptions"""
+    error_map = {
+        1: "No tool calls - Model didn't use the replace_in_file tool",
+        2: "Multiple tool calls - Model called multiple tools instead of one", 
+        3: "Wrong tool call - Model used wrong tool (not replace_in_file)",
+        4: "Missing parameters - Tool call missing required path or diff",
+        5: "Wrong file edited - Model edited different file than expected",
+        6: "Wrong tool call - Model used wrong tool type",
+        7: "Wrong file edited - Model targeted incorrect file path",
+        8: "API/Stream error - Problem with model API connection",
+        9: "Configuration error - Invalid evaluation parameters",
+        10: "Function error - Invalid parsing/diff functions",
+        11: "Other error - Unexpected failure"
+    }
+    
+    base_description = error_map.get(error_enum, f"Unknown error (code: {error_enum})")
+    
+    if error_string:
+        return f"{base_description}: {error_string}"
+    return base_description
+
+def get_error_guidance(error_enum):
+    """Provide specific guidance based on error type"""
+    guidance_map = {
+        1: "💡 The model provided a response but didn't use the replace_in_file tool. Check the raw output to see what the model actually said.",
+        2: "💡 The model called multiple tools when it should only call replace_in_file once. Check the parsed tool call section.",
+        3: "💡 The model used a different tool instead of replace_in_file. This might indicate confusion about the task.",
+        4: "💡 The model called replace_in_file but didn't provide the required 'path' or 'diff' parameters.",
+        5: "💡 The model tried to edit a different file than expected. Check the parsed tool call to see which file it targeted.",
+        6: "💡 The model used the wrong tool type. Check the raw output to see what tool it attempted to use.",
+        7: "💡 The model tried to edit a different file path than expected. This could indicate path confusion or hallucination.",
+    }
+    
+    return guidance_map.get(error_enum, "")
+
 def render_hero_section(current_run, model_performance):
     """Render the hero section with key metrics"""
     run_title = current_run['description'] if current_run['description'] else f"Run {current_run['run_id'][:8]}..."
@@ -570,12 +606,16 @@ def render_result_detail(result):
     """Render detailed view of a single result"""
     st.markdown("### 🔬 Result Deep Dive")
     
-    # Check if this is a valid result
-    is_valid = (result['error_enum'] not in [1, 6, 7]) if not pd.isna(result['error_enum']) else True
+    # Check if this is a valid result (only invalid if no tool calls or wrong file)
+    is_valid = True
+    if not pd.isna(result['error_enum']):
+        # Only these specific errors make a result "invalid" for the benchmark:
+        # 1 = no_tool_calls, 5 = wrong_file_edited, 7 = wrong_file_edited
+        is_valid = result['error_enum'] not in [1, 5, 7]
     
     # Show validity warning if needed
     if not is_valid:
-        st.warning("⚠️ **This is an invalid result** - The model didn't properly call the diff edit tool or edited the wrong file. This result is excluded from success rate calculations.")
+        st.warning("⚠️ **This is an invalid result** - The model didn't call the replace_in_file tool or edited the wrong file. This result is excluded from success rate calculations.")
     
     # Result metadata
     col1, col2, col3, col4 = st.columns(4)
@@ -591,7 +631,10 @@ def render_result_detail(result):
         st.markdown(f"**Round Trip:** {result['time_round_trip_ms']:.0f}ms")
     
     with col4:
-        st.markdown(f"**Cost:** ${result['cost_usd']:.4f}")
+        if pd.notna(result['cost_usd']) and result['cost_usd'] is not None:
+            st.markdown(f"**Cost:** ${result['cost_usd']:.4f}")
+        else:
+            st.markdown(f"**Cost:** Free")
     
     # Tabbed interface for different views
     tab1, tab2, tab3, tab4 = st.tabs(["📄 File & Edits", "🤖 Raw Output", "🔧 Parsed Tool Call", "📊 Metrics"])
@@ -693,8 +736,46 @@ def render_file_and_edits_view(result):
             # Show error information
             st.error("❌ **Edit Failed**")
             
+            # Show detailed error reason
             if not pd.isna(result['error_enum']):
-                st.markdown(f"**Error Code:** {result['error_enum']}")
+                error_description = get_error_description(
+                    result['error_enum'], 
+                    result.get('error_string')
+                )
+                st.markdown(f"**Reason:** {error_description}")
+                
+                # Show specific guidance based on error type
+                guidance = get_error_guidance(result['error_enum'])
+                if guidance:
+                    st.info(guidance)
+            
+            # For valid results that failed, check for diff application failures
+            elif not result['succeeded']:
+                # This is a valid result that failed - likely due to diff application issues
+                raw_output = result.get('raw_model_output', '')
+                
+                # Check if we have specific error information in the raw output
+                if 'does not match anything in the file' in str(raw_output).lower():
+                    st.warning("⚠️ **Diff Application Failed**")
+                    st.info("💡 The SEARCH block in the diff didn't match any content in the original file. This usually means the model hallucinated code that doesn't exist.")
+                elif 'malformatted' in str(raw_output).lower() or 'malformed' in str(raw_output).lower():
+                    st.warning("⚠️ **Diff Format Error**")
+                    st.info("💡 The diff format was incorrect. Check the raw tool call to see the formatting issues.")
+                elif 'error:' in str(raw_output).lower():
+                    # Try to extract the specific error message
+                    lines = str(raw_output).split('\n')
+                    error_lines = [line for line in lines if 'error:' in line.lower()]
+                    if error_lines:
+                        error_msg = error_lines[0].strip()
+                        st.warning("⚠️ **Diff Application Failed**")
+                        st.info(f"💡 {error_msg}")
+                    else:
+                        st.warning("⚠️ **Diff Application Failed**")
+                        st.info("💡 The diff couldn't be applied to the original file. Check the raw output and parsed tool call for more details.")
+                else:
+                    # Generic diff application failure
+                    st.warning("⚠️ **Diff Application Failed**")
+                    st.info("💡 The model made a valid tool call but the diff couldn't be applied to the original file. This usually indicates a mismatch between the expected and actual file content.")
         else:
             # Show successful edit information
             st.success("✅ **Edit Successful**")
@@ -725,8 +806,25 @@ def render_file_and_edits_view(result):
                     if len(edited_lines) > 50:
                         st.text(f"... ({len(edited_lines) - 50} more lines)")
         
-        # Show parsed tool call if available
+        # Show raw and parsed tool calls if available
         if not pd.isna(result['parsed_tool_call_json']):
+            with st.expander("View Raw Tool Call"):
+                # Extract the raw tool call text from the model output
+                raw_output = result['raw_model_output'] if not pd.isna(result['raw_model_output']) else ""
+                
+                # Try to extract just the tool call portion
+                if raw_output and '<replace_in_file>' in raw_output:
+                    # Find the tool call block
+                    start_idx = raw_output.find('<replace_in_file>')
+                    end_idx = raw_output.find('</replace_in_file>') + len('</replace_in_file>')
+                    if start_idx != -1 and end_idx != -1:
+                        raw_tool_call = raw_output[start_idx:end_idx]
+                        st.code(raw_tool_call, language='xml')
+                    else:
+                        st.text("Tool call not found in raw output")
+                else:
+                    st.text("No raw tool call available")
+            
             with st.expander("View Parsed Tool Call"):
                 try:
                     parsed_call = json.loads(result['parsed_tool_call_json'])
@@ -795,8 +893,10 @@ def render_metrics_view(result):
         if not pd.isna(result['completion_tokens']):
             st.metric("Completion Tokens", int(result['completion_tokens']))
         
-        if not pd.isna(result['cost_usd']):
+        if pd.notna(result['cost_usd']) and result['cost_usd'] is not None:
             st.metric("Cost", f"${result['cost_usd']:.4f}")
+        else:
+            st.metric("Cost", "Free")
         
         if not pd.isna(result['tokens_in_context']):
             st.metric("Context Tokens", int(result['tokens_in_context']))

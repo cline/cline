@@ -1869,12 +1869,24 @@ export class Task {
 					throw new Error("API request failed")
 				}
 
-				// Do not retry automatically again if currently unauthenticated
-				if (clineError.isErrorType(ClineErrorType.Auth)) {
-					return
+				// Clear streamingFailedMessage when user manually retries
+				const manualRetryApiReqIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "api_req_started",
+				)
+				if (manualRetryApiReqIndex !== -1) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[manualRetryApiReqIndex].text || "{}")
+					delete currentApiReqInfo.streamingFailedMessage
+					await this.messageStateHandler.updateClineMessage(manualRetryApiReqIndex, {
+						text: JSON.stringify(currentApiReqInfo),
+					})
 				}
 
 				await this.say("api_req_retried")
+
+				// Reset the automatic retry flag so the request can proceed
+				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
