@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.20.12
+## [3.20.12]
 
-- 3e11271: Fix prompt caching and support extended thinking for Opus 4.1
-- 031604d: feat: Added Claude Opus 4.1 to Bedrock
+- Add Claude Opus 4.1 model support to AWS Bedrock provider (Thanks @omercelik!)
+- Fix prompt caching and extended thinking support for Claude Opus 4.1 in Anthropic provider
 
 ## [3.20.11]
 
