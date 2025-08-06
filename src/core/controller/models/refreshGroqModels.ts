@@ -7,7 +7,6 @@ import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
-import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Refreshes the Groq models and returns the updated model list
@@ -18,9 +17,7 @@ import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 export async function refreshGroqModels(controller: Controller, request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
 
-	// Get the Groq API key from the controller's state
-	const { apiConfiguration } = await getAllExtensionState(controller.context)
-	const groqApiKey = apiConfiguration?.groqApiKey
+	const groqApiKey = controller.cacheService.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {

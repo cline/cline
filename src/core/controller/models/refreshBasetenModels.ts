@@ -7,7 +7,6 @@ import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
-import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Refreshes the Baseten models and returns the updated model list

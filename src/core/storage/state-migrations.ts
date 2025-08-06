@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
-import { getAllExtensionState } from "./utils/state-helpers"
+import { readStateFromDisk } from "./utils/state-helpers"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -512,7 +512,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			console.log("Migrating welcomeViewCompleted setting...")
 
 			// Get all extension state to check for existing API keys
-			const extensionState = await getAllExtensionState(context)
+			const extensionState = await readStateFromDisk(context)
 			const config = extensionState.apiConfiguration
 
 			// This is the original logic used for checking is the welcome view should be shown

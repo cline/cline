@@ -1,10 +1,16 @@
 import { Controller } from ".."
 import { Empty } from "@shared/proto/cline/common"
-import { PlanActMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import {
+	PlanActMode,
+	UpdateSettingsRequest,
+	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
+	McpDisplayMode as ProtoMcpDisplayMode,
+} from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
+import { McpDisplayMode } from "@/shared/McpDisplayMode"
 
 /**
  * Updates multiple extension settings in a single request
@@ -52,7 +58,22 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update MCP display mode setting
 		if (request.mcpDisplayMode !== undefined) {
-			controller.cacheService.setGlobalState("mcpDisplayMode", request.mcpDisplayMode)
+			// Convert proto enum to string type
+			let displayMode: McpDisplayMode
+			switch (request.mcpDisplayMode) {
+				case ProtoMcpDisplayMode.RICH:
+					displayMode = "rich"
+					break
+				case ProtoMcpDisplayMode.PLAIN:
+					displayMode = "plain"
+					break
+				case ProtoMcpDisplayMode.MARKDOWN:
+					displayMode = "markdown"
+					break
+				default:
+					throw new Error(`Invalid MCP display mode value: ${request.mcpDisplayMode}`)
+			}
+			controller.cacheService.setGlobalState("mcpDisplayMode", displayMode)
 		}
 
 		if (request.mode !== undefined) {
@@ -60,14 +81,31 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.updateMode(mode)
 			}
-			controller.cacheService.setGlobalState("mode", request.mode)
+			controller.cacheService.setGlobalState("mode", mode)
 		}
 
 		if (request.openaiReasoningEffort !== undefined) {
-			if (controller.task) {
-				controller.task.openaiReasoningEffort = request.openaiReasoningEffort as OpenaiReasoningEffort
+			// Convert proto enum to string type
+			let reasoningEffort: OpenaiReasoningEffort
+			switch (request.openaiReasoningEffort) {
+				case ProtoOpenaiReasoningEffort.LOW:
+					reasoningEffort = "low"
+					break
+				case ProtoOpenaiReasoningEffort.MEDIUM:
+					reasoningEffort = "medium"
+					break
+				case ProtoOpenaiReasoningEffort.HIGH:
+					reasoningEffort = "high"
+					break
+				default:
+					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
 			}
-			controller.cacheService.setGlobalState("openaiReasoningEffort", request.openaiReasoningEffort)
+
+			if (controller.task) {
+				controller.task.openaiReasoningEffort = reasoningEffort
+			}
+
+			controller.cacheService.setGlobalState("openaiReasoningEffort", reasoningEffort)
 		}
 
 		if (request.preferredLanguage !== undefined) {

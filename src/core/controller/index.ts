@@ -34,7 +34,6 @@ import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { getAllExtensionState } from "../storage/utils/state-helpers"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 
 /*
@@ -169,24 +168,20 @@ export class Controller {
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
-		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.cacheService.getApiConfiguration()
-
-		const {
-			autoApprovalSettings,
-			browserSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			terminalOutputLineLimit,
-			defaultTerminalProfile,
-			enableCheckpointsSetting,
-			isNewUser,
-			taskHistory,
-			strictPlanModeEnabled,
-		} = await getAllExtensionState(this.context)
+		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
+		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
+		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
+		const mode = this.cacheService.getGlobalStateKey("mode")
+		const shellIntegrationTimeout = this.cacheService.getGlobalStateKey("shellIntegrationTimeout")
+		const terminalReuseEnabled = this.cacheService.getGlobalStateKey("terminalReuseEnabled")
+		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
+		const defaultTerminalProfile = this.cacheService.getGlobalStateKey("defaultTerminalProfile")
+		const enableCheckpointsSetting = this.cacheService.getGlobalStateKey("enableCheckpointsSetting")
+		const isNewUser = this.cacheService.getGlobalStateKey("isNewUser")
+		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
+		const strictPlanModeEnabled = this.cacheService.getGlobalStateKey("strictPlanModeEnabled")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -352,7 +347,8 @@ export class Controller {
 			const clineProvider: ApiProvider = "cline"
 
 			// Get current settings to determine how to update providers
-			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
+			const planActSeparateModelsSetting = this.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+
 			const currentMode = await this.getCurrentMode()
 
 			// Get current API configuration from cache
@@ -700,36 +696,33 @@ export class Controller {
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.cacheService.getApiConfiguration()
-
-		const {
-			lastShownAnnouncementId,
-			taskHistory,
-			autoApprovalSettings,
-			browserSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled,
-			userInfo,
-			mcpMarketplaceEnabled,
-			mcpDisplayMode,
-			telemetrySetting,
-			planActSeparateModelsSetting,
-			enableCheckpointsSetting,
-			globalClineRulesToggles,
-			globalWorkflowToggles,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			defaultTerminalProfile,
-			isNewUser,
-			welcomeViewCompleted,
-			mcpResponsesCollapsed,
-			terminalOutputLineLimit,
-			localClineRulesToggles,
-			localWindsurfRulesToggles,
-			localCursorRulesToggles,
-			localWorkflowToggles,
-		} = await getAllExtensionState(this.context)
+		const lastShownAnnouncementId = this.cacheService.getGlobalStateKey("lastShownAnnouncementId")
+		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
+		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
+		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
+		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
+		const mode = this.cacheService.getGlobalStateKey("mode")
+		const strictPlanModeEnabled = this.cacheService.getGlobalStateKey("strictPlanModeEnabled")
+		const userInfo = this.cacheService.getGlobalStateKey("userInfo")
+		const mcpMarketplaceEnabled = this.cacheService.getGlobalStateKey("mcpMarketplaceEnabled")
+		const mcpDisplayMode = this.cacheService.getGlobalStateKey("mcpDisplayMode")
+		const telemetrySetting = this.cacheService.getGlobalStateKey("telemetrySetting")
+		const planActSeparateModelsSetting = this.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+		const enableCheckpointsSetting = this.cacheService.getGlobalStateKey("enableCheckpointsSetting")
+		const globalClineRulesToggles = this.cacheService.getGlobalStateKey("globalClineRulesToggles")
+		const globalWorkflowToggles = this.cacheService.getGlobalStateKey("globalWorkflowToggles")
+		const shellIntegrationTimeout = this.cacheService.getGlobalStateKey("shellIntegrationTimeout")
+		const terminalReuseEnabled = this.cacheService.getGlobalStateKey("terminalReuseEnabled")
+		const defaultTerminalProfile = this.cacheService.getGlobalStateKey("defaultTerminalProfile")
+		const isNewUser = this.cacheService.getGlobalStateKey("isNewUser")
+		const welcomeViewCompleted = this.cacheService.getGlobalStateKey("welcomeViewCompleted")
+		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
+		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
+		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+		const localWindsurfRulesToggles = this.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
+		const localCursorRulesToggles = this.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
+		const workflowToggles = this.cacheService.getWorkspaceStateKey("workflowToggles")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
@@ -774,7 +767,7 @@ export class Controller {
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
-			localWorkflowToggles: localWorkflowToggles || {},
+			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,

@@ -4,7 +4,7 @@ import * as path from "path"
 import { execa } from "execa"
 import { Logger } from "@services/logging/Logger"
 import { WebviewProvider } from "@core/webview"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
@@ -13,7 +13,6 @@ import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/sto
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
 import { askResponse } from "@core/controller/task/askResponse"
-import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -91,11 +90,11 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(context: vscode.ExtensionContext, provider?: WebviewProvider) {
 	try {
-		const { autoApprovalSettings } = await getAllExtensionState(context)
+		const autoApprovalSettings = provider?.controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
-			...autoApprovalSettings,
+			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
 			enabled: true,
 			actions: {
 				readFiles: true,
@@ -252,7 +251,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
+						const apiConfiguration = visibleWebview.controller.cacheService.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {

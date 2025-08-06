@@ -10,7 +10,7 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 
-export async function getAllExtensionState(context: ExtensionContext) {
+export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
 	const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
 	const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
@@ -97,6 +97,7 @@ export async function getAllExtensionState(context: ExtensionContext) {
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		huaweiCloudMaasApiKey,
+		basetenApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -127,6 +128,7 @@ export async function getAllExtensionState(context: ExtensionContext) {
 		context.secrets.get("sapAiCoreClientId") as Promise<string | undefined>,
 		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
+		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -297,6 +299,7 @@ export async function getAllExtensionState(context: ExtensionContext) {
 			sapAiResourceGroup,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			basetenApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,

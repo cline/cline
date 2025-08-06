@@ -8,7 +8,6 @@ import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
-import { getAllExtensionState } from "@/core/storage/utils/state-helpers"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 
 /**
@@ -34,7 +33,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -80,7 +79,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			if (response && response.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -125,7 +124,8 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		refreshBasetenModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const apiConfiguration = controller.cacheService.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
 
 				const currentMode = await controller.getCurrentMode()
 
