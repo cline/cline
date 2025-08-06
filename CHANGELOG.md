@@ -2,8 +2,6 @@
 
 ## 3.20.12
 
-### Patch Changes
-
 - 3e11271: Fix prompt caching and support extended thinking for Opus 4.1
 - 031604d: feat: Added Claude Opus 4.1 to Bedrock
 
