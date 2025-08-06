@@ -297,8 +297,10 @@ function createHandlerForProvider(
 		case "vercel-ai-gateway":
 			return new VercelAIGatewayHandler({
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
-				vercelAiGatewayModelId: mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
-				vercelAiGatewayModelInfo: mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
+				vercelAiGatewayModelId:
+					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
+				vercelAiGatewayModelInfo:
+					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

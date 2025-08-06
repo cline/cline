@@ -285,7 +285,9 @@ export function normalizeApiConfiguration(
 			}
 		case "vercel-ai-gateway":
 			const vercelAiGatewayModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeVercelAiGatewayModelId : apiConfiguration?.actModeVercelAiGatewayModelId
+				currentMode === "plan"
+					? apiConfiguration?.planModeVercelAiGatewayModelId
+					: apiConfiguration?.actModeVercelAiGatewayModelId
 			const vercelAiGatewayModelInfo =
 				currentMode === "plan"
 					? apiConfiguration?.planModeVercelAiGatewayModelInfo
@@ -388,7 +390,9 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		huggingFaceModelInfo:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelInfo : apiConfiguration.actModeHuggingFaceModelInfo,
 		vercelAiGatewayModelInfo:
-			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelInfo : apiConfiguration.actModeVercelAiGatewayModelInfo,
+			mode === "plan"
+				? apiConfiguration.planModeVercelAiGatewayModelInfo
+				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 
