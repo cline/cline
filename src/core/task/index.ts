@@ -35,6 +35,7 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { v4 as uuidv4 } from "uuid"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
@@ -97,6 +98,7 @@ type UserContent = Array<Anthropic.ContentBlockParam>
 export class Task {
 	// Core task variables
 	readonly taskId: string
+	readonly uuid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
 
@@ -219,6 +221,7 @@ export class Task {
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
+			this.uuid = historyItem.uuid ?? uuidv4()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			if (historyItem.checkpointTrackerErrorMessage) {
@@ -226,6 +229,7 @@ export class Task {
 			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
+			this.uuid = uuidv4()
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -233,6 +237,7 @@ export class Task {
 		this.messageStateHandler = new MessageStateHandler({
 			context,
 			taskId: this.taskId,
+			uuid: this.uuid,
 			taskState: this.taskState,
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
@@ -306,10 +311,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, currentProvider)
+			telemetryService.captureTaskRestarted(this.taskId, this.uuid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, currentProvider)
+			telemetryService.captureTaskCreated(this.taskId, this.uuid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -330,6 +335,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
+			this.uuid,
 			this.mode,
 			strictPlanModeEnabled,
 			this.say.bind(this),
@@ -2228,7 +2234,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, this.uuid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2293,13 +2299,20 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.taskId, providerId, this.api.getModel().id, "assistant", {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					this.uuid,
+					providerId,
+					this.api.getModel().id,
+					"assistant",
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2468,7 +2481,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.taskId, this.uuid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,

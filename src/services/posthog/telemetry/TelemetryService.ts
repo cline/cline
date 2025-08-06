@@ -181,10 +181,10 @@ export class TelemetryService {
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskCreated(taskId: string, apiProvider?: string) {
+	public captureTaskCreated(taskId: string, uuid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { taskId, apiProvider },
+			properties: { taskId, uuid, apiProvider },
 		})
 	}
 
@@ -193,10 +193,10 @@ export class TelemetryService {
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskRestarted(taskId: string, apiProvider?: string) {
+	public captureTaskRestarted(taskId: string, uuid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { taskId, apiProvider },
+			properties: { taskId, uuid, apiProvider },
 		})
 	}
 
@@ -204,10 +204,10 @@ export class TelemetryService {
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param taskId Unique identifier for the task
 	 */
-	public captureTaskCompleted(taskId: string) {
+	public captureTaskCompleted(taskId: string, uuid: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { taskId },
+			properties: { taskId, uuid },
 		})
 	}
 
@@ -221,6 +221,7 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		taskId: string,
+		uuid: string,
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
@@ -233,13 +234,14 @@ export class TelemetryService {
 		} = {},
 	) {
 		// Ensure required parameters are provided
-		if (!taskId || !provider || !model || !source) {
+		if (!taskId || !uuid || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
 		const properties: Record<string, unknown> = {
 			taskId,
+			uuid,
 			provider,
 			model,
 			source,
@@ -598,6 +600,7 @@ export class TelemetryService {
 	 */
 	public captureProviderApiError(args: {
 		taskId: string
+		uuid: string
 		model: string
 		errorMessage: string
 		errorStatus?: number | undefined

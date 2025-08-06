@@ -93,6 +93,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
+		private uuid: string,
 		private mode: Mode,
 		private strictPlanModeEnabled: boolean,
 
@@ -2342,7 +2343,7 @@ export class ToolExecutor {
 								await this.say("completion_result", result, undefined, undefined, false)
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
-								telemetryService.captureTaskCompleted(this.taskId)
+								telemetryService.captureTaskCompleted(this.taskId, this.uuid)
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
@@ -2367,7 +2368,7 @@ export class ToolExecutor {
 							await this.say("completion_result", result, undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
-							telemetryService.captureTaskCompleted(this.taskId)
+							telemetryService.captureTaskCompleted(this.taskId, this.uuid)
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field
