@@ -25,11 +25,13 @@ describe("getModelMaxOutputTokens", () => {
 		expect(result).toBe(16384)
 	})
 
-	test("should return model maxTokens when not using claude-code provider", () => {
+	test("should return model maxTokens when not using claude-code provider and maxTokens is within 20% of context window", () => {
 		const settings: ProviderSettings = {
 			apiProvider: "anthropic",
 		}
 
+		// mockModel has maxTokens: 8192 and contextWindow: 200000
+		// 8192 is 4.096% of 200000, which is <= 20%, so it should use model.maxTokens
 		const result = getModelMaxOutputTokens({
 			modelId: "claude-3-5-sonnet-20241022",
 			model: mockModel,
@@ -115,7 +117,7 @@ describe("getModelMaxOutputTokens", () => {
 			contextWindow: 1_048_576,
 			supportsPromptCache: false,
 			supportsReasoningBudget: true,
-			maxTokens: 65_535,
+			maxTokens: 65_535, // 65_535 is ~6.25% of 1_048_576, which is <= 20%
 		}
 
 		const settings: ProviderSettings = {
@@ -124,7 +126,68 @@ describe("getModelMaxOutputTokens", () => {
 		}
 
 		const result = getModelMaxOutputTokens({ modelId: geminiModelId, model, settings })
-		expect(result).toBe(65_535) // Should use model.maxTokens, not ANTHROPIC_DEFAULT_MAX_TOKENS
+		expect(result).toBe(65_535) // Should use model.maxTokens since it's within 20% threshold
+	})
+
+	test("should clamp maxTokens to 20% of context window when maxTokens exceeds threshold", () => {
+		const model: ModelInfo = {
+			contextWindow: 100_000,
+			supportsPromptCache: false,
+			maxTokens: 50_000, // 50% of context window, exceeds 20% threshold
+		}
+
+		const settings: ProviderSettings = {
+			apiProvider: "openai",
+		}
+
+		const result = getModelMaxOutputTokens({
+			modelId: "gpt-4",
+			model,
+			settings,
+			format: "openai",
+		})
+		// Should clamp to 20% of context window: 100_000 * 0.2 = 20_000
+		expect(result).toBe(20_000)
+	})
+
+	test("should clamp maxTokens to 20% of context window for Anthropic models when maxTokens exceeds threshold", () => {
+		const model: ModelInfo = {
+			contextWindow: 100_000,
+			supportsPromptCache: true,
+			maxTokens: 50_000, // 50% of context window, exceeds 20% threshold
+		}
+
+		const settings: ProviderSettings = {
+			apiProvider: "anthropic",
+		}
+
+		const result = getModelMaxOutputTokens({
+			modelId: "claude-3-5-sonnet-20241022",
+			model,
+			settings,
+		})
+		// Should clamp to 20% of context window: 100_000 * 0.2 = 20_000
+		expect(result).toBe(20_000)
+	})
+
+	test("should use model.maxTokens when exactly at 20% threshold", () => {
+		const model: ModelInfo = {
+			contextWindow: 100_000,
+			supportsPromptCache: false,
+			maxTokens: 20_000, // Exactly 20% of context window
+		}
+
+		const settings: ProviderSettings = {
+			apiProvider: "openai",
+		}
+
+		const result = getModelMaxOutputTokens({
+			modelId: "gpt-4",
+			model,
+			settings,
+			format: "openai",
+		})
+		expect(result).toBe(20_000) // Should use model.maxTokens since it's exactly at 20%
 	})
 
 	test("should return modelMaxTokens from settings when reasoning budget is required", () => {

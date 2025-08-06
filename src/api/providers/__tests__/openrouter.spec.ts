@@ -98,9 +98,11 @@ describe("OpenRouterHandler", () => {
 			})
 
 			const result = await handler.fetchModel()
-			expect(result.maxTokens).toBe(128000) // Use actual implementation value
-			expect(result.reasoningBudget).toBeUndefined() // Use actual implementation value
-			expect(result.temperature).toBe(0) // Use actual implementation value
+			// With the new clamping logic, 128000 tokens (64% of 200000 context window)
+			// gets clamped to 20% of context window: 200000 * 0.2 = 40000
+			expect(result.maxTokens).toBe(40000)
+			expect(result.reasoningBudget).toBeUndefined()
+			expect(result.temperature).toBe(0)
 		})
 
 		it("does not honor custom maxTokens for non-thinking models", async () => {
