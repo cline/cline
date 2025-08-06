@@ -1756,6 +1756,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											apiErrorMessage={undefined}
 											modelIdErrorMessage={undefined}
 											isPopup={true}
+											closeTooltip={() => {
+												setShowModelSelector(false)
+											}}
 											currentMode={mode}
 										/>
 									</ModelSelectorTooltip>
