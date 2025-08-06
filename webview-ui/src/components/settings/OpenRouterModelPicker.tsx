@@ -51,14 +51,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
+		id: "anthropic/claude-opus-4.1",
+		description: "Anthropic's newest model topping benchmarks",
+		label: "New",
+	},
+	{
 		id: "google/gemini-2.5-pro",
 		description: "Large 1M context window, great value",
 		label: "Trending",
-	},
-	{
-		id: "moonshotai/kimi-k2",
-		description: "Open source model topping coding benchmarks",
-		label: "New",
 	},
 ]
 
@@ -211,6 +211,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showBudgetSlider = useMemo(() => {
 		return (
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
