@@ -53,7 +53,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		navigateToChat,
 		mode,
 	} = useExtensionState()
-	const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true"
+	const isCI = import.meta.env.VITE_CI === "true"
 	const shouldShowQuickWins = !taskHistory || (taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD && !isCI)
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined

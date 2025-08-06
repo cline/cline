@@ -33,6 +33,8 @@ jobs:
         permissions:
             id-token: write
             contents: read
+        env:
+            VITE_CI: true
         steps:
             - uses: actions/checkout@v4
             - name: Setup Node.js environment
