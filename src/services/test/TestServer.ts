@@ -45,7 +45,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
 /**
  * Updates the auto approval settings to enable all actions
  * @param context The VSCode extension context
- * @param provider The webview provider instance
+ * @param controller The webview provider instance
  */
 async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
 	try {
