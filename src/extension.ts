@@ -592,7 +592,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// At this point, activeWebviewProvider should be the one we want to send the message to.
 			// It could still be undefined if opening a new tab failed or timed out.
 			if (activeWebviewProvider) {
-				// Use the gRPC streaming method instead of postMessageToWebview
+				// Use the gRPC streaming method instead of sending a ProtoBus response to the webview
 				const clientId = activeWebviewProvider.getClientId()
 				sendFocusChatInputEvent(clientId)
 			} else {
