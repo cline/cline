@@ -12,6 +12,7 @@ import {
 	formatTokenLimit,
 } from "../utils/pricingUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 /**
  * Returns an array of formatted tier strings
@@ -101,11 +102,15 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	// Get extension state to check the current provider
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, mode } = useExtensionState()
+
+	// Detect current provider from the configuration
+	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, mode)
 
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
+	const isVercelAiGateway = selectedProvider === "vercel-ai-gateway"
 
 	// Create elements for input pricing
 	const inputPriceElement = hasTiers ? (
@@ -162,7 +167,8 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				isPopup={isPopup}
 			/>
 		),
-		(
+		// Hide image support for Vercel AI Gateway
+		!isVercelAiGateway && (
 			<ModelInfoSupportsItem
 				key="supportsImages"
 				isSupported={supportsImages(modelInfo)}
@@ -170,7 +176,8 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				doesNotSupportLabel="Does not support images"
 			/>
 		),
-		(
+		// Hide browser use support for Vercel AI Gateway
+		!isVercelAiGateway && (
 			<ModelInfoSupportsItem
 				key="supportsBrowserUse"
 				isSupported={supportsBrowserUse(modelInfo)}
