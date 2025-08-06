@@ -1,27 +1,36 @@
 import { CodeIndexManager } from "../manager"
 import { CodeIndexServiceFactory } from "../service-factory"
 import type { MockedClass } from "vitest"
+import * as path from "path"
 
 // Mock vscode module
-vi.mock("vscode", () => ({
-	window: {
-		activeTextEditor: null,
-	},
-	workspace: {
-		workspaceFolders: [
-			{
-				uri: { fsPath: "/test/workspace" },
-				name: "test",
-				index: 0,
-			},
-		],
-	},
-}))
+vi.mock("vscode", () => {
+	const testPath = require("path")
+	const testWorkspacePath = testPath.join(testPath.sep, "test", "workspace")
+	return {
+		window: {
+			activeTextEditor: null,
+		},
+		workspace: {
+			workspaceFolders: [
+				{
+					uri: { fsPath: testWorkspacePath },
+					name: "test",
+					index: 0,
+				},
+			],
+		},
+	}
+})
 
 // Mock only the essential dependencies
-vi.mock("../../../utils/path", () => ({
-	getWorkspacePath: vi.fn(() => "/test/workspace"),
-}))
+vi.mock("../../../utils/path", () => {
+	const testPath = require("path")
+	const testWorkspacePath = testPath.join(testPath.sep, "test", "workspace")
+	return {
+		getWorkspacePath: vi.fn(() => testWorkspacePath),
+	}
+})
 
 vi.mock("../state-manager", () => ({
 	CodeIndexStateManager: vi.fn().mockImplementation(() => ({
@@ -48,6 +57,13 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 	let mockContext: any
 	let manager: CodeIndexManager
 
+	// Define test paths for use in tests
+	const testWorkspacePath = path.join(path.sep, "test", "workspace")
+	const testExtensionPath = path.join(path.sep, "test", "extension")
+	const testStoragePath = path.join(path.sep, "test", "storage")
+	const testGlobalStoragePath = path.join(path.sep, "test", "global-storage")
+	const testLogPath = path.join(path.sep, "test", "log")
+
 	beforeEach(() => {
 		// Clear all instances before each test
 		CodeIndexManager.disposeAll()
@@ -57,14 +73,14 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			workspaceState: {} as any,
 			globalState: {} as any,
 			extensionUri: {} as any,
-			extensionPath: "/test/extension",
+			extensionPath: testExtensionPath,
 			asAbsolutePath: vi.fn(),
 			storageUri: {} as any,
-			storagePath: "/test/storage",
+			storagePath: testStoragePath,
 			globalStorageUri: {} as any,
-			globalStoragePath: "/test/global-storage",
+			globalStoragePath: testGlobalStoragePath,
 			logUri: {} as any,
-			logPath: "/test/log",
+			logPath: testLogPath,
 			extensionMode: 3, // vscode.ExtensionMode.Test
 			secrets: {} as any,
 			environmentVariableCollection: {} as any,
@@ -118,7 +134,7 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			// Mock service factory to handle _recreateServices call
 			const mockServiceFactoryInstance = {
 				configManager: mockConfigManager,
-				workspacePath: "/test/workspace",
+				workspacePath: testWorkspacePath,
 				cacheManager: mockCacheManager,
 				createEmbedder: vi.fn().mockReturnValue({ embedderInfo: { name: "openai" } }),
 				createVectorStore: vi.fn().mockReturnValue({}),
@@ -192,7 +208,7 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 			// Mock service factory to handle _recreateServices call
 			const mockServiceFactoryInstance = {
 				configManager: mockConfigManager,
-				workspacePath: "/test/workspace",
+				workspacePath: testWorkspacePath,
 				cacheManager: mockCacheManager,
 				createEmbedder: vi.fn().mockReturnValue({ embedderInfo: { name: "openai" } }),
 				createVectorStore: vi.fn().mockReturnValue({}),
@@ -368,6 +384,201 @@ describe("CodeIndexManager - handleSettingsChange regression", () => {
 
 			// Should not attempt validation if embedder creation fails
 			expect(mockServiceFactoryInstance.validateEmbedder).not.toHaveBeenCalled()
+		})
+	})
+
+	describe("recoverFromError", () => {
+		let mockConfigManager: any
+		let mockCacheManager: any
+		let mockStateManager: any
+
+		beforeEach(() => {
+			// Mock config manager
+			mockConfigManager = {
+				loadConfiguration: vi.fn().mockResolvedValue({ requiresRestart: false }),
+				isFeatureConfigured: true,
+				isFeatureEnabled: true,
+				getConfig: vi.fn().mockReturnValue({
+					isConfigured: true,
+					embedderProvider: "openai",
+					modelId: "text-embedding-3-small",
+					openAiOptions: { openAiNativeApiKey: "test-key" },
+					qdrantUrl: "http://localhost:6333",
+					qdrantApiKey: "test-key",
+					searchMinScore: 0.4,
+				}),
+			}
+			;(manager as any)._configManager = mockConfigManager
+
+			// Mock cache manager
+			mockCacheManager = {
+				initialize: vi.fn(),
+				clearCacheFile: vi.fn(),
+			}
+			;(manager as any)._cacheManager = mockCacheManager
+
+			// Mock state manager
+			mockStateManager = (manager as any)._stateManager
+			mockStateManager.setSystemState = vi.fn()
+			mockStateManager.getCurrentStatus = vi.fn().mockReturnValue({
+				systemStatus: "Error",
+				message: "Failed during initial scan: fetch failed",
+				processedItems: 0,
+				totalItems: 0,
+				currentItemUnit: "items",
+			})
+
+			// Mock orchestrator and search service to simulate initialized state
+			;(manager as any)._orchestrator = { stopWatcher: vi.fn(), state: "Error" }
+			;(manager as any)._searchService = {}
+			;(manager as any)._serviceFactory = {}
+		})
+
+		it("should clear error state when recoverFromError is called", async () => {
+			// Act
+			await manager.recoverFromError()
+
+			// Assert
+			expect(mockStateManager.setSystemState).toHaveBeenCalledWith("Standby", "")
+		})
+
+		it("should reset internal service instances", async () => {
+			// Verify initial state
+			expect((manager as any)._configManager).toBeDefined()
+			expect((manager as any)._serviceFactory).toBeDefined()
+			expect((manager as any)._orchestrator).toBeDefined()
+			expect((manager as any)._searchService).toBeDefined()
+
+			// Act
+			await manager.recoverFromError()
+
+			// Assert - all service instances should be undefined
+			expect((manager as any)._configManager).toBeUndefined()
+			expect((manager as any)._serviceFactory).toBeUndefined()
+			expect((manager as any)._orchestrator).toBeUndefined()
+			expect((manager as any)._searchService).toBeUndefined()
+		})
+
+		it("should make manager report as not initialized after recovery", async () => {
+			// Verify initial state
+			expect(manager.isInitialized).toBe(true)
+
+			// Act
+			await manager.recoverFromError()
+
+			// Assert
+			expect(manager.isInitialized).toBe(false)
+		})
+
+		it("should allow re-initialization after recovery", async () => {
+			// Setup mock for re-initialization
+			const mockServiceFactoryInstance = {
+				createServices: vi.fn().mockReturnValue({
+					embedder: { embedderInfo: { name: "openai" } },
+					vectorStore: {},
+					scanner: {},
+					fileWatcher: {
+						onDidStartBatchProcessing: vi.fn(),
+						onBatchProgressUpdate: vi.fn(),
+						watch: vi.fn(),
+						stopWatcher: vi.fn(),
+						dispose: vi.fn(),
+					},
+				}),
+				validateEmbedder: vi.fn().mockResolvedValue({ valid: true }),
+			}
+			MockedCodeIndexServiceFactory.mockImplementation(() => mockServiceFactoryInstance as any)
+
+			// Act - recover from error
+			await manager.recoverFromError()
+
+			// Verify manager is not initialized
+			expect(manager.isInitialized).toBe(false)
+
+			// Mock context proxy for initialization
+			const mockContextProxy = {
+				getValue: vi.fn(),
+				setValue: vi.fn(),
+				storeSecret: vi.fn(),
+				getSecret: vi.fn(),
+				refreshSecrets: vi.fn().mockResolvedValue(undefined),
+				getGlobalState: vi.fn().mockReturnValue({
+					codebaseIndexEnabled: true,
+					codebaseIndexQdrantUrl: "http://localhost:6333",
+					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderModelId: "text-embedding-3-small",
+					codebaseIndexEmbedderModelDimension: 1536,
+					codebaseIndexSearchMaxResults: 10,
+					codebaseIndexSearchMinScore: 0.4,
+				}),
+			}
+
+			// Re-initialize
+			await manager.initialize(mockContextProxy as any)
+
+			// Assert - manager should be initialized again
+			expect(manager.isInitialized).toBe(true)
+			expect(mockServiceFactoryInstance.createServices).toHaveBeenCalled()
+			expect(mockServiceFactoryInstance.validateEmbedder).toHaveBeenCalled()
+		})
+
+		it("should be safe to call when not in error state (idempotent)", async () => {
+			// Setup manager in non-error state
+			mockStateManager.getCurrentStatus.mockReturnValue({
+				systemStatus: "Standby",
+				message: "",
+				processedItems: 0,
+				totalItems: 0,
+				currentItemUnit: "items",
+			})
+
+			// Verify initial state is not error
+			const initialStatus = manager.getCurrentStatus()
+			expect(initialStatus.systemStatus).not.toBe("Error")
+
+			// Act - call recoverFromError when not in error state
+			await expect(manager.recoverFromError()).resolves.not.toThrow()
+
+			// Assert - should still clear state and service instances
+			expect(mockStateManager.setSystemState).toHaveBeenCalledWith("Standby", "")
+			expect((manager as any)._configManager).toBeUndefined()
+			expect((manager as any)._serviceFactory).toBeUndefined()
+			expect((manager as any)._orchestrator).toBeUndefined()
+			expect((manager as any)._searchService).toBeUndefined()
+		})
+
+		it("should continue recovery even if setSystemState throws", async () => {
+			// Setup state manager to throw on setSystemState
+			mockStateManager.setSystemState.mockImplementation(() => {
+				throw new Error("State update failed")
+			})
+
+			// Setup manager with service instances
+			;(manager as any)._configManager = mockConfigManager
+			;(manager as any)._serviceFactory = {}
+			;(manager as any)._orchestrator = { stopWatcher: vi.fn() }
+			;(manager as any)._searchService = {}
+
+			// Spy on console.error
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+			// Act - should not throw despite setSystemState error
+			await expect(manager.recoverFromError()).resolves.not.toThrow()
+
+			// Assert - error should be logged
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				"Failed to clear error state during recovery:",
+				expect.any(Error),
+			)
+
+			// Assert - service instances should still be cleared
+			expect((manager as any)._configManager).toBeUndefined()
+			expect((manager as any)._serviceFactory).toBeUndefined()
+			expect((manager as any)._orchestrator).toBeUndefined()
+			expect((manager as any)._searchService).toBeUndefined()
+
+			// Cleanup
+			consoleErrorSpy.mockRestore()
 		})
 	})
 })

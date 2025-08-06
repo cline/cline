@@ -2224,7 +2224,15 @@ export const webviewMessageHandler = async (
 						await manager.initialize(provider.contextProxy)
 					}
 
+					// startIndexing now handles error recovery internally
 					manager.startIndexing()
+
+					// If startIndexing recovered from error, we need to reinitialize
+					if (!manager.isInitialized) {
+						await manager.initialize(provider.contextProxy)
+						// Try starting again after initialization
+						manager.startIndexing()
+					}
 				}
 			} catch (error) {
 				provider.log(`Error starting indexing: ${error instanceof Error ? error.message : String(error)}`)

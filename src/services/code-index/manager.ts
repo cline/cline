@@ -28,6 +28,9 @@ export class CodeIndexManager {
 	private _searchService: CodeIndexSearchService | undefined
 	private _cacheManager: CacheManager | undefined
 
+	// Flag to prevent race conditions during error recovery
+	private _isRecoveringFromError = false
+
 	public static getInstance(context: vscode.ExtensionContext, workspacePath?: string): CodeIndexManager | undefined {
 		// If workspacePath is not provided, try to get it from the active editor or first workspace folder
 		if (!workspacePath) {
@@ -164,12 +167,26 @@ export class CodeIndexManager {
 
 	/**
 	 * Initiates the indexing process (initial scan and starts watcher).
+	 * Automatically recovers from error state if needed before starting.
+	 *
+	 * @important This method should NEVER be awaited as it starts a long-running background process.
+	 * The indexing will continue asynchronously and progress will be reported through events.
 	 */
-
 	public async startIndexing(): Promise<void> {
 		if (!this.isFeatureEnabled) {
 			return
 		}
+
+		// Check if we're in error state and recover if needed
+		const currentStatus = this.getCurrentStatus()
+		if (currentStatus.systemStatus === "Error") {
+			await this.recoverFromError()
+
+			// After recovery, we need to reinitialize since recoverFromError clears all services
+			// This will be handled by the caller (webviewMessageHandler) checking isInitialized
+			return
+		}
+
 		this.assertInitialized()
 		await this._orchestrator!.startIndexing()
 	}
@@ -183,6 +200,46 @@ export class CodeIndexManager {
 		}
 		if (this._orchestrator) {
 			this._orchestrator.stopWatcher()
+		}
+	}
+
+	/**
+	 * Recovers from error state by clearing the error and resetting internal state.
+	 * This allows the manager to be re-initialized after a recoverable error.
+	 *
+	 * This method clears all service instances (configManager, serviceFactory, orchestrator, searchService)
+	 * to force a complete re-initialization on the next operation. This ensures a clean slate
+	 * after recovering from errors such as network failures or configuration issues.
+	 *
+	 * @remarks
+	 * - Safe to call even when not in error state (idempotent)
+	 * - Does not restart indexing automatically - call initialize() after recovery
+	 * - Service instances will be recreated on next initialize() call
+	 * - Prevents race conditions from multiple concurrent recovery attempts
+	 */
+	public async recoverFromError(): Promise<void> {
+		// Prevent race conditions from multiple rapid recovery attempts
+		if (this._isRecoveringFromError) {
+			return
+		}
+
+		this._isRecoveringFromError = true
+		try {
+			// Clear error state
+			this._stateManager.setSystemState("Standby", "")
+		} catch (error) {
+			// Log error but continue with recovery - clearing service instances is more important
+			console.error("Failed to clear error state during recovery:", error)
+		} finally {
+			// Force re-initialization by clearing service instances
+			// This ensures a clean slate even if state update failed
+			this._configManager = undefined
+			this._serviceFactory = undefined
+			this._orchestrator = undefined
+			this._searchService = undefined
+
+			// Reset the flag after recovery is complete
+			this._isRecoveringFromError = false
 		}
 	}
 
