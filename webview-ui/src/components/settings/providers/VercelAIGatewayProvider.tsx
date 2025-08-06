@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelSelector } from "../common/ModelSelector"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -30,6 +29,9 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [isLoadingModels, setIsLoadingModels] = useState(true)
 
+	// Get the normalized configuration (includes defaults)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
 	const requestVercelAiGatewayModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.refreshVercelAiGatewayModels(EmptyRequest.create({}))
@@ -51,7 +53,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			handleModeFieldsChange(
 				{
 					vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-					vercelAiGatewayModelInfo: { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
+					vercelAiGatewayModelInfo: {
+						plan: "planModeVercelAiGatewayModelInfo",
+						act: "actModeVercelAiGatewayModelInfo",
+					},
 				},
 				{
 					vercelAiGatewayModelId: modelId,
@@ -63,7 +68,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			handleModeFieldsChange(
 				{
 					vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-					vercelAiGatewayModelInfo: { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
+					vercelAiGatewayModelInfo: {
+						plan: "planModeVercelAiGatewayModelInfo",
+						act: "actModeVercelAiGatewayModelInfo",
+					},
 				},
 				{
 					vercelAiGatewayModelId: modelId,
@@ -81,33 +89,45 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 	}, [requestVercelAiGatewayModels, showModelOptions])
 
 	// Only poll when model options are shown
-	useInterval(showModelOptions ? requestVercelAiGatewayModels : () => { }, showModelOptions ? 2000 : null)
+	useInterval(showModelOptions ? requestVercelAiGatewayModels : () => {}, showModelOptions ? 2000 : null)
 
 	const hasModels = useMemo(() => {
 		return Object.keys(vercelAiGatewayModels).length > 0
 	}, [vercelAiGatewayModels])
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const normalized = normalizeApiConfiguration(apiConfiguration, currentMode)
-
-		if (hasModels && normalized.selectedModelId && vercelAiGatewayModels[normalized.selectedModelId]) {
-			return {
-				...normalized,
-				selectedModelInfo: vercelAiGatewayModels[normalized.selectedModelId],
-			}
-		}
-
-		return normalized
-	}, [apiConfiguration, vercelAiGatewayModels, hasModels])
-
 	return (
 		<div>
-			<ApiKeyField
-				initialValue={apiConfiguration?.vercelAiGatewayApiKey || ""}
-				onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
-				providerName="Vercel AI Gateway"
-				signupUrl="https://vercel.com/"
-			/>
+			<div>
+				<DebouncedTextField
+					initialValue={apiConfiguration?.vercelAiGatewayApiKey || ""}
+					onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
+					style={{ width: "100%" }}
+					type="password"
+					placeholder="Enter API Key...">
+					<span style={{ fontWeight: 500 }}>Vercel AI Gateway API Key</span>
+				</DebouncedTextField>
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 3,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					This key is stored locally and only used to make API requests from this extension.
+					{!apiConfiguration?.vercelAiGatewayApiKey && (
+						<>
+							{" "}
+							<a
+								href="https://vercel.com/"
+								style={{
+									color: "var(--vscode-textLink-foreground)",
+									textDecoration: "none",
+								}}>
+								You can get a Vercel AI Gateway API key by signing up here.
+							</a>
+						</>
+					)}
+				</p>
+			</div>
 
 			{showModelOptions && (
 				<>
@@ -125,8 +145,14 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 								onChange={(value) =>
 									handleModeFieldsChange(
 										{
-											vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-											vercelAiGatewayModelInfo: { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
+											vercelAiGatewayModelId: {
+												plan: "planModeVercelAiGatewayModelId",
+												act: "actModeVercelAiGatewayModelId",
+											},
+											vercelAiGatewayModelInfo: {
+												plan: "planModeVercelAiGatewayModelInfo",
+												act: "actModeVercelAiGatewayModelInfo",
+											},
 										},
 										{
 											vercelAiGatewayModelId: value,
@@ -155,9 +181,11 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 						</>
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					{selectedModelInfo && (
+						<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					)}
 				</>
 			)}
-		</div >
+		</div>
 	)
 }

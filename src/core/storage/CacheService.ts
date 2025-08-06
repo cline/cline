@@ -240,6 +240,7 @@ export class CacheService {
 			claudeCodePath,
 			basetenApiKey,
 			huggingFaceApiKey,
+			vercelAiGatewayApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -268,6 +269,8 @@ export class CacheService {
 			planModeBasetenModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -295,6 +298,8 @@ export class CacheService {
 			actModeBasetenModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -326,6 +331,8 @@ export class CacheService {
 			planModeBasetenModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -354,6 +361,8 @@ export class CacheService {
 			actModeBasetenModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -420,6 +429,7 @@ export class CacheService {
 			sapAiCoreClientSecret,
 			basetenApiKey,
 			huggingFaceApiKey,
+			vercelAiGatewayApiKey,
 		})
 	}
 
@@ -638,6 +648,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			claudeCodePath,
 			huggingFaceApiKey,
+			vercelAiGatewayApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -666,6 +677,8 @@ export class CacheService {
 			planModeBasetenModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -693,6 +706,8 @@ export class CacheService {
 			actModeBasetenModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		} = apiConfiguration
 
 		// Directly populate global state cache without triggering persistence
@@ -724,6 +739,8 @@ export class CacheService {
 			planModeBasetenModelInfo,
 			planModeHuggingFaceModelId,
 			planModeHuggingFaceModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -752,6 +769,8 @@ export class CacheService {
 			actModeBasetenModelInfo,
 			actModeHuggingFaceModelId,
 			actModeHuggingFaceModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -823,6 +842,7 @@ export class CacheService {
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
 			huggingFaceApiKey,
+			vercelAiGatewayApiKey,
 		}
 
 		// Populate secrets cache directly
@@ -866,6 +886,7 @@ export class CacheService {
 			sapAiCoreClientId: this.secretsCache.get("sapAiCoreClientId"),
 			sapAiCoreClientSecret: this.secretsCache.get("sapAiCoreClientSecret"),
 			huggingFaceApiKey: this.secretsCache.get("huggingFaceApiKey"),
+			vercelAiGatewayApiKey: this.secretsCache.get("vercelAiGatewayApiKey"),
 
 			// Global state
 			awsRegion: this.globalStateCache.get("awsRegion"),
@@ -927,6 +948,8 @@ export class CacheService {
 			planModeBasetenModelInfo: this.globalStateCache.get("planModeBasetenModelInfo"),
 			planModeHuggingFaceModelId: this.globalStateCache.get("planModeHuggingFaceModelId"),
 			planModeHuggingFaceModelInfo: this.globalStateCache.get("planModeHuggingFaceModelInfo"),
+			planModeVercelAiGatewayModelId: this.globalStateCache.get("planModeVercelAiGatewayModelId"),
+			planModeVercelAiGatewayModelInfo: this.globalStateCache.get("planModeVercelAiGatewayModelInfo"),
 
 			// Act mode configurations
 			actModeApiProvider: this.globalStateCache.get("actModeApiProvider"),
@@ -955,6 +978,8 @@ export class CacheService {
 			actModeBasetenModelInfo: this.globalStateCache.get("actModeBasetenModelInfo"),
 			actModeHuggingFaceModelId: this.globalStateCache.get("actModeHuggingFaceModelId"),
 			actModeHuggingFaceModelInfo: this.globalStateCache.get("actModeHuggingFaceModelInfo"),
+			actModeVercelAiGatewayModelId: this.globalStateCache.get("actModeVercelAiGatewayModelId"),
+			actModeVercelAiGatewayModelInfo: this.globalStateCache.get("actModeVercelAiGatewayModelInfo"),
 		} as ApiConfiguration
 	}
 }
