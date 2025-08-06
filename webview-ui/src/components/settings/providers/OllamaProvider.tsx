@@ -2,6 +2,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
 import { useInterval } from "react-use"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
 import OllamaModelPicker from "../OllamaModelPicker"
@@ -60,6 +61,14 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				onChange={(value) => handleFieldChange("ollamaBaseUrl", value)}
 				placeholder="Default: http://localhost:11434"
 				label="Use custom base URL"
+			/>
+
+			<ApiKeyField
+				initialValue={apiConfiguration?.ollamaApiKey || ""}
+				onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+				providerName="Ollama"
+				placeholder="Enter API Key (optional)..."
+				helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
 			/>
 
 			{/* Model selection - use filterable picker */}
