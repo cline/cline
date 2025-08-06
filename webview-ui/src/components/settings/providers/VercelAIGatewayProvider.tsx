@@ -95,6 +95,13 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 		return Object.keys(vercelAiGatewayModels).length > 0
 	}, [vercelAiGatewayModels])
 
+	const displayModelInfo = useMemo(() => {
+		if (hasModels && selectedModelId && vercelAiGatewayModels[selectedModelId]) {
+			return vercelAiGatewayModels[selectedModelId]
+		}
+		return selectedModelInfo
+	}, [hasModels, selectedModelId, vercelAiGatewayModels, selectedModelInfo])
+
 	return (
 		<div>
 			<div>
@@ -181,8 +188,8 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 						</>
 					)}
 
-					{selectedModelInfo && (
-						<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					{displayModelInfo && (
+						<ModelInfoView selectedModelId={selectedModelId} modelInfo={displayModelInfo} isPopup={isPopup} />
 					)}
 				</>
 			)}
