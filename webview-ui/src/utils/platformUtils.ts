@@ -35,7 +35,7 @@ export const detectMetaKeyChar = (platform: string) => {
 	}
 }
 
-const userAgent = navigator?.userAgent || ''
+const userAgent = navigator?.userAgent || ""
 
 export const isChrome = userAgent.indexOf("Chrome") >= 0
 
