@@ -2795,6 +2795,9 @@ export const sapAiCoreModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		description: sapAiCoreModelDescription,
 	},
 	"gemini-2.5-flash": {

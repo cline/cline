@@ -18,6 +18,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
+	thinkingBudgetTokens?: number
 }
 
 interface Deployment {
@@ -198,6 +199,138 @@ namespace Bedrock {
 				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
 			}
 		}
+	}
+}
+
+// Gemini namespace containing caching-related functions and types
+namespace Gemini {
+	/**
+	 * Process Gemini streaming response with enhanced thinking content support and caching awareness
+	 */
+	export function processStreamChunk(data: any): {
+		text?: string
+		reasoning?: string
+		usageMetadata?: {
+			promptTokenCount?: number
+			candidatesTokenCount?: number
+			thoughtsTokenCount?: number
+			cachedContentTokenCount?: number
+		}
+	} {
+		const result: ReturnType<typeof processStreamChunk> = {}
+
+		// Handle thinking content from Gemini's response
+		const candidateForThoughts = data?.candidates?.[0]
+		const partsForThoughts = candidateForThoughts?.content?.parts
+		let thoughts = ""
+
+		if (partsForThoughts) {
+			for (const part of partsForThoughts) {
+				const { thought, text } = part
+				if (thought && text) {
+					thoughts += text + "\n"
+				}
+			}
+		}
+
+		if (thoughts.trim() !== "") {
+			result.reasoning = thoughts.trim()
+		}
+
+		// Handle regular text content
+		if (data.text) {
+			result.text = data.text
+		}
+
+		// Handle content parts for non-thought text
+		if (data.candidates && data.candidates[0]?.content?.parts) {
+			let nonThoughtText = ""
+			for (const part of data.candidates[0].content.parts) {
+				if (part.text && !part.thought) {
+					nonThoughtText += part.text
+				}
+			}
+			if (nonThoughtText && !result.text) {
+				result.text = nonThoughtText
+			}
+		}
+
+		// Handle usage metadata with caching support
+		if (data.usageMetadata) {
+			result.usageMetadata = {
+				promptTokenCount: data.usageMetadata.promptTokenCount,
+				candidatesTokenCount: data.usageMetadata.candidatesTokenCount,
+				thoughtsTokenCount: data.usageMetadata.thoughtsTokenCount,
+				cachedContentTokenCount: data.usageMetadata.cachedContentTokenCount,
+			}
+		}
+
+		return result
+	}
+
+	function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam) {
+		const role = message.role === "assistant" ? "model" : "user"
+		const parts = []
+
+		if (typeof message.content === "string") {
+			parts.push({ text: message.content })
+		} else if (Array.isArray(message.content)) {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					parts.push({ text: block.text })
+				} else if (block.type === "image") {
+					parts.push({
+						inlineData: {
+							mimeType: block.source.media_type,
+							data: block.source.data,
+						},
+					})
+				}
+			}
+		}
+
+		return { role, parts }
+	}
+
+	/**
+	 * Prepare Gemini request payload with thinking configuration and implicit caching support
+	 */
+	export function prepareRequestPayload(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+		thinkingBudgetTokens?: number,
+	): any {
+		const contents = messages.map(convertAnthropicMessageToGemini)
+
+		const payload = {
+			contents,
+			systemInstruction: {
+				parts: [
+					{
+						text: systemPrompt,
+					},
+				],
+			},
+			generationConfig: {
+				maxOutputTokens: model.info.maxTokens,
+				temperature: 0.0,
+			},
+		}
+
+		// Add thinking config if the model supports it and budget is provided
+		const thinkingBudget = thinkingBudgetTokens ?? 0
+		const maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
+
+		if (thinkingBudget > 0 && model.info.thinkingConfig) {
+			// Add thinking configuration to the payload
+			;(payload as any).thinkingConfig = {
+				thinkingBudget: thinkingBudget,
+				includeThoughts: true,
+			}
+		}
+
+		return payload
 	}
 }
 
@@ -402,7 +535,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
-			payload = this.convertToGeminiFormat(systemPrompt, messages)
+			payload = Gemini.prepareRequestPayload(systemPrompt, messages, model, this.options.thinkingBudgetTokens)
 		} else {
 			throw new Error(`Unsupported model: ${model.id}`)
 		}
@@ -693,50 +826,31 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							const candidateForThoughts = data?.candidates?.[0]
-							const partsForThoughts = candidateForThoughts?.content?.parts
-							let thoughts = ""
 
-							if (partsForThoughts) {
-								for (const part of partsForThoughts) {
-									const { thought, text } = part
-									if (thought && text) {
-										thoughts += text + "\n"
-									}
-								}
-							}
+							// Use Gemini namespace to process the chunk
+							const processed = Gemini.processStreamChunk(data)
 
-							if (thoughts.trim() !== "") {
+							// Yield reasoning if present
+							if (processed.reasoning) {
 								yield {
 									type: "reasoning",
-									reasoning: thoughts.trim(),
+									reasoning: processed.reasoning,
 								}
 							}
 
-							if (data.text) {
+							// Yield text if present
+							if (processed.text) {
 								yield {
 									type: "text",
-									text: data.text,
+									text: processed.text,
 								}
 							}
 
-							if (data.candidates && data.candidates[0]?.content?.parts) {
-								for (const part of data.candidates[0].content.parts) {
-									if (part.text && !part.thought) {
-										// Only non-thought text
-										yield {
-											type: "text",
-											text: part.text,
-										}
-									}
-								}
-							}
-
-							if (data.usageMetadata) {
-								promptTokens = data.usageMetadata.promptTokenCount ?? promptTokens
-								outputTokens = data.usageMetadata.candidatesTokenCount ?? outputTokens
-								thoughtsTokenCount = data.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount
-								cacheReadTokens = data.usageMetadata.cachedContentTokenCount ?? cacheReadTokens
+							if (processed.usageMetadata) {
+								promptTokens = processed.usageMetadata.promptTokenCount ?? promptTokens
+								outputTokens = processed.usageMetadata.candidatesTokenCount ?? outputTokens
+								thoughtsTokenCount = processed.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount
+								cacheReadTokens = processed.usageMetadata.cachedContentTokenCount ?? cacheReadTokens
 
 								yield {
 									type: "usage",
@@ -744,6 +858,7 @@ export class SapAiCoreHandler implements ApiHandler {
 									outputTokens,
 									thoughtsTokenCount,
 									cacheReadTokens,
+									cacheWriteTokens: 0,
 								}
 							}
 						} catch (error) {
@@ -792,50 +907,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		throw new Error(`Unsupported image format: ${format}`)
 	}
 
-	private convertToGeminiFormat(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]) {
-		const contents = messages.map(this.convertAnthropicMessageToGemini)
-
-		const payload = {
-			contents,
-			systemInstruction: {
-				parts: [
-					{
-						text: systemPrompt,
-					},
-				],
-			},
-			generationConfig: {
-				maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0.0,
-			},
-		}
-
-		return payload
-	}
-
-	private convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam) {
-		const role = message.role === "assistant" ? "model" : "user"
-		const parts = []
-
-		if (typeof message.content === "string") {
-			parts.push({ text: message.content })
-		} else if (Array.isArray(message.content)) {
-			for (const block of message.content) {
-				if (block.type === "text") {
-					parts.push({ text: block.text })
-				} else if (block.type === "image") {
-					parts.push({
-						inlineData: {
-							mimeType: block.source.media_type,
-							data: block.source.data,
-						},
-					})
-				}
-			}
-		}
-
-		return { role, parts }
-	}
 	private formatAnthropicMessages(messages: Anthropic.Messages.MessageParam[]): any[] {
 		return messages.map((m) => {
 			const contentBlocks: any[] = []
