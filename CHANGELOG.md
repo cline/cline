@@ -2,8 +2,6 @@
 
 ## 3.20.13
 
-### Patch Changes
-
 - 3a0e6a4: Add prompt caching support for Opus 4.1 on OpenRouter/Cline
 
 ## [3.20.12]
