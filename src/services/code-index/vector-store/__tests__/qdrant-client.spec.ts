@@ -21,10 +21,14 @@ vitest.mock("../../../../i18n", () => ({
 		return key // Just return the key for other cases
 	},
 }))
-vitest.mock("path", () => ({
-	...vitest.importActual("path"),
-	sep: "/",
-}))
+vitest.mock("path", async () => {
+	const actual = await vitest.importActual("path")
+	return {
+		...actual,
+		sep: "/",
+		posix: actual.posix,
+	}
+})
 
 const mockQdrantClientInstance = {
 	getCollection: vitest.fn(),
@@ -1525,6 +1529,206 @@ describe("QdrantVectorStore", () => {
 			const callArgs = mockQdrantClientInstance.query.mock.calls[0][1]
 			expect(callArgs.limit).toBe(DEFAULT_MAX_SEARCH_RESULTS)
 			expect(callArgs.score_threshold).toBe(DEFAULT_SEARCH_MIN_SCORE)
+		})
+
+		describe("current directory path handling", () => {
+			it("should not apply filter when directoryPrefix is '.'", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = "."
+				const mockQdrantResults = {
+					points: [
+						{
+							id: "test-id-1",
+							score: 0.85,
+							payload: {
+								filePath: "src/test.ts",
+								codeChunk: "test code",
+								startLine: 1,
+								endLine: 5,
+								pathSegments: { "0": "src", "1": "test.ts" },
+							},
+						},
+					],
+				}
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				const results = await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: undefined, // Should be undefined for current directory
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+
+				expect(results).toEqual(mockQdrantResults.points)
+			})
+
+			it("should not apply filter when directoryPrefix is './'", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = "./"
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: undefined, // Should be undefined for current directory
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
+
+			it("should not apply filter when directoryPrefix is empty string", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = ""
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: undefined, // Should be undefined for empty string
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
+
+			it("should not apply filter when directoryPrefix is '.\\' (Windows style)", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = ".\\"
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: undefined, // Should be undefined for Windows current directory
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
+
+			it("should not apply filter when directoryPrefix has trailing slashes", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = ".///"
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: undefined, // Should be undefined after normalizing trailing slashes
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
+
+			it("should still apply filter for relative paths like './src'", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = "./src"
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: {
+						must: [
+							{
+								key: "pathSegments.0",
+								match: { value: "src" },
+							},
+						],
+					}, // Should normalize "./src" to "src"
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
+
+			it("should still apply filter for regular directory paths", async () => {
+				const queryVector = [0.1, 0.2, 0.3]
+				const directoryPrefix = "src"
+				const mockQdrantResults = { points: [] }
+
+				mockQdrantClientInstance.query.mockResolvedValue(mockQdrantResults)
+
+				await vectorStore.search(queryVector, directoryPrefix)
+
+				expect(mockQdrantClientInstance.query).toHaveBeenCalledWith(expectedCollectionName, {
+					query: queryVector,
+					filter: {
+						must: [
+							{
+								key: "pathSegments.0",
+								match: { value: "src" },
+							},
+						],
+					}, // Should still create filter for regular paths
+					score_threshold: DEFAULT_SEARCH_MIN_SCORE,
+					limit: DEFAULT_MAX_SEARCH_RESULTS,
+					params: {
+						hnsw_ef: 128,
+						exact: false,
+					},
+					with_payload: {
+						include: ["filePath", "codeChunk", "startLine", "endLine", "pathSegments"],
+					},
+				})
+			})
 		})
 	})
 })

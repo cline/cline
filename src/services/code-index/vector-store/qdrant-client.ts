@@ -375,13 +375,26 @@ export class QdrantVectorStore implements IVectorStore {
 			let filter = undefined
 
 			if (directoryPrefix) {
-				const segments = directoryPrefix.split(path.sep).filter(Boolean)
-
-				filter = {
-					must: segments.map((segment, index) => ({
-						key: `pathSegments.${index}`,
-						match: { value: segment },
-					})),
+				// Check if the path represents current directory
+				const normalizedPrefix = path.posix.normalize(directoryPrefix.replace(/\\/g, "/"))
+				// Note: path.posix.normalize("") returns ".", and normalize("./") returns "./"
+				if (normalizedPrefix === "." || normalizedPrefix === "./") {
+					// Don't create a filter - search entire workspace
+					filter = undefined
+				} else {
+					// Remove leading "./" from paths like "./src" to normalize them
+					const cleanedPrefix = path.posix.normalize(
+						normalizedPrefix.startsWith("./") ? normalizedPrefix.slice(2) : normalizedPrefix,
+					)
+					const segments = cleanedPrefix.split("/").filter(Boolean)
+					if (segments.length > 0) {
+						filter = {
+							must: segments.map((segment, index) => ({
+								key: `pathSegments.${index}`,
+								match: { value: segment },
+							})),
+						}
+					}
 				}
 			}
 
