@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Message, Ollama } from "ollama"
+import { Message, Ollama, Config } from "ollama"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOllamaMessages } from "../transform/ollama-format"
@@ -25,7 +25,7 @@ export class OllamaHandler implements ApiHandler {
 	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
-				const clientOptions: any = {
+				const clientOptions: Partial<Config> = {
 					host: this.options.ollamaBaseUrl || "http://localhost:11434",
 				}
 
