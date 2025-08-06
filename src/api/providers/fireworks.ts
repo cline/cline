@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from ".."
-import { ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { fireworksDefaultModelId, FireworksModelId, fireworksModels, ModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -99,10 +99,15 @@ export class FireworksHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	getModel(): { id: FireworksModelId; info: ModelInfo } {
+		const modelId = this.options.fireworksModelId
+		if (modelId && modelId in fireworksModels) {
+			const id = modelId as FireworksModelId
+			return { id, info: fireworksModels[id] }
+		}
 		return {
-			id: this.options.fireworksModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			id: fireworksDefaultModelId,
+			info: fireworksModels[fireworksDefaultModelId],
 		}
 	}
 }

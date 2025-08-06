@@ -52,6 +52,8 @@ import {
 	huaweiCloudMaasDefaultModelId,
 	basetenModels,
 	basetenDefaultModelId,
+	fireworksModels,
+	fireworksDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -281,6 +283,8 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "fireworks":
+			return getProviderData(fireworksModels, fireworksDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
