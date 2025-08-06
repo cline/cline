@@ -1,14 +1,13 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { HostProvider } from "@/hosts/host-provider"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import * as path from "path"
+import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
 import { FileContextTracker } from "./FileContextTracker"
-import * as diskModule from "@core/storage/disk"
-import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
-import { HostProvider } from "@/hosts/host-provider"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
@@ -54,13 +53,7 @@ describe("FileContextTracker", () => {
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 
-		// Reset HostProvider before initializing to avoid "already initialized" errors
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-		)
+		setVscodeHostProviderMock()
 
 		// Create tracker instance
 		taskId = "test-task-id"

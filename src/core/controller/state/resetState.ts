@@ -1,6 +1,6 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { ResetStateRequest } from "../../../shared/proto/state"
+import { Empty } from "@shared/proto/cline/common"
+import { ResetStateRequest } from "@shared/proto/cline/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
@@ -19,13 +19,13 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting global state...",
 			})
-			await resetGlobalState(controller.context)
+			await resetGlobalState(controller)
 		} else {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Resetting workspace state...",
 			})
-			await resetWorkspaceState(controller.context)
+			await resetWorkspaceState(controller)
 		}
 
 		if (controller.task) {

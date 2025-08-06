@@ -2,7 +2,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
-import { ChatSettings } from "./ChatSettings"
+import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
@@ -12,14 +12,15 @@ import { McpDisplayMode } from "./McpDisplayMode"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
+	grpc_response?: GrpcResponse
+}
 
-	grpc_response?: {
-		message?: any // JSON serialized protobuf message
-		request_id: string // Same ID as the request
-		error?: string // Optional error message
-		is_streaming?: boolean // Whether this is part of a streaming response
-		sequence_number?: number // For ordering chunks in streaming responses
-	}
+export type GrpcResponse = {
+	message?: any // JSON serialized protobuf message
+	request_id: string // Same ID as the request
+	error?: string // Optional error message
+	is_streaming?: boolean // Whether this is part of a streaming response
+	sequence_number?: number // For ordering chunks in streaming responses
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -33,7 +34,9 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
-	chatSettings: ChatSettings
+	preferredLanguage?: string
+	openaiReasoningEffort?: OpenaiReasoningEffort
+	mode: Mode
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
@@ -60,6 +63,7 @@ export interface ExtensionState {
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
+	strictPlanModeEnabled?: boolean
 }
 
 export interface ClineMessage {

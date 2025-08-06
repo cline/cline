@@ -9,7 +9,13 @@ export interface Callbacks<TResponse> {
 
 export abstract class ProtoBusClient {
 	static serviceName: string
-	static async makeRequest<TRequest, TResponse>(methodName: string, request: TRequest): Promise<TResponse> {
+
+	static async makeUnaryRequest<TRequest, TResponse>(
+		methodName: string,
+		request: TRequest,
+		encodeRequest: (_: TRequest) => unknown,
+		decodeResponse: (_: { [key: string]: any }) => TResponse,
+	): Promise<TResponse> {
 		return new Promise((resolve, reject) => {
 			const requestId = uuidv4()
 
@@ -19,24 +25,25 @@ export abstract class ProtoBusClient {
 				if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
 					// Remove listener once we get our response
 					window.removeEventListener("message", handleResponse)
-
-					if (message.grpc_response.error) {
+					if (message.grpc_response.message) {
+						const response = this.decode(message.grpc_response.message, decodeResponse)
+						resolve(response)
+					} else if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
 					} else {
-						resolve(message.grpc_response.message)
+						console.error("Received ProtoBus message with no response or error ", JSON.stringify(message))
 					}
 				}
 			}
 
 			window.addEventListener("message", handleResponse)
-
 			// Send the request
 			vscode.postMessage({
 				type: "grpc_request",
 				grpc_request: {
 					service: this.serviceName,
 					method: methodName,
-					message: request,
+					message: this.encode(request, encodeRequest),
 					request_id: requestId,
 					is_streaming: false,
 				},
@@ -47,6 +54,8 @@ export abstract class ProtoBusClient {
 	static makeStreamingRequest<TRequest, TResponse>(
 		methodName: string,
 		request: TRequest,
+		encodeRequest: (_: TRequest) => unknown,
+		decodeResponse: (_: { [key: string]: any }) => TResponse,
 		callbacks: Callbacks<TResponse>,
 	): () => void {
 		const requestId = uuidv4()
@@ -54,16 +63,19 @@ export abstract class ProtoBusClient {
 		const handleResponse = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
-				if (message.grpc_response.error) {
+				if (message.grpc_response.message) {
+					// Process streaming message
+					const response = this.decode(message.grpc_response.message, decodeResponse)
+					callbacks.onResponse(response)
+				} else if (message.grpc_response.error) {
 					// Handle error
 					if (callbacks.onError) {
 						callbacks.onError(new Error(message.grpc_response.error))
 					}
 					// Only remove the event listener on error
 					window.removeEventListener("message", handleResponse)
-				} else if (message.grpc_response.message) {
-					// Process streaming message
-					callbacks.onResponse(message.grpc_response.message)
+				} else {
+					console.error("Received ProtoBus message with no response or error ", JSON.stringify(message))
 				}
 				if (message.grpc_response.is_streaming === false) {
 					if (callbacks.onComplete) {
@@ -81,7 +93,7 @@ export abstract class ProtoBusClient {
 			grpc_request: {
 				service: this.serviceName,
 				method: methodName,
-				message: request,
+				message: this.encode(request, encodeRequest),
 				request_id: requestId,
 				is_streaming: true,
 			},
@@ -98,5 +110,21 @@ export abstract class ProtoBusClient {
 			})
 			console.log(`[DEBUG] Sent cancellation for request: ${requestId}`)
 		}
+	}
+
+	static encode<T>(message: T, encoder: (_: T) => unknown): any {
+		if (window.__is_standalone__) {
+			return encoder(message)
+		}
+		// VScode does not JSON encode ProtoBus messages
+		return message
+	}
+
+	static decode<T>(message: any, decoder: (_: { [key: string]: any }) => T): T {
+		if (window.__is_standalone__) {
+			return decoder(message)
+		}
+		// VScode does not JSON encode ProtoBus messages
+		return message
 	}
 }

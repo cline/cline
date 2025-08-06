@@ -1,5 +1,6 @@
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { DiagnosticSeverity } from "@/shared/proto/host/workspace"
 import { status } from "@grpc/grpc-js"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
@@ -61,7 +62,12 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		}
 	}
 
-	protected override async scrollEditorToLine(_line: number): Promise<void> {}
+	protected override async scrollEditorToLine(line: number): Promise<void> {
+		if (!this.activeDiffEditorId) {
+			return
+		}
+		await HostProvider.diff.scrollDiff({ diffId: this.activeDiffEditorId, line: line })
+	}
 
 	override async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
@@ -73,8 +79,27 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async getNewDiagnosticProblems(): Promise<string> {
-		console.log(`Called ExternalDiffViewProvider.getNewDiagnosticProblems() stub`)
-		return ""
+		// Get diagnostics using the HostBridge workspace service
+		const response = await HostProvider.workspace.getDiagnostics({})
+
+		if (response.fileDiagnostics.length === 0) {
+			return ""
+		}
+
+		let result = ""
+		for (const fileDiagnostics of response.fileDiagnostics) {
+			const errors = fileDiagnostics.diagnostics.filter((d) => d.severity === DiagnosticSeverity.DIAGNOSTIC_ERROR)
+
+			if (errors.length > 0) {
+				result += `\n\n${fileDiagnostics.filePath}`
+				for (const diagnostic of errors) {
+					const line = (diagnostic.range?.start?.line || 0) + 1 // Proto lines are 0-indexed
+					const source = diagnostic.source ? `${diagnostic.source} ` : ""
+					result += `\n- [${source}Error] Line ${line}: ${diagnostic.message}`
+				}
+			}
+		}
+		return result.trim()
 	}
 
 	protected override async closeDiffView(): Promise<void> {

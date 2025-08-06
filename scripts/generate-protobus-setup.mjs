@@ -12,7 +12,7 @@ const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/hosts/standalon
 
 const SCRIPT_NAME = path.relative(process.cwd(), fileURLToPath(import.meta.url))
 
-async function main() {
+export async function main() {
 	const { protobusServices } = await loadServicesFromProtoDescriptor()
 	await generateWebviewProtobusClients(protobusServices)
 	await generateVscodeServiceTypes(protobusServices)
@@ -40,11 +40,11 @@ async function generateWebviewProtobusClients(protobusServices) {
 			}
 			if (!rpc.responseStream) {
 				rpcs.push(`    static async ${rpcName}(request: ${requestType}): Promise<${responseType}> {
-		return this.makeRequest("${rpcName}", request)
+		return this.makeUnaryRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON)
 	}`)
 			} else {
 				rpcs.push(`    static ${rpcName}(request: ${requestType}, callbacks: Callbacks<${responseType}>): ()=>void {
-		return this.makeStreamingRequest("${rpcName}", request, callbacks)
+		return this.makeStreamingRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON, callbacks)
 	}`)
 			}
 		}
@@ -205,4 +205,10 @@ function getDirName(serviceName) {
 	return domain.charAt(0).toLowerCase() + domain.slice(1)
 }
 
-main()
+// Only run main if this script is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main().catch((error) => {
+		console.error(chalk.red("Error:"), error)
+		process.exit(1)
+	})
+}

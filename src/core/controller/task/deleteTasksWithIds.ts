@@ -1,7 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
 import { Controller } from ".."
-import { Empty, StringArrayRequest } from "../../../shared/proto/common"
+import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
@@ -30,7 +30,7 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 		options: { modal: true, items: ["Delete"] },
 	})
 
-	if (userChoice === undefined) {
+	if (userChoice.selectedOption !== "Delete") {
 		return Empty.create()
 	}
 

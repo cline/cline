@@ -15,7 +15,7 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import os from "os"
 
 interface PCRStats {
@@ -41,15 +41,17 @@ export class BrowserSession {
 	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
 	private isConnectedToRemote: boolean = false
+	private useWebp: boolean
 
 	// Telemetry tracking properties
 	private sessionStartTime: number = 0
 	private browserActions: string[] = []
 	private taskId?: string
 
-	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
+	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
 		this.context = context
 		this.browserSettings = browserSettings
+		this.useWebp = useWebp
 	}
 
 	// Tests remote browser connection
@@ -86,7 +88,10 @@ export class BrowserSession {
 		// First check browserSettings (from UI, stored in global state)
 		await this.migrateChromeExecutablePathSetting()
 		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
-			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
+			return {
+				path: this.browserSettings.chromeExecutablePath,
+				isBundled: false,
+			}
 		}
 
 		// Then try to find system Chrome
@@ -487,14 +492,16 @@ export class BrowserSession {
 			// },
 		}
 
+		const screenshotType = this.useWebp ? "webp" : "png"
 		let screenshotBase64 = await this.page.screenshot({
 			...options,
-			type: "webp",
+			type: screenshotType,
 		})
-		let screenshot = `data:image/webp;base64,${screenshotBase64}`
+		let screenshot = `data:image/${screenshotType};base64,${screenshotBase64}`
 
 		if (!screenshotBase64) {
-			console.info("webp screenshot failed, trying png")
+			// choosing to try screenshot again, regardless of the initial type
+			console.info(`${screenshotType} screenshot failed, trying png`)
 			screenshotBase64 = await this.page.screenshot({
 				...options,
 				type: "png",
@@ -550,8 +557,8 @@ export class BrowserSession {
 		const minStableSizeIterations = 3
 
 		while (checkCounts++ <= maxChecks) {
-			let html = await page.content()
-			let currentHTMLSize = html.length
+			const html = await page.content()
+			const currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
 			console.info("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)

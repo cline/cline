@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
@@ -8,8 +8,7 @@ import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 interface VSCodeLmProviderProps {
 	currentMode: Mode
 }

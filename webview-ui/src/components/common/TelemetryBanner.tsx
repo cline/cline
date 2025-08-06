@@ -3,7 +3,7 @@ import { memo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
+import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/cline/state"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -77,8 +77,8 @@ const TelemetryBanner = () => {
 					(and access experimental features)
 				</i>
 				<div style={{ marginTop: 4 }}>
-					Cline collects anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts,
-					or personal information is ever sent.
+					Cline collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or
+					personal information is ever sent.
 					<div style={{ marginTop: 4 }}>
 						You can turn this setting off in{" "}
 						<VSCodeLink href="#" onClick={handleOpenSettings}>
