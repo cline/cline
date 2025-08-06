@@ -7,7 +7,7 @@ import {
 	DiagnosticRange,
 	DiagnosticPosition,
 	DiagnosticSeverity,
-} from "@/shared/proto/host/diff"
+} from "@/shared/proto/host/workspace"
 
 export async function getDiagnostics(request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
 	// Get all diagnostics from VS Code

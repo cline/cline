@@ -6,7 +6,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString, getAllDiagnostics } from "@/integrations/diagnostics"
+import { getWorkspaceProblemsString } from "@/integrations/diagnostics"
 import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
@@ -225,15 +225,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	const diagnostics = await getAllDiagnostics()
-	const result = await diagnosticsToProblemsString(diagnostics, [
-		vscode.DiagnosticSeverity.Error,
-		vscode.DiagnosticSeverity.Warning,
-	])
-	if (!result) {
-		return "No errors or warnings detected."
-	}
-	return result
+	return await getWorkspaceProblemsString()
 }
 
 function isFileMention(mention: string): boolean {

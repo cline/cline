@@ -3,13 +3,13 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { getNewDiagnostics, diagnosticsToProblemsString, getAllDiagnostics, DiagnosticTuple } from "@/integrations/diagnostics"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "./diagnostics"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
-	private preDiagnostics: DiagnosticTuple[] = []
+	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
@@ -19,7 +19,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			throw new Error("No file path set")
 		}
 		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
-		this.preDiagnostics = await getAllDiagnostics()
+		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
 		this.documentWasOpen = false
@@ -166,7 +166,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 	protected override async getNewDiagnosticProblems(): Promise<string> {
 		// Get the diagnostics after changing the document.
-		const postDiagnostics = await getAllDiagnostics()
+		const postDiagnostics = vscode.languages.getDiagnostics()
 		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
 		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
 		// will be empty string if no errors
