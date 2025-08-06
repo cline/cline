@@ -63,13 +63,15 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				label="Use custom base URL"
 			/>
 
-			<ApiKeyField
-				initialValue={apiConfiguration?.ollamaApiKey || ""}
-				onChange={(value) => handleFieldChange("ollamaApiKey", value)}
-				providerName="Ollama"
-				placeholder="Enter API Key (optional)..."
-				helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
-			/>
+			{apiConfiguration?.ollamaBaseUrl && (
+				<ApiKeyField
+					initialValue={apiConfiguration?.ollamaApiKey || ""}
+					onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+					providerName="Ollama"
+					placeholder="Enter API Key (optional)..."
+					helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
+				/>
+			)}
 
 			{/* Model selection - use filterable picker */}
 			<label htmlFor="ollama-model-selection">
