@@ -502,7 +502,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				payload = {
 					max_tokens: model.info.maxTokens,
 					system: systemPrompt,
-					messages: formattedMessages,
+					messages,
 					anthropic_version: "bedrock-2023-05-31",
 				}
 			}
