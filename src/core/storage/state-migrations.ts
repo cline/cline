@@ -524,6 +524,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.awsRegion,
 						config.vertexProjectId,
 						config.openAiApiKey,
+						config.ollamaApiKey,
 						config.planModeOllamaModelId,
 						config.planModeLmStudioModelId,
 						config.actModeOllamaModelId,
