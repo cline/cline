@@ -167,7 +167,6 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				isPopup={isPopup}
 			/>
 		),
-		// Hide image support for Vercel AI Gateway
 		!isVercelAiGateway && (
 			<ModelInfoSupportsItem
 				key="supportsImages"
@@ -176,7 +175,6 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				doesNotSupportLabel="Does not support images"
 			/>
 		),
-		// Hide browser use support for Vercel AI Gateway
 		!isVercelAiGateway && (
 			<ModelInfoSupportsItem
 				key="supportsBrowserUse"
