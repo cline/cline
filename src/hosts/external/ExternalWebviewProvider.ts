@@ -21,10 +21,6 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	override getCspSource() {
 		return `'self' https://${this.RESOURCE_HOSTNAME}`
 	}
-	override postMessageToWebview(message: ExtensionMessage) {
-		console.log(`postMessageToWebview: ${message}`)
-		return undefined
-	}
 	override isVisible() {
 		return true
 	}
