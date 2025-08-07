@@ -42,7 +42,7 @@ import os from "os"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
+import { ToolResponse } from "."
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
 import { constructNewFileContent } from "../assistant-message/diff"
 import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
@@ -154,23 +154,15 @@ export class ToolExecutor {
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-				// Claude 4 family: Use function_results format
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: `<function_results>\n${resultText}\n</function_results>`,
-				})
-			} else {
-				// Non-Claude 4: Use traditional format with header
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: `${this.toolDescription(block)} Result:`,
-				})
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: resultText,
-				})
-			}
+			// Use traditional format with header
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: `${this.toolDescription(block)} Result:`,
+			})
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: resultText,
+			})
 		} else {
 			this.taskState.userMessageContent.push(...content)
 		}
@@ -526,58 +518,35 @@ export class ToolExecutor {
 						const isNextGenModel =
 							isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
 						// Going through claude family of models
-						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
-							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
+						try {
+							newContent = await constructNewFileContent(
+								diff,
+								this.diffViewProvider.originalContent || "",
+								!block.partial,
+							)
+						} catch (error) {
+							await this.say("diff_error", relPath)
 
-							if (streamingResult.error) {
-								await this.say("diff_error", relPath)
-								this.pushToolResult(formatResponse.toolError(streamingResult.error), block)
-								await this.diffViewProvider.revertChanges()
-								await this.diffViewProvider.reset()
-								await this.saveCheckpoint()
-								break
-							}
+							// Extract error type from error message if possible, or use a generic type
+							const errorType =
+								error instanceof Error && error.message.includes("does not match anything")
+									? "search_not_found"
+									: "other_diff_error"
 
-							if (streamingResult.shouldBreak) {
-								break // Wait for more chunks or handle initialization
-							}
+							// Add telemetry for diff edit failure
+							telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
 
-							// If we get here, we have the final content
-							if (streamingResult.newContent) {
-								newContent = streamingResult.newContent
-								// Continue with approval flow...
-							}
-						} else {
-							try {
-								newContent = await constructNewFileContent(
-									diff,
-									this.diffViewProvider.originalContent || "",
-									!block.partial,
-								)
-							} catch (error) {
-								await this.say("diff_error", relPath)
-
-								// Extract error type from error message if possible, or use a generic type
-								const errorType =
-									error instanceof Error && error.message.includes("does not match anything")
-										? "search_not_found"
-										: "other_diff_error"
-
-								// Add telemetry for diff edit failure
-								telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
-
-								this.pushToolResult(
-									formatResponse.toolError(
-										`${(error as Error)?.message}\n\n` +
-											formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
-									),
-									block,
-								)
-								await this.diffViewProvider.revertChanges()
-								await this.diffViewProvider.reset()
-								await this.saveCheckpoint()
-								break
-							}
+							this.pushToolResult(
+								formatResponse.toolError(
+									`${(error as Error)?.message}\n\n` +
+										formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+								),
+								block,
+							)
+							await this.diffViewProvider.revertChanges()
+							await this.diffViewProvider.reset()
+							await this.saveCheckpoint()
+							break
 						}
 					} else if (content) {
 						newContent = content

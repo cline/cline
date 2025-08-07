@@ -6,7 +6,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	parseAssistantMessageV1,
 	parseAssistantMessageV2,
-	parseAssistantMessageV3,
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
@@ -20,7 +19,6 @@ type ConstructNewFileContentFn = (diff: string, original: string, strict: boolea
 const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
 	parseAssistantMessageV1: parseAssistantMessageV1,
 	parseAssistantMessageV2: parseAssistantMessageV2,
-	parseAssistantMessageV3: parseAssistantMessageV3,
 }
 
 const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
