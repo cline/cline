@@ -1,6 +1,6 @@
 export type HistoryItem = {
 	id: string
-	uuid?: string // UUID for better tracking and metrics
+	ulid?: string // ULID for better tracking and metrics
 	ts: number
 	task: string
 	tokensIn: number
