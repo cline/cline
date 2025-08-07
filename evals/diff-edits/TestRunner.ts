@@ -1,5 +1,4 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
-import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/parse-assistant-message-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
@@ -15,14 +14,12 @@ import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
 import { loadOpenRouterModelData, EvalOpenRouterModelInfo } from "./openRouterModelsHelper" // Added import
 import {
-	getDatabase,
 	upsertSystemPrompt,
 	upsertProcessingFunctions,
 	upsertFile,
 	createBenchmarkRun,
 	createCase,
 	insertResult,
-	DatabaseClient,
 	CreateResultInput,
 	getResultsByRun,
 	getCaseById,
