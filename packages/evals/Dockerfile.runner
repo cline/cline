@@ -84,7 +84,6 @@ WORKDIR /roo/repo
 RUN mkdir -p \
   scripts \
   packages/build \
-  packages/cloud \
   packages/config-eslint \
   packages/config-typescript \
   packages/evals \
@@ -99,7 +98,6 @@ COPY ./pnpm-lock.yaml                          ./
 COPY ./pnpm-workspace.yaml                     ./
 COPY ./scripts/bootstrap.mjs                   ./scripts/
 COPY ./packages/build/package.json             ./packages/build/
-COPY ./packages/cloud/package.json             ./packages/cloud/
 COPY ./packages/config-eslint/package.json     ./packages/config-eslint/
 COPY ./packages/config-typescript/package.json ./packages/config-typescript/
 COPY ./packages/evals/package.json             ./packages/evals/
