@@ -207,27 +207,53 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Watch the core files and automatically reload the extension host.
 	if (process.env.NODE_ENV === "development") {
-		const pattern = "**/*.ts"
-
 		const watchPaths = [
-			{ path: context.extensionPath, name: "extension" },
-			{ path: path.join(context.extensionPath, "../packages/types"), name: "types" },
-			{ path: path.join(context.extensionPath, "../packages/telemetry"), name: "telemetry" },
+			{ path: context.extensionPath, pattern: "**/*.ts" },
+			{ path: path.join(context.extensionPath, "../packages/types"), pattern: "**/*.ts" },
+			{ path: path.join(context.extensionPath, "../packages/telemetry"), pattern: "**/*.ts" },
+			{ path: path.join(context.extensionPath, "node_modules/@roo-code/cloud"), pattern: "**/*" },
 		]
 
 		console.log(
-			`♻️♻️♻️ Core auto-reloading is ENABLED. Watching for changes in: ${watchPaths.map(({ name }) => name).join(", ")}`,
+			`♻️♻️♻️ Core auto-reloading: Watching for changes in ${watchPaths.map(({ path }) => path).join(", ")}`,
 		)
 
-		watchPaths.forEach(({ path: watchPath, name }) => {
-			const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchPath, pattern))
+		// Create a debounced reload function to prevent excessive reloads
+		let reloadTimeout: NodeJS.Timeout | undefined
+		const DEBOUNCE_DELAY = 1_000
 
-			watcher.onDidChange((uri) => {
-				console.log(`♻️ ${name} file changed: ${uri.fsPath}. Reloading host…`)
+		const debouncedReload = (uri: vscode.Uri) => {
+			if (reloadTimeout) {
+				clearTimeout(reloadTimeout)
+			}
+
+			console.log(`♻️ ${uri.fsPath} changed; scheduling reload...`)
+
+			reloadTimeout = setTimeout(() => {
+				console.log(`♻️ Reloading host after debounce delay...`)
 				vscode.commands.executeCommand("workbench.action.reloadWindow")
-			})
+			}, DEBOUNCE_DELAY)
+		}
+
+		watchPaths.forEach(({ path: watchPath, pattern }) => {
+			const relPattern = new vscode.RelativePattern(vscode.Uri.file(watchPath), pattern)
+			const watcher = vscode.workspace.createFileSystemWatcher(relPattern, false, false, false)
+
+			// Listen to all change types to ensure symlinked file updates trigger reloads.
+			watcher.onDidChange(debouncedReload)
+			watcher.onDidCreate(debouncedReload)
+			watcher.onDidDelete(debouncedReload)
 
 			context.subscriptions.push(watcher)
+		})
+
+		// Clean up the timeout on deactivation
+		context.subscriptions.push({
+			dispose: () => {
+				if (reloadTimeout) {
+					clearTimeout(reloadTimeout)
+				}
+			},
 		})
 	}
 
