@@ -267,4 +267,7 @@ service UiService {
   
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);
+  
+  // Opens the Cline walkthrough
+  rpc openWalkthrough(EmptyRequest) returns (Empty);
 }

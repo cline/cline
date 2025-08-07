@@ -50,6 +50,8 @@ import {
 	groqDefaultModelId,
 	huaweiCloudMaasModels,
 	huaweiCloudMaasDefaultModelId,
+	basetenModels,
+	basetenDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -250,6 +252,19 @@ export function normalizeApiConfiguration(
 				selectedModelId: groqModelId || groqDefaultModelId,
 				selectedModelInfo: groqModelInfo || groqModels[groqDefaultModelId],
 			}
+		case "baseten":
+			const basetenModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeBasetenModelId : apiConfiguration?.actModeBasetenModelId
+			const basetenModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeBasetenModelInfo : apiConfiguration?.actModeBasetenModelInfo
+			const finalBasetenModelId = basetenModelId || basetenDefaultModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: finalBasetenModelId,
+				selectedModelInfo: basetenModelInfo ||
+					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
+					basetenModels[basetenDefaultModelId] || { description: "Baseten model" },
+			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		case "huawei-cloud-maas":
@@ -294,6 +309,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
 			groqModelId: undefined,
+			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 
@@ -303,6 +319,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openRouterModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
+			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
 
@@ -335,6 +352,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
+		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
 		huaweiCloudMaasModelId:
@@ -348,6 +366,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
+		basetenModelInfo: mode === "plan" ? apiConfiguration.planModeBasetenModelInfo : apiConfiguration.actModeBasetenModelInfo,
 		huggingFaceModelInfo:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelInfo : apiConfiguration.actModeHuggingFaceModelInfo,
 		vsCodeLmModelSelector:
@@ -461,6 +480,13 @@ export async function syncModeConfigurations(
 			updates.actModeHuggingFaceModelId = sourceFields.huggingFaceModelId
 			updates.planModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
 			updates.actModeHuggingFaceModelInfo = sourceFields.huggingFaceModelInfo
+			break
+
+		case "baseten":
+			updates.planModeBasetenModelId = sourceFields.basetenModelId
+			updates.actModeBasetenModelId = sourceFields.basetenModelId
+			updates.planModeBasetenModelInfo = sourceFields.basetenModelInfo
+			updates.actModeBasetenModelInfo = sourceFields.basetenModelInfo
 			break
 
 		case "together":

@@ -385,6 +385,13 @@ export const ChatRowContent = memo(
 			return null
 		}, [message.ask, message.say, message.text])
 
+		// Helper function to check if file is an image
+		const isImageFile = (filePath: string): boolean => {
+			const imageExtensions = [".png", ".jpg", ".jpeg", ".webp"]
+			const extension = filePath.toLowerCase().split(".").pop()
+			return extension ? imageExtensions.includes(`.${extension}`) : false
+		}
+
 		if (tool) {
 			const colorMap = {
 				red: "var(--vscode-errorForeground)",
@@ -440,10 +447,11 @@ export const ChatRowContent = memo(
 						</>
 					)
 				case "readFile":
+					const isImage = isImageFile(tool.path || "")
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("file-code")}
+								{toolIcon(isImage ? "file-media" : "file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
@@ -464,17 +472,21 @@ export const ChatRowContent = memo(
 										display: "flex",
 										alignItems: "center",
 										padding: "9px 10px",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
+										cursor: isImage ? "default" : "pointer",
+										userSelect: isImage ? "text" : "none",
+										WebkitUserSelect: isImage ? "text" : "none",
+										MozUserSelect: isImage ? "text" : "none",
+										msUserSelect: isImage ? "text" : "none",
 									}}
-									onClick={() => {
-										FileServiceClient.openFile(StringRequest.create({ value: tool.content })).catch((err) =>
-											console.error("Failed to open file:", err),
-										)
-									}}>
+									onClick={
+										isImage
+											? undefined
+											: () => {
+													FileServiceClient.openFile(
+														StringRequest.create({ value: tool.content }),
+													).catch((err) => console.error("Failed to open file:", err))
+												}
+									}>
 									{tool.path?.startsWith(".") && <span>.</span>}
 									<span
 										className="ph-no-capture"
@@ -489,12 +501,14 @@ export const ChatRowContent = memo(
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 									</span>
 									<div style={{ flexGrow: 1 }}></div>
-									<span
-										className={`codicon codicon-link-external`}
-										style={{
-											fontSize: 13.5,
-											margin: "1px 0",
-										}}></span>
+									{!isImage && (
+										<span
+											className={`codicon codicon-link-external`}
+											style={{
+												fontSize: 13.5,
+												margin: "1px 0",
+											}}></span>
+									)}
 								</div>
 							</div>
 						</>

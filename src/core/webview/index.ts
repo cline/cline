@@ -18,7 +18,6 @@ export abstract class WebviewProvider {
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
-	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
 
@@ -32,6 +31,8 @@ export abstract class WebviewProvider {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
+
+		// Create controller with cache service
 		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
 		WebviewProvider.setLastActiveControllerId(this.controller.id)
 	}
@@ -47,15 +48,6 @@ export abstract class WebviewProvider {
 	}
 
 	async dispose() {
-		if (WebviewProvider.getLastActiveControllerId() === this.controller.id) {
-			WebviewProvider.setLastActiveControllerId(null)
-		}
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
 		// Remove from client ID map
@@ -294,8 +286,8 @@ export abstract class WebviewProvider {
 		try {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
-			// Only show the error message if not in development mode.
-			if (!process.env.IS_DEV) {
+			// Only show the error message when in development mode.
+			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message:
@@ -336,7 +328,7 @@ export abstract class WebviewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
-					<script src="http://localhost:8097"></script> 
+					${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ""}
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">

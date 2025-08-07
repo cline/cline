@@ -44,7 +44,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				// Convert Node.js Buffer to Uint8Array
 				const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
 				const dimensions = sizeOf(uint8Array) // Get dimensions from Uint8Array
-				if (dimensions.width! > 7500 || dimensions.height! > 7500) {
+				if (dimensions.width! > 7680 || dimensions.height! > 7680) {
 					console.warn(`Image dimensions exceed 7500px, skipping: ${filePath}`)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
@@ -107,7 +107,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 	return { images, files }
 }
 
-function getMimeType(filePath: string): string {
+export function getMimeType(filePath: string): string {
 	const ext = path.extname(filePath).toLowerCase()
 	switch (ext) {
 		case ".png":

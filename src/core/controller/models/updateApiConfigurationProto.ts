@@ -1,7 +1,6 @@
 import type { Controller } from "../index"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
-import { updateApiConfiguration } from "../../storage/state"
 import { buildApiHandler } from "@api/index"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 
@@ -25,7 +24,7 @@ export async function updateApiConfigurationProto(
 		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
 
 		// Update the API configuration in storage
-		await updateApiConfiguration(controller.context, appApiConfiguration)
+		controller.cacheService.setApiConfiguration(appApiConfiguration)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {

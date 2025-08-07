@@ -96,7 +96,6 @@ function getBuildArtifactPatterns(): string[] {
 		"node_modules/",
 		"obj/",
 		"out/",
-		"pkg/",
 		"pycache/",
 		"target/dependency/",
 		"temp/",

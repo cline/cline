@@ -1,12 +1,16 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import type { FullConfig } from "playwright/test"
+import { test as teardown } from "@playwright/test"
+import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
-export default async function (_: FullConfig) {
-	const assetsDir = getResultsDir()
+teardown("cleanup test environment", async () => {
+	await ClineApiServerMock.stopGlobalServer()
+		.then(() => console.log("ClineApiServerMock stopped successfully."))
+		.catch((error) => console.error("Error stopping ClineApiServerMock:", error))
 
 	try {
+		const assetsDir = getResultsDir()
 		const results = await fs.readdir(assetsDir, { withFileTypes: true })
 		await Promise.all(
 			results
@@ -24,7 +28,7 @@ export default async function (_: FullConfig) {
 	} catch (error) {
 		// Silently handle case where assets directory doesn't exist
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-			throw error
+			console.error("Error during cleanup:", error)
 		}
 	}
-}
+})

@@ -49,7 +49,6 @@ export async function refreshOpenRouterModels(
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4":
-					case "anthropic/claude-opus-4":
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":
@@ -61,6 +60,12 @@ export async function refreshOpenRouterModels(
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
+						break
+					case "anthropic/claude-opus-4.1":
+					case "anthropic/claude-opus-4":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 18.75
+						modelInfo.cacheReadsPrice = 1.5
 						break
 					case "anthropic/claude-3.5-sonnet-20240620":
 					case "anthropic/claude-3.5-sonnet-20240620:beta":

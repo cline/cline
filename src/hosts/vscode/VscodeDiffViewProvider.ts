@@ -3,7 +3,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "./diagnostics"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -68,7 +68,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				})
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+					vscode.Uri.from({
+						scheme: DIFF_VIEW_URI_SCHEME,
+						path: fileName,
 						query: Buffer.from(this.originalContent ?? "").toString("base64"),
 					}),
 					uri,

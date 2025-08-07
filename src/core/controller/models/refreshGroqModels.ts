@@ -8,6 +8,7 @@ import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 
 /**
  * Refreshes the Groq models and returns the updated model list
@@ -111,7 +112,13 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 			errorMessage = error.message
 		}
 
-		console.error("Groq API Error:", errorMessage)
+		telemetryService.captureProviderApiError({
+			taskId: controller.task?.taskId || "",
+			uuid: controller.task?.uuid || "",
+			errorMessage,
+			errorStatus: error.status,
+			model: "groq",
+		})
 
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readGroqModels(controller)
@@ -181,7 +188,7 @@ async function readGroqModels(controller: Controller): Promise<Record<string, Pa
  */
 function isValidChatModel(rawModel: any): boolean {
 	// Check if model is active (if the property exists)
-	if (rawModel.hasOwnProperty("active") && !rawModel.active) {
+	if (Object.hasOwn(rawModel, "active") && !rawModel.active) {
 		return false
 	}
 	// Filter out non-chat models (whisper, TTS, guard models, etc.)

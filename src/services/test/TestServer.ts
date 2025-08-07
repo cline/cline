@@ -5,21 +5,15 @@ import { execa } from "execa"
 import { Logger } from "@services/logging/Logger"
 import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
 import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
-import {
-	updateGlobalState,
-	getAllExtensionState,
-	updateApiConfiguration,
-	storeSecret,
-	updateWorkspaceState,
-} from "@core/storage/state"
+import { updateGlobalState, getAllExtensionState, storeSecret } from "@core/storage/state"
 import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
 import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
+import { askResponse } from "@core/controller/task/askResponse"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -268,14 +262,17 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 						}
 
 						// Store the API key securely
-						await storeSecret(visibleWebview.controller.context, "clineAccountId", apiKey)
+						visibleWebview.controller.cacheService.setSecret("clineAccountId", apiKey)
 
-						// Update the API configuration
-						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
+						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
 
-						// Update global state to use cline provider
-						await updateGlobalState(visibleWebview.controller.context, "planModeApiProvider", "cline")
-						await updateGlobalState(visibleWebview.controller.context, "actModeApiProvider", "cline")
+						// Update cache service to use cline provider
+						const currentConfig = visibleWebview.controller.cacheService.getApiConfiguration()
+						visibleWebview.controller.cacheService.setApiConfiguration({
+							...currentConfig,
+							planModeApiProvider: "cline",
+							actModeApiProvider: "cline",
+						})
 
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()
@@ -624,9 +621,10 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 		// we use the default "yesButtonClicked" to approve the action
 	}
 
-	// Send the response message
+	// Send the response message using the backend controller method
 	try {
-		await TaskServiceClient.askResponse(
+		await askResponse(
+			webviewProvider.controller,
 			AskResponseRequest.create({
 				responseType,
 				text: responseText,

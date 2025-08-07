@@ -110,6 +110,7 @@ message UpdateSettingsRequest {
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   optional string openai_reasoning_effort = 15;
+  optional bool strict_plan_mode_enabled = 16;
 }
 
 // Complete API Configuration message
@@ -171,6 +172,7 @@ message ApiConfiguration {
   optional string moonshot_api_key = 54;
   optional string moonshot_api_line = 55;
   optional string huawei_cloud_maas_api_key = 56;
+  optional string ollama_api_key = 57;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;

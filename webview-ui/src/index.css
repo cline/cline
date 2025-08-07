@@ -26,11 +26,20 @@ https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e
 
 html {
 	height: 100%;
+	width: 100%;
 }
 
 body {
 	margin: 0;
+	padding: 0;
 	line-height: 1.25;
+	height: 100%;
+	width: 100%;
+}
+
+#root {
+	height: 100%;
+	width: 100%;
 }
 
 body.scrollable,
