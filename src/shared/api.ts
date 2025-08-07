@@ -92,7 +92,7 @@ export const getModelMaxOutputTokens = ({
 
 	// If model has explicit maxTokens, clamp it to 20% of the context window
 	if (model.maxTokens) {
-		return Math.min(model.maxTokens, model.contextWindow * 0.2)
+		return Math.min(model.maxTokens, Math.ceil(model.contextWindow * 0.2))
 	}
 
 	// For non-Anthropic formats without explicit maxTokens, return undefined
