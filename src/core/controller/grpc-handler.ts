@@ -2,6 +2,7 @@ import { Controller } from "./index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import { ExtensionMessage } from "@/shared/ExtensionMessage"
 
 /**
  * Type definition for a streaming response handler
@@ -12,14 +13,20 @@ export type StreamingResponseHandler<TResponse> = (
 	sequenceNumber?: number,
 ) => Promise<void>
 
+export type PostMessageToWebview = (message: ExtensionMessage) => Thenable<boolean | undefined>
+
 /**
  * Handles a gRPC request from the webview.
  */
-export async function handleGrpcRequest(controller: Controller, request: GrpcRequest): Promise<void> {
+export async function handleGrpcRequest(
+	controller: Controller,
+	postMessageToWebview: PostMessageToWebview,
+	request: GrpcRequest,
+): Promise<void> {
 	if (request.is_streaming) {
-		await handleStreamingRequest(controller, request)
+		await handleStreamingRequest(controller, postMessageToWebview, request)
 	} else {
-		await handleUnaryRequest(controller, request)
+		await handleUnaryRequest(controller, postMessageToWebview, request)
 	}
 }
 
@@ -28,14 +35,18 @@ export async function handleGrpcRequest(controller: Controller, request: GrpcReq
  *
  * Calls the handler using the service and method name, and then posts the result back to the webview.
  */
-async function handleUnaryRequest(controller: Controller, request: GrpcRequest): Promise<void> {
+async function handleUnaryRequest(
+	controller: Controller,
+	postMessageToWebview: PostMessageToWebview,
+	request: GrpcRequest,
+): Promise<void> {
 	try {
 		// Get the service handler from the config
 		const handler = getHandler(request.service, request.method)
 		// Handle unary request
 		const response = await handler(controller, request.message)
 		// Send response to the webview
-		await controller.postMessageToWebview({
+		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
 				message: response,
@@ -45,7 +56,7 @@ async function handleUnaryRequest(controller: Controller, request: GrpcRequest):
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
-		await controller.postMessageToWebview({
+		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
 				error: error instanceof Error ? error.message : String(error),
@@ -62,14 +73,18 @@ async function handleUnaryRequest(controller: Controller, request: GrpcRequest):
  * Calls the handler using the service and method name, and creates a streaming response handler
  * which posts results back to the webview.
  */
-async function handleStreamingRequest(controller: Controller, request: GrpcRequest): Promise<void> {
+async function handleStreamingRequest(
+	controller: Controller,
+	postMessageToWebview: PostMessageToWebview,
+	request: GrpcRequest,
+): Promise<void> {
 	// Create a response stream function
 	const responseStream: StreamingResponseHandler<any> = async (
 		response: any,
 		isLast: boolean = false,
 		sequenceNumber?: number,
 	) => {
-		await controller.postMessageToWebview({
+		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
 				message: response,
@@ -92,7 +107,7 @@ async function handleStreamingRequest(controller: Controller, request: GrpcReque
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
-		await controller.postMessageToWebview({
+		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
 				error: error instanceof Error ? error.message : String(error),
@@ -108,12 +123,12 @@ async function handleStreamingRequest(controller: Controller, request: GrpcReque
  * @param controller The controller instance
  * @param request The cancellation request
  */
-export async function handleGrpcRequestCancel(controller: Controller, request: GrpcCancel) {
+export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageToWebview, request: GrpcCancel) {
 	const cancelled = requestRegistry.cancelRequest(request.request_id)
 
 	if (cancelled) {
 		// Send a cancellation confirmation
-		await controller.postMessageToWebview({
+		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
 				message: { cancelled: true },

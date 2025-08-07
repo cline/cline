@@ -13,7 +13,6 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpResource,
