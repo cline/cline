@@ -52,7 +52,6 @@ export class CacheService {
 			}
 
 			this.isInitialized = true
-			console.log("CacheService initialized successfully")
 		} catch (error) {
 			console.error("Failed to initialize CacheService:", error)
 			throw error
@@ -517,9 +516,6 @@ export class CacheService {
 					this.persistSecretsBatch(this.pendingSecrets),
 					this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
 				])
-
-				console.log("cache mode value", this.globalStateCache["mode"])
-				console.log("storage mode value", this.context.globalState.get("mode"))
 
 				// Clear pending sets on successful persistence
 				this.pendingGlobalState.clear()
