@@ -1334,23 +1334,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const scrollToBottomSmooth = useMemo(
 		() =>
-			debounce(
-				() => {
-					const lastIndex = groupedMessages.length - 1
-					if (lastIndex >= 0) {
-						virtuosoRef.current?.scrollToIndex({
-							index: lastIndex,
-							behavior: "smooth",
-							align: "end",
-						})
-					}
-				},
-				10,
-				{
-					immediate: true,
-				},
-			),
-		[groupedMessages.length],
+			debounce(() => virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" }), 10, {
+				immediate: true,
+			}),
+		[],
 	)
 
 	useEffect(() => {
@@ -1362,15 +1349,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [scrollToBottomSmooth])
 
 	const scrollToBottomAuto = useCallback(() => {
-		const lastIndex = groupedMessages.length - 1
-		if (lastIndex >= 0) {
-			virtuosoRef.current?.scrollToIndex({
-				index: lastIndex,
-				behavior: "auto", // Instant causes crash.
-				align: "end",
-			})
-		}
-	}, [groupedMessages.length])
+		virtuosoRef.current?.scrollTo({
+			top: Number.MAX_SAFE_INTEGER,
+			behavior: "auto", // Instant causes crash.
+		})
+	}, [])
 
 	const handleSetExpandedRow = useCallback(
 		(ts: number, expand?: boolean) => {
