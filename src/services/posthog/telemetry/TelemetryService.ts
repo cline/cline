@@ -600,7 +600,7 @@ export class TelemetryService {
 	 */
 	public captureProviderApiError(args: {
 		taskId: string
-		uuid: string
+		ulid: string
 		model: string
 		errorMessage: string
 		errorStatus?: number | undefined
