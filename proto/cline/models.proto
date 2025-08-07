@@ -237,8 +237,8 @@ message ModelsApiConfiguration {
   optional string huawei_cloud_maas_api_key = 61;
   optional string baseten_api_key = 62;
   optional string ollama_api_key = 63;
-  optional string zai_api_key = 63;
-  optional string zai_api_line = 64;
+  optional string zai_api_key = 64;
+  optional string zai_api_line = 65;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
