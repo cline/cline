@@ -2,12 +2,7 @@
 
 ## 3.21.0
 
-### Minor Changes
-
 - 9b7839e: New SOTA model GPT-5 Released in Cline
-
-### Patch Changes
-
 - 3001f88: Enabling quickwins and adding a button to show that you can do a walkthrough
 
 ## [3.20.13]
