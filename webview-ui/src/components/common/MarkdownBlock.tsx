@@ -9,8 +9,9 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 import { WithCopyButton } from "./CopyButton"
-import { StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { StringRequest } from "@shared/proto/cline/common"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {
@@ -320,6 +321,39 @@ const PreWithCopyButton = ({
 	)
 }
 
+/**
+ * Custom remark plugin that detects file paths in inline code blocks
+ * and marks them with metadata for later rendering
+ */
+const remarkFilePathDetection = () => {
+	return async (tree: any) => {
+		const fileNameRegex = /^(?!\/)[\w\-./]+(?<!\/)$/
+		const inlineCodeNodes: any[] = []
+
+		// Collect all inline code nodes that might be file paths
+		visit(tree, "inlineCode", (node: any) => {
+			if (fileNameRegex.test(node.value) && !node.value.includes("\n")) {
+				inlineCodeNodes.push(node)
+			}
+		})
+
+		// Check each potential file path asynchronously
+		for (const node of inlineCodeNodes) {
+			try {
+				const exists = await FileServiceClient.ifFileExistsRelativePath(StringRequest.create({ value: node.value }))
+				if (exists.value) {
+					// Add metadata to the node for later use in rendering
+					node.data = node.data || {}
+					node.data.hProperties = node.data.hProperties || {}
+					node.data.hProperties["data-is-file-path"] = "true"
+				}
+			} catch (err) {
+				console.debug(`Failed to check file existence for ${node.value}:`, err)
+			}
+		}
+	}
+}
+
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
 
@@ -328,6 +362,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
 			remarkHighlightActMode,
+			remarkFilePathDetection,
 			() => {
 				return (tree) => {
 					visit(tree, "code", (node: any) => {
@@ -361,12 +396,51 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						</PreWithCopyButton>
 					)
 				},
-				code: (props: ComponentProps<"code">) => {
+				code: (props: ComponentProps<"code"> & { [key: string]: any }) => {
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
 						const codeText = String(props.children || "")
 						return <MermaidBlock code={codeText} />
 					}
+
+					// Check if this is a file path (metadata is converted to data- attributes by rehype-react)
+					if (props["data-is-file-path"]) {
+						// Extract the file path from the code element's children
+						const filePath = typeof props.children === "string" ? props.children : String(props.children || "")
+
+						return (
+							<>
+								<code {...props} />
+								<span
+									className="codicon codicon-link-external"
+									onClick={async () => {
+										try {
+											await FileServiceClient.openFileRelativePath(
+												StringRequest.create({ value: filePath }),
+											)
+										} catch (error) {
+											console.error("Failed to open file:", error)
+										}
+									}}
+									style={{
+										marginLeft: "4px",
+										opacity: 0.7,
+										fontSize: "0.8em",
+										cursor: "pointer",
+										transition: "opacity 0.2s ease",
+									}}
+									onMouseEnter={(e) => {
+										e.currentTarget.style.opacity = "1"
+									}}
+									onMouseLeave={(e) => {
+										e.currentTarget.style.opacity = "0.7"
+									}}
+									title={`Open ${filePath} in editor`}
+								/>
+							</>
+						)
+					}
+
 					return <code {...props} />
 				},
 				strong: (props: ComponentProps<"strong">) => {
