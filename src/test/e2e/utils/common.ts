@@ -20,11 +20,10 @@ export const getClineEditorWebviewFrame = async (_page: Page) => {
 }
 
 export const toggleNotifications = async (_page: Page) => {
-	const editorMenu = _page.locator("li").filter({ hasText: "[Extension Development Host]" }).first()
-	await editorMenu.click({ delay: 100 })
-	const editorSearchBar = _page.getByRole("textbox", { name: /Search files/ })
+	await _page.keyboard.press("ControlOrMeta+Shift+p")
+	const editorSearchBar = _page.getByRole("textbox", { name: "Type the name of a command to" })
 	await editorSearchBar.click({ delay: 100 }) // Ensure focus
-	await editorSearchBar.fill(">Toggle Do Not Disturb Mode")
+	await editorSearchBar.fill("Toggle Do Not Disturb Mode")
 	await _page.keyboard.press("Enter")
 }
 
