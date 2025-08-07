@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.25.10] - 2025-08-07
+
+- Add support for GPT-5 (thanks Cline and @app/roomote!)
+- Fix: Use CDATA sections in XML examples to prevent parser errors (#4852 by @hannesrudolph, PR by @hannesrudolph)
+- Fix: Add missing MCP error translation keys (thanks @app/roomote!)
+
 ## [3.25.9] - 2025-08-07
 
 - Fix: Resolve rounding issue with max tokens (#6806 by @markp018, PR by @mrubens)
