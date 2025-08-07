@@ -111,6 +111,7 @@ message UpdateSettingsRequest {
   optional string preferred_language = 14;
   optional string openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
+  optional FocusChainSettings focus_chain_settings = 17;
 }
 
 // Complete API Configuration message
@@ -234,6 +235,11 @@ message ApiConfiguration {
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
+}
+
+message FocusChainSettings {
+  bool enabled = 1;
+  int32 remind_cline_interval = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {
