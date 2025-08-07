@@ -15,7 +15,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
-	useOrchestration?: boolean
+	sapAiCoreUseOrchestrationMode?: boolean
 }
 
 interface Deployment {
@@ -124,41 +124,90 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		if (this.options.useOrchestration) {
+		console.log("SAP AI Core createMessage - orchestration mode:", this.options.sapAiCoreUseOrchestrationMode ?? true)
+
+		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+			console.log("Using orchestration mode")
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
+			console.log("Using deployment mode")
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
 		}
 	}
 
+	private setupAiCoreEnvVariable(): void {
+		// Validate required credentials
+		if (
+			!this.options.sapAiCoreClientId ||
+			!this.options.sapAiCoreClientSecret ||
+			!this.options.sapAiCoreTokenUrl ||
+			!this.options.sapAiCoreBaseUrl
+		) {
+			throw new Error("Missing required SAP AI Core credentials for orchestration mode. Please check your configuration.")
+		}
+
+		const aiCoreServiceCredentials = {
+			clientid: this.options.sapAiCoreClientId,
+			clientsecret: this.options.sapAiCoreClientSecret,
+			url: this.options.sapAiCoreTokenUrl,
+			serviceurls: {
+				AI_API_URL: this.options.sapAiCoreBaseUrl,
+			},
+		}
+		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
+	}
+
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.getModel()
+		try {
+			console.log("Starting orchestration mode")
 
-		// Define the LLM to be used by the Orchestration pipeline
-		const llm: LlmModuleConfig = {
-			model_name: model.id,
-		}
+			// Set up AI Core environment variable for service binding
+			this.setupAiCoreEnvVariable()
 
-		const templating: TemplatingModuleConfig = {
-			template: [
-				{
-					role: "system",
-					content: systemPrompt,
-				},
-			],
-		}
+			const model = this.getModel()
+			console.log("Model selected:", model.id)
 
-		const orchestrationClient = new OrchestrationClient({ llm, templating })
-
-		const response = await orchestrationClient.stream({
-			messagesHistory: this.convertMessageParamToSAPMessages(messages),
-		})
-
-		for await (const chunk of response.stream) {
-			const delta = chunk.getDeltaContent()
-			if (delta) {
-				yield { type: "text", text: delta }
+			// Define the LLM to be used by the Orchestration pipeline
+			const llm: LlmModuleConfig = {
+				model_name: model.id,
 			}
+
+			const templating: TemplatingModuleConfig = {
+				template: [
+					{
+						role: "system",
+						content: systemPrompt,
+					},
+				],
+			}
+			const orchestrationClient = new OrchestrationClient(
+				{ llm, templating },
+				{ resourceGroup: this.options.sapAiResourceGroup || "default" },
+			)
+
+			const sapMessages = this.convertMessageParamToSAPMessages(messages)
+
+			const response = await orchestrationClient.stream({
+				messages: sapMessages,
+			})
+
+			for await (const chunk of response.stream.toContentStream()) {
+				yield { type: "text", text: chunk }
+			}
+
+			// Add token usage reporting after streaming completes
+			const tokenUsage = response.getTokenUsage()
+			if (tokenUsage) {
+				yield {
+					type: "usage",
+					inputTokens: tokenUsage.prompt_tokens || 0,
+					outputTokens: tokenUsage.completion_tokens || 0,
+				}
+			}
+		} catch (error) {
+			console.error("Error in orchestration mode:", error)
+			console.log("Error details:", error.stack)
+			throw error
 		}
 	}
 
@@ -732,39 +781,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
-		return messages
-			.map((message) => {
-				// Keep every role the SDK supports
-				if (
-					message.role === "user" ||
-					message.role === "assistant" ||
-					message.role === "system" ||
-					message.role === "tool" ||
-					message.role === "function"
-				) {
-					return {
-						role: message.role,
-						content:
-							typeof message.content === "string"
-								? message.content
-								: message.content.map((m) => {
-										if (m.type === "text") {
-											return { ...m }
-										} else if (m.type === "image") {
-											return {
-												type: "image_url",
-												image_url: {
-													url: (m as any).image_url?.url ?? (m as any).image ?? "",
-													detail: (m as any).image_url?.detail ?? "auto",
-												},
-											}
-										}
-										throw new Error(`Unsupported message type: ${(m as any).type}`)
-									}),
-					}
-				}
-				return null
-			})
-			.filter((message) => message !== null) as ChatMessages
+		// Use the existing OpenAI converter since the logic is identical
+		return convertToOpenAiMessages(messages) as ChatMessages
 	}
 }

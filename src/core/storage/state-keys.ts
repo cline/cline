@@ -82,6 +82,7 @@ export type GlobalStateKey =
 	| "sapAiCoreTokenUrl"
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
+	| "sapAiCoreUseOrchestrationMode"
 	| "claudeCodePath"
 	// Settings around plan/act and ephemeral model configuration
 	| "preferredLanguage"

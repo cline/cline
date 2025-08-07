@@ -23,6 +23,11 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
+	// Handle orchestration checkbox change
+	const handleOrchestrationChange = async (checked: boolean) => {
+		await handleFieldChange("sapAiCoreUseOrchestrationMode", checked)
+	}
+
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
@@ -82,10 +87,11 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 15 }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 					<VSCodeCheckbox
-						checked={apiConfiguration?.useOrchestration ?? false}
-						onChange={(e) => handleFieldChange("useOrchestration", (e.target as HTMLInputElement).checked)}
+						checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+						onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
+						aria-label="Orchestration Mode"
 					/>
-					<span style={{ fontWeight: 500 }}>Use Orchestration API</span>
+					<span style={{ fontWeight: 500 }}>Orchestration Mode</span>
 				</div>
 
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>

@@ -237,6 +237,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			huggingFaceApiKey,
 			requestTimeoutMs,
@@ -377,6 +378,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 		})
 
@@ -625,6 +627,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			huggingFaceApiKey,
 			requestTimeoutMs,
@@ -765,6 +768,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 		}
 
@@ -877,6 +881,7 @@ export class CacheService {
 			sapAiCoreBaseUrl: this.globalStateCache.get("sapAiCoreBaseUrl"),
 			sapAiCoreTokenUrl: this.globalStateCache.get("sapAiCoreTokenUrl"),
 			sapAiResourceGroup: this.globalStateCache.get("sapAiResourceGroup"),
+			sapAiCoreUseOrchestrationMode: this.globalStateCache.get("sapAiCoreUseOrchestrationMode"),
 			claudeCodePath: this.globalStateCache.get("claudeCodePath"),
 
 			// Plan mode configurations
