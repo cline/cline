@@ -77,7 +77,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -1704,8 +1704,7 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel =
-			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
+		const isNextGenModel = isNextGenModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -2353,7 +2352,7 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+							const isNextGenModel = isNextGenModelFamily(this.api)
 							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
 							} else {

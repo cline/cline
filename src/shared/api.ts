@@ -991,8 +991,44 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 export const openAiNativeModels = {
+	"gpt-5-2025-08-07": {
+		maxTokens: 128000,
+		contextWindow: 256000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5-mini-2025-08-07": {
+		maxTokens: 128000,
+		contextWindow: 256000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 2.0,
+		cacheReadsPrice: 0.025,
+	},
+	"gpt-5-nano-2025-08-07": {
+		maxTokens: 128000,
+		contextWindow: 256000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.05,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.005,
+	},
+	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
+		maxTokens: 128000,
+		contextWindow: 256000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheReadsPrice: 0,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
