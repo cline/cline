@@ -652,6 +652,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 export function addUserInstructions(
 	globalClineRulesFileInstructions?: string,
 	localClineRulesFileInstructions?: string,
+  localAgentsInstructions?: string,
 	localCursorRulesFileInstructions?: string,
 	localCursorRulesDirInstructions?: string,
 	localWindsurfRulesFileInstructions?: string,
@@ -667,6 +668,9 @@ export function addUserInstructions(
 	}
 	if (localClineRulesFileInstructions) {
 		customInstructions += localClineRulesFileInstructions + "\n\n"
+	}
+	if (localAgentsInstructions) {
+		customInstructions += localAgentsInstructions + "\n\n"
 	}
 	if (localCursorRulesFileInstructions) {
 		customInstructions += localCursorRulesFileInstructions + "\n\n"

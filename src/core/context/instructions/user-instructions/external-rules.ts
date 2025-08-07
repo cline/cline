@@ -20,9 +20,16 @@ export async function refreshExternalRulesToggles(
 	context: vscode.ExtensionContext,
 	workingDirectory: string,
 ): Promise<{
+	agentsLocalToggles: ClineRulesToggles
 	windsurfLocalToggles: ClineRulesToggles
 	cursorLocalToggles: ClineRulesToggles
 }> {
+	// Support cross-agent standard AGENTS.md file. See https://agent-rules.org/ for details
+	const localAgentsToggles = ((await getWorkspaceState(context, "localAgentsRulesToggles")) as ClineRulesToggles) || {}
+	const localAgentsPath = path.resolve(workingDirectory, GlobalFileNames.agentsRules)
+	const updatedLocalAgentsToggles = await synchronizeRuleToggles(localAgentsPath, localAgentsToggles)
+	await updateWorkspaceState(context, "localAgentsRulesToggles", updatedLocalAgentsToggles)
+
 	// local windsurf toggles
 	const localWindsurfRulesToggles = ((await getWorkspaceState(context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
 	const localWindsurfRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.windsurfRules)
@@ -44,9 +51,36 @@ export async function refreshExternalRulesToggles(
 	await updateWorkspaceState(context, "localCursorRulesToggles", updatedLocalCursorToggles)
 
 	return {
+		agentsLocalToggles: updatedLocalAgentsToggles,
 		windsurfLocalToggles: updatedLocalWindsurfToggles,
 		cursorLocalToggles: updatedLocalCursorToggles,
 	}
+}
+
+/**
+ * Gather formatted agents rules
+ */
+export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggles) => {
+	const agentsRulesFilePath = path.resolve(cwd, GlobalFileNames.agentsRules)
+
+	let agentsRulesFileInstructions: string | undefined
+
+	if (await fileExistsAtPath(agentsRulesFilePath)) {
+		if (!(await isDirectory(agentsRulesFilePath))) {
+			try {
+				if (agentsRulesFilePath in toggles && toggles[agentsRulesFilePath] !== false) {
+					const ruleFileContent = (await fs.readFile(agentsRulesFilePath, "utf8")).trim()
+					if (ruleFileContent) {
+						agentsRulesFileInstructions = formatResponse.agentsRulesLocalFileInstructions(cwd, ruleFileContent)
+					}
+				}
+			} catch {
+				console.error(`Failed to read AGENTS.md file at ${agentsRulesFilePath}`)
+			}
+		}
+	}
+
+	return agentsRulesFileInstructions
 }
 
 /**

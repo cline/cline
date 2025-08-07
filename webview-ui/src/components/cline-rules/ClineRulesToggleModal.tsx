@@ -8,6 +8,7 @@ import {
 	ClineRulesToggles,
 	RefreshedRules,
 	ToggleClineRuleRequest,
+	ToggleAgentsRuleRequest,
 	ToggleCursorRuleRequest,
 	ToggleWindsurfRuleRequest,
 	ToggleWorkflowRequest,
@@ -22,12 +23,14 @@ const ClineRulesToggleModal: React.FC = () => {
 	const {
 		globalClineRulesToggles = {},
 		localClineRulesToggles = {},
+		localAgentsRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
 		localWorkflowToggles = {},
 		globalWorkflowToggles = {},
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
+		setLocalAgentsRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
 		setLocalWorkflowToggles,
@@ -51,6 +54,9 @@ const ClineRulesToggleModal: React.FC = () => {
 					}
 					if (response.localClineRulesToggles?.toggles) {
 						setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+					}
+					if (response.localAgentsRulesToggles?.toggles) {
+						setLocalAgentsRulesToggles(response.localAgentsRulesToggles.toggles)
 					}
 					if (response.localCursorRulesToggles?.toggles) {
 						setLocalCursorRulesToggles(response.localCursorRulesToggles.toggles)
@@ -78,6 +84,10 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	// Format local rules for display with proper typing
 	const localRules = Object.entries(localClineRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const agentsRules = Object.entries(localAgentsRulesToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
@@ -117,6 +127,23 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error toggling Cline rule:", error)
+			})
+	}
+
+	const toggleAgentsRule = (rulePath: string, enabled: boolean) => {
+		FileServiceClient.toggleAgentsRule(
+			ToggleAgentsRuleRequest.create({
+				rulePath,
+				enabled,
+			} as ToggleAgentsRuleRequest),
+		)
+			.then((response: ClineRulesToggles) => {
+				if (response.toggles) {
+					setLocalAgentsRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Agents rule:", error)
 			})
 	}
 
@@ -311,6 +338,15 @@ const ClineRulesToggleModal: React.FC = () => {
 									listGap="small"
 									isGlobal={false}
 									ruleType={"cline"}
+									showNewRule={false}
+									showNoRules={false}
+								/>
+								<RulesToggleList
+									rules={agentsRules}
+									toggleRule={toggleAgentsRule}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"agents"}
 									showNewRule={false}
 									showNoRules={false}
 								/>
