@@ -97,6 +97,9 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 		await visibleProvider.removeClineFromStack()
 		await visibleProvider.postStateToWebview()
 		await visibleProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+		// Send focusInput action immediately after chatButtonClicked
+		// This ensures the focus happens after the view has switched
+		await visibleProvider.postMessageToWebview({ type: "action", action: "focusInput" })
 	},
 	mcpButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
