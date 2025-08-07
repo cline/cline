@@ -437,6 +437,13 @@
 			"medium": "Sedang",
 			"low": "Rendah"
 		},
+		"verbosity": {
+			"label": "Verbositas Output",
+			"high": "Tinggi",
+			"medium": "Sedang",
+			"low": "Rendah",
+			"description": "Mengontrol seberapa detail respons model. Verbositas rendah menghasilkan jawaban singkat, sedangkan verbositas tinggi memberikan penjelasan menyeluruh."
+		},
 		"setReasoningLevel": "Aktifkan Upaya Reasoning",
 		"claudeCode": {
 			"pathLabel": "Jalur Kode Claude",

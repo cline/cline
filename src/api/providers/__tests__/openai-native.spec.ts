@@ -455,8 +455,162 @@ describe("OpenAiNativeHandler", () => {
 				openAiNativeApiKey: "test-api-key",
 			})
 			const modelInfo = handlerWithoutModel.getModel()
-			expect(modelInfo.id).toBe("gpt-4.1") // Default model
+			expect(modelInfo.id).toBe("gpt-5-2025-08-07") // Default model
 			expect(modelInfo.info).toBeDefined()
+		})
+	})
+
+	describe("GPT-5 models", () => {
+		it("should handle GPT-5 model with developer role", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify developer role is used for GPT-5 with default parameters
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-2025-08-07",
+					messages: [{ role: "developer", content: expect.stringContaining(systemPrompt) }],
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: "minimal", // Default for GPT-5
+					verbosity: "medium", // Default verbosity
+				}),
+			)
+		})
+
+		it("should handle GPT-5-mini model", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-mini-2025-08-07",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-mini-2025-08-07",
+					messages: [{ role: "developer", content: expect.stringContaining(systemPrompt) }],
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: "minimal", // Default for GPT-5
+					verbosity: "medium", // Default verbosity
+				}),
+			)
+		})
+
+		it("should handle GPT-5-nano model", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-nano-2025-08-07",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-nano-2025-08-07",
+					messages: [{ role: "developer", content: expect.stringContaining(systemPrompt) }],
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: "minimal", // Default for GPT-5
+					verbosity: "medium", // Default verbosity
+				}),
+			)
+		})
+
+		it("should support verbosity control for GPT-5", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+				verbosity: "low", // Set verbosity through options
+			})
+
+			// Create a message to verify verbosity is passed
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify that verbosity is passed in the request
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-2025-08-07",
+					messages: expect.any(Array),
+					stream: true,
+					stream_options: { include_usage: true },
+					verbosity: "low",
+				}),
+			)
+		})
+
+		it("should support minimal reasoning effort for GPT-5", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+				reasoningEffort: "low",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// With low reasoning effort, the model should pass it through
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-2025-08-07",
+					messages: expect.any(Array),
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: "low",
+					verbosity: "medium", // Default verbosity
+				}),
+			)
+		})
+
+		it("should support both verbosity and reasoning effort together for GPT-5", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+				verbosity: "high", // Set verbosity through options
+				reasoningEffort: "low", // Set reasoning effort
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify both parameters are passed
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "gpt-5-2025-08-07",
+					messages: expect.any(Array),
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: "low",
+					verbosity: "high",
+				}),
+			)
 		})
 	})
 })

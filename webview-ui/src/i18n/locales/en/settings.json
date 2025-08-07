@@ -432,6 +432,13 @@
 			"medium": "Medium",
 			"low": "Low"
 		},
+		"verbosity": {
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
+		},
 		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
 			"pathLabel": "Claude Code Path",

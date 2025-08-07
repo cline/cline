@@ -433,6 +433,13 @@
 			"medium": "Orta",
 			"low": "Düşük"
 		},
+		"verbosity": {
+			"label": "Çıktı Ayrıntı Düzeyi",
+			"high": "Yüksek",
+			"medium": "Orta",
+			"low": "Düşük",
+			"description": "Modelin yanıtlarının ne kadar ayrıntılı olduğunu kontrol eder. Düşük ayrıntı düzeyi kısa yanıtlar üretirken, yüksek ayrıntı düzeyi kapsamlı açıklamalar sunar."
+		},
 		"setReasoningLevel": "Akıl Yürütme Çabasını Etkinleştir",
 		"claudeCode": {
 			"pathLabel": "Claude Code Yolu",

@@ -433,6 +433,13 @@
 			"medium": "中",
 			"low": "低"
 		},
+		"verbosity": {
+			"label": "出力の冗長性",
+			"high": "高",
+			"medium": "中",
+			"low": "低",
+			"description": "モデルの応答の詳細度を制御します。冗長性が低いと簡潔な回答が生成され、高いと詳細な説明が提供されます。"
+		},
 		"setReasoningLevel": "推論労力を有効にする",
 		"claudeCode": {
 			"pathLabel": "クロードコードパス",

@@ -433,6 +433,13 @@
 			"medium": "Mitjà",
 			"low": "Baix"
 		},
+		"verbosity": {
+			"label": "Verbositat de la sortida",
+			"high": "Alta",
+			"medium": "Mitjana",
+			"low": "Baixa",
+			"description": "Controla el nivell de detall de les respostes del model. La verbositat baixa produeix respostes concises, mentre que la verbositat alta proporciona explicacions exhaustives."
+		},
 		"setReasoningLevel": "Activa l'esforç de raonament",
 		"claudeCode": {
 			"pathLabel": "Ruta del Codi Claude",

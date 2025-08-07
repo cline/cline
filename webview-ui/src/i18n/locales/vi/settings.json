@@ -433,6 +433,13 @@
 			"medium": "Trung bình",
 			"low": "Thấp"
 		},
+		"verbosity": {
+			"label": "Mức độ chi tiết đầu ra",
+			"high": "Cao",
+			"medium": "Trung bình",
+			"low": "Thấp",
+			"description": "Kiểm soát mức độ chi tiết của các câu trả lời của mô hình. Mức độ chi tiết thấp tạo ra các câu trả lời ngắn gọn, trong khi mức độ chi tiết cao cung cấp giải thích kỹ lưỡng."
+		},
 		"setReasoningLevel": "Kích hoạt nỗ lực suy luận",
 		"claudeCode": {
 			"pathLabel": "Đường dẫn Claude Code",

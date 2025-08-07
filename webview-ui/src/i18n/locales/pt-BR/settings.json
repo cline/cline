@@ -433,6 +433,13 @@
 			"medium": "Médio",
 			"low": "Baixo"
 		},
+		"verbosity": {
+			"label": "Verbosidade da saída",
+			"high": "Alta",
+			"medium": "Média",
+			"low": "Baixa",
+			"description": "Controla o quão detalhadas são as respostas do modelo. A verbosidade baixa produz respostas concisas, enquanto a verbosidade alta fornisce explicações detalhadas."
+		},
 		"setReasoningLevel": "Habilitar esforço de raciocínio",
 		"claudeCode": {
 			"pathLabel": "Caminho do Claude Code",

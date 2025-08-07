@@ -433,6 +433,13 @@
 			"medium": "中",
 			"low": "低"
 		},
+		"verbosity": {
+			"label": "输出详细程度",
+			"high": "高",
+			"medium": "中",
+			"low": "低",
+			"description": "控制模型响应的详细程度。低详细度产生简洁的回答，而高详细度提供详尽的解释。"
+		},
 		"setReasoningLevel": "启用推理工作量",
 		"claudeCode": {
 			"pathLabel": "Claude Code 路径",

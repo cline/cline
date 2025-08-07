@@ -788,4 +788,101 @@ describe("getModelParams", () => {
 			expect(result.reasoning).toBeUndefined()
 		})
 	})
+
+	describe("Verbosity settings", () => {
+		it("should include verbosity when specified in settings", () => {
+			const model: ModelInfo = {
+				...baseModel,
+			}
+
+			const result = getModelParams({
+				...openaiParams,
+				settings: { verbosity: "low" },
+				model,
+			})
+
+			expect(result.verbosity).toBe("low")
+		})
+
+		it("should handle medium verbosity", () => {
+			const model: ModelInfo = {
+				...baseModel,
+			}
+
+			const result = getModelParams({
+				...openaiParams,
+				settings: { verbosity: "medium" },
+				model,
+			})
+
+			expect(result.verbosity).toBe("medium")
+		})
+
+		it("should handle high verbosity", () => {
+			const model: ModelInfo = {
+				...baseModel,
+			}
+
+			const result = getModelParams({
+				...openaiParams,
+				settings: { verbosity: "high" },
+				model,
+			})
+
+			expect(result.verbosity).toBe("high")
+		})
+
+		it("should return undefined verbosity when not specified", () => {
+			const model: ModelInfo = {
+				...baseModel,
+			}
+
+			const result = getModelParams({
+				...openaiParams,
+				settings: {},
+				model,
+			})
+
+			expect(result.verbosity).toBeUndefined()
+		})
+
+		it("should include verbosity alongside reasoning settings", () => {
+			const model: ModelInfo = {
+				...baseModel,
+				supportsReasoningEffort: true,
+			}
+
+			const result = getModelParams({
+				...openaiParams,
+				settings: {
+					reasoningEffort: "high",
+					verbosity: "low",
+				},
+				model,
+			})
+
+			expect(result.reasoningEffort).toBe("high")
+			expect(result.verbosity).toBe("low")
+			expect(result.reasoning).toEqual({ reasoning_effort: "high" })
+		})
+
+		it("should include verbosity with reasoning budget models", () => {
+			const model: ModelInfo = {
+				...baseModel,
+				supportsReasoningBudget: true,
+			}
+
+			const result = getModelParams({
+				...anthropicParams,
+				settings: {
+					enableReasoningEffort: true,
+					verbosity: "high",
+				},
+				model,
+			})
+
+			expect(result.verbosity).toBe("high")
+			expect(result.reasoningBudget).toBe(8192) // Default thinking tokens
+		})
+	})
 })

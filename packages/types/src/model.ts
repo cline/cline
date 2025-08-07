@@ -11,6 +11,16 @@ export const reasoningEffortsSchema = z.enum(reasoningEfforts)
 export type ReasoningEffort = z.infer<typeof reasoningEffortsSchema>
 
 /**
+ * Verbosity
+ */
+
+export const verbosityLevels = ["low", "medium", "high"] as const
+
+export const verbosityLevelsSchema = z.enum(verbosityLevels)
+
+export type VerbosityLevel = z.infer<typeof verbosityLevelsSchema>
+
+/**
  * ModelParameter
  */
 
