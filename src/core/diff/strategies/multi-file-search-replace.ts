@@ -139,8 +139,7 @@ Search/Replace content:
 <file>
   <path>eg.file.py</path>
   <diff>
-    <content>
-\`\`\`
+    <content><![CDATA[
 <<<<<<< SEARCH
 def calculate_total(items):
     total = 0
@@ -152,8 +151,7 @@ def calculate_total(items):
     """Calculate total with 10% markup"""
     return sum(item * 1.1 for item in items)
 >>>>>>> REPLACE
-\`\`\`
-    </content>
+]]></content>
   </diff>
 </file>
 </args>
@@ -165,8 +163,7 @@ Search/Replace content with multi edits across multiple files:
 <file>
   <path>eg.file.py</path>
   <diff>
-    <content>
-\`\`\`
+    <content><![CDATA[
 <<<<<<< SEARCH
 def calculate_total(items):
     sum = 0
@@ -174,12 +171,10 @@ def calculate_total(items):
 def calculate_sum(items):
     sum = 0
 >>>>>>> REPLACE
-\`\`\`
-    </content>
+]]></content>
   </diff>
   <diff>
-    <content>
-\`\`\`
+    <content><![CDATA[
 <<<<<<< SEARCH
         total += item
     return total
@@ -187,15 +182,13 @@ def calculate_sum(items):
         sum += item
     return sum 
 >>>>>>> REPLACE
-\`\`\`
-    </content>
+]]></content>
   </diff>
 </file>
 <file>
   <path>eg.file2.py</path>
   <diff>
-    <content>
-\`\`\`
+    <content><![CDATA[
 <<<<<<< SEARCH
 def greet(name):
     return "Hello " + name
@@ -203,8 +196,7 @@ def greet(name):
 def greet(name):
     return f"Hello {name}!"
 >>>>>>> REPLACE
-\`\`\`
-    </content>
+]]></content>
   </diff>
 </file>
 </args>
