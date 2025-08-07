@@ -50,6 +50,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
@@ -80,6 +81,7 @@ import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { FocusChainManager } from "./focus-chain"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -115,6 +117,9 @@ export class Task {
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
 
+	// Focus Chain
+	private FocusChainManager?: FocusChainManager
+
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
@@ -127,6 +132,7 @@ export class Task {
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	FocusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -143,6 +149,7 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
+		FocusChainSettings: FocusChainSettings,
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
@@ -191,6 +198,7 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.FocusChainSettings = FocusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
 		this.mode = mode
@@ -232,6 +240,19 @@ export class Task {
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
+
+		// Initialize focus chain manager only if enabled
+		if (this.FocusChainSettings.enabled) {
+			this.FocusChainManager = new FocusChainManager({
+				taskId: this.taskId,
+				taskState: this.taskState,
+				mode: this.mode,
+				context: this.getContext(),
+				postStateToWebview: this.postStateToWebview,
+				say: this.say.bind(this),
+				focusChainSettings: this.FocusChainSettings,
+			})
+		}
 
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
@@ -294,6 +315,13 @@ export class Task {
 			this.startTask(task, images, files)
 		}
 
+		// Set up todo file watcher (async, runs in background) only if focus chain is enabled
+		if (this.FocusChainManager) {
+			this.FocusChainManager.setupFocusChainFileWatcher().catch((error) => {
+				console.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
+			})
+		}
+
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
@@ -318,6 +346,7 @@ export class Task {
 			this.cacheService,
 			this.autoApprovalSettings,
 			this.browserSettings,
+			this.FocusChainSettings,
 			cwd,
 			this.taskId,
 			this.ulid,
@@ -330,12 +359,16 @@ export class Task {
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
+			this.FocusChainManager?.updateTodoListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 		)
 	}
 
 	public updateMode(mode: Mode): void {
 		this.mode = mode
 		this.toolExecutor.updateMode(mode)
+		if (this.FocusChainManager) {
+			this.FocusChainManager.updateMode(mode)
+		}
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
@@ -1171,6 +1204,11 @@ export class Task {
 	}
 
 	async abortTask() {
+		// Check for incomplete progress before aborting
+		if (this.FocusChainManager) {
+			this.FocusChainManager.checkIncompleteProgressOnCompletion()
+		}
+
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
@@ -1182,6 +1220,9 @@ export class Task {
 		await this.diffViewProvider.revertChanges()
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
+		if (this.FocusChainManager) {
+			this.FocusChainManager.dispose()
+		}
 	}
 
 	// Checkpoints
@@ -1608,7 +1649,14 @@ export class Task {
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+		let systemPrompt = await SYSTEM_PROMPT(
+			this.cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			this.FocusChainSettings,
+			isNextGenModel,
+		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1890,6 +1938,10 @@ export class Task {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
+
+		// Increment API request counter for focus chain list management
+		this.taskState.apiRequestCount++
+		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { modelId, providerId } = await this.getCurrentProviderInfo()
@@ -2461,6 +2513,18 @@ export class Task {
 		let clinerulesError = false
 		if (needsClinerulesFileCheck) {
 			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
+		}
+
+		// Add focu chain list instructions if needed
+		if (this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
+			const todoInstructions = this.FocusChainManager.generateFocusChainInstructions()
+			processedUserContent.push({
+				type: "text",
+				text: todoInstructions,
+			})
+
+			this.taskState.apiRequestsSinceLastTodoUpdate = 0
+			this.taskState.todoListWasUpdatedByUser = false
 		}
 
 		// Return all results
