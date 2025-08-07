@@ -1,0 +1,158 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "off"
+			}
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"domains": {
+			"react": "recommended"
+		},
+		"rules": {
+			"recommended": true,
+			"correctness": {
+				"useExhaustiveDependencies": "off",
+				"noUndeclaredVariables": "off",
+				"noUnusedVariables": "off",
+				"noEmptyPattern": "off",
+				"useJsxKeyInIterable": "off",
+				"noInnerDeclarations": "off",
+				"useHookAtTopLevel": "off",
+				"useYield": "off",
+				"noUnusedFunctionParameters": "off",
+				"noConstructorReturn": "off",
+				"noInvalidPositionAtImportRule": "off",
+				"noSwitchDeclarations": "off",
+				"noUnusedImports": "off"
+			},
+			"a11y": "off",
+			"style": {
+				"useDeprecatedReason": "error",
+				"useNodejsImportProtocol": "off",
+				"useImportType": "off",
+				"useBlockStatements": "warn",
+				"useNamingConvention": "off",
+				"useThrowOnlyError": "info",
+				"useConsistentArrayType": "off",
+				"noParameterAssign": "off",
+				"useAsConstAssertion": "off",
+				"useDefaultParameterLast": "off",
+				"noNonNullAssertion": "off",
+				"useEnumInitializers": "off",
+				"useSelfClosingElements": "off",
+				"useSingleVarDeclarator": "off",
+				"noUnusedTemplateLiteral": "off",
+				"useNumberNamespace": "off",
+				"noInferrableTypes": "off",
+				"useTemplate": "off",
+				"noUselessElse": "off",
+				"noRestrictedTypes": {
+					"level": "error",
+					"options": {
+						"types": {
+							"Foo": {
+								"message": "Only bar is allowed",
+								"use": "bar"
+							},
+							"vscode.workspace": "Use NewAPI instead"
+						}
+					}
+				}
+			},
+			"suspicious": {
+				"noDoubleEquals": "warn",
+				"noImplicitAnyLet": "info",
+				"noMisleadingCharacterClass": "error",
+				"noThenProperty": "warn",
+				"noUnsafeDeclarationMerging": "error",
+				"noAsyncPromiseExecutor": "off",
+				"noImportAssign": "warn",
+				"noExplicitAny": "off",
+				"noControlCharactersInRegex": "warn",
+				"noShadowRestrictedNames": "off",
+				"noArrayIndexKey": "info",
+				"noAssignInExpressions": "warn"
+			},
+			"complexity": {
+				"noUselessConstructor": "off",
+				"useOptionalChain": "off",
+				"noBannedTypes": "off",
+				"useLiteralKeys": "off",
+				"noUselessCatch": "off",
+				"noUselessSwitchCase": "off",
+				"noStaticOnlyClass": "off"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "warn"
+			}
+		}
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 4,
+		"lineWidth": 130,
+		"lineEnding": "lf",
+		"formatWithErrors": false
+	},
+	"javascript": {
+		"linter": {
+			"enabled": true
+		},
+		"globals": ["$", "_", "externalVariable"],
+		"formatter": {
+			"semicolons": "asNeeded",
+			"arrowParentheses": "always",
+			"bracketSameLine": true,
+			"bracketSpacing": true,
+			"jsxQuoteStyle": "double",
+			"quoteProperties": "asNeeded",
+			"trailingCommas": "all"
+		}
+	},
+	"json": {
+		"linter": {
+			"enabled": true
+		},
+		"formatter": {
+			"indentStyle": "tab",
+			"indentWidth": 4,
+			"lineWidth": 130,
+			"trailingCommas": "none",
+			"expand": "auto"
+		}
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/node_modules/**",
+			"!**/out/**",
+			"!**/dist/**",
+			"!**/build/**",
+			"!**/dist-*/",
+			"!**/.vscode-*/**",
+			"!**/*-lock.json",
+			"!**/generated/**",
+			"!*.md*",
+			"!**/playwright/**",
+			"!**/test-rests/**",
+			"!evals/**"
+		]
+	},
+	"overrides": [
+		{
+			"includes": ["src/**", "!src/hosts/vscode/**", "!**/*.test.ts"],
+			"plugins": ["src/hosts/vscode-api.grit"]
+		}
+	]
+}

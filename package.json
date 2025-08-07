@@ -17,14 +17,7 @@
 		"url": "https://github.com/cline/cline"
 	},
 	"homepage": "https://cline.bot",
-	"categories": [
-		"AI",
-		"Chat",
-		"Programming Languages",
-		"Education",
-		"Snippets",
-		"Testing"
-	],
+	"categories": ["AI", "Chat", "Programming Languages", "Education", "Snippets", "Testing"],
 	"keywords": [
 		"cline",
 		"claude",
@@ -39,11 +32,7 @@
 		"ai",
 		"llama"
 	],
-	"activationEvents": [
-		"onLanguage",
-		"onStartupFinished",
-		"workspaceContains:evals.env"
-	],
+	"activationEvents": ["onLanguage", "onStartupFinished", "workspaceContains:evals.env"],
 	"main": "./dist/extension.js",
 	"contributes": {
 		"walkthroughs": [
@@ -347,14 +336,14 @@
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
-		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
+		"postprotos": "biome check src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
 		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b --noEmit",
-		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && buf lint && cd webview-ui && npm run lint",
-		"format": "prettier . --check",
-		"format:fix": "prettier . --write",
+		"lint": "biome lint --diagnostic-level=error",
+		"format": "biome format --no-errors-on-unmatched --diagnostic-level=error",
+		"format:fix": "biome check --no-errors-on-unmatched --write",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:ci": "node scripts/test-ci.js",
@@ -379,11 +368,10 @@
 		"report-issue": "node scripts/report-issue.js"
 	},
 	"lint-staged": {
-		"*": [
-			"prettier --write --ignore-unknown --log-level=log"
-		]
+		"*": ["biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"]
 	},
 	"devDependencies": {
+		"@biomejs/biome": "2.0.6",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
