@@ -14,7 +14,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -35,10 +35,11 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import { ulid } from "ulid"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
-import { ErrorService } from "@/services/error/ErrorService"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -97,6 +98,7 @@ type UserContent = Array<Anthropic.ContentBlockParam>
 export class Task {
 	// Core task variables
 	readonly taskId: string
+	readonly ulid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
 
@@ -157,6 +159,7 @@ export class Task {
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
+		strictPlanModeEnabled: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -218,6 +221,7 @@ export class Task {
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
+			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			if (historyItem.checkpointTrackerErrorMessage) {
@@ -225,6 +229,7 @@ export class Task {
 			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
+			this.ulid = ulid()
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -232,6 +237,7 @@ export class Task {
 		this.messageStateHandler = new MessageStateHandler({
 			context,
 			taskId: this.taskId,
+			ulid: this.ulid,
 			taskState: this.taskState,
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
@@ -242,7 +248,7 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 
 		// Prepare effective API configuration
-		let effectiveApiConfiguration: ApiConfiguration = {
+		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
@@ -305,10 +311,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, currentProvider)
+			telemetryService.captureTaskRestarted(this.taskId, this.ulid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, currentProvider)
+			telemetryService.captureTaskCreated(this.taskId, this.ulid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -329,7 +335,9 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
+			this.ulid,
 			this.mode,
+			strictPlanModeEnabled,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpoint.bind(this),
@@ -338,6 +346,15 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
 		)
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+		this.toolExecutor.updateMode(mode)
+	}
+
+	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
+		this.toolExecutor.updateStrictPlanModeEnabled(strictPlanModeEnabled)
 	}
 
 	// While a task is ref'd by a controller, it will always have access to the extension context
@@ -463,7 +480,7 @@ export class Task {
 		if (!didWorkspaceRestoreFail) {
 			switch (restoreType) {
 				case "task":
-				case "taskAndWorkspace":
+				case "taskAndWorkspace": {
 					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -506,6 +523,7 @@ export class Task {
 						} satisfies ClineApiReqInfo),
 					)
 					break
+				}
 				case "workspace":
 					break
 			}
@@ -1032,9 +1050,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
-		let userContent: UserContent = [
+		const userContent: UserContent = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1161,7 +1179,7 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		let newUserContent: UserContent = [...modifiedOldUserContent]
+		const newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1617,7 +1635,7 @@ export class Task {
 		// grouping command_output messages despite any gaps anyways)
 		await setTimeoutPromise(50)
 
-		let result = this.terminalManager.processOutput(outputLines)
+		const result = this.terminalManager.processOutput(outputLines)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1666,7 +1684,10 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{ modelId: string; providerId: string }> {
+	private async getCurrentProviderInfo(): Promise<{
+		modelId: string
+		providerId: string
+	}> {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
@@ -1675,7 +1696,9 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
+			timeout: 10_000,
+		}).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
@@ -1752,7 +1775,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1768,17 +1791,12 @@ export class Task {
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
-			const clineError = ErrorService.toClineError(error, modelId, providerId)
+			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
-			// TODO: Move into ErrorService
-			telemetryService.captureProviderApiError({
-				taskId: this.taskId,
-				model: modelInfo.id,
-				errorMessage: clineError.message,
-				errorStatus: clineError._error?.status,
-				requestId: clineError._error?.request_id,
-			})
+			// TODO: Move into errorService
+			errorService.logMessage(clineError.message)
+			errorService.logException(clineError)
 
 			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
@@ -1857,12 +1875,24 @@ export class Task {
 					throw new Error("API request failed")
 				}
 
-				// Do not retry automatically again if currently unauthenticated
-				if (clineError.isErrorType(ClineErrorType.Auth)) {
-					return
+				// Clear streamingFailedMessage when user manually retries
+				const manualRetryApiReqIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(m) => m.say === "api_req_started",
+				)
+				if (manualRetryApiReqIndex !== -1) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[manualRetryApiReqIndex].text || "{}")
+					delete currentApiReqInfo.streamingFailedMessage
+					await this.messageStateHandler.updateClineMessage(manualRetryApiReqIndex, {
+						text: JSON.stringify(currentApiReqInfo),
+					})
 				}
 
 				await this.say("api_req_retried")
+
+				// Reset the automatic retry flag so the request can proceed
+				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
@@ -2204,7 +2234,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2269,13 +2299,20 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.taskId, providerId, this.api.getModel().id, "assistant", {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					this.ulid,
+					providerId,
+					this.api.getModel().id,
+					"assistant",
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2321,7 +2358,7 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
-						case "text":
+						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
@@ -2342,6 +2379,7 @@ export class Task {
 							// present content to user
 							this.presentAssistantMessage()
 							break
+						}
 					}
 
 					if (this.taskState.abort) {
@@ -2372,7 +2410,7 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const clineError = ErrorService.toClineError(error, this.api.getModel().id)
+					const clineError = errorService.toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)
@@ -2443,7 +2481,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,

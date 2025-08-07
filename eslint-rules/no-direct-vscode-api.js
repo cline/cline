@@ -35,18 +35,21 @@ const disallowedApis = {
 	"vscode.env.openExternal": {
 		messageId: "useUtils",
 	},
-	// "vscode.window.showWarningMessage": {
-	// 	messageId: "useHostBridgeShowMessage",
-	// },
+	"vscode.window.showWarningMessage": {
+		messageId: "useHostBridgeShowMessage",
+	},
 	"vscode.window.showOpenDialog": {
 		messageId: "useHostBridgeShowMessage",
 	},
 	"vscode.window.showErrorMessage": {
 		messageId: "useHostBridgeShowMessage",
 	},
-	// "vscode.window.showInformationMessage": {
-	// 	messageId: "useHostBridgeShowMessage",
-	// },
+	"vscode.window.showInformationMessage": {
+		messageId: "useHostBridgeShowMessage",
+	},
+	"vscode.window.showInputBox": {
+		messageId: "useHostBridge",
+	},
 	"vscode.workspace.findFiles": {
 		messageId: "useNative",
 	},
@@ -192,6 +195,10 @@ module.exports = createRule({
 				return true
 			}
 			if (filename.includes("/standalone/runtime-files/")) {
+				return true
+			}
+			// Skip checking test files
+			if (filename.endsWith(".test.ts")) {
 				return true
 			}
 		}

@@ -13,6 +13,7 @@ import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
+import { version as extensionVersion } from "../../../package.json"
 
 interface ZAiHandlerOptions {
 	zaiApiLine?: string
@@ -40,6 +41,11 @@ export class ZAiHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
 					apiKey: this.options.zaiApiKey,
+					defaultHeaders: {
+						"HTTP-Referer": "https://cline.bot",
+						"X-Title": "Cline",
+						"X-Cline-Version": extensionVersion,
+					},
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Z AI client: ${error.message}`)

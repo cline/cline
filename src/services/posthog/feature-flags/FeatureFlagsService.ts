@@ -1,40 +1,45 @@
-import { PostHog } from "posthog-node"
-import { posthogClientProvider } from "../PostHogClientProvider"
-
-class FeatureFlagsService {
-	private static instance: FeatureFlagsService
-	private readonly client: PostHog
-
-	private constructor() {
-		// Get the shared client
-		this.client = posthogClientProvider.getClient()
-	}
-
-	public static getInstance(): FeatureFlagsService {
-		if (!FeatureFlagsService.instance) {
-			FeatureFlagsService.instance = new FeatureFlagsService()
-		}
-		return FeatureFlagsService.instance
+/**
+ * FeatureFlagsService provides feature flag functionality that works independently
+ * of telemetry settings. Feature flags are always available to ensure proper
+ * functionality of the extension regardless of user's telemetry preferences.
+ */
+export class FeatureFlagsService {
+	public constructor(
+		private readonly getFeatureFlag: (flag: string) => Promise<boolean | string | undefined>,
+		private readonly getFeatureFlagPayload: (flag: string) => Promise<unknown>,
+	) {
+		console.log("[FeatureFlagsService] Initialized with distinctId:")
 	}
 
 	/**
 	 * Check if a feature flag is enabled
+	 * This method works regardless of telemetry settings to ensure feature flags
+	 * can control extension behavior independently of user privacy preferences.
+	 *
 	 * @param flagName The feature flag key
 	 * @returns Boolean indicating if the feature is enabled
 	 */
 	public async isFeatureFlagEnabled(flagName: string): Promise<boolean> {
 		try {
-			const payload = await this.client.getFeatureFlagPayload(flagName, "_irrelevant_" /* optional params */)
-			if (payload && typeof payload === "object" && "enabled" in payload) {
-				return Boolean(payload.enabled)
-			}
-			console.warn(`Feature flag ${flagName} not found or missing enabled property.`)
-			return false
+			const flagEnabled = await this.getFeatureFlag(flagName)
+			return flagEnabled === true
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return false
 		}
 	}
-}
 
-export const featureFlagsService = FeatureFlagsService.getInstance()
+	/**
+	 * Get the feature flag payload for advanced use cases
+	 * @param flagName The feature flag key
+	 * @returns The feature flag payload or null if not found
+	 */
+	public async getPayload(flagName: string): Promise<unknown> {
+		try {
+			return await this.getFeatureFlagPayload(flagName)
+		} catch (error) {
+			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
+			return null
+		}
+	}
+}

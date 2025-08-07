@@ -1,5 +1,42 @@
 # Changelog
 
+## [3.20.13]
+
+- Fix prompt caching support for Opus 4.1 on OpenRouter/Cline
+
+## [3.20.12]
+
+- Add Claude Opus 4.1 model support to AWS Bedrock provider (Thanks @omercelik!)
+- Fix prompt caching and extended thinking support for Claude Opus 4.1 in Anthropic provider
+
+## [3.20.11]
+
+Add gpt-oss-120b as a Cerebras model
+Add Opus 4.1 through Claude Code
+
+## [3.20.10]
+
+- Add OpenAI's new open-source models (GPT-OSS-120B and GPT-OSS-20B) to Hugging Face and Groq providers
+
+## [3.20.9]
+
+- Add support for Claude Opus 4.1 model in Anthropic provider
+- Add Baseten as a new API provider with support for DeepSeek, Llama, and Kimi K2 models (Thanks @AlexKer!)
+- Fix error messages not clearing from UI when retrying failed tasks
+- Fix chat input box positioning issues
+
+## [3.20.8]
+
+- Add navbar tooltips on hover
+
+## [3.20.7]
+
+- Fix circular dependency that affect the github workflow Tests / test (pull_request)
+
+## [3.20.6]
+
+- Fix login check on extension restart
+
 ## [3.20.5]
 
 - Fix authentication persistence issues that could cause users to be logged out unexpectedly

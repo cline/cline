@@ -1,6 +1,6 @@
 import { showSystemNotification } from "@/integrations/notifications"
 import { listFiles } from "@/services/glob/list-files"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { regexSearchFiles } from "@/services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
 import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
@@ -93,7 +93,9 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
+		private ulid: string,
 		private mode: Mode,
+		private strictPlanModeEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -107,7 +109,12 @@ export class ToolExecutor {
 			type: ClineAsk,
 			text?: string,
 			partial?: boolean,
-		) => Promise<{ response: ClineAskResponse; text?: string; images?: string[]; files?: string[] }>,
+		) => Promise<{
+			response: ClineAskResponse
+			text?: string
+			images?: string[]
+			files?: string[]
+		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
@@ -122,6 +129,22 @@ export class ToolExecutor {
 	 */
 	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
 		this.autoApprover.updateSettings(settings)
+	}
+
+	/**
+	 * Defines the tools which should be restricted in plan mode
+	 */
+	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+		const planModeRestrictedTools: ToolUseName[] = ["write_to_file", "replace_in_file"]
+		return planModeRestrictedTools.includes(toolName)
+	}
+
+	public updateMode(mode: Mode): void {
+		this.mode = mode
+	}
+
+	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
+		this.strictPlanModeEnabled = strictPlanModeEnabled
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
@@ -437,6 +460,15 @@ export class ToolExecutor {
 			return
 		}
 
+		// Logic for plan-model tool call restrictions
+		if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
+			await this.say("error", errorMessage)
+			this.pushToolResult(formatResponse.toolError(errorMessage), block)
+			await this.saveCheckpoint()
+			return
+		}
+
 		if (block.name !== "browser_action") {
 			await this.browserSession.closeBrowser()
 		}
@@ -446,7 +478,7 @@ export class ToolExecutor {
 			case "write_to_file":
 			case "replace_in_file": {
 				const relPath: string | undefined = block.params.path
-				let content: string | undefined = block.params.content // for write_to_file
+				const content: string | undefined = block.params.content // for write_to_file
 				let diff: string | undefined = block.params.diff // for replace_in_file
 				if (!relPath || (!content && !diff)) {
 					// checking for content/diff ensures relPath is complete
@@ -1186,7 +1218,7 @@ export class ToolExecutor {
 							if (this.context) {
 								await this.browserSession.dispose()
 
-								let useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								const useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
 								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")
@@ -2311,7 +2343,7 @@ export class ToolExecutor {
 								await this.say("completion_result", result, undefined, undefined, false)
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
-								telemetryService.captureTaskCompleted(this.taskId)
+								telemetryService.captureTaskCompleted(this.taskId, this.ulid)
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
@@ -2336,7 +2368,7 @@ export class ToolExecutor {
 							await this.say("completion_result", result, undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
-							telemetryService.captureTaskCompleted(this.taskId)
+							telemetryService.captureTaskCompleted(this.taskId, this.ulid)
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field

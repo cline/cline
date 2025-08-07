@@ -4,7 +4,6 @@ import { getNonce } from "./getNonce"
 
 import { WebviewProviderType } from "@/shared/webview/types"
 import { Controller } from "@core/controller/index"
-import { CacheService } from "@core/storage/CacheService"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
@@ -19,10 +18,8 @@ export abstract class WebviewProvider {
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
-	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
-	private cacheService: CacheService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -33,21 +30,8 @@ export abstract class WebviewProvider {
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
 
-		// Create and initialize cache service
-		this.cacheService = new CacheService(context)
-
 		// Create controller with cache service
-		this.controller = new Controller(
-			context,
-			(message) => this.postMessageToWebview(message),
-			this.clientId,
-			this.cacheService,
-		)
-
-		// Initialize cache service asynchronously - critical for extension functionality
-		this.cacheService.initialize().catch((error) => {
-			console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
-		})
+		this.controller = new Controller(context, this.clientId)
 	}
 
 	// Add a method to get the client ID
@@ -61,12 +45,6 @@ export abstract class WebviewProvider {
 	}
 
 	async dispose() {
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
 		// Remove from client ID map
@@ -120,14 +98,6 @@ export abstract class WebviewProvider {
 	 * @returns A promise that resolves when the webview has been fully initialized
 	 */
 	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
-
-	/**
-	 * Sends a message from the extension to the webview.
-	 *
-	 * @param message - The message to send to the webview
-	 * @returns A thenable that resolves to a boolean indicating success, or undefined if the webview is not available
-	 */
-	abstract postMessageToWebview(message: ExtensionMessage): Thenable<boolean> | undefined
 
 	/**
 	 * Gets the current webview instance.

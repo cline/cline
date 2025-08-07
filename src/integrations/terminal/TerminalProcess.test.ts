@@ -1,8 +1,9 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import * as sinon from "sinon"
-import { TerminalProcess } from "./TerminalProcess"
 import * as vscode from "vscode"
+import { TerminalProcess } from "./TerminalProcess"
 import { TerminalRegistry } from "./TerminalRegistry"
 
 declare module "vscode" {
@@ -36,6 +37,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox({ useFakeTimers: true })
+		setVscodeHostProviderMock()
 		process = new TerminalProcess()
 	})
 

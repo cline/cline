@@ -26,7 +26,6 @@ export default defineConfig({
 		{
 			name: "cleanup test environment",
 			testMatch: /global\.teardown\.ts/,
-			dependencies: ["e2e tests"],
 		},
 	],
 })

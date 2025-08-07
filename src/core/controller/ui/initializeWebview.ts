@@ -4,11 +4,12 @@ import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
+import { refreshBasetenModels } from "../models/refreshBasetenModels"
 
 /**
  * Initialize webview when it launches
@@ -54,7 +55,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeOpenRouterModelId
 					const actModelId = apiConfiguration.actModeOpenRouterModelId
-					let updatedConfig = { ...apiConfiguration }
+					const updatedConfig = { ...apiConfiguration }
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
@@ -100,7 +101,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeGroqModelId
 					const actModelId = apiConfiguration.actModeGroqModelId
-					let updatedConfig = { ...apiConfiguration }
+					const updatedConfig = { ...apiConfiguration }
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
@@ -115,6 +116,45 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
 						controller.cacheService.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		refreshBasetenModels(controller, EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeBasetenModelId" : "actModeBasetenModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeBasetenModelInfo" : "actModeBasetenModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						await updateGlobalState(controller.context, modelInfoField, response.models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeBasetenModelId
+					const actModelId = apiConfiguration.actModeBasetenModelId
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						await updateGlobalState(controller.context, "planModeBasetenModelInfo", response.models[planModelId])
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						await updateGlobalState(controller.context, "actModeBasetenModelInfo", response.models[actModelId])
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
 						await controller.postStateToWebview()
 					}
 				}

@@ -1,12 +1,11 @@
-import { getSecret, storeSecret } from "@/core/storage/state"
-import { ErrorService } from "@/services/error/ErrorService"
+import { errorService } from "@services/posthog/PostHogClientProvider"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
-import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCredential } from "firebase/auth"
-import { ExtensionContext } from "vscode"
-import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
+import type { ExtensionContext } from "vscode"
 import { clineEnvConfig } from "@/config"
+import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { Controller } from "@/core/controller"
 
 export class FirebaseAuthProvider {
@@ -90,8 +89,8 @@ export class FirebaseAuthProvider {
 			// return userCredential.user
 		} catch (error) {
 			console.error("Firebase restore token error", error)
-			ErrorService.logMessage("Firebase restore token error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase restore token error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}
@@ -103,7 +102,7 @@ export class FirebaseAuthProvider {
 	 */
 	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
-			let credential
+			let credential: OAuthCredential
 			switch (provider) {
 				case "google":
 					credential = GoogleAuthProvider.credential(token)
@@ -126,16 +125,16 @@ export class FirebaseAuthProvider {
 			try {
 				controller.cacheService.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
-				ErrorService.logMessage("Firebase store token error", "error")
-				ErrorService.logException(error)
+				errorService.logMessage("Firebase store token error", "error")
+				errorService.logException(error)
 				throw error
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
 			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
-			ErrorService.logMessage("Firebase sign-in error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase sign-in error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}
