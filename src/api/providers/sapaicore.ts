@@ -124,13 +124,9 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		console.log("SAP AI Core createMessage - orchestration mode:", this.options.sapAiCoreUseOrchestrationMode ?? true)
-
 		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
-			console.log("Using orchestration mode")
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
-			console.log("Using deployment mode")
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
 		}
 	}
@@ -159,13 +155,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			console.log("Starting orchestration mode")
-
 			// Set up AI Core environment variable for service binding
 			this.setupAiCoreEnvVariable()
-
 			const model = this.getModel()
-			console.log("Model selected:", model.id)
 
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
@@ -195,7 +187,6 @@ export class SapAiCoreHandler implements ApiHandler {
 				yield { type: "text", text: chunk }
 			}
 
-			// Add token usage reporting after streaming completes
 			const tokenUsage = response.getTokenUsage()
 			if (tokenUsage) {
 				yield {
@@ -205,7 +196,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error in orchestration mode:", error)
+			console.error("Error in SAP orchestration mode:", error)
 			console.log("Error details:", error.stack)
 			throw error
 		}

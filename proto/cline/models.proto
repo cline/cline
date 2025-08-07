@@ -223,7 +223,7 @@ message ModelsApiConfiguration {
   optional string sap_ai_resource_group = 51;
   optional string sap_ai_core_token_url = 52;
   optional string sap_ai_core_base_url = 53;
-	optional bool sap_ai_core_use_orchestration_mode = 54;
+  optional bool sap_ai_core_use_orchestration_mode = 54;
   optional string moonshot_api_key = 55;
   optional string moonshot_api_line = 56;
   optional string aws_authentication = 57;

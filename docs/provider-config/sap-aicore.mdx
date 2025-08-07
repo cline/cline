@@ -32,7 +32,26 @@ Refer to the [Generative AI Hub Supported Models page](https://me.sap.com/notes/
 5.  **Enter Base URL:** Add the `.serviceurls.AI_API_URL` field from the service binding into the "AI Core Base URL" field.
 6.  **Enter Auth URL:** Add the `.url` field from the service binding into the "AI Core Auth URL" field.
 7.  **Enter Resource Group:** Add the resource group where you have your model deployments. See [Create a Deployment for a Generative AI Model](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-deployment-for-generative-ai-model-in-sap-ai-core).
-8.  **Select Model:** Choose your desired model from the "Model" dropdown.
+8.  **Configure Orchestration Mode:** The "Orchestration Mode" checkbox is enabled by default (recommended). This uses the harmonized API that provides access to all available models without requiring individual deployments, making it much simpler to use.
+9.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Orchestration Mode vs Native API
+
+**Orchestration Mode (Default - Recommended):**
+- **Enabled by default:** Uses the harmonized API layer
+- **Simplified usage:** No need to deploy individual models
+- **Broader access:** Provides access to all available models through a unified interface
+- **Easier management:** Handles model routing and availability automatically
+
+**Native API Mode:**
+- **Fallback option:** For users who specifically want to interface directly with AI Core instead of the orchestration layer
+- **Direct control:** Requires individual model deployments in your resource group
+- **Advanced features:** May support some specialized features not available in the harmonized API
+- **More complex:** Requires manual deployment and management of each model you want to use
+
+> 💡 **Recommendation**
+>
+> Keep Orchestration Mode enabled unless you have specific requirements that necessitate direct AI Core API access or need features not supported by the harmonized API.
 
 ### Tips and Notes
 
