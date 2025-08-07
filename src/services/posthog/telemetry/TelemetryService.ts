@@ -181,10 +181,10 @@ export class TelemetryService {
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskCreated(taskId: string, uuid: string, apiProvider?: string) {
+	public captureTaskCreated(taskId: string, ulid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { taskId, uuid, apiProvider },
+			properties: { taskId, ulid, apiProvider },
 		})
 	}
 
@@ -193,10 +193,10 @@ export class TelemetryService {
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskRestarted(taskId: string, uuid: string, apiProvider?: string) {
+	public captureTaskRestarted(taskId: string, ulid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { taskId, uuid, apiProvider },
+			properties: { taskId, ulid, apiProvider },
 		})
 	}
 
@@ -204,10 +204,10 @@ export class TelemetryService {
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param taskId Unique identifier for the task
 	 */
-	public captureTaskCompleted(taskId: string, uuid: string) {
+	public captureTaskCompleted(taskId: string, ulid: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { taskId, uuid },
+			properties: { taskId, ulid },
 		})
 	}
 
@@ -221,7 +221,7 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		taskId: string,
-		uuid: string,
+		ulid: string,
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
@@ -234,14 +234,14 @@ export class TelemetryService {
 		} = {},
 	) {
 		// Ensure required parameters are provided
-		if (!taskId || !uuid || !provider || !model || !source) {
+		if (!taskId || !ulid || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
 		const properties: Record<string, unknown> = {
 			taskId,
-			uuid,
+			ulid,
 			provider,
 			model,
 			source,
