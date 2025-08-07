@@ -48,7 +48,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const autoApprovalSettings = provider?.controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
+		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
@@ -67,7 +67,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, cont
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		provider?.controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
+		controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state

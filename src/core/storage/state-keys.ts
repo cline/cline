@@ -291,6 +291,7 @@ export interface Secrets {
 	openAiApiKey: string | undefined
 	geminiApiKey: string | undefined
 	openAiNativeApiKey: string | undefined
+	ollamaApiKey: string | undefined
 	deepSeekApiKey: string | undefined
 	requestyApiKey: string | undefined
 	togetherApiKey: string | undefined
