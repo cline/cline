@@ -92,6 +92,7 @@ program
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
 	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
+	.option("--provider <provider>", "API provider to use (openrouter, openai)", "openrouter")
 	.option("--parallel", "Run tests in parallel", false)
 	.option("--replay", "Run evaluation from a pre-recorded LLM output, skipping the API call", false)
 	.option("--replay-run-id <run_id>", "The ID of the run to replay from the database")

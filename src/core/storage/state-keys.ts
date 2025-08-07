@@ -19,6 +19,7 @@ export type SecretKey =
 	| "awsSessionToken"
 	| "awsBedrockApiKey"
 	| "openAiApiKey"
+	| "ollamaApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"

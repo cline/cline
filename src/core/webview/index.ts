@@ -31,7 +31,7 @@ export abstract class WebviewProvider {
 		WebviewProvider.clientIdMap.set(this, this.clientId)
 
 		// Create controller with cache service
-		this.controller = new Controller(context, (message) => this.postMessageToWebview(message), this.clientId)
+		this.controller = new Controller(context, this.clientId)
 	}
 
 	// Add a method to get the client ID
@@ -98,14 +98,6 @@ export abstract class WebviewProvider {
 	 * @returns A promise that resolves when the webview has been fully initialized
 	 */
 	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
-
-	/**
-	 * Sends a message from the extension to the webview.
-	 *
-	 * @param message - The message to send to the webview
-	 * @returns A thenable that resolves to a boolean indicating success, or undefined if the webview is not available
-	 */
-	abstract postMessageToWebview(message: ExtensionMessage): Thenable<boolean> | undefined
 
 	/**
 	 * Gets the current webview instance.

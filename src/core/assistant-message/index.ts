@@ -60,6 +60,7 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
+	"needs_more_exploration",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

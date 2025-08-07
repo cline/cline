@@ -21,6 +21,7 @@ export async function resetGlobalState(controller: Controller) {
 		"awsSessionToken",
 		"awsBedrockApiKey",
 		"openAiApiKey",
+		"ollamaApiKey",
 		"geminiApiKey",
 		"openAiNativeApiKey",
 		"deepSeekApiKey",

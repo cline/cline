@@ -15,7 +15,7 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import os from "os"
 
 interface PCRStats {
@@ -88,7 +88,10 @@ export class BrowserSession {
 		// First check browserSettings (from UI, stored in global state)
 		await this.migrateChromeExecutablePathSetting()
 		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
-			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
+			return {
+				path: this.browserSettings.chromeExecutablePath,
+				isBundled: false,
+			}
 		}
 
 		// Then try to find system Chrome
@@ -554,8 +557,8 @@ export class BrowserSession {
 		const minStableSizeIterations = 3
 
 		while (checkCounts++ <= maxChecks) {
-			let html = await page.content()
-			let currentHTMLSize = html.length
+			const html = await page.content()
+			const currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
 			console.info("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
