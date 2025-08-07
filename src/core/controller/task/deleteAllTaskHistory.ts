@@ -19,7 +19,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		await controller.clearTask()
 
 		// Get existing task history
-		const taskHistory = (controller.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[]) || []
+		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
@@ -88,7 +88,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		}
 
 		// Delete everything (not preserving favorites)
-		controller.cacheService.setGlobalState("taskHistory", undefined)
+		controller.cacheService.setGlobalState("taskHistory", [])
 
 		try {
 			// Remove all contents of tasks directory

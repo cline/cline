@@ -247,32 +247,29 @@ export async function deleteRuleFile(
 		// Update the appropriate toggles
 		if (isGlobal) {
 			if (type === "workflow") {
-				const toggles = (controller.cacheService.getGlobalStateKey("globalWorkflowToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getGlobalStateKey("globalWorkflowToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = (controller.cacheService.getGlobalStateKey("globalClineRulesToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setGlobalState("globalClineRulesToggles", toggles)
 			}
 		} else {
 			if (type === "workflow") {
-				const toggles = (controller.cacheService.getWorkspaceStateKey("workflowToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("workflowToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setWorkspaceState("workflowToggles", toggles)
 			} else if (type === "cursor") {
-				const toggles =
-					(controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setWorkspaceState("localCursorRulesToggles", toggles)
 			} else if (type === "windsurf") {
-				const toggles =
-					(controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", toggles)
 			} else {
-				const toggles =
-					(controller.cacheService.getWorkspaceStateKey("localClineRulesToggles") as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]
 				controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
 			}

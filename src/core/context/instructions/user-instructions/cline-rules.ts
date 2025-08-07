@@ -74,15 +74,13 @@ export async function refreshClineRulesToggles(
 	localToggles: ClineRulesToggles
 }> {
 	// Global toggles
-	const globalClineRulesToggles =
-		(controller.cacheService.getGlobalStateKey("globalClineRulesToggles") as ClineRulesToggles) || {}
+	const globalClineRulesToggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
 	const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 	const updatedGlobalToggles = await synchronizeRuleToggles(globalClineRulesFilePath, globalClineRulesToggles)
 	controller.cacheService.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
 
 	// Local toggles
-	const localClineRulesToggles =
-		(controller.cacheService.getWorkspaceStateKey("localClineRulesToggles") as ClineRulesToggles) || {}
+	const localClineRulesToggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 	const localClineRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.clineRules)
 	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles, "", [
 		[".clinerules", "workflows"],

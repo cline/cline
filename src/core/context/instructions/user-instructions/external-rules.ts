@@ -23,15 +23,13 @@ export async function refreshExternalRulesToggles(
 	cursorLocalToggles: ClineRulesToggles
 }> {
 	// local windsurf toggles
-	const localWindsurfRulesToggles =
-		(controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles") as ClineRulesToggles) || {}
+	const localWindsurfRulesToggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 	const localWindsurfRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.windsurfRules)
 	const updatedLocalWindsurfToggles = await synchronizeRuleToggles(localWindsurfRulesFilePath, localWindsurfRulesToggles)
 	controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
 
 	// local cursor toggles
-	const localCursorRulesToggles =
-		(controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles") as ClineRulesToggles) || {}
+	const localCursorRulesToggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 
 	// cursor has two valid locations for rules files, so we need to check both and combine
 	// synchronizeRuleToggles will drop whichever rules files are not in each given path, but combining the results will result in no data loss

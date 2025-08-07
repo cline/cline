@@ -14,7 +14,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 
 		// Get task history from global state
-		const taskHistory = (controller.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[]) || []
+		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
 		const workspacePath = await getWorkspacePath()
 
 		// Apply filters

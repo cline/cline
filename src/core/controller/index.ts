@@ -103,7 +103,7 @@ export class Controller {
 	}
 
 	async getCurrentMode(): Promise<Mode> {
-		return (this.cacheService.getGlobalStateKey("mode") as Mode | undefined) || "act"
+		return this.cacheService.getGlobalStateKey("mode")
 	}
 
 	/*
@@ -598,7 +598,7 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const history = this.cacheService.getGlobalStateKey("taskHistory")
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
@@ -633,7 +633,7 @@ export class Controller {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		this.cacheService.setGlobalState("taskHistory", updatedTaskHistory)
 
@@ -760,7 +760,7 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = (this.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[]) || []
+		const history = this.cacheService.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item

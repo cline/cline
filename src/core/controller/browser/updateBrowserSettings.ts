@@ -12,8 +12,7 @@ import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } fr
 export async function updateBrowserSettings(controller: Controller, request: UpdateBrowserSettingsRequest): Promise<Boolean> {
 	try {
 		// Get current browser settings to preserve fields not in the request
-		const currentSettings =
-			(controller.cacheService.getGlobalStateKey("browserSettings") as SharedBrowserSettings) || undefined
+		const currentSettings = controller.cacheService.getGlobalStateKey("browserSettings")
 		const mergedWithDefaults = { ...DEFAULT_BROWSER_SETTINGS, ...currentSettings }
 
 		// Convert from protobuf format to shared format, merging with existing settings

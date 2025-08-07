@@ -366,7 +366,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
 		lastShownAnnouncementId,
-		taskHistory,
+		taskHistory: taskHistory || [],
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)

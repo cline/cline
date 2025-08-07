@@ -21,12 +21,12 @@ export async function toggleCursorRule(controller: Controller, request: ToggleCu
 	}
 
 	// Update the toggles in workspace state
-	const toggles = (controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles") as AppClineRulesToggles) || {}
+	const toggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 	toggles[rulePath] = enabled
 	controller.cacheService.setWorkspaceState("localCursorRulesToggles", toggles)
 
 	// Get the current state to return in the response
-	const cursorToggles = (controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles") as AppClineRulesToggles) || {}
+	const cursorToggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 
 	return ClineRulesToggles.create({
 		toggles: cursorToggles,

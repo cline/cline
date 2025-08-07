@@ -175,7 +175,7 @@ export interface GlobalState {
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
 	lastShownAnnouncementId: string | undefined
-	taskHistory: HistoryItem[] | undefined
+	taskHistory: HistoryItem[]
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
 	ollamaBaseUrl: string | undefined

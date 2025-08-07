@@ -13,7 +13,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	try {
 		// Update in-memory state only
 		try {
-			const history = (controller.cacheService.getGlobalStateKey("taskHistory") as HistoryItem[]) || []
+			const history = controller.cacheService.getGlobalStateKey("taskHistory")
 
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
