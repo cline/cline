@@ -179,6 +179,90 @@ describe("FireworksHandler", () => {
 		)
 	})
 
+	it("should return GLM-4.5 model with correct configuration", () => {
+		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p5"
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: testModelId,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 16384,
+				contextWindow: 128000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.55,
+				outputPrice: 2.19,
+				description: expect.stringContaining("Z.ai GLM-4.5 with 355B total parameters"),
+			}),
+		)
+	})
+
+	it("should return GLM-4.5-Air model with correct configuration", () => {
+		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p5-air"
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: testModelId,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 16384,
+				contextWindow: 128000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.55,
+				outputPrice: 2.19,
+				description: expect.stringContaining("Z.ai GLM-4.5-Air with 106B total parameters"),
+			}),
+		)
+	})
+
+	it("should return gpt-oss-20b model with correct configuration", () => {
+		const testModelId: FireworksModelId = "accounts/fireworks/models/gpt-oss-20b"
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: testModelId,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 16384,
+				contextWindow: 128000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.07,
+				outputPrice: 0.3,
+				description: expect.stringContaining("OpenAI gpt-oss-20b: Compact model for local/edge deployments"),
+			}),
+		)
+	})
+
+	it("should return gpt-oss-120b model with correct configuration", () => {
+		const testModelId: FireworksModelId = "accounts/fireworks/models/gpt-oss-120b"
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: testModelId,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 16384,
+				contextWindow: 128000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				description: expect.stringContaining("OpenAI gpt-oss-120b: Production-grade, general-purpose model"),
+			}),
+		)
+	})
+
 	it("completePrompt method should return text from Fireworks API", async () => {
 		const expectedResponse = "This is a test response from Fireworks"
 		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: expectedResponse } }] })
