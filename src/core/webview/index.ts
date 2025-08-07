@@ -60,12 +60,9 @@ export abstract class WebviewProvider {
 
 	public static getActiveInstance(): WebviewProvider | undefined {
 		return Array.from(WebviewProvider.activeInstances).find((instance) => {
-			if (
-				instance.getWebview() &&
-				instance.getWebview().viewType === "claude-dev.TabPanelProvider" &&
-				"active" in instance.getWebview()
-			) {
-				return instance.getWebview().active === true
+			const webview = instance.getWebview()
+			if (webview && webview.viewType === "claude-dev.TabPanelProvider" && "active" in webview) {
+				return webview.active === true
 			}
 			return false
 		})
@@ -85,12 +82,12 @@ export abstract class WebviewProvider {
 		return Array.from(WebviewProvider.activeInstances).filter((instance) => instance.providerType === WebviewProviderType.TAB)
 	}
 
-	public static getLastActiveInstance(): WebviewProvider | null {
+	public static getLastActiveInstance(): WebviewProvider | undefined {
 		const lastActiveId = WebviewProvider.getLastActiveControllerId()
 		if (!lastActiveId) {
-			return null
+			return undefined
 		}
-		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.controller.id === lastActiveId) || null
+		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.controller.id === lastActiveId)
 	}
 
 	/**
@@ -140,7 +137,7 @@ export abstract class WebviewProvider {
 	 *
 	 * @returns The webview instance (WebviewView, WebviewPanel, or similar)
 	 */
-	abstract getWebview(): any
+	abstract getWebview(): vscode.WebviewPanel | vscode.WebviewView | undefined
 
 	/**
 	 * Converts a local URI to a webview URI that can be used within the webview.

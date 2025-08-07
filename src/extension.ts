@@ -203,6 +203,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		// Lock the editor group so clicking on files doesn't open them over the panel
 		await setTimeoutPromise(100)
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+		return tabWebview
 	}
 
 	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
@@ -288,7 +289,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-			// await vscode.commands.executeCommand("cline.focusChatInput"); // Ensure Cline is visible and input focused
+			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 			const activeWebview = WebviewProvider.getLastActiveInstance()
 			const clientId = activeWebview?.getClientId()
 			await pWaitFor(() => !!activeWebview)
@@ -550,71 +551,51 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the focusChatInput command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.focusChatInput", async () => {
-			let activeWebviewProvider: WebviewProvider | undefined = WebviewProvider.getLastActiveInstance() || undefined
+			// Fast path: check for existing active instance
+			let activeWebview = WebviewProvider.getLastActiveInstance()
 
-			// If we have an active instance and it's visible, use it
-			if (activeWebviewProvider?.isVisible()) {
-				// If a tab is visible and active, ensure it's fully revealed (might be redundant but safe)
-				if (activeWebviewProvider.getWebview()?.hasOwnProperty("reveal")) {
-					const panelView = activeWebviewProvider.getWebview() as vscode.WebviewPanel
-					panelView.reveal(panelView.viewColumn)
-				}
-			} else {
-				WebviewProvider.setLastActiveControllerId(null) // Reset last active controller ID if no active instance
-				// No active webview or it's not visible, try to activate the sidebar
-				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-				await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
-				activeWebviewProvider = WebviewProvider.getSidebarInstance()
-
-				if (!activeWebviewProvider) {
-					// Sidebar didn't become active (might be closed or not in current view container)
-					// Check for existing tab panels
-					const tabInstances = WebviewProvider.getTabInstances()
-					if (tabInstances.length > 0) {
-						const potentialTabInstance = tabInstances[tabInstances.length - 1] // Get the most recent one
-						if (potentialTabInstance?.getWebview()?.hasOwnProperty("reveal")) {
-							const panelView = potentialTabInstance.getWebview() as vscode.WebviewPanel
-							panelView.reveal(panelView.viewColumn)
-							activeWebviewProvider = potentialTabInstance
-						}
+			if (activeWebview) {
+				// Instance exists - just reveal and focus it
+				const webview = activeWebview.getWebview()
+				if (webview) {
+					if (webview && "reveal" in webview) {
+						webview.reveal()
+					} else if ("show" in webview) {
+						webview.show()
 					}
 				}
+			} else {
+				// No active instance - need to find or create one
+				WebviewProvider.setLastActiveControllerId(null)
 
-				if (!activeWebviewProvider) {
-					// No existing Cline view found at all, open a new tab
-					await vscode.commands.executeCommand("cline.openInNewTab")
-					// After openInNewTab, a new webview is created. We need to get this new instance.
-					// It might take a moment for it to register.
-					await pWaitFor(
-						() => {
-							const visibleInstance = WebviewProvider.getVisibleInstance()
-							// Ensure a boolean is returned
-							return !!visibleInstance?.getWebview()?.hasOwnProperty("reveal")
-						},
-						{ timeout: 2000 },
-					)
-					activeWebviewProvider = WebviewProvider.getVisibleInstance()
+				// Check for existing tab instances first (cheaper than focusing sidebar)
+				const tabInstances = WebviewProvider.getTabInstances()
+				if (tabInstances.length > 0) {
+					activeWebview = tabInstances[tabInstances.length - 1]
+				} else {
+					// Try to focus sidebar
+					await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+
+					// Small delay for focus to complete
+					await new Promise((resolve) => setTimeout(resolve, 200))
+					// Last resort: create new tab
+					activeWebview = WebviewProvider.getSidebarInstance() || (await openClineInNewTab())
 				}
 			}
 
-			// At this point, activeWebviewProvider should be the one we want to send the message to.
-			// It could still be undefined if opening a new tab failed or timed out.
-			if (activeWebviewProvider) {
-				// Use the gRPC streaming method instead of postMessageToWebview
-				const clientId = activeWebviewProvider.getClientId()
-				if (clientId) {
-					sendFocusChatInputEvent(clientId)
-				} else {
-					console.warn("No client ID found, cannot focus chat input")
-				}
-			} else {
+			// Send focus event
+			const clientId = activeWebview?.getClientId()
+			if (!clientId) {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
 				})
+				return
 			}
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId)
+
+			sendFocusChatInputEvent(clientId)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.taskId)
 		}),
 	)
 
