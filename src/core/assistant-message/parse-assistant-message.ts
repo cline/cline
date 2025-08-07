@@ -1,5 +1,61 @@
 import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "." // Assuming types are defined in index.ts or a similar file
 
+type ParamSpec = ToolParamName | { to: ToolParamName; transform?: (v: string) => string }
+
+type InvokeSpec = {
+	tool: ToolUseName
+	params?: Record<string, ParamSpec>
+	defaults?: Partial<Record<ToolParamName, string>>
+}
+
+const INVOKE_SPECS: Record<string, InvokeSpec> = {
+	LS: { tool: "list_files", params: { path: "path" }, defaults: { recursive: "false" } },
+	Grep: { tool: "search_files", params: { pattern: { to: "regex" }, path: "path", include: { to: "file_pattern" } } },
+	Bash: {
+		tool: "execute_command",
+		params: {
+			command: "command",
+			requires_approval: { to: "requires_approval", transform: (v) => (v === "true" ? "true" : "false") },
+		},
+	},
+	Read: { tool: "read_file", params: { file_path: { to: "path" } } },
+	Write: { tool: "write_to_file", params: { file_path: { to: "path" }, content: "content" } },
+	WebFetch: { tool: "web_fetch", params: { url: "url" } },
+	AskQuestion: { tool: "ask_followup_question", params: { question: "question", options: "options" } },
+	UseMCPTool: { tool: "use_mcp_tool", params: { server_name: "server_name", tool_name: "tool_name", arguments: "arguments" } },
+	AccessMCPResource: { tool: "access_mcp_resource", params: { server_name: "server_name", uri: "uri" } },
+	ListCodeDefinitionNames: { tool: "list_code_definition_names", params: { path: "path" } },
+	PlanModeRespond: { tool: "plan_mode_respond", params: { response: "response" } },
+	LoadMcpDocumentation: { tool: "load_mcp_documentation" },
+	AttemptCompletion: { tool: "attempt_completion", params: { result: "result", command: "command" } },
+	BrowserAction: { tool: "browser_action", params: { action: "action", url: "url", coordinate: "coordinate", text: "text" } },
+	NewTask: { tool: "new_task", params: { context: "context" } },
+	MultiEdit: { tool: "replace_in_file", params: { file_path: { to: "path" }, edits: { to: "diff" } } },
+}
+
+function createToolUseFromInvoke(invokeName: string): ToolUse | undefined {
+	const spec = INVOKE_SPECS[invokeName]
+	if (!spec) return undefined
+	return {
+		type: "tool_use",
+		name: spec.tool,
+		params: spec.defaults ? { ...spec.defaults } : {},
+		partial: true,
+	}
+}
+
+function applyParamFromInvokeSpec(currentToolUse: ToolUse, invokeName: string, parameterName: string, value: string): void {
+	const spec = INVOKE_SPECS[invokeName]
+	const mapping = spec?.params?.[parameterName]
+	if (!mapping) return
+	if (typeof mapping === "string") {
+		currentToolUse.params[mapping] = value
+	} else {
+		const out = mapping.transform ? mapping.transform(value) : value
+		currentToolUse.params[mapping.to] = out
+	}
+}
+
 /**
  * @description **Version 1**
  * Parses an assistant message string potentially containing mixed text and tool usage blocks
@@ -550,151 +606,9 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				currentInvokeName = assistantMessage.slice(currentCharIndex + 1, nameEndPos)
 				i = nameEndPos + isInvokeEnd.length - 1 // Skip to after the '">
 
-				// If this is an LS invoke, create a list_files tool
-				if (currentInvokeName === "LS") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "list_files",
-						params: {},
-						partial: true,
-					}
-				}
-
-				// If this is a Grep invoke, create a search_files tool
-				if (currentInvokeName === "Grep") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "search_files",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "Bash") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "execute_command",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "Read") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "read_file",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "Write") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "write_to_file",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "WebFetch") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "web_fetch",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "AskQuestion") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "ask_followup_question",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "UseMCPTool") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "use_mcp_tool",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "AccessMCPResource") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "access_mcp_resource",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "ListCodeDefinitionNames") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "list_code_definition_names",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "PlanModeRespond") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "plan_mode_respond",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "LoadMcpDocumentation") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "load_mcp_documentation",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "AttemptCompletion") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "attempt_completion",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "BrowserAction") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "browser_action",
-						params: {},
-						partial: true,
-					}
-				}
-
-				if (currentInvokeName === "NewTask") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "new_task",
-						params: {},
-						partial: true,
-					}
-				}
-
-				// If this is a MultiEdit invoke, create a replace_in_file tool
-				if (currentInvokeName === "MultiEdit") {
-					currentToolUse = {
-						type: "tool_use",
-						name: "replace_in_file",
-						params: {},
-						partial: true,
-					}
+				const maybeTool = createToolUseFromInvoke(currentInvokeName)
+				if (maybeTool) {
+					currentToolUse = maybeTool
 				}
 
 				continue
@@ -731,115 +645,8 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 			// Extract parameter value
 			const value = assistantMessage.slice(currentParamValueStart, currentCharIndex - isParameterClose.length + 1).trim()
 
-			// Map parameter to tool params
-			if (currentToolUse && currentInvokeName === "LS" && currentParameterName === "path") {
-				currentToolUse.params["path"] = value
-				// Default recursive to false - only show top level
-				currentToolUse.params["recursive"] = "false"
-			}
-
-			if (currentToolUse && currentInvokeName === "Read" && currentParameterName === "file_path") {
-				currentToolUse.params["path"] = value
-			}
-
-			if (currentToolUse && currentInvokeName === "PlanModeRespond" && currentParameterName === "response") {
-				currentToolUse.params["response"] = value
-			}
-
-			if (currentToolUse && currentInvokeName === "WebFetch" && currentParameterName === "url") {
-				currentToolUse.params["url"] = value
-			}
-
-			if (currentToolUse && currentInvokeName === "ListCodeDefinitionNames" && currentParameterName === "path") {
-				currentToolUse.params["path"] = value
-			}
-
-			if (currentToolUse && currentInvokeName === "NewTask" && currentParameterName === "context") {
-				currentToolUse.params["context"] = value
-			}
-
-			// Map parameter to tool params for Grep
-			if (currentToolUse && currentInvokeName === "Grep") {
-				if (currentParameterName === "pattern") {
-					currentToolUse.params["regex"] = value
-				} else if (currentParameterName === "path") {
-					currentToolUse.params["path"] = value
-				} else if (currentParameterName === "include") {
-					currentToolUse.params["file_pattern"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "Bash") {
-				if (currentParameterName === "command") {
-					currentToolUse.params["command"] = value
-				} else if (currentParameterName === "requires_approval") {
-					currentToolUse.params["requires_approval"] = value === "true" ? "true" : "false"
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "Write") {
-				if (currentParameterName === "file_path") {
-					currentToolUse.params["path"] = value
-				} else if (currentParameterName === "content") {
-					currentToolUse.params["content"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "AskQuestion") {
-				if (currentParameterName === "question") {
-					currentToolUse.params["question"] = value
-				} else if (currentParameterName === "options") {
-					currentToolUse.params["options"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "UseMCPTool") {
-				if (currentParameterName === "server_name") {
-					currentToolUse.params["server_name"] = value
-				} else if (currentParameterName === "tool_name") {
-					currentToolUse.params["tool_name"] = value
-				} else if (currentParameterName === "arguments") {
-					currentToolUse.params["arguments"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "AccessMCPResource") {
-				if (currentParameterName === "server_name") {
-					currentToolUse.params["server_name"] = value
-				} else if (currentParameterName === "uri") {
-					currentToolUse.params["uri"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "AttemptCompletion") {
-				if (currentParameterName === "result") {
-					currentToolUse.params["result"] = value
-				}
-				if (currentParameterName === "command") {
-					currentToolUse.params["command"] = value
-				}
-			}
-
-			if (currentToolUse && currentInvokeName === "BrowserAction") {
-				if (currentParameterName === "action") {
-					currentToolUse.params["action"] = value
-				} else if (currentParameterName === "url") {
-					currentToolUse.params["url"] = value
-				} else if (currentParameterName === "coordinate") {
-					currentToolUse.params["coordinate"] = value
-				} else if (currentParameterName === "text") {
-					currentToolUse.params["text"] = value
-				}
-			}
-
-			// Map parameter to tool params for MultiEdit
-			if (currentToolUse && currentInvokeName === "MultiEdit") {
-				if (currentParameterName === "file_path") {
-					currentToolUse.params["path"] = value
-				} else if (currentParameterName === "edits") {
-					// Save the value to the diff parameter for replace_in_file
-					currentToolUse.params["diff"] = value
-				}
+			if (currentToolUse) {
+				applyParamFromInvokeSpec(currentToolUse, currentInvokeName, currentParameterName, value)
 			}
 
 			currentParameterName = ""
@@ -854,25 +661,7 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 			assistantMessage.startsWith(isInvokeClose, currentCharIndex - isInvokeClose.length + 1)
 		) {
 			// If we have a tool use from this invoke, finalize it
-			if (
-				currentToolUse &&
-				(currentInvokeName === "LS" ||
-					currentInvokeName === "Grep" ||
-					currentInvokeName === "Bash" ||
-					currentInvokeName === "Read" ||
-					currentInvokeName === "Write" ||
-					currentInvokeName === "WebFetch" ||
-					currentInvokeName === "AskQuestion" ||
-					currentInvokeName === "UseMCPTool" ||
-					currentInvokeName === "AccessMCPResource" ||
-					currentInvokeName === "ListCodeDefinitionNames" ||
-					currentInvokeName === "PlanModeRespond" ||
-					currentInvokeName === "LoadMcpDocumentation" ||
-					currentInvokeName === "AttemptCompletion" ||
-					currentInvokeName === "BrowserAction" ||
-					currentInvokeName === "NewTask" ||
-					currentInvokeName === "MultiEdit")
-			) {
+			if (currentToolUse && currentInvokeName in INVOKE_SPECS) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
