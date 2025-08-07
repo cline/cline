@@ -1775,8 +1775,7 @@ export class McpHub {
 					t("mcp:errors.disconnect_servers_partial", {
 						count: disconnectionErrors.length,
 						errors: errorSummary,
-					}) ||
-						`Failed to disconnect ${disconnectionErrors.length} MCP server(s). Check the output for details.`,
+					}),
 				)
 			}
 
@@ -1785,9 +1784,7 @@ export class McpHub {
 				await this.refreshAllConnections()
 			} catch (error) {
 				console.error(`Failed to refresh MCP connections after disabling: ${error}`)
-				vscode.window.showErrorMessage(
-					t("mcp:errors.refresh_after_disable") || "Failed to refresh MCP connections after disabling",
-				)
+				vscode.window.showErrorMessage(t("mcp:errors.refresh_after_disable"))
 			}
 		} else {
 			// If MCP is being enabled, reconnect all servers
@@ -1795,9 +1792,7 @@ export class McpHub {
 				await this.refreshAllConnections()
 			} catch (error) {
 				console.error(`Failed to refresh MCP connections after enabling: ${error}`)
-				vscode.window.showErrorMessage(
-					t("mcp:errors.refresh_after_enable") || "Failed to refresh MCP connections after enabling",
-				)
+				vscode.window.showErrorMessage(t("mcp:errors.refresh_after_enable"))
 			}
 		}
 	}

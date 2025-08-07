@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "Format de configuració MCP no vàlid: {{errorMessages}}",
 		"create_json": "Ha fallat la creació o obertura de .roo/mcp.json: {{error}}",
 		"failed_update_project": "Ha fallat l'actualització dels servidors MCP del projecte",
-		"invalidJsonArgument": "Roo ha intentat utilitzar {{toolName}} amb un argument JSON no vàlid. Tornant a intentar..."
+		"invalidJsonArgument": "Roo ha intentat utilitzar {{toolName}} amb un argument JSON no vàlid. Tornant a intentar...",
+		"refresh_after_disable": "Ha fallat l'actualització de les connexions MCP després de desactivar",
+		"refresh_after_enable": "Ha fallat l'actualització de les connexions MCP després d'activar",
+		"disconnect_servers_partial": "Ha fallat la desconnexió de {{count}} servidor(s) MCP. Comprova la sortida per més detalls."
 	},
 	"info": {
 		"server_restarting": "Reiniciant el servidor MCP {{serverName}}...",

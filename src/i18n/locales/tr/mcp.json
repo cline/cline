@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "Geçersiz MCP ayarları formatı: {{errorMessages}}",
 		"create_json": ".roo/mcp.json oluşturulamadı veya açılamadı: {{error}}",
 		"failed_update_project": "Proje MCP sunucuları güncellenemedi",
-		"invalidJsonArgument": "Roo, {{toolName}} aracını geçersiz bir JSON argümanıyla kullanmaya çalıştı. Tekrar deneniyor..."
+		"invalidJsonArgument": "Roo, {{toolName}} aracını geçersiz bir JSON argümanıyla kullanmaya çalıştı. Tekrar deneniyor...",
+		"refresh_after_disable": "Devre dışı bıraktıktan sonra MCP bağlantıları yenilenemedi",
+		"refresh_after_enable": "Etkinleştirdikten sonra MCP bağlantıları yenilenemedi",
+		"disconnect_servers_partial": "{{count}} MCP sunucusu bağlantısı kesilemedi. Ayrıntılar için çıktıyı kontrol edin."
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP sunucusu yeniden başlatılıyor...",

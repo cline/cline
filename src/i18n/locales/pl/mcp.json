@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "Nieprawidłowy format ustawień MCP: {{errorMessages}}",
 		"create_json": "Nie udało się utworzyć lub otworzyć .roo/mcp.json: {{error}}",
 		"failed_update_project": "Nie udało się zaktualizować serwerów MCP projektu",
-		"invalidJsonArgument": "Roo próbował użyć {{toolName}} z nieprawidłowym argumentem JSON. Ponawianie..."
+		"invalidJsonArgument": "Roo próbował użyć {{toolName}} z nieprawidłowym argumentem JSON. Ponawianie...",
+		"refresh_after_disable": "Nie udało się odświeżyć połączeń MCP po wyłączeniu",
+		"refresh_after_enable": "Nie udało się odświeżyć połączeń MCP po włączeniu",
+		"disconnect_servers_partial": "Nie udało się odłączyć {{count}} serwera(ów) MCP. Sprawdź dane wyjściowe, aby uzyskać szczegóły."
 	},
 	"info": {
 		"server_restarting": "Ponowne uruchamianie serwera MCP {{serverName}}...",

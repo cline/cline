@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "Ongeldig MCP-instellingenformaat: {{errorMessages}}",
 		"create_json": "Aanmaken of openen van .roo/mcp.json mislukt: {{error}}",
 		"failed_update_project": "Bijwerken van project MCP-servers mislukt",
-		"invalidJsonArgument": "Roo probeerde {{toolName}} te gebruiken met een ongeldig JSON-argument. Opnieuw proberen..."
+		"invalidJsonArgument": "Roo probeerde {{toolName}} te gebruiken met een ongeldig JSON-argument. Opnieuw proberen...",
+		"refresh_after_disable": "Vernieuwen van MCP-verbindingen na uitschakelen mislukt",
+		"refresh_after_enable": "Vernieuwen van MCP-verbindingen na inschakelen mislukt",
+		"disconnect_servers_partial": "Loskoppelen van {{count}} MCP-server(s) mislukt. Controleer de uitvoer voor details."
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP-server wordt opnieuw gestart...",

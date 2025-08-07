@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "MCP设置格式无效：{{errorMessages}}",
 		"create_json": "创建或打开 .roo/mcp.json 失败：{{error}}",
 		"failed_update_project": "更新项目MCP服务器失败",
-		"invalidJsonArgument": "Roo 尝试使用无效的 JSON 参数调用 {{toolName}}。正在重试..."
+		"invalidJsonArgument": "Roo 尝试使用无效的 JSON 参数调用 {{toolName}}。正在重试...",
+		"refresh_after_disable": "禁用后刷新 MCP 连接失败",
+		"refresh_after_enable": "启用后刷新 MCP 连接失败",
+		"disconnect_servers_partial": "断开 {{count}} 个 MCP 服务器失败。请查看输出了解详情。"
 	},
 	"info": {
 		"server_restarting": "正在重启{{serverName}}MCP服务器...",

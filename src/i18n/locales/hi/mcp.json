@@ -5,7 +5,10 @@
 		"invalid_settings_validation": "अमान्य MCP सेटिंग्स फॉर्मेट: {{errorMessages}}",
 		"create_json": ".roo/mcp.json बनाने या खोलने में विफल: {{error}}",
 		"failed_update_project": "प्रोजेक्ट MCP सर्वर अपडेट करने में विफल",
-		"invalidJsonArgument": "Roo ने {{toolName}} को अमान्य JSON आर्गुमेंट के साथ उपयोग करने की कोशिश की। फिर से कोशिश कर रहा है..."
+		"invalidJsonArgument": "Roo ने {{toolName}} को अमान्य JSON आर्गुमेंट के साथ उपयोग करने की कोशिश की। फिर से कोशिश कर रहा है...",
+		"refresh_after_disable": "अक्षम करने के बाद MCP कनेक्शन रीफ्रेश करने में विफल",
+		"refresh_after_enable": "सक्षम करने के बाद MCP कनेक्शन रीफ्रेश करने में विफल",
+		"disconnect_servers_partial": "{{count}} MCP सर्वर डिस्कनेक्ट करने में विफल। विवरण के लिए आउटपुट देखें।"
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",
