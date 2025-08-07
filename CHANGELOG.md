@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.21.0]
+
+- Add support for GPT-5 model family including GPT-5, GPT-5 Mini, and GPT-5 Nano with prompt caching support and set GPT-5 as the new default model
+- Add "Take a Tour" button for new users to easily access the VSCode walkthrough and improve onboarding experience
+- Enhance plan mode response handling with better exploration parameter support
+
 ## [3.20.13]
 
 - Fix prompt caching support for Opus 4.1 on OpenRouter/Cline

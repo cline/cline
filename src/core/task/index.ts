@@ -35,7 +35,7 @@ import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { v4 as uuidv4 } from "uuid"
+import { ulid } from "ulid"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
@@ -78,7 +78,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily } from "@utils/model-utils"
+import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -96,7 +96,7 @@ type UserContent = Array<Anthropic.ContentBlockParam>
 export class Task {
 	// Core task variables
 	readonly taskId: string
-	readonly uuid: string
+	readonly ulid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
 
@@ -219,7 +219,7 @@ export class Task {
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
-			this.uuid = historyItem.uuid ?? uuidv4()
+			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			if (historyItem.checkpointTrackerErrorMessage) {
@@ -227,7 +227,7 @@ export class Task {
 			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
-			this.uuid = uuidv4()
+			this.ulid = ulid()
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -235,7 +235,7 @@ export class Task {
 		this.messageStateHandler = new MessageStateHandler({
 			context,
 			taskId: this.taskId,
-			uuid: this.uuid,
+			ulid: this.ulid,
 			taskState: this.taskState,
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
@@ -309,10 +309,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.uuid, currentProvider)
+			telemetryService.captureTaskRestarted(this.taskId, this.ulid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.uuid, currentProvider)
+			telemetryService.captureTaskCreated(this.taskId, this.ulid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -333,7 +333,7 @@ export class Task {
 			this.browserSettings,
 			cwd,
 			this.taskId,
-			this.uuid,
+			this.ulid,
 			this.mode,
 			strictPlanModeEnabled,
 			this.say.bind(this),
@@ -1708,8 +1708,7 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel =
-			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
+		const isNextGenModel = isNextGenModelFamily(this.api)
 		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -2232,7 +2231,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, this.uuid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2299,7 +2298,7 @@ export class Task {
 
 				telemetryService.captureConversationTurnEvent(
 					this.taskId,
-					this.uuid,
+					this.ulid,
 					providerId,
 					this.api.getModel().id,
 					"assistant",
@@ -2364,7 +2363,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isNextGenModel = isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api)
+
+							const isNextGenModel = isNextGenModelFamily(this.api)
 							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
@@ -2475,7 +2475,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, this.uuid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,

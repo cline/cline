@@ -17,7 +17,7 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
 	taskId: string
-	uuid: string
+	ulid: string
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
@@ -33,13 +33,13 @@ export class MessageStateHandler {
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
-	private uuid: string
+	private ulid: string
 	private taskState: TaskState
 
 	constructor(params: MessageStateHandlerParams) {
 		this.context = params.context
 		this.taskId = params.taskId
-		this.uuid = params.uuid
+		this.ulid = params.ulid
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
@@ -92,7 +92,7 @@ export class MessageStateHandler {
 			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
 				id: this.taskId,
-				uuid: this.uuid,
+				ulid: this.ulid,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
 				tokensIn: apiMetrics.totalTokensIn,

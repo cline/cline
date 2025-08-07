@@ -3,6 +3,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
 import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
@@ -13,14 +14,12 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { Mode } from "@shared/storage/types"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
+import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
-import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
@@ -28,15 +27,13 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { getLatestAnnouncementId } from "@/utils/announcements"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 
@@ -45,8 +42,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	readonly id: string
-	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
-
 	private disposables: vscode.Disposable[] = []
 	task?: Task
 
@@ -57,13 +52,11 @@ export class Controller {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 		id: string,
 	) {
 		this.id = id
 
 		HostProvider.get().logToChannel("ClineProvider instantiated")
-		this.postMessage = postMessage
 		this.accountService = ClineAccountService.getInstance()
 		this.cacheService = new CacheService(context)
 		const authService = AuthService.getInstance(this)
@@ -239,37 +232,6 @@ export class Controller {
 		}
 	}
 
-	// Send any JSON serializable data to the react app
-	async postMessageToWebview(message: ExtensionMessage) {
-		await this.postMessage(message)
-	}
-
-	/**
-	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is received.
-	 *
-	 * @param webview A reference to the extension webview
-	 */
-	async handleWebviewMessage(message: WebviewMessage) {
-		switch (message.type) {
-			case "grpc_request": {
-				if (message.grpc_request) {
-					await handleGrpcRequest(this, message.grpc_request)
-				}
-				break
-			}
-			case "grpc_request_cancel": {
-				if (message.grpc_request_cancel) {
-					await handleGrpcRequestCancel(this, message.grpc_request_cancel)
-				}
-				break
-			}
-			default: {
-				console.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
-			}
-		}
-	}
-
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
 		await updateGlobalState(this.context, "telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting !== "disabled"
@@ -341,7 +303,8 @@ export class Controller {
 				this.task.taskState.abandoned = true
 			}
 			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
-			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+			// Dont send the state to the webview, the new Cline instance will send state when it's ready.
+			// Sending the state here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
 
@@ -481,7 +444,7 @@ export class Controller {
 
 	/**
 	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
-	 * Unlike silentlyRefreshMcpMarketplace, this doesn't post a message to the webview
+	 * Unlike silentlyRefreshMcpMarketplace, this doesn't send a message to the webview
 	 * @returns MCP marketplace catalog or undefined if refresh failed
 	 */
 	async silentlyRefreshMcpMarketplaceRPC() {
@@ -526,7 +489,7 @@ export class Controller {
 		if (this.task) {
 			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
 		}
-		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
+		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
 
 	private async ensureCacheDirectoryExists(): Promise<string> {
@@ -563,7 +526,7 @@ export class Controller {
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
-		// Post message to webview with the selected code
+		// Send a response to webview with the selected code
 		const fileMention = await this.getFileMentionFromPath(filePath)
 
 		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
@@ -582,14 +545,6 @@ export class Controller {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 		await setTimeoutPromise(100)
-
-		// Post message to webview with the selected terminal output
-		// await this.postMessageToWebview({
-		//     type: "addSelectedTerminalOutput",
-		//     output,
-		//     terminalName
-		// })
-
 		await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${output}\n\`\`\``)
 
 		console.log("addSelectedTerminalOutputToChat", output, terminalName)

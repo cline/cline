@@ -114,7 +114,7 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 
 		telemetryService.captureProviderApiError({
 			taskId: controller.task?.taskId || "",
-			uuid: controller.task?.uuid || "",
+			ulid: controller.task?.ulid || "",
 			errorMessage,
 			errorStatus: error.status,
 			model: "groq",

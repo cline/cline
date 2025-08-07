@@ -35,7 +35,13 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, modelDoesntSupportWebp } from "@utils/model-utils"
+import {
+	isClaude4ModelFamily,
+	isGemini2dot5ModelFamily,
+	isGrok4ModelFamily,
+	modelDoesntSupportWebp,
+	isNextGenModelFamily,
+} from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -93,7 +99,7 @@ export class ToolExecutor {
 		private browserSettings: BrowserSettings,
 		private cwd: string,
 		private taskId: string,
-		private uuid: string,
+		private ulid: string,
 		private mode: Mode,
 		private strictPlanModeEnabled: boolean,
 
@@ -148,8 +154,7 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel =
-			isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
+		const isNextGenModel = isNextGenModelFamily(this.api)
 
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
@@ -515,8 +520,7 @@ export class ToolExecutor {
 
 						const currentFullJson = block.params.diff
 						// Check if we should use streaming (e.g., for specific models)
-						const isNextGenModel =
-							isClaude4ModelFamily(this.api) || isGemini2dot5ModelFamily(this.api) || isGrok4ModelFamily(this.api)
+						const isNextGenModel = isNextGenModelFamily(this.api)
 						// Going through claude family of models
 						try {
 							newContent = await constructNewFileContent(
@@ -2110,6 +2114,7 @@ export class ToolExecutor {
 			case "plan_mode_respond": {
 				const response: string | undefined = block.params.response
 				const optionsRaw: string | undefined = block.params.options
+				const needsMoreExploration: boolean = block.params.needs_more_exploration === "true"
 				const sharedMessage = {
 					response: this.removeClosingTag(block, "response", response),
 					options: parsePartialArrayString(this.removeClosingTag(block, "options", optionsRaw)),
@@ -2133,6 +2138,17 @@ export class ToolExecutor {
 						// 		message: response.replace(/\n/g, " "),
 						// 	})
 						// }
+
+						// The plan_mode_respond tool tends to run into this issue where the model realizes mid-tool call that it should have called another tool before calling plan_mode_respond. And it ends the plan_mode_respond tool call with 'Proceeding to reading files...' which doesn't do anything because we restrict to 1 tool call per message. As an escape hatch for the model, we provide it the optionality to tack on a parameter at the end of its response `needs_more_exploration`, which will allow the loop to continue.
+						if (needsMoreExploration) {
+							this.pushToolResult(
+								formatResponse.toolResult(
+									`[You have indicated that you need more exploration. Proceed with calling tools to continue the planning process.]`,
+								),
+								block,
+							)
+							break
+						}
 
 						// Store the number of options for telemetry
 						const options = parsePartialArrayString(optionsRaw || "[]")
@@ -2312,7 +2328,7 @@ export class ToolExecutor {
 								await this.say("completion_result", result, undefined, undefined, false)
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
-								telemetryService.captureTaskCompleted(this.taskId, this.uuid)
+								telemetryService.captureTaskCompleted(this.taskId, this.ulid)
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
@@ -2337,7 +2353,7 @@ export class ToolExecutor {
 							await this.say("completion_result", result, undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
-							telemetryService.captureTaskCompleted(this.taskId, this.uuid)
+							telemetryService.captureTaskCompleted(this.taskId, this.ulid)
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field
