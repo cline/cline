@@ -1,9 +1,10 @@
 # Changelog
 
-## 3.21.0
+## [3.21.0]
 
-- 9b7839e: New SOTA model GPT-5 Released in Cline
-- 3001f88: Enabling quickwins and adding a button to show that you can do a walkthrough
+- Add support for GPT-5 model family including GPT-5, GPT-5 Mini, and GPT-5 Nano with prompt caching support and set GPT-5 as the new default model
+- Add "Take a Tour" button for new users to easily access the VSCode walkthrough and improve onboarding experience
+- Enhance plan mode response handling with better exploration parameter support
 
 ## [3.20.13]
 
