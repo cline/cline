@@ -279,6 +279,7 @@ export class FileContextTracker {
 	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
 		const startTime = Date.now()
 		try {
+			// eslint-disable-next-line eslint-rules/no-direct-vscode-api
 			const taskHistory = (context.globalState.get("taskHistory") as HistoryItem[]) || []
 			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
 			const allStateKeys = context.workspaceState.keys()
@@ -294,6 +295,7 @@ export class FileContextTracker {
 
 			if (orphanedPendingContextTasks.length > 0) {
 				for (const key of orphanedPendingContextTasks) {
+					// eslint-disable-next-line eslint-rules/no-direct-vscode-api
 					await context.workspaceState.update(key, undefined)
 				}
 			}
