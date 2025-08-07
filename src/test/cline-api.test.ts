@@ -1,5 +1,4 @@
 import { createClineAPI } from "@/exports"
-import * as stateModule from "@core/storage/state"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
