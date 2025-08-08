@@ -103,13 +103,24 @@
 		"indentWidth": 4,
 		"lineWidth": 130,
 		"lineEnding": "lf",
-		"formatWithErrors": false
+		"formatWithErrors": false,
+		"includes": [
+			"!dist/",
+			"!node_modules",
+			"!webview-ui/build/",
+			"!*.md",
+			"!package-lock.json",
+			"!src/core/prompts/system.ts",
+			"!src/core/prompts/model_prompts/claude4.ts",
+			"!evals/",
+			"!docs/",
+			"!out/"
+		]
 	},
 	"javascript": {
 		"linter": {
 			"enabled": true
 		},
-		"globals": ["$", "_", "externalVariable"],
 		"formatter": {
 			"semicolons": "asNeeded",
 			"arrowParentheses": "always",
@@ -140,7 +151,7 @@
 			"!**/dist/**",
 			"!**/build/**",
 			"!**/dist-*/",
-			"!**/.vscode-*/**",
+			"!**/.vscode/**",
 			"!**/*-lock.json",
 			"!**/generated/**",
 			"!*.md*",
@@ -152,7 +163,7 @@
 	"overrides": [
 		{
 			"includes": ["src/**", "!src/hosts/vscode/**", "!**/*.test.ts"],
-			"plugins": ["src/hosts/vscode-api.grit"]
+			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
 		}
 	]
 }
