@@ -1,7 +1,8 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import RequestyModelPicker from "../RequestyModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the RequestyProvider component
@@ -9,12 +10,13 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface RequestyProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Requesty provider configuration component
  */
-export const RequestyProvider = ({ showModelOptions, isPopup }: RequestyProviderProps) => {
+export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: RequestyProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -27,7 +29,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup }: RequestyProvider
 				signupUrl="https://app.requesty.ai/manage-api"
 			/>
 
-			{showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
+			{showModelOptions && <RequestyModelPicker isPopup={isPopup} currentMode={currentMode} />}
 		</div>
 	)
 }

@@ -1,9 +1,8 @@
-import { Controller } from ".."
-import { FileSearchRequest, FileSearchResults } from "@shared/proto/file"
 import { searchWorkspaceFiles } from "@services/search/file-search"
-import { getWorkspacePath } from "@utils/path"
-import { FileMethodHandler } from "./index"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { FileSearchRequest, FileSearchResults } from "@shared/proto/cline/file"
+import { getWorkspacePath } from "@utils/path"
+import { Controller } from ".."
 
 /**
  * Searches for files in the workspace with fuzzy matching
@@ -11,10 +10,7 @@ import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/
  * @param request The request containing search query and optionally a mentionsRequestId
  * @returns Results containing matching files/folders
  */
-export const searchFiles: FileMethodHandler = async (
-	_controller: Controller,
-	request: FileSearchRequest,
-): Promise<FileSearchResults> => {
+export async function searchFiles(_controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
 	const workspacePath = await getWorkspacePath()
 
 	if (!workspacePath) {

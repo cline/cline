@@ -1,18 +1,16 @@
-import { useEffect, useMemo, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	VSCodeButton,
-	VSCodeProgressRing,
-	VSCodeRadioGroup,
-	VSCodeRadio,
 	VSCodeDropdown,
 	VSCodeOption,
+	VSCodeProgressRing,
+	VSCodeRadio,
+	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { McpMarketplaceItem } from "@shared/mcp"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { McpServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import { useEffect, useMemo, useState } from "react"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
 const McpMarketplaceView = () => {

@@ -1,3 +1,4 @@
+import { Mode } from "@/shared/storage/types"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
@@ -147,7 +148,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 	},
 
 	taskResumption: (
-		mode: "plan" | "act",
+		mode: Mode,
 		agoText: string,
 		cwd: string,
 		wasRecent: boolean | 0 | undefined,

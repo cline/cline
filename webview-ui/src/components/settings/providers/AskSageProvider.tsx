@@ -1,29 +1,30 @@
-import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { askSageDefaultURL, askSageModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
 /**
  * Props for the AskSageProvider component
  */
 interface AskSageProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The AskSage provider configuration component
  */
-export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderProps) => {
+export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -48,7 +49,13 @@ export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderPr
 					<ModelSelector
 						models={askSageModels}
 						selectedModelId={selectedModelId}
-						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 

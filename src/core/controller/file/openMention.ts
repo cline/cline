@@ -1,5 +1,5 @@
+import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { Controller } from ".."
-import { Empty, StringRequest } from "../../../shared/proto/common"
 import { openMention as coreOpenMention } from "../../mentions"
 
 /**

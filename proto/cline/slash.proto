@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+// SlashService provides methods for managing slash
+service SlashService {
+  // Sends button click message
+  rpc reportBug(StringRequest) returns (Empty);
+  rpc condense(StringRequest) returns (Empty);
+}

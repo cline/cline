@@ -1,10 +1,10 @@
-import { describe, it, beforeEach, afterEach, before } from "mocha"
-import "should"
-import sinon from "sinon"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { OllamaHandler } from "../ollama"
 import { ApiHandlerOptions } from "@shared/api"
 import axios from "axios"
+import { afterEach, before, beforeEach, describe, it } from "mocha"
+import "should"
+import sinon from "sinon"
+import { OllamaHandler } from "../ollama"
 
 describe("OllamaHandler", () => {
 	let ollamaAvailable = false
@@ -26,7 +26,7 @@ describe("OllamaHandler", () => {
 
 	beforeEach(() => {
 		options = {
-			ollamaModelId: "llama2",
+			actModeOllamaModelId: "llama2",
 			ollamaBaseUrl: "http://localhost:11434",
 		}
 		handler = new OllamaHandler(options)

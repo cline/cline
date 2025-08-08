@@ -1,28 +1,33 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useState, useCallback, useEffect } from "react"
-import { useInterval } from "react-use"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
-import OllamaModelPicker from "../OllamaModelPicker"
-import { BaseUrlField } from "../common/BaseUrlField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { StringRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useState } from "react"
+import { useInterval } from "react-use"
+import OllamaModelPicker from "../OllamaModelPicker"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { BaseUrlField } from "../common/BaseUrlField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
 /**
  * Props for the OllamaProvider component
  */
 interface OllamaProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Ollama provider configuration component
  */
-export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProps) => {
+export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -58,15 +63,25 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 				label="Use custom base URL"
 			/>
 
+			{apiConfiguration?.ollamaBaseUrl && (
+				<ApiKeyField
+					initialValue={apiConfiguration?.ollamaApiKey || ""}
+					onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+					providerName="Ollama"
+					placeholder="Enter API Key (optional)..."
+					helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
+				/>
+			)}
+
 			{/* Model selection - use filterable picker */}
 			<label htmlFor="ollama-model-selection">
 				<span style={{ fontWeight: 500 }}>Model</span>
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
-				selectedModelId={apiConfiguration?.ollamaModelId || ""}
+				selectedModelId={ollamaModelId || ""}
 				onModelChange={(modelId) => {
-					handleFieldChange("ollamaModelId", modelId)
+					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
 			/>

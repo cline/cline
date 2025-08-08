@@ -1,10 +1,9 @@
-import { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { EmptyRequest } from "@shared/proto/common"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active chatButtonClicked subscriptions by controller ID
-const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHandler>()
+const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to chatButtonClicked events
@@ -16,7 +15,7 @@ const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHa
 export async function subscribeToChatButtonClicked(
 	controller: Controller,
 	_request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id

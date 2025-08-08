@@ -1,12 +1,15 @@
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
-import { handleModelsServiceRequest } from "../models"
-import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
-import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
-import { OpenRouterCompatibleModelInfo } from "@/shared/proto/models"
+
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
+import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
+import { refreshBasetenModels } from "../models/refreshBasetenModels"
+import { refreshGroqModels } from "../models/refreshGroqModels"
+import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
  * Initialize webview when it launches
@@ -27,17 +30,133 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		})
 
 		// Refresh OpenRouter models from API
-		handleModelsServiceRequest(controller, "refreshOpenRouterModels", EmptyRequest.create()).then(async (response) => {
+		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const { apiConfiguration } = await getAllExtensionState(controller.context)
-				if (apiConfiguration.openRouterModelId && response.models[apiConfiguration.openRouterModelId]) {
-					await updateGlobalState(
-						controller.context,
-						"openRouterModelInfo",
-						response.models[apiConfiguration.openRouterModelId],
-					)
-					await controller.postStateToWebview()
+				const apiConfiguration = controller.cacheService.getApiConfiguration()
+				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeOpenRouterModelId" : "actModeOpenRouterModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeOpenRouterModelInfo" : "actModeOpenRouterModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						const updatedConfig = {
+							...apiConfiguration,
+							[modelInfoField]: response.models[modelId],
+						}
+						controller.cacheService.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeOpenRouterModelId
+					const actModelId = apiConfiguration.actModeOpenRouterModelId
+					const updatedConfig = { ...apiConfiguration }
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						updatedConfig.planModeOpenRouterModelInfo = response.models[planModelId]
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						updatedConfig.actModeOpenRouterModelInfo = response.models[actModelId]
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						controller.cacheService.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const apiConfiguration = controller.cacheService.getApiConfiguration()
+				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeGroqModelId" : "actModeGroqModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeGroqModelInfo" : "actModeGroqModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						const updatedConfig = {
+							...apiConfiguration,
+							[modelInfoField]: response.models[modelId],
+						}
+						controller.cacheService.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeGroqModelId
+					const actModelId = apiConfiguration.actModeGroqModelId
+					const updatedConfig = { ...apiConfiguration }
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						updatedConfig.planModeGroqModelInfo = response.models[planModelId]
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						updatedConfig.actModeGroqModelInfo = response.models[actModelId]
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						controller.cacheService.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		refreshBasetenModels(controller, EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const { apiConfiguration, planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeBasetenModelId" : "actModeBasetenModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeBasetenModelInfo" : "actModeBasetenModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						await updateGlobalState(controller.context, modelInfoField, response.models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeBasetenModelId
+					const actModelId = apiConfiguration.actModeBasetenModelId
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						await updateGlobalState(controller.context, "planModeBasetenModelInfo", response.models[planModelId])
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						await updateGlobalState(controller.context, "actModeBasetenModelInfo", response.models[actModelId])
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						await controller.postStateToWebview()
+					}
 				}
 			}
 		})

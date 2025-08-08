@@ -1,8 +1,7 @@
+import { ClineMessage } from "@shared/ExtensionMessage"
 import React, { useCallback } from "react"
 import { Virtuoso } from "react-virtuoso"
-import AutoApproveBar from "@/components/chat/auto-approve-menu/AutoApproveBar"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { ScrollBehavior, ChatState, MessageHandlers } from "../../types/chatTypes"
+import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
@@ -62,8 +61,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	)
 
 	return (
-		<>
-			<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
+		<div className="overflow-hidden flex flex-col h-full">
+			<div className="flex-grow flex" ref={scrollContainerRef}>
 				<Virtuoso
 					ref={virtuosoRef}
 					key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
@@ -93,7 +92,6 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					initialTopMostItemIndex={groupedMessages.length - 1}
 				/>
 			</div>
-			<AutoApproveBar />
-		</>
+		</div>
 	)
 }

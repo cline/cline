@@ -1,20 +1,19 @@
-import * as vscode from "vscode"
-import * as path from "path"
+import { HostProvider } from "@/hosts/host-provider"
+import { getWorkspaceProblemsString } from "@/integrations/diagnostics"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { getCwd } from "@/utils/path"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
+import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import fs from "fs/promises"
-import { extractTextFromFile } from "@integrations/misc/extract-text"
-import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString } from "@integrations/diagnostics"
-import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
-import { getCommitInfo } from "@utils/git"
-import { getWorkingState } from "@utils/git"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getCommitInfo, getWorkingState } from "@utils/git"
+import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
+import * as path from "path"
+import * as vscode from "vscode"
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -26,8 +25,8 @@ export async function openMention(mention?: string): Promise<void> {
 		return
 	}
 
-	if (mention.startsWith("/")) {
-		const relPath = mention.slice(1)
+	if (isFileMention(mention)) {
+		const relPath = getFilePathFromMention(mention)
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
@@ -54,8 +53,8 @@ export async function parseMentions(
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
-		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1) // Remove the leading '/'
+		} else if (isFileMention(mention)) {
+			const mentionPath = getFilePathFromMention(mention)
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
@@ -78,12 +77,10 @@ export async function parseMentions(
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Error fetching content for ${urlMention}: ${error.message}`,
-				}),
-			)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Error fetching content for ${urlMention}: ${error.message}`,
+			})
 		}
 	}
 
@@ -100,18 +97,16 @@ export async function parseMentions(
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.ERROR,
-							message: `Error fetching content for ${mention}: ${error.message}`,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Error fetching content for ${mention}: ${error.message}`,
+					})
 					result = `Error fetching content: ${error.message}`
 				}
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
-		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1)
+		} else if (isFileMention(mention)) {
+			const mentionPath = getFilePathFromMention(mention)
 			try {
 				const content = await getFileOrFolderContent(mentionPath, cwd)
 				if (mention.endsWith("/")) {
@@ -229,10 +224,17 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(diagnostics, [vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning])
-	if (!result) {
-		return "No errors or warnings detected."
-	}
-	return result
+	return await getWorkspaceProblemsString()
+}
+
+function isFileMention(mention: string): boolean {
+	return mention.startsWith("/") || mention.startsWith('"/')
+}
+
+function getFilePathFromMention(mention: string): string {
+	// Remove quotes
+	const match = mention.match(/^"(.*)"$/)
+	const filePath = match ? match[1] : mention
+	// Remove leading slash
+	return filePath.slice(1)
 }

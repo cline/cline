@@ -1,9 +1,9 @@
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
-import * as path from "path"
-import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
 import * as vscode from "vscode"
 
 /**
@@ -240,7 +240,7 @@ export async function deleteRuleFile(
 		}
 
 		// Delete the file from disk
-		await fs.unlink(rulePath)
+		await fs.rm(rulePath, { force: true })
 
 		// Get the filename for messages
 		const fileName = path.basename(rulePath)

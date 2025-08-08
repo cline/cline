@@ -1,6 +1,6 @@
-import { AuthStateChangedRequest, AuthState } from "@shared/proto/account"
-import type { Controller } from "../index"
+import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
 import { updateGlobalState } from "../../storage/state"
+import type { Controller } from "../index"
 
 /**
  * Handles authentication state changes from the Firebase context.

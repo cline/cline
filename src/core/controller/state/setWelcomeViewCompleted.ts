@@ -1,7 +1,7 @@
-import type { BooleanRequest } from "../../../shared/proto/common"
-import { Empty } from "../../../shared/proto/common"
-import type { Controller } from "../index"
+import type { BooleanRequest } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/cline/common"
 import { updateGlobalState } from "../../storage/state"
+import type { Controller } from "../index"
 
 /**
  * Sets the welcomeViewCompleted flag to the specified boolean value

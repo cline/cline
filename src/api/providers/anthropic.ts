@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 
 interface AnthropicHandlerOptions {
@@ -13,7 +13,7 @@ interface AnthropicHandlerOptions {
 }
 
 export class AnthropicHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: AnthropicHandlerOptions
 	private client: Anthropic | undefined
 
 	constructor(options: AnthropicHandlerOptions) {
@@ -55,6 +55,7 @@ export class AnthropicHandler implements ApiHandler {
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-opus-4-20250514":
+			case "claude-opus-4-1-20250805":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/*
@@ -122,6 +123,7 @@ export class AnthropicHandler implements ApiHandler {
 						switch (modelId) {
 							case "claude-sonnet-4-20250514":
 							case "claude-opus-4-20250514":
+							case "claude-opus-4-1-20250805":
 							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":

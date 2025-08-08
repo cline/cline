@@ -1,18 +1,20 @@
+import { Anthropic } from "@anthropic-ai/sdk"
+import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import { execa } from "@packages/execa"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import fs from "fs/promises"
+import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
-import fs from "fs/promises"
-import { Anthropic } from "@anthropic-ai/sdk"
-import { fileExistsAtPath } from "@utils/fs"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
-import os from "os"
-import { execa } from "@packages/execa"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
+	groqModels: "groq_models.json",
+	basetenModels: "baseten_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",

@@ -1,13 +1,12 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
-import { withRetry } from "../retry"
-import { Part } from "@google/genai"
+import { GoogleGenAI, Part, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
+import { withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
@@ -44,7 +43,7 @@ interface GeminiHandlerOptions {
  * 4. Separating immediate costs from ongoing costs to avoid double-counting
  */
 export class GeminiHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: GeminiHandlerOptions
 	private client: GoogleGenAI | undefined
 
 	constructor(options: GeminiHandlerOptions) {
@@ -256,23 +255,18 @@ export class GeminiHandler implements ApiHandler {
 				totalDurationSdkMs > 0 && outputTokens > 0 ? outputTokens / (totalDurationSdkMs / 1000) : undefined
 
 			if (this.options.taskId) {
-				telemetryService.captureGeminiApiPerformance(
-					this.options.taskId,
-					modelId,
-					{
-						ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
-						totalDurationSec: totalDurationSdkMs / 1000,
-						promptTokens,
-						outputTokens,
-						cacheReadTokens,
-						cacheHit,
-						cacheHitPercentage,
-						apiSuccess,
-						apiError,
-						throughputTokensPerSec: throughputTokensPerSecSdk,
-					},
-					true,
-				)
+				telemetryService.captureGeminiApiPerformance(this.options.taskId, modelId, {
+					ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
+					totalDurationSec: totalDurationSdkMs / 1000,
+					promptTokens,
+					outputTokens,
+					cacheReadTokens,
+					cacheHit,
+					cacheHitPercentage,
+					apiSuccess,
+					apiError,
+					throughputTokensPerSec: throughputTokensPerSecSdk,
+				})
 			} else {
 				console.warn("GeminiHandler: taskId not available for telemetry in createMessage.")
 			}

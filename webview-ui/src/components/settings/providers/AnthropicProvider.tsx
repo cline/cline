@@ -1,11 +1,12 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { anthropicModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode
@@ -13,6 +14,7 @@ export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	"claude-opus-4-20250514",
+	"claude-opus-4-1-20250805",
 ]
 
 /**
@@ -21,17 +23,18 @@ export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 interface AnthropicProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Anthropic provider configuration component
  */
-export const AnthropicProvider = ({ showModelOptions, isPopup }: AnthropicProviderProps) => {
+export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -54,12 +57,18 @@ export const AnthropicProvider = ({ showModelOptions, isPopup }: AnthropicProvid
 					<ModelSelector
 						models={anthropicModels}
 						selectedModelId={selectedModelId}
-						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
+						onChange={(e) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						label="Model"
 					/>
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
 					)}
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />

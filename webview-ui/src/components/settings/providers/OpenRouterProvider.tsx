@@ -1,16 +1,15 @@
-import { ApiConfiguration } from "@shared/api"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/storage/types"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
+import VSCodeButtonLink from "../../common/VSCodeButtonLink"
+import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
-import { useState } from "react"
-import { getOpenRouterAuthUrl } from "../utils/providerUtils"
-import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
-import VSCodeButtonLink from "../../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getOpenRouterAuthUrl } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
 /**
  * Component to display OpenRouter balance information
  */
@@ -53,14 +52,14 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	uriScheme?: string
+	currentMode: Mode
 }
 
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: OpenRouterProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
+	const { apiConfiguration, uriScheme } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
@@ -142,7 +141,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 						</div>
 					)}
 
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
 				</>
 			)}
 		</div>

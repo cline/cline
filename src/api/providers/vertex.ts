@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
 import { ApiStream } from "@api/transform/stream"
+import { ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
 import { GeminiHandler } from "./gemini"
 
 interface VertexHandlerOptions {
@@ -86,6 +86,7 @@ export class VertexHandler implements ApiHandler {
 
 		switch (modelId) {
 			case "claude-sonnet-4@20250514":
+			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
 			case "claude-3-7-sonnet@20250219":
 			case "claude-3-5-sonnet-v2@20241022":

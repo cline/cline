@@ -1,30 +1,26 @@
+import { McpHub } from "@services/mcp/McpHub"
+import { BrowserSettings } from "@shared/BrowserSettings"
 import { getShell } from "@utils/shell"
 import os from "os"
 import osName from "os-name"
-import { McpHub } from "@services/mcp/McpHub"
-import { BrowserSettings } from "@shared/BrowserSettings"
 
-import {
-	createAntmlToolPrompt,
-	createSimpleXmlToolPrompt,
-	toolDefinitionToSimpleXml,
-} from "@core/prompts/model_prompts/jsonToolToXml"
-import { bashToolDefinition } from "@core/tools/bashTool"
-import { readToolDefinition } from "@core/tools/readTool"
-import { writeToolDefinition } from "@core/tools/writeTool"
-import { lsToolDefinition } from "@core/tools/lsTool"
-import { grepToolDefinition } from "@core/tools/grepTool"
-import { webFetchToolDefinition } from "@core/tools/webFetchTool"
-import { askQuestionToolDefinition } from "@core/tools/askQuestionTool"
-import { useMCPToolDefinition } from "@core/tools/useMcpTool"
-import { listCodeDefinitionNamesToolDefinition } from "@core/tools/listCodeDefinitionNamesTool"
-import { accessMcpResourceToolDefinition } from "@core/tools/accessMcpResourceTool"
-import { planModeRespondToolDefinition } from "@core/tools/planModeRespondTool"
-import { loadMcpDocumentationToolDefinition } from "@core/tools/loadMcpDocumentationTool"
-import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTool"
-import { browserActionToolDefinition } from "@core/tools/browserActionTool"
-import { newTaskToolDefinition } from "@core/tools/newTaskTool"
 import { editToolDefinition } from "@/core/tools/editTool"
+import { createAntmlToolPrompt } from "@core/prompts/model_prompts/jsonToolToXml"
+import { accessMcpResourceToolDefinition } from "@core/tools/accessMcpResourceTool"
+import { askQuestionToolDefinition } from "@core/tools/askQuestionTool"
+import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTool"
+import { bashToolDefinition } from "@core/tools/bashTool"
+import { browserActionToolDefinition } from "@core/tools/browserActionTool"
+import { grepToolDefinition } from "@core/tools/grepTool"
+import { listCodeDefinitionNamesToolDefinition } from "@core/tools/listCodeDefinitionNamesTool"
+import { loadMcpDocumentationToolDefinition } from "@core/tools/loadMcpDocumentationTool"
+import { lsToolDefinition } from "@core/tools/lsTool"
+import { newTaskToolDefinition } from "@core/tools/newTaskTool"
+import { planModeRespondToolDefinition } from "@core/tools/planModeRespondTool"
+import { readToolDefinition } from "@core/tools/readTool"
+import { useMCPToolDefinition } from "@core/tools/useMcpTool"
+import { webFetchToolDefinition } from "@core/tools/webFetchTool"
+import { writeToolDefinition } from "@core/tools/writeTool"
 
 export const SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL = async (
 	cwd: string,
@@ -337,7 +333,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		accessMcpResourceToolDefinition,
 		loadMcpDocumentationTool,
 		newTaskToolDefinition,
-		editToolDefinition,
 	]
 	if (supportsBrowserUse) {
 		tools.push(browserActionTool)

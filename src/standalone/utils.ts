@@ -1,7 +1,7 @@
-import * as fs from "fs"
-import * as protoLoader from "@grpc/proto-loader"
-import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import * as protoLoader from "@grpc/proto-loader"
+import * as fs from "fs"
+import * as health from "grpc-health-check"
 
 const log = (...args: unknown[]) => {
 	const timestamp = new Date().toISOString()
@@ -11,7 +11,8 @@ const log = (...args: unknown[]) => {
 function getPackageDefinition() {
 	// Load service definitions.
 	const descriptorSet = fs.readFileSync("proto/descriptor_set.pb")
-	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet)
+	const options = { longs: Number } // Encode int64 fields as numbers
+	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet, options)
 	const healthDef = protoLoader.loadSync(health.protoPath)
 	const packageDefinition = { ...descriptorDefs, ...healthDef }
 	return packageDefinition
@@ -40,4 +41,4 @@ async function asyncIteratorToCallbacks<T>(stream: AsyncIterable<T>, callbacks: 
 	}
 }
 
-export { getPackageDefinition, log, asyncIteratorToCallbacks }
+export { asyncIteratorToCallbacks, getPackageDefinition, log }

@@ -1,6 +1,6 @@
-import { Controller } from ".."
-import { StringArray, StringRequest } from "../../../shared/proto/common"
+import { StringArray, StringRequest } from "@shared/proto/cline/common"
 import axios from "axios"
+import { Controller } from ".."
 
 /**
  * Fetches available models from Ollama

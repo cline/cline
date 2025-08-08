@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+service CheckpointsService {
+  rpc checkpointDiff(Int64Request) returns (Empty);
+  rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
+}
+
+message CheckpointRestoreRequest {
+  Metadata metadata = 1;
+  int64 number = 2;
+  string restore_type = 3;
+  optional int64 offset = 4;
+}

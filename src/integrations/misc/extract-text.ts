@@ -1,12 +1,12 @@
 import * as path from "path"
 // @ts-ignore-next-line
-import pdf from "pdf-parse/lib/pdf-parse"
-import mammoth from "mammoth"
+import ExcelJS from "exceljs"
 import fs from "fs/promises"
+import * as iconv from "iconv-lite"
 import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
-import * as iconv from "iconv-lite"
-import ExcelJS from "exceljs"
+import mammoth from "mammoth"
+import pdf from "pdf-parse/lib/pdf-parse"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -31,7 +31,16 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
+
+	return callTextExtractionFunctions(filePath)
+}
+
+/**
+ * Expects the fs.access call to have already been performed prior to calling
+ */
+export async function callTextExtractionFunctions(filePath: string): Promise<string> {
 	const fileExtension = path.extname(filePath).toLowerCase()
+
 	switch (fileExtension) {
 		case ".pdf":
 			return extractTextFromPDF(filePath)
