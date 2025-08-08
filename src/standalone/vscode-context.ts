@@ -12,10 +12,11 @@ log("Running standalone cline ", VERSION)
 
 const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
+const INSTALL_DIR = process.env.INSTALL_DIR || path.join(CLINE_DIR, "core", VERSION)
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
-const EXTENSION_DIR = path.join(CLINE_DIR, "core", VERSION, "extension")
+const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {
