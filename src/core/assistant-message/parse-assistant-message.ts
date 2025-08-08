@@ -473,3 +473,5 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 
 	return contentBlocks
 }
+
+// Removed parseAssistantMessageV3 in https://github.com/cline/cline/pull/5421
