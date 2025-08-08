@@ -1,6 +1,5 @@
 import { OpenRouterHandler } from "../../src/api/providers/openrouter"
 import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
-import { ApiHandlerOptions } from "../../src/shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import {
