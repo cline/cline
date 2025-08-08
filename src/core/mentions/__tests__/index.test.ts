@@ -1,16 +1,16 @@
-import { expect } from "chai"
-import * as sinon from "sinon"
-import * as path from "path"
-import { parseMentions } from "../index"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { HostProvider } from "@/hosts/host-provider"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import * as extractTextModule from "@integrations/misc/extract-text"
-import * as isBinaryFileModule from "isbinaryfile"
 import * as terminalModule from "@integrations/terminal/get-latest-output"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import * as gitModule from "@utils/git"
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { expect } from "chai"
 import * as fs from "fs"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import * as isBinaryFileModule from "isbinaryfile"
+import * as path from "path"
+import * as sinon from "sinon"
+import { parseMentions } from "../index"
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -29,13 +29,7 @@ describe("parseMentions", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-			(_) => {},
-		)
+		setVscodeHostProviderMock()
 		// Create stubs for dependencies
 		urlContentFetcherStub = {
 			launchBrowser: sandbox.stub().resolves(),

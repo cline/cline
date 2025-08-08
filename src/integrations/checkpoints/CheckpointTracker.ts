@@ -1,7 +1,7 @@
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 

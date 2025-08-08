@@ -17,16 +17,16 @@ export default defineConfig({
 		{
 			name: "setup test environment",
 			testMatch: /global\.setup\.ts/,
+			teardown: "cleanup test environment",
+		},
+		{
+			name: "cleanup test environment",
+			testMatch: /global\.teardown\.ts/,
 		},
 		{
 			name: "e2e tests",
 			testMatch: /.*\.test\.ts/,
 			dependencies: ["setup test environment"],
-		},
-		{
-			name: "cleanup test environment",
-			testMatch: /global\.teardown\.ts/,
-			dependencies: ["e2e tests"],
 		},
 	],
 })

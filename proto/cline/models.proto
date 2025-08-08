@@ -247,6 +247,7 @@ message ModelsApiConfiguration {
   optional string hugging_face_api_key = 60;
   optional string huawei_cloud_maas_api_key = 61;
   optional string baseten_api_key = 62;
+  optional string ollama_api_key = 63;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

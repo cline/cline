@@ -13,7 +13,6 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpResource,
@@ -134,7 +133,7 @@ export class McpHub {
 		const settingsPath = await this.getMcpSettingsFilePath()
 
 		// Subscribe to file changes using the gRPC WatchService
-		console.log("[DEBUG] subscribing to mcp file changes")
+		//console.log("[DEBUG] subscribing to mcp file changes")
 		const cancelSubscription = HostProvider.watch.subscribeToFile(
 			SubscribeToFileRequest.create({
 				path: settingsPath,
@@ -190,7 +189,7 @@ export class McpHub {
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
 		if (config.disabled) {
-			console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
+			//console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
 			// Create a connection object for disabled server so it appears in UI
 			const disabledConnection: McpConnection = {
 				server: {
@@ -345,7 +344,7 @@ export class McpHub {
 			connection.server.error = ""
 
 			// Register notification handler for real-time messages
-			console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			//console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
 			//console.log(`[MCP Debug] Client instance:`, connection.client)
 			//console.log(`[MCP Debug] Transport type:`, config.type)
 
@@ -369,25 +368,25 @@ export class McpHub {
 
 				// Set the notification handler
 				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
-					console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					const params = notification.params || {}
 					const level = params.level || "info"
 					const data = params.data || params.message || ""
 					const logger = params.logger || ""
 
-					console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+					//console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
 
 					// Format the message
 					const message = logger ? `[${logger}] ${data}` : data
 
 					// Send notification directly to active task if callback is set
 					if (this.notificationCallback) {
-						console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						//console.log(`[MCP Debug] Sending notification to active task: ${message}`)
 						this.notificationCallback(name, level, message)
 					} else {
 						// Fallback: store for later retrieval
-						console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						//console.log(`[MCP Debug] No active task, storing notification: ${message}`)
 						this.pendingNotifications.push({
 							serverName: name,
 							level,
@@ -396,11 +395,11 @@ export class McpHub {
 						})
 					}
 				})
-				console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+				//console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
 
 				// Also set a fallback handler for any other notification types
 				connection.client.fallbackNotificationHandler = async (notification: any) => {
-					console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
 					HostProvider.window.showMessage({
@@ -408,7 +407,7 @@ export class McpHub {
 						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					})
 				}
-				console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+				//console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
 			} catch (error) {
 				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
@@ -1102,7 +1101,7 @@ export class McpHub {
 	 */
 	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
 		this.notificationCallback = callback
-		console.log("[MCP Debug] Notification callback set")
+		//console.log("[MCP Debug] Notification callback set")
 	}
 
 	/**
@@ -1110,7 +1109,7 @@ export class McpHub {
 	 */
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
-		console.log("[MCP Debug] Notification callback cleared")
+		//console.log("[MCP Debug] Notification callback cleared")
 	}
 
 	async dispose(): Promise<void> {

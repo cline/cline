@@ -20,6 +20,16 @@ export function isGrok4ModelFamily(api: ApiHandler): boolean {
 	return modelId.includes("grok-4")
 }
 
+export function isGPT5ModelFamily(api: ApiHandler): boolean {
+	const model = api.getModel()
+	const modelId = model.id.toLowerCase()
+	return modelId.includes("gpt-5") || modelId.includes("gpt5") || modelId.includes("nectarine")
+}
+
+export function isNextGenModelFamily(api: ApiHandler): boolean {
+	return isClaude4ModelFamily(api) || isGemini2dot5ModelFamily(api) || isGrok4ModelFamily(api) || isGPT5ModelFamily(api)
+}
+
 export function modelDoesntSupportWebp(api: ApiHandler): boolean {
 	const model = api.getModel()
 	const modelId = model.id.toLowerCase()
