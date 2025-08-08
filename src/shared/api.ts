@@ -2879,6 +2879,27 @@ export const sapAiCoreModels = {
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
+	"gpt-5": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-nano": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-mini": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	o1: {
 		maxTokens: 4096,
 		contextWindow: 200_000,

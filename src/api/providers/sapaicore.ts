@@ -142,7 +142,20 @@ export class SapAiCoreHandler implements ApiHandler {
 			"anthropic--claude-3-opus",
 		]
 
-		const openAIModels = ["gpt-4o", "gpt-4", "gpt-4o-mini", "o1", "gpt-4.1", "gpt-4.1-nano", "o3-mini", "o3", "o4-mini"]
+		const openAIModels = [
+			"gpt-4o",
+			"gpt-4",
+			"gpt-4o-mini",
+			"o1",
+			"gpt-4.1",
+			"gpt-4.1-nano",
+			"gpt-5",
+			"gpt-5-nano",
+			"gpt-5-mini",
+			"o3-mini",
+			"o3",
+			"o4-mini",
+		]
 
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
