@@ -31,7 +31,7 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: true,
+		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Retry",
 		secondaryText: "Start New Task",
@@ -47,7 +47,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		secondaryAction: "new_task",
 	},
 	auto_approval_max_req_reached: {
-		sendingDisabled: true,
+		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Proceed",
 		secondaryText: "Start New Task",
@@ -180,11 +180,11 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Streaming/partial states - disable interaction during streaming
 	partial: {
 		sendingDisabled: true,
-		enableButtons: false,
-		primaryText: "Cancel",
-		secondaryText: undefined,
-		primaryAction: "cancel",
-		secondaryAction: undefined,
+		enableButtons: true,
+		primaryText: undefined,
+		secondaryText: "Cancel",
+		primaryAction: undefined,
+		secondaryAction: "cancel",
 	},
 
 	// Default states
@@ -198,14 +198,14 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 	api_req_active: {
 		sendingDisabled: true,
-		enableButtons: false,
-		primaryText: "Cancel",
-		secondaryText: undefined,
-		primaryAction: "cancel",
-		secondaryAction: undefined,
+		enableButtons: true,
+		primaryText: undefined,
+		secondaryText: "Cancel",
+		primaryAction: undefined,
+		secondaryAction: "cancel",
 	},
 	switch_to_act_mode: {
-		sendingDisabled: true,
+		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Switch to Act Mode",
 		secondaryText: undefined,

@@ -3,7 +3,7 @@ import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { useCallback } from "react"
 import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
-import { type ButtonActionType } from "../shared/buttonConfig"
+import type { ButtonActionType } from "../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../types/chatTypes"
 
 /**
@@ -213,25 +213,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 			}
 
-			// Disable buttons and reset auto-scroll after action
-			setSendingDisabled(true)
-			setEnableButtons(false)
 			if ("disableAutoScrollRef" in chatState) {
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
 		},
-		[
-			clineAsk,
-			lastMessage,
-			messages,
-			clearInputState,
-			handleSendMessage,
-			startNewTask,
-			setDidClickCancel,
-			setSendingDisabled,
-			setEnableButtons,
-			chatState,
-		],
+		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, setDidClickCancel, chatState],
 	)
 
 	// Unified button click handler that takes action directly

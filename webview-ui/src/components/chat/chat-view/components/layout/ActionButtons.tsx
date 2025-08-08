@@ -2,7 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { BUTTON_CONFIGS, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -62,30 +62,34 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Apply button configuration with a single batched update
 	useEffect(() => {
-		const isCurrentlyStreaming = lastMessage?.partial === true
-		setIsStreaming(isCurrentlyStreaming)
 		// Batch all state updates together to prevent intermediate renders
-		setSendingDisabled(buttonConfig.sendingDisabled)
 		setEnableButtons(buttonConfig.enableButtons)
+		setSendingDisabled(buttonConfig.sendingDisabled)
 		setPrimaryButtonText(buttonConfig.primaryText)
 		setSecondaryButtonText(buttonConfig.secondaryText)
 
 		// Handle special state changes for resume tasks
-		if (lastMessage?.ask === "resume_task" || lastMessage?.ask === "resume_completed_task") {
+		if (task?.ask === "resume_task" || task?.ask === "resume_completed_task") {
 			setDidClickCancel(false)
+		} else {
+			setIsStreaming(task?.partial === true)
 		}
-	}, [buttonConfig, lastMessage?.partial, lastMessage?.ask, setSendingDisabled, setDidClickCancel])
+	}, [buttonConfig, task?.ask, task?.partial, setSendingDisabled, setDidClickCancel])
+
+	const reset = useCallback(() => {
+		const defaultConfig = isStreaming ? BUTTON_CONFIGS.api_req_active : BUTTON_CONFIGS.default
+		setSendingDisabled(defaultConfig.sendingDisabled)
+		setEnableButtons(defaultConfig.enableButtons)
+		setPrimaryButtonText(defaultConfig.primaryText)
+		setSecondaryButtonText(defaultConfig.secondaryText)
+	}, [isStreaming, setSendingDisabled])
 
 	// Reset button state when conversation is cleared
 	useEffect(() => {
 		if (!messages?.length) {
-			const defaultConfig = BUTTON_CONFIGS.default
-			setSendingDisabled(defaultConfig.sendingDisabled)
-			setEnableButtons(defaultConfig.enableButtons)
-			setPrimaryButtonText(defaultConfig.primaryText)
-			setSecondaryButtonText(defaultConfig.secondaryText)
+			reset()
 		}
-	}, [messages.length, setSendingDisabled])
+	}, [messages.length, reset])
 
 	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
 
@@ -130,6 +134,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 						} else {
 							messageHandlers.handleButtonClick(primaryButtonText, inputValue, selectedImages, selectedFiles)
 						}
+						reset()
 					}}>
 					{primaryButtonText}
 				</VSCodeButton>
@@ -137,16 +142,17 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{secondaryButtonText && (
 				<VSCodeButton
 					appearance="secondary"
-					disabled={!enableButtons && !(isStreaming && !didClickCancel)}
+					disabled={isStreaming ? didClickCancel : !enableButtons}
 					className={`${isStreaming ? "flex-[2]" : "flex-1 ml-[6px]"}`}
-					onClick={() =>
+					onClick={() => {
 						messageHandlers.handleButtonClick(
 							isStreaming ? "Cancel" : secondaryButtonText,
 							inputValue,
 							selectedImages,
 							selectedFiles,
 						)
-					}>
+						reset()
+					}}>
 					{isStreaming ? "Cancel" : secondaryButtonText}
 				</VSCodeButton>
 			)}
