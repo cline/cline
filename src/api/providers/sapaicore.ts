@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
-import { ScenarioApi } from "@sap-ai-sdk/ai-api"
 import { OrchestrationClient, LlmModuleConfig, TemplatingModuleConfig, ChatMessages } from "@sap-ai-sdk/orchestration"
 import { ApiHandler } from "../"
 import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
