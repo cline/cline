@@ -166,8 +166,6 @@ function createHandlerForProvider(
 			return new FireworksHandler({
 				fireworksApiKey: options.fireworksApiKey,
 				fireworksModelId: mode === "plan" ? options.planModeFireworksModelId : options.actModeFireworksModelId,
-				fireworksModelMaxCompletionTokens: options.fireworksModelMaxCompletionTokens,
-				fireworksModelMaxTokens: options.fireworksModelMaxTokens,
 			})
 		case "together":
 			return new TogetherHandler({

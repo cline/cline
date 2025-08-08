@@ -3,9 +3,11 @@ import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { fireworksModels } from "@shared/api"
+import { ModelSelector } from "../common/ModelSelector"
+import { ModelInfoView } from "../common/ModelInfoView"
 /**
  * Props for the FireworksProvider component
  */
@@ -35,6 +37,7 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 		}
 		handleFieldChange(field, num)
 	}
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -42,7 +45,19 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 				initialValue={apiConfiguration?.fireworksApiKey || ""}
 				onChange={(value) => handleFieldChange("fireworksApiKey", value)}
 				providerName="Fireworks"
-				signupUrl="https://app.fireworks.ai/login"
+				signupUrl="https://fireworks.ai/"
+			/>
+			<ModelSelector
+				models={fireworksModels}
+				selectedModelId={selectedModelId}
+				onChange={(e: any) => {
+					handleModeFieldChange(
+						{ plan: "planModeFireworksModelId", act: "actModeFireworksModelId" },
+						e.target.value,
+						currentMode,
+					)
+				}}
+				label="Model"
 			/>
 
 			{showModelOptions && (
@@ -87,6 +102,7 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 					</DebouncedTextField>
 				</>
 			)}
+			<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 		</div>
 	)
 }
