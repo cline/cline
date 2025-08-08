@@ -1,6 +1,6 @@
 import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "." // Assuming types are defined in index.ts or a similar file
 
-// parseAssistantmessageV1 removed in PR####
+// parseAssistantmessageV1 removed in PR#5425
 
 /**
  * @description **Version 2**

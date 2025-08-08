@@ -70,7 +70,7 @@ export interface ToolUse {
 	partial: boolean
 }
 
-// parseAssistantmessageV1 removed in PR#XXXX
+// parseAssistantmessageV1 removed in PR#5425
 
 /**
  * @description **Version 2**
