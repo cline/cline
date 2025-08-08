@@ -90,7 +90,7 @@
 		}
 	},
 	"formatter": {
-		"enabled": false,
+		"enabled": true,
 		"indentStyle": "tab",
 		"indentWidth": 4,
 		"lineWidth": 130,
@@ -131,14 +131,10 @@
 			"!**/dist/",
 			"!**/out/**",
 			"!**/evals/**",
-			"!**/.vscode/**",
-			"!**/*-lock.json",
-			"!**/generated/**",
-			"!*.md*",
 			"!**/playwright/**",
 			"!**/test-results/**",
 			"!**/node_modules/**",
-			"!**/webview-ui/build/**"
+			"!webview-ui/build/**"
 		]
 	},
 	"overrides": [
