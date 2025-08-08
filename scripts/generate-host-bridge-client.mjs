@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import * as fs from "fs/promises"
-import * as path from "path"
 import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import chalk from "chalk"
+import * as fs from "fs/promises"
+import * as path from "path"
 
 const IMPL_FILE = path.resolve("src/generated/standalone/host-bridge-clients.ts")
 const INTERFACE_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")

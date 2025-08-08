@@ -1,11 +1,11 @@
-import path from "path"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import fs from "fs/promises"
+import path from "path"
 import { Controller } from ".."
 import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
-import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { getGlobalState, updateGlobalState } from "../../storage/state"
 
 /**
  * Deletes all task history, with an option to preserve favorites

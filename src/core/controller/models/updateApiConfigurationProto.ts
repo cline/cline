@@ -1,9 +1,9 @@
-import type { Controller } from "../index"
+import { buildApiHandler } from "@api/index"
+import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Empty } from "@shared/proto/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/models"
 import { updateApiConfiguration } from "../../storage/state"
-import { buildApiHandler } from "@api/index"
-import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
+import type { Controller } from "../index"
 
 /**
  * Updates API configuration

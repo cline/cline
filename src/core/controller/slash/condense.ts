@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { StringRequest, Empty } from "../../../shared/proto/common"
+import { Empty, StringRequest } from "../../../shared/proto/common"
 
 /**
  * Command slash command logic

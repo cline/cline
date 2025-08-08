@@ -1,3 +1,4 @@
+import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/common"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -5,14 +6,13 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface RequestyModelPickerProps {

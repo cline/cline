@@ -1,19 +1,19 @@
-import { Channel, createChannel } from "nice-grpc"
-import {
-	WatchServiceClientImpl,
-	WorkspaceServiceClientImpl,
-	EnvServiceClientImpl,
-	WindowServiceClientImpl,
-	DiffServiceClientImpl,
-} from "@generated/standalone/host-bridge-clients"
-import {
-	WatchServiceClientInterface,
-	WorkspaceServiceClientInterface,
-	EnvServiceClientInterface,
-	WindowServiceClientInterface,
-	DiffServiceClientInterface,
-} from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+import {
+	DiffServiceClientInterface,
+	EnvServiceClientInterface,
+	WatchServiceClientInterface,
+	WindowServiceClientInterface,
+	WorkspaceServiceClientInterface,
+} from "@generated/hosts/host-bridge-client-types"
+import {
+	DiffServiceClientImpl,
+	EnvServiceClientImpl,
+	WatchServiceClientImpl,
+	WindowServiceClientImpl,
+	WorkspaceServiceClientImpl,
+} from "@generated/standalone/host-bridge-clients"
+import { Channel, createChannel } from "nice-grpc"
 
 /**
  * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid

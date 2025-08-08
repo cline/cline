@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
+import chalk from "chalk"
+import { execSync } from "child_process"
 import * as fs from "fs/promises"
+import { globby } from "globby"
+import os from "os"
 import * as path from "path"
 import { fileURLToPath } from "url"
-import { execSync } from "child_process"
-import { globby } from "globby"
-import chalk from "chalk"
-import os from "os"
 
 import { createRequire } from "module"
-import { serviceNameMap, hostServiceNameMap } from "./build-proto-config.js"
+import { hostServiceNameMap, serviceNameMap } from "./build-proto-config.js"
 
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")

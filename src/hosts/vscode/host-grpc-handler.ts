@@ -1,6 +1,6 @@
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
-import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
+import { HostServiceHandlerConfig, hostServiceHandlers } from "./host-grpc-service-config"
 
 /**
  * Type definition for a streaming response handler

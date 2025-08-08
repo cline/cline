@@ -1,9 +1,9 @@
+import { ApiHandler } from "@/api"
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
+import { calculateApiCostAnthropic } from "@/utils/cost"
 import { serializeError } from "serialize-error"
 import { MessageStateHandler } from "./message-state"
-import { calculateApiCostAnthropic } from "@/utils/cost"
-import { ApiHandler } from "@/api"
 
 export function formatErrorWithStatusCode(error: any): string {
 	const statusCode = error.status || error.statusCode || (error.response && error.response.status)

@@ -1,9 +1,9 @@
-import { ApiConfiguration, mistralModels } from "@shared/api"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { mistralModels } from "@shared/api"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**

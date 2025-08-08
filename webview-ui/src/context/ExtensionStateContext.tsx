@@ -1,24 +1,17 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import "../../../src/shared/webview/types"
-import {
-	StateServiceClient,
-	ModelsServiceClient,
-	UiServiceClient,
-	FileServiceClient,
-	McpServiceClient,
-} from "../services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { UpdateSettingsRequest } from "@shared/proto/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
-import { TerminalProfile } from "@shared/proto/state"
-import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS, BrowserSettings } from "@shared/BrowserSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { UserInfo } from "@shared/proto/account"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
+import { TerminalProfile, UpdateSettingsRequest } from "@shared/proto/state"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -28,9 +21,15 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import "../../../src/shared/webview/types"
+import {
+	FileServiceClient,
+	McpServiceClient,
+	ModelsServiceClient,
+	StateServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
-import { UserInfo } from "@shared/proto/account"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean

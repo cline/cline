@@ -1,12 +1,12 @@
-import { EmptyRequest } from "@shared/proto/common"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState, useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import * as vscodemodels from "vscode"
-import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 export const VSCodeLmProvider = () => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])

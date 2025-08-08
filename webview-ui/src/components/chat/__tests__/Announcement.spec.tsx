@@ -1,7 +1,7 @@
-import React from "react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import React from "react"
+import { describe, expect, it, vi } from "vitest"
 import Announcement from "../Announcement"
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({

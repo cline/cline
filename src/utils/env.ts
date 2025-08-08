@@ -1,5 +1,5 @@
 import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { StringRequest, EmptyRequest } from "@/shared/proto/common"
+import { EmptyRequest, StringRequest } from "@/shared/proto/common"
 
 /**
  * Writes text to the system clipboard

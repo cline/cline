@@ -1,4 +1,7 @@
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { AuthService } from "@/services/auth/AuthService"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
@@ -30,12 +33,9 @@ import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalF
 import { getAllExtensionState, getGlobalState, getWorkspaceState, storeSecret, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
+import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
-import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { AuthService } from "@/services/auth/AuthService"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

@@ -1,9 +1,9 @@
-import path from "path"
-import { GlobalFileNames, ensureWorkflowsDirectoryExists } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { getWorkspaceState, updateWorkspaceState, getGlobalState, updateGlobalState } from "@core/storage/state"
-import * as vscode from "vscode"
 import { synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
+import { GlobalFileNames, ensureWorkflowsDirectoryExists } from "@core/storage/disk"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import path from "path"
+import * as vscode from "vscode"
 
 /**
  * Refresh the workflow toggles

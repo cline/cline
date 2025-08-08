@@ -1,9 +1,9 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
-import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { memo } from "react"
+import styled from "styled-components"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);

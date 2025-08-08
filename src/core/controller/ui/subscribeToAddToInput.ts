@@ -1,8 +1,6 @@
-import * as vscode from "vscode"
-import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { String as ProtoString } from "../../../shared/proto/common"
+import { EmptyRequest, String as ProtoString } from "../../../shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active addToInput subscriptions
 const activeAddToInputSubscriptions = new Set<StreamingResponseHandler>()

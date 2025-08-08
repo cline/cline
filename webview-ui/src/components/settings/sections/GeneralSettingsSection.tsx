@@ -1,8 +1,8 @@
-import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { updateSetting } from "../utils/settingsHandlers"
+import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
+import { updateSetting } from "../utils/settingsHandlers"
 
 interface GeneralSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null

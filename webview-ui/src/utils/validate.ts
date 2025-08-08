@@ -1,4 +1,4 @@
-import { ApiConfiguration, openRouterDefaultModelId, ModelInfo } from "@shared/api"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
 
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {

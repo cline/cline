@@ -1,7 +1,7 @@
-import { useEffect, type ReactNode } from "react"
-import { PostHogProvider } from "posthog-js/react"
-import posthog from "posthog-js"
 import { posthogConfig } from "@shared/services/config/posthog-config"
+import posthog from "posthog-js"
+import { PostHogProvider } from "posthog-js/react"
+import { useEffect, type ReactNode } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {

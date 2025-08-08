@@ -1,7 +1,7 @@
-import type { Controller } from "../index"
 import type { StringRequest } from "../../../shared/proto/common"
 import { Empty } from "../../../shared/proto/common"
 import { openUrlInBrowser } from "../../../utils/github-url-utils"
+import type { Controller } from "../index"
 
 /**
  * Opens a URL in the default browser

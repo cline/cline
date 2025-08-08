@@ -1,10 +1,10 @@
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType, ShowTextDocumentOptions, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { writeFile } from "@utils/fs"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { writeFile } from "@utils/fs"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name

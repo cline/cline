@@ -1,6 +1,6 @@
-import { StateServiceClient, BrowserServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest } from "@shared/proto/state"
+import { BrowserServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { UpdateBrowserSettingsRequest } from "@shared/proto/browser"
+import { UpdateSettingsRequest } from "@shared/proto/state"
 
 /**
  * Updates a single field in the settings.

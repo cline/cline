@@ -1,9 +1,9 @@
-import { useCallback } from "react"
-import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
-import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
+import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
+import { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
-import { MessageHandlers, ChatState } from "../types/chatTypes"
+import { useCallback } from "react"
+import { ChatState, MessageHandlers } from "../types/chatTypes"
 
 /**
  * Custom hook for managing message handlers

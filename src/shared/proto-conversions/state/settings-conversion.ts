@@ -1,9 +1,9 @@
 import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
 import { ChatSettings } from "@shared/ChatSettings"
 import {
+	PlanActMode,
 	ApiConfiguration as ProtoApiConfiguration,
 	ChatSettings as ProtoChatSettings,
-	PlanActMode,
 } from "../../../shared/proto/state"
 
 /**

@@ -1,7 +1,7 @@
+import { updateGlobalState } from "@/core/storage/state"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { Controller } from ".."
 import { Empty, StringRequest } from "../../../shared/proto/common"
-import { updateGlobalState } from "@/core/storage/state"
 
 /**
  * Toggles a model's favorite status

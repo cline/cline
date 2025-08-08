@@ -1,17 +1,17 @@
 import {
 	ApiConfiguration,
 	ApiProvider,
+	LiteLLMModelInfo as AppLiteLLMModelInfo,
+	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
 	BedrockModelId,
 	ModelInfo,
-	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
-	LiteLLMModelInfo as AppLiteLLMModelInfo,
 } from "../../api"
 import {
-	ModelsApiConfiguration as ProtoApiConfiguration,
-	ApiProvider as ProtoApiProvider,
 	LiteLLMModelInfo,
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
+	ModelsApiConfiguration as ProtoApiConfiguration,
+	ApiProvider as ProtoApiProvider,
 	ThinkingConfig,
 } from "../../proto/models"
 

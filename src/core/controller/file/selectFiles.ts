@@ -1,6 +1,6 @@
-import { Controller } from ".."
-import { BooleanRequest, StringArrays } from "@shared/proto/common"
 import { selectFiles as selectFilesIntegration } from "@integrations/misc/process-files"
+import { BooleanRequest, StringArrays } from "@shared/proto/common"
+import { Controller } from ".."
 import { FileMethodHandler } from "./index"
 
 /**

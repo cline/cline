@@ -1,7 +1,7 @@
 import type { EmptyRequest } from "../../../shared/proto/common"
 import { Boolean } from "../../../shared/proto/common"
-import type { Controller } from "../index"
 import { getGlobalState, updateGlobalState } from "../../storage/state"
+import type { Controller } from "../index"
 
 /**
  * Marks the current announcement as shown and returns the updated shouldShowAnnouncement value

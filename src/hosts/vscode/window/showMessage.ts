@@ -1,5 +1,5 @@
-import { window } from "vscode"
 import { SelectedResponse, ShowMessageRequest, ShowMessageType } from "@/shared/proto/index.host"
+import { window } from "vscode"
 
 export async function showMessage(request: ShowMessageRequest): Promise<SelectedResponse | undefined> {
 	const { message, type, options } = request

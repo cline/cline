@@ -1,7 +1,6 @@
-import { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { EmptyRequest } from "@shared/proto/common"
+import { Empty, EmptyRequest } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active chatButtonClicked subscriptions by controller ID
 const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHandler>()

@@ -1,10 +1,10 @@
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
-import { ChatSettings } from "./ChatSettings"
-import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
-import { TelemetrySetting } from "./TelemetrySetting"
+import { ChatSettings } from "./ChatSettings"
 import { McpViewTab } from "./mcp"
+import { TelemetrySetting } from "./TelemetrySetting"
+import { UserInfo } from "./UserInfo"
 
 export interface WebviewMessage {
 	type:

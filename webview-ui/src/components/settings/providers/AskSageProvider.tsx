@@ -1,10 +1,10 @@
-import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { askSageDefaultURL, askSageModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**

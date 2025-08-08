@@ -1,3 +1,4 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { bedrockDefaultModelId, bedrockModels } from "@shared/api"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
@@ -6,7 +7,6 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Z-index constants for proper dropdown layering

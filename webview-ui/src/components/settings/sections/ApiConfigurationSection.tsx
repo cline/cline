@@ -1,10 +1,10 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
+import { UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
 import Section from "../Section"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest } from "@shared/proto/state"
 
 interface ApiConfigurationSectionProps {
 	isSwitchingMode: boolean

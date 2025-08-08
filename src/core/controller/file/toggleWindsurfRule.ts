@@ -1,8 +1,8 @@
+import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
+import { getWorkspaceState, updateWorkspaceState } from "../../../core/storage/state"
 import type { ToggleWindsurfRuleRequest } from "../../../shared/proto/file"
 import { ClineRulesToggles } from "../../../shared/proto/file"
 import type { Controller } from "../index"
-import { getWorkspaceState, updateWorkspaceState } from "../../../core/storage/state"
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Windsurf rule (enable or disable)

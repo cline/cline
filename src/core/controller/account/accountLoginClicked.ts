@@ -1,7 +1,6 @@
-import { Controller } from "../index"
 import { AuthService } from "@/services/auth/AuthService"
 import { EmptyRequest, String } from "../../../shared/proto/common"
-import { openExternal } from "@utils/env"
+import { Controller } from "../index"
 
 const authService = AuthService.getInstance()
 

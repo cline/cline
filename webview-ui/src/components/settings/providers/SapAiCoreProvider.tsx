@@ -1,11 +1,11 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { sapAiCoreModels } from "@shared/api"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the SapAiCoreProvider component

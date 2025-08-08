@@ -1,14 +1,14 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
+import * as diskModule from "@core/storage/disk"
+import * as hostProviders from "@hosts/host-providers"
 import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import * as path from "path"
+import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
 import { FileContextTracker } from "./FileContextTracker"
-import * as diskModule from "@core/storage/disk"
-import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
-import * as hostProviders from "@hosts/host-providers"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox

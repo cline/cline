@@ -1,4 +1,5 @@
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { flip, offset, shift, useFloating } from "@floating-ui/react"
 import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
@@ -8,7 +9,6 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import styled from "styled-components"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface CheckmarkControlProps {
 	messageTs?: number

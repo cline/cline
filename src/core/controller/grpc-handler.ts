@@ -1,6 +1,6 @@
-import { Controller } from "./index"
-import { serviceHandlers } from "./grpc-service-config"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
+import { serviceHandlers } from "./grpc-service-config"
+import { Controller } from "./index"
 
 /**
  * Type definition for a streaming response handler

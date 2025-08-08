@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useMemo, useState } from "react"
+import styled from "styled-components"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants

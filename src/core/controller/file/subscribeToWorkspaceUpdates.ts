@@ -1,6 +1,6 @@
-import { Controller } from "../index"
 import { EmptyRequest, StringArray } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active subscriptions
 const activeWorkspaceUpdateSubscriptions = new Set<StreamingResponseHandler>()

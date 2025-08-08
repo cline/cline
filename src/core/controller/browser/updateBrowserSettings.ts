@@ -1,8 +1,8 @@
+import { DEFAULT_BROWSER_SETTINGS, BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { UpdateBrowserSettingsRequest } from "../../../shared/proto/browser"
 import { Boolean } from "../../../shared/proto/common"
+import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { Controller } from "../index"
-import { updateGlobalState, getGlobalState } from "../../storage/state"
-import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 
 /**
  * Update browser settings

@@ -1,7 +1,6 @@
 import { EventEmitter } from "events"
-import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
-import { Logger } from "@services/logging/Logger"
+import { stripAnsi } from "./ansiUtils"
 import { getLatestTerminalOutput } from "./get-latest-output"
 
 export interface TerminalProcessEvents {

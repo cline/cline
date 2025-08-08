@@ -1,8 +1,8 @@
-import { Controller } from ".."
-import { OpenAiModelsRequest } from "../../../shared/proto/models"
-import { StringArray } from "../../../shared/proto/common"
-import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
+import axios from "axios"
+import { Controller } from ".."
+import { StringArray } from "../../../shared/proto/common"
+import { OpenAiModelsRequest } from "../../../shared/proto/models"
 
 /**
  * Fetches available models from the OpenAI API

@@ -1,10 +1,10 @@
-import { Controller } from ".."
-import { Boolean } from "../../../shared/proto/common"
-import { TogglePlanActModeRequest } from "../../../shared/proto/state"
 import {
 	convertProtoChatContentToChatContent,
 	convertProtoChatSettingsToChatSettings,
 } from "@shared/proto-conversions/state/chat-settings-conversion"
+import { Controller } from ".."
+import { Boolean } from "../../../shared/proto/common"
+import { TogglePlanActModeRequest } from "../../../shared/proto/state"
 
 /**
  * Toggles between Plan and Act modes

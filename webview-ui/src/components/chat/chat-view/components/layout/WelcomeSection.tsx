@@ -1,10 +1,10 @@
-import React from "react"
-import TelemetryBanner from "@/components/common/TelemetryBanner"
 import Announcement from "@/components/chat/Announcement"
-import HomeHeader from "@/components/welcome/HomeHeader"
-import HistoryPreview from "@/components/history/HistoryPreview"
-import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import AutoApproveBar from "@/components/chat/auto-approve-menu/AutoApproveBar"
+import TelemetryBanner from "@/components/common/TelemetryBanner"
+import HistoryPreview from "@/components/history/HistoryPreview"
+import HomeHeader from "@/components/welcome/HomeHeader"
+import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
+import React from "react"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**

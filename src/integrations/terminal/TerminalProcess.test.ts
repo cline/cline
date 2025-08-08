@@ -1,8 +1,8 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import * as sinon from "sinon"
-import { TerminalProcess } from "./TerminalProcess"
 import * as vscode from "vscode"
+import { TerminalProcess } from "./TerminalProcess"
 import { TerminalRegistry } from "./TerminalRegistry"
 
 declare module "vscode" {

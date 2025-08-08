@@ -1,6 +1,6 @@
-import { Controller } from "../index"
 import { Empty, EmptyRequest } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Track subscriptions by controller ID
 const activeSubscriptions = new Map<string, StreamingResponseHandler>()

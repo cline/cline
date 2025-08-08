@@ -1,6 +1,6 @@
-import * as vscode from "vscode"
-import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as vscode from "vscode"
 describe("Chat Integration Tests", () => {
 	let panel: vscode.WebviewPanel
 	let disposables: vscode.Disposable[] = []

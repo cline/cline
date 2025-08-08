@@ -1,12 +1,12 @@
-import type { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
-import { handleModelsServiceRequest } from "../models"
-import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
-import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { OpenRouterCompatibleModelInfo } from "@/shared/proto/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { Empty, EmptyRequest } from "@shared/proto/common"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
+import type { Controller } from "../index"
+import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
+import { handleModelsServiceRequest } from "../models"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
  * Initialize webview when it launches

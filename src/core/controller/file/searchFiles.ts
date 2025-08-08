@@ -1,9 +1,9 @@
-import { Controller } from ".."
-import { FileSearchRequest, FileSearchResults } from "@shared/proto/file"
 import { searchWorkspaceFiles } from "@services/search/file-search"
-import { getWorkspacePath } from "@utils/path"
-import { FileMethodHandler } from "./index"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { FileSearchRequest, FileSearchResults } from "@shared/proto/file"
+import { getWorkspacePath } from "@utils/path"
+import { Controller } from ".."
+import { FileMethodHandler } from "./index"
 
 /**
  * Searches for files in the workspace with fuzzy matching

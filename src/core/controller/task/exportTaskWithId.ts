@@ -1,5 +1,5 @@
-import { Controller } from ".."
 import { Empty, StringRequest } from "@shared/proto/common"
+import { Controller } from ".."
 import { TaskMethodHandler } from "./index"
 
 /**

@@ -1,5 +1,5 @@
-import { PostHog } from "posthog-node"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
+import { PostHog } from "posthog-node"
 
 class PostHogClientProvider {
 	private static instance: PostHogClientProvider

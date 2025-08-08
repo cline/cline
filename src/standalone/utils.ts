@@ -1,7 +1,7 @@
-import * as fs from "fs"
-import * as protoLoader from "@grpc/proto-loader"
-import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import * as protoLoader from "@grpc/proto-loader"
+import * as fs from "fs"
+import * as health from "grpc-health-check"
 
 const log = (...args: unknown[]) => {
 	const timestamp = new Date().toISOString()
@@ -40,4 +40,4 @@ async function asyncIteratorToCallbacks<T>(stream: AsyncIterable<T>, callbacks: 
 	}
 }
 
-export { getPackageDefinition, log, asyncIteratorToCallbacks }
+export { asyncIteratorToCallbacks, getPackageDefinition, log }

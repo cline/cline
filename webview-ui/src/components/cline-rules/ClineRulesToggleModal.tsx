@@ -2,7 +2,6 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Tooltip from "@/components/common/Tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { EmptyRequest } from "@shared/proto/common"
 import {
 	ClineRulesToggles,

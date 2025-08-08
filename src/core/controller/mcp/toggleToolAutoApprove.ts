@@ -1,7 +1,7 @@
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import type { ToggleToolAutoApproveRequest } from "@shared/proto/mcp"
 import { McpServers } from "@shared/proto/mcp"
 import type { Controller } from "../index"
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 
 /**
  * Toggles auto-approve setting for MCP server tools

@@ -1,7 +1,7 @@
+import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 import type { Empty } from "@shared/proto/common"
 import { McpServers } from "@shared/proto/mcp"
 import type { Controller } from "../index"
-import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 
 /**
  * RPC handler for getting the latest MCP servers

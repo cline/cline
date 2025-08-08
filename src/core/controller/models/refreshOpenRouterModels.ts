@@ -1,11 +1,11 @@
+import { GlobalFileNames } from "@core/storage/disk"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
 import { Controller } from ".."
 import { EmptyRequest } from "../../../shared/proto/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "../../../shared/proto/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
-import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
 
 /**
  * Refreshes the OpenRouter models and returns the updated model list

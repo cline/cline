@@ -1,13 +1,13 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { xaiModels } from "@shared/api"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useState } from "react"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the XaiProvider component
