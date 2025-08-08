@@ -50,10 +50,6 @@ export class FireworksHandler implements ApiHandler {
 
 		const stream = await client.chat.completions.create({
 			model: modelId,
-			...(this.options.fireworksModelMaxCompletionTokens
-				? { max_completion_tokens: this.options.fireworksModelMaxCompletionTokens }
-				: {}),
-			...(this.options.fireworksModelMaxTokens ? { max_tokens: this.options.fireworksModelMaxTokens } : {}),
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },

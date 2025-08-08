@@ -8,7 +8,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			apiProvider,
 			openAiModelId,
 			requestyModelId,
-			fireworksModelId,
 			togetherModelId,
 			ollamaModelId,
 			lmStudioModelId,
