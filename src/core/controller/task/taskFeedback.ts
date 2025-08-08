@@ -1,6 +1,6 @@
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { Controller } from ".."
 import { Empty, StringRequest } from "../../../shared/proto/common"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 
 /**
  * Handles task feedback submission (thumbs up/down)

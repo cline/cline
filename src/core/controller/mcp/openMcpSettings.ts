@@ -1,6 +1,6 @@
-import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, EmptyRequest } from "@shared/proto/common"
 import { Controller } from ".."
+import { Empty, EmptyRequest } from "@shared/proto/common"
+import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 
 /**
  * Opens the MCP settings file in the editor

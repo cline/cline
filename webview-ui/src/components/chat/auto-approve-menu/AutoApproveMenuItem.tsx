@@ -1,8 +1,8 @@
-import HeroTooltip from "@/components/common/HeroTooltip"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import styled from "styled-components"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { ActionMetadata } from "./types"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 interface AutoApproveMenuItemProps {
 	action: ActionMetadata

@@ -1,6 +1,6 @@
+import React, { useMemo } from "react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
-import { useMemo } from "react"
 
 /**
  * Hook to determine if the chat is currently streaming

@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { convertToOpenAiMessages } from "@api/transform/openai-format"
-import { convertToR1Format } from "@api/transform/r1-format"
-import { ApiStream } from "@api/transform/stream"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandler } from "../index"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { ApiStream } from "@api/transform/stream"
+import { convertToR1Format } from "@api/transform/r1-format"
 
 interface TogetherHandlerOptions {
 	togetherApiKey?: string

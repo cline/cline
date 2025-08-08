@@ -1,5 +1,5 @@
-import getFolderSize from "get-folder-size"
 import path from "path"
+import getFolderSize from "get-folder-size"
 
 /**
  * Gets the total size of tasks and checkpoints directories

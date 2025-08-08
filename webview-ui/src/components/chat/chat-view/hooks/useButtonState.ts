@@ -1,6 +1,6 @@
-import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { useEffect } from "react"
 import { useDeepCompareEffect } from "react-use"
+import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { ChatState } from "../types/chatTypes"
 
 /**

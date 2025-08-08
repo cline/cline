@@ -1,5 +1,5 @@
+import React, { useCallback, useRef, useEffect } from "react"
 import { SlashCommand, getMatchingSlashCommands } from "@/utils/slash-commands"
-import React, { useCallback, useEffect, useRef } from "react"
 
 interface SlashCommandMenuProps {
 	onSelect: (command: SlashCommand) => void

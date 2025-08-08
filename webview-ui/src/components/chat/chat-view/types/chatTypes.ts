@@ -2,7 +2,7 @@
  * Shared types and interfaces for the chat view components
  */
 
-import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
 import { VirtuosoHandle } from "react-virtuoso"
 
 /**

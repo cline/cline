@@ -1,6 +1,7 @@
-import { Empty, EmptyRequest } from "@shared/proto/common"
-import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import { Controller } from "../index"
+import { Empty } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/common"
+import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active mcpButtonClicked subscriptions by controller ID
 const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHandler>()

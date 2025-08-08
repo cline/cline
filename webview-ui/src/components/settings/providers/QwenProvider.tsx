@@ -1,12 +1,12 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { internationalQwenModels, mainlandQwenModels } from "@shared/api"
+import { ApiConfiguration, internationalQwenModels, mainlandQwenModels } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const SUPPORTED_THINKING_MODELS = [

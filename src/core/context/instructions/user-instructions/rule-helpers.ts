@@ -1,9 +1,9 @@
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
-import fs from "fs/promises"
 import * as path from "path"
+import fs from "fs/promises"
+import { ClineRulesToggles } from "@shared/cline-rules"
 import * as vscode from "vscode"
 
 /**

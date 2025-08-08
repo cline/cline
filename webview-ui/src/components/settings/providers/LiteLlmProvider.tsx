@@ -1,13 +1,13 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import { useState } from "react"
 import { liteLlmModelInfoSaneDefaults } from "@shared/api"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the LiteLlmProvider component

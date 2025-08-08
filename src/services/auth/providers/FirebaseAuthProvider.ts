@@ -3,9 +3,9 @@ import { ErrorService } from "@/services/error/ErrorService"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
 import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCredential } from "firebase/auth"
-import { jwtDecode } from "jwt-decode"
 import { ExtensionContext } from "vscode"
 import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { jwtDecode } from "jwt-decode"
 
 export class FirebaseAuthProvider {
 	private _config: any

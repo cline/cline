@@ -1,8 +1,8 @@
-import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/common"
-import path from "path"
 import { Controller } from ".."
+import { Empty, StringRequest } from "@shared/proto/common"
+import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { FileMethodHandler } from "./index"
+import path from "path"
 /**
  * Opens a file in the editor
  * @param controller The controller instance

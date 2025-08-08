@@ -13,11 +13,11 @@
  * fields containing special characters.
  */
 
-import { openExternal, writeTextToClipboard } from "@/utils/env"
+import * as vscode from "vscode"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
-import * as vscode from "vscode"
+import { writeTextToClipboard, openExternal } from "@/utils/env"
 
 /**
  * Creates a properly encoded GitHub issue URL.

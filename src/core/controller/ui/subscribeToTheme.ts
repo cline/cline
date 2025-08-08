@@ -1,7 +1,7 @@
-import { getTheme } from "@integrations/theme/getTheme"
+import { Controller } from "../index"
 import { EmptyRequest, String } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
-import { Controller } from "../index"
+import { getTheme } from "@integrations/theme/getTheme"
 
 // Keep track of active theme subscriptions
 const activeThemeSubscriptions = new Set<StreamingResponseHandler>()

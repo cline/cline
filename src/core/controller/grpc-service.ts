@@ -1,5 +1,5 @@
-import { StreamingResponseHandler } from "./grpc-handler"
 import { Controller } from "./index"
+import { StreamingResponseHandler } from "./grpc-handler"
 
 /**
  * Generic type for service method handlers

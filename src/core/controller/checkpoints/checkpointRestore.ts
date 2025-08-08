@@ -1,8 +1,8 @@
-import pWaitFor from "p-wait-for"
 import { Controller } from ".."
 import { ClineCheckpointRestore } from "../../../shared/WebviewMessage"
 import { CheckpointRestoreRequest } from "../../../shared/proto/checkpoints"
 import { Empty } from "../../../shared/proto/common"
+import pWaitFor from "p-wait-for"
 
 export async function checkpointRestore(controller: Controller, request: CheckpointRestoreRequest): Promise<Empty> {
 	await controller.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs

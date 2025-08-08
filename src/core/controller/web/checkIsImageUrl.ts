@@ -1,7 +1,7 @@
-import { detectImageUrl } from "@integrations/misc/link-preview"
+import { Controller } from "../index"
 import { StringRequest } from "../../../shared/proto/common"
 import { IsImageUrl } from "../../../shared/proto/web"
-import { Controller } from "../index"
+import { detectImageUrl } from "@integrations/misc/link-preview"
 
 /**
  * Checks if a URL is an image URL

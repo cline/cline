@@ -1,7 +1,7 @@
+import { Controller } from "../index"
 import { EmptyRequest } from "@shared/proto/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
-import { Controller } from "../index"
 
 // Keep track of active OpenRouter models subscriptions
 const activeOpenRouterModelsSubscriptions = new Set<StreamingResponseHandler>()

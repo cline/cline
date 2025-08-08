@@ -1,10 +1,12 @@
-import { getCwd } from "@/utils/path"
-import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
-import { getGlobalState, getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
-import type { ClineMessage } from "@shared/ExtensionMessage"
 import * as path from "path"
 import * as vscode from "vscode"
+import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
+import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
+import { getGlobalState } from "@core/storage/state"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { getCwd } from "@/utils/path"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.

@@ -1,8 +1,8 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 
 const PreferredLanguageSetting: React.FC = () => {
 	const { chatSettings } = useExtensionState()

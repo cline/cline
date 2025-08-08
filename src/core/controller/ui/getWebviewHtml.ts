@@ -1,7 +1,7 @@
-import { WebviewProviderType } from "@/shared/webview/types"
-import * as hostProviders from "@hosts/host-providers"
-import { EmptyRequest, String } from "@shared/proto/common"
 import type { Controller } from "../index"
+import { EmptyRequest, Empty, String } from "@shared/proto/common"
+import * as hostProviders from "@hosts/host-providers"
+import { WebviewProviderType } from "@/shared/webview/types"
 
 /**
  * Initialize webview when it launches

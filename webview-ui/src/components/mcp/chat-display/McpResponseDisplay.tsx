@@ -1,12 +1,12 @@
-import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import React, { useEffect, useState, useCallback } from "react"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react" // Import ProgressRing
-import React, { useCallback, useEffect, useState } from "react"
-import styled from "styled-components"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
-import ImagePreview from "./ImagePreview"
 import LinkPreview from "./LinkPreview"
-import { checkIfImageUrl, formatUrlForOpening, isLocalhostUrl, isUrl } from "./utils/mcpRichUtil"
+import ImagePreview from "./ImagePreview"
+import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import { isUrl, isLocalhostUrl, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response
 export const MAX_URLS = 50

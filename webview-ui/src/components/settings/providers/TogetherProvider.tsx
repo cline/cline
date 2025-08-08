@@ -1,6 +1,7 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiKeyField } from "../common/ApiKeyField"
+import { ApiConfiguration } from "@shared/api"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**

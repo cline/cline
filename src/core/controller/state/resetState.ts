@@ -1,10 +1,10 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Controller } from ".."
-import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { Empty } from "../../../shared/proto/common"
 import { ResetStateRequest } from "../../../shared/proto/state"
+import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /**
  * Resets the extension state to its defaults

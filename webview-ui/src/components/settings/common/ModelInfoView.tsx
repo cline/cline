@@ -1,14 +1,15 @@
-import { ModelInfo, geminiModels } from "@shared/api"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, useState } from "react"
+import { ModelInfo, geminiModels } from "@shared/api"
 import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 import {
 	formatPrice,
-	formatTokenLimit,
-	formatTokenPrice,
 	hasThinkingBudget,
-	supportsBrowserUse,
 	supportsImages,
+	supportsBrowserUse,
 	supportsPromptCache,
+	formatTokenPrice,
+	formatTokenLimit,
 } from "../utils/pricingUtils"
 
 /**

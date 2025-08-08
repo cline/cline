@@ -1,6 +1,6 @@
-import { BrowserSession } from "../../../services/browser/BrowserSession"
 import { EmptyRequest, String as StringMessage } from "../../../shared/proto/common"
 import { Controller } from "../index"
+import { BrowserSession } from "../../../services/browser/BrowserSession"
 
 /**
  * Relaunch Chrome in debug mode

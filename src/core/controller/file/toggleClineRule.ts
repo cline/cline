@@ -1,8 +1,8 @@
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
-import type { ToggleClineRuleRequest } from "../../../shared/proto/file"
 import { ToggleClineRules } from "../../../shared/proto/file"
+import type { ToggleClineRuleRequest } from "../../../shared/proto/file"
 import type { Controller } from "../index"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
+import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Cline rule (enable or disable)

@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
-import { calculateApiCostOpenAI } from "../../utils/cost"
 import { withRetry } from "../retry"
+import { ApiHandler } from "../"
+import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "@shared/api"
+import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 interface DeepSeekHandlerOptions {
 	deepSeekApiKey?: string

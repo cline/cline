@@ -1,6 +1,7 @@
-import { writeTextToClipboard } from "@/utils/env"
+import * as vscode from "vscode"
 import { Controller } from ".."
 import { Empty, StringRequest } from "../../../shared/proto/common"
+import { writeTextToClipboard } from "@/utils/env"
 
 /**
  * Copies text to the system clipboard

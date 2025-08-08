@@ -1,11 +1,11 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { anthropicModels } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode

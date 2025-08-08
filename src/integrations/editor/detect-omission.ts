@@ -1,5 +1,5 @@
-import { openExternal } from "@utils/env"
 import * as vscode from "vscode"
+import { openExternal } from "@utils/env"
 
 /**
  * Detects potential AI-generated code omissions in the given file content.

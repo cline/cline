@@ -1,10 +1,10 @@
-import { McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
+import { McpServer, McpTool, McpResource, McpResourceTemplate } from "../../mcp"
 import {
-	McpServerStatus,
-	McpResource as ProtoMcpResource,
-	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
 	McpTool as ProtoMcpTool,
+	McpResource as ProtoMcpResource,
+	McpResourceTemplate as ProtoMcpResourceTemplate,
+	McpServerStatus,
 } from "../../proto/mcp"
 
 // Helper to convert TS status to Proto enum

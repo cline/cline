@@ -1,10 +1,10 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
 import { Controller } from ".."
 import { FileMethodHandler } from "./index"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Deletes a rule file from either global or workspace rules directory

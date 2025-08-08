@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises"
-import { after, describe, it } from "mocha"
+import { describe, it, after } from "mocha"
 import path from "path"
 import "should"
 import * as vscode from "vscode"

@@ -1,6 +1,6 @@
-import { openImage as openImageIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/common"
 import { Controller } from ".."
+import { Empty, StringRequest } from "@shared/proto/common"
+import { openImage as openImageIntegration } from "@integrations/misc/open-file"
 import { FileMethodHandler } from "./index"
 
 /**

@@ -1,5 +1,5 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import Section from "../Section"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 interface AboutSectionProps {
 	version: string

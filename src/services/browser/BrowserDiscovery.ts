@@ -1,5 +1,5 @@
-import axios from "axios"
 import * as net from "net"
+import axios from "axios"
 
 /**
  * Check if a port is open on a given host

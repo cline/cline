@@ -1,14 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
-import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
+import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 
 interface OpenRouterHandlerOptions {
 	openRouterApiKey?: string

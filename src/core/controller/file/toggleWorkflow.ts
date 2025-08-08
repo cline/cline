@@ -1,7 +1,8 @@
 import { Controller } from ".."
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
+import { Metadata } from "../../../shared/proto/common"
+import { ToggleWorkflowRequest, ClineRulesToggles } from "../../../shared/proto/file"
+import { getWorkspaceState, updateWorkspaceState, getGlobalState, updateGlobalState } from "../../../core/storage/state"
 import { ClineRulesToggles as AppClineRulesToggles } from "../../../shared/cline-rules"
-import { ClineRulesToggles, ToggleWorkflowRequest } from "../../../shared/proto/file"
 
 /**
  * Toggles a workflow on or off

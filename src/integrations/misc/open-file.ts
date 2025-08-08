@@ -1,10 +1,10 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType, ShowTextDocumentOptions, ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { writeFile } from "@utils/fs"
-import { arePathsEqual } from "@utils/path"
-import * as os from "os"
 import * as path from "path"
+import * as os from "os"
 import * as vscode from "vscode"
+import { arePathsEqual } from "@utils/path"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowTextDocumentRequest, ShowTextDocumentOptions, ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { writeFile } from "@utils/fs"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)

@@ -1,6 +1,6 @@
-import axios from "axios"
 import { Controller } from ".."
 import { StringArray, StringRequest } from "../../../shared/proto/common"
+import axios from "axios"
 
 /**
  * Fetches available models from LM Studio

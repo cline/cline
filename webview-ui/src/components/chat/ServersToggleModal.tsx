@@ -1,15 +1,15 @@
+import React, { useRef, useState, useEffect } from "react"
+import { useClickAway, useWindowSize } from "react-use"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import React, { useEffect, useRef, useState } from "react"
-import { useClickAway, useWindowSize } from "react-use"
 
-import Tooltip from "@/components/common/Tooltip"
 import { McpServiceClient } from "@/services/grpc-client"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import Tooltip from "@/components/common/Tooltip"
+import { McpServers } from "@shared/proto/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { EmptyRequest } from "@shared/proto/common"
-import { McpServers } from "@shared/proto/mcp"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const ServersToggleModal: React.FC = () => {
 	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()

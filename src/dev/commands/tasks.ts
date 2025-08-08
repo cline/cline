@@ -1,11 +1,11 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { Controller } from "@core/controller"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
+import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
+import { Controller } from "@core/controller"
+import { HistoryItem } from "@shared/HistoryItem"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /**
  * Registers development-only commands for task manipulation.

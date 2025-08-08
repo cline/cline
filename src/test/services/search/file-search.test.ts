@@ -1,13 +1,13 @@
-import * as ripgrep from "@services/ripgrep"
-import * as fileSearch from "@services/search/file-search"
-import * as childProcess from "child_process"
-import * as fs from "fs"
-import type { FzfResultItem } from "fzf"
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
+import type { FzfResultItem } from "fzf"
+import * as childProcess from "child_process"
 import * as vscode from "vscode"
+import * as fs from "fs"
+import * as fileSearch from "@services/search/file-search"
+import * as ripgrep from "@services/ripgrep"
 
 describe("File Search", function () {
 	let sandbox: sinon.SinonSandbox

@@ -1,19 +1,25 @@
+import * as http from "http"
+import * as vscode from "vscode"
+import * as path from "path"
+import { execa } from "execa"
+import { Logger } from "@services/logging/Logger"
+import { WebviewProvider } from "@core/webview"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
+import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
+import {
+	updateGlobalState,
+	getAllExtensionState,
+	updateApiConfiguration,
+	storeSecret,
+	updateWorkspaceState,
+} from "@core/storage/state"
+import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
+import { ApiProvider } from "@shared/api"
+import { HistoryItem } from "@shared/HistoryItem"
+import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
 import { AskResponseRequest } from "@/shared/proto/task"
 import { getCwd } from "@/utils/path"
-import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
-import { getAllExtensionState, storeSecret, updateApiConfiguration, updateGlobalState } from "@core/storage/state"
-import { WebviewProvider } from "@core/webview"
-import { Logger } from "@services/logging/Logger"
-import { ApiProvider } from "@shared/api"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
-import { execa } from "execa"
-import * as http from "http"
-import * as path from "path"
-import * as vscode from "vscode"
-import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
-import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution

@@ -17,5 +17,5 @@ export * from "./components/layout"
 export * from "./components/messages"
 
 // Export types and constants
-export * from "./constants"
 export * from "./types/chatTypes"
+export * from "./constants"

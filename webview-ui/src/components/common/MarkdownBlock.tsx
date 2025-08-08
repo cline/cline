@@ -1,16 +1,16 @@
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import MermaidBlock from "@/components/common/MermaidBlock"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import React, { memo, useEffect, useRef, useState } from "react"
 import type { ComponentProps } from "react"
-import React, { memo, useEffect, useRef } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
-import type { Node } from "unist"
 import { visit } from "unist-util-visit"
+import type { Node } from "unist"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MermaidBlock from "@/components/common/MermaidBlock"
 import { WithCopyButton } from "./CopyButton"
+import { StateServiceClient } from "@/services/grpc-client"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {

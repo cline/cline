@@ -1,8 +1,8 @@
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewProviderType } from "@/shared/webview/types"
-import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
 import { URI } from "vscode-uri"
+import { WebviewProvider } from "@core/webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

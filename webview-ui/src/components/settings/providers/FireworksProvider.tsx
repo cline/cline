@@ -1,8 +1,8 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiConfiguration } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { ApiConfiguration } from "@shared/api"
 
 /**
  * Props for the FireworksProvider component

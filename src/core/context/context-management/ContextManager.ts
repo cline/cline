@@ -1,13 +1,13 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
+import { getContextWindowInfo } from "./context-window-utils"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import cloneDeep from "clone-deep"
-import fs from "fs/promises"
 import * as path from "path"
-import { getContextWindowInfo } from "./context-window-utils"
+import fs from "fs/promises"
+import cloneDeep from "clone-deep"
+import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
+import { ApiHandler } from "@api/index"
+import { Anthropic } from "@anthropic-ai/sdk"
 
 enum EditType {
 	UNDEFINED = 0,

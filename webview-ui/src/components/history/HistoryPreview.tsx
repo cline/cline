@@ -2,6 +2,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber } from "@/utils/format"
 import { StringRequest } from "@shared/proto/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
 
 type HistoryPreviewProps = {

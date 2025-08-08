@@ -1,13 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiStream } from "@api/transform/stream"
-import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
-import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
-import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
-import { withRetry } from "../retry"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import { ApiStream } from "@api/transform/stream"
+import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
+import { withRetry } from "../retry"
 
 interface VsCodeLmHandlerOptions {
 	vsCodeLmModelSelector?: any

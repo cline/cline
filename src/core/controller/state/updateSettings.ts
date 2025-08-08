@@ -1,11 +1,11 @@
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { Controller } from ".."
-import { buildApiHandler } from "../../../api"
-import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { Empty } from "../../../shared/proto/common"
 import { UpdateSettingsRequest } from "../../../shared/proto/state"
 import { updateApiConfiguration } from "../../storage/state"
+import { buildApiHandler } from "../../../api"
+import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
+import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
+import { TelemetrySetting } from "@/shared/TelemetrySetting"
 
 /**
  * Updates multiple extension settings in a single request

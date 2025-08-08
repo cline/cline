@@ -1,15 +1,15 @@
+import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useEffect, useState, useRef } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import CreditsHistoryTable from "./CreditsHistoryTable"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { formatCreditsBalance } from "@/utils/format"
-import { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
-import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
 import { EmptyRequest } from "@shared/proto/common"
-import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import CreditsHistoryTable from "./CreditsHistoryTable"
+import { UserOrganization, UserOrganizationUpdateRequest } from "@shared/proto/account"
+import { formatCreditsBalance } from "@/utils/format"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {

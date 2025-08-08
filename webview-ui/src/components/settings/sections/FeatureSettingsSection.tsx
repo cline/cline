@@ -1,10 +1,10 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { OpenAIReasoningEffort } from "@shared/ChatSettings"
-import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
-import Section from "../Section"
+import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { updateSetting } from "../utils/settingsHandlers"
+import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+import Section from "../Section"
 
 interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null

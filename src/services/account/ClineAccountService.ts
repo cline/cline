@@ -1,3 +1,4 @@
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import type {
 	BalanceResponse,
 	OrganizationBalanceResponse,
@@ -6,7 +7,6 @@ import type {
 	UsageTransaction,
 	UserResponse,
 } from "@shared/ClineAccount"
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {

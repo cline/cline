@@ -1,8 +1,8 @@
-import { getSecret } from "@core/storage/state"
-import axios from "axios"
 import { Controller } from ".."
 import { EmptyRequest } from "../../../shared/proto/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "../../../shared/proto/models"
+import axios from "axios"
+import { getSecret } from "@core/storage/state"
 
 /**
  * Refreshes the Requesty models and returns the updated model list

@@ -1,5 +1,5 @@
-import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
 import * as vscode from "vscode"
+import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
 
 export async function showTextDocument(request: ShowTextDocumentRequest): Promise<TextEditorInfo> {
 	// Convert file path to URI

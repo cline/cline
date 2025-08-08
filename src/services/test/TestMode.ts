@@ -3,12 +3,12 @@
  * This provides a centralized way to check if the extension is running in test mode
  * instead of relying on process.env which may not be consistent across different parts of the extension
  */
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import * as vscode from "vscode"
 import * as fs from "fs"
 import * as path from "path"
-import * as vscode from "vscode"
 import { Logger } from "../logging/Logger"
 import { createTestServer, shutdownTestServer } from "./TestServer"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 // State variable
 let isTestMode = false

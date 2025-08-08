@@ -1,13 +1,14 @@
-import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getCwd, getDesktopDir } from "@/utils/path"
+import { Controller } from ".."
+import { RuleFileRequest, RuleFile } from "@shared/proto/file"
+import { FileMethodHandler } from "./index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
-import { RuleFile, RuleFileRequest } from "@shared/proto/file"
 import * as path from "path"
-import { Controller } from ".."
-import { FileMethodHandler, handleFileServiceRequest } from "./index"
+import { handleFileServiceRequest } from "./index"
+import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
+import { getCwd, getDesktopDir } from "@/utils/path"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Creates a rule file in either global or workspace rules directory

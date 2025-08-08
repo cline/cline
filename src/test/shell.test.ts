@@ -1,8 +1,8 @@
-import { getShell } from "@utils/shell"
+import { describe, it, beforeEach, afterEach } from "mocha"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
-import { userInfo } from "os"
+import { getShell } from "@utils/shell"
 import * as vscode from "vscode"
+import { userInfo } from "os"
 
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string

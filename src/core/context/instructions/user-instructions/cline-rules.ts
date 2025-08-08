@@ -1,12 +1,12 @@
-import { getRuleFilesTotalContent, synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
-import { formatResponse } from "@core/prompts/responses"
-import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
-import fs from "fs/promises"
 import path from "path"
+import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import { formatResponse } from "@core/prompts/responses"
+import fs from "fs/promises"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as vscode from "vscode"
+import { synchronizeRuleToggles, getRuleFilesTotalContent } from "@core/context/instructions/user-instructions/rule-helpers"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {

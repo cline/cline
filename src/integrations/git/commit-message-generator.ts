@@ -1,7 +1,7 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
-import { writeTextToClipboard } from "@utils/env"
 import * as vscode from "vscode"
+import { writeTextToClipboard } from "@utils/env"
+import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format

@@ -36,7 +36,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 
-import { createDiffViewProvider } from "@/hosts/host-providers"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -83,6 +82,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { formatErrorWithStatusCode, updateApiReqMsg } from "./utils"
+import { createDiffViewProvider, getHostBridgeProvider } from "@/hosts/host-providers"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 

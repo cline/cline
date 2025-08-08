@@ -1,5 +1,4 @@
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
 import { Int64Request } from "@shared/proto/common"
@@ -7,6 +6,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface CheckpointOverlayProps {
 	messageTs?: number

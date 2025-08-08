@@ -1,6 +1,6 @@
-import { UserOrganizationUpdateRequest } from "@shared/proto/account"
-import { Empty } from "@shared/proto/common"
 import type { Controller } from "../index"
+import { Empty } from "@shared/proto/common"
+import { UserOrganizationUpdateRequest } from "@shared/proto/account"
 
 /**
  * Handles setting the user's active organization

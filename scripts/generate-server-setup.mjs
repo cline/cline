@@ -2,7 +2,7 @@ import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import * as fs from "fs"
 import * as health from "grpc-health-check"
-import path, { dirname } from "path"
+import path, { basename, dirname } from "path"
 import { fileURLToPath } from "url"
 
 const OUT_FILE = path.resolve("src/generated/standalone/server-setup.ts")

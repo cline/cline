@@ -1,32 +1,32 @@
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { useCallback, useEffect, useMemo } from "react"
+import { useMount } from "react-use"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
-import { useCallback, useEffect, useMemo } from "react"
-import { useMount } from "react-use"
 
 // Import utilities and hooks from the new structure
 import {
-	ActionButtons,
-	CHAT_CONSTANTS,
-	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
 	groupMessages,
-	InputSection,
-	MessagesArea,
-	TaskSection,
-	useButtonState,
+	CHAT_CONSTANTS,
 	useChatState,
-	useIsStreaming,
-	useMessageHandlers,
+	useButtonState,
 	useScrollBehavior,
+	useMessageHandlers,
+	useIsStreaming,
+	ChatLayout,
 	WelcomeSection,
+	TaskSection,
+	MessagesArea,
+	ActionButtons,
+	InputSection,
 } from "./chat-view"
 
 interface ChatViewProps {

@@ -1,10 +1,10 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions } from "@shared/api"
-import axios from "axios"
-import { afterEach, before, beforeEach, describe, it } from "mocha"
+import { describe, it, beforeEach, afterEach, before } from "mocha"
 import "should"
 import sinon from "sinon"
+import { Anthropic } from "@anthropic-ai/sdk"
 import { OllamaHandler } from "../ollama"
+import { ApiHandlerOptions } from "@shared/api"
+import axios from "axios"
 
 describe("OllamaHandler", () => {
 	let ollamaAvailable = false

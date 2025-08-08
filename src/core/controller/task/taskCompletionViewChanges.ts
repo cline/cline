@@ -1,5 +1,6 @@
 import { Controller } from ".."
-import { Empty, Int64Request } from "../../../shared/proto/common"
+import { Empty } from "../../../shared/proto/common"
+import { Int64Request } from "../../../shared/proto/common"
 
 /**
  * Shows task completion changes in a diff view

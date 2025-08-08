@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/common"
 import { ExecuteQuickWinRequest } from "@shared/proto/task"
+import { Empty } from "@shared/proto/common"
 import type { Controller } from "../index"
 
 /**

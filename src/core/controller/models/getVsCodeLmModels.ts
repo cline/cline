@@ -1,8 +1,8 @@
-import * as vscode from "vscode"
 import { Controller } from ".."
-import { convertVsCodeNativeModelsToProtoModels } from "../../../shared/proto-conversions/models/vscode-lm-models-conversion"
 import { EmptyRequest } from "../../../shared/proto/common"
 import { VsCodeLmModelsArray } from "../../../shared/proto/models"
+import * as vscode from "vscode"
+import { convertVsCodeNativeModelsToProtoModels } from "../../../shared/proto-conversions/models/vscode-lm-models-conversion"
 
 /**
  * Fetches available models from VS Code LM API

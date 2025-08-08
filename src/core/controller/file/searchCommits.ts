@@ -1,10 +1,10 @@
-import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
-import { StringRequest } from "@shared/proto/common"
+import { Controller } from ".."
 import { GitCommits } from "@shared/proto/file"
+import { StringRequest } from "@shared/proto/common"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
-import { Controller } from ".."
 import { FileMethodHandler } from "./index"
+import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
 
 /**
  * Searches for git commits in the workspace repository

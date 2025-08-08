@@ -1,8 +1,8 @@
 import { Controller } from ".."
-import { fetchOpenGraphData as fetchOGData } from "../../../integrations/misc/link-preview"
-import { convertDomainOpenGraphDataToProto } from "../../../shared/proto-conversions/web/open-graph-conversion"
 import { StringRequest } from "../../../shared/proto/common"
 import { OpenGraphData } from "../../../shared/proto/web"
+import { fetchOpenGraphData as fetchOGData } from "../../../integrations/misc/link-preview"
+import { convertDomainOpenGraphDataToProto } from "../../../shared/proto-conversions/web/open-graph-conversion"
 
 /**
  * Fetches Open Graph metadata from a URL

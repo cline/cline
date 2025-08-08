@@ -5,8 +5,9 @@
  * even if you confirm the IME conversion (Enter) in message re-edit mode.
  */
 
-import { fireEvent, render } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import React from "react"
+import { render, fireEvent } from "@testing-library/react"
+import { describe, it, expect, vi } from "vitest"
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	__esModule: true,

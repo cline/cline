@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from "uuid"
 import { vscode } from "../utils/vscode"
+import { v4 as uuidv4 } from "uuid"
 /**
  * Helper function to encode request objects
  */

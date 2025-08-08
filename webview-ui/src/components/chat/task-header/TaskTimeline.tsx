@@ -1,8 +1,8 @@
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import { Virtuoso } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
-import { Virtuoso } from "react-virtuoso"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
 

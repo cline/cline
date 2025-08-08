@@ -1,4 +1,4 @@
-import { AssistantMessageContent, TextContent, ToolParamName, toolParamNames, ToolUse, ToolUseName, toolUseNames } from "." // Assuming types are defined in index.ts or a similar file
+import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "." // Assuming types are defined in index.ts or a similar file
 
 /**
  * @description **Version 1**

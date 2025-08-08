@@ -1,5 +1,5 @@
-import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
 import * as vscode from "vscode"
+import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
 
 /**
  * Gets the contents of the active terminal

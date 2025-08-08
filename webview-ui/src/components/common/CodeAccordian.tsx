@@ -1,6 +1,6 @@
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
 import { memo, useMemo } from "react"
+import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 
 interface CodeAccordianProps {
 	code?: string

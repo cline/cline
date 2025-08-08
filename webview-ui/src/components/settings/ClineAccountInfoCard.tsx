@@ -1,8 +1,8 @@
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 export const ClineAccountInfoCard = () => {
 	const { clineUser } = useClineAuth()

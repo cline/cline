@@ -1,6 +1,6 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
+import React, { useEffect } from "react"
 import styled from "styled-components"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const PreviewContainer = styled.div`
 	background-color: var(--vscode-input-background); /* Outer box matches text area */

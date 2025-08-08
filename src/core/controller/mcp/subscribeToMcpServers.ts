@@ -1,8 +1,8 @@
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { Controller } from "../index"
 import { EmptyRequest } from "@shared/proto/common"
 import { McpServers } from "@shared/proto/mcp"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
-import { Controller } from "../index"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 
 // Keep track of active subscriptions
 const activeMcpServersSubscriptions = new Set<StreamingResponseHandler>()

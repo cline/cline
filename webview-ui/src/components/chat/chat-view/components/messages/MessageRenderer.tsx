@@ -1,7 +1,7 @@
+import React, { useCallback } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import React from "react"
 import { MessageHandlers } from "../../types/chatTypes"
 
 interface MessageRendererProps {

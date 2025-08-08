@@ -1,8 +1,8 @@
-import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
-import { ActionMetadata } from "@/components/chat/auto-approve-menu/types"
+import { useCallback } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { useCallback } from "react"
+import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
+import { ActionMetadata } from "@/components/chat/auto-approve-menu/types"
 
 export function useAutoApproveActions() {
 	const { autoApprovalSettings } = useExtensionState()

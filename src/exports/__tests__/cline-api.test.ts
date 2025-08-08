@@ -1,10 +1,10 @@
-import * as stateModule from "@core/storage/state"
-import { afterEach, beforeEach, describe, it } from "mocha"
-import * as should from "should"
+import { describe, it, beforeEach, afterEach } from "mocha"
 import * as sinon from "sinon"
+import * as should from "should"
 import * as vscode from "vscode"
-import type { ClineAPI } from "../cline"
+import * as stateModule from "@core/storage/state"
 import { createClineAPI } from "../index"
+import type { ClineAPI } from "../cline"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI

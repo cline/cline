@@ -1,10 +1,10 @@
-import * as childProcess from "child_process"
-import * as fs from "fs"
-import type { FzfResultItem } from "fzf"
-import * as path from "path"
-import * as readline from "readline"
 import * as vscode from "vscode"
+import * as path from "path"
+import * as fs from "fs"
+import * as childProcess from "child_process"
+import * as readline from "readline"
 import { getBinPath } from "../ripgrep"
+import type { Fzf, FzfResultItem } from "fzf"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn

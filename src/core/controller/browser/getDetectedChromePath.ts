@@ -1,8 +1,8 @@
-import { BrowserSession } from "../../../services/browser/BrowserSession"
 import { ChromePath } from "../../../shared/proto/browser"
 import { EmptyRequest } from "../../../shared/proto/common"
-import { getAllExtensionState } from "../../storage/state"
 import { Controller } from "../index"
+import { getAllExtensionState } from "../../storage/state"
+import { BrowserSession } from "../../../services/browser/BrowserSession"
 
 /**
  * Get the detected Chrome executable path

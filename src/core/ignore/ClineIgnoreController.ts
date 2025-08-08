@@ -1,7 +1,7 @@
+import path from "path"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
-import path from "path"
 import * as vscode from "vscode"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"

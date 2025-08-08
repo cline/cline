@@ -1,6 +1,6 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import styled from "styled-components"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 interface QuoteButtonProps {
 	top: number
