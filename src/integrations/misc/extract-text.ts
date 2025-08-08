@@ -1,11 +1,11 @@
-import * as path from "path"
-// @ts-ignore-next-line
 import ExcelJS from "exceljs"
 import fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
 import mammoth from "mammoth"
+import * as path from "path"
+// @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
