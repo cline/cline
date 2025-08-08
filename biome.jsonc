@@ -9,7 +9,7 @@
 	"assist": {
 		"actions": {
 			"source": {
-				"organizeImports": "off"
+				"organizeImports": "on"
 			}
 		}
 	},
@@ -55,19 +55,7 @@
 				"useNumberNamespace": "off",
 				"noInferrableTypes": "off",
 				"useTemplate": "off",
-				"noUselessElse": "off",
-				"noRestrictedTypes": {
-					"level": "error",
-					"options": {
-						"types": {
-							"Foo": {
-								"message": "Only bar is allowed",
-								"use": "bar"
-							},
-							"vscode.workspace": "Use NewAPI instead"
-						}
-					}
-				}
+				"noUselessElse": "off"
 			},
 			"suspicious": {
 				"noDoubleEquals": "warn",
@@ -162,7 +150,7 @@
 	},
 	"overrides": [
 		{
-			"includes": ["src/**", "!src/hosts/vscode/**", "!**/*.test.ts"],
+			"includes": ["!src/hosts/vscode/**", "!**/*.test.ts"],
 			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
 		}
 	]
