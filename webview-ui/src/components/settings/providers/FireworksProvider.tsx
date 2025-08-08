@@ -6,8 +6,7 @@ import { fireworksModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { useEffect } from "react"
-import { fireworksDefaultModelId } from "@shared/api"
+
 /**
  * Props for the FireworksProvider component
  */
