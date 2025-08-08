@@ -1,11 +1,11 @@
-import path from "path"
-import fs from "fs/promises"
-import { Controller } from ".."
-import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
-import { getGlobalState, updateGlobalState } from "../../storage/state"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
+import fs from "fs/promises"
+import path from "path"
+import { Controller } from ".."
+import { fileExistsAtPath } from "../../../utils/fs"
+import { getGlobalState, updateGlobalState } from "../../storage/state"
 
 /**
  * Deletes all task history, with an option to preserve favorites

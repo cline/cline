@@ -1,6 +1,6 @@
-import React from "react"
 import TaskHeader from "@/components/chat/task-header/TaskHeader"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import React from "react"
 import { MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 
 interface TaskSectionProps {

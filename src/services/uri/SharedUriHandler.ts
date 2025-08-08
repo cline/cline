@@ -1,5 +1,5 @@
-import * as vscode from "vscode"
 import { WebviewProvider } from "@/core/webview"
+import * as vscode from "vscode"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks

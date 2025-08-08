@@ -1,8 +1,8 @@
+import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
+import { openExternal } from "@/utils/env"
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
-import { openExternal } from "@/utils/env"
-import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 

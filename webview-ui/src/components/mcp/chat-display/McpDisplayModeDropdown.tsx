@@ -1,6 +1,6 @@
-import React from "react"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import React from "react"
 
 interface McpDisplayModeDropdownProps {
 	value: McpDisplayMode

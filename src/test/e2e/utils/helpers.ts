@@ -1,8 +1,8 @@
+import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
+import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { mkdtempSync, type PathLike, type RmOptions, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
-import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { _electron } from "playwright"
 import { ClineApiServerMock } from "../fixtures/server"
 

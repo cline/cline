@@ -1,6 +1,6 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
 
 const PreferredLanguageSetting: React.FC = () => {

@@ -1,4 +1,3 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"

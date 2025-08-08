@@ -1,8 +1,8 @@
+import { getLatestAnnouncementId } from "@/utils/announcements"
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Boolean } from "@shared/proto/cline/common"
-import type { Controller } from "../index"
 import { updateGlobalState } from "../../storage/state"
-import { getLatestAnnouncementId } from "@/utils/announcements"
+import type { Controller } from "../index"
 
 /**
  * Marks the current announcement as shown

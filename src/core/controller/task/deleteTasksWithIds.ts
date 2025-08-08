@@ -1,10 +1,10 @@
-import path from "path"
-import fs from "fs/promises"
-import { Controller } from ".."
-import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
-import { fileExistsAtPath } from "../../../utils/fs"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
+import fs from "fs/promises"
+import path from "path"
+import { Controller } from ".."
+import { fileExistsAtPath } from "../../../utils/fs"
 
 /**
  * Deletes tasks with the specified IDs

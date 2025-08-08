@@ -1,9 +1,9 @@
-import { Controller } from "../index"
-import * as proto from "@/shared/proto"
-import { updateGlobalState } from "../../storage/state"
-import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
+import * as proto from "@/shared/proto"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { updateGlobalState } from "../../storage/state"
+import { Controller } from "../index"
 
 export async function updateDefaultTerminalProfile(
 	controller: Controller,

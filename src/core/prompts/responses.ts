@@ -1,8 +1,8 @@
+import { Mode } from "@/shared/storage/types"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
-import { Mode } from "@/shared/storage/types"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>

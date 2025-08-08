@@ -1,13 +1,13 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
-import { basetenModels } from "../../../shared/api"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { Controller } from ".."
+import { basetenModels } from "../../../shared/api"
+import { getAllExtensionState } from "../../storage/state"
 
 /**
  * Refreshes the Baseten models and returns the updated model list

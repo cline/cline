@@ -8,8 +8,8 @@ import { createRequire } from "module"
 import os from "os"
 import * as path from "path"
 import { rmrf } from "./file-utils.mjs"
-import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 import { main as generateHostBridgeClient } from "./generate-host-bridge-client.mjs"
+import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 import { loadProtoDescriptorSet } from "./proto-utils.mjs"
 
 const require = createRequire(import.meta.url)

@@ -1,14 +1,14 @@
-import { Controller } from ".."
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
-import { groqModels } from "../../../shared/api"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { Controller } from ".."
+import { groqModels } from "../../../shared/api"
+import { getAllExtensionState } from "../../storage/state"
 
 /**
  * Refreshes the Groq models and returns the updated model list

@@ -1,7 +1,7 @@
-import type { Controller } from "../index"
-import { EmptyRequest, String } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@/shared/webview/types"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
+import type { Controller } from "../index"
 
 /**
  * Initialize webview when it launches

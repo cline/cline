@@ -1,5 +1,5 @@
-import { window } from "vscode"
 import { SelectedResponse, ShowMessageRequest, ShowMessageType } from "@/shared/proto/index.host"
+import { window } from "vscode"
 
 const DEFAULT_OPTIONS = { modal: false, items: [] } as const
 

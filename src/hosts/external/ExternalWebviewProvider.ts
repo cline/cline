@@ -1,5 +1,5 @@
-import { WebviewProviderType } from "@/shared/webview/types"
 import { WebviewProvider } from "@/core/webview"
+import { WebviewProviderType } from "@/shared/webview/types"
 import * as vscode from "vscode"
 import { URI } from "vscode-uri"
 

@@ -1,5 +1,5 @@
-import { rmSync } from "node:fs"
 import { test as setup } from "@playwright/test"
+import { rmSync } from "node:fs"
 import { getResultsDir } from "./helpers"
 
 setup("setup test environment", async () => {

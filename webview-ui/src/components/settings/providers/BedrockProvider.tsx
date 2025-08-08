@@ -1,14 +1,14 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { bedrockDefaultModelId, bedrockModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 // Z-index constants for proper dropdown layering
 const DROPDOWN_Z_INDEX = 1000
 

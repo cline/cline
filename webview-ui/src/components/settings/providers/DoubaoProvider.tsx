@@ -1,11 +1,11 @@
-import { ApiConfiguration, doubaoModels } from "@shared/api"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { doubaoModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 /**
  * Props for the DoubaoProvider component
  */

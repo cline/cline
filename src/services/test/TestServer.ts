@@ -1,3 +1,4 @@
+import { Controller } from "@/core/controller"
 import { getCwd } from "@/utils/path"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
 import { getAllExtensionState, updateGlobalState } from "@core/storage/state"
@@ -11,7 +12,6 @@ import * as http from "http"
 import * as path from "path"
 import * as vscode from "vscode"
 import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
-import { Controller } from "@/core/controller"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution

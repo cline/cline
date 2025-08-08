@@ -13,12 +13,12 @@
  * fields containing special characters.
  */
 
+import { openExternal, writeTextToClipboard } from "@/utils/env"
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
-import { writeTextToClipboard, openExternal } from "@/utils/env"
-import { HostProvider } from "@hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
 
 /**
  * Creates a properly encoded GitHub issue URL.

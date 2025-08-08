@@ -1,13 +1,12 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { moonshotModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useState } from "react"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the MoonshotProvider component
  */

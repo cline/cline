@@ -1,11 +1,11 @@
-import { ApiConfiguration, deepSeekModels } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { deepSeekModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the DeepSeekProvider component
  */

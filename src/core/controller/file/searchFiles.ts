@@ -1,8 +1,8 @@
-import { Controller } from ".."
-import { FileSearchRequest, FileSearchResults } from "@shared/proto/cline/file"
 import { searchWorkspaceFiles } from "@services/search/file-search"
-import { getWorkspacePath } from "@utils/path"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { FileSearchRequest, FileSearchResults } from "@shared/proto/cline/file"
+import { getWorkspacePath } from "@utils/path"
+import { Controller } from ".."
 
 /**
  * Searches for files in the workspace with fuzzy matching

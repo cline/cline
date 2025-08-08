@@ -1,5 +1,5 @@
-import Section from "../Section"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import Section from "../Section"
 
 interface DebugSectionProps {
 	onResetState: (resetGlobalState?: boolean) => Promise<void>

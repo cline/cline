@@ -1,5 +1,5 @@
-import { window, TabInputText } from "vscode"
 import { GetOpenTabsRequest, GetOpenTabsResponse } from "@/shared/proto/host/window"
+import { TabInputText, window } from "vscode"
 
 export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsResponse> {
 	const openTabPaths = window.tabGroups.all

@@ -1,8 +1,7 @@
+import { ClineMessage } from "@shared/ExtensionMessage"
 import React, { useCallback } from "react"
 import { Virtuoso } from "react-virtuoso"
-import AutoApproveBar from "@/components/chat/auto-approve-menu/AutoApproveBar"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { ScrollBehavior, ChatState, MessageHandlers } from "../../types/chatTypes"
+import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {

@@ -1,10 +1,10 @@
-import { ApiKeyField } from "../common/ApiKeyField"
-import { DebouncedTextField } from "../common/DebouncedTextField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { ApiConfiguration } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 /**
  * Props for the FireworksProvider component
  */

@@ -1,6 +1,6 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { GetDiagnosticsRequest, DiagnosticSeverity } from "@/shared/proto/host/workspace"
 import { Metadata } from "@/shared/proto/cline/common"
+import { DiagnosticSeverity, GetDiagnosticsRequest } from "@/shared/proto/host/workspace"
 
 /**
  * Host-agnostic function to get workspace problems as a formatted string

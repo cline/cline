@@ -1,9 +1,9 @@
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ApiKeyField } from "../common/ApiKeyField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { Mode } from "@shared/storage/types"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 /**
  * Props for the TogetherProvider component
  */

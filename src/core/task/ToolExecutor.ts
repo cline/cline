@@ -11,7 +11,8 @@ import { ApiHandler } from "@api/index"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
+import { extractFileContent } from "@integrations/misc/extract-file-content"
+import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -32,16 +33,10 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import { Mode } from "@shared/storage/types"
 import { fileExistsAtPath } from "@utils/fs"
-import {
-	isClaude4ModelFamily,
-	isGemini2dot5ModelFamily,
-	isGrok4ModelFamily,
-	modelDoesntSupportWebp,
-	isNextGenModelFamily,
-} from "@utils/model-utils"
+import { isNextGenModelFamily, modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -55,13 +50,12 @@ import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff
 import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
-import { ensureTaskDirectoryExists } from "../storage/disk"
 import { CacheService } from "../storage/CacheService"
+import { ensureTaskDirectoryExists } from "../storage/disk"
 import { TaskState } from "./TaskState"
 import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { Mode } from "@shared/storage/types"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove

@@ -1,6 +1,6 @@
-import { Controller } from "../index"
 import * as proto from "@/shared/proto"
 import { updateGlobalState } from "../../storage/state"
+import { Controller } from "../index"
 
 export async function updateTerminalReuseEnabled(
 	controller: Controller,

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
 import { formatCreditsBalance } from "@/utils/format"
+import { useEffect, useRef, useState } from "react"
 
 // Custom hook for animated credit display with styled decimals
 const useAnimatedCredits = (targetValue: number, duration: number = 660) => {

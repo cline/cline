@@ -1,8 +1,8 @@
-import { Mode } from "@shared/storage/types"
-import { ApiKeyField } from "../common/ApiKeyField"
-import BasetenModelPicker from "../BasetenModelPicker"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/storage/types"
+import BasetenModelPicker from "../BasetenModelPicker"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the BasetenProvider component

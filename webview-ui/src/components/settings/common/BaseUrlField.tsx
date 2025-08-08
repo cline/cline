@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react"
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**

@@ -1,7 +1,7 @@
-import { Controller } from ".."
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
+import { Controller } from ".."
+import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
 import { getGlobalState } from "../../storage/state"
-import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 
 /**
  * Gets filtered task history

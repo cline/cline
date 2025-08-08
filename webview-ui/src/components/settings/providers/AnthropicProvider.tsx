@@ -1,13 +1,13 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { anthropicModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [

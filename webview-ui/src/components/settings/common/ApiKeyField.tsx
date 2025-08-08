@@ -1,5 +1,5 @@
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
-import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 /**
  * Props for the ApiKeyField component

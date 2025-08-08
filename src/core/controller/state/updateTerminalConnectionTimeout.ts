@@ -1,6 +1,6 @@
-import { Controller } from "../index"
 import { UpdateTerminalConnectionTimeoutRequest, UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/cline/state"
 import { updateGlobalState } from "../../storage/state"
+import { Controller } from "../index"
 
 export async function updateTerminalConnectionTimeout(
 	controller: Controller,

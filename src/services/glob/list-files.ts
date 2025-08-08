@@ -1,7 +1,7 @@
+import { arePathsEqual } from "@utils/path"
 import { globby, Options } from "globby"
 import * as os from "os"
 import * as path from "path"
-import { arePathsEqual } from "@utils/path"
 
 // Constants
 const DEFAULT_IGNORE_DIRECTORIES = [

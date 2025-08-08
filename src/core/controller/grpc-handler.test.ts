@@ -1,10 +1,10 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { expect } from "chai"
-import * as sinon from "sinon"
-import { handleGrpcRequest, handleGrpcRequestCancel, getRequestRegistry } from "./grpc-handler"
 import { Controller } from "@core/controller"
-import { GrpcRequest, GrpcCancel } from "@shared/WebviewMessage"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
+import { GrpcCancel, GrpcRequest } from "@shared/WebviewMessage"
+import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as sinon from "sinon"
+import { getRequestRegistry, handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 
 describe("grpc-handler", () => {
 	let sandbox: sinon.SinonSandbox

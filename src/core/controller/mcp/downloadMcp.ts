@@ -1,10 +1,10 @@
-import { Controller } from ".."
+import { clineEnvConfig } from "@/config"
+import { McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
-import { McpServer } from "@shared/mcp"
 import axios from "axios"
+import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
-import { clineEnvConfig } from "@/config"
 
 /**
  * Download an MCP server from the marketplace

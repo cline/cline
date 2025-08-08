@@ -31,10 +31,10 @@ import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { getAllExtensionState, getGlobalState, updateGlobalState } from "../storage/state"
 import { Task } from "../task"
+import { WebviewProvider } from "../webview"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent, sendAddToInputEventToClient } from "./ui/subscribeToAddToInput"
-import { WebviewProvider } from "../webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

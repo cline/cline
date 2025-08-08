@@ -1,6 +1,6 @@
 import { expect } from "chai"
-import proxyquire from "proxyquire"
 import path from "path"
+import proxyquire from "proxyquire"
 import sinon from "sinon"
 
 const createMockProcess = () => {

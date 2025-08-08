@@ -1,7 +1,6 @@
-import { Controller } from "../index"
-import { Empty } from "@shared/proto/cline/common"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active didBecomeVisible subscriptions by controller ID
 const activeDidBecomeVisibleSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()

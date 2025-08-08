@@ -1,8 +1,8 @@
+import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { arePathsEqual } from "@/utils/path"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
-import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "./diagnostics"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"

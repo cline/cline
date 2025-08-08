@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react"
-import { useShortcut, useMetaKeyDetection } from "../hooks"
 import { vi } from "vitest"
+import { useMetaKeyDetection, useShortcut } from "../hooks"
 
 describe("useShortcut", () => {
 	it("should call the callback when the shortcut is pressed", () => {

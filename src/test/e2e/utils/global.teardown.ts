@@ -1,6 +1,6 @@
+import { test as teardown } from "@playwright/test"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { test as teardown } from "@playwright/test"
 import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 

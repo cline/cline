@@ -1,17 +1,5 @@
-import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
-import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import type React from "react"
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useWindowSize } from "react-use"
-import styled from "styled-components"
-import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
+import ContextMenu from "@/components/chat/ContextMenu"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -35,15 +23,27 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
-	type SlashCommand,
 	shouldShowSlashCommandsMenu,
+	type SlashCommand,
 	slashCommandDeleteRegex,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { Mode } from "@shared/storage/types"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import type React from "react"
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { useClickAway, useWindowSize } from "react-use"
+import styled from "styled-components"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
-import { Mode } from "@shared/storage/types"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 

@@ -1,9 +1,9 @@
+import { isDirectory } from "@/utils/fs"
 import { asRelativePath } from "@/utils/path"
 import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
 import * as path from "path"
 import { URI } from "vscode-uri"
 import { Controller } from ".."
-import { isDirectory } from "@/utils/fs"
 
 /**
  * Converts a list of URIs to workspace-relative paths

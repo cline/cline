@@ -1,15 +1,15 @@
+import { huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
-import { huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { normalizeApiConfiguration, getModeSpecificFields } from "./utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface HuggingFaceModelPickerProps {

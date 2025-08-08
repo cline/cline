@@ -1,6 +1,6 @@
+import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
-import { AccountServiceClient } from "@/services/grpc-client"
 
 const AccountOptions = () => {
 	const handleAccountClick = () => {

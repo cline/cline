@@ -1,8 +1,8 @@
-import { Controller } from ".."
+import { getSecret } from "@core/storage/state"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
-import { getSecret } from "@core/storage/state"
+import { Controller } from ".."
 
 /**
  * Refreshes the Requesty models and returns the updated model list

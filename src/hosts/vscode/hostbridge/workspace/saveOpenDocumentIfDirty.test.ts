@@ -1,11 +1,11 @@
-import { describe, it, before, after, beforeEach } from "mocha"
-import { expect } from "chai"
-import * as vscode from "vscode"
-import * as path from "path"
-import * as fs from "fs/promises"
-import * as os from "os"
 import { saveOpenDocumentIfDirty } from "@/hosts/vscode/hostbridge/workspace/saveOpenDocumentIfDirty"
 import { SaveOpenDocumentIfDirtyRequest } from "@/shared/proto/index.host"
+import { expect } from "chai"
+import * as fs from "fs/promises"
+import { after, before, beforeEach, describe, it } from "mocha"
+import * as os from "os"
+import * as path from "path"
+import * as vscode from "vscode"
 
 describe("saveOpenDocumentIfDirty Integration Test", () => {
 	let testWorkspaceRoot: string

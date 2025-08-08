@@ -1,10 +1,10 @@
 // This file contains `declare module "vscode"` so we must import it.
-import "../providers/vscode-lm"
+import { Anthropic } from "@anthropic-ai/sdk"
 import { describe, it } from "mocha"
 import "should"
 import * as vscode from "vscode"
-import { Anthropic } from "@anthropic-ai/sdk"
-import { asObjectSafe, convertToAnthropicRole, convertToVsCodeLmMessages, convertToAnthropicMessage } from "./vscode-lm-format"
+import "../providers/vscode-lm"
+import { asObjectSafe, convertToAnthropicMessage, convertToAnthropicRole, convertToVsCodeLmMessages } from "./vscode-lm-format"
 
 describe("asObjectSafe", () => {
 	it("should handle falsy values", () => {

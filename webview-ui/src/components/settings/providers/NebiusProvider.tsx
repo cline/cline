@@ -1,11 +1,11 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { nebiusModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the NebiusProvider component
  */

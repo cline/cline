@@ -1,14 +1,14 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState, useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import * as vscodemodels from "vscode"
-import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { Mode } from "@shared/storage/types"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 interface VSCodeLmProviderProps {
 	currentMode: Mode
 }

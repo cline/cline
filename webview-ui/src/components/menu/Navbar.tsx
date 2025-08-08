@@ -1,7 +1,7 @@
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { HistoryIcon, PlusIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import HeroTooltip from "../common/HeroTooltip"
 
 // Custom MCP Server Icon component using VSCode codicon

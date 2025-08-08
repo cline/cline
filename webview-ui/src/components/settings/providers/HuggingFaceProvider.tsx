@@ -1,9 +1,9 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
 
 /**
  * Props for the HuggingFaceProvider component

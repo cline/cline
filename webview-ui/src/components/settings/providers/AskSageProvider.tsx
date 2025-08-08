@@ -1,12 +1,12 @@
-import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { askSageDefaultURL, askSageModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the AskSageProvider component
  */

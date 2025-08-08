@@ -1,8 +1,7 @@
+import { HostProvider } from "@/hosts/host-provider"
+import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
-import { fileExistsAtPath } from "@utils/fs"
-import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Cleans up legacy checkpoints from task folders.

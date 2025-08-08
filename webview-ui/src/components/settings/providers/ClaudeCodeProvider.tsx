@@ -1,13 +1,13 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { claudeCodeModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the ClaudeCodeProvider component
  */

@@ -34,12 +34,12 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import * as vscode from "vscode"
 import { ulid } from "ulid"
+import * as vscode from "vscode"
 
 import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
 import { errorService } from "@/services/posthog/PostHogClientProvider"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
@@ -73,22 +73,20 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import { getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { isNextGenModelFamily } from "@utils/model-utils"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
+import { CacheService } from "../storage/CacheService"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { CacheService } from "../storage/CacheService"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { ShowMessageType } from "@/shared/proto/index.host"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 

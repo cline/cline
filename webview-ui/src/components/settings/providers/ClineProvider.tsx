@@ -1,12 +1,11 @@
-import { ApiConfiguration } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
 /**
  * Props for the ClineProvider component
  */

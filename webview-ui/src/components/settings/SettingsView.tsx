@@ -8,14 +8,14 @@ import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointe
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
-import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
-import AboutSection from "./sections/AboutSection"
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 

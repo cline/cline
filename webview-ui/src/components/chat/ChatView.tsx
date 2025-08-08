@@ -1,16 +1,17 @@
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 // Import utilities and hooks from the new structure
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import {
 	ActionButtons,
 	CHAT_CONSTANTS,
@@ -28,7 +29,6 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
-import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 
 interface ChatViewProps {
 	isHidden: boolean

@@ -1,15 +1,15 @@
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 
-import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
-import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
-import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
-import { refreshGroqModels } from "../models/refreshGroqModels"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
+import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
+import { refreshGroqModels } from "../models/refreshGroqModels"
+import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
  * Initialize webview when it launches

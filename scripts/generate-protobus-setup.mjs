@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { writeFileWithMkdirs } from "./file-utils.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
-import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
+import { writeFileWithMkdirs } from "./file-utils.mjs"
+import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
 const WEBVIEW_CLIENTS_FILE = path.resolve("webview-ui/src/services/grpc-client.ts")
 const VSCODE_SERVICES_FILE = path.resolve("src/generated/hosts/vscode/protobus-services.ts")

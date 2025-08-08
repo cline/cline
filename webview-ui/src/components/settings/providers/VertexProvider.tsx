@@ -1,14 +1,14 @@
-import { vertexGlobalModels, vertexModels } from "@shared/api"
-import { VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { vertexGlobalModels, vertexModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 /**
  * Props for the VertexProvider component
  */

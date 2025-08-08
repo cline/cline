@@ -1,9 +1,9 @@
-import { memo } from "react"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { handleSignIn, useClineAuth } from "@/context/ClineAuthContext"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { memo } from "react"
+import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 
 const errorColor = "var(--vscode-errorForeground)"
 

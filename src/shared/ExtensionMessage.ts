@@ -2,12 +2,12 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
-import { HistoryItem } from "./HistoryItem"
-import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
-import { UserInfo } from "./UserInfo"
+import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
+import { Mode, OpenaiReasoningEffort } from "./storage/types"
+import { TelemetrySetting } from "./TelemetrySetting"
+import { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {

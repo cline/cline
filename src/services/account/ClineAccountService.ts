@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import { clineEnvConfig } from "@/config"
 import type {
 	BalanceResponse,
 	OrganizationBalanceResponse,
@@ -7,8 +7,8 @@ import type {
 	UsageTransaction,
 	UserResponse,
 } from "@shared/ClineAccount"
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { AuthService } from "../auth/AuthService"
-import { clineEnvConfig } from "@/config"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService

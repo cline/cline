@@ -1,8 +1,8 @@
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
 import { ApiKeyField } from "../common/ApiKeyField"
 import GroqModelPicker from "../GroqModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the GroqProvider component

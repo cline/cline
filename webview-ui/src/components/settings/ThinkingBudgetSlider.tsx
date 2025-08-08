@@ -1,11 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { getModeSpecificFields } from "./utils/providerUtils"
+import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useMemo, useState } from "react"
+import styled from "styled-components"
+import { getModeSpecificFields } from "./utils/providerUtils"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024

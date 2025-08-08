@@ -1,10 +1,10 @@
 /* eslint-disable eslint-rules/no-direct-vscode-api */
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { strict as assert } from "assert"
-import * as vscode from "vscode"
-import pWaitFor from "p-wait-for"
 import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { strict as assert } from "assert"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import pWaitFor from "p-wait-for"
+import * as vscode from "vscode"
 
 describe("Hostbridge - Window - getOpenTabs", () => {
 	async function createAndOpenTestDocument(fileNumber: number, column: vscode.ViewColumn): Promise<void> {

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react"
-import { VSCodeTextField, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
-import { StateServiceClient } from "../../../services/grpc-client"
-import { Int64, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import Section from "../Section"
-import { updateSetting } from "../utils/settingsHandlers"
+import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import React, { useState } from "react"
+import { StateServiceClient } from "../../../services/grpc-client"
+import Section from "../Section"
+import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
+import { updateSetting } from "../utils/settingsHandlers"
 
 interface TerminalSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null

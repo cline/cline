@@ -1,9 +1,9 @@
 /* eslint-disable eslint-rules/no-direct-vscode-api */
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { strict as assert } from "assert"
-import * as vscode from "vscode"
 import { getVisibleTabs } from "@/hosts/vscode/hostbridge/window/getVisibleTabs"
 import { GetVisibleTabsRequest } from "@/shared/proto/host/window"
+import { strict as assert } from "assert"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as vscode from "vscode"
 
 describe("Hostbridge - Window - getVisibleTabs", () => {
 	/**

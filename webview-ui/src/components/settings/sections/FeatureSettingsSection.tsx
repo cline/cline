@@ -1,11 +1,11 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { memo } from "react"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { updateSetting } from "../utils/settingsHandlers"
-import { McpDisplayMode } from "@shared/McpDisplayMode"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { memo } from "react"
 import Section from "../Section"
+import { updateSetting } from "../utils/settingsHandlers"
 
 interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null

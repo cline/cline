@@ -1,9 +1,9 @@
-import { ClineIgnoreController } from "./ClineIgnoreController"
 import fs from "fs/promises"
-import path from "path"
-import os from "os"
 import { after, beforeEach, describe, it } from "mocha"
+import os from "os"
+import path from "path"
 import "should"
+import { ClineIgnoreController } from "./ClineIgnoreController"
 
 describe("ClineIgnoreController", () => {
 	let tempDir: string

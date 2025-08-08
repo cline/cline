@@ -1,7 +1,7 @@
-import { useEffect } from "react"
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
-import { ChatState } from "../types/chatTypes"
+import { useEffect } from "react"
 import { useDeepCompareEffect } from "react-use"
+import { ChatState } from "../types/chatTypes"
 
 /**
  * Custom hook for managing button state based on messages

@@ -1,11 +1,11 @@
-import * as vscode from "vscode"
-import { writeTextToClipboard } from "@utils/env"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
 import { getAllExtensionState } from "@/core/storage/state"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { getWorkingState } from "@/utils/git"
 import { getCwd } from "@/utils/path"
+import { writeTextToClipboard } from "@utils/env"
+import * as vscode from "vscode"
 
 /**
  * Git commit message generator module
