@@ -4,5 +4,6 @@
 	"printWidth": 130,
 	"semi": false,
 	"bracketSameLine": true,
-	"endOfLine": "lf"
+	"endOfLine": "lf",
+	"plugins": ["prettier-plugin-organize-imports"]
 }
