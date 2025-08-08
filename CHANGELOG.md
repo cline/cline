@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.21.0]
+
+- Add support for GPT-5 model family including GPT-5, GPT-5 Mini, and GPT-5 Nano with prompt caching support and set GPT-5 as the new default model
+- Add "Take a Tour" button for new users to easily access the VSCode walkthrough and improve onboarding experience
+- Enhance plan mode response handling with better exploration parameter support
+
+## [3.20.13]
+
+- Fix prompt caching support for Opus 4.1 on OpenRouter/Cline
+
+## [3.20.12]
+
+- Add Claude Opus 4.1 model support to AWS Bedrock provider (Thanks @omercelik!)
+- Fix prompt caching and extended thinking support for Claude Opus 4.1 in Anthropic provider
+
+## [3.20.11]
+
+Add gpt-oss-120b as a Cerebras model
+Add Opus 4.1 through Claude Code
+
 ## [3.20.10]
 
 - Add OpenAI's new open-source models (GPT-OSS-120B and GPT-OSS-20B) to Hugging Face and Groq providers

@@ -4,6 +4,8 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
+import "cline/common.proto";
+
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
@@ -12,6 +14,8 @@ service WorkspaceService {
   // Returns true if the document was saved, returns false if the document was not found, or did not
   // need to be saved.
   rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
+  // Get diagnostics from the workspace.
+  rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -33,4 +37,41 @@ message SaveOpenDocumentIfDirtyRequest {
 message SaveOpenDocumentIfDirtyResponse {
   // Returns true if the document was saved. 
   optional bool was_saved = 1;
+}
+
+message GetDiagnosticsRequest {
+  optional cline.Metadata metadata = 1;
+}
+
+message GetDiagnosticsResponse {
+  repeated FileDiagnostics file_diagnostics = 1;
+}
+
+message FileDiagnostics {
+  string file_path = 1;
+  repeated Diagnostic diagnostics = 2;
+}
+
+message Diagnostic {
+  string message = 1;
+  DiagnosticRange range = 2;
+  DiagnosticSeverity severity = 3;
+  optional string source = 4;
+}
+
+message DiagnosticRange {
+  DiagnosticPosition start = 1;
+  DiagnosticPosition end = 2;
+}
+
+message DiagnosticPosition {
+  int32 line = 1;
+  int32 character = 2;
+}
+
+enum DiagnosticSeverity {
+  DIAGNOSTIC_ERROR = 0;
+  DIAGNOSTIC_WARNING = 1;
+  DIAGNOSTIC_INFORMATION = 2;
+  DIAGNOSTIC_HINT = 3;
 }

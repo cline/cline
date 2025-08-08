@@ -238,6 +238,7 @@ message ModelsApiConfiguration {
   optional string gemini_cli_project_id = 62;
   optional string huawei_cloud_maas_api_key = 63;
   optional string baseten_api_key = 64;
+  optional string ollama_api_key = 65;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

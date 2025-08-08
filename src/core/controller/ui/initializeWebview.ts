@@ -4,7 +4,7 @@ import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 import { getAllExtensionState, getGlobalState, updateGlobalState } from "../../storage/state"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
@@ -55,7 +55,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeOpenRouterModelId
 					const actModelId = apiConfiguration.actModeOpenRouterModelId
-					let updatedConfig = { ...apiConfiguration }
+					const updatedConfig = { ...apiConfiguration }
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
@@ -101,7 +101,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeGroqModelId
 					const actModelId = apiConfiguration.actModeGroqModelId
-					let updatedConfig = { ...apiConfiguration }
+					const updatedConfig = { ...apiConfiguration }
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
