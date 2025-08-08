@@ -362,8 +362,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 										color: "var(--vscode-descriptionForeground)",
 										margin: "4px 0 0 0",
 									}}>
-									Space-separated arguments to pass to the browser executable. These are appended to defaults
-									during launch.
+									Space-separated arguments to pass to the browser executable.
 								</p>
 							</div>
 						</div>
