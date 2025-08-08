@@ -25,7 +25,7 @@ export class ExternalWebviewProvider extends WebviewProvider {
 		return true
 	}
 	override getWebview() {
-		return {}
+		return undefined
 	}
 
 	override resolveWebviewView(_: any): Promise<void> {

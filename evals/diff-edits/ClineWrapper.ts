@@ -4,7 +4,6 @@ import { ApiHandlerOptions } from "../../src/shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import {
-	parseAssistantMessageV1,
 	parseAssistantMessageV2,
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
@@ -17,7 +16,6 @@ type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string | any>
 
 const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
-	parseAssistantMessageV1: parseAssistantMessageV1,
 	parseAssistantMessageV2: parseAssistantMessageV2,
 }
 
