@@ -3,6 +3,8 @@ import { ApiHandler, buildApiHandler } from "@api/index"
 import { AnthropicHandler } from "@api/providers/anthropic"
 import { ClineHandler } from "@api/providers/cline"
 import { OpenRouterHandler } from "@api/providers/openrouter"
+import { OpenAiHandler } from "@api/providers/openai"
+import { OpenAiNativeHandler } from "@api/providers/openai-native"
 import { ApiStream } from "@api/transform/stream"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
@@ -44,6 +46,7 @@ import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
+	checkIsOpenAIContextWindowError,
 } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -1787,8 +1790,10 @@ export class Task {
 		} catch (error) {
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
 			const isAnthropic = this.api instanceof AnthropicHandler
+			const isOpenAI = this.api instanceof OpenAiHandler || this.api instanceof OpenAiNativeHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
 			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
+			const isOpenAIContextWindowError = checkIsOpenAIContextWindowError(error) && isOpenAI
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
@@ -1809,6 +1814,20 @@ export class Task {
 					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 				)
 
+				this.taskState.didAutomaticallyRetryFailedApiRequest = true
+			} else if (isOpenAI && isOpenAIContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
+				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+					this.messageStateHandler.getApiConversationHistory(),
+					this.taskState.conversationHistoryDeletedRange,
+					"quarter", // Force aggressive truncation
+				)
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+					Date.now(),
+					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+				)
+				console.log("first chunk failed (OpenAI context window), waiting 1 second before retrying")
+				await setTimeoutPromise(1000)
 				this.taskState.didAutomaticallyRetryFailedApiRequest = true
 			} else if (isOpenRouter && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				if (isOpenRouterContextWindowError) {
@@ -1831,7 +1850,7 @@ export class Task {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 
-				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
+				if (isOpenRouterContextWindowError || isAnthropicContextWindowError || isOpenAIContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.messageStateHandler.getApiConversationHistory(),
 						this.taskState.conversationHistoryDeletedRange,
