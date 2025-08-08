@@ -100,9 +100,6 @@
 		"includes": ["!src/core/prompts/**", "!webview-ui/src/components/chat/**"]
 	},
 	"javascript": {
-		"linter": {
-			"enabled": true
-		},
 		"formatter": {
 			"semicolons": "asNeeded",
 			"arrowParentheses": "always",
@@ -114,11 +111,7 @@
 		}
 	},
 	"json": {
-		"linter": {
-			"enabled": true
-		},
 		"formatter": {
-			"indentStyle": "tab",
 			"indentWidth": 4,
 			"lineWidth": 130,
 			"trailingCommas": "none",
@@ -134,12 +127,16 @@
 			"!**/playwright/**",
 			"!**/test-results/**",
 			"!**/node_modules/**",
-			"!webview-ui/build/**"
+			"!**/webview-ui/build/**"
 		]
 	},
 	"overrides": [
 		{
-			"includes": ["!src/hosts/vscode/**", "!**/*.test.ts"],
+			"includes": ["**/.vscode/*.json"],
+			"json": { "parser": { "allowComments": true } }
+		},
+		{
+			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**"],
 			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
 		}
 	]
