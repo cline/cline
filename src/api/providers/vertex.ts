@@ -6,12 +6,22 @@ import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vert
 import { ApiStream } from "@api/transform/stream"
 import { GeminiHandler } from "./gemini"
 
+interface VertexHandlerOptions {
+	vertexProjectId?: string
+	vertexRegion?: string
+	apiModelId?: string
+	thinkingBudgetTokens?: number
+	geminiApiKey?: string
+	geminiBaseUrl?: string
+	taskId?: string
+}
+
 export class VertexHandler implements ApiHandler {
 	private geminiHandler: GeminiHandler | undefined
 	private clientAnthropic: AnthropicVertex | undefined
-	private options: ApiHandlerOptions
+	private options: VertexHandlerOptions
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: VertexHandlerOptions) {
 		this.options = options
 	}
 
@@ -76,6 +86,7 @@ export class VertexHandler implements ApiHandler {
 
 		switch (modelId) {
 			case "claude-sonnet-4@20250514":
+			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
 			case "claude-3-7-sonnet@20250219":
 			case "claude-3-5-sonnet-v2@20241022":

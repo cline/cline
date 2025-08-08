@@ -1,6 +1,6 @@
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 import { Controller } from ".."
-import { UpdateMcpTimeoutRequest, McpServers } from "../../../shared/proto/mcp"
+import { UpdateMcpTimeoutRequest, McpServers } from "@shared/proto/cline/mcp"
 
 /**
  * Updates the timeout configuration for an MCP server.

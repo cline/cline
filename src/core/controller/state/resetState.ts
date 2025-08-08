@@ -1,9 +1,10 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { ResetStateRequest } from "../../../shared/proto/state"
+import { Empty } from "@shared/proto/cline/common"
+import { ResetStateRequest } from "@shared/proto/cline/state"
 import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
-import * as vscode from "vscode"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Resets the extension state to its defaults
@@ -14,11 +15,17 @@ import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			vscode.window.showInformationMessage("Resetting global state...")
-			await resetGlobalState(controller.context)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting global state...",
+			})
+			await resetGlobalState(controller)
 		} else {
-			vscode.window.showInformationMessage("Resetting workspace state...")
-			await resetWorkspaceState(controller.context)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting workspace state...",
+			})
+			await resetWorkspaceState(controller)
 		}
 
 		if (controller.task) {
@@ -26,7 +33,10 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		vscode.window.showInformationMessage("State reset")
+		HostProvider.window.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "State reset",
+		})
 		await controller.postStateToWebview()
 
 		await sendChatButtonClickedEvent(controller.id)
@@ -34,7 +44,10 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		vscode.window.showErrorMessage(`Failed to reset state: ${error instanceof Error ? error.message : String(error)}`)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+		})
 		throw error
 	}
 }

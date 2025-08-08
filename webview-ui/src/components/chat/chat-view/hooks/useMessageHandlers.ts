@@ -1,8 +1,8 @@
 import { useCallback } from "react"
 import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
 import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { MessageHandlers, ChatState } from "../types/chatTypes"
 
 /**
@@ -120,7 +120,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// If there's no input content, just approve the action
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						// Send as a regular message so it appears in the conversation
-						await handleSendMessage(trimmedInput || "", images || [], files || [])
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
 						// No input content, just approve the action
 						await TaskServiceClient.askResponse(

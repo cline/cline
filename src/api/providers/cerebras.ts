@@ -1,15 +1,20 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
+import { ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "@api/transform/stream"
 
+interface CerebrasHandlerOptions {
+	cerebrasApiKey?: string
+	apiModelId?: string
+}
+
 export class CerebrasHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: CerebrasHandlerOptions
 	private client: Cerebras | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: CerebrasHandlerOptions) {
 		this.options = options
 	}
 
@@ -51,7 +56,7 @@ export class CerebrasHandler implements ApiHandler {
 
 		// Check if this is a reasoning model that uses thinking tags
 		const modelId = this.getModel().id
-		const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
+		const isReasoningModel = modelId.includes("qwen")
 
 		// Convert Anthropic messages to Cerebras format
 		for (const message of messages) {
@@ -97,6 +102,7 @@ export class CerebrasHandler implements ApiHandler {
 				messages: cerebrasMessages,
 				temperature: 0,
 				stream: true,
+				max_tokens: this.getModel().info.maxTokens,
 			})
 
 			// Handle streaming response
@@ -170,9 +176,15 @@ export class CerebrasHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in cerebrasModels) {
-			const id = modelId as CerebrasModelId
+		const originalModelId = this.options.apiModelId
+		let apiModelId = originalModelId
+		if (originalModelId === "qwen-3-coder-480b-free") {
+			apiModelId = "qwen-3-coder-480b"
+			return { id: apiModelId, info: cerebrasModels[originalModelId as CerebrasModelId] }
+		}
+
+		if (originalModelId && originalModelId in cerebrasModels) {
+			const id = originalModelId as CerebrasModelId
 			return { id, info: cerebrasModels[id] }
 		}
 		return {

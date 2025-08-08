@@ -1,4 +1,6 @@
-import * as vscode from "vscode"
+import { openExternal } from "@utils/env"
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 
 /**
  * Detects potential AI-generated code omissions in the given file content.
@@ -40,17 +42,18 @@ function detectCodeOmission(originalFileContent: string, newFileContent: string)
  */
 export function showOmissionWarning(originalFileContent: string, newFileContent: string): void {
 	if (detectCodeOmission(originalFileContent, newFileContent)) {
-		vscode.window
-			.showWarningMessage(
-				"Potential code truncation detected. This happens when the AI reaches its max output limit.",
-				"Follow this guide to fix the issue",
-			)
-			.then((selection) => {
-				if (selection === "Follow this guide to fix the issue") {
-					vscode.env.openExternal(
-						vscode.Uri.parse(
-							"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
-						),
+		HostProvider.window
+			.showMessage({
+				type: ShowMessageType.WARNING,
+				message: "Potential code truncation detected. This happens when the AI reaches its max output limit.",
+				options: {
+					items: ["Follow this guide to fix the issue"],
+				},
+			})
+			.then((response) => {
+				if (response.selectedOption === "Follow this guide to fix the issue") {
+					openExternal(
+						"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
 					)
 				}
 			})

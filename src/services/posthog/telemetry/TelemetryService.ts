@@ -1,26 +1,19 @@
-import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../../package.json"
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import { posthogClientProvider } from "../PostHogClientProvider"
+import type { PostHogClientProvider } from "../PostHogClientProvider"
+import { Mode } from "@/shared/storage/types"
+import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
  * Respects user privacy settings and VSCode's global telemetry configuration
  */
-
-interface CollectedTasks {
-	taskId: string
-	collection: Collection[]
-}
-
-interface Collection {
-	event: string
-	properties: any
-}
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
@@ -29,21 +22,25 @@ interface Collection {
  */
 type TelemetryCategory = "checkpoints" | "browser"
 
-class TelemetryService {
+/**
+ * Maximum length for error messages to prevent excessive data
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 500
+
+export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
 		["browser", true], // Browser telemetry enabled
 	])
 
-	// Stores events when collect=true
-	private collectedTasks: CollectedTasks[] = []
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 		},
 		TASK: {
@@ -83,8 +80,8 @@ class TelemetryService {
 			BROWSER_ERROR: "task.browser_error",
 			// Tracks Gemini API specific performance metrics
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
-			// Collection of all task events
-			TASK_COLLECTION: "task.collection",
+			// Tracks when API providers return errors
+			PROVIDER_API_ERROR: "task.provider_api_error",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -97,31 +94,18 @@ class TelemetryService {
 		},
 	}
 
-	/** Singleton instance of the TelemetryService */
-	private static instance: TelemetryService
-	/** PostHog client instance for sending analytics events */
-	private client: PostHog
-	/** Unique identifier for the current VSCode instance */
-	public distinctId: string = vscode.env.machineId
-	/** Whether telemetry is currently enabled based on user and VSCode settings */
-	private telemetryEnabled: boolean = false
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
 	/** Whether the extension is running in development mode */
 	private readonly isDev = process.env.IS_DEV
 
 	/**
-	 * Private constructor to enforce singleton pattern
-	 * Initializes PostHog client with configuration
+	 * Constructor that accepts a PostHogClientProvider instance
+	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	private constructor() {
-		this.client = posthogClientProvider.getClient()
-	}
-
-	private setDistinctId(installId: string) {
-		if (this.distinctId === "someValue.machineId") {
-			this.distinctId = installId
-		}
+	public constructor(private provider: PostHogClientProvider) {
+		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		console.info("[TelemetryService] Initialized with PostHogClientProvider")
 	}
 
 	/**
@@ -131,54 +115,29 @@ class TelemetryService {
 	 */
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
-		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
-		const globalTelemetryEnabled = telemetryLevel === "all"
 
 		// We only enable telemetry if global vscode telemetry is enabled
-		if (globalTelemetryEnabled) {
-			this.telemetryEnabled = didUserOptIn
-		} else {
+		if (!vscode.env.isTelemetryEnabled) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
-				void vscode.window
-					.showWarningMessage(
-						"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-						"Open Settings",
-					)
-					.then((selection) => {
-						if (selection === "Open Settings") {
+				void HostProvider.window
+					.showMessage({
+						type: ShowMessageType.WARNING,
+						message:
+							"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+						options: {
+							items: ["Open Settings"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings") {
 							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
 						}
 					})
 			}
-			this.telemetryEnabled = false
 		}
 
-		// Update PostHog client state based on telemetry preference
-		if (this.telemetryEnabled) {
-			this.client.optIn()
-			this.client.identify({ distinctId: this.distinctId })
-		} else {
-			this.client.capture({
-				distinctId: this.distinctId,
-				event: TelemetryService.EVENTS.USER.OPT_OUT,
-				properties: this.addProperties({}),
-			})
-
-			await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay 1 second before opting out
-			this.client.optOut()
-		}
-	}
-
-	/**
-	 * Gets or creates the singleton instance of TelemetryService
-	 * @returns The TelemetryService instance
-	 */
-	public static getInstance(): TelemetryService {
-		if (!TelemetryService.instance) {
-			TelemetryService.instance = new TelemetryService()
-		}
-		return TelemetryService.instance
+		this.provider.toggleOptIn(didUserOptIn)
 	}
 
 	private addProperties(properties: any): any {
@@ -190,48 +149,30 @@ class TelemetryService {
 	}
 
 	/**
-	 * Captures a telemetry event if telemetry is enabled or collects if collect=true
+	 * Captures a telemetry event if telemetry is enabled
 	 * @param event The event to capture with its properties
-	 * @param collect If true, store the event in collectedEvents instead of sending to PostHog
 	 */
-	public capture(event: { event: string; properties?: any }, collect: boolean = false): void {
-		if (!this.telemetryEnabled) {
-			return
-		}
-		const taskId = event.properties.taskId
-
+	public capture(event: { event: string; properties?: unknown }): void {
 		const propertiesWithVersion = this.addProperties(event.properties)
 
-		if (collect && taskId) {
-			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
-			if (existingTask) {
-				existingTask.collection.push({
-					event: event.event,
-					properties: propertiesWithVersion,
-				})
-			} else {
-				this.collectedTasks.push({
-					taskId,
-					collection: [
-						{
-							event: event.event,
-							properties: propertiesWithVersion,
-						},
-					],
-				})
-			}
-		} else {
-			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
-		}
+		// Use the provider's log method instead of direct client capture
+		this.provider.log(event.event, propertiesWithVersion)
 	}
 
-	public captureExtensionActivated(installId: string) {
-		this.setDistinctId(installId)
+	public captureExtensionActivated() {
+		// Use provider's log method for the activation event
+		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
+	}
 
-		if (this.telemetryEnabled) {
-			this.client.identify({ distinctId: this.distinctId })
-			this.client.capture({ distinctId: this.distinctId, event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
-		}
+	/**
+	 * Identifies the accounts user
+	 * @param userInfo The user's information
+	 */
+	public identifyAccount(userInfo: ClineAccountUserInfo) {
+		const propertiesWithVersion = this.addProperties({})
+
+		// Use the provider's log method instead of direct client capture
+		this.provider.identifyAccount(userInfo, propertiesWithVersion)
 	}
 
 	// Task events
@@ -239,47 +180,35 @@ class TelemetryService {
 	 * Records when a new task/conversation is started
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
-	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskCreated(taskId: string, apiProvider?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.CREATED,
-				properties: { taskId, apiProvider },
-			},
-			collect,
-		)
+	public captureTaskCreated(taskId: string, ulid: string, apiProvider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CREATED,
+			properties: { taskId, ulid, apiProvider },
+		})
 	}
 
 	/**
 	 * Records when a task/conversation is restarted
 	 * @param taskId Unique identifier for the new task
 	 * @param apiProvider Optional API provider
-	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskRestarted(taskId: string, apiProvider?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.RESTARTED,
-				properties: { taskId, apiProvider },
-			},
-			collect,
-		)
+	public captureTaskRestarted(taskId: string, ulid: string, apiProvider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.RESTARTED,
+			properties: { taskId, ulid, apiProvider },
+		})
 	}
 
 	/**
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param taskId Unique identifier for the task
-	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskCompleted(taskId: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.COMPLETED,
-				properties: { taskId },
-			},
-			collect,
-		)
+	public captureTaskCompleted(taskId: string, ulid: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.COMPLETED,
+			properties: { taskId, ulid },
+		})
 	}
 
 	/**
@@ -288,35 +217,42 @@ class TelemetryService {
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
 		taskId: string,
+		ulid: string,
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
-		collect: boolean = false,
+		tokenUsage: {
+			tokensIn?: number
+			tokensOut?: number
+			cacheWriteTokens?: number
+			cacheReadTokens?: number
+			totalCost?: number
+		} = {},
 	) {
 		// Ensure required parameters are provided
-		if (!taskId || !provider || !model || !source) {
+		if (!taskId || !ulid || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
-		const properties: Record<string, any> = {
+		const properties: Record<string, unknown> = {
 			taskId,
+			ulid,
 			provider,
 			model,
 			source,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
+			...tokenUsage,
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
-				properties,
-			},
-			collect,
-		)
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
+			properties,
+		})
 	}
 
 	/**
@@ -326,19 +262,16 @@ class TelemetryService {
 	 * @param tokensOut Number of output tokens generated
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
-				properties: {
-					taskId,
-					tokensIn,
-					tokensOut,
-					model,
-				},
+	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
+			properties: {
+				taskId,
+				tokensIn,
+				tokensOut,
+				model,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -346,17 +279,14 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param mode The mode being switched to (plan or act)
 	 */
-	public captureModeSwitch(taskId: string, mode: "plan" | "act", collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
-				properties: {
-					taskId,
-					mode,
-				},
+	public captureModeSwitch(taskId: string, mode: Mode) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
+			properties: {
+				taskId,
+				mode,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -364,18 +294,18 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
-	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType, collect: boolean = false) {
-		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.FEEDBACK,
-				properties: {
-					taskId,
-					feedbackType,
-				},
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+		console.info("TelemetryService: Capturing task feedback", {
+			taskId,
+			feedbackType,
+		})
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FEEDBACK,
+			properties: {
+				taskId,
+				feedbackType,
 			},
-			collect,
-		)
+		})
 	}
 
 	// Tool events
@@ -386,27 +316,17 @@ class TelemetryService {
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(
-		taskId: string,
-		tool: string,
-		modelId: string,
-		autoApproved: boolean,
-		success: boolean,
-		collect: boolean = false,
-	) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.TOOL_USED,
-				properties: {
-					taskId,
-					tool,
-					autoApproved,
-					success,
-					modelId,
-				},
+	public captureToolUsage(taskId: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TOOL_USED,
+			properties: {
+				taskId,
+				tool,
+				autoApproved,
+				success,
+				modelId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -419,23 +339,19 @@ class TelemetryService {
 		taskId: string,
 		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
 		durationMs?: number,
-		collect: boolean = false,
 	) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.CHECKPOINT_USED,
-				properties: {
-					taskId,
-					action,
-					durationMs,
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CHECKPOINT_USED,
+			properties: {
+				taskId,
+				action,
+				durationMs,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -443,18 +359,15 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(taskId: string, modelId: string, errorType?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
-				properties: {
-					taskId,
-					errorType,
-					modelId,
-				},
+	public captureDiffEditFailure(taskId: string, modelId: string, errorType?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
+			properties: {
+				taskId,
+				errorType,
+				modelId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -463,50 +376,41 @@ class TelemetryService {
 	 * @param provider Provider of the selected model
 	 * @param taskId Optional task identifier if model was selected during a task
 	 */
-	public captureModelSelected(model: string, provider: string, taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
-				properties: {
-					model,
-					provider,
-					taskId,
-				},
+	public captureModelSelected(model: string, provider: string, taskId?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
+			properties: {
+				model,
+				provider,
+				taskId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
 	 * Records when a historical task is loaded from storage
 	 * @param taskId Unique identifier for the historical task
 	 */
-	public captureHistoricalTaskLoaded(taskId: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.HISTORICAL_LOADED,
-				properties: {
-					taskId,
-				},
+	public captureHistoricalTaskLoaded(taskId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.HISTORICAL_LOADED,
+			properties: {
+				taskId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
 	 * Records when the retry button is clicked for failed operations
 	 * @param taskId Unique identifier for the task being retried
 	 */
-	public captureRetryClicked(taskId: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.RETRY_CLICKED,
-				properties: {
-					taskId,
-				},
+	public captureRetryClicked(taskId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.RETRY_CLICKED,
+			properties: {
+				taskId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -514,24 +418,21 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings, collect: boolean = false) {
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_START,
-				properties: {
-					taskId,
-					viewport: browserSettings.viewport,
-					isRemote: !!browserSettings.remoteBrowserEnabled,
-					remoteBrowserHost: browserSettings.remoteBrowserHost,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_START,
+			properties: {
+				taskId,
+				viewport: browserSettings.viewport,
+				isRemote: !!browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -546,25 +447,21 @@ class TelemetryService {
 			duration: number
 			actions?: string[]
 		},
-		collect: boolean = false,
 	) {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_END,
-				properties: {
-					taskId,
-					actionCount: stats.actionCount,
-					duration: stats.duration,
-					actions: stats.actions,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_END,
+			properties: {
+				taskId,
+				actionCount: stats.actionCount,
+				duration: stats.duration,
+				actions: stats.actions,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -582,27 +479,23 @@ class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
-			[key: string]: any
+			[key: string]: unknown
 		},
-		collect: boolean = false,
 	) {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
 
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.BROWSER_ERROR,
-				properties: {
-					taskId,
-					errorType,
-					errorMessage,
-					context,
-					timestamp: new Date().toISOString(),
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.BROWSER_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				context,
+				timestamp: new Date().toISOString(),
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -611,18 +504,15 @@ class TelemetryService {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
-	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
-				properties: {
-					taskId,
-					qty,
-					mode,
-				},
+	public captureOptionSelected(taskId: string, qty: number, mode: Mode) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				qty,
+				mode,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -631,18 +521,15 @@ class TelemetryService {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
-	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
-				properties: {
-					taskId,
-					qty,
-					mode,
-				},
+	public captureOptionsIgnored(taskId: string, qty: number, mode: Mode) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
+			properties: {
+				taskId,
+				qty,
+				mode,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -650,7 +537,6 @@ class TelemetryService {
 	 * @param taskId Unique identifier for the task
 	 * @param modelId Specific Gemini model ID
 	 * @param data Performance data including TTFT, durations, token counts, cache stats, and API success status
-	 * @param collect If true, collect event instead of sending
 	 */
 	public captureGeminiApiPerformance(
 		taskId: string,
@@ -667,19 +553,15 @@ class TelemetryService {
 			apiError?: string
 			throughputTokensPerSec?: number
 		},
-		collect: boolean = false,
 	) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
-				properties: {
-					taskId,
-					modelId,
-					...data,
-				},
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
+			properties: {
+				taskId,
+				modelId,
+				...data,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
@@ -687,38 +569,51 @@ class TelemetryService {
 	 * @param model The name of the model the user has interacted with
 	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
 	 */
-	public captureModelFavoritesUsage(model: string, isFavorited: boolean, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
-				properties: {
-					model,
-					isFavorited,
-				},
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+			properties: {
+				model,
+				isFavorited,
 			},
-			collect,
-		)
+		})
 	}
 
-	public captureButtonClick(button: string, taskId?: string, collect: boolean = false) {
-		this.capture(
-			{
-				event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
-				properties: {
-					button,
-					taskId,
-				},
+	public captureButtonClick(button: string, taskId?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
+			properties: {
+				button,
+				taskId,
 			},
-			collect,
-		)
+		})
 	}
 
 	/**
-	 * Checks if telemetry is enabled
-	 * @returns Boolean indicating whether telemetry is enabled
+	 * Records telemetry when an API provider returns an error
+	 * @param taskId Unique identifier for the task
+	 * @param model Identifier of the model used
+	 * @param requestId Unique identifier for the specific API request
+	 * @param errorMessage Detailed error message from the API provider
+	 * @param errorStatus HTTP status code of the error response, if available
+	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
-	public isTelemetryEnabled(): boolean {
-		return this.telemetryEnabled
+	public captureProviderApiError(args: {
+		taskId: string
+		ulid: string
+		model: string
+		errorMessage: string
+		errorStatus?: number | undefined
+		requestId?: string | undefined
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
+			properties: {
+				...args,
+				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**
@@ -730,43 +625,4 @@ class TelemetryService {
 		// Default to true if category has not been explicitly configured
 		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
-
-	public async sendCollectedEvents(taskId?: string): Promise<void> {
-		if (!this.telemetryEnabled) {
-			return
-		}
-
-		if (this.collectedTasks.length > 0) {
-			if (taskId) {
-				const task = this.collectedTasks.find((t) => t.taskId === taskId)
-				if (task) {
-					this.capture(
-						{
-							event: TelemetryService.EVENTS.TASK.TASK_COLLECTION,
-							properties: { taskId, events: task.collection },
-						},
-						false,
-					)
-					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== taskId)
-				}
-			} else {
-				for (const task of this.collectedTasks) {
-					this.capture(
-						{
-							event: TelemetryService.EVENTS.TASK.TASK_COLLECTION,
-							properties: { taskId: task.taskId, events: task.collection },
-						},
-						false,
-					)
-					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== task.taskId)
-				}
-			}
-		}
-	}
-
-	public async shutdown(): Promise<void> {
-		await this.client.shutdown()
-	}
 }
-
-export const telemetryService = TelemetryService.getInstance()

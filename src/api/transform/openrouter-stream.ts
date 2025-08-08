@@ -24,6 +24,7 @@ export async function createOpenRouterStream(
 	// handles direct model.id match logic
 	switch (model.id) {
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
@@ -82,6 +83,7 @@ export async function createOpenRouterStream(
 	let maxTokens: number | undefined
 	switch (model.id) {
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
@@ -117,6 +119,7 @@ export async function createOpenRouterStream(
 	let reasoning: { max_tokens: number } | undefined = undefined
 	switch (model.id) {
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
@@ -139,6 +142,10 @@ export async function createOpenRouterStream(
 		shouldApplyMiddleOutTransform = true
 	}
 
+	// hardcoded provider sorting for kimi-k2
+	const isKimiK2 = model.id === "moonshotai/kimi-k2"
+	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -153,6 +160,10 @@ export async function createOpenRouterStream(
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
+		// limit providers to only those that support the 131k context window
+		...(isKimiK2
+			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
+			: {}),
 	})
 
 	return stream

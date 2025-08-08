@@ -8,11 +8,17 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
+interface OpenAiNativeHandlerOptions {
+	openAiNativeApiKey?: string
+	reasoningEffort?: string
+	apiModelId?: string
+}
+
 export class OpenAiNativeHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OpenAiNativeHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
 	}
 
@@ -98,6 +104,33 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 				break
 			}
+			case "nectarine-alpha-new-reasoning-effort-2025-07-25":
+			case "gpt-5-2025-08-07":
+			case "gpt-5-mini-2025-08-07":
+			case "gpt-5-nano-2025-08-07":
+				const stream = await client.chat.completions.create({
+					model: model.id,
+					temperature: 1,
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+				})
+
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+					if (chunk.usage) {
+						// Only last chunk contains usage
+						yield* this.yieldUsage(model.info, chunk.usage)
+					}
+				}
+				break
 			default: {
 				const stream = await client.chat.completions.create({
 					model: model.id,

@@ -1,9 +1,8 @@
 import { Controller } from ".."
-import { GitCommits } from "@shared/proto/file"
-import { StringRequest } from "@shared/proto/common"
+import { GitCommits } from "@shared/proto/cline/file"
+import { StringRequest } from "@shared/proto/cline/common"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
-import { FileMethodHandler } from "./index"
 import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
 
 /**
@@ -12,7 +11,7 @@ import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/fi
  * @param request The request message containing the search query in the 'value' field
  * @returns GitCommits containing the matching commits
  */
-export const searchCommits: FileMethodHandler = async (controller: Controller, request: StringRequest): Promise<GitCommits> => {
+export async function searchCommits(_controller: Controller, request: StringRequest): Promise<GitCommits> {
 	const cwd = await getWorkspacePath()
 	if (!cwd) {
 		return GitCommits.create({ commits: [] })

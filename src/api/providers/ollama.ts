@@ -1,23 +1,42 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Message, Ollama } from "ollama"
+import { Message, Ollama, Config } from "ollama"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 
+interface OllamaHandlerOptions {
+	ollamaBaseUrl?: string
+	ollamaApiKey?: string
+	ollamaModelId?: string
+	ollamaApiOptionsCtxNum?: string
+	requestTimeoutMs?: number
+}
+
 export class OllamaHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OllamaHandlerOptions) {
 		this.options = options
 	}
 
 	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
-				this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+				const clientOptions: Partial<Config> = {
+					host: this.options.ollamaBaseUrl || "http://localhost:11434",
+				}
+
+				// Add API key if provided (for Ollama cloud or authenticated instances)
+				if (this.options.ollamaApiKey) {
+					clientOptions.headers = {
+						Authorization: `Bearer ${this.options.ollamaApiKey}`,
+					}
+				}
+
+				this.client = new Ollama(clientOptions)
 			} catch (error) {
 				throw new Error(`Error creating Ollama client: ${error.message}`)
 			}

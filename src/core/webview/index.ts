@@ -10,25 +10,31 @@ import path from "node:path"
 import { v4 as uuidv4 } from "uuid"
 import { Uri } from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
-	protected disposables: vscode.Disposable[] = []
 	controller: Controller
 	private clientId: string
 
+	private static lastActiveControllerId: string | null = null
+
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		protected readonly outputChannel: vscode.OutputChannel,
+
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
 		this.clientId = uuidv4()
 		WebviewProvider.clientIdMap.set(this, this.clientId)
-		this.controller = new Controller(context, outputChannel, (message) => this.postMessageToWebview(message), this.clientId)
+
+		// Create controller with cache service
+		this.controller = new Controller(context, this.clientId)
+		WebviewProvider.setLastActiveControllerId(this.controller.id)
 	}
 
 	// Add a method to get the client ID
@@ -42,12 +48,6 @@ export abstract class WebviewProvider {
 	}
 
 	async dispose() {
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
 		// Remove from client ID map
@@ -55,40 +55,62 @@ export abstract class WebviewProvider {
 	}
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
-		return findLast(Array.from(this.activeInstances), (instance) => instance.isVisible() === true)
+		return findLast(Array.from(WebviewProvider.activeInstances), (instance) => instance.isVisible() === true)
 	}
 
 	public static getActiveInstance(): WebviewProvider | undefined {
-		return Array.from(this.activeInstances).find((instance) => {
-			if (
-				instance.getWebview() &&
-				instance.getWebview().viewType === "claude-dev.TabPanelProvider" &&
-				"active" in instance.getWebview()
-			) {
-				return instance.getWebview().active === true
+		return Array.from(WebviewProvider.activeInstances).find((instance) => {
+			const webview = instance.getWebview()
+			if (webview && webview.viewType === "claude-dev.TabPanelProvider" && "active" in webview) {
+				return webview.active === true
 			}
 			return false
 		})
 	}
 
 	public static getAllInstances(): WebviewProvider[] {
-		return Array.from(this.activeInstances)
+		return Array.from(WebviewProvider.activeInstances)
 	}
 
 	public static getSidebarInstance() {
-		return Array.from(this.activeInstances).find(
-			(instance) => instance.getWebview() && "onDidChangeVisibility" in instance.getWebview(),
+		return Array.from(WebviewProvider.activeInstances).find(
+			(instance) => instance.providerType === WebviewProviderType.SIDEBAR,
 		)
 	}
 
 	public static getTabInstances(): WebviewProvider[] {
-		return Array.from(this.activeInstances).filter(
-			(instance) => instance.getWebview() && "onDidChangeViewState" in instance.getWebview(),
-		)
+		return Array.from(WebviewProvider.activeInstances).filter((instance) => instance.providerType === WebviewProviderType.TAB)
+	}
+
+	public static getLastActiveInstance(): WebviewProvider | undefined {
+		const lastActiveId = WebviewProvider.getLastActiveControllerId()
+		if (!lastActiveId) {
+			return undefined
+		}
+		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.controller.id === lastActiveId)
+	}
+
+	/**
+	 * Gets the last active controller ID with performance optimization
+	 * @returns The last active controller ID or null
+	 */
+	public static getLastActiveControllerId(): string | null {
+		return WebviewProvider.lastActiveControllerId || WebviewProvider.getSidebarInstance()?.controller.id || null
+	}
+
+	/**
+	 * Sets the last active controller ID with validation and performance optimization
+	 * @param controllerId The controller ID to set as last active
+	 */
+	public static setLastActiveControllerId(controllerId: string | null): void {
+		// Only update if the value is actually different to avoid unnecessary operations
+		if (WebviewProvider.lastActiveControllerId !== controllerId) {
+			WebviewProvider.lastActiveControllerId = controllerId
+		}
 	}
 
 	public static async disposeAllInstances() {
-		const instances = Array.from(this.activeInstances)
+		const instances = Array.from(WebviewProvider.activeInstances)
 		for (const instance of instances) {
 			await instance.dispose()
 		}
@@ -103,19 +125,11 @@ export abstract class WebviewProvider {
 	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
 
 	/**
-	 * Sends a message from the extension to the webview.
-	 *
-	 * @param message - The message to send to the webview
-	 * @returns A thenable that resolves to a boolean indicating success, or undefined if the webview is not available
-	 */
-	abstract postMessageToWebview(message: ExtensionMessage): Thenable<boolean> | undefined
-
-	/**
 	 * Gets the current webview instance.
 	 *
 	 * @returns The webview instance (WebviewView, WebviewPanel, or similar)
 	 */
-	abstract getWebview(): any
+	abstract getWebview(): vscode.WebviewPanel | vscode.WebviewView | undefined
 
 	/**
 	 * Converts a local URI to a webview URI that can be used within the webview.
@@ -215,6 +229,7 @@ export abstract class WebviewProvider {
                     window.clineClientId = "${this.clientId}";
                 </script>
 				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+				<script src="http://localhost:8097"></script> 
 			</body>
 		</html>
 		`
@@ -260,9 +275,14 @@ export abstract class WebviewProvider {
 		try {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
-			)
+			// Only show the error message when in development mode.
+			if (process.env.IS_DEV) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message:
+						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				})
+			}
 
 			return this.getHtmlContent()
 		}
@@ -297,7 +317,7 @@ export abstract class WebviewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
-					<script src="http://localhost:8097"></script> 
+					${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ""}
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">

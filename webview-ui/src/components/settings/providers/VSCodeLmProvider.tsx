@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState, useCallback, useEffect } from "react"
@@ -7,11 +7,18 @@ import * as vscodemodels from "vscode"
 import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { Mode } from "@shared/storage/types"
+interface VSCodeLmProviderProps {
+	currentMode: Mode
+}
 
-export const VSCodeLmProvider = () => {
+export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { vsCodeLmModelSelector } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Poll VS Code LM models
 	const requestVsCodeLmModels = useCallback(async () => {
@@ -42,8 +49,8 @@ export const VSCodeLmProvider = () => {
 					<VSCodeDropdown
 						id="vscode-lm-model"
 						value={
-							apiConfiguration?.vsCodeLmModelSelector
-								? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}`
+							vsCodeLmModelSelector
+								? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}`
 								: ""
 						}
 						onChange={(e) => {
@@ -53,7 +60,11 @@ export const VSCodeLmProvider = () => {
 							}
 							const [vendor, family] = value.split("/")
 
-							handleFieldChange("vsCodeLmModelSelector", { vendor, family })
+							handleModeFieldChange(
+								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
+								{ vendor, family },
+								currentMode,
+							)
 						}}
 						style={{ width: "100%" }}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>

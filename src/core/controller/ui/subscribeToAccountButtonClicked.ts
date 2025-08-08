@@ -1,9 +1,9 @@
 import { Controller } from "../index"
-import { Empty, EmptyRequest } from "@shared/proto/common"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Track subscriptions by controller ID
-const activeSubscriptions = new Map<string, StreamingResponseHandler>()
+const activeSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to account button clicked events
@@ -15,7 +15,7 @@ const activeSubscriptions = new Map<string, StreamingResponseHandler>()
 export async function subscribeToAccountButtonClicked(
 	controller: Controller,
 	_request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id
