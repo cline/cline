@@ -1,7 +1,4 @@
 import { JSONParser } from "@streamparser/json"
-import * as fs from "fs"
-import * as path from "path"
-import * as os from "os"
 
 // Fallback type definition based on the error message: "Property 'value' is optional in type 'ParsedElementInfo'"
 type ParsedElementInfo = {

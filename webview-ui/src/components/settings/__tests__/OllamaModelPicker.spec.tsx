@@ -1,7 +1,7 @@
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
-import OllamaModelPicker from "../OllamaModelPicker"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
+import OllamaModelPicker from "../OllamaModelPicker"
 
 // Mock the ExtensionStateContext
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {

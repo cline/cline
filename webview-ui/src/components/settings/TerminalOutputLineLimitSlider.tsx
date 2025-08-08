@@ -1,5 +1,5 @@
-import React from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import React from "react"
 import { updateSetting } from "./utils/settingsHandlers"
 
 const TerminalOutputLineLimitSlider: React.FC = () => {

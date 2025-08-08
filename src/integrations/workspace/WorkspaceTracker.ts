@@ -1,9 +1,9 @@
-import * as vscode from "vscode"
-import * as path from "path"
-import { listFiles } from "@services/glob/list-files"
-import { sendWorkspaceUpdateEvent } from "@core/controller/file/subscribeToWorkspaceUpdates"
-import { getCwd } from "@/utils/path"
 import { isDirectory } from "@/utils/fs"
+import { getCwd } from "@/utils/path"
+import { sendWorkspaceUpdateEvent } from "@core/controller/file/subscribeToWorkspaceUpdates"
+import { listFiles } from "@services/glob/list-files"
+import * as path from "path"
+import * as vscode from "vscode"
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {

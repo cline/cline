@@ -1,16 +1,16 @@
-import path from "path"
-import fs from "fs/promises"
-import { GlobalFileNames } from "@core/storage/disk"
-import { fileExistsAtPath, isDirectory } from "@utils/fs"
-import { formatResponse } from "@core/prompts/responses"
-import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
 import {
-	synchronizeRuleToggles,
 	combineRuleToggles,
 	getRuleFilesTotalContent,
 	readDirectoryRecursive,
+	synchronizeRuleToggles,
 } from "@core/context/instructions/user-instructions/rule-helpers"
+import { formatResponse } from "@core/prompts/responses"
+import { GlobalFileNames } from "@core/storage/disk"
+import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { fileExistsAtPath, isDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import path from "path"
 import * as vscode from "vscode"
 
 /**

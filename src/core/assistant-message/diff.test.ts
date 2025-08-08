@@ -1,6 +1,6 @@
-import { constructNewFileContent as cnfc } from "./diff"
-import { describe, it } from "mocha"
 import { expect } from "chai"
+import { describe, it } from "mocha"
+import { constructNewFileContent as cnfc } from "./diff"
 
 async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	return cnfc(diffContent, originalContent, isFinal, "v2")
