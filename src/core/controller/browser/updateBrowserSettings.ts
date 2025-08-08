@@ -36,7 +36,7 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 				// Otherwise, fall back to mergedWithDefaults.
 				"chromeExecutablePath" in request ? request.chromeExecutablePath : mergedWithDefaults.chromeExecutablePath,
 			disableToolUse: request.disableToolUse === undefined ? mergedWithDefaults.disableToolUse : request.disableToolUse,
-			customArgs: request.customArgs === undefined ? mergedWithDefaults.customArgs : request.customArgs,
+			customArgs: "customArgs" in request ? request.customArgs : mergedWithDefaults.customArgs,
 		}
 
 		// Update global state with new settings
