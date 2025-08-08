@@ -140,19 +140,16 @@ export class ClineHandler implements ApiHandler {
 					// 	totalCost = 0
 					// }
 
-					if (!didOutputUsage && chunk.usage) {
-						yield {
-							type: "usage",
-							cacheWriteTokens: 0,
-							cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-							inputTokens:
-								(chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-							outputTokens: chunk.usage.completion_tokens || 0,
-							// @ts-ignore-next-line
-							totalCost: totalCost,
-						}
-						didOutputUsage = true
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost: totalCost,
 					}
+					didOutputUsage = true
 				}
 			}
 
