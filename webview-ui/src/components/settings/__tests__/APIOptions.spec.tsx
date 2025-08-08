@@ -132,34 +132,14 @@ describe("ApiOptions Component", () => {
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
-	it("renders Fireworks Model ID input", () => {
+	it("renders Fireworks Model Select", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions showModelOptions={true} currentMode="plan" />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
-		expect(modelIdInput).toBeInTheDocument()
-	})
-
-	it("renders Fireworks Max Completion Tokens input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
-			</ExtensionStateContextProvider>,
-		)
-		const maxCompletionTokensInput = screen.getByPlaceholderText("2000")
-		expect(maxCompletionTokensInput).toBeInTheDocument()
-	})
-
-	it("renders Fireworks Max Tokens input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
-			</ExtensionStateContextProvider>,
-		)
-		const maxTokensInput = screen.getByPlaceholderText("4000")
-		expect(maxTokensInput).toBeInTheDocument()
+		const modelSelect = screen.getByText("Select a model...")
+		expect(modelSelect).toBeInTheDocument()
 	})
 })
 
