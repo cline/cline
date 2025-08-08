@@ -17,6 +17,11 @@
 		"domains": {
 			"react": "recommended"
 		},
+		// Ideally we would want to turn on all the rules that are currently off,
+		// keeping them off currently to make sure only changes on the migrations
+		// are included in the initial PR before we apply the format and lint changes.
+		// TODO: turn on all rules that are currently off if applicable.
+		// TODO: Remove --diagnostic-level=error from CI commands.
 		"rules": {
 			"recommended": true,
 			"correctness": {
@@ -85,12 +90,14 @@
 		}
 	},
 	"formatter": {
-		"enabled": true,
+		"enabled": false,
 		"indentStyle": "tab",
 		"indentWidth": 4,
 		"lineWidth": 130,
 		"lineEnding": "lf",
-		"formatWithErrors": false
+		"formatWithErrors": false,
+		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
+		"includes": ["!src/core/prompts/**", "!webview-ui/src/components/chat/**"]
 	},
 	"javascript": {
 		"linter": {
@@ -129,10 +136,9 @@
 			"!**/generated/**",
 			"!*.md*",
 			"!**/playwright/**",
-			"!**/test-rests/**",
-			"!node_modules",
-			"!webview-ui/build/",
-			"!package-lock.json"
+			"!**/test-results/**",
+			"!**/node_modules/**",
+			"!**/webview-ui/build/**"
 		]
 	},
 	"overrides": [
