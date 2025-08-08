@@ -104,6 +104,7 @@ function createIsIgnored(standaloneIgnores) {
 		".eslintrc*",
 		".babelrc*",
 		".prettierrc*",
+		"biome.json*",
 		".cz-config.js",
 		".commitlintrc*",
 		"webpack.config.js",

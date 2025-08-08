@@ -1,4 +1,3 @@
-/* eslint-disable eslint-rules/no-direct-vscode-api */
 import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
 import * as vscode from "vscode"
