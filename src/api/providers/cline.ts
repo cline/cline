@@ -72,6 +72,10 @@ export class ClineHandler implements ApiHandler {
 			this.lastGenerationId = undefined
 
 			let didOutputUsage: boolean = false
+			let sawText = false
+			let sawReasoning = false
+			let sawAnyChunk = false
+			let lastFinishReason: string | undefined
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -98,6 +102,9 @@ export class ClineHandler implements ApiHandler {
 
 				// Check for mid-stream error via finish_reason
 				const choice = chunk.choices?.[0]
+				if (choice?.finish_reason) {
+					lastFinishReason = String(choice.finish_reason)
+				}
 				// OpenRouter may return finish_reason = "error" with error details
 				if ((choice?.finish_reason as string) === "error") {
 					const choiceWithError = choice as any
@@ -112,8 +119,11 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				sawAnyChunk = true
+
 				const delta = choice?.delta
 				if (delta?.content) {
+					sawText = true
 					yield {
 						type: "text",
 						text: delta.content,
@@ -123,6 +133,7 @@ export class ClineHandler implements ApiHandler {
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+					sawReasoning = true
 					yield {
 						type: "reasoning",
 						// @ts-ignore-next-line
@@ -164,6 +175,18 @@ export class ClineHandler implements ApiHandler {
 						}
 					}
 					didOutputUsage = true
+				}
+			}
+
+			// If stream ended without assistant text but we observed other chunks, emit a minimal synthetic text to avoid empty assistant responses.
+			if (!sawText && (sawReasoning || didOutputUsage || sawAnyChunk)) {
+				const note =
+					lastFinishReason && /content_filter|blocked|safety/i.test(lastFinishReason)
+						? "[Provider redacted final text due to safety filtering. No assistant text was returned.]"
+						: "[Provider ended stream without final assistant text. Proceeding with available information.]"
+				yield {
+					type: "text",
+					text: note,
 				}
 			}
 

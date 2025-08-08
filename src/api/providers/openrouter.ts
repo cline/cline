@@ -74,6 +74,10 @@ export class OpenRouterHandler implements ApiHandler {
 		)
 
 		let didOutputUsage: boolean = false
+		let sawText = false
+		let sawReasoning = false
+		let sawAnyChunk = false
+		let lastFinishReason: string | undefined
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -89,6 +93,9 @@ export class OpenRouterHandler implements ApiHandler {
 			// Check for error in choices[0].finish_reason
 			// OpenRouter may return errors in a non-standard way within choices
 			const choice = chunk.choices?.[0]
+			if (choice?.finish_reason) {
+				lastFinishReason = String(choice.finish_reason)
+			}
 			// Use type assertion since OpenRouter uses non-standard "error" finish_reason
 			if ((choice?.finish_reason as string) === "error") {
 				// Use type assertion since OpenRouter adds non-standard error property
@@ -113,8 +120,11 @@ export class OpenRouterHandler implements ApiHandler {
 				this.lastGenerationId = chunk.id
 			}
 
+			sawAnyChunk = true
+
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
+				sawText = true
 				yield {
 					type: "text",
 					text: delta.content,
@@ -124,6 +134,7 @@ export class OpenRouterHandler implements ApiHandler {
 			// Reasoning tokens are returned separately from the content
 			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				sawReasoning = true
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line
@@ -155,6 +166,18 @@ export class OpenRouterHandler implements ApiHandler {
 					}
 				}
 				didOutputUsage = true
+			}
+		}
+
+		// If stream ended without assistant text but we observed other chunks, emit a minimal synthetic text to avoid empty assistant responses.
+		if (!sawText && (sawReasoning || didOutputUsage || sawAnyChunk)) {
+			const note =
+				lastFinishReason && /content_filter|blocked|safety/i.test(lastFinishReason)
+					? "[Provider redacted final text due to safety filtering. No assistant text was returned.]"
+					: "[Provider ended stream without final assistant text. Proceeding with available information.]"
+			yield {
+				type: "text",
+				text: note,
 			}
 		}
 
