@@ -331,7 +331,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 									initialValue={browserSettings.chromeExecutablePath || ""}
 									placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 									style={{ width: "100%" }}
-									onChange={(value) => updateBrowserSetting("chromeExecutablePath", value || undefined)}
+									onChange={(value) => updateBrowserSetting("chromeExecutablePath", value)}
 								/>
 								<p
 									style={{
@@ -354,7 +354,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 									initialValue={browserSettings.customArgs || ""}
 									placeholder="e.g., --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-zygote"
 									style={{ width: "100%" }}
-									onChange={(value) => updateBrowserSetting("customArgs", value || undefined)}
+									onChange={(value) => updateBrowserSetting("customArgs", value)}
 								/>
 								<p
 									style={{
