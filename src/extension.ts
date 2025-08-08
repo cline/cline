@@ -48,6 +48,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
 
+	Logger.log("Cline extension activated")
+
 	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
 	context.subscriptions.push(...testModeWatchers)

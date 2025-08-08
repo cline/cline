@@ -1,6 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-
 import * as vscode from "vscode"
 import {
 	migrateCustomInstructionsToGlobalRules,
@@ -28,8 +25,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Initialize PostHog client provider
 	const distinctId = context.globalState.get<string>("cline.distinctId")
 	PostHogClientProvider.getInstance(distinctId)
-
-	Logger.log("Cline extension activated")
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
