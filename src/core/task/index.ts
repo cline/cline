@@ -1815,19 +1815,16 @@ export class Task {
 
 				this.taskState.didAutomaticallyRetryFailedApiRequest = true
 			} else if (isOpenAIOrOpenRouterContextLimitError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
-				if (isOpenAIOrOpenRouterContextLimitError) {
-					this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-						this.messageStateHandler.getApiConversationHistory(),
-						this.taskState.conversationHistoryDeletedRange,
-						"quarter", // Force aggressive truncation
-					)
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-						Date.now(),
-						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-					)
-				}
-
+				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+					this.messageStateHandler.getApiConversationHistory(),
+					this.taskState.conversationHistoryDeletedRange,
+					"quarter", // Force aggressive truncation
+				)
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+					Date.now(),
+					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+				)
 				console.log("first chunk failed, waiting 1 second before retrying")
 				await setTimeoutPromise(1000)
 				this.taskState.didAutomaticallyRetryFailedApiRequest = true
