@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -14,7 +14,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { clineEnvConfig } from "@/config"
 
-interface ClineHandlerOptions {
+interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	taskId?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number

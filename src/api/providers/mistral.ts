@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
 import { withRetry } from "../retry"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { mistralDefaultModelId, MistralModelId, mistralModels, ModelInfo } from "@shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 
-interface MistralHandlerOptions {
+interface MistralHandlerOptions extends CommonApiHandlerOptions {
 	mistralApiKey?: string
 	apiModelId?: string
 }
