@@ -331,26 +331,25 @@ const remarkFilePathDetection = () => {
 		const inlineCodeNodes: any[] = []
 
 		// Collect all inline code nodes that might be file paths
-		visit(tree, "inlineCode", (node: any) => {
+				visit(tree, "inlineCode", (node: Node & { value: string; data?: any }) => {
 			if (fileNameRegex.test(node.value) && !node.value.includes("\n")) {
-				inlineCodeNodes.push(node)
+				const promise = FileServiceClient.ifFileExistsRelativePath(
+					StringRequest.create({ value: node.value })
+				).then(exists => {
+					if (exists.value) {
+						node.data = node.data || {};
+						node.data.hProperties = node.data.hProperties || {};
+						node.data.hProperties["data-is-file-path"] = "true";
+					}
+				}).catch(err => {
+					console.debug(`Failed to check file existence for ${node.value}:`, err);
+				});
+				
+				filePathPromises.push(promise);
 			}
-		})
+		});
 
-		// Check each potential file path asynchronously
-		for (const node of inlineCodeNodes) {
-			try {
-				const exists = await FileServiceClient.ifFileExistsRelativePath(StringRequest.create({ value: node.value }))
-				if (exists.value) {
-					// Add metadata to the node for later use in rendering
-					node.data = node.data || {}
-					node.data.hProperties = node.data.hProperties || {}
-					node.data.hProperties["data-is-file-path"] = "true"
-				}
-			} catch (err) {
-				console.debug(`Failed to check file existence for ${node.value}:`, err)
-			}
-		}
+		await Promise.all(filePathPromises);
 	}
 }
 
