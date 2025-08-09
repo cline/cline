@@ -68,7 +68,12 @@ export class VertexHandler implements ApiHandler {
 		const modelId = model.id
 
 		// For Gemini models, use the GeminiHandler
-		if (!modelId.includes("claude")) {
+		if (
+			modelId.includes("gemini") ||
+			modelId.includes("deepseek") ||
+			modelId.includes("mistral") ||
+			modelId.includes("llama")
+		) {
 			const geminiHandler = this.ensureGeminiHandler()
 			yield* geminiHandler.createMessage(systemPrompt, messages)
 			return

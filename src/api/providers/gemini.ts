@@ -4,7 +4,16 @@ import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUs
 import { withRetry } from "../retry"
 import { Part } from "@google/genai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	geminiDefaultModelId,
+	GeminiModelId,
+	geminiModels,
+	ModelInfo,
+	vertexDefaultModelId,
+	VertexModelId,
+	vertexModels,
+} from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
@@ -103,8 +112,14 @@ export class GeminiHandler implements ApiHandler {
 	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
-		const { id: modelId, info } = this.getModel()
+		const { id: originalModelId, info } = this.getModel()
+		let modelPath: string = originalModelId
 		const contents = messages.map(convertAnthropicMessageToGemini)
+
+		// If this is a Vertex call for a MaaS model, format the ID
+		if (this.options.isVertex && modelPath.includes("deepseek")) {
+			modelPath = `publishers/deepseek-ai/models/${modelPath}`
+		}
 
 		// Configure thinking budget if supported
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
@@ -141,7 +156,7 @@ export class GeminiHandler implements ApiHandler {
 
 		try {
 			const result = await client.models.generateContentStream({
-				model: modelId,
+				model: modelPath,
 				contents: contents,
 				config: {
 					...requestConfig,
@@ -256,7 +271,7 @@ export class GeminiHandler implements ApiHandler {
 				totalDurationSdkMs > 0 && outputTokens > 0 ? outputTokens / (totalDurationSdkMs / 1000) : undefined
 
 			if (this.options.taskId) {
-				telemetryService.captureGeminiApiPerformance(this.options.taskId, modelId, {
+				telemetryService.captureGeminiApiPerformance(this.options.taskId, originalModelId, {
 					ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
 					totalDurationSec: totalDurationSdkMs / 1000,
 					promptTokens,
@@ -352,15 +367,26 @@ export class GeminiHandler implements ApiHandler {
 	/**
 	 * Get the model ID and info for the current configuration
 	 */
-	getModel(): { id: GeminiModelId; info: ModelInfo } {
+	getModel(): { id: GeminiModelId | VertexModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in geminiModels) {
-			const id = modelId as GeminiModelId
-			return { id, info: geminiModels[id] }
-		}
-		return {
-			id: geminiDefaultModelId,
-			info: geminiModels[geminiDefaultModelId],
+		if (this.options.isVertex) {
+			if (modelId && modelId in vertexModels) {
+				const id = modelId as VertexModelId
+				return { id, info: vertexModels[id] }
+			}
+			return {
+				id: vertexDefaultModelId,
+				info: vertexModels[vertexDefaultModelId],
+			}
+		} else {
+			if (modelId && modelId in geminiModels) {
+				const id = modelId as GeminiModelId
+				return { id, info: geminiModels[id] }
+			}
+			return {
+				id: geminiDefaultModelId,
+				info: geminiModels[geminiDefaultModelId],
+			}
 		}
 	}
 
