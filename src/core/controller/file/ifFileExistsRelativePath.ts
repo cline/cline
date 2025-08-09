@@ -24,16 +24,8 @@ export async function ifFileExistsRelativePath(_controller: Controller, request:
 		return BooleanResponse.create({ value: false })
 	}
 
-	try {
-		// Resolve the relative path to absolute path
-		const absolutePath = path.resolve(workspacePath, request.value)
-
-		// Check if the file exists
-		await fs.access(absolutePath)
-
-		return BooleanResponse.create({ value: true })
-	} catch (error) {
-		// File doesn't exist or access is denied
-		return BooleanResponse.create({ value: false })
-	}
+    // Resolve the relative path to absolute path
+	const absolutePath = path.resolve(workspacePath, request.value)
+	// Check if the file exists
+	return BooleanResponse.create({ value: existsSync(absolutePath) })
 }
