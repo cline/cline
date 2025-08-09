@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.22.0]
+
+- Implemented a retry strategy for Cerebras to handle rate limit issues due to its generation speed
+- Add support for GPT-5 models to SAP AI Core Provider
+- Support sending context to active webview when editor panels are opened.
+- Fix bug where running out of credits on Cline accounts would show '402 empty body' response instead of 'buy credits' component
+- Fix LiteLLM Proxy Provider Cost Tracking
+
 ## [3.21.0]
 
 - Add support for GPT-5 model family including GPT-5, GPT-5 Mini, and GPT-5 Nano with prompt caching support and set GPT-5 as the new default model
