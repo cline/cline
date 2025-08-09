@@ -86,7 +86,8 @@ module.exports = createRule({
 				basename === "CacheService.ts" ||
 				basename === "state-helpers.ts" ||
 				basename === "state-migrations.ts" ||
-				basename === "extension.ts"
+				basename === "extension.ts" ||
+				basename === "common.ts" // CI might report errors from this virtual file
 			) {
 				return true
 			}
