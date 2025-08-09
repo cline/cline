@@ -2,8 +2,6 @@
 
 ## 3.23.1
 
-### Patch Changes
-
 - cad28c4: calibrate input token counts when using anthropic models of sap ai core provider
 
 ## [3.23.0]
