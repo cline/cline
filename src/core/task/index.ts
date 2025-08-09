@@ -85,7 +85,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { updateApiReqMsg } from "./utils"
+import { updateApiReqMsg, detectAvailableCliTools } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -2756,6 +2756,12 @@ export class Task {
 		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
 		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
+
+		// Add detected CLI tools
+		const availableCliTools = await detectAvailableCliTools()
+		if (availableCliTools.length > 0) {
+			details += `\n\n# Detected CLI Tools\nThese are some of the tools on the user's machine, and may be useful if needed to accomplish the task: ${availableCliTools.join(", ")}. This list is not exhaustive, and other tools may be available.`
+		}
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
