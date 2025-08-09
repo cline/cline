@@ -276,8 +276,15 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
 	])
 
-	const [localClineRulesToggles, localWindsurfRulesToggles, localCursorRulesToggles, localWorkflowToggles] = await Promise.all([
+	const [
+		localClineRulesToggles,
+		localAgentsRulesToggles,
+		localWindsurfRulesToggles,
+		localCursorRulesToggles,
+		localWorkflowToggles,
+	] = await Promise.all([
 		getWorkspaceState(context, "localClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getWorkspaceState(context, "localAgentsRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getWorkspaceState(context, "localWindsurfRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getWorkspaceState(context, "localCursorRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getWorkspaceState(context, "workflowToggles") as Promise<ClineRulesToggles | undefined>,
@@ -594,6 +601,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
+		localAgentsRulesToggles: localAgentsRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localWorkflowToggles: localWorkflowToggles || {},

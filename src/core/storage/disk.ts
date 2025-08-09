@@ -18,6 +18,7 @@ export const GlobalFileNames = {
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
+	agentsRules: "AGENTS.md",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",

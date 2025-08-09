@@ -261,6 +261,10 @@ export async function deleteRuleFile(
 				const toggles = ((await getWorkspaceState(context, "workflowToggles")) as ClineRulesToggles) || {}
 				delete toggles[rulePath]
 				await updateWorkspaceState(context, "workflowToggles", toggles)
+			} else if (type === "agents") {
+				const toggles = ((await getWorkspaceState(context, "localAgentsRulesToggles")) as ClineRulesToggles) || {}
+				delete toggles[rulePath]
+				await updateWorkspaceState(context, "localAgentsRulesToggles", toggles)
 			} else if (type === "cursor") {
 				const toggles = ((await getWorkspaceState(context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 				delete toggles[rulePath]

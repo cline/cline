@@ -149,4 +149,9 @@ export type GlobalStateKey =
 	| "actModeHuaweiCloudMaasModelId"
 	| "actModeHuaweiCloudMaasModelInfo"
 
-export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
+export type LocalStateKey =
+	| "localClineRulesToggles"
+	| "localAgentsRulesToggles"
+	| "localCursorRulesToggles"
+	| "localWindsurfRulesToggles"
+	| "workflowToggles"
