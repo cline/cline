@@ -1,10 +1,10 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 
-import assert from "node:assert"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
+import assert from "node:assert"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -12,33 +12,26 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
-import {
-	migrateCustomInstructionsToGlobalRules,
-	migrateWelcomeViewCompleted,
-	migrateWorkspaceToGlobalStorage,
-} from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import type { ExtensionContext } from "vscode"
+import { initialize, tearDown } from "./common"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "./shared/proto/host/window"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
-import { getLatestAnnouncementId } from "./utils/announcements"
+import { ShowMessageType } from "./shared/proto/host/window"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -51,30 +44,11 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
-	maybeSetupHostProviders(context)
+	setupHostProvider(context)
 
-	// Initialize PostHog client provider
-	const distinctId = context.globalState.get<string>("cline.distinctId")
-	PostHogClientProvider.getInstance(distinctId)
+	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
-
-	// Migrate custom instructions to global Cline rules (one-time cleanup)
-	await migrateCustomInstructionsToGlobalRules(context)
-
-	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
-	await migrateWelcomeViewCompleted(context)
-
-	// Migrate workspace storage values back to global storage (reverting previous migration)
-	await migrateWorkspaceToGlobalStorage(context)
-
-	// Clean up orphaned file context warnings (startup cleanup)
-	await FileContextTracker.cleanupOrphanedWarnings(context)
-
-	// Version checking for autoupdate notification
-	const currentVersion = context.extension.packageJSON.version
-	const previousVersion = context.globalState.get<string>("clineVersion")
-	const sidebarWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.SIDEBAR)
 
 	const testModeWatchers = await initializeTestMode(sidebarWebview)
 	// Initialize test mode and add disposables to context
@@ -87,37 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	)
-
-	// Perform post-update actions if necessary
-	try {
-		if (!previousVersion || currentVersion !== previousVersion) {
-			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
-
-			// Use the same condition as announcements: focus when there's a new announcement to show
-			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
-			const latestAnnouncementId = getLatestAnnouncementId(context)
-
-			if (lastShownAnnouncementId !== latestAnnouncementId) {
-				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
-				const message = previousVersion
-					? `Cline has been updated to v${currentVersion}`
-					: `Welcome to Cline v${currentVersion}`
-				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-				await new Promise((resolve) => setTimeout(resolve, 200))
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message,
-				})
-			}
-			// Always update the main version tracker for the next launch.
-			await context.globalState.update("clineVersion", currentVersion)
-		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
-	}
-
-	telemetryService.captureExtensionActivated()
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
@@ -640,26 +583,21 @@ export async function activate(context: vscode.ExtensionContext) {
 	return createClineAPI(sidebarWebview.controller)
 }
 
-function maybeSetupHostProviders(context: ExtensionContext) {
-	if (!HostProvider.isInitialized()) {
-		console.log("Setting up vscode host providers...")
+function setupHostProvider(context: ExtensionContext) {
+	console.log("Setting up vscode host providers...")
 
-		const createWebview = (type: WebviewProviderType) => new VscodeWebviewProvider(context, type)
-		const createDiffView = () => new VscodeDiffViewProvider()
-		const outputChannel = vscode.window.createOutputChannel("Cline")
-		context.subscriptions.push(outputChannel)
+	const createWebview = (type: WebviewProviderType) => new VscodeWebviewProvider(context, type)
+	const createDiffView = () => new VscodeDiffViewProvider()
+	const outputChannel = vscode.window.createOutputChannel("Cline")
+	context.subscriptions.push(outputChannel)
 
-		const getCallbackUri = async () => `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
-		HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient, outputChannel.appendLine, getCallbackUri)
-	}
+	const getCallbackUri = async () => `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
+	HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient, outputChannel.appendLine, getCallbackUri)
 }
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
-	PostHogClientProvider.getInstance().dispose()
-
-	// Dispose all webview instances
-	await WebviewProvider.disposeAllInstances()
+	tearDown()
 
 	// Clean up test mode
 	cleanupTestMode()
