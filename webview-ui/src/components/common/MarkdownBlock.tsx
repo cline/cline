@@ -326,7 +326,7 @@ const PreWithCopyButton = ({
  * and marks them with metadata for later rendering
  */
 const remarkFilePathDetection = () => {
-	return async (tree: any) => {
+	return async (tree: Node) => {
 		const fileNameRegex = /^(?!\/)[\w\-./]+(?<!\/)$/
 		const inlineCodeNodes: any[] = []
 
