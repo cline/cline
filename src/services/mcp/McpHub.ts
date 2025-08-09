@@ -271,18 +271,13 @@ export class McpHub {
 					break
 				}
 				case "sse": {
-					const sseOptions = {
-						requestInit: {
-							headers: config.headers,
-						},
-					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
 						withCredentials: !!config.headers?.["Authorization"],
+						headers: config.headers,
 					}
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
-						...sseOptions,
 						eventSourceInit: reconnectingEventSourceOptions,
 					})
 
