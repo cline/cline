@@ -1208,7 +1208,7 @@ export class Task {
 		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
 
 		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
-			this.mode === "plan" ? "plan" : "act",
+			this.mode,
 			agoText,
 			this.cwd,
 			wasRecent,
