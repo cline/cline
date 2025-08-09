@@ -1,7 +1,6 @@
 export function checkIsOpenAIOrOpenRouterStyleContextLimitError(error: any): boolean {
 	try {
 		const status = error?.status ?? error?.code ?? error?.error?.status ?? error?.response?.status
-		const code = error?.code ?? error?.error?.code
 		const message: string = String(error?.message || error?.error?.message || "")
 
 		// Known OpenAI/OpenRouter-style signal (code 400 and message includes "context length")
