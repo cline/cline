@@ -40,7 +40,7 @@ import { ulid } from "ulid"
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineErrorType } from "@/services/error/ClineError"
 import { errorService } from "@/services/posthog/PostHogClientProvider"
-import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
+import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
@@ -89,8 +89,6 @@ import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
-
-export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -2365,12 +2363,9 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
+
 							const isNextGenModel = isNextGenModelFamily(this.api)
-							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
-							} else {
-								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-							}
+							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
