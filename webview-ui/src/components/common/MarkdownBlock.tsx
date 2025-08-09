@@ -411,30 +411,12 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						return (
 							<>
 								<code {...props} />
-								<span
-									className="codicon codicon-link-external"
-									onClick={async () => {
-										try {
-											await FileServiceClient.openFileRelativePath(
-												StringRequest.create({ value: filePath }),
-											)
-										} catch (error) {
-											console.error("Failed to open file:", error)
-										}
-									}}
-									style={{
-										marginLeft: "4px",
-										opacity: 0.7,
-										fontSize: "0.8em",
-										cursor: "pointer",
-										transition: "opacity 0.2s ease",
-									}}
-									onMouseEnter={(e) => {
-										e.currentTarget.style.opacity = "1"
-									}}
-									onMouseLeave={(e) => {
-										e.currentTarget.style.opacity = "0.7"
-									}}
+								<button
+									type="button"
+									className="bg-transparent border-none codicon codicon-link-external ml-1 opacity-70 hover:opacity-100 transition-opacity text-sm"
+									onClick={() =>
+										FileServiceClient.openFileRelativePath({ value: filePath })
+									}
 									title={`Open ${filePath} in editor`}
 								/>
 							</>
