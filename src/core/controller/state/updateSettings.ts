@@ -3,6 +3,7 @@ import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
 import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
+import { convertProtoDictationSettingsToDictationSettings } from "../../../shared/proto-conversions/state/dictation-settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 
@@ -75,6 +76,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.preferredLanguage = request.preferredLanguage
 			}
 			await controller.context.globalState.update("preferredLanguage", request.preferredLanguage)
+		}
+
+		// Update dictation settings
+		if (request.dictationSettings) {
+			const dictationSettings = convertProtoDictationSettingsToDictationSettings(request.dictationSettings)
+			await controller.context.globalState.update("dictationSettings", dictationSettings)
 		}
 
 		// Update terminal timeout setting

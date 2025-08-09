@@ -685,6 +685,7 @@ export class Controller {
 			localWindsurfRulesToggles,
 			localCursorRulesToggles,
 			localWorkflowToggles,
+			dictationSettings,
 		} = await getAllExtensionState(this.context)
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
@@ -739,6 +740,7 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			dictationSettings,
 		}
 	}
 
