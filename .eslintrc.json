@@ -20,7 +20,8 @@
 		"no-throw-literal": "warn",
 		"semi": "off",
 		"react-hooks/exhaustive-deps": "off",
-		"eslint-rules/no-direct-vscode-api": "error",
+		"eslint-rules/no-direct-vscode-api": "warn",
+		"eslint-rules/no-direct-vscode-state-api": "error",
 		"no-restricted-syntax": [
 			"error",
 			{
