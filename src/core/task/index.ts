@@ -43,6 +43,7 @@ import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
 import {
 	checkIsAnthropicContextWindowError,
+	checkIsOpenAIContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -89,6 +90,7 @@ import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { OpenAiHandler } from "@/api/providers/openai"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -1787,8 +1789,10 @@ export class Task {
 		} catch (error) {
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
 			const isAnthropic = this.api instanceof AnthropicHandler
-			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
-			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
+			const isOpenAI = this.api instanceof OpenAiHandler
+			const isOpenRouterContextWindowError = isOpenRouter && checkIsOpenRouterContextWindowError(error)
+			const isAnthropicContextWindowError = isAnthropic && checkIsAnthropicContextWindowError(error)
+			const isOpenAIContextWindowError = isOpenAI && checkIsOpenAIContextWindowError(error)
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
@@ -1810,7 +1814,7 @@ export class Task {
 				)
 
 				this.taskState.didAutomaticallyRetryFailedApiRequest = true
-			} else if (isOpenRouter && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
+			} else if ((isOpenRouter || isOpenAI) && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				if (isOpenRouterContextWindowError) {
 					this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 						this.messageStateHandler.getApiConversationHistory(),
@@ -1831,7 +1835,7 @@ export class Task {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 
-				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
+				if (isOpenRouterContextWindowError || isAnthropicContextWindowError || isOpenAIContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.messageStateHandler.getApiConversationHistory(),
 						this.taskState.conversationHistoryDeletedRange,
