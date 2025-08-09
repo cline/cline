@@ -1,22 +1,21 @@
-import React, { useMemo } from "react"
-import { ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import { useMemo } from "react"
 
 /**
  * Hook to determine if the chat is currently streaming
  * Encapsulates the complex streaming detection logic
  */
-export const useIsStreaming = (
-	modifiedMessages: ClineMessage[],
-	clineAsk?: string,
-	enableButtons?: boolean,
-	primaryButtonText?: string,
-): boolean => {
+export const useIsStreaming = (modifiedMessages: ClineMessage[], clineAsk?: string, task?: ClineMessage): boolean => {
 	return useMemo(() => {
 		// Check if the last message is an ask (tool is waiting for user input)
 		const isLastAsk = !!modifiedMessages.at(-1)?.ask
-		const isToolCurrentlyAsking = isLastAsk && clineAsk !== undefined && enableButtons && primaryButtonText !== undefined
-		if (isToolCurrentlyAsking) {
+		const isCommandAsk = clineAsk === "command"
+		const isToolCurrentlyAsking = isLastAsk && clineAsk !== undefined
+		if (!task?.ask) {
+			return false
+		}
+		if (isToolCurrentlyAsking && isCommandAsk) {
 			return false
 		}
 
@@ -37,5 +36,5 @@ export const useIsStreaming = (
 		}
 
 		return false
-	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
+	}, [modifiedMessages, clineAsk, task?.ask])
 }
