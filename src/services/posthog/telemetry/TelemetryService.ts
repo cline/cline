@@ -20,7 +20,7 @@ import { ClineAccountUserInfo } from "@/services/auth/AuthService"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
 
 /**
  * Maximum length for error messages to prevent excessive data
@@ -32,6 +32,7 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
 		["browser", true], // Browser telemetry enabled
+		["focus_chain", true], // Focus Chain telemetry enabled
 	])
 
 	// Event constants for tracking user interactions and system events
@@ -82,6 +83,20 @@ export class TelemetryService {
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
+			// Tracks when users enable the focus chain feature
+			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
+			// Tracks when users disable the focus chain feature
+			FOCUS_CHAIN_DISABLED: "task.focus_chain_disabled",
+			// Tracks when the first focus chain return is returned by the model
+			FOCUS_CHAIN_PROGRESS_FIRST: "task.focus_chain_progress_first",
+			// Tracks when subsequent focus chain list returns are returned
+			FOCUS_CHAIN_PROGRESS_UPDATE: "task.focus_chain_progress_update",
+			// Tracks the statusn of the focus chain list when the task reaches a task completion state
+			FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION: "task.focus_chain_incomplete_on_completion",
+			// Tracks when users click to open the focus chain markdfown file
+			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
+			// Tracks when users save and write to the focus chain markdown file
+			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -612,6 +627,127 @@ export class TelemetryService {
 				...args,
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when focus chain is enabled/disabled by the user
+	 * @param enabled Whether focus chain was enabled (true) or disabled (false)
+	 */
+	public captureFocusChainToggle(enabled: boolean) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: enabled ? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED : TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
+			properties: {
+				enabled,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task progress list is returned by the model for the first time in a task
+	 * @param taskId Unique identifier for the task
+	 * @param totalItems Number of items in the initial focus chain list
+	 */
+	public captureFocusChainProgressFirst(taskId: string, totalItems: number) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_FIRST,
+			properties: {
+				taskId,
+				totalItems,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task progress list is updated by the model mid-task
+	 * @param taskId Unique identifier for the task
+	 * @param totalItems Total number of items in the focus chain list
+	 * @param completedItems Number of completed items in the focus chain list
+	 */
+	public captureFocusChainProgressUpdate(taskId: string, totalItems: number, completedItems: number) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_UPDATE,
+			properties: {
+				taskId,
+				totalItems,
+				completedItems,
+				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task ends but the task progress list is not complete
+	 * @param taskId Unique identifier for the task
+	 * @param totalItems Total number of items in the focus chain list
+	 * @param completedItems Number of completed items
+	 * @param incompleteItems Number of incomplete items
+	 */
+	public captureFocusChainIncompleteOnCompletion(
+		taskId: string,
+		totalItems: number,
+		completedItems: number,
+		incompleteItems: number,
+	) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION,
+			properties: {
+				taskId,
+				totalItems,
+				completedItems,
+				incompleteItems,
+				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+			},
+		})
+	}
+
+	/**
+	 * Records when users click to open the focus chain markdown file
+	 * @param taskId Unique identifier for the task
+	 */
+	public captureFocusChainListOpened(taskId: string) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_OPENED,
+			properties: {
+				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when users save and write to the focus chain markdown file
+	 * @param taskId Unique identifier for the task
+	 */
+	public captureFocusChainListWritten(taskId: string) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
+			properties: {
+				taskId,
 			},
 		})
 	}

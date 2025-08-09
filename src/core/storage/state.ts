@@ -11,6 +11,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
+import { FocusChainSettings, DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { migrateEnableCheckpointsSetting, migrateMcpMarketplaceEnableSetting } from "./state-migrations"
 import { Controller } from "../controller"
 /*
@@ -192,6 +193,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiResourceGroup,
 		claudeCodePath,
 		huaweiCloudMaasApiKey,
+		focusChainSettings,
+		focusChainFeatureFlagEnabled,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -274,6 +277,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "focusChainSettings") as Promise<FocusChainSettings | undefined>,
+		getGlobalState(context, "focusChainFeatureFlagEnabled") as Promise<boolean | undefined>,
 	])
 
 	const [localClineRulesToggles, localWindsurfRulesToggles, localCursorRulesToggles, localWorkflowToggles] = await Promise.all([
@@ -577,6 +582,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
+		focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 		preferredLanguage: preferredLanguage || "English",
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 		mode: mode || "act",

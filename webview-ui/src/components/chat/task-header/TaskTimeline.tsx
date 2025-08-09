@@ -5,10 +5,11 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
+import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_PURPLE, COLOR_GREEN } from "../colors"
 
 // Timeline dimensions and spacing
-const TIMELINE_HEIGHT = "18px"
-const BLOCK_WIDTH = "9px"
+const TIMELINE_HEIGHT = "13px"
+const BLOCK_WIDTH = "13px"
 const BLOCK_GAP = "3px"
 const TOOLTIP_MARGIN = 32 // 32px margin on each side
 
@@ -38,6 +39,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					msg.say === "api_req_retried" ||
 					msg.say === "deleted_api_reqs" ||
 					msg.say === "checkpoint_created" ||
+					msg.say === "task_progress" ||
 					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
 			) {
 				return false
@@ -128,15 +130,49 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 		}
 	}, [taskTimelinePropsMessages])
 
+	if (taskTimelinePropsMessages.length === 0) {
+		return (
+			<div
+				ref={containerRef}
+				style={{
+					position: "relative",
+					width: "100%",
+					marginTop: "4px",
+					marginBottom: "4px",
+					overflow: "hidden",
+				}}>
+				<div
+					style={{
+						height: TIMELINE_HEIGHT,
+						width: "100%",
+						display: "flex",
+						alignItems: "center",
+					}}>
+					<div
+						style={{
+							width: BLOCK_WIDTH,
+							height: BLOCK_WIDTH,
+							backgroundColor: COLOR_GRAY,
+							borderRadius: "50%",
+							opacity: 0.5,
+							flexShrink: 0,
+							marginRight: BLOCK_GAP,
+						}}
+					/>
+				</div>
+			</div>
+		)
+	}
+
 	return (
 		<div
 			ref={containerRef}
 			style={{
 				position: "relative",
 				width: "100%",
+				height: TIMELINE_HEIGHT,
 				marginTop: "4px",
 				marginBottom: "4px",
-				overflow: "hidden",
 			}}>
 			<style>
 				{`
@@ -157,6 +193,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				style={{
 					height: TIMELINE_HEIGHT,
 					width: "100%",
+					//overflowY: "hidden",
 				}}
 				totalCount={Math.max(1, taskTimelinePropsMessages.length)}
 				itemContent={TimelineBlock}

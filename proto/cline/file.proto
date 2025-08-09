@@ -57,6 +57,9 @@ service FileService {
 
   // Subscribe to workspace file updates
   rpc subscribeToWorkspaceUpdates(EmptyRequest) returns (stream StringArray);
+
+  // Opens or creates a focus chain checklist markdown file for editing
+  rpc openFocusChainFile(StringRequest) returns (Empty);
 }
 
 // Response for refreshRules operation
