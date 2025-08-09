@@ -25,6 +25,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"new_task",
 	"condense",
+	"summarize_task",
 	"report_bug",
 	"new_rule",
 	"web_fetch",

@@ -99,6 +99,7 @@ export type ClineAsk =
 	| "use_mcp_server"
 	| "new_task"
 	| "condense"
+	| "summarize_task"
 	| "report_bug"
 
 export type ClineSay =
@@ -140,6 +141,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "summarizeTask"
 	path?: string
 	diff?: string
 	content?: string
