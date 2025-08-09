@@ -94,7 +94,7 @@ interface GitCommit {
 }
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
-const ACT_MODE_COLOR = "var(--vscode-menu-selectionBackground)"
+const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
 const SwitchOption = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isActive"].includes(prop),
@@ -106,6 +106,10 @@ const SwitchOption = styled.div.withConfig({
 	font-size: 12px;
 	width: 50%;
 	text-align: center;
+
+	&:hover {
+		background-color: ${(props) => (!props.isActive ? "var(--vscode-toolbar-hoverBackground)" : "transparent")};
+	}
 `
 
 const SwitchContainer = styled.div<{ disabled: boolean }>`
@@ -1743,7 +1747,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
-								className={mode === "plan" ? `bg-[${PLAN_MODE_COLOR}]` : "bg-none"}
 								isActive={mode === "plan"}
 								role="switch"
 								aria-checked={mode === "plan"}
@@ -1752,7 +1755,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								Plan
 							</SwitchOption>
 							<SwitchOption
-								className={mode === "act" ? `bg-[${ACT_MODE_COLOR}]` : "bg-none"}
 								isActive={mode === "act"}
 								role="switch"
 								aria-checked={mode === "act"}
