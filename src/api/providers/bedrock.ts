@@ -226,6 +226,11 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			// Use API key/token-based authentication if enabled and API key is set
 			clientConfig.token = { token: this.options.awsApiKey }
 			clientConfig.authSchemePreference = ["httpBearerAuth"] // Otherwise there's no end of credential problems.
+			clientConfig.requestHandler = {
+				// This should be the default anyway, but without setting something
+				// this provider fails to work with LiteLLM passthrough.
+				requestTimeout: 0,
+			}
 		} else if (this.options.awsUseProfile && this.options.awsProfile) {
 			// Use profile-based credentials if enabled and profile is set
 			clientConfig.credentials = fromIni({
