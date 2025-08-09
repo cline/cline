@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import { updateGlobalState, updateWorkspaceState, getAllExtensionState, storeSecret } from "./state"
 import { SecretKey, GlobalStateKey, LocalStateKey } from "./state-keys"
 import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
@@ -924,7 +924,7 @@ export class CacheService {
 			planModeRequestyModelId: this.globalStateCache.get("planModeRequestyModelId"),
 			planModeRequestyModelInfo: this.globalStateCache.get("planModeRequestyModelInfo"),
 			planModeTogetherModelId: this.globalStateCache.get("planModeTogetherModelId"),
-			planModeFireworksModelId: this.globalStateCache.get("planModeFireworksModelId"),
+			planModeFireworksModelId: this.globalStateCache.get("planModeFireworksModelId") || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache.get("planModeSapAiCoreModelId"),
 			planModeGroqModelId: this.globalStateCache.get("planModeGroqModelId"),
 			planModeGroqModelInfo: this.globalStateCache.get("planModeGroqModelInfo"),
@@ -952,7 +952,7 @@ export class CacheService {
 			actModeRequestyModelId: this.globalStateCache.get("actModeRequestyModelId"),
 			actModeRequestyModelInfo: this.globalStateCache.get("actModeRequestyModelInfo"),
 			actModeTogetherModelId: this.globalStateCache.get("actModeTogetherModelId"),
-			actModeFireworksModelId: this.globalStateCache.get("actModeFireworksModelId"),
+			actModeFireworksModelId: this.globalStateCache.get("actModeFireworksModelId") || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache.get("actModeSapAiCoreModelId"),
 			actModeGroqModelId: this.globalStateCache.get("actModeGroqModelId"),
 			actModeGroqModelInfo: this.globalStateCache.get("actModeGroqModelInfo"),
