@@ -25,6 +25,9 @@ export class TerminalRegistry {
 			cwd,
 			name: "Cline",
 			iconPath: new vscode.ThemeIcon("robot"),
+			env: {
+				CLINE_ACTIVE: "true",
+			},
 		}
 
 		// If a specific shell path is provided, use it
