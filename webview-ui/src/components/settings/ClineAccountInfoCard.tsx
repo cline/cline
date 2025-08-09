@@ -5,7 +5,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/cline/common"
 
 export const ClineAccountInfoCard = () => {
-	const { clineUser } = useClineAuth()
+	const { clineUser, activeOrganization } = useClineAuth()
 	const { apiConfiguration, navigateToAccount } = useExtensionState()
 
 	let user = apiConfiguration?.clineAccountId ? clineUser : undefined
