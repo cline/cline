@@ -7,6 +7,7 @@ import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useState, useEffect } from "react"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { Mode } from "@shared/storage/types"
 /**
@@ -28,6 +29,7 @@ const SUPPORTED_THINKING_MODELS = [
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
 ]
+const PREDEFINED_REGIONS = ["us-east5", "us-central1", "europe-west1", "europe-west4", "asia-southeast1", "global"]
 
 /**
  * The GCP Vertex AI provider configuration component
@@ -35,6 +37,18 @@ const SUPPORTED_THINKING_MODELS = [
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	// Check if current region is predefined
+	const isCurrentRegionPredefined =
+		!apiConfiguration?.vertexRegion || PREDEFINED_REGIONS.includes(apiConfiguration.vertexRegion)
+
+	const [isCustomRegion, setIsCustomRegion] = useState(!isCurrentRegionPredefined)
+
+	// Auto-adjust custom state when configuration changes
+	useEffect(() => {
+		const isPredefined = !apiConfiguration?.vertexRegion || PREDEFINED_REGIONS.includes(apiConfiguration.vertexRegion)
+		setIsCustomRegion(!isPredefined)
+	}, [apiConfiguration?.vertexRegion])
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -63,9 +77,18 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 				</label>
 				<VSCodeDropdown
 					id="vertex-region-dropdown"
-					value={apiConfiguration?.vertexRegion || ""}
+					value={isCustomRegion ? "custom" : apiConfiguration?.vertexRegion || ""}
 					style={{ width: "100%" }}
-					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}>
+					onChange={(e: any) => {
+						const value = e.target.value
+						if (value === "custom") {
+							setIsCustomRegion(true)
+							// Don't clear existing value, let user modify in input field
+						} else {
+							setIsCustomRegion(false)
+							handleFieldChange("vertexRegion", value)
+						}
+					}}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
 					<VSCodeOption value="us-east5">us-east5</VSCodeOption>
 					<VSCodeOption value="us-central1">us-central1</VSCodeOption>
@@ -73,16 +96,49 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
 					<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
 					<VSCodeOption value="global">global</VSCodeOption>
+					<VSCodeOption value="custom">Custom...</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
+			{/* Custom region input field */}
+			{isCustomRegion && (
+				<DebouncedTextField
+					initialValue={apiConfiguration?.vertexRegion || ""}
+					onChange={(value) => handleFieldChange("vertexRegion", value)}
+					style={{ width: "100%", marginTop: 5 }}
+					placeholder="e.g., us-west1, europe-west2, asia-northeast1">
+					<span style={{ fontWeight: 500 }}>Custom Region</span>
+				</DebouncedTextField>
+			)}
+
+			{/* Custom region help text */}
+			{isCustomRegion && (
+				<p
+					style={{
+						fontSize: "11px",
+						marginTop: "5px",
+						marginBottom: "10px",
+						color: "var(--vscode-descriptionForeground)",
+						fontStyle: "italic",
+					}}>
+					💡 See{" "}
+					<VSCodeLink
+						href="https://cloud.google.com/vertex-ai/docs/general/locations"
+						style={{ display: "inline", fontSize: "inherit" }}>
+						Vertex AI regions
+					</VSCodeLink>{" "}
+					for all available options.
+				</p>
+			)}
+
+			{/* General setup instructions */}
 			<p
 				style={{
 					fontSize: "12px",
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				To use Google Cloud Vertex AI, you need to
+				To use Google Cloud Vertex AI, you need to{" "}
 				<VSCodeLink
 					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
 					style={{ display: "inline", fontSize: "inherit" }}>
