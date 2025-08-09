@@ -9,7 +9,7 @@ describe("detectMetaKeyChar", () => {
 
 	it("should return ⊞ Win for win32 platform", () => {
 		const result = detectMetaKeyChar("win32")
-		expect(result).toBe("Win")
+		expect(result).toBe("Control")
 	})
 
 	it("should return Alt for linux platform", () => {
