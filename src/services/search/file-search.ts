@@ -5,6 +5,9 @@ import * as childProcess from "child_process"
 import * as readline from "readline"
 import { getBinPath } from "../ripgrep"
 import type { Fzf, FzfResultItem } from "fzf"
+import { HostProvider } from "@/hosts/host-provider"
+import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { isLocatedInWorkspace, asRelativePath } from "@/utils/path"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
@@ -90,10 +93,18 @@ export async function executeRipgrepForFiles(
 	})
 }
 
+// Get currently active/open files from VSCode tabs using hostbridge
+async function getActiveFiles(): Promise<Set<string>> {
+	const request = GetOpenTabsRequest.create({})
+	const response = await HostProvider.window.getOpenTabs(request)
+	return new Set(response.paths)
+}
+
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
 	limit: number = 20,
+	selectedType?: "file" | "folder",
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
 		const rgPath = await getBinPath(vscode.env.appRoot)
@@ -102,34 +113,54 @@ export async function searchWorkspaceFiles(
 			throw new Error("Could not find ripgrep binary")
 		}
 
+		// Get currently active files and convert to search format
+		const activeFilePaths = await getActiveFiles()
+		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
+
+		for (const filePath of activeFilePaths) {
+			if (await isLocatedInWorkspace(filePath)) {
+				const relativePath = await asRelativePath(filePath)
+				const normalizedPath = relativePath.toPosix()
+				activeFiles.push({
+					path: normalizedPath,
+					type: "file",
+					label: path.basename(normalizedPath),
+				})
+			}
+		}
+
 		// Get all files and directories
 		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
 
-		// If no query, just return the top items
+		// Combine active files with all items, removing duplicates (like the old WorkspaceTracker)
+		const combinedItems = [...activeFiles]
+		for (const item of allItems) {
+			if (!activeFiles.some((activeFile) => activeFile.path === item.path)) {
+				combinedItems.push(item)
+			}
+		}
+
+		// If no query, return the combined items
 		if (!query.trim()) {
-			return allItems.slice(0, limit)
+			if (selectedType === "file") {
+				return combinedItems.filter((item) => item.type === "file").slice(0, limit)
+			} else if (selectedType === "folder") {
+				return combinedItems.filter((item) => item.type === "folder").slice(0, limit)
+			}
+			return combinedItems.slice(0, limit)
 		}
 
 		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
 		// Use multiple tiebreakers in order of importance: Match score, then length of match (shorter=better)
 		// Get more (2x) results than needed for filtering, we pick the top half after sorting
 		const fzfModule = await import("fzf")
-		const fzf = new fzfModule.Fzf(allItems, {
+		const fzf = new fzfModule.Fzf(combinedItems, {
 			selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
 			tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
 			limit: limit * 2,
 		})
 
-		// The min threshold value will require some testing and tuning as the scores are exponential, and exaggerated
-		const MIN_SCORE_THRESHOLD = 100
-
-		// Filter results by score and map to original items
-		// Use exponential scaling for normalization
-		// This gives a more dramatic difference between good and bad matches
-		const filteredResults = fzf
-			.find(query)
-			.filter(({ score }: { score: number }) => Math.exp(score / 20) >= MIN_SCORE_THRESHOLD)
-			.slice(0, limit)
+		const filteredResults = fzf.find(query).slice(0, limit)
 
 		// Verify if the path exists and is actually a directory
 		const verifiedResultsPromises = filteredResults.map(

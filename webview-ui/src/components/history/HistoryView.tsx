@@ -49,7 +49,7 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, filePaths, onRelinquishControl } = extensionStateContext
+	const { taskHistory, onRelinquishControl } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")

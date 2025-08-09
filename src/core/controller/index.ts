@@ -9,7 +9,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
@@ -47,7 +46,6 @@ export class Controller {
 	private disposables: vscode.Disposable[] = []
 	task?: Task
 
-	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	readonly cacheService: CacheService
@@ -92,7 +90,6 @@ export class Controller {
 			}
 		}
 
-		this.workspaceTracker = new WorkspaceTracker()
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
@@ -122,7 +119,6 @@ export class Controller {
 				x.dispose()
 			}
 		}
-		this.workspaceTracker.dispose()
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
@@ -201,7 +197,6 @@ export class Controller {
 		this.task = new Task(
 			this.context,
 			this.mcpHub,
-			this.workspaceTracker,
 			(historyItem) => this.updateTaskHistory(historyItem),
 			() => this.postStateToWebview(),
 			(taskId) => this.reinitExistingTaskFromId(taskId),

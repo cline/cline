@@ -19,9 +19,6 @@ import { refreshBasetenModels } from "../models/refreshBasetenModels"
  */
 export async function initializeWebview(controller: Controller, request: EmptyRequest): Promise<Empty> {
 	try {
-		// Populate file paths for workspace tracker (don't await)
-		controller.workspaceTracker?.populateFilePaths()
-
 		// Post last cached models in case the call to endpoint fails
 		controller.readOpenRouterModels().then((openRouterModels) => {
 			if (openRouterModels) {

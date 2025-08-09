@@ -114,23 +114,38 @@ export function getContextMenuOptions(
 		description: "Current uncommitted changes",
 	}
 
+	const searchResultItems: ContextMenuQueryItem[] = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const item = {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+		return item
+	})
+
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
-			const files = queryItems
+			const files = searchResultItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
 				.map((item) => ({
 					type: item.type,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
-			const folders = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.Folder)
+			const folders = searchResultItems
+				.filter((item) => item.type !== ContextMenuOptionType.File)
 				.map((item) => ({
 					type: ContextMenuOptionType.Folder,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
@@ -206,17 +221,6 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)
-
-	const searchResultItems = dynamicSearchResults.map((result) => {
-		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
-		const item = {
-			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-			value: formattedPath,
-			label: result.label || path.basename(result.path),
-			description: formattedPath,
-		}
-		return item
-	})
 
 	// If we have dynamic search results, prioritize those
 	if (dynamicSearchResults.length > 0) {
