@@ -15,4 +15,5 @@ export type HistoryItem = {
 	conversationHistoryDeletedRange?: [number, number]
 	isFavorited?: boolean
 	checkpointTrackerErrorMessage?: string
+	conversationWasSummarized?: boolean
 }

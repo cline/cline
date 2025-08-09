@@ -8,6 +8,7 @@ import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { SummarizationService } from "../summarization/SummarizationService"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -50,9 +51,11 @@ export class ContextManager {
 	// example: { 1 => { [0, 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] }] }
 	// the above example would be how we update the first assistant message to indicate we truncated text
 	private contextHistoryUpdates: Map<number, [number, Map<number, ContextUpdate[]>]>
+	private summarizationService: SummarizationService
 
 	constructor() {
 		this.contextHistoryUpdates = new Map()
+		this.summarizationService = new SummarizationService()
 	}
 
 	/**
@@ -106,7 +109,7 @@ export class ContextManager {
 	}
 
 	/**
-	 * primary entry point for getting up to date context & truncating when required
+	 * primary entry point for getting up to date context & summarizing when required
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
@@ -117,8 +120,18 @@ export class ContextManager {
 		taskDirectory: string,
 	) {
 		let updatedConversationHistoryDeletedRange = false
+		let summaryResult:
+			| {
+					summaryText: string
+					cost?: number
+					tokensIn?: number
+					tokensOut?: number
+					cacheReads?: number
+					cacheWrites?: number
+			  }
+			| undefined
 
-		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+		// If the previous API request's total token usage is close to the context window, summarize the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
@@ -129,47 +142,75 @@ export class ContextManager {
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
-					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
-
-					// we later check how many chars we trim to determine if we should still truncate history
-					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
-						apiConversationHistory,
-						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
-						timestamp,
-					)
-
-					let needToTruncate = true
-					if (anyContextUpdates) {
-						// determine whether we've saved enough chars to not truncate
-						const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
+					try {
+						// Use summarization instead of truncation
+						summaryResult = await this.summarizationService.createSummary(
 							apiConversationHistory,
+							api,
 							conversationHistoryDeletedRange,
-							uniqueFileReadIndices,
-						)
-						if (charactersSavedPercentage >= 0.3) {
-							needToTruncate = false
-						}
-					}
-
-					if (needToTruncate) {
-						// go ahead with truncation
-						anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
-
-						// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-						conversationHistoryDeletedRange = this.getNextTruncationRange(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							keep,
 						)
 
+						// Create new conversation history with summary
+						const summarizedHistory = this.summarizationService.createSummarizedConversationHistory(
+							apiConversationHistory,
+							summaryResult.summaryText,
+						)
+
+						// Update the conversation history deleted range to indicate everything was summarized
+						// Keep first user message (index 0) and replace everything else with summary (starting from index 1)
+						conversationHistoryDeletedRange = [1, apiConversationHistory.length - 1]
 						updatedConversationHistoryDeletedRange = true
-					}
 
-					// if we alter the context history, save the updated version to disk
-					if (anyContextUpdates) {
-						await this.saveContextHistory(taskDirectory)
+						return {
+							conversationHistoryDeletedRange: conversationHistoryDeletedRange,
+							updatedConversationHistoryDeletedRange: updatedConversationHistoryDeletedRange,
+							truncatedConversationHistory: summarizedHistory,
+							summaryResult: summaryResult,
+						}
+					} catch (error) {
+						console.error("Failed to create conversation summary, falling back to truncation:", error)
+
+						// Fall back to original truncation logic
+						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
+						// we later check how many chars we trim to determine if we should still truncate history
+						let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+							apiConversationHistory,
+							conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+							timestamp,
+						)
+
+						let needToTruncate = true
+						if (anyContextUpdates) {
+							// determine whether we've saved enough chars to not truncate
+							const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								uniqueFileReadIndices,
+							)
+							if (charactersSavedPercentage >= 0.3) {
+								needToTruncate = false
+							}
+						}
+
+						if (needToTruncate) {
+							// go ahead with truncation
+							anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
+
+							// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+							conversationHistoryDeletedRange = this.getNextTruncationRange(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								keep,
+							)
+
+							updatedConversationHistoryDeletedRange = true
+						}
+
+						// if we alter the context history, save the updated version to disk
+						if (anyContextUpdates) {
+							await this.saveContextHistory(taskDirectory)
+						}
 					}
 				}
 			}
@@ -184,6 +225,7 @@ export class ContextManager {
 			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
 			updatedConversationHistoryDeletedRange: updatedConversationHistoryDeletedRange,
 			truncatedConversationHistory: truncatedConversationHistory,
+			summaryResult: summaryResult,
 		}
 	}
 

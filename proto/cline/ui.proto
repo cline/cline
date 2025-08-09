@@ -71,7 +71,8 @@ enum ClineSay {
   CLINEIGNORE_ERROR = 23;
   CHECKPOINT_CREATED = 24;
   LOAD_MCP_DOCUMENTATION = 25;
-  INFO = 26;
+  CONVERSATION_SUMMARY = 26;
+  INFO = 27;
 }
 
 // Enum for ClineSayTool tool types
