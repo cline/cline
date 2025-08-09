@@ -23,11 +23,7 @@ permissions:
     pull-requests: write
 
 jobs:
-    test:
-        uses: ./.github/workflows/test.yml
-
     publish:
-        needs: test
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
@@ -41,30 +37,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: "lts/*"
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci --include=optional
-
-            - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci --include=optional
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
@@ -90,15 +62,48 @@ jobs:
 
                   echo "Tag '$TAG' validated successfully"
 
+            - name: Download Artifact
+              id: download_artifact
+              timeout-minutes: 30
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  TAG="${{ github.event.inputs.tag }}"
+                  COMMIT_SHA=$(git rev-parse "$TAG")
+
+                  while true; do
+                    RUN_ID=$(gh run list \
+                    --workflow="Build Extension" \
+                    --commit="${COMMIT_SHA}" \
+                    --status=success \
+                    --limit=1 \
+                    --json databaseId \
+                    --jq '.[0].databaseId')
+                    
+                    if [ -n "$RUN_ID" ]; then
+                      echo "Build completed! Downloading artifact..."
+
+                      gh run download $RUN_ID --name vsix-package
+                      exit 0
+                    fi
+                    
+                    echo "Waiting for build..."
+                    sleep 10
+                  done
+
+            - name: Set VSIX Path
+              id: set_vsix_path
+              run: |
+                  FILE_PATH=$(ls *.vsix | head -n 1)
+                  echo "VSIX_PATH=$FILE_PATH" >> $GITHUB_OUTPUT
+
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
                   CLINE_ENVIRONMENT: production
+                  VSIX_PATH: ${{ steps.set_vsix_path.outputs.VSIX_PATH }}
               run: |
-                  # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
-
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
