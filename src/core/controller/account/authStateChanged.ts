@@ -1,6 +1,5 @@
 import { AuthStateChangedRequest, AuthState } from "@shared/proto/cline/account"
 import type { Controller } from "../index"
-import { updateGlobalState } from "../../storage/state"
 
 /**
  * Handles authentication state changes from the Firebase context.
@@ -12,7 +11,7 @@ import { updateGlobalState } from "../../storage/state"
 export async function authStateChanged(controller: Controller, request: AuthStateChangedRequest): Promise<AuthState> {
 	try {
 		// Store the user info directly in global state
-		await updateGlobalState(controller.context, "userInfo", request.user)
+		controller.cacheService.setGlobalState("userInfo", request.user)
 
 		// Return the same user info
 		return AuthState.create({ user: request.user })

@@ -1,9 +1,8 @@
 import { Controller } from "../index"
 import * as proto from "@/shared/proto"
-import { updateGlobalState } from "../../storage/state"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export async function updateDefaultTerminalProfile(
 	controller: Controller,
@@ -12,7 +11,7 @@ export async function updateDefaultTerminalProfile(
 	const profileId = request.value
 
 	// Update the terminal profile in the state
-	await updateGlobalState(controller.context, "defaultTerminalProfile", profileId)
+	controller.cacheService.setGlobalState("defaultTerminalProfile", profileId)
 
 	let closedCount = 0
 	let busyTerminals: TerminalInfo[] = []

@@ -2,10 +2,10 @@ import path from "path"
 import fs from "fs/promises"
 import { Controller } from ".."
 import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
-import { getGlobalState, updateGlobalState } from "../../storage/state"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
+import { HistoryItem } from "@/shared/HistoryItem"
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -19,7 +19,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		await controller.clearTask()
 
 		// Get existing task history
-		const taskHistory = ((await getGlobalState(controller.context, "taskHistory")) as any[]) || []
+		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
@@ -48,7 +48,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 
 			// If there are favorited tasks, update state
 			if (favoritedTasks.length > 0) {
-				await updateGlobalState(controller.context, "taskHistory", favoritedTasks)
+				controller.cacheService.setGlobalState("taskHistory", favoritedTasks)
 
 				// Delete non-favorited task directories
 				const preserveTaskIds = favoritedTasks.map((task) => task.id)
@@ -88,7 +88,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		}
 
 		// Delete everything (not preserving favorites)
-		await updateGlobalState(controller.context, "taskHistory", undefined)
+		controller.cacheService.setGlobalState("taskHistory", [])
 
 		try {
 			// Remove all contents of tasks directory

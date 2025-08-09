@@ -1,7 +1,6 @@
 import { ToggleClineRules } from "@shared/proto/cline/file"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
 import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
@@ -24,18 +23,18 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 
 	// This is the same core logic as in the original handler
 	if (isGlobal) {
-		const toggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
 		toggles[rulePath] = enabled
-		await updateGlobalState(controller.context, "globalClineRulesToggles", toggles)
+		controller.cacheService.setGlobalState("globalClineRulesToggles", toggles)
 	} else {
-		const toggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 		toggles[rulePath] = enabled
-		await updateWorkspaceState(controller.context, "localClineRulesToggles", toggles)
+		controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
 	}
 
 	// Get the current state to return in the response
-	const globalToggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
-	const localToggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
+	const globalToggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
+	const localToggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 
 	return ToggleClineRules.create({
 		globalClineRulesToggles: { toggles: globalToggles },

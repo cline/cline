@@ -1,7 +1,5 @@
 import { Controller } from ".."
-import { Metadata } from "@shared/proto/cline/common"
 import { ToggleWorkflowRequest, ClineRulesToggles } from "@shared/proto/cline/file"
-import { getWorkspaceState, updateWorkspaceState, getGlobalState, updateGlobalState } from "../../../core/storage/state"
 import { ClineRulesToggles as AppClineRulesToggles } from "../../../shared/cline-rules"
 
 /**
@@ -24,18 +22,18 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 	// Update the toggles based on isGlobal flag
 	if (isGlobal) {
 		// Global workflows
-		const toggles = ((await getGlobalState(controller.context, "globalWorkflowToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.cacheService.getGlobalStateKey("globalWorkflowToggles")
 		toggles[workflowPath] = enabled
-		await updateGlobalState(controller.context, "globalWorkflowToggles", toggles)
+		controller.cacheService.setGlobalState("globalWorkflowToggles", toggles)
 		await controller.postStateToWebview()
 
 		// Return the global toggles
 		return ClineRulesToggles.create({ toggles: toggles })
 	} else {
 		// Workspace workflows
-		const toggles = ((await getWorkspaceState(controller.context, "workflowToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.cacheService.getWorkspaceStateKey("workflowToggles")
 		toggles[workflowPath] = enabled
-		await updateWorkspaceState(controller.context, "workflowToggles", toggles)
+		controller.cacheService.setWorkspaceState("workflowToggles", toggles)
 		await controller.postStateToWebview()
 
 		// Return the workspace toggles

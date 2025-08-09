@@ -1,10 +1,10 @@
 import { Controller } from ".."
 import { Empty } from "@shared/proto/cline/common"
 import { ResetStateRequest } from "@shared/proto/cline/state"
-import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
+import { resetGlobalState, resetWorkspaceState } from "@/core/storage/utils/state-helpers"
 
 /**
  * Resets the extension state to its defaults

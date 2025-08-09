@@ -1,7 +1,6 @@
 import type { BooleanRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
-import { updateGlobalState } from "../../storage/state"
 
 /**
  * Sets the welcomeViewCompleted flag to the specified boolean value
@@ -12,7 +11,7 @@ import { updateGlobalState } from "../../storage/state"
 export async function setWelcomeViewCompleted(controller: Controller, request: BooleanRequest): Promise<Empty> {
 	try {
 		// Update the global state to set welcomeViewCompleted to the requested value
-		await updateGlobalState(controller.context, "welcomeViewCompleted", request.value)
+		controller.cacheService.setGlobalState("welcomeViewCompleted", request.value)
 
 		await controller.postStateToWebview()
 

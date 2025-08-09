@@ -1,7 +1,6 @@
 import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
 
 /**
  * Get information about the current browser connection
@@ -12,7 +11,7 @@ import { getAllExtensionState } from "@core/storage/state"
 export async function getBrowserConnectionInfo(controller: Controller, _: EmptyRequest): Promise<BrowserConnectionInfo> {
 	try {
 		// Get browser settings from extension state
-		const { browserSettings } = await getAllExtensionState(controller.context)
+		const browserSettings = controller.cacheService.getGlobalStateKey("browserSettings")
 
 		// Check if there's an active browser session by using the controller's handleWebviewMessage approach
 		// This is similar to what's done in controller/index.ts for the "getBrowserConnectionInfo" message

@@ -73,7 +73,6 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import { getGlobalState } from "@core/storage/state"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
@@ -89,6 +88,7 @@ import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Controller } from "../controller"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -108,7 +108,7 @@ export class Task {
 	private enableCheckpoints: boolean
 
 	// Core dependencies
-	private context: vscode.ExtensionContext
+	private controller: Controller
 	private mcpHub: McpHub
 	private workspaceTracker: WorkspaceTracker
 
@@ -146,7 +146,7 @@ export class Task {
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 	constructor(
-		context: vscode.ExtensionContext,
+		controller: Controller,
 		mcpHub: McpHub,
 		workspaceTracker: WorkspaceTracker,
 		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
@@ -173,7 +173,7 @@ export class Task {
 		historyItem?: HistoryItem,
 	) {
 		this.taskState = new TaskState()
-		this.context = context
+		this.controller = controller
 		this.mcpHub = mcpHub
 		this.workspaceTracker = workspaceTracker
 		this.updateTaskHistory = updateTaskHistory
@@ -199,8 +199,8 @@ export class Task {
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
-		this.urlContentFetcher = new UrlContentFetcher(context)
-		this.browserSession = new BrowserSession(context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.browserSession = new BrowserSession(controller.context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
@@ -235,7 +235,7 @@ export class Task {
 		}
 
 		this.messageStateHandler = new MessageStateHandler({
-			context,
+			context: controller.context,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			taskState: this.taskState,
@@ -244,8 +244,8 @@ export class Task {
 		})
 
 		// Initialize file context tracker
-		this.fileContextTracker = new FileContextTracker(context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
+		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
@@ -318,7 +318,7 @@ export class Task {
 		}
 
 		this.toolExecutor = new ToolExecutor(
-			this.context,
+			this.controller.context,
 			this.taskState,
 			this.messageStateHandler,
 			this.api,
@@ -360,7 +360,7 @@ export class Task {
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
 	private getContext(): vscode.ExtensionContext {
-		const context = this.context
+		const context = this.controller.context
 		if (!context) {
 			throw new Error("Unable to access extension context")
 		}
@@ -417,7 +417,7 @@ export class Task {
 					try {
 						this.checkpointTracker = await CheckpointTracker.create(
 							this.taskId,
-							this.context.globalStorageUri.fsPath,
+							this.controller.context.globalStorageUri.fsPath,
 							this.enableCheckpoints,
 						)
 						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -605,7 +605,7 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.context.globalStorageUri.fsPath,
+					this.controller.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -742,7 +742,7 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.context.globalStorageUri.fsPath,
+					this.controller.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -1331,7 +1331,7 @@ export class Task {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
-						this.context.globalStorageUri.fsPath,
+						this.controller.context.globalStorageUri.fsPath,
 						this.enableCheckpoints,
 					)
 				} catch (error) {
@@ -1375,7 +1375,7 @@ export class Task {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
-						this.context.globalStorageUri.fsPath,
+						this.controller.context.globalStorageUri.fsPath,
 						this.enableCheckpoints,
 					)
 					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -1719,8 +1719,8 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), this.cwd)
+		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
@@ -2160,7 +2160,11 @@ export class Task {
 
 				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
+					CheckpointTracker.create(
+						this.taskId,
+						this.controller.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					),
 					{
 						milliseconds: 15_000,
 						message:
@@ -2547,7 +2551,7 @@ export class Task {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.getContext(), this.cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
 
 		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
