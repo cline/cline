@@ -99,7 +99,7 @@ describe("ErrorRow", () => {
 			render(<ErrorRow message={mockMessage} errorType="error" apiRequestFailedMessage="Insufficient credits error" />)
 
 			expect(screen.getByTestId("credit-limit-error")).toBeInTheDocument()
-			expect(screen.getByText("You have run out of credit.")).toBeInTheDocument()
+			expect(screen.getByText("You have run out of credits.")).toBeInTheDocument()
 		})
 
 		it("renders rate limit error with request ID", async () => {
