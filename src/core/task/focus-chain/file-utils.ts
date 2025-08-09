@@ -51,7 +51,7 @@ export function extractFocusChainListFromText(text: string): string | null {
 export async function ensureFocusChainFile(
 	context: vscode.ExtensionContext,
 	taskId: string,
-	initialfocusChainContent?: string,
+	initialFocusChainContent?: string,
 ): Promise<string> {
 	const taskDir = await ensureTaskDirectoryExists(context, taskId)
 	const focusChainFilePath = getFocusChainFilePath(taskDir, taskId)
@@ -68,7 +68,7 @@ export async function ensureFocusChainFile(
 	// Create file if it doesn't exist
 	if (!fileExists) {
 		const focusChainContent =
-			initialfocusChainContent ||
+			initialFocusChainContent ||
 			`- [ ] Example checklist item
 - [ ] Another checklist item
 - [x] Completed example item`
