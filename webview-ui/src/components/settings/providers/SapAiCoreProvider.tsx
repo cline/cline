@@ -97,17 +97,17 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	)
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+		<div className="flex flex-col gap-1.5">
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
 				style={{ width: "100%" }}
 				type="password"
 				placeholder="Enter AI Core Client Id...">
-				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
+				<span className="font-medium">AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
-				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Client Id is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -118,10 +118,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				style={{ width: "100%" }}
 				type="password"
 				placeholder="Enter AI Core Client Secret...">
-				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
+				<span className="font-medium">AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
-				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Client Secret is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -131,7 +131,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Base URL...">
-				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
+				<span className="font-medium">AI Core Base URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
@@ -139,7 +139,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Auth URL...">
-				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
+				<span className="font-medium">AI Core Auth URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
@@ -147,53 +147,36 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Resource Group...">
-				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
+				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
+			<p className="text-xs mt-1.5 text-[var(--vscode-descriptionForeground)]">
 				These credentials are stored locally and only used to make API requests from this extension.
 				<VSCodeLink
 					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
-					style={{ display: "inline" }}>
+					className="inline">
 					You can find more information about SAP AI Core API access here.
 				</VSCodeLink>
 			</p>
 
 			{showModelOptions && (
 				<>
-					<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+					<div className="flex flex-col gap-1.5">
 						{isLoadingModels ? (
-							<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
-								Loading models...
-							</div>
+							<div className="text-xs text-[var(--vscode-descriptionForeground)]">Loading models...</div>
 						) : modelError ? (
-							<div style={{ fontSize: "12px", color: "var(--vscode-errorForeground)" }}>
+							<div className="text-xs text-[var(--vscode-errorForeground)]">
 								{modelError}
 								<button
 									onClick={fetchSapAiCoreModels}
-									style={{
-										marginLeft: "8px",
-										fontSize: "11px",
-										padding: "2px 6px",
-										background: "var(--vscode-button-background)",
-										color: "var(--vscode-button-foreground)",
-										border: "none",
-										borderRadius: "2px",
-										cursor: "pointer",
-									}}>
+									className="ml-2 text-[11px] px-1.5 py-0.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border-none rounded-sm cursor-pointer">
 									Retry
 								</button>
 							</div>
 						) : hasRequiredCredentials ? (
 							<>
 								{deployedModelsArray.length === 0 && (
-									<div
-										style={{ fontSize: "12px", color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>
+									<div className="text-xs text-[var(--vscode-errorForeground)] mb-2">
 										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
 										configuration or ensure your deployments are deployed and running in the service instance
 									</div>
@@ -206,7 +189,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 								/>
 							</>
 						) : (
-							<div style={{ fontSize: "12px", color: "var(--vscode-errorForeground)" }}>
+							<div className="text-xs text-[var(--vscode-errorForeground)]">
 								Please configure your SAP AI Core credentials to see available models.
 							</div>
 						)}
