@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.23.0
+
+### Minor Changes
+
+- 759ef87: Add caching support for Bedrock inferences using SAP AI Core and minor refactor
+
+### Patch Changes
+
+- 5885a3c: improve visibility for mode switch background color on different themes.
+- a430226: Fix terminal commands putting webview in blocked state
+- 782e4ff: Fix credit error tests
+
 ## [3.22.0]
 
 - Implemented a retry strategy for Cerebras to handle rate limit issues due to its generation speed
