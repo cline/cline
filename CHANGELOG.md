@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.23.1
+
+### Patch Changes
+
+- cad28c4: calibrate input token counts when using anthropic models of sap ai core provider
+
 ## [3.23.0]
 
 - Add caching support for Bedrock inferences using SAP AI Core and minor refactor
