@@ -11,7 +11,7 @@ import MermaidBlock from "@/components/common/MermaidBlock"
 import { WithCopyButton } from "./CopyButton"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest, BooleanResponse } from "@shared/proto/cline/common"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {
@@ -329,27 +329,28 @@ const remarkFilePathDetection = () => {
 	return async (tree: Node) => {
 		const fileNameRegex = /^(?!\/)[\w\-./]+(?<!\/)$/
 		const inlineCodeNodes: any[] = []
+		const filePathPromises: Promise<void>[] = []
 
 		// Collect all inline code nodes that might be file paths
-				visit(tree, "inlineCode", (node: Node & { value: string; data?: any }) => {
+		visit(tree, "inlineCode", (node: Node & { value: string; data?: any }) => {
 			if (fileNameRegex.test(node.value) && !node.value.includes("\n")) {
-				const promise = FileServiceClient.ifFileExistsRelativePath(
-					StringRequest.create({ value: node.value })
-				).then(exists => {
-					if (exists.value) {
-						node.data = node.data || {};
-						node.data.hProperties = node.data.hProperties || {};
-						node.data.hProperties["data-is-file-path"] = "true";
-					}
-				}).catch(err => {
-					console.debug(`Failed to check file existence for ${node.value}:`, err);
-				});
-				
-				filePathPromises.push(promise);
-			}
-		});
+				const promise = FileServiceClient.ifFileExistsRelativePath(StringRequest.create({ value: node.value }))
+					.then((exists) => {
+						if (exists.value) {
+							node.data = node.data || {}
+							node.data.hProperties = node.data.hProperties || {}
+							node.data.hProperties["data-is-file-path"] = "true"
+						}
+					})
+					.catch((err) => {
+						console.debug(`Failed to check file existence for ${node.value}:`, err)
+					})
 
-		await Promise.all(filePathPromises);
+				filePathPromises.push(promise)
+			}
+		})
+
+		await Promise.all(filePathPromises)
 	}
 }
 
@@ -412,10 +413,8 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 								<code {...props} />
 								<button
 									type="button"
-									className="bg-transparent border-none codicon codicon-link-external ml-1 opacity-70 hover:opacity-100 transition-opacity text-sm"
-									onClick={() =>
-										FileServiceClient.openFileRelativePath({ value: filePath })
-									}
+									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-[1px] text-[var(--vscode-textPreformat-foreground)] translate-y-[-2px]"
+									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
 									title={`Open ${filePath} in editor`}
 								/>
 							</>

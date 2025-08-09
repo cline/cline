@@ -1,5 +1,5 @@
 import * as path from "path"
-import * as fs from "fs/promises"
+import * as fs from "fs"
 import { Controller } from ".."
 import { StringRequest, BooleanResponse } from "@shared/proto/cline/common"
 import { getWorkspacePath } from "@utils/path"
@@ -24,8 +24,12 @@ export async function ifFileExistsRelativePath(_controller: Controller, request:
 		return BooleanResponse.create({ value: false })
 	}
 
-    // Resolve the relative path to absolute path
+	// Resolve the relative path to absolute path
 	const absolutePath = path.resolve(workspacePath, request.value)
 	// Check if the file exists
-	return BooleanResponse.create({ value: existsSync(absolutePath) })
+	try {
+		return BooleanResponse.create({ value: fs.statSync(absolutePath).isFile() })
+	} catch {
+		return BooleanResponse.create({ value: false })
+	}
 }
