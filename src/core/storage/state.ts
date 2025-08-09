@@ -160,6 +160,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		userInfo,
 		qwenApiLine,
 		moonshotApiLine,
+		zaiApiLine,
 		liteLlmApiKey,
 		telemetrySetting,
 		asksageApiKey,
@@ -192,6 +193,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sapAiResourceGroup,
 		claudeCodePath,
 		huaweiCloudMaasApiKey,
+		zaiApiKey,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "welcomeViewCompleted") as Promise<boolean | undefined>,
@@ -242,6 +244,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "userInfo") as Promise<UserInfo | undefined>,
 		getGlobalState(context, "qwenApiLine") as Promise<string | undefined>,
 		getGlobalState(context, "moonshotApiLine") as Promise<string | undefined>,
+		getGlobalState(context, "zaiApiLine") as Promise<string | undefined>,
 		getSecret(context, "liteLlmApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "telemetrySetting") as Promise<TelemetrySetting | undefined>,
 		getSecret(context, "asksageApiKey") as Promise<string | undefined>,
@@ -274,6 +277,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "sapAiResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "claudeCodePath") as Promise<string | undefined>,
 		getSecret(context, "huaweiCloudMaasApiKey") as Promise<string | undefined>,
+		getSecret(context, "zaiApiKey") as Promise<string | undefined>,
 	])
 
 	const [localClineRulesToggles, localWindsurfRulesToggles, localCursorRulesToggles, localWorkflowToggles] = await Promise.all([
@@ -483,6 +487,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			qwenApiKey,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -511,6 +516,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sapAiResourceGroup,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -642,6 +648,7 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"zaiApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => storeSecret(context, key, undefined)))
 	await controller.cacheService.reInitialize()

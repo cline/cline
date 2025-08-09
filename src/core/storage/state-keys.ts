@@ -31,6 +31,7 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "zaiApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -65,6 +66,7 @@ export type GlobalStateKey =
 	| "fireworksModelMaxTokens"
 	| "qwenApiLine"
 	| "moonshotApiLine"
+	| "zaiApiLine"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
 	| "asksageApiUrl"
