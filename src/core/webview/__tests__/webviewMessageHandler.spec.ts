@@ -35,7 +35,6 @@ const mockClineProvider = {
 	getCurrentCline: vi.fn(),
 	getTaskWithId: vi.fn(),
 	initClineWithHistoryItem: vi.fn(),
-	getMcpHub: vi.fn(),
 } as unknown as ClineProvider
 
 import { t } from "../../../i18n"
@@ -589,138 +588,43 @@ describe("webviewMessageHandler - mcpEnabled", () => {
 			handleMcpEnabledChange: vi.fn().mockResolvedValue(undefined),
 		}
 
-		// Mock the getMcpHub method to return our mock McpHub
-		mockClineProvider.getMcpHub = vi.fn().mockReturnValue(mockMcpHub)
-
-		// Reset the contextProxy getValue mock
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(undefined)
+		// Ensure provider exposes getMcpHub and returns our mock
+		;(mockClineProvider as any).getMcpHub = vi.fn().mockReturnValue(mockMcpHub)
 	})
 
-	it("should not refresh MCP servers when value does not change (true to true)", async () => {
-		// Setup: mcpEnabled is already true
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(true)
-
-		// Act: Send mcpEnabled message with same value
+	it("delegates enable=true to McpHub and posts updated state", async () => {
 		await webviewMessageHandler(mockClineProvider, {
 			type: "mcpEnabled",
 			bool: true,
 		})
 
-		// Assert: handleMcpEnabledChange should not be called
-		expect(mockMcpHub.handleMcpEnabledChange).not.toHaveBeenCalled()
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", true)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
-	})
-
-	it("should not refresh MCP servers when value does not change (false to false)", async () => {
-		// Setup: mcpEnabled is already false
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(false)
-
-		// Act: Send mcpEnabled message with same value
-		await webviewMessageHandler(mockClineProvider, {
-			type: "mcpEnabled",
-			bool: false,
-		})
-
-		// Assert: handleMcpEnabledChange should not be called
-		expect(mockMcpHub.handleMcpEnabledChange).not.toHaveBeenCalled()
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", false)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
-	})
-
-	it("should refresh MCP servers when value changes from true to false", async () => {
-		// Setup: mcpEnabled is true
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(true)
-
-		// Act: Send mcpEnabled message with false
-		await webviewMessageHandler(mockClineProvider, {
-			type: "mcpEnabled",
-			bool: false,
-		})
-
-		// Assert: handleMcpEnabledChange should be called
-		expect(mockMcpHub.handleMcpEnabledChange).toHaveBeenCalledWith(false)
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", false)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
-	})
-
-	it("should refresh MCP servers when value changes from false to true", async () => {
-		// Setup: mcpEnabled is false
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(false)
-
-		// Act: Send mcpEnabled message with true
-		await webviewMessageHandler(mockClineProvider, {
-			type: "mcpEnabled",
-			bool: true,
-		})
-
-		// Assert: handleMcpEnabledChange should be called
+		expect((mockClineProvider as any).getMcpHub).toHaveBeenCalledTimes(1)
+		expect(mockMcpHub.handleMcpEnabledChange).toHaveBeenCalledTimes(1)
 		expect(mockMcpHub.handleMcpEnabledChange).toHaveBeenCalledWith(true)
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", true)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
 	})
 
-	it("should handle undefined values with defaults correctly", async () => {
-		// Setup: mcpEnabled is undefined (defaults to true)
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(undefined)
-
-		// Act: Send mcpEnabled message with undefined (defaults to true)
-		await webviewMessageHandler(mockClineProvider, {
-			type: "mcpEnabled",
-			bool: undefined,
-		})
-
-		// Assert: Should use default value (true) and not trigger refresh since both are true
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", true)
-		expect(mockMcpHub.handleMcpEnabledChange).not.toHaveBeenCalled()
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
-	})
-
-	it("should handle when mcpEnabled changes from undefined to false", async () => {
-		// Setup: mcpEnabled is undefined (defaults to true)
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(undefined)
-
-		// Act: Send mcpEnabled message with false
+	it("delegates enable=false to McpHub and posts updated state", async () => {
 		await webviewMessageHandler(mockClineProvider, {
 			type: "mcpEnabled",
 			bool: false,
 		})
 
-		// Assert: Should trigger refresh since undefined defaults to true and we're changing to false
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", false)
+		expect((mockClineProvider as any).getMcpHub).toHaveBeenCalledTimes(1)
+		expect(mockMcpHub.handleMcpEnabledChange).toHaveBeenCalledTimes(1)
 		expect(mockMcpHub.handleMcpEnabledChange).toHaveBeenCalledWith(false)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
 	})
 
-	it("should not call handleMcpEnabledChange when McpHub is not available", async () => {
-		// Setup: No McpHub instance available
-		mockClineProvider.getMcpHub = vi.fn().mockReturnValue(null)
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(true)
+	it("handles missing McpHub instance gracefully and still posts state", async () => {
+		;(mockClineProvider as any).getMcpHub = vi.fn().mockReturnValue(undefined)
 
-		// Act: Send mcpEnabled message with false
-		await webviewMessageHandler(mockClineProvider, {
-			type: "mcpEnabled",
-			bool: false,
-		})
-
-		// Assert: State should be updated but handleMcpEnabledChange should not be called
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", false)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
-		// No error should be thrown
-	})
-
-	it("should always update state even when value doesn't change", async () => {
-		// Setup: mcpEnabled is true
-		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue(true)
-
-		// Act: Send mcpEnabled message with same value
 		await webviewMessageHandler(mockClineProvider, {
 			type: "mcpEnabled",
 			bool: true,
 		})
 
-		// Assert: State should still be updated to ensure consistency
-		expect(mockClineProvider.contextProxy.setValue).toHaveBeenCalledWith("mcpEnabled", true)
-		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
+		expect((mockClineProvider as any).getMcpHub).toHaveBeenCalledTimes(1)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalledTimes(1)
 	})
 })

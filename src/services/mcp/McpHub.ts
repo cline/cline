@@ -1212,7 +1212,6 @@ export class McpHub {
 
 	public async refreshAllConnections(): Promise<void> {
 		if (this.isConnecting) {
-			vscode.window.showInformationMessage(t("mcp:info.already_refreshing"))
 			return
 		}
 
@@ -1234,7 +1233,6 @@ export class McpHub {
 		}
 
 		this.isConnecting = true
-		vscode.window.showInformationMessage(t("mcp:info.refreshing_all"))
 
 		try {
 			const globalPath = await this.getMcpSettingsFilePath()
@@ -1244,11 +1242,6 @@ export class McpHub {
 				const globalConfig = JSON.parse(globalContent)
 				globalServers = globalConfig.mcpServers || {}
 				const globalServerNames = Object.keys(globalServers)
-				vscode.window.showInformationMessage(
-					t("mcp:info.global_servers_active", {
-						mcpServers: `${globalServerNames.join(", ") || "none"}`,
-					}),
-				)
 			} catch (error) {
 				console.log("Error reading global MCP config:", error)
 			}
@@ -1261,11 +1254,6 @@ export class McpHub {
 					const projectConfig = JSON.parse(projectContent)
 					projectServers = projectConfig.mcpServers || {}
 					const projectServerNames = Object.keys(projectServers)
-					vscode.window.showInformationMessage(
-						t("mcp:info.project_servers_active", {
-							mcpServers: `${projectServerNames.join(", ") || "none"}`,
-						}),
-					)
 				} catch (error) {
 					console.log("Error reading project MCP config:", error)
 				}
@@ -1285,8 +1273,6 @@ export class McpHub {
 			await delay(100)
 
 			await this.notifyWebviewOfServerChanges()
-
-			vscode.window.showInformationMessage(t("mcp:info.all_refreshed"))
 		} catch (error) {
 			this.showErrorMessage("Failed to refresh MCP servers", error)
 		} finally {
