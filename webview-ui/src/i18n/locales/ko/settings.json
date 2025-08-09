@@ -429,6 +429,7 @@
 		},
 		"reasoningEffort": {
 			"label": "모델 추론 노력",
+			"minimal": "최소 (가장 빠름)",
 			"high": "높음",
 			"medium": "중간",
 			"low": "낮음"

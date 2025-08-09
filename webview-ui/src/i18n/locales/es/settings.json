@@ -429,6 +429,7 @@
 		},
 		"reasoningEffort": {
 			"label": "Esfuerzo de razonamiento del modelo",
+			"minimal": "Mínimo (el más rápido)",
 			"high": "Alto",
 			"medium": "Medio",
 			"low": "Bajo"

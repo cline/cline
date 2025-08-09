@@ -429,6 +429,7 @@
 		},
 		"reasoningEffort": {
 			"label": "Esforç de raonament del model",
+			"minimal": "Mínim (el més ràpid)",
 			"high": "Alt",
 			"medium": "Mitjà",
 			"low": "Baix"

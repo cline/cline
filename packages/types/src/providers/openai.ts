@@ -12,10 +12,13 @@ export const openAiNativeModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: true,
+		reasoningEffort: "medium",
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.13,
 		description: "GPT-5: The best model for coding and agentic tasks across domains",
+		// supportsVerbosity is a new capability; ensure ModelInfo includes it
+		supportsVerbosity: true,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 128000,
@@ -23,10 +26,12 @@ export const openAiNativeModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: true,
+		reasoningEffort: "medium",
 		inputPrice: 0.25,
 		outputPrice: 2.0,
 		cacheReadsPrice: 0.03,
 		description: "GPT-5 Mini: A faster, more cost-efficient version of GPT-5 for well-defined tasks",
+		supportsVerbosity: true,
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 128000,
@@ -34,10 +39,12 @@ export const openAiNativeModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoningEffort: true,
+		reasoningEffort: "medium",
 		inputPrice: 0.05,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.01,
 		description: "GPT-5 Nano: Fastest, most cost-efficient version of GPT-5",
+		supportsVerbosity: true,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
@@ -229,5 +236,6 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 
 export const OPENAI_NATIVE_DEFAULT_TEMPERATURE = 0
+export const GPT5_DEFAULT_TEMPERATURE = 1.0
 
 export const OPENAI_AZURE_AI_INFERENCE_PATH = "/models/chat/completions"

@@ -116,7 +116,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			model,
 			max_tokens,
 			temperature,
-			...(reasoning_effort && { reasoning_effort }),
+			...(reasoning_effort && reasoning_effort !== "minimal" && { reasoning_effort }),
 			...(thinking && { thinking }),
 			stream: true,
 			stream_options: { include_usage: true },

@@ -252,6 +252,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	didCompleteReadingStream = false
 	assistantMessageParser?: AssistantMessageParser
 	isAssistantMessageParserEnabled = false
+	private lastUsedInstructions?: string
+	private skipPrevResponseIdOnce: boolean = false
 
 	constructor({
 		provider,
@@ -824,6 +826,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		progressStatus?: ToolProgressStatus,
 		options: {
 			isNonInteractive?: boolean
+			metadata?: Record<string, unknown>
 		} = {},
 		contextCondense?: ContextCondense,
 	): Promise<undefined> {
@@ -861,6 +864,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						images,
 						partial,
 						contextCondense,
+						metadata: options.metadata,
 					})
 				}
 			} else {
@@ -876,6 +880,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
+					if (options.metadata) {
+						;(lastMessage as any).metadata = options.metadata
+					}
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -891,7 +898,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						this.lastMessageTs = sayTs
 					}
 
-					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, contextCondense })
+					await this.addToClineMessages({
+						ts: sayTs,
+						type: "say",
+						say: type,
+						text,
+						images,
+						contextCondense,
+						metadata: options.metadata,
+					})
 				}
 			}
 		} else {
@@ -1736,6 +1751,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				presentAssistantMessage(this)
 			}
 
+			await this.persistGpt5Metadata(reasoningMessage)
+
 			updateApiReqMsg()
 			await this.saveClineMessages()
 			await this.providerRef.deref()?.postStateToWebview()
@@ -1954,6 +1971,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		Task.lastGlobalApiRequestTime = Date.now()
 
 		const systemPrompt = await this.getSystemPrompt()
+		this.lastUsedInstructions = systemPrompt
 		const { contextTokens } = this.getTokenUsage()
 
 		if (contextTokens) {
@@ -1992,6 +2010,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (truncateResult.error) {
 				await this.say("condense_context_error", truncateResult.error)
 			} else if (truncateResult.summary) {
+				// A condense operation occurred; for the next GPT‑5 API call we should NOT
+				// send previous_response_id so the request reflects the fresh condensed context.
+				this.skipPrevResponseIdOnce = true
+
 				const { summary, cost, prevContextTokens, newContextTokens = 0 } = truncateResult
 				const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens }
 				await this.say(
@@ -2008,7 +2030,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const messagesSinceLastSummary = getMessagesSinceLastSummary(this.apiConversationHistory)
-		const cleanConversationHistory = maybeRemoveImageBlocks(messagesSinceLastSummary, this.api).map(
+		let cleanConversationHistory = maybeRemoveImageBlocks(messagesSinceLastSummary, this.api).map(
 			({ role, content }) => ({ role, content }),
 		)
 
@@ -2024,9 +2046,41 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			throw new Error("Auto-approval limit reached and user did not approve continuation")
 		}
 
+		// Determine GPT‑5 previous_response_id from last persisted assistant turn (if available),
+		// unless a condense just occurred (skip once after condense).
+		let previousResponseId: string | undefined = undefined
+		try {
+			const modelId = this.api.getModel().id
+			if (modelId && modelId.startsWith("gpt-5") && !this.skipPrevResponseIdOnce) {
+				// Find the last assistant message that has a previous_response_id stored
+				const idx = findLastIndex(
+					this.clineMessages,
+					(m) =>
+						m.type === "say" &&
+						(m as any).say === "text" &&
+						(m as any).metadata?.gpt5?.previous_response_id,
+				)
+				if (idx !== -1) {
+					// Use the previous_response_id from the last assistant message for this request
+					previousResponseId = ((this.clineMessages[idx] as any).metadata.gpt5.previous_response_id ||
+						undefined) as string | undefined
+				}
+			}
+		} catch {
+			// non-fatal
+		}
+
 		const metadata: ApiHandlerCreateMessageMetadata = {
 			mode: mode,
 			taskId: this.taskId,
+			...(previousResponseId ? { previousResponseId } : {}),
+			// If a condense just occurred, explicitly suppress continuity fallback for the next call
+			...(this.skipPrevResponseIdOnce ? { suppressPreviousResponseId: true } : {}),
+		}
+
+		// Reset skip flag after applying (it only affects the immediate next call)
+		if (this.skipPrevResponseIdOnce) {
+			this.skipPrevResponseIdOnce = false
 		}
 
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory, metadata)
@@ -2169,6 +2223,35 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		if (error) {
 			this.emit(RooCodeEventName.TaskToolFailed, this.taskId, toolName, error)
+		}
+	}
+
+	/**
+	 * Persist GPT-5 per-turn metadata (previous_response_id, instructions, reasoning_summary)
+	 * onto the last complete assistant say("text") message.
+	 */
+	private async persistGpt5Metadata(reasoningMessage?: string): Promise<void> {
+		try {
+			const modelId = this.api.getModel().id
+			if (!modelId || !modelId.startsWith("gpt-5")) return
+
+			const lastResponseId: string | undefined = (this.api as any)?.getLastResponseId?.()
+			const idx = findLastIndex(
+				this.clineMessages,
+				(m) => m.type === "say" && (m as any).say === "text" && m.partial !== true,
+			)
+			if (idx !== -1) {
+				const msg = this.clineMessages[idx] as any
+				msg.metadata = msg.metadata ?? {}
+				msg.metadata.gpt5 = {
+					...(msg.metadata.gpt5 ?? {}),
+					previous_response_id: lastResponseId,
+					instructions: this.lastUsedInstructions,
+					reasoning_summary: (reasoningMessage ?? "").trim() || undefined,
+				}
+			}
+		} catch {
+			// Non-fatal error in metadata persistence
 		}
 	}
 
