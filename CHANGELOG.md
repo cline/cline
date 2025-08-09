@@ -2,13 +2,8 @@
 
 ## 3.22.0
 
-### Minor Changes
-
 - 7843ab9: implemented a retry strategy for Cerebras to handle rate limit issues due to its generation speed
 - 5ed4319: Add support for GPT-5 models to SAP AI Core Provider
-
-### Patch Changes
-
 - 4ab8559: Support sending context to active webview when editor panels are opened.
 - d3c8fbb: remove unused parseAssistantmessageV1
 - c325faf: Fix bug where running out of credits on cline accounts would show '402 empty body' response instead of 'buy credits' component
