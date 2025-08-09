@@ -57,6 +57,12 @@ service FileService {
 
   // Subscribe to workspace file updates
   rpc subscribeToWorkspaceUpdates(EmptyRequest) returns (stream StringArray);
+
+  // Check if file exists in the project
+  rpc ifFileExistsRelativePath(StringRequest) returns (BooleanResponse);
+
+  // Open a file in editor by a relative path
+  rpc openFileRelativePath(StringRequest) returns (Empty);
 }
 
 // Response for refreshRules operation
