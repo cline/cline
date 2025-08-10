@@ -172,10 +172,10 @@ export class ClineHandler implements ApiHandler {
 			try {
 				// TODO: replace this with firebase auth
 				// TODO: use global API Host
-
+				const clineAccountAuthToken = await this._authService.getAuthToken()
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${this.options.clineAccountId}`,
+						Authorization: `Bearer ${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})
