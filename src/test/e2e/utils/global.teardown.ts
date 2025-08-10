@@ -5,7 +5,7 @@ import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
 teardown("cleanup test environment", async () => {
-	await ClineApiServerMock.stopGlobalServer()
+	ClineApiServerMock.stopGlobalServer()
 		.then(() => console.log("ClineApiServerMock stopped successfully."))
 		.catch((error) => console.error("Error stopping ClineApiServerMock:", error))
 

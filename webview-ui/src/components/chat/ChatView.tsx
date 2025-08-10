@@ -263,7 +263,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+		const clientId = (window as { clineClientId?: string }).clineClientId
+		if (!clientId) {
+			console.error("Client ID not found in window object for addToInput subscription")
+			return
+		}
+
+		const request = StringRequest.create({ value: clientId })
+		const cleanup = UiServiceClient.subscribeToAddToInput(request, {
 			onResponse: (event) => {
 				if (event.value) {
 					setInputValue((prevValue) => {

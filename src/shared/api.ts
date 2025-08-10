@@ -1006,7 +1006,7 @@ export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07
 export const openAiNativeModels = {
 	"gpt-5-2025-08-07": {
 		maxTokens: 128000,
-		contextWindow: 256000,
+		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.25,
@@ -1015,7 +1015,7 @@ export const openAiNativeModels = {
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 128000,
-		contextWindow: 256000,
+		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.25,
@@ -1024,7 +1024,7 @@ export const openAiNativeModels = {
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 128000,
-		contextWindow: 256000,
+		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.05,
@@ -2782,21 +2782,21 @@ export const sapAiCoreModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.7-sonnet": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-3.5-sonnet": {
@@ -2832,6 +2832,9 @@ export const sapAiCoreModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
 		description: sapAiCoreModelDescription,
 	},
 	"gemini-2.5-flash": {
@@ -2875,6 +2878,27 @@ export const sapAiCoreModels = {
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-nano": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-mini": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,

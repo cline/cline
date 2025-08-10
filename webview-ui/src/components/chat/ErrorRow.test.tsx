@@ -87,7 +87,7 @@ describe("ErrorRow", () => {
 						current_balance: 0,
 						total_spent: 10.5,
 						total_promotions: 5.0,
-						message: "You have run out of credit.",
+						message: "You have run out of credits.",
 						buy_credits_url: "https://app.cline.bot/dashboard",
 					},
 				},
@@ -99,7 +99,7 @@ describe("ErrorRow", () => {
 			render(<ErrorRow message={mockMessage} errorType="error" apiRequestFailedMessage="Insufficient credits error" />)
 
 			expect(screen.getByTestId("credit-limit-error")).toBeInTheDocument()
-			expect(screen.getByText("You have run out of credit.")).toBeInTheDocument()
+			expect(screen.getByText("You have run out of credits.")).toBeInTheDocument()
 		})
 
 		it("renders rate limit error with request ID", async () => {
