@@ -39,7 +39,11 @@ export class CerebrasHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry()
+	@withRetry({
+		maxRetries: 6, // More retries to be patient with rate limits
+		baseDelay: 5000, // Start with 5 second delay
+		maxDelay: 60000, // Allow up to 60 second delays to respect rate limits
+	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
 
@@ -170,7 +174,25 @@ export class CerebrasHandler implements ApiHandler {
 					}
 				}
 			}
-		} catch (error) {
+		} catch (error: any) {
+			// Enhanced error handling for Cerebras API
+			if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
+				// Rate limit error - will be handled by retry decorator with patient backoff
+				const limits = this.getRateLimits()
+				throw new Error(`Cerebras API rate limit exceeded.`)
+			} else if (error?.status === 401) {
+				throw new Error("Cerebras API authentication failed. Please check your API key.")
+			} else if (error?.status === 403) {
+				throw new Error("Cerebras API access denied. Please check your API key permissions.")
+			} else if (error?.status >= 500) {
+				// Server errors - retryable
+				throw new Error(`Cerebras API server error (${error.status}): ${error.message || "Unknown server error"}`)
+			} else if (error?.status === 400) {
+				// Client errors - not retryable
+				throw new Error(`Cerebras API bad request: ${error.message || "Invalid request parameters"}`)
+			}
+
+			// Re-throw original error for other cases
 			throw error
 		}
 	}
@@ -190,6 +212,35 @@ export class CerebrasHandler implements ApiHandler {
 		return {
 			id: cerebrasDefaultModelId,
 			info: cerebrasModels[cerebrasDefaultModelId],
+		}
+	}
+
+	/**
+	 * Get rate limit information for the current model
+	 *
+	 * These limits are used for informational purposes and to calculate appropriate
+	 * retry delays. Since Cerebras inference is extremely fast, users hit these limits
+	 * quickly, so we need to be patient with retries to maximize usage efficiency.
+	 *
+	 * @returns Rate limit configuration for the model
+	 */
+	private getRateLimits(): { requestsPerMinute: number; tokensPerMinute: number } {
+		const modelId = this.getModel().id
+
+		switch (modelId) {
+			case "qwen-3-coder-480b":
+			case "qwen-3-coder-480b-free":
+				return { requestsPerMinute: 10, tokensPerMinute: 150_000 }
+			case "qwen-3-235b-a22b-instruct-2507":
+			case "qwen-3-235b-a22b-thinking-2507":
+				return { requestsPerMinute: 30, tokensPerMinute: 60_000 }
+			case "llama-3.3-70b":
+			case "gpt-oss-120b":
+			case "qwen-3-32b":
+				return { requestsPerMinute: 30, tokensPerMinute: 64_000 }
+			default:
+				// Default rate limits for unknown models
+				return { requestsPerMinute: 30, tokensPerMinute: 60_000 }
 		}
 	}
 

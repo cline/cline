@@ -41,7 +41,6 @@ export class PostHogClientProvider {
 		// Initialize PostHog client
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
-			enableExceptionAutocapture: true,
 		})
 
 		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {

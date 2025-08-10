@@ -44,6 +44,7 @@ import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
 import { Mode } from "@shared/storage/types"
+import { isSafari } from "@/utils/platformUtils"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -92,7 +93,8 @@ interface GitCommit {
 	description: string
 }
 
-const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
+const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
 const SwitchOption = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isActive"].includes(prop),
@@ -131,7 +133,7 @@ const Slider = styled.div.withConfig({
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)")};
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
@@ -567,7 +569,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 
-				const isComposing = event.nativeEvent?.isComposing ?? false
+				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
+				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
