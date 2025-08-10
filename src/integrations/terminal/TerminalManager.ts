@@ -4,6 +4,7 @@ import { arePathsEqual } from "@utils/path"
 import { getShellForProfile } from "@utils/shell"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import { runClineRc } from "./ClineRcRunner"
 
 /*
 TerminalManager:
@@ -304,6 +305,8 @@ export class TerminalManager {
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
+		// Run user's rc file and wait up to ~3s for a completion marker before allowing commands to proceed
+		await runClineRc(newTerminalInfo.terminal, expectedShellPath)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
 	}
