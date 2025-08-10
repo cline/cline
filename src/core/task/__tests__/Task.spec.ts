@@ -1493,5 +1493,125 @@ describe("Cline", () => {
 				expect(noModelTask.apiConfiguration.apiProvider).toBe("openai")
 			})
 		})
+
+		describe("submitUserMessage", () => {
+			it("should always route through webview sendMessage invoke", async () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "initial task",
+					startTask: false,
+				})
+
+				// Set up some existing messages to simulate an ongoing conversation
+				task.clineMessages = [
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "text",
+						text: "Initial message",
+					},
+				]
+
+				// Call submitUserMessage
+				task.submitUserMessage("test message", ["image1.png"])
+
+				// Verify postMessageToWebview was called with sendMessage invoke
+				expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
+					type: "invoke",
+					invoke: "sendMessage",
+					text: "test message",
+					images: ["image1.png"],
+				})
+			})
+
+			it("should handle empty messages gracefully", async () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "initial task",
+					startTask: false,
+				})
+
+				// Call with empty text and no images
+				task.submitUserMessage("", [])
+
+				// Should not call postMessageToWebview for empty messages
+				expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+
+				// Call with whitespace only
+				task.submitUserMessage("   ", [])
+				expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+			})
+
+			it("should route through webview for both new and existing tasks", async () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "initial task",
+					startTask: false,
+				})
+
+				// Test with no messages (new task scenario)
+				task.clineMessages = []
+				task.submitUserMessage("new task", ["image1.png"])
+
+				expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
+					type: "invoke",
+					invoke: "sendMessage",
+					text: "new task",
+					images: ["image1.png"],
+				})
+
+				// Clear mock
+				mockProvider.postMessageToWebview.mockClear()
+
+				// Test with existing messages (ongoing task scenario)
+				task.clineMessages = [
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "text",
+						text: "Initial message",
+					},
+				]
+				task.submitUserMessage("follow-up message", ["image2.png"])
+
+				expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
+					type: "invoke",
+					invoke: "sendMessage",
+					text: "follow-up message",
+					images: ["image2.png"],
+				})
+			})
+
+			it("should handle undefined provider gracefully", async () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "initial task",
+					startTask: false,
+				})
+
+				// Simulate weakref returning undefined
+				Object.defineProperty(task, "providerRef", {
+					value: { deref: () => undefined },
+					writable: false,
+					configurable: true,
+				})
+
+				// Spy on console.error to verify error is logged
+				const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+				// Should log error but not throw
+				task.submitUserMessage("test message")
+
+				expect(consoleErrorSpy).toHaveBeenCalledWith("[Task#submitUserMessage] Provider reference lost")
+				expect(mockProvider.postMessageToWebview).not.toHaveBeenCalled()
+
+				// Restore console.error
+				consoleErrorSpy.mockRestore()
+			})
+		})
 	})
 })

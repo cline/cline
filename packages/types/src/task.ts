@@ -70,6 +70,7 @@ export interface TaskLike {
 	off<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 
 	setMessageResponse(text: string, images?: string[]): void
+	submitUserMessage(text: string, images?: string[]): void
 }
 
 export type TaskEvents = {

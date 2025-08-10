@@ -740,6 +740,32 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.askResponseImages = images
 	}
 
+	public submitUserMessage(text: string, images?: string[]): void {
+		try {
+			const trimmed = (text ?? "").trim()
+			const imgs = images ?? []
+
+			if (!trimmed && imgs.length === 0) {
+				return
+			}
+
+			const provider = this.providerRef.deref()
+			if (!provider) {
+				console.error("[Task#submitUserMessage] Provider reference lost")
+				return
+			}
+
+			void provider.postMessageToWebview({
+				type: "invoke",
+				invoke: "sendMessage",
+				text: trimmed,
+				images: imgs,
+			})
+		} catch (error) {
+			console.error("[Task#submitUserMessage] Failed to submit user message:", error)
+		}
+	}
+
 	async handleTerminalOperation(terminalOperation: "continue" | "abort") {
 		if (terminalOperation === "continue") {
 			this.terminalProcess?.continue()
