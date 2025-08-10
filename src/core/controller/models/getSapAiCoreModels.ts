@@ -1,7 +1,7 @@
 import axios from "axios"
 import { Controller } from ".."
-import { SapAiCoreModelsRequest } from "../../../shared/proto/cline/models"
-import { StringArray } from "../../../shared/proto/cline/common"
+import { SapAiCoreModelsRequest } from "@/shared/proto/cline/models"
+import { StringArray } from "@/shared/proto/cline/common"
 
 interface Token {
 	access_token: string
