@@ -2,6 +2,7 @@ import { URI } from "vscode-uri"
 import os from "os"
 import { mkdirSync, readFileSync } from "fs"
 import path, { join } from "path"
+import * as vscode from "vscode"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { log } from "./utils"
@@ -30,6 +31,9 @@ const extension: Extension<void> = {
 }
 
 const extensionContext: ExtensionContext = {
+	languageModelAccessInformation: {
+		canSendRequest: () => undefined,
+	} as any,
 	extension: extension,
 	extensionMode: EXTENSION_MODE,
 
