@@ -1005,7 +1005,7 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 export const openAiNativeModels = {
 	"gpt-5-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192, // 128000 breaks context window truncation
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1014,7 +1014,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 	},
 	"gpt-5-mini-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1023,7 +1023,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.025,
 	},
 	"gpt-5-nano-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1032,7 +1032,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.005,
 	},
 	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 256000,
 		supportsImages: true,
 		supportsPromptCache: true,
