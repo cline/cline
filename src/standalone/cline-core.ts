@@ -1,4 +1,4 @@
-import { initialize } from "@/common"
+import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -74,6 +74,8 @@ function setupGlobalErrorHandlers() {
 
 	process.on("SIGTERM", () => {
 		log("Received SIGTERM, shutting down gracefully...")
+		tearDown()
+
 		process.exit(0)
 	})
 }
