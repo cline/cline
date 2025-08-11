@@ -145,7 +145,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	resume_completed_task: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Resume Task",
+		primaryText: "Start New Task",
 		secondaryText: undefined,
 		primaryAction: "proceed",
 		secondaryAction: undefined,
@@ -204,14 +204,6 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
-	switch_to_act_mode: {
-		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Switch to Act Mode",
-		secondaryText: undefined,
-		primaryAction: "approve",
-		secondaryAction: undefined,
-	},
 }
 
 const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_max_req_reached"]
@@ -220,7 +212,7 @@ const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_ma
  * Determines button configuration based on message type and state
  * This is the single source of truth used by both ActionButtons and useMessageHandlers
  */
-export function getButtonConfig(message: ClineMessage | undefined, mode: Mode = "act"): ButtonConfig {
+export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode = "act"): ButtonConfig {
 	if (!message) {
 		return BUTTON_CONFIGS.default
 	}
@@ -278,16 +270,10 @@ export function getButtonConfig(message: ClineMessage | undefined, mode: Mode = 
 			case "completion_result":
 				return BUTTON_CONFIGS.completion_result
 			case "resume_task":
-				if (mode === "plan") {
-					return BUTTON_CONFIGS.switch_to_act_mode
-				}
-				return isStreaming ? BUTTON_CONFIGS.resume_task : BUTTON_CONFIGS.completion_result
+				return BUTTON_CONFIGS.resume_task
 			case "resume_completed_task":
 				return BUTTON_CONFIGS.resume_completed_task
 			case "new_task":
-				if (mode === "plan") {
-					return BUTTON_CONFIGS.switch_to_act_mode
-				}
 				return BUTTON_CONFIGS.new_task
 
 			// Utility
