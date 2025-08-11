@@ -1,18 +1,19 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "../"
-import { ClineAccountService } from "@/services/account/ClineAccountService"
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
-import { createOpenRouterStream } from "../transform/openrouter-stream"
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import axios from "axios"
-import { OpenRouterErrorResponse } from "./types"
-import { withRetry } from "../retry"
-import { AuthService } from "@/services/auth/AuthService"
-import OpenAI from "openai"
-import { version as extensionVersion } from "../../../package.json"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import axios from "axios"
+import OpenAI from "openai"
+import type { CompletionUsage } from "openai/resources/completions.mjs"
+import type { ChatCompletionChunk } from "openai/resources/index.mjs"
 import { clineEnvConfig } from "@/config"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { AuthService } from "@/services/auth/AuthService"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { version as extensionVersion } from "../../../package.json"
+import type { ApiHandler } from "../"
+import { withRetry } from "../retry"
+import { createOpenRouterStream } from "../transform/openrouter-stream"
+import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 
 interface ClineHandlerOptions {
 	taskId?: string
@@ -24,186 +25,159 @@ interface ClineHandlerOptions {
 	clineAccountId?: string
 }
 
+interface OpenRouterCompletionUsage extends CompletionUsage {
+	cost_details?: {
+		upstream_inference_cost?: number
+	}
+	cost?: number
+}
+
+interface OpenRouterCompletionChunkChoice extends Omit<ChatCompletionChunk.Choice, "finish_reason"> {
+	// Extends the original list of finish_reason to includes choice?.finish_reason === "error"
+	finish_reason: "error" | ChatCompletionChunk.Choice["finish_reason"]
+}
+
 export class ClineHandler implements ApiHandler {
-	private options: ClineHandlerOptions
-	private clineAccountService = ClineAccountService.getInstance()
-	private _authService: AuthService
-	private client: OpenAI | undefined
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly options: ClineHandlerOptions
+	private readonly clineAccountService = ClineAccountService.getInstance()
+	private readonly authService = AuthService.getInstance()
+	private readonly baseUrl = clineEnvConfig.apiBaseUrl
+	private client?: OpenAI
 	lastGenerationId?: string
-	private counter = 0
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
-		this._authService = AuthService.getInstance()
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
-		const clineAccountAuthToken = await this._authService.getAuthToken()
-		if (!clineAccountAuthToken) {
+	private async getClient(): Promise<OpenAI> {
+		const apiKey = await this.authService.getAuthToken()
+		if (!apiKey) {
 			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}
+
 		if (!this.client) {
-			try {
-				this.client = new OpenAI({
-					baseURL: `${this._baseUrl}/api/v1`,
-					apiKey: clineAccountAuthToken,
-					defaultHeaders: {
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-Task-ID": this.options.taskId || "",
-						"X-Cline-Version": extensionVersion,
-					},
-				})
-			} catch (error: any) {
-				throw new Error(`Error creating Cline client: ${error.message}`)
-			}
+			this.client = new OpenAI({
+				baseURL: `${this.baseUrl}/api/v1`,
+				apiKey,
+				defaultHeaders: {
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"X-Task-ID": this.options.taskId || "",
+					"X-Cline-Version": extensionVersion,
+				},
+			})
+		} else {
+			this.client.apiKey = apiKey
 		}
-		// Ensure the client is always using the latest auth token
-		this.client.apiKey = clineAccountAuthToken
+
 		return this.client
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		try {
-			const client = await this.ensureClient()
+		const client = await this.getClient()
+		this.lastGenerationId = undefined
 
-			this.lastGenerationId = undefined
+		let usageEmitted = false
+		const stream = await createOpenRouterStream(
+			client,
+			systemPrompt,
+			messages,
+			this.getModel(),
+			this.options.reasoningEffort,
+			this.options.thinkingBudgetTokens,
+			this.options.openRouterProviderSorting,
+		)
 
-			let didOutputUsage: boolean = false
+		for await (const chunk of stream) {
+			if ("error" in chunk) {
+				// Returns error from OpenRouter as-is.
+				throw chunk.error
+			}
 
-			const stream = await createOpenRouterStream(
-				client,
-				systemPrompt,
-				messages,
-				this.getModel(),
-				this.options.reasoningEffort,
-				this.options.thinkingBudgetTokens,
-				this.options.openRouterProviderSorting,
-			)
+			if (chunk.id && !this.lastGenerationId) {
+				this.lastGenerationId = chunk.id
+			}
 
-			for await (const chunk of stream) {
-				// openrouter returns an error object instead of the openai sdk throwing an error
-				if ("error" in chunk) {
-					const error = chunk.error as OpenRouterErrorResponse["error"]
-					console.error(`Cline API Error: ${error?.code} - ${error?.message}`)
-					// Include metadata in the error message if available
-					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
-				}
-				if (!this.lastGenerationId && chunk.id) {
-					this.lastGenerationId = chunk.id
-				}
+			const choice = chunk.choices?.[0] as OpenRouterCompletionChunkChoice
+			if (choice?.finish_reason === "error" && "error" in choice && choice.error) {
+				// Returns error from OpenRouter as-is.
+				throw choice.error
+			}
 
-				// Check for mid-stream error via finish_reason
-				const choice = chunk.choices?.[0]
-				// OpenRouter may return finish_reason = "error" with error details
-				if ((choice?.finish_reason as string) === "error") {
-					const choiceWithError = choice as any
-					if (choiceWithError.error) {
-						const error = choiceWithError.error
-						console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
-						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
-					} else {
-						throw new Error(
-							"Cline Mid-Stream Error: Stream terminated with error status but no error details provided",
-						)
-					}
-				}
-
-				const delta = choice?.delta
-				if (delta?.content) {
-					yield {
-						type: "text",
-						text: delta.content,
-					}
-				}
-
-				// Reasoning tokens are returned separately from the content
-				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
-					yield {
-						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
-					}
-				}
-
-				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
-					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-
-					// const provider = modelId.split("/")[0]
-					// // If provider is x-ai, set totalCost to 0 (we're doing a promo)
-					// if (provider === "x-ai") {
-					// 	totalCost = 0
-					// }
-
-					yield {
-						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						totalCost: totalCost,
-					}
-					didOutputUsage = true
+			const delta = choice?.delta
+			if (delta?.content) {
+				yield { type: "text", text: delta.content }
+			}
+			if (
+				"reasoning" in delta &&
+				typeof delta.reasoning === "string" &&
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
+				yield {
+					type: "reasoning",
+					reasoning: delta.reasoning,
 				}
 			}
 
-			// Fallback to generation endpoint if usage chunk not returned
-			if (!didOutputUsage) {
-				console.warn("Cline API did not return usage chunk, fetching from generation endpoint")
-				const apiStreamUsage = await this.getApiStreamUsage()
-				if (apiStreamUsage) {
-					yield apiStreamUsage
+			if (!usageEmitted && chunk.usage) {
+				const usage = chunk.usage as OpenRouterCompletionUsage
+				const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0
+
+				yield {
+					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: cachedTokens,
+					inputTokens: (usage.prompt_tokens || 0) - cachedTokens,
+					outputTokens: usage.completion_tokens || 0,
+					totalCost: (usage.cost || 0) + (usage.cost_details?.upstream_inference_cost || 0),
 				}
+
+				usageEmitted = true
 			}
-		} catch (error) {
-			console.error("Cline API Error:", error)
-			throw error
+		}
+
+		if (!usageEmitted) {
+			const fallbackUsage = await this.getApiStreamUsage()
+			if (fallbackUsage) {
+				yield fallbackUsage
+			}
 		}
 	}
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
-		if (this.lastGenerationId) {
-			try {
-				// TODO: replace this with firebase auth
-				// TODO: use global API Host
-
-				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
-					headers: {
-						Authorization: `Bearer ${this.options.clineAccountId}`,
-					},
-					timeout: 15_000, // this request hangs sometimes
-				})
-
-				const generation = response.data
-				return {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
-					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
-				}
-			} catch (error) {
-				// ignore if fails
-				console.error("Error fetching cline generation details:", error)
-			}
+		if (!this.lastGenerationId) {
+			return undefined
 		}
-		return undefined
+
+		const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
+			headers: { Authorization: `Bearer ${this.options.clineAccountId}` },
+			timeout: 15000,
+		})
+
+		const { native_tokens_cached, native_tokens_prompt, native_tokens_completion, total_cost } = response.data
+
+		if (!native_tokens_prompt && !native_tokens_cached) {
+			throw new Error("Cline API Error: No usage data returned")
+		}
+
+		return {
+			type: "usage",
+			cacheWriteTokens: 0,
+			cacheReadTokens: native_tokens_cached || 0,
+			inputTokens: (native_tokens_prompt || 0) - (native_tokens_cached || 0),
+			outputTokens: native_tokens_completion || 0,
+			totalCost: total_cost || 0,
+		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		let modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+		const { openRouterModelId, openRouterModelInfo } = this.options
+
+		if (openRouterModelId && openRouterModelInfo) {
+			return { id: openRouterModelId, info: openRouterModelInfo }
 		}
+
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }
