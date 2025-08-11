@@ -20,14 +20,6 @@ github_events:
     - event: pull_request.opened
       action:
           name: github.pr.review
-    - event: pull_request.opened
-      action:
-          name: general.task
-          prompt: |
-              1. Run the script `node scripts/find-missing-translations.js` and carefully review its output for any missing translations.
-              2. If the script reports missing translations, switch into `translate` mode and add them in all supported languages.
-              3. If you've added new translations, commit and push them to the existing PR.
-              4. If you get a permission error trying to push to the PR just give up (i.e don't create a new PR instead).
     - event: pull_request_review_comment.created
       action:
           name: github.pr.comment.respond
