@@ -193,7 +193,7 @@ export class Controller {
 		}
 		// Apply remote feature flag gate to focus chain settings
 		const effectiveFocusChainSettings = {
-			...(focusChainSettings || { enabled: false, remindClineInterval: 10 }),
+			...(focusChainSettings || { enabled: false, remindClineInterval: 6 }),
 			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
 		}
 

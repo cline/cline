@@ -149,7 +149,7 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
-		FocusChainSettings: FocusChainSettings,
+		focusChainSettings: FocusChainSettings,
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
@@ -198,7 +198,7 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
-		this.focusChainSettings = FocusChainSettings
+		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
 		this.mode = mode

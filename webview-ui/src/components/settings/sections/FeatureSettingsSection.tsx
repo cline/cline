@@ -145,11 +145,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<label
 								htmlFor="focus-chain-remind-interval"
 								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
-								Remind Cline Interval
+								Focus Chain Reminder Interval
 							</label>
 							<VSCodeTextField
 								id="focus-chain-remind-interval"
-								value={String(focusChainSettings?.remindClineInterval || 10)}
+								value={String(focusChainSettings?.remindClineInterval || 6)}
 								onChange={(e: any) => {
 									const value = parseInt(e.target.value, 10)
 									if (!isNaN(value) && value >= 1 && value <= 100) {
@@ -162,8 +162,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								className="w-20"
 							/>
 							<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-								Interval (in messages) to remind Cline about focus chain (1-100). Lower values provide more
-								frequent reminders.
+								Interval (in messages) to remind Cline about it's focus chain checklist (1-100). Lower values
+								provide more frequent reminders.
 							</p>
 						</div>
 					)}

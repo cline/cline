@@ -168,7 +168,7 @@ export class FocusChainManager {
 	 */
 	public generateFocusChainInstructions(): string {
 		// Prompt for initial list creation
-		const listInstrunctionsInitial = `\n
+		const listInstructionsInitial = `\n
 # TODO LIST CREATION REQUIRED - ACT MODE ACTIVATED\n
 \n
 **You've just switched from PLAN MODE to ACT MODE!**\n
@@ -297,7 +297,7 @@ ${this.taskState.currentFocusChainChecklist}
 		}
 		// When switching from Plan to Act, request that a new list be generated
 		else if (this.taskState.didRespondToPlanAskBySwitchingMode) {
-			return `${listInstrunctionsInitial}`
+			return `${listInstructionsInitial}`
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
