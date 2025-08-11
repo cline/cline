@@ -42,6 +42,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		openaiNativeApiKey: config.openAiNativeApiKey,
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
+		requestyBaseUrl: config.requestyBaseUrl,
 		togetherApiKey: config.togetherApiKey,
 		fireworksApiKey: config.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens
