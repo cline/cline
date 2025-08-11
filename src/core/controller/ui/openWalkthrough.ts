@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import type { Controller } from "../index"
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
-import { telemetryService } from "../../../services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 
 /**
  * Opens the Cline walkthrough in VSCode

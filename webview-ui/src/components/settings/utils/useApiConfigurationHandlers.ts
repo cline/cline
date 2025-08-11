@@ -1,10 +1,9 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiConfiguration } from "@shared/api"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
-import { useCallback } from "react"
 
 export const useApiConfigurationHandlers = () => {
 	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const { execSync } = require("child_process")
 const esbuild = require("esbuild")
 

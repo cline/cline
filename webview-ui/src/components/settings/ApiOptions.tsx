@@ -37,7 +37,9 @@ import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { GroqProvider } from "./providers/GroqProvider"
-import { Mode } from "@shared/ChatSettings"
+import { BasetenProvider } from "./providers/BasetenProvider"
+import { Mode } from "@shared/storage/types"
+import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -147,6 +149,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="baseten">Baseten</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
@@ -164,6 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
+					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -244,6 +248,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "groq" && (
 				<GroqProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
+			{apiConfiguration && selectedProvider === "baseten" && (
+				<BasetenProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
 				<LiteLlmProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
@@ -278,6 +285,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "sapaicore" && (
 				<SapAiCoreProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
+
+			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
+				<HuaweiCloudMaasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiErrorMessage && (

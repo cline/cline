@@ -1,10 +1,5 @@
 import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
-import { ChatSettings } from "@shared/ChatSettings"
-import {
-	ApiConfiguration as ProtoApiConfiguration,
-	ChatSettings as ProtoChatSettings,
-	PlanActMode,
-} from "@shared/proto/cline/state"
+import { ApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/state"
 
 /**
  * Converts domain ApiConfiguration objects to proto ApiConfiguration objects
@@ -39,6 +34,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		openaiBaseUrl: config.openAiBaseUrl,
 		openaiApiKey: config.openAiApiKey,
 		ollamaBaseUrl: config.ollamaBaseUrl,
+		ollamaApiKey: config.ollamaApiKey,
 		ollamaApiOptionsCtxNum: config.ollamaApiOptionsCtxNum,
 		lmStudioBaseUrl: config.lmStudioBaseUrl,
 		geminiApiKey: config.geminiApiKey,
@@ -164,6 +160,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		openAiBaseUrl: protoConfig.openaiBaseUrl,
 		openAiApiKey: protoConfig.openaiApiKey,
 		ollamaBaseUrl: protoConfig.ollamaBaseUrl,
+		ollamaApiKey: protoConfig.ollamaApiKey,
 		ollamaApiOptionsCtxNum: protoConfig.ollamaApiOptionsCtxNum,
 		lmStudioBaseUrl: protoConfig.lmStudioBaseUrl,
 		geminiApiKey: protoConfig.geminiApiKey,
@@ -278,26 +275,4 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 	}
 
 	return config
-}
-
-/**
- * Converts domain ChatSettings objects to proto ChatSettings objects
- */
-export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
-	return ProtoChatSettings.create({
-		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-		preferredLanguage: chatSettings.preferredLanguage,
-		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-	})
-}
-
-/**
- * Converts proto ChatSettings objects to domain ChatSettings objects
- */
-export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoChatSettings): ChatSettings {
-	return {
-		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
-		preferredLanguage: protoChatSettings.preferredLanguage,
-		openAIReasoningEffort: protoChatSettings.openAiReasoningEffort as "low" | "medium" | "high" | undefined,
-	}
 }

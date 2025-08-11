@@ -143,7 +143,6 @@ const baseConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	define: { "import.meta.url": "_importMetaUrl" },
 	banner: {
 		js: "const _importMetaUrl=require('url').pathToFileURL(__filename)",
 	},

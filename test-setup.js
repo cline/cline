@@ -1,6 +1,7 @@
 const tsConfigPaths = require("tsconfig-paths")
 const fs = require("fs")
 const path = require("path")
+const Module = require("module")
 
 const baseUrl = path.resolve(__dirname)
 
@@ -23,3 +24,16 @@ tsConfigPaths.register({
 	baseUrl: baseUrl,
 	paths: outPaths,
 })
+
+// Mock the @google/genai module to avoid ESM compatibility issues in tests
+// The module is ES6 only, but the integration tests are compiled to commonJS.
+const originalRequire = Module.prototype.require
+Module.prototype.require = function (id) {
+	// Intercept requires for @google/genai
+	if (id === "@google/genai") {
+		// Return the mock instead
+		const mockPath = path.join(baseUrl, "out/src/api/providers/gemini-mock.test.js")
+		return originalRequire.call(this, mockPath)
+	}
+	return originalRequire.call(this, id)
+}

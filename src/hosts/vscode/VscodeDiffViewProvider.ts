@@ -3,7 +3,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "./diagnostics"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -30,7 +30,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
+				try {
+					await vscode.window.tabGroups.close(tab)
+				} catch (error) {
+					console.warn("Tab close retry failed:", error.message)
+				}
 			}
 			this.documentWasOpen = true
 		}
@@ -64,7 +68,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				})
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+					vscode.Uri.from({
+						scheme: DIFF_VIEW_URI_SCHEME,
+						path: fileName,
 						query: Buffer.from(this.originalContent ?? "").toString("base64"),
 					}),
 					uri,
@@ -187,7 +193,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {
-				await vscode.window.tabGroups.close(tab)
+				try {
+					await vscode.window.tabGroups.close(tab)
+				} catch (error) {
+					console.warn("Tab close retry failed:", error.message)
+				}
 			}
 		}
 	}

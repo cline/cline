@@ -10,6 +10,7 @@ interface RunDiffEvalOptions {
 	parsingFunction: string
 	diffEditFunction: string
 	thinkingBudget: number
+	provider: string
 	parallel: boolean
 	verbose: boolean
 	testPath: string
@@ -39,6 +40,8 @@ export async function runDiffEvalHandler(options: RunDiffEvalOptions) {
 		options.parsingFunction,
 		"--diff-edit-function",
 		options.diffEditFunction,
+		"--provider",
+		options.provider,
 	]
 
 	// Conditionally add the optional arguments

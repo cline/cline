@@ -7,13 +7,14 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/provi
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
+import { Mode } from "@shared/storage/types"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	"claude-opus-4-20250514",
+	"claude-opus-4-1-20250805",
 ]
 
 /**

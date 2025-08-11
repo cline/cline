@@ -104,5 +104,6 @@ export interface TestInput {
 	thinkingBudgetTokens: number
 	originalDiffEditToolCallMessage?: string
 	diffApplyFile?: string
+	provider?: string
 	isVerbose: boolean
 }

@@ -1,7 +1,9 @@
 import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
+// Test for setting up API keys
 e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
+	// Use the page object to interact with editor outside the sidebar
 	// Verify initial state
 	await expect(sidebar.getByRole("button", { name: "Get Started for Free" })).toBeVisible()
 	await expect(sidebar.getByRole("button", { name: "Use your own API key" })).toBeVisible()
@@ -13,7 +15,6 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 
 	// Verify provider selector is visible and set to OpenRouter
 	await expect(sidebar.locator("slot").filter({ hasText: /^OpenRouter$/ })).toBeVisible()
-
 	// Test Cline provider option
 	await providerSelector.click({ delay: 100 })
 	await expect(sidebar.getByRole("option", { name: "Cline" })).toBeVisible()
@@ -24,7 +25,9 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await providerSelector.click({ delay: 100 })
 	await sidebar.getByRole("option", { name: "OpenRouter" }).click({ delay: 100 })
 
-	const apiKeyInput = sidebar.getByRole("textbox", { name: "OpenRouter API Key" })
+	const apiKeyInput = sidebar.getByRole("textbox", {
+		name: "OpenRouter API Key",
+	})
 	await apiKeyInput.fill("test-api-key")
 	await expect(apiKeyInput).toHaveValue("test-api-key")
 	await apiKeyInput.click({ delay: 100 })
@@ -50,8 +53,16 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await expect(helpBanner).not.toBeVisible()
 
 	// Verify the release banner is visible for new installs and can be closed.
-	const releaseBanner = sidebar.getByRole("heading", { name: /^🎉 New in v\d/ })
+	const releaseBanner = sidebar.getByRole("heading", {
+		name: /^🎉 New in v\d/,
+	})
 	await expect(releaseBanner).toBeVisible()
 	await sidebar.getByTestId("close-button").locator("span").first().click()
 	await expect(releaseBanner).not.toBeVisible()
+
+	// Sidebar menu should now be visible
+	// await expect(sidebar.getByRole("button", { name: "Account", exact: true })).toBeVisible()
+
+	// await sidebar.getByRole("button", { name: "Settings" }).click()
+	// await expect(sidebar.getByRole("button", { name: "Done" })).toBeVisible()
 })

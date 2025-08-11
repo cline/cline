@@ -8,8 +8,7 @@ import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/ChatSettings"
-
+import { Mode } from "@shared/storage/types"
 /**
  * Props for the VertexProvider component
  */
@@ -24,6 +23,7 @@ const SUPPORTED_THINKING_MODELS = [
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
 	"claude-opus-4@20250514",
+	"claude-opus-4-1@20250805",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",

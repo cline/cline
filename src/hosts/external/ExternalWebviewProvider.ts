@@ -1,15 +1,14 @@
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewProviderType } from "@/shared/webview/types"
+import { WebviewProvider } from "@/core/webview"
 import * as vscode from "vscode"
 import { URI } from "vscode-uri"
-import { WebviewProvider } from "@core/webview"
 
 export class ExternalWebviewProvider extends WebviewProvider {
 	// This hostname cannot be changed without updating the external webview handler.
 	private RESOURCE_HOSTNAME: string = "internal.resources"
 
-	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, providerType: WebviewProviderType) {
-		super(context, outputChannel, providerType)
+	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
+		super(context, providerType)
 	}
 
 	override getWebviewUri(uri: URI) {
@@ -20,10 +19,6 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	}
 	override getCspSource() {
 		return `'self' https://${this.RESOURCE_HOSTNAME}`
-	}
-	override postMessageToWebview(message: ExtensionMessage) {
-		console.log(`postMessageToWebview: ${message}`)
-		return undefined
 	}
 	override isVisible() {
 		return true

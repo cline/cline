@@ -1,33 +1,34 @@
-import { useCallback, useEffect, useMemo } from "react"
-import { useMount } from "react-use"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { useCallback, useEffect, useMemo } from "react"
+import { useMount } from "react-use"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-
+import { Navbar } from "../menu/Navbar"
 // Import utilities and hooks from the new structure
 import {
+	ActionButtons,
+	CHAT_CONSTANTS,
+	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
 	groupMessages,
-	CHAT_CONSTANTS,
-	useChatState,
-	useButtonState,
-	useScrollBehavior,
-	useMessageHandlers,
-	useIsStreaming,
-	ChatLayout,
-	WelcomeSection,
-	TaskSection,
-	MessagesArea,
-	ActionButtons,
 	InputSection,
+	MessagesArea,
+	TaskSection,
+	useButtonState,
+	useChatState,
+	useIsStreaming,
+	useMessageHandlers,
+	useScrollBehavior,
+	WelcomeSection,
 } from "./chat-view"
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -38,6 +39,9 @@ interface ChatViewProps {
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
+const QUICK_WINS_HISTORY_THRESHOLD = 3
+
+const IS_STANDALONE = window?.__is_standalone__ ?? false
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
@@ -47,9 +51,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		apiConfiguration,
 		telemetrySetting,
 		navigateToChat,
-		chatSettings,
+		mode,
+		userInfo,
 	} = useExtensionState()
-	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
+	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
+	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
+
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -196,12 +203,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState, isStreaming)
-	const { handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick, handleTaskCloseButtonClick } =
-		messageHandlers
 
 	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, chatSettings.mode)
-	}, [apiConfiguration, chatSettings.mode])
+		return normalizeApiConfiguration(apiConfiguration, mode)
+	}, [apiConfiguration, mode])
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -258,7 +263,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+		const clientId = (window as { clineClientId?: string }).clineClientId
+		if (!clientId) {
+			console.error("Client ID not found in window object for addToInput subscription")
+			return
+		}
+
+		const request = StringRequest.create({ value: clientId })
+		const cleanup = UiServiceClient.subscribeToAddToInput(request, {
 			onResponse: (event) => {
 				if (event.value) {
 					setInputValue((prevValue) => {
@@ -321,32 +333,32 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			{task ? (
-				<TaskSection
-					task={task}
-					apiMetrics={apiMetrics}
-					selectedModelInfo={{
-						supportsPromptCache: selectedModelInfo.supportsPromptCache,
-						supportsImages: selectedModelInfo.supportsImages || false,
-					}}
-					lastApiReqTotalTokens={lastApiReqTotalTokens}
-					messageHandlers={messageHandlers}
-					scrollBehavior={scrollBehavior}
-				/>
-			) : (
-				<WelcomeSection
-					telemetrySetting={telemetrySetting}
-					showAnnouncement={showAnnouncement}
-					version={version}
-					hideAnnouncement={hideAnnouncement}
-					shouldShowQuickWins={shouldShowQuickWins}
-					taskHistory={taskHistory}
-					showHistoryView={showHistoryView}
-				/>
-			)}
-
-			{task && (
-				<>
+			<div className="flex flex-col flex-1 overflow-hidden">
+				{IS_STANDALONE && <Navbar />}
+				{task ? (
+					<TaskSection
+						task={task}
+						apiMetrics={apiMetrics}
+						selectedModelInfo={{
+							supportsPromptCache: selectedModelInfo.supportsPromptCache,
+							supportsImages: selectedModelInfo.supportsImages || false,
+						}}
+						lastApiReqTotalTokens={lastApiReqTotalTokens}
+						messageHandlers={messageHandlers}
+						scrollBehavior={scrollBehavior}
+					/>
+				) : (
+					<WelcomeSection
+						telemetrySetting={telemetrySetting}
+						showAnnouncement={showAnnouncement}
+						version={version}
+						hideAnnouncement={hideAnnouncement}
+						shouldShowQuickWins={shouldShowQuickWins}
+						taskHistory={taskHistory}
+						showHistoryView={showHistoryView}
+					/>
+				)}
+				{task && (
 					<MessagesArea
 						task={task}
 						groupedMessages={groupedMessages}
@@ -355,6 +367,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						chatState={chatState}
 						messageHandlers={messageHandlers}
 					/>
+				)}
+			</div>
+			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
+				<AutoApproveBar />
+				{task && (
 					<ActionButtons
 						chatState={chatState}
 						messageHandlers={messageHandlers}
@@ -365,17 +382,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							showScrollToBottom: scrollBehavior.showScrollToBottom,
 						}}
 					/>
-				</>
-			)}
-
-			<InputSection
-				chatState={chatState}
-				messageHandlers={messageHandlers}
-				scrollBehavior={scrollBehavior}
-				placeholderText={placeholderText}
-				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
-				selectFilesAndImages={selectFilesAndImages}
-			/>
+				)}
+				<InputSection
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+					scrollBehavior={scrollBehavior}
+					placeholderText={placeholderText}
+					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					selectFilesAndImages={selectFilesAndImages}
+				/>
+			</footer>
 		</ChatLayout>
 	)
 }

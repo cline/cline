@@ -1,32 +1,43 @@
-import { activate } from "@/extension"
-import { Controller } from "@core/controller"
+import { initialize } from "@/common"
+import { WebviewProvider } from "@/core/webview"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
+import { HostProvider } from "@/hosts/host-provider"
+import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
-import { HostProvider } from "@/hosts/host-provider"
 import { WebviewProviderType } from "@shared/webview/types"
-import { v4 as uuidv4 } from "uuid"
-import { log } from "./utils"
-import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { startProtobusService } from "./protobus-service"
+import { log } from "./utils"
+import { extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
+	setupHostProvider()
+
 	// Set up global error handlers to prevent process crashes
 	setupGlobalErrorHandlers()
 
-	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager())
-	activate(extensionContext)
-	const controller = new Controller(extensionContext, outputChannel, postMessage, uuidv4())
-	startProtobusService(controller)
+	const webviewProvider = await initialize(extensionContext)
+
+	AuthHandler.getInstance().setEnabled(true)
+
+	startProtobusService(webviewProvider.controller)
 }
 
-function createWebview() {
-	return new ExternalWebviewProvider(extensionContext, outputChannel, WebviewProviderType.SIDEBAR)
-}
-function createDiffView() {
-	return new ExternalDiffViewProvider()
+function setupHostProvider() {
+	const createWebview = (_: WebviewProviderType): WebviewProvider => {
+		return new ExternalWebviewProvider(extensionContext, WebviewProviderType.SIDEBAR)
+	}
+	const createDiffView = (): DiffViewProvider => {
+		return new ExternalDiffViewProvider()
+	}
+	const getCallbackUri = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUri()
+	}
+
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log, getCallbackUri)
 }
 
 /**
