@@ -923,6 +923,11 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("enableMcpServerCreation", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
+		case "remoteControlEnabled":
+			await updateGlobalState("remoteControlEnabled", message.bool ?? false)
+			await provider.handleRemoteControlToggle(message.bool ?? false)
+			await provider.postStateToWebview()
+			break
 		case "refreshAllMcpServers": {
 			const mcpHub = provider.getMcpHub()
 			if (mcpHub) {

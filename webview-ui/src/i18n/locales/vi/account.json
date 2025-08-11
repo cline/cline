@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "Lịch sử tác vụ trực tuyến",
 	"cloudBenefitSharing": "Tính năng chia sẻ và cộng tác",
 	"cloudBenefitMetrics": "Số liệu sử dụng dựa trên tác vụ, token và chi phí",
+	"cloudBenefitWalkaway": "Theo dõi và điều khiển tác vụ từ bất kỳ đâu với Roomote Control",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Cho phép theo dõi và tương tác với các tác vụ trong workspace này với Roo Code Cloud",
 	"visitCloudWebsite": "Truy cập Roo Code Cloud"
 }

@@ -5,8 +5,12 @@ import type { CloudUserInfo } from "@roo-code/types"
 import { TelemetryEventName } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 import { telemetryClient } from "@src/utils/TelemetryClient"
+import { ToggleSwitch } from "@/components/ui/toggle-switch"
+
+import { History, PiggyBank, SquareArrowOutUpRightIcon } from "lucide-react"
 
 type AccountViewProps = {
 	userInfo: CloudUserInfo | null
@@ -17,6 +21,7 @@ type AccountViewProps = {
 
 export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: AccountViewProps) => {
 	const { t } = useAppTranslation()
+	const { remoteControlEnabled, setRemoteControlEnabled } = useExtensionState()
 	const wasAuthenticatedRef = useRef(false)
 
 	const rooLogoUri = (window as any).IMAGES_BASE_URI + "/roo-logo.svg"
@@ -51,11 +56,17 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 		vscode.postMessage({ type: "openExternal", url: cloudUrl })
 	}
 
+	const handleRemoteControlToggle = () => {
+		const newValue = !remoteControlEnabled
+		setRemoteControlEnabled(newValue)
+		vscode.postMessage({ type: "remoteControlEnabled", bool: newValue })
+	}
+
 	return (
-		<div className="flex flex-col h-full p-4 bg-vscode-editor-background">
+		<div className="flex flex-col h-full">
 			<div className="flex justify-between items-center mb-6">
 				<h1 className="text-xl font-medium text-vscode-foreground">{t("account:title")}</h1>
-				<VSCodeButton appearance="primary" onClick={onDone}>
+				<VSCodeButton appearance="secondary" onClick={onDone}>
 					{t("settings:common.done")}
 				</VSCodeButton>
 			</div>
@@ -77,13 +88,13 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 								)}
 							</div>
 							{userInfo.name && (
-								<h2 className="text-lg font-medium text-vscode-foreground mb-0">{userInfo.name}</h2>
+								<h2 className="text-lg font-medium text-vscode-foreground my-0">{userInfo.name}</h2>
 							)}
 							{userInfo?.email && (
-								<p className="text-sm text-vscode-descriptionForeground">{userInfo?.email}</p>
+								<p className="text-sm text-vscode-descriptionForeground my-0">{userInfo?.email}</p>
 							)}
 							{userInfo?.organizationName && (
-								<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground">
+								<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground mt-2">
 									{userInfo.organizationImageUrl && (
 										<img
 											src={userInfo.organizationImageUrl}
@@ -96,6 +107,26 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 							)}
 						</div>
 					)}
+
+					{userInfo?.extensionBridgeEnabled && (
+						<div className="border-t border-vscode-widget-border pt-4 mt-4">
+							<div className="flex items-center gap-3 mb-2">
+								<ToggleSwitch
+									checked={remoteControlEnabled}
+									onChange={handleRemoteControlToggle}
+									size="medium"
+									aria-label={t("account:remoteControl")}
+									data-testid="remote-control-toggle"
+								/>
+								<span className="font-medium text-vscode-foreground">{t("account:remoteControl")}</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
+								{t("account:remoteControlDescription")}
+							</div>
+							<hr className="border-vscode-widget-border mb-4" />
+						</div>
+					)}
+
 					<div className="flex flex-col gap-2 mt-4">
 						<VSCodeButton appearance="secondary" onClick={handleVisitCloudWebsite} className="w-full">
 							{t("account:visitCloudWebsite")}
@@ -125,30 +156,27 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 					</div>
 
 					<div className="flex flex-col mb-6 text-center">
-						<h2 className="text-lg font-medium text-vscode-foreground mb-2">
+						<h2 className="text-xl font-bold text-vscode-foreground mb-2">
 							{t("account:cloudBenefitsTitle")}
 						</h2>
-						<p className="text-md text-vscode-descriptionForeground mb-4">
-							{t("account:cloudBenefitsSubtitle")}
-						</p>
-						<ul className="text-sm text-vscode-descriptionForeground space-y-2 max-w-xs mx-auto">
-							<li className="flex items-start">
-								<span className="mr-2 text-vscode-foreground">•</span>
-								{t("account:cloudBenefitHistory")}
-							</li>
-							<li className="flex items-start">
-								<span className="mr-2 text-vscode-foreground">•</span>
+						<ul className="text-vscode-descriptionForeground space-y-3 mx-auto px-8">
+							<li className="flex items-start text-left gap-4">
+								<SquareArrowOutUpRightIcon size="16" className="shrink-0" />
 								{t("account:cloudBenefitSharing")}
 							</li>
-							<li className="flex items-start">
-								<span className="mr-2 text-vscode-foreground">•</span>
+							<li className="flex items-start text-left gap-4">
+								<History size="16" className="shrink-0" />
+								{t("account:cloudBenefitHistory")}
+							</li>
+							<li className="flex items-start text-left gap-4">
+								<PiggyBank size="16" className="shrink-0" />
 								{t("account:cloudBenefitMetrics")}
 							</li>
 						</ul>
 					</div>
 
-					<div className="flex flex-col gap-4">
-						<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-full">
+					<div className="flex flex-col items-center gap-4">
+						<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-1/2">
 							{t("account:connect")}
 						</VSCodeButton>
 					</div>

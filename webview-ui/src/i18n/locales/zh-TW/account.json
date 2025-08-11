@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "線上工作歷史",
 	"cloudBenefitSharing": "分享和協作功能",
 	"cloudBenefitMetrics": "基於工作、Token 和成本的使用指標",
+	"cloudBenefitWalkaway": "使用 Roomote Control 隨時隨地追蹤和控制工作",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "允許透過 Roo Code Cloud 追蹤和操作此工作區中的工作",
 	"visitCloudWebsite": "造訪 Roo Code Cloud"
 }

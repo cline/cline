@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "ऑनलाइन कार्य इतिहास",
 	"cloudBenefitSharing": "साझाकरण और सहयोग सुविधाएं",
 	"cloudBenefitMetrics": "कार्य, token और लागत आधारित उपयोग मेट्रिक्स",
+	"cloudBenefitWalkaway": "Roomote Control के साथ कहीं से भी कार्यों को फॉलो और नियंत्रित करें",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Roo Code Cloud के साथ इस वर्कस्पेस में कार्यों को फॉलो और इंटरैक्ट करने की सुविधा दें",
 	"visitCloudWebsite": "Roo Code Cloud पर जाएं"
 }

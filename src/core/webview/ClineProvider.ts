@@ -17,7 +17,6 @@ import {
 	type ProviderSettings,
 	type RooCodeSettings,
 	type ProviderSettingsEntry,
-	type ProviderSettingsWithId,
 	type TelemetryProperties,
 	type TelemetryPropertiesProvider,
 	type CodeActionId,
@@ -66,6 +65,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
+import { isRemoteControlEnabled } from "../../utils/remoteControl"
 
 import { setPanel } from "../../activate/registerCommands"
 
@@ -112,6 +112,8 @@ export class ClineProvider
 	protected mcpHub?: McpHub // Change from private to protected
 	private marketplaceManager: MarketplaceManager
 	private mdmService?: MdmService
+	private taskCreationCallback: (task: Task) => void
+	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
@@ -161,10 +163,64 @@ export class ClineProvider
 
 		this.marketplaceManager = new MarketplaceManager(this.context, this.customModesManager)
 
+		this.taskCreationCallback = (instance: Task) => {
+			this.emit(RooCodeEventName.TaskCreated, instance)
+
+			// Create named listener functions so we can remove them later.
+			const onTaskStarted = () => this.emit(RooCodeEventName.TaskStarted, instance.taskId)
+			const onTaskCompleted = (taskId: string, tokenUsage: any, toolUsage: any) =>
+				this.emit(RooCodeEventName.TaskCompleted, taskId, tokenUsage, toolUsage)
+			const onTaskAborted = () => this.emit(RooCodeEventName.TaskAborted, instance.taskId)
+			const onTaskFocused = () => this.emit(RooCodeEventName.TaskFocused, instance.taskId)
+			const onTaskUnfocused = () => this.emit(RooCodeEventName.TaskUnfocused, instance.taskId)
+			const onTaskActive = (taskId: string) => this.emit(RooCodeEventName.TaskActive, taskId)
+			const onTaskIdle = (taskId: string) => this.emit(RooCodeEventName.TaskIdle, taskId)
+
+			// Attach the listeners.
+			instance.on(RooCodeEventName.TaskStarted, onTaskStarted)
+			instance.on(RooCodeEventName.TaskCompleted, onTaskCompleted)
+			instance.on(RooCodeEventName.TaskAborted, onTaskAborted)
+			instance.on(RooCodeEventName.TaskFocused, onTaskFocused)
+			instance.on(RooCodeEventName.TaskUnfocused, onTaskUnfocused)
+			instance.on(RooCodeEventName.TaskActive, onTaskActive)
+			instance.on(RooCodeEventName.TaskIdle, onTaskIdle)
+
+			// Store the cleanup functions for later removal.
+			this.taskEventListeners.set(instance, [
+				() => instance.off(RooCodeEventName.TaskStarted, onTaskStarted),
+				() => instance.off(RooCodeEventName.TaskCompleted, onTaskCompleted),
+				() => instance.off(RooCodeEventName.TaskAborted, onTaskAborted),
+				() => instance.off(RooCodeEventName.TaskFocused, onTaskFocused),
+				() => instance.off(RooCodeEventName.TaskUnfocused, onTaskUnfocused),
+				() => instance.off(RooCodeEventName.TaskActive, onTaskActive),
+				() => instance.off(RooCodeEventName.TaskIdle, onTaskIdle),
+			])
+		}
+
 		// Initialize Roo Code Cloud profile sync.
 		this.initializeCloudProfileSync().catch((error) => {
 			this.log(`Failed to initialize cloud profile sync: ${error}`)
 		})
+	}
+
+	/**
+	 * Override EventEmitter's on method to match TaskProviderLike interface
+	 */
+	override on<K extends keyof TaskProviderEvents>(
+		event: K,
+		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
+	): this {
+		return super.on(event, listener as any)
+	}
+
+	/**
+	 * Override EventEmitter's off method to match TaskProviderLike interface
+	 */
+	override off<K extends keyof TaskProviderEvents>(
+		event: K,
+		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
+	): this {
+		return super.off(event, listener as any)
 	}
 
 	/**
@@ -295,6 +351,14 @@ export class ClineProvider
 			}
 
 			task.emit(RooCodeEventName.TaskUnfocused)
+
+			// Remove event listeners before clearing the reference.
+			const cleanupFunctions = this.taskEventListeners.get(task)
+
+			if (cleanupFunctions) {
+				cleanupFunctions.forEach((cleanup) => cleanup())
+				this.taskEventListeners.delete(task)
+			}
 
 			// Make sure no reference kept, once promises end it will be
 			// garbage collected.
@@ -652,6 +716,8 @@ export class ClineProvider
 			enableCheckpoints,
 			fuzzyMatchThreshold,
 			experiments,
+			cloudUserInfo,
+			remoteControlEnabled,
 		} = await this.getState()
 
 		if (!ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList)) {
@@ -671,7 +737,8 @@ export class ClineProvider
 			rootTask: this.clineStack.length > 0 ? this.clineStack[0] : undefined,
 			parentTask,
 			taskNumber: this.clineStack.length + 1,
-			onCreated: (instance) => this.emit(RooCodeEventName.TaskCreated, instance),
+			onCreated: this.taskCreationCallback,
+			enableTaskBridge: isRemoteControlEnabled(cloudUserInfo, remoteControlEnabled),
 			...options,
 		})
 
@@ -736,7 +803,12 @@ export class ClineProvider
 			enableCheckpoints,
 			fuzzyMatchThreshold,
 			experiments,
+			cloudUserInfo,
+			remoteControlEnabled,
 		} = await this.getState()
+
+		// Determine if TaskBridge should be enabled
+		const enableTaskBridge = isRemoteControlEnabled(cloudUserInfo, remoteControlEnabled)
 
 		const task = new Task({
 			provider: this,
@@ -750,7 +822,8 @@ export class ClineProvider
 			rootTask: historyItem.rootTask,
 			parentTask: historyItem.parentTask,
 			taskNumber: historyItem.number,
-			onCreated: (instance) => this.emit(RooCodeEventName.TaskCreated, instance),
+			onCreated: this.taskCreationCallback,
+			enableTaskBridge,
 		})
 
 		await this.addClineToStack(task)
@@ -1629,6 +1702,7 @@ export class ClineProvider
 			includeDiagnosticMessages,
 			maxDiagnosticMessages,
 			includeTaskHistoryInEnhance,
+			remoteControlEnabled,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1756,6 +1830,7 @@ export class ClineProvider
 			includeDiagnosticMessages: includeDiagnosticMessages ?? true,
 			maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
 			includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? false,
+			remoteControlEnabled: remoteControlEnabled ?? false,
 		}
 	}
 
@@ -1943,6 +2018,8 @@ export class ClineProvider
 			maxDiagnosticMessages: stateValues.maxDiagnosticMessages ?? 50,
 			// Add includeTaskHistoryInEnhance setting
 			includeTaskHistoryInEnhance: stateValues.includeTaskHistoryInEnhance ?? false,
+			// Add remoteControlEnabled setting
+			remoteControlEnabled: stateValues.remoteControlEnabled ?? false,
 		}
 	}
 
@@ -2053,6 +2130,80 @@ export class ClineProvider
 		}
 
 		return true
+	}
+
+	/**
+	 * Handle remote control enabled/disabled state changes
+	 * Manages ExtensionBridgeService and TaskBridgeService lifecycle
+	 */
+	public async handleRemoteControlToggle(enabled: boolean) {
+		const {
+			CloudService: CloudServiceImport,
+			ExtensionBridgeService,
+			TaskBridgeService,
+		} = await import("@roo-code/cloud")
+
+		const userInfo = CloudServiceImport.instance.getUserInfo()
+
+		const bridgeConfig = await CloudServiceImport.instance.cloudAPI?.bridgeConfig()
+
+		if (!bridgeConfig) {
+			this.log("[CloudService] Failed to get bridge config")
+			return
+		}
+
+		ExtensionBridgeService.handleRemoteControlState(
+			userInfo,
+			enabled,
+			{ ...bridgeConfig, provider: this },
+			(message: string) => this.log(message),
+		)
+
+		if (isRemoteControlEnabled(userInfo, enabled)) {
+			// Set up TaskBridgeService for the currently active task if one exists.
+			const currentTask = this.getCurrentCline()
+
+			if (currentTask && !currentTask.taskBridgeService && CloudService.hasInstance()) {
+				try {
+					if (!currentTask.taskBridgeService) {
+						const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig()
+
+						if (bridgeConfig) {
+							currentTask.taskBridgeService = await TaskBridgeService.createInstance({
+								...bridgeConfig,
+							})
+						}
+					}
+
+					if (currentTask.taskBridgeService) {
+						await currentTask.taskBridgeService.subscribeToTask(currentTask)
+					}
+
+					this.log(`[TaskBridgeService] Subscribed current task ${currentTask.taskId} to TaskBridge`)
+				} catch (error) {
+					const message = `[TaskBridgeService#subscribeToTask] ${error instanceof Error ? error.message : String(error)}`
+					this.log(message)
+					console.error(message)
+				}
+			}
+		} else {
+			// Disconnect TaskBridgeService for all tasks in the stack.
+			for (const task of this.clineStack) {
+				if (task.taskBridgeService) {
+					try {
+						await task.taskBridgeService.unsubscribeFromTask(task.taskId)
+						task.taskBridgeService = null
+						this.log(`[TaskBridgeService] Unsubscribed task ${task.taskId} from TaskBridge`)
+					} catch (error) {
+						const message = `[TaskBridgeService#unsubscribeFromTask] for task ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`
+						this.log(message)
+						console.error(message)
+					}
+				}
+			}
+
+			TaskBridgeService.resetInstance()
+		}
 	}
 
 	/**

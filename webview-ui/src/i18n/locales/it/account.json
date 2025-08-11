@@ -10,5 +10,8 @@
 	"cloudBenefitHistory": "Cronologia attività online",
 	"cloudBenefitSharing": "Funzionalità di condivisione e collaborazione",
 	"cloudBenefitMetrics": "Metriche di utilizzo basate su attività, token e costi",
+	"cloudBenefitWalkaway": "Segui e controlla le attività da qualsiasi luogo con Roomote Control",
+	"remoteControl": "Roomote Control",
+	"remoteControlDescription": "Abilita il monitoraggio e l'interazione con le attività in questo workspace con Roo Code Cloud",
 	"visitCloudWebsite": "Visita Roo Code Cloud"
 }
