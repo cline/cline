@@ -1693,6 +1693,21 @@ export class Task {
 		return { modelId, providerId }
 	}
 
+	private async handleContextWindowExceededError(): Promise<void> {
+		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+			this.messageStateHandler.getApiConversationHistory(),
+			this.taskState.conversationHistoryDeletedRange,
+			"quarter", // Force aggressive truncation
+		)
+		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+			Date.now(),
+			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+		)
+
+		this.taskState.didAutomaticallyRetryFailedApiRequest = true
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
@@ -1794,18 +1809,7 @@ export class Task {
 			errorService.logException(clineError)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
-				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-					this.messageStateHandler.getApiConversationHistory(),
-					this.taskState.conversationHistoryDeletedRange,
-					"quarter", // Force aggressive truncation
-				)
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-					Date.now(),
-					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-				)
-
-				this.taskState.didAutomaticallyRetryFailedApiRequest = true
+				await this.handleContextWindowExceededError()
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
