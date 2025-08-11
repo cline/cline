@@ -143,7 +143,6 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
-			console.log(`[DEBUG] MCP settings changed`)
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				try {
