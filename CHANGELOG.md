@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.25.11] - 2025-08-11
+
+- Add: Native OpenAI provider support for Codex Mini model (#5386 by @KJ7LNW, PR by @daniel-lxs)
+- Add: IO Intelligence Provider support (thanks @ertan2002!)
+- Fix: MCP startup issues and remove refresh notifications (thanks @hannesrudolph!)
+- Fix: Improvements to GPT-5 OpenAI provider configuration (thanks @hannesrudolph!)
+- Fix: Clarify codebase_search path parameter as optional and improve tool descriptions (thanks @app/roomote!)
+- Fix: Bedrock provider workaround for LiteLLM passthrough issues (thanks @jr!)
+- Fix: Token usage and cost being underreported on cancelled requests (thanks @chrarnoldus!)
+
 ## [3.25.10] - 2025-08-07
 
 - Add support for GPT-5 (thanks Cline and @app/roomote!)
