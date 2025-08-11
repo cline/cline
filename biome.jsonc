@@ -136,7 +136,7 @@
 			"json": { "parser": { "allowComments": true } }
 		},
 		{
-			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**"],
+			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**", "!src/extension.ts"],
 			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
 		}
 	]
