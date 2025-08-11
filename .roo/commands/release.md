@@ -4,7 +4,7 @@ argument-hint: patch | minor | major
 ---
 
 1. Identify the SHA corresponding to the most recent release using GitHub CLI: `gh release view --json tagName,targetCommitish,publishedAt`
-2. Analyze changes since the last release using: `gh pr list --state merged --json number,title,author,url,mergedAt,closingIssuesReferences --limit 1000 -q '[.[] | select(.mergedAt > "TIMESTAMP") | {number, title, author: .author.login, url, mergedAt, issues: .closingIssuesReferences}] | sort_by(.number)'`
+2. Analyze changes since the last release using: `gh pr list --state merged --base main --json number,title,author,url,mergedAt,closingIssuesReferences --limit 1000 -q '[.[] | select(.mergedAt > "TIMESTAMP") | {number, title, author: .author.login, url, mergedAt, issues: .closingIssuesReferences}] | sort_by(.number)'`
 3. For each PR with linked issues, fetch the issue details to get the issue reporter: `gh issue view ISSUE_NUMBER --json number,author -q '{number, reporter: .author.login}'`
 4. Summarize the changes. If the user did not specify, ask them whether this should be a major, minor, or patch release.
 5. Create a changeset in .changeset/v[version].md instead of directly modifying package.json. The format is:
