@@ -145,9 +145,9 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	resume_completed_task: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Start New Task",
+		primaryText: "Resume Task",
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: "proceed",
 		secondaryAction: undefined,
 	},
 	new_task: {

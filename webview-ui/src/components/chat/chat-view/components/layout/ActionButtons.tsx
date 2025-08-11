@@ -47,18 +47,11 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const buttonConfig = useMemo(() => {
 		// Special case: api_req_started after command_output needs special handling
 		if (lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
-			// Clear input when transitioning from command_output to api_req
-			// This happens when user provides feedback during command execution
-			if (chatState.inputValue || chatState.selectedImages.length || chatState.selectedFiles.length) {
-				chatState.setInputValue("")
-				chatState.setSelectedImages([])
-				chatState.setSelectedFiles([])
-			}
 			return BUTTON_CONFIGS.api_req_active
 		}
 
 		return getButtonConfig(lastMessage, mode)
-	}, [chatState, lastMessage, secondLastMessage, mode])
+	}, [lastMessage, secondLastMessage, mode])
 
 	// Apply button configuration with a single batched update
 	useEffect(() => {
@@ -75,6 +68,22 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			setIsStreaming(task?.partial === true)
 		}
 	}, [buttonConfig, task?.ask, task?.partial, setSendingDisabled, setDidClickCancel])
+
+	// Clear input when transitioning from command_output to api_req
+	// This happens when user provides feedback during command execution
+	useEffect(() => {
+		if (lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
+			if (chatState.inputValue) {
+				chatState.setInputValue("")
+			}
+			if (chatState.selectedImages.length) {
+				chatState.setSelectedImages([])
+			}
+			if (chatState.selectedFiles.length) {
+				chatState.setSelectedFiles([])
+			}
+		}
+	}, [chatState, lastMessage, secondLastMessage])
 
 	const reset = useCallback(() => {
 		const defaultConfig = isStreaming ? BUTTON_CONFIGS.api_req_active : BUTTON_CONFIGS.default
