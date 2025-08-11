@@ -163,7 +163,8 @@ export class ClineHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Cline API Error:", error)
-			throw error
+			// Preserve response headers
+			throw new Error(error.message, { cause: error })
 		}
 	}
 
