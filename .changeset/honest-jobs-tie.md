@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Allow writing clinerules in xml
+Allow writing Cline rules in XML format
