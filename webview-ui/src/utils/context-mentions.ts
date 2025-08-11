@@ -15,17 +15,23 @@ export function insertMention(text: string, position: number, value: string): { 
 	// Find the position of the last '@' symbol before the cursor
 	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
+
 	let newValue: string
 	let mentionIndex: number
 
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
 		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		newValue = beforeMention + "@" + formattedValue + " " + afterCursor.replace(/^[^\s]*/, "")
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
-		newValue = beforeCursor + "@" + value + " " + afterCursor
+		newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
 		mentionIndex = position
 	}
 
@@ -35,7 +41,14 @@ export function insertMention(text: string, position: number, value: string): { 
 export function insertMentionDirectly(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
-	const newValue = beforeCursor + "@" + value + " " + afterCursor
+
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
+
+	const newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
 	const mentionIndex = position
 	return { newValue, mentionIndex }
 }

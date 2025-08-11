@@ -39,6 +39,7 @@ interface ChatViewProps {
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
+const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const IS_STANDALONE = window?.__is_standalone__ ?? false
 
@@ -51,8 +52,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		telemetrySetting,
 		navigateToChat,
 		mode,
+		userInfo,
 	} = useExtensionState()
-	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
+	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
+	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
+
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -259,7 +263,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+		const clientId = (window as { clineClientId?: string }).clineClientId
+		if (!clientId) {
+			console.error("Client ID not found in window object for addToInput subscription")
+			return
+		}
+
+		const request = StringRequest.create({ value: clientId })
+		const cleanup = UiServiceClient.subscribeToAddToInput(request, {
 			onResponse: (event) => {
 				if (event.value) {
 					setInputValue((prevValue) => {
@@ -322,41 +333,43 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			{IS_STANDALONE && <Navbar />}
-			{task ? (
-				<TaskSection
-					task={task}
-					apiMetrics={apiMetrics}
-					selectedModelInfo={{
-						supportsPromptCache: selectedModelInfo.supportsPromptCache,
-						supportsImages: selectedModelInfo.supportsImages || false,
-					}}
-					lastApiReqTotalTokens={lastApiReqTotalTokens}
-					messageHandlers={messageHandlers}
-					scrollBehavior={scrollBehavior}
-				/>
-			) : (
-				<WelcomeSection
-					telemetrySetting={telemetrySetting}
-					showAnnouncement={showAnnouncement}
-					version={version}
-					hideAnnouncement={hideAnnouncement}
-					shouldShowQuickWins={shouldShowQuickWins}
-					taskHistory={taskHistory}
-					showHistoryView={showHistoryView}
-				/>
-			)}
-			{task && (
-				<MessagesArea
-					task={task}
-					groupedMessages={groupedMessages}
-					modifiedMessages={modifiedMessages}
-					scrollBehavior={scrollBehavior}
-					chatState={chatState}
-					messageHandlers={messageHandlers}
-				/>
-			)}
-			<footer className="flex-shrink-0 justify-end">
+			<div className="flex flex-col flex-1 overflow-hidden">
+				{IS_STANDALONE && <Navbar />}
+				{task ? (
+					<TaskSection
+						task={task}
+						apiMetrics={apiMetrics}
+						selectedModelInfo={{
+							supportsPromptCache: selectedModelInfo.supportsPromptCache,
+							supportsImages: selectedModelInfo.supportsImages || false,
+						}}
+						lastApiReqTotalTokens={lastApiReqTotalTokens}
+						messageHandlers={messageHandlers}
+						scrollBehavior={scrollBehavior}
+					/>
+				) : (
+					<WelcomeSection
+						telemetrySetting={telemetrySetting}
+						showAnnouncement={showAnnouncement}
+						version={version}
+						hideAnnouncement={hideAnnouncement}
+						shouldShowQuickWins={shouldShowQuickWins}
+						taskHistory={taskHistory}
+						showHistoryView={showHistoryView}
+					/>
+				)}
+				{task && (
+					<MessagesArea
+						task={task}
+						groupedMessages={groupedMessages}
+						modifiedMessages={modifiedMessages}
+						scrollBehavior={scrollBehavior}
+						chatState={chatState}
+						messageHandlers={messageHandlers}
+					/>
+				)}
+			</div>
+			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				{task && (
 					<ActionButtons

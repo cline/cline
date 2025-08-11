@@ -46,23 +46,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Cerebras Provider Support:</b> Enhanced performance with updated model selection (Qwen and Llama 3.3 70B
-					only) and increased context window for Qwen 3 32B from 16K to 64K tokens.
+					<b>GPT-5 Model Support:</b> Added support for the new GPT-5 model family including GPT-5, GPT-5 Mini, and
+					GPT-5 Nano with prompt caching support. GPT-5 is now the default model for new users.
 				</li>
 				<li>
-					<b>Claude Code for Windows:</b> Improved system prompt handling to fix E2BIG errors and better error messages
-					with guidance for common setup issues.
+					<b>Improved Onboarding:</b> New users now see a "Take a Tour" button that opens the VSCode walkthrough to help
+					them get started with Cline more easily.
 				</li>
 				<li>
-					<b>Hugging Face Provider:</b> Added as a new API provider with support for their inference API models.
-				</li>
-				<li>
-					<b>Moonshot Chinese Endpoints:</b> Added ability to choose Chinese endpoint for Moonshot provider and added
-					Moonshot AI as a new provider.
-				</li>
-				<li>
-					<b>Enhanced Stability:</b> Robust checkpoint timeout handling, fixed MCP servers starting when disabled, and
-					improved authentication sync across multiple VSCode windows.
+					<b>Enhanced Plan Mode:</b> Better exploration parameter support in plan mode for more thorough planning before
+					execution.
 				</li>
 			</ul>
 			<Accordion isCompact className="pl-0">

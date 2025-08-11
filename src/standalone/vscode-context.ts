@@ -5,7 +5,6 @@ import path, { join } from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { log } from "./utils"
-import { postMessage } from "./vscode-context-stubs"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 const VERSION = getPackageVersion()
@@ -13,10 +12,11 @@ log("Running standalone cline ", VERSION)
 
 const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
+const INSTALL_DIR = process.env.INSTALL_DIR || path.join(CLINE_DIR, "core", VERSION)
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
-const EXTENSION_DIR = path.join(CLINE_DIR, "core", VERSION, "extension")
+const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {
@@ -66,4 +66,4 @@ function getPackageVersion(): string {
 
 console.log("Finished loading vscode context...")
 
-export { extensionContext, postMessage }
+export { extensionContext }

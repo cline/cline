@@ -1,4 +1,4 @@
-import { WebviewProvider } from "@core/webview"
+import { WebviewProvider } from "@/core/webview"
 import { HostBridgeClientProvider } from "./host-provider-types"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
@@ -26,17 +26,22 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
+	// Returns a callback URI that will redirect to Cline.
+	getCallbackUri: () => Promise<string>
+
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
+		getCallbackUri: () => Promise<string>,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
+		this.getCallbackUri = getCallbackUri
 	}
 
 	public static initialize(
@@ -44,6 +49,7 @@ export class HostProvider {
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
+		getCallbackUri: () => Promise<string>,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host providers have already been initialized.")
@@ -53,6 +59,7 @@ export class HostProvider {
 			diffViewProviderCreator,
 			hostBridgeProvider,
 			logToChannel,
+			getCallbackUri,
 		)
 		return HostProvider.instance
 	}

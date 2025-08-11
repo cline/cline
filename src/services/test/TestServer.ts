@@ -1,26 +1,23 @@
-import * as http from "http"
-import * as vscode from "vscode"
-import * as path from "path"
-import { execa } from "execa"
-import { Logger } from "@services/logging/Logger"
-import { WebviewProvider } from "@core/webview"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { validateWorkspacePath, initializeGitRepository, getFileChanges, calculateToolSuccessRate } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState, storeSecret } from "@core/storage/state"
-import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
-import { ApiProvider } from "@shared/api"
-import { HistoryItem } from "@shared/HistoryItem"
-import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
-import { AskResponseRequest } from "@shared/proto/cline/task"
 import { getCwd } from "@/utils/path"
-import { askResponse } from "@core/controller/task/askResponse"
+import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
+import { getAllExtensionState, updateGlobalState } from "@core/storage/state"
+import { WebviewProvider } from "@core/webview"
+import { Logger } from "@services/logging/Logger"
+import { ApiProvider } from "@shared/api"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { HistoryItem } from "@shared/HistoryItem"
+import { execa } from "execa"
+import * as http from "http"
+import * as path from "path"
+import * as vscode from "vscode"
+import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
+import { Controller } from "@/core/controller"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
- * @param webviewProvider The webview provider instance
  * @returns Object tracking tool calls and failures
  */
-function createToolCallTracker(webviewProvider: WebviewProvider): {
+function createToolCallTracker(): {
 	toolCalls: Record<string, number>
 	toolFailures: Record<string, number>
 } {
@@ -28,36 +25,6 @@ function createToolCallTracker(webviewProvider: WebviewProvider): {
 		toolCalls: {} as Record<string, number>,
 		toolFailures: {} as Record<string, number>,
 	}
-
-	// Intercept messages to track tool usage
-	const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
-	webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
-		// NOTE: Tool tracking via partialMessage has been migrated to gRPC streaming
-		// This interceptor is kept for potential future use with other message types
-
-		// Track tool calls - commented out as partialMessage is now handled via gRPC
-		// if (message.type === "partialMessage" && message.partialMessage?.say === "tool") {
-		// 	const toolName = (message.partialMessage.text as any)?.tool
-		// 	if (toolName) {
-		// 		tracker.toolCalls[toolName] = (tracker.toolCalls[toolName] || 0) + 1
-		// 	}
-		// }
-
-		// Track tool failures - commented out as partialMessage is now handled via gRPC
-		// if (message.type === "partialMessage" && message.partialMessage?.say === "error") {
-		// 	const errorText = message.partialMessage.text
-		// 	if (errorText && errorText.includes("Error executing tool")) {
-		// 		const match = errorText.match(/Error executing tool: (\w+)/)
-		// 		if (match && match[1]) {
-		// 			const toolName = match[1]
-		// 			tracker.toolFailures[toolName] = (tracker.toolFailures[toolName] || 0) + 1
-		// 		}
-		// 	}
-		// }
-
-		return originalPostMessageToWebview.call(webviewProvider.controller, message)
-	}
-
 	return tracker
 }
 
@@ -72,24 +39,15 @@ function createTaskCompletionTracker(): Promise<void> {
 	})
 }
 
-// Function to mark the current task as completed
-function completeTask(): void {
-	if (taskCompletionResolver) {
-		taskCompletionResolver()
-		taskCompletionResolver = null
-		Logger.log("Task marked as completed")
-	}
-}
-
 let testServer: http.Server | undefined
 let messageCatcherDisposable: vscode.Disposable | undefined
 
 /**
  * Updates the auto approval settings to enable all actions
  * @param context The VSCode extension context
- * @param provider The webview provider instance
+ * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(context: vscode.ExtensionContext, provider?: WebviewProvider) {
+async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
 	try {
 		const { autoApprovalSettings } = await getAllExtensionState(context)
 
@@ -114,8 +72,8 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
-		if (provider?.controller) {
-			await provider.controller.postStateToWebview()
+		if (controller) {
+			await controller.postStateToWebview()
 		}
 	} catch (error) {
 		Logger.log(`Error updating auto approval settings: ${error}`)
@@ -127,7 +85,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
  * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
+export function createTestServer(controller: Controller): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
 	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
@@ -135,10 +93,9 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 	// Then ensure the webview is focused/loaded
 	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 
-	// Update auto approval settings if webviewProvider is available
-	if (webviewProvider?.controller?.context) {
-		updateAutoApprovalSettings(webviewProvider.controller.context, webviewProvider)
-	}
+	// Update auto approval settings is available
+	updateAutoApprovalSettings(controller.context, controller)
+
 	const PORT = 9876
 
 	testServer = http.createServer((req, res) => {
@@ -286,7 +243,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					}
 
 					// Initialize tool call tracker
-					const toolTracker = createToolCallTracker(visibleWebview)
+					const toolTracker = createToolCallTracker()
 
 					// Record task start time
 					const taskStartTime = Date.now()
@@ -478,163 +435,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 		Logger.log(`Test server error: ${error}`)
 	})
 
-	// Set up message catcher for the provided webview instance or try to get the visible one
-	if (webviewProvider) {
-		messageCatcherDisposable = createMessageCatcher(webviewProvider)
-	} else {
-		const visibleWebview = WebviewProvider.getVisibleInstance()
-		if (visibleWebview) {
-			messageCatcherDisposable = createMessageCatcher(visibleWebview)
-		} else {
-			Logger.log("No visible webview instance found for message catcher")
-		}
-	}
-
 	return testServer
-}
-
-/**
- * Creates a message catcher that logs all messages sent to the webview
- * and automatically responds to messages that require user intervention
- * @param webviewProvider The webview provider instance
- * @returns A disposable that can be used to clean up the message catcher
- */
-export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.Disposable {
-	Logger.log("Cline message catcher registered")
-
-	if (webviewProvider && webviewProvider.controller) {
-		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
-
-		// Intercept outgoing messages from extension to webview
-		webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
-			// NOTE: Completion and ask message detection has been migrated to gRPC streaming
-			// This interceptor is kept for potential future use with other message types
-
-			// Check for completion_result message - commented out as partialMessage is now handled via gRPC
-			// if (message.type === "partialMessage" && message.partialMessage?.say === "completion_result") {
-			// 	// Complete the current task
-			// 	completeTask()
-			// }
-
-			// Check for ask messages that require user intervention - commented out as partialMessage is now handled via gRPC
-			// if (message.type === "partialMessage" && message.partialMessage?.type === "ask" && !message.partialMessage.partial) {
-			// 	const askType = message.partialMessage.ask as ClineAsk
-			// 	const askText = message.partialMessage.text
-
-			// 	// Automatically respond to different types of asks
-			// 	setTimeout(async () => {
-			// 		await autoRespondToAsk(webviewProvider, askType, askText)
-			// 	}, 100) // Small delay to ensure the message is processed first
-			// }
-
-			return originalPostMessageToWebview.call(webviewProvider.controller, message)
-		}
-	} else {
-		Logger.log("No visible webview instance found for message catcher")
-	}
-
-	return new vscode.Disposable(() => {
-		// Cleanup function if needed
-		Logger.log("Cline message catcher disposed")
-	})
-}
-
-/**
- * Automatically responds to ask messages to continue task execution without user intervention
- * @param webviewProvider The webview provider instance
- * @param askType The type of ask message
- * @param askText The text content of the ask message
- */
-async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: ClineAsk, askText?: string): Promise<void> {
-	if (!webviewProvider.controller) {
-		return
-	}
-
-	Logger.log(`Auto-responding to ask type: ${askType}`)
-
-	// Default to approving most actions
-	let responseType = "yesButtonClicked"
-	let responseText: string | undefined
-	let responseImages: string[] | undefined
-
-	// Handle specific ask types differently if needed
-	switch (askType) {
-		case "followup":
-			// For follow-up questions, provide a generic response
-			responseType = "messageResponse"
-			responseText = "I can't answer any questions right now, use your best judgment."
-			break
-
-		case "api_req_failed":
-			// Always retry API requests
-			responseType = "yesButtonClicked" // "Retry" button
-			break
-
-		case "completion_result":
-			// Accept the completion
-			responseType = "messageResponse"
-			responseText = "Task completed successfully."
-			break
-
-		case "mistake_limit_reached":
-			// Provide guidance to continue
-			responseType = "messageResponse"
-			responseText = "Try breaking down the task into smaller steps."
-			break
-
-		case "auto_approval_max_req_reached":
-			// Reset the count to continue
-			responseType = "yesButtonClicked" // "Reset and continue" button
-			break
-
-		case "resume_task":
-		case "resume_completed_task":
-			// Resume the task
-			responseType = "messageResponse"
-			break
-
-		case "new_task":
-			// Decline creating a new task to keep the current task running
-			responseType = "messageResponse"
-			responseText = "Continue with the current task."
-			break
-
-		case "plan_mode_respond":
-			// Respond to plan mode with a message to toggle to Act mode
-			responseType = "messageResponse"
-			responseText = "PLAN_MODE_TOGGLE_RESPONSE" // Special marker to toggle to Act mode
-
-			// Automatically toggle to Act mode after responding
-			setTimeout(async () => {
-				try {
-					if (webviewProvider.controller) {
-						Logger.log("Auto-toggling to Act mode from Plan mode")
-						await webviewProvider.controller.togglePlanActMode("act")
-					}
-				} catch (error) {
-					Logger.log(`Error toggling to Act mode: ${error}`)
-				}
-			}, 500) // Small delay to ensure the response is processed first
-			break
-
-		// For all other ask types (tool, command, browser_action_launch, use_mcp_server),
-		// we use the default "yesButtonClicked" to approve the action
-	}
-
-	// Send the response message using the backend controller method
-	try {
-		await askResponse(
-			webviewProvider.controller,
-			AskResponseRequest.create({
-				responseType,
-				text: responseText,
-				images: responseImages,
-			}),
-		)
-		Logger.log(`Auto-responded to ${askType} with ${responseType}`)
-	} catch (error) {
-		Logger.log(`Error sending askResponse: ${error}`)
-	}
 }
 
 /**

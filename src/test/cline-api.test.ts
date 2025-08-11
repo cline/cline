@@ -1,11 +1,10 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { createClineAPI } from "@/exports"
+import * as stateModule from "@core/storage/state"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
 import type { ClineAPI } from "../exports/cline"
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
-import * as stateModule from "@core/storage/state"
-import { createClineAPI } from "@/exports"
+import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI
@@ -19,13 +18,8 @@ describe("ClineAPI Core Functionality", () => {
 
 		// Create mock log function
 		mockLogToChannel = sandbox.stub<[string], void>()
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-			mockLogToChannel,
-		)
+		setVscodeHostProviderMock({ logToChannel: mockLogToChannel })
+
 		// Stub the getGlobalState function from the state module
 		// This is needed because the real createClineAPI uses it for getCustomInstructions
 		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")

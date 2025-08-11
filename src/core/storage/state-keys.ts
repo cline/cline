@@ -7,6 +7,7 @@ export type SecretKey =
 	| "awsSessionToken"
 	| "awsBedrockApiKey"
 	| "openAiApiKey"
+	| "ollamaApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
@@ -29,6 +30,7 @@ export type SecretKey =
 	| "sapAiCoreClientSecret"
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
+	| "basetenApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -111,6 +113,8 @@ export type GlobalStateKey =
 	| "planModeSapAiCoreModelId"
 	| "planModeGroqModelId"
 	| "planModeGroqModelInfo"
+	| "planModeBasetenModelId"
+	| "planModeBasetenModelInfo"
 	| "planModeHuggingFaceModelId"
 	| "planModeHuggingFaceModelInfo"
 	| "planModeHuaweiCloudMaasModelId"
@@ -138,6 +142,8 @@ export type GlobalStateKey =
 	| "actModeSapAiCoreModelId"
 	| "actModeGroqModelId"
 	| "actModeGroqModelInfo"
+	| "actModeBasetenModelId"
+	| "actModeBasetenModelInfo"
 	| "actModeHuggingFaceModelId"
 	| "actModeHuggingFaceModelInfo"
 	| "actModeHuaweiCloudMaasModelId"
