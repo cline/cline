@@ -24,6 +24,7 @@ vi.mock("../openrouter")
 vi.mock("../requesty")
 vi.mock("../glama")
 vi.mock("../unbound")
+vi.mock("../io-intelligence")
 
 // Then imports
 import type { Mock } from "vitest"
@@ -33,15 +34,18 @@ import { getOpenRouterModels } from "../openrouter"
 import { getRequestyModels } from "../requesty"
 import { getGlamaModels } from "../glama"
 import { getUnboundModels } from "../unbound"
+import { getIOIntelligenceModels } from "../io-intelligence"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
 const mockGetGlamaModels = getGlamaModels as Mock<typeof getGlamaModels>
 const mockGetUnboundModels = getUnboundModels as Mock<typeof getUnboundModels>
+const mockGetIOIntelligenceModels = getIOIntelligenceModels as Mock<typeof getIOIntelligenceModels>
 
 const DUMMY_REQUESTY_KEY = "requesty-key-for-testing"
 const DUMMY_UNBOUND_KEY = "unbound-key-for-testing"
+const DUMMY_IOINTELLIGENCE_KEY = "io-intelligence-key-for-testing"
 
 describe("getModels with new GetModelsOptions", () => {
 	beforeEach(() => {
@@ -134,6 +138,23 @@ describe("getModels with new GetModelsOptions", () => {
 		const result = await getModels({ provider: "unbound", apiKey: DUMMY_UNBOUND_KEY })
 
 		expect(mockGetUnboundModels).toHaveBeenCalledWith(DUMMY_UNBOUND_KEY)
+		expect(result).toEqual(mockModels)
+	})
+
+	it("calls IOIntelligenceModels for IO-Intelligence provider", async () => {
+		const mockModels = {
+			"io-intelligence/model": {
+				maxTokens: 4096,
+				contextWindow: 8192,
+				supportsPromptCache: false,
+				description: "IO Intelligence Model",
+			},
+		}
+		mockGetIOIntelligenceModels.mockResolvedValue(mockModels)
+
+		const result = await getModels({ provider: "io-intelligence", apiKey: DUMMY_IOINTELLIGENCE_KEY })
+
+		expect(mockGetIOIntelligenceModels).toHaveBeenCalled()
 		expect(result).toEqual(mockModels)
 	})
 

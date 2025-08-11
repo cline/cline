@@ -120,6 +120,11 @@ function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): stri
 				return i18next.t("settings:validation.apiKey")
 			}
 			break
+		case "io-intelligence":
+			if (!apiConfiguration.ioIntelligenceApiKey) {
+				return i18next.t("settings:validation.apiKey")
+			}
+			break
 	}
 
 	return undefined
@@ -186,6 +191,8 @@ function getModelIdForProvider(apiConfiguration: ProviderSettings, provider: str
 			return apiConfiguration.vsCodeLmModelSelector?.id
 		case "huggingface":
 			return apiConfiguration.huggingFaceModelId
+		case "io-intelligence":
+			return apiConfiguration.ioIntelligenceModelId
 		default:
 			return apiConfiguration.apiModelId
 	}
@@ -255,6 +262,9 @@ export function validateModelId(apiConfiguration: ProviderSettings, routerModels
 			break
 		case "litellm":
 			modelId = apiConfiguration.litellmModelId
+			break
+		case "io-intelligence":
+			modelId = apiConfiguration.ioIntelligenceModelId
 			break
 	}
 

@@ -46,6 +46,8 @@ import {
 	mainlandZAiModels,
 	fireworksModels,
 	fireworksDefaultModelId,
+	ioIntelligenceDefaultModelId,
+	ioIntelligenceModels,
 } from "@roo-code/types"
 
 import type { ModelRecord, RouterModels } from "@roo/api"
@@ -275,6 +277,12 @@ function getSelectedModel({
 		case "fireworks": {
 			const id = apiConfiguration.apiModelId ?? fireworksDefaultModelId
 			const info = fireworksModels[id as keyof typeof fireworksModels]
+			return { id, info }
+		}
+		case "io-intelligence": {
+			const id = apiConfiguration.ioIntelligenceModelId ?? ioIntelligenceDefaultModelId
+			const info =
+				routerModels["io-intelligence"]?.[id] ?? ioIntelligenceModels[id as keyof typeof ioIntelligenceModels]
 			return { id, info }
 		}
 		// case "anthropic":

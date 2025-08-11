@@ -548,6 +548,15 @@ export const webviewMessageHandler = async (
 				{ key: "unbound", options: { provider: "unbound", apiKey: apiConfiguration.unboundApiKey } },
 			]
 
+			// Add IO Intelligence if API key is provided
+			const ioIntelligenceApiKey = apiConfiguration.ioIntelligenceApiKey
+			if (ioIntelligenceApiKey) {
+				modelFetchPromises.push({
+					key: "io-intelligence",
+					options: { provider: "io-intelligence", apiKey: ioIntelligenceApiKey },
+				})
+			}
+
 			// Don't fetch Ollama and LM Studio models by default anymore
 			// They have their own specific handlers: requestOllamaModels and requestLmStudioModels
 
