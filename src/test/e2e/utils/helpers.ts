@@ -20,10 +20,6 @@ export class E2ETestHelper {
 	// Instance properties for caching
 	private cachedFrame: Frame | null = null
 
-	constructor() {
-		// Initialize any instance-specific state if needed
-	}
-
 	// Path utilities
 	public static escapeToPath(text: string): string {
 		return text.trim().toLowerCase().replaceAll(/\W/g, "_")

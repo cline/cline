@@ -40,11 +40,11 @@ async function generateWebviewProtobusClients(protobusServices) {
 			}
 			if (!rpc.responseStream) {
 				rpcs.push(`    static async ${rpcName}(request: ${requestType}): Promise<${responseType}> {
-		return this.makeRequest("${rpcName}", request)
+		return this.makeUnaryRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON)
 	}`)
 			} else {
 				rpcs.push(`    static ${rpcName}(request: ${requestType}, callbacks: Callbacks<${responseType}>): ()=>void {
-		return this.makeStreamingRequest("${rpcName}", request, callbacks)
+		return this.makeStreamingRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON, callbacks)
 	}`)
 			}
 		}

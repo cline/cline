@@ -1,7 +1,7 @@
 import { Controller } from ".."
 import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/voice"
 import { voiceTranscriptionService } from "@/services/dictation/VoiceTranscriptionService"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 

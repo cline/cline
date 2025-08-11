@@ -1,10 +1,10 @@
 import { Controller } from ".."
 import { StartRecordingRequest, RecordingResult } from "@shared/proto/cline/voice"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { AuthService } from "@/services/auth/AuthService"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 
 /**
  * Starts audio recording using the Extension Host

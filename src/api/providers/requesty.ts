@@ -74,7 +74,10 @@ export class RequestyHandler implements ApiHandler {
 				? { thinking: { type: "enabled", budget_tokens: thinkingBudget } }
 				: { thinking: { type: "disabled" } }
 		const thinkingArgs =
-			model.id.includes("claude-3-7-sonnet") || model.id.includes("claude-sonnet-4") || model.id.includes("claude-opus-4")
+			model.id.includes("claude-3-7-sonnet") ||
+			model.id.includes("claude-sonnet-4") ||
+			model.id.includes("claude-opus-4") ||
+			model.id.includes("claude-opus-4-1")
 				? thinking
 				: {}
 

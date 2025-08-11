@@ -5,9 +5,12 @@ import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
 teardown("cleanup test environment", async () => {
-	const assetsDir = getResultsDir()
+	ClineApiServerMock.stopGlobalServer()
+		.then(() => console.log("ClineApiServerMock stopped successfully."))
+		.catch((error) => console.error("Error stopping ClineApiServerMock:", error))
 
 	try {
+		const assetsDir = getResultsDir()
 		const results = await fs.readdir(assetsDir, { withFileTypes: true })
 		await Promise.all(
 			results
@@ -22,12 +25,10 @@ teardown("cleanup test environment", async () => {
 					}
 				}),
 		)
-		await ClineApiServerMock.stopGlobalServer()
-		console.log("ClineApiServerMock stopped successfully.")
 	} catch (error) {
 		// Silently handle case where assets directory doesn't exist
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-			throw error
+			console.error("Error during cleanup:", error)
 		}
 	}
 })

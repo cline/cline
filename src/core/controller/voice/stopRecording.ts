@@ -1,7 +1,7 @@
 import { Controller } from ".."
 import { StopRecordingRequest, RecordedAudio } from "@shared/proto/cline/voice"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 
 /**
  * Stops audio recording and returns the recorded audio

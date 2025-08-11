@@ -17,6 +17,8 @@ import { DictationSettings, DEFAULT_DICTATION_SETTINGS } from "@shared/Dictation
 import {
 	groqDefaultModelId,
 	groqModels,
+	basetenDefaultModelId,
+	basetenModels,
 	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -41,10 +43,10 @@ interface ExtensionStateContextType extends ExtensionState {
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
+	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
-	filePaths: string[]
 	totalTasksSize: number | null
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -62,6 +64,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
+	setBasetenModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -204,7 +207,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<Record<string, string>>()
-	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -217,6 +219,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
+	})
+	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
+		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -377,18 +382,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {
 				console.log("MCP servers subscription completed")
 			},
-		})
-
-		// Subscribe to workspace file updates
-		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				console.log("[DEBUG] Received workspace update event from gRPC stream")
-				setFilePaths(response.values || [])
-			},
-			onError: (error) => {
-				console.error("Error in workspace updates subscription:", error)
-			},
-			onComplete: () => {},
 		})
 
 		// Set up settings button clicked subscription
@@ -645,10 +638,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
+		basetenModels: basetenModelsState,
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
-		filePaths,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,
@@ -686,6 +679,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
+		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,

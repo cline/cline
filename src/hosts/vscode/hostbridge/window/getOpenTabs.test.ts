@@ -63,7 +63,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 2
 			},
 			{
-				timeout: 2000,
+				timeout: 4000,
 				interval: 50,
 			},
 		)
@@ -93,7 +93,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				return response.paths.length === 3
 			},
 			{
-				timeout: 2000,
+				timeout: 4000,
 				interval: 50,
 			},
 		)

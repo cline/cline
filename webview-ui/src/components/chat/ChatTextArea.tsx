@@ -1,6 +1,6 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -45,6 +45,7 @@ import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
 import VoiceRecorder from "./VoiceRecorder"
 import { Mode } from "@shared/storage/types"
+import { isSafari } from "@/utils/platformUtils"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -93,7 +94,8 @@ interface GitCommit {
 	description: string
 }
 
-const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
+const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
 const SwitchOption = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isActive"].includes(prop),
@@ -132,7 +134,7 @@ const Slider = styled.div.withConfig({
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)")};
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
@@ -279,7 +281,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		ref,
 	) => {
 		const {
-			filePaths,
 			mode,
 			apiConfiguration,
 			openRouterModels,
@@ -360,14 +361,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
 				...gitCommits,
-				...filePaths
-					.map((file) => "/" + file)
-					.map((path) => ({
-						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-						value: path,
-					})),
 			]
-		}, [filePaths, gitCommits])
+		}, [gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -419,6 +414,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedType(type)
 						setSearchQuery("")
 						setSelectedMenuIndex(0)
+
+						// Trigger search with the selected type
+						if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+							setSearchLoading(true)
+
+							// Map ContextMenuOptionType to FileSearchType enum
+							let searchType = undefined
+							if (type === ContextMenuOptionType.File) {
+								searchType = FileSearchType.FILE
+							} else if (type === ContextMenuOptionType.Folder) {
+								searchType = FileSearchType.FOLDER
+							}
+
+							FileServiceClient.searchFiles(
+								FileSearchRequest.create({
+									query: "",
+									mentionsRequestId: "",
+									selectedType: searchType,
+								}),
+							)
+								.then((results) => {
+									setFileSearchResults((results.results || []) as SearchResult[])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
+						}
 						return
 					}
 				}
@@ -576,7 +601,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 
-				const isComposing = event.nativeEvent?.isComposing ?? false
+				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
+				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
@@ -755,6 +781,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								FileSearchRequest.create({
 									query: query,
 									mentionsRequestId: query,
+									selectedType: undefined, // No type filter for general search
 								}),
 							)
 								.then((results) => {
