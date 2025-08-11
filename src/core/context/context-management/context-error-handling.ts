@@ -1,7 +1,12 @@
 import LengthFinishReasonError, { APIError } from "openai"
 
-export function checkIsOpenAIOrOpenRouterStyleContextLimitError(error: unknown): boolean {
-	return checkIsOpenAIContextWindowError(error) || checkIsOpenRouterContextWindowError(error)
+export function checkContextWindowExceededError(error: unknown): boolean {
+	return (
+		checkIsOpenAIContextWindowError(error) ||
+		checkIsOpenRouterContextWindowError(error) ||
+		checkIsAnthropicContextWindowError(error) ||
+		checkIsCerebrasContextWindowError(error)
+	)
 }
 
 function checkIsOpenRouterContextWindowError(error: any): boolean {
@@ -43,9 +48,20 @@ function checkIsOpenAIContextWindowError(error: unknown): boolean {
 	}
 }
 
-export function checkIsAnthropicContextWindowError(response: any): boolean {
+function checkIsAnthropicContextWindowError(response: any): boolean {
 	try {
 		return response?.error?.error?.type === "invalid_request_error"
+	} catch {
+		return false
+	}
+}
+
+function checkIsCerebrasContextWindowError(response: any): boolean {
+	try {
+		const status = response?.status ?? response?.code ?? response?.error?.status ?? response?.response?.status
+		const message: string = String(response?.message || response?.error?.message || "")
+
+		return String(status) === "400" && message.includes("Please reduce the length of the messages or completion")
 	} catch {
 		return false
 	}
