@@ -142,8 +142,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enable Dictation
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							Enables voice recording with automatic transcription. Requires a Cline Account for the transcription
-							model. $0.006 per minute of audio processed.
+							Enables speech-to-text transcription using your Cline Account. Uses the Whisper model, at $0.006
+							credits per minute of audio processed. Use the microphone icon in the chat area or set a hotkey in the
+							Command Palette (Cline: Start Dictation).
 						</p>
 					</div>
 

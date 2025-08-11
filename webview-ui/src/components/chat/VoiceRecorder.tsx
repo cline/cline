@@ -134,8 +134,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		}
 
 		if (isRecording && !isProcessing) {
-			// Start polling immediately, then every second
-			pollRecordingStatus()
 			pollingIntervalRef.current = setInterval(pollRecordingStatus, 1000)
 		} else {
 			// Clear polling when not recording
