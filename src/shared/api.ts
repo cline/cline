@@ -1031,6 +1031,15 @@ export const openAiNativeModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.005,
 	},
+	"gpt-5-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
 		maxTokens: 8_192,
 		contextWindow: 256000,
