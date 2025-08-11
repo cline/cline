@@ -23,7 +23,7 @@ export const AUDIO_PROGRAM_CONFIG = {
 	},
 	linux: {
 		command: "ffmpeg",
-		fallbackPaths: ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"],
+		fallbackPaths: ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/snap/bin/ffmpeg"],
 		getArgs: (outputFile: string) => [
 			"-f",
 			"alsa",
@@ -45,7 +45,11 @@ export const AUDIO_PROGRAM_CONFIG = {
 	},
 	win32: {
 		command: "ffmpeg",
-		fallbackPaths: ["C:\\ffmpeg\\bin\\ffmpeg.exe", "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"],
+		fallbackPaths: [
+			"C:\\ffmpeg\\bin\\ffmpeg.exe",
+			"C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+			"C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+		],
 		getArgs: (outputFile: string) => [
 			"-f",
 			"wasapi",
