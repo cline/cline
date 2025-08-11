@@ -117,8 +117,9 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			yield* this.handleReasonerMessage(model, id, systemPrompt, messages)
 		} else if (model.id.startsWith("o1")) {
 			yield* this.handleO1FamilyMessage(model, systemPrompt, messages)
-		} else if (this.isGpt5Model(model.id)) {
-			yield* this.handleGpt5Message(model, systemPrompt, messages, metadata)
+		} else if (this.isResponsesApiModel(model.id)) {
+			// Both GPT-5 and Codex Mini use the v1/responses endpoint
+			yield* this.handleResponsesApiMessage(model, systemPrompt, messages, metadata)
 		} else {
 			yield* this.handleDefaultModelMessage(model, systemPrompt, messages)
 		}
@@ -212,7 +213,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		)
 	}
 
-	private async *handleGpt5Message(
+	private async *handleResponsesApiMessage(
 		model: OpenAiNativeModel,
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
@@ -220,6 +221,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	): ApiStream {
 		// Prefer the official SDK Responses API with streaming; fall back to fetch-based SSE if needed.
 		const { verbosity } = this.getModel()
+
+		// Both GPT-5 and Codex Mini use the same v1/responses endpoint format
 
 		// Resolve reasoning effort (supports "minimal" for GPT‑5)
 		const reasoningEffort = this.getGpt5ReasoningEffort(model)
@@ -886,7 +889,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 								// Error event from the API
 								if (parsed.error || parsed.message) {
 									throw new Error(
-										`GPT-5 API error: ${parsed.error?.message || parsed.message || "Unknown error"}`,
+										`Responses API error: ${parsed.error?.message || parsed.message || "Unknown error"}`,
 									)
 								}
 							}
@@ -993,7 +996,10 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 								}
 							}
 						} catch (e) {
-							// Silently ignore parsing errors for non-critical SSE data
+							// Only ignore JSON parsing errors, re-throw actual API errors
+							if (!(e instanceof SyntaxError)) {
+								throw e
+							}
 						}
 					}
 					// Also try to parse non-SSE formatted lines
@@ -1131,6 +1137,11 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		return modelId.startsWith("gpt-5")
 	}
 
+	private isResponsesApiModel(modelId: string): boolean {
+		// Both GPT-5 and Codex Mini use the v1/responses endpoint
+		return modelId.startsWith("gpt-5") || modelId === "codex-mini-latest"
+	}
+
 	private async *handleStreamResponse(
 		stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
 		model: OpenAiNativeModel,
@@ -1197,8 +1208,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			defaultTemperature: this.isGpt5Model(id) ? GPT5_DEFAULT_TEMPERATURE : OPENAI_NATIVE_DEFAULT_TEMPERATURE,
 		})
 
-		// For GPT-5 models, ensure we support minimal reasoning effort
-		if (this.isGpt5Model(id)) {
+		// For models using the Responses API (GPT-5 and Codex Mini), ensure we support reasoning effort
+		if (this.isResponsesApiModel(id)) {
 			const effort =
 				(this.options.reasoningEffort as ReasoningEffortWithMinimal | undefined) ??
 				(info.reasoningEffort as ReasoningEffortWithMinimal | undefined)
@@ -1234,13 +1245,11 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	async completePrompt(prompt: string): Promise<string> {
 		try {
 			const { id, temperature, reasoning, verbosity } = this.getModel()
-			const isGpt5 = this.isGpt5Model(id)
+			const isResponsesApi = this.isResponsesApiModel(id)
 
-			if (isGpt5) {
-				// GPT-5 uses the Responses API, not Chat Completions. Avoid undefined behavior here.
-				throw new Error(
-					"completePrompt is not supported for GPT-5 models. Use createMessage (Responses API) instead.",
-				)
+			if (isResponsesApi) {
+				// Models that use the Responses API (GPT-5 and Codex Mini) don't support non-streaming completion
+				throw new Error(`completePrompt is not supported for ${id}. Use createMessage (Responses API) instead.`)
 			}
 
 			const params: any = {
@@ -1253,19 +1262,9 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 				params.temperature = temperature
 			}
 
-			// For GPT-5 models, add reasoning_effort and verbosity as top-level parameters
-			if (isGpt5) {
-				if (reasoning && "reasoning_effort" in reasoning) {
-					params.reasoning_effort = reasoning.reasoning_effort
-				}
-				if (verbosity) {
-					params.verbosity = verbosity
-				}
-			} else {
-				// For non-GPT-5 models, add reasoning as is
-				if (reasoning) {
-					Object.assign(params, reasoning)
-				}
+			// Add reasoning parameters for models that support them
+			if (reasoning) {
+				Object.assign(params, reasoning)
 			}
 
 			const response = await this.client.chat.completions.create(params)

@@ -1514,4 +1514,243 @@ describe("GPT-5 streaming event coverage (additional)", () => {
 		// @ts-ignore
 		delete global.fetch
 	})
+
+	describe("Codex Mini Model", () => {
+		let handler: OpenAiNativeHandler
+		const mockOptions: ApiHandlerOptions = {
+			openAiNativeApiKey: "test-api-key",
+			apiModelId: "codex-mini-latest",
+		}
+
+		it("should handle codex-mini-latest streaming response", async () => {
+			// Mock fetch for Codex Mini responses API
+			const mockFetch = vitest.fn().mockResolvedValue({
+				ok: true,
+				body: new ReadableStream({
+					start(controller) {
+						// Codex Mini uses the same responses API format
+						controller.enqueue(
+							new TextEncoder().encode('data: {"type":"response.output_text.delta","delta":"Hello"}\n\n'),
+						)
+						controller.enqueue(
+							new TextEncoder().encode('data: {"type":"response.output_text.delta","delta":" from"}\n\n'),
+						)
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.output_text.delta","delta":" Codex"}\n\n',
+							),
+						)
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.output_text.delta","delta":" Mini!"}\n\n',
+							),
+						)
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.done","response":{"usage":{"prompt_tokens":50,"completion_tokens":10}}}\n\n',
+							),
+						)
+						controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+						controller.close()
+					},
+				}),
+			})
+			global.fetch = mockFetch as any
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "codex-mini-latest",
+			})
+
+			const systemPrompt = "You are a helpful coding assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Write a hello world function" },
+			]
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify text chunks
+			const textChunks = chunks.filter((c) => c.type === "text")
+			expect(textChunks).toHaveLength(4)
+			expect(textChunks.map((c) => c.text).join("")).toBe("Hello from Codex Mini!")
+
+			// Verify usage data from API
+			const usageChunks = chunks.filter((c) => c.type === "usage")
+			expect(usageChunks).toHaveLength(1)
+			expect(usageChunks[0]).toMatchObject({
+				type: "usage",
+				inputTokens: 50,
+				outputTokens: 10,
+				totalCost: expect.any(Number), // Codex Mini has pricing: $1.5/M input, $6/M output
+			})
+
+			// Verify cost is calculated correctly based on API usage data
+			const expectedCost = (50 / 1_000_000) * 1.5 + (10 / 1_000_000) * 6
+			expect(usageChunks[0].totalCost).toBeCloseTo(expectedCost, 10)
+
+			// Verify the request was made with correct parameters
+			expect(mockFetch).toHaveBeenCalledWith(
+				"https://api.openai.com/v1/responses",
+				expect.objectContaining({
+					method: "POST",
+					headers: expect.objectContaining({
+						"Content-Type": "application/json",
+						Authorization: "Bearer test-api-key",
+						Accept: "text/event-stream",
+					}),
+					body: expect.any(String),
+				}),
+			)
+
+			const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+			expect(requestBody).toMatchObject({
+				model: "codex-mini-latest",
+				input: "Developer: You are a helpful coding assistant.\n\nUser: Write a hello world function",
+				stream: true,
+			})
+
+			// Clean up
+			delete (global as any).fetch
+		})
+
+		it("should handle codex-mini-latest non-streaming completion", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "codex-mini-latest",
+			})
+
+			// Codex Mini now uses the same Responses API as GPT-5, which doesn't support non-streaming
+			await expect(handler.completePrompt("Write a hello world function in Python")).rejects.toThrow(
+				"completePrompt is not supported for codex-mini-latest. Use createMessage (Responses API) instead.",
+			)
+		})
+
+		it("should handle codex-mini-latest API errors", async () => {
+			// Mock fetch with error response
+			const mockFetch = vitest.fn().mockResolvedValue({
+				ok: false,
+				status: 429,
+				statusText: "Too Many Requests",
+				text: async () => "Rate limit exceeded",
+			})
+			global.fetch = mockFetch as any
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "codex-mini-latest",
+			})
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+
+			const stream = handler.createMessage(systemPrompt, messages)
+
+			// Should throw an error (using the same error format as GPT-5)
+			await expect(async () => {
+				for await (const chunk of stream) {
+					// consume stream
+				}
+			}).rejects.toThrow("Rate limit exceeded")
+
+			// Clean up
+			delete (global as any).fetch
+		})
+
+		it("should handle codex-mini-latest with multiple user messages", async () => {
+			// Mock fetch for streaming response
+			const mockFetch = vitest.fn().mockResolvedValue({
+				ok: true,
+				body: new ReadableStream({
+					start(controller) {
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.output_text.delta","delta":"Combined response"}\n\n',
+							),
+						)
+						controller.enqueue(new TextEncoder().encode('data: {"type":"response.completed"}\n\n'))
+						controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+						controller.close()
+					},
+				}),
+			})
+			global.fetch = mockFetch as any
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "codex-mini-latest",
+			})
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "First question" },
+				{ role: "assistant", content: "First answer" },
+				{ role: "user", content: "Second question" },
+			]
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify the request body includes full conversation like GPT-5
+			const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+			expect(requestBody.input).toContain("Developer: You are a helpful assistant")
+			expect(requestBody.input).toContain("User: First question")
+			expect(requestBody.input).toContain("Assistant: First answer")
+			expect(requestBody.input).toContain("User: Second question")
+
+			// Clean up
+			delete (global as any).fetch
+		})
+
+		it("should handle codex-mini-latest stream error events", async () => {
+			// Mock fetch with error event in stream
+			const mockFetch = vitest.fn().mockResolvedValue({
+				ok: true,
+				body: new ReadableStream({
+					start(controller) {
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.output_text.delta","delta":"Partial"}\n\n',
+							),
+						)
+						controller.enqueue(
+							new TextEncoder().encode(
+								'data: {"type":"response.error","error":{"message":"Model overloaded"}}\n\n',
+							),
+						)
+						// The error handler will throw, but we still need to close the stream
+						controller.close()
+					},
+				}),
+			})
+			global.fetch = mockFetch as any
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "codex-mini-latest",
+			})
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+
+			const stream = handler.createMessage(systemPrompt, messages)
+
+			// Should throw an error when encountering error event
+			await expect(async () => {
+				const chunks = []
+				for await (const chunk of stream) {
+					chunks.push(chunk)
+				}
+			}).rejects.toThrow("Responses API error: Model overloaded")
+
+			// Clean up
+			delete (global as any).fetch
+		})
+	})
 })
