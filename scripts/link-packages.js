@@ -58,6 +58,54 @@ if (!unlink && watch) {
 	}
 }
 
+function generateNpmPackageJson(sourcePath, npmPath) {
+	const npmDir = path.join(sourcePath, npmPath)
+	const npmPackagePath = path.join(npmDir, "package.json")
+	const npmMetadataPath = path.join(npmDir, "package.metadata.json")
+	const monorepoPackagePath = path.join(sourcePath, "package.json")
+
+	if (fs.existsSync(npmPackagePath)) {
+		console.log(`  ✓ npm/package.json already exists`)
+		return
+	}
+
+	if (!fs.existsSync(npmMetadataPath)) {
+		console.log(`  ⚠ No package.metadata.json found, skipping npm package.json generation`)
+		return
+	}
+
+	try {
+		console.log(`  📦 Generating npm/package.json...`)
+		const monorepoPackage = JSON.parse(fs.readFileSync(monorepoPackagePath, "utf8"))
+		const npmMetadata = JSON.parse(fs.readFileSync(npmMetadataPath, "utf8"))
+
+		const npmPackage = {
+			...npmMetadata,
+			type: "module",
+			dependencies: monorepoPackage.dependencies || {},
+			main: "./dist/index.cjs",
+			module: "./dist/index.js",
+			types: "./dist/index.d.ts",
+			exports: {
+				".": {
+					types: "./dist/index.d.ts",
+					import: "./dist/index.js",
+					require: {
+						types: "./dist/index.d.cts",
+						default: "./dist/index.cjs",
+					},
+				},
+			},
+			files: ["dist"],
+		}
+
+		fs.writeFileSync(npmPackagePath, JSON.stringify(npmPackage, null, 2) + "\n")
+		console.log(`  ✓ Generated npm/package.json for ${npmPackage.name}`)
+	} catch (error) {
+		console.error(`  ✗ Failed to generate npm/package.json: ${error.message}`)
+	}
+}
+
 function linkPackage(pkg) {
 	const sourcePath = path.resolve(__dirname, "..", pkg.sourcePath)
 	const targetPath = path.resolve(__dirname, "..", pkg.targetPath)
@@ -76,6 +124,11 @@ function linkPackage(pkg) {
 		} catch (e) {
 			execSync("pnpm install --no-frozen-lockfile", { cwd: sourcePath, stdio: "inherit" })
 		}
+	}
+
+	// If npmPath is specified, check if we need to generate package.json.
+	if (pkg.npmPath) {
+		generateNpmPackageJson(sourcePath, pkg.npmPath)
 	}
 
 	// Create symlink.

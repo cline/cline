@@ -33,7 +33,7 @@ import {
 	isBlockingAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
-import { CloudService, TaskBridgeService } from "@roo-code/cloud"
+import { CloudService, UnifiedBridgeService } from "@roo-code/cloud"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
@@ -241,7 +241,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Task Bridge
 	enableTaskBridge: boolean
-	taskBridgeService: TaskBridgeService | null = null
+	bridgeService: UnifiedBridgeService | null = null
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -980,19 +980,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Start / Abort / Resume
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
-		if (this.enableTaskBridge && CloudService.hasInstance()) {
-			if (!this.taskBridgeService) {
-				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
+		if (this.enableTaskBridge) {
+			try {
+				this.bridgeService = this.bridgeService || UnifiedBridgeService.getInstance()
 
-				if (bridgeConfig) {
-					this.taskBridgeService = await TaskBridgeService.createInstance({
-						...bridgeConfig,
-					})
+				if (this.bridgeService) {
+					await this.bridgeService.subscribeToTask(this)
 				}
-			}
-
-			if (this.taskBridgeService) {
-				await this.taskBridgeService.subscribeToTask(this)
+			} catch (error) {
+				console.error(
+					`[Task#startTask] subscribeToTask failed - ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 		}
 
@@ -1047,19 +1045,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async resumeTaskFromHistory() {
-		if (this.enableTaskBridge && CloudService.hasInstance()) {
-			if (!this.taskBridgeService) {
-				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
+		if (this.enableTaskBridge) {
+			try {
+				this.bridgeService = this.bridgeService || UnifiedBridgeService.getInstance()
 
-				if (bridgeConfig) {
-					this.taskBridgeService = await TaskBridgeService.createInstance({
-						...bridgeConfig,
-					})
+				if (this.bridgeService) {
+					await this.bridgeService.subscribeToTask(this)
 				}
-			}
-
-			if (this.taskBridgeService) {
-				await this.taskBridgeService.subscribeToTask(this)
+			} catch (error) {
+				console.error(
+					`[Task#resumeTaskFromHistory] subscribeToTask failed - ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 		}
 
@@ -1309,11 +1305,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Unsubscribe from TaskBridge service.
-		if (this.taskBridgeService) {
-			this.taskBridgeService
+		if (this.bridgeService) {
+			this.bridgeService
 				.unsubscribeFromTask(this.taskId)
 				.catch((error) => console.error("Error unsubscribing from task bridge:", error))
-			this.taskBridgeService = null
+			this.bridgeService = null
 		}
 
 		// Release any terminals associated with this task.
