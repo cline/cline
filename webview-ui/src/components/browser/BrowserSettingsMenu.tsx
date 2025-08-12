@@ -2,7 +2,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
-import styled from "styled-components"
 import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
@@ -162,32 +161,50 @@ export const BrowserSettingsMenu = () => {
 			</VSCodeButton>
 
 			{showInfoPopover && (
-				<InfoPopover ref={popoverRef}>
+				// InfoPopover - Dropdown container with connection details
+				<div
+					ref={popoverRef}
+					className="absolute top-[30px] right-0 z-[100] w-[60dvw] max-w-[250px] rounded p-2.5 shadow-lg"
+					style={{
+						backgroundColor: "var(--vscode-editorWidget-background)",
+						border: "1px solid var(--vscode-widget-border)",
+						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+					}}>
 					<h4 style={{ margin: "0 0 8px 0" }}>Browser Connection</h4>
-					<InfoRow>
-						<InfoLabel>Status:</InfoLabel>
-						<InfoValue
+					{/* InfoRow - Status row container */}
+					<div className="flex flex-wrap whitespace-nowrap mb-1">
+						{/* InfoLabel - Fixed-width label */}
+						<div className="flex-none w-[90px] font-medium">Status:</div>
+						{/* InfoValue - Flexible value container */}
+						<div
+							className="flex-1 break-words"
 							style={{
 								color: connectionInfo.isConnected
 									? "var(--vscode-charts-green)"
 									: "var(--vscode-errorForeground)",
 							}}>
 							{connectionInfo.isConnected ? "Connected" : "Disconnected"}
-						</InfoValue>
-					</InfoRow>
+						</div>
+					</div>
 					{connectionInfo.isConnected && (
-						<InfoRow>
-							<InfoLabel>Type:</InfoLabel>
-							<InfoValue>{connectionInfo.isRemote ? "Remote" : "Local"}</InfoValue>
-						</InfoRow>
+						// InfoRow - Type row container
+						<div className="flex flex-wrap whitespace-nowrap mb-1">
+							{/* InfoLabel - Fixed-width label */}
+							<div className="flex-none w-[90px] font-medium">Type:</div>
+							{/* InfoValue - Flexible value container */}
+							<div className="flex-1 break-words">{connectionInfo.isRemote ? "Remote" : "Local"}</div>
+						</div>
 					)}
 					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
-						<InfoRow>
-							<InfoLabel>Remote Host:</InfoLabel>
-							<InfoValue>{connectionInfo.host}</InfoValue>
-						</InfoRow>
+						// InfoRow - Remote host row container
+						<div className="flex flex-wrap whitespace-nowrap mb-1">
+							{/* InfoLabel - Fixed-width label */}
+							<div className="flex-none w-[90px] font-medium">Remote Host:</div>
+							{/* InfoValue - Flexible value container */}
+							<div className="flex-1 break-words">{connectionInfo.host}</div>
+						</div>
 					)}
-				</InfoPopover>
+				</div>
 			)}
 
 			<VSCodeButton appearance="icon" onClick={openBrowserSettings}>
@@ -196,36 +213,5 @@ export const BrowserSettingsMenu = () => {
 		</div>
 	)
 }
-
-const InfoPopover = styled.div`
-	position: absolute;
-	top: 30px;
-	right: 0;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px;
-	padding: 10px;
-	z-index: 100;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	width: 60dvw;
-	max-width: 250px;
-`
-
-const InfoRow = styled.div`
-	display: flex;
-	margin-bottom: 4px;
-	flex-wrap: wrap;
-	white-space: nowrap;
-`
-
-const InfoLabel = styled.div`
-	flex: 0 0 90px;
-	font-weight: 500;
-`
-
-const InfoValue = styled.div`
-	flex: 1;
-	word-break: break-word;
-`
 
 export default BrowserSettingsMenu

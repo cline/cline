@@ -1,5 +1,13 @@
-import { AuthService } from "../../../services/auth/AuthService"
+import { AuthState, EmptyRequest } from "@/shared/proto/index.cline"
+import { AuthService } from "@services/auth/AuthService"
+import { Controller } from ".."
+import { StreamingResponseHandler } from "../grpc-handler"
 
-const authService = AuthService.getInstance()
-export const subscribeToAuthStatusUpdate = authService.subscribeToAuthStatusUpdate.bind(authService)
-export const sendAuthStatusUpdateEvent = authService.sendAuthStatusUpdate.bind(authService)
+export async function subscribeToAuthStatusUpdate(
+	controller: Controller,
+	request: EmptyRequest,
+	responseStream: StreamingResponseHandler<AuthState>,
+	requestId?: string,
+): Promise<void> {
+	return AuthService.getInstance().subscribeToAuthStatusUpdate(controller, request, responseStream, requestId)
+}
