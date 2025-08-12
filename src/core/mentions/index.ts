@@ -6,7 +6,6 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
@@ -14,7 +13,9 @@ import { FileContextTracker } from "../context/context-tracking/FileContextTrack
 import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { DiagnosticSeverity } from "@/shared/proto/index.host"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -26,8 +27,8 @@ export async function openMention(mention?: string): Promise<void> {
 		return
 	}
 
-	if (mention.startsWith("/")) {
-		const relPath = mention.slice(1)
+	if (isFileMention(mention)) {
+		const relPath = getFilePathFromMention(mention)
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
@@ -54,8 +55,8 @@ export async function parseMentions(
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
-		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1) // Remove the leading '/'
+		} else if (isFileMention(mention)) {
+			const mentionPath = getFilePathFromMention(mention)
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
@@ -89,6 +90,14 @@ export async function parseMentions(
 	const uniqueMentions = Array.from(new Set(mentions))
 
 	for (const mention of uniqueMentions) {
+		// Safety guard: skip a bare "/" mention. This can surface from parsed strings or tool output and would resolve to the
+		// workspace root. Expanding it would scan the entire project, inflate context, and can trigger recursive loops.
+		// If root-level expansion is ever desired, gate it behind an explicit syntax (e.g. "@root" or "@folder:/")
+		// and enforce strict size/.clineignore limits instead.
+		if (mention === "/") {
+			continue
+		}
+
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {
@@ -106,8 +115,8 @@ export async function parseMentions(
 				}
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
-		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1)
+		} else if (isFileMention(mention)) {
+			const mentionPath = getFilePathFromMention(mention)
 			try {
 				const content = await getFileOrFolderContent(mentionPath, cwd)
 				if (mention.endsWith("/")) {
@@ -225,10 +234,24 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(diagnostics, [vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning])
-	if (!result) {
+	const response = await HostProvider.workspace.getDiagnostics({})
+	if (response.fileDiagnostics.length === 0) {
 		return "No errors or warnings detected."
 	}
-	return result
+	return diagnosticsToProblemsString(response.fileDiagnostics, [
+		DiagnosticSeverity.DIAGNOSTIC_ERROR,
+		DiagnosticSeverity.DIAGNOSTIC_WARNING,
+	])
+}
+
+function isFileMention(mention: string): boolean {
+	return mention.startsWith("/") || mention.startsWith('"/')
+}
+
+function getFilePathFromMention(mention: string): string {
+	// Remove quotes
+	const match = mention.match(/^"(.*)"$/)
+	const filePath = match ? match[1] : mention
+	// Remove leading slash
+	return filePath.slice(1)
 }

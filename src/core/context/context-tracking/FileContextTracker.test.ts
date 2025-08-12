@@ -1,18 +1,18 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { HostProvider } from "@/hosts/host-provider"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import * as path from "path"
+import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
 import { FileContextTracker } from "./FileContextTracker"
-import * as diskModule from "@core/storage/disk"
-import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-provider"
-import { HostProvider } from "@/hosts/host-provider"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { Controller } from "@/core/controller"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
-	let mockContext: vscode.ExtensionContext
+	let mockController: Controller
 	let mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
 	let tracker: FileContextTracker
@@ -45,27 +45,20 @@ describe("FileContextTracker", () => {
 		}
 
 		// Mock controller and context
-		mockContext = {
-			globalStorageUri: { fsPath: "/mock/storage" },
-		} as unknown as vscode.ExtensionContext
+		mockController = {
+			context: { globalStorageUri: { fsPath: "/mock/storage" } } as vscode.ExtensionContext,
+		} as unknown as Controller
 
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 
-		// Reset HostProvider before initializing to avoid "already initialized" errors
-		HostProvider.reset()
-		HostProvider.initialize(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-			(_) => {},
-		)
+		setVscodeHostProviderMock()
 
 		// Create tracker instance
 		taskId = "test-task-id"
-		tracker = new FileContextTracker(mockContext, taskId)
+		tracker = new FileContextTracker(mockController, taskId)
 	})
 
 	afterEach(() => {

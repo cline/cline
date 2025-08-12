@@ -1,3 +1,4 @@
+import { HistoryItem } from "@/shared/HistoryItem"
 import { Controller } from "../"
 import { Empty } from "@shared/proto/cline/common"
 import { TaskFavoriteRequest } from "@shared/proto/cline/task"
@@ -12,7 +13,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	try {
 		// Update in-memory state only
 		try {
-			const history = ((await controller.context.globalState.get("taskHistory")) as any[]) || []
+			const history = controller.cacheService.getGlobalStateKey("taskHistory")
 
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
@@ -28,7 +29,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 
 				// Update global state and wait for it to complete
 				try {
-					await controller.context.globalState.update("taskHistory", updatedHistory)
+					controller.cacheService.setGlobalState("taskHistory", updatedHistory)
 				} catch (stateErr) {
 					console.error("Error updating global state:", stateErr)
 				}

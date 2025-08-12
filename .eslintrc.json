@@ -21,6 +21,7 @@
 		"semi": "off",
 		"react-hooks/exhaustive-deps": "off",
 		"eslint-rules/no-direct-vscode-api": "warn",
+		"eslint-rules/no-direct-vscode-state-api": "error",
 		"no-restricted-syntax": [
 			"error",
 			{
@@ -29,5 +30,5 @@
 			}
 		]
 	},
-	"ignorePatterns": ["out", "dist", "**/*.d.ts"]
+	"ignorePatterns": ["out", "dist", "dist-standalone", "**/*.d.ts", "node_modules"]
 }

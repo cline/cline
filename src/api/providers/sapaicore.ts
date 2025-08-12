@@ -6,6 +6,11 @@ import { ApiHandler } from "../"
 import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import {
+	type Message as BedrockMessage,
+	type ContentBlock as BedrockContentBlock,
+	ConversationRole as BedrockConversationRole,
+} from "@aws-sdk/client-bedrock-runtime"
 
 interface SapAiCoreHandlerOptions {
 	sapAiCoreClientId?: string
@@ -15,6 +20,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
 	sapAiCoreUseOrchestrationMode?: boolean
+	thinkingBudgetTokens?: number
 }
 
 interface Deployment {
@@ -29,6 +35,307 @@ interface Token {
 	token_type: string
 	expires_at: number
 }
+
+// Bedrock namespace containing caching-related functions
+namespace Bedrock {
+	// Define cache point type for AWS Bedrock
+	interface CachePointContentBlock {
+		cachePoint: {
+			type: "default"
+		}
+	}
+
+	// Define types for supported content types
+	type SupportedContentType = "text" | "image" | "thinking"
+
+	interface ContentItem {
+		type: SupportedContentType
+		text?: string
+		source?: {
+			data: string | Buffer | Uint8Array
+			media_type?: string
+		}
+	}
+
+	/**
+	 * Prepares system messages with optional caching support
+	 */
+	export function prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
+		if (!systemPrompt) {
+			return undefined
+		}
+
+		if (enableCaching) {
+			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
+		}
+
+		return [{ text: systemPrompt }]
+	}
+
+	/**
+	 * Applies cache control to messages for prompt caching using AWS Bedrock's cachePoint system
+	 * AWS Bedrock uses cachePoint objects instead of Anthropic's cache_control approach
+	 */
+	export function applyCacheControlToMessages(
+		messages: BedrockMessage[],
+		lastUserMsgIndex: number,
+		secondLastMsgUserIndex: number,
+	): BedrockMessage[] {
+		return messages.map((message, index) => {
+			// Add cachePoint to the last user message and second-to-last user message
+			if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+				// Clone the message to avoid modifying the original
+				const messageWithCache = { ...message }
+
+				if (messageWithCache.content && Array.isArray(messageWithCache.content)) {
+					// Add cachePoint to the end of the content array
+					messageWithCache.content = [
+						...messageWithCache.content,
+						{
+							cachePoint: {
+								type: "default",
+							},
+						} as CachePointContentBlock, // Properly typed cache point for AWS SDK
+					]
+				}
+
+				return messageWithCache
+			}
+
+			return message
+		})
+	}
+
+	/**
+	 * Formats messages for models using the Converse API specification
+	 * Used by both Anthropic and Nova models to avoid code duplication
+	 */
+	export function formatMessagesForConverseAPI(messages: Anthropic.Messages.MessageParam[]): BedrockMessage[] {
+		return messages.map((message) => {
+			// Determine role (user or assistant)
+			const role = message.role === "user" ? BedrockConversationRole.USER : BedrockConversationRole.ASSISTANT
+
+			// Process content based on type
+			let content: BedrockContentBlock[] = []
+
+			if (typeof message.content === "string") {
+				// Simple text content
+				content = [{ text: message.content }]
+			} else if (Array.isArray(message.content)) {
+				// Convert Anthropic content format to Converse API content format
+				const processedContent = message.content
+					.map((item) => {
+						// Text content
+						if (item.type === "text") {
+							return { text: item.text }
+						}
+
+						// Image content
+						if (item.type === "image") {
+							return processImageContent(item)
+						}
+
+						// Log unsupported content types for debugging
+						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+						return null
+					})
+					.filter((item): item is BedrockContentBlock => item !== null)
+
+				content = processedContent
+			}
+
+			// Return formatted message
+			return {
+				role,
+				content,
+			}
+		})
+	}
+
+	/**
+	 * Processes image content with proper error handling and user notification
+	 */
+	function processImageContent(item: any): BedrockContentBlock | null {
+		let imageData: Uint8Array
+		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
+
+		// Extract format from media_type if available
+		if (item.source.media_type) {
+			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
+			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+			if (formatMatch && formatMatch[1]) {
+				const extractedFormat = formatMatch[1]
+				// Ensure format is one of the allowed values
+				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
+					format = extractedFormat as "png" | "jpeg" | "gif" | "webp"
+				}
+			}
+		}
+
+		// Get image data with improved error handling
+		try {
+			if (typeof item.source.data === "string") {
+				// Handle base64 encoded data
+				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+			} else if (item.source.data && typeof item.source.data === "object") {
+				// Try to convert to Uint8Array
+				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+			} else {
+				throw new Error("Unsupported image data format")
+			}
+
+			return {
+				image: {
+					format,
+					source: {
+						bytes: imageData,
+					},
+				},
+			}
+		} catch (error) {
+			console.error("Failed to process image content:", error)
+			// Return a text content indicating the error instead of null
+			// This ensures users are aware of the issue
+			return {
+				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
+			}
+		}
+	}
+}
+
+// Gemini namespace containing caching-related functions and types
+namespace Gemini {
+	/**
+	 * Process Gemini streaming response with enhanced thinking content support and caching awareness
+	 */
+	export function processStreamChunk(data: any): {
+		text?: string
+		reasoning?: string
+		usageMetadata?: {
+			promptTokenCount?: number
+			candidatesTokenCount?: number
+			thoughtsTokenCount?: number
+			cachedContentTokenCount?: number
+		}
+	} {
+		const result: ReturnType<typeof processStreamChunk> = {}
+
+		// Handle thinking content from Gemini's response
+		const candidateForThoughts = data?.candidates?.[0]
+		const partsForThoughts = candidateForThoughts?.content?.parts
+		let thoughts = ""
+
+		if (partsForThoughts) {
+			for (const part of partsForThoughts) {
+				const { thought, text } = part
+				if (thought && text) {
+					thoughts += text + "\n"
+				}
+			}
+		}
+
+		if (thoughts.trim() !== "") {
+			result.reasoning = thoughts.trim()
+		}
+
+		// Handle regular text content
+		if (data.text) {
+			result.text = data.text
+		}
+
+		// Handle content parts for non-thought text
+		if (data.candidates && data.candidates[0]?.content?.parts) {
+			let nonThoughtText = ""
+			for (const part of data.candidates[0].content.parts) {
+				if (part.text && !part.thought) {
+					nonThoughtText += part.text
+				}
+			}
+			if (nonThoughtText && !result.text) {
+				result.text = nonThoughtText
+			}
+		}
+
+		// Handle usage metadata with caching support
+		if (data.usageMetadata) {
+			result.usageMetadata = {
+				promptTokenCount: data.usageMetadata.promptTokenCount,
+				candidatesTokenCount: data.usageMetadata.candidatesTokenCount,
+				thoughtsTokenCount: data.usageMetadata.thoughtsTokenCount,
+				cachedContentTokenCount: data.usageMetadata.cachedContentTokenCount,
+			}
+		}
+
+		return result
+	}
+
+	function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam) {
+		const role = message.role === "assistant" ? "model" : "user"
+		const parts = []
+
+		if (typeof message.content === "string") {
+			parts.push({ text: message.content })
+		} else if (Array.isArray(message.content)) {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					parts.push({ text: block.text })
+				} else if (block.type === "image") {
+					parts.push({
+						inlineData: {
+							mimeType: block.source.media_type,
+							data: block.source.data,
+						},
+					})
+				}
+			}
+		}
+
+		return { role, parts }
+	}
+
+	/**
+	 * Prepare Gemini request payload with thinking configuration and implicit caching support
+	 */
+	export function prepareRequestPayload(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+		thinkingBudgetTokens?: number,
+	): any {
+		const contents = messages.map(convertAnthropicMessageToGemini)
+
+		const payload = {
+			contents,
+			systemInstruction: {
+				parts: [
+					{
+						text: systemPrompt,
+					},
+				],
+			},
+			generationConfig: {
+				maxOutputTokens: model.info.maxTokens,
+				temperature: 0.0,
+			},
+		}
+
+		// Add thinking config if the model supports it and budget is provided
+		const thinkingBudget = thinkingBudgetTokens ?? 0
+		const maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
+
+		if (thinkingBudget > 0 && model.info.thinkingConfig) {
+			// Add thinking configuration to the payload
+			;(payload as any).thinkingConfig = {
+				thinkingBudget: thinkingBudget,
+				includeThoughts: true,
+			}
+		}
+
+		return payload
+	}
+}
+
 export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
@@ -118,48 +425,12 @@ export class SapAiCoreHandler implements ApiHandler {
 		return deployment.id
 	}
 
-	private async getOrchestrationDeploymentUrl(): Promise<string> {
-		const token = await this.getToken()
-		const headers = {
-			Authorization: `Bearer ${token}`,
-			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
-			"Content-Type": "application/json",
-			"AI-Client-Type": "Cline",
-		}
-
-		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments`
-
-		try {
-			const response = await axios.get(url, { headers })
-			const deployments = response.data.resources
-
-			// Find deployment with configurationName: "defaultOrchestrationConfig"
-			const orchestrationDeployment = deployments.find(
-				(deployment: any) => deployment.configurationName === "defaultOrchestrationConfig",
-			)
-
-			if (!orchestrationDeployment) {
-				throw new Error("No orchestration deployment found with configurationName 'defaultOrchestrationConfig'")
-			}
-
-			if (!orchestrationDeployment.deploymentUrl) {
-				throw new Error("Orchestration deployment found but deploymentUrl is missing")
-			}
-
-			return orchestrationDeployment.deploymentUrl
-		} catch (error) {
-			console.error("Error fetching orchestration deployment:", error)
-			throw new Error("Failed to fetch orchestration deployment URL")
-		}
-	}
-
 	private hasDeploymentForModel(modelId: string): boolean {
 		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
-			// yield* this.createMessageWithOrchestrationAPI(systemPrompt, messages)
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
@@ -188,84 +459,11 @@ export class SapAiCoreHandler implements ApiHandler {
 		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
 	}
 
-	private async *createMessageWithOrchestrationAPI(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
-		try {
-			const model = this.getModel()
-			const deploymentUrl = await this.getOrchestrationDeploymentUrl()
-
-			// Use the deploymentUrl directly as provided by SAP AI Core
-			const url = `${deploymentUrl}/completion`
-
-			// Convert messages to SAP's templating format
-			const { template, inputParams } = this.convertToSAPOrchestrationFormat(systemPrompt, messages)
-
-			const payload = {
-				orchestration_config: {
-					stream: true,
-					module_configurations: {
-						llm_module_config: {
-							model_name: model.id,
-							model_params: {
-								max_tokens: model.info.maxTokens,
-								temperature: 0.0,
-								frequency_penalty: 0,
-								presence_penalty: 0,
-							},
-							model_version: "latest",
-						},
-						templating_module_config: {
-							template: template,
-						},
-					},
-				},
-				input_params: inputParams,
-			}
-
-			const token = await this.getToken()
-			const headers: Record<string, string> = {
-				Authorization: `Bearer ${token}`,
-				"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
-				"Content-Type": "application/json",
-				"AI-Client-Type": "Cline",
-			}
-
-			// Add Accept header for Claude models
-			const claudeModels = [
-				"anthropic--claude-4-sonnet",
-				"anthropic--claude-4-opus",
-				"anthropic--claude-3.7-sonnet",
-				"anthropic--claude-3.5-sonnet",
-				"anthropic--claude-3-sonnet",
-				"anthropic--claude-3-haiku",
-				"anthropic--claude-3-opus",
-			]
-
-			if (claudeModels.includes(model.id)) {
-				headers["Accept"] = "application/vnd.amazon.eventstream"
-			}
-
-			const response = await axios.post(url, JSON.stringify(payload), {
-				headers,
-				responseType: "stream",
-			})
-
-			yield* this.streamOrchestrationCompletion(response.data, model)
-		} catch (error) {
-			console.error("Error in SAP orchestration mode:", error)
-			console.log("Error details:", error.stack)
-			throw error
-		}
-	}
-
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
 			// Set up AI Core environment variable for service binding
 			this.setupAiCoreEnvVariable()
 			const model = this.getModel()
-			model.info.maxTokens
 
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
@@ -291,68 +489,35 @@ export class SapAiCoreHandler implements ApiHandler {
 			const response = await orchestrationClient.stream({
 				messages: sapMessages,
 			})
-			// const model = this.getModel()
 
-			// const jsonConfig = JSON.stringify({
-			// "module_configurations": {
-			// 	"llm_module_config": {
-			// 	"model_name": model.id,
-			// 	"model_params": {
-			// 		"max_tokens": 4000,
-			// 		"temperature": 0.1
-			// 	}
-			// 	},
-			// 	"templating_module_config": {
-			// 	"template": [
-			// 		{
-			// 		"role": "user",
-			// 		"content": "{{?input}}"
-			// 		}
-			// 	]
-			// 	}
-			// }
-			// })
+			for await (const chunk of response.stream.toContentStream()) {
+				yield { type: "text", text: chunk }
+			}
 
-			// const orchestrationClient = new OrchestrationClient(
-			// jsonConfig,
-			// { resourceGroup: this.options.sapAiResourceGroup || "default" }
-			// )
-
-			// const sapMessages = this.convertMessageParamToSAPMessages(messages)
-
-			// const response = await orchestrationClient.stream({
-			// 	messages: sapMessages,
-			// inputParams: { input: "Tell me a funny story." }
-			// })
-
-			// for await (const chunk of response.stream.toContentStream()) {
-			// 	yield { type: "text", text: chunk }
-			// }
-
-			// const tokenUsage = response.getTokenUsage()
-			// if (tokenUsage) {
-			// 	yield {
-			// 		type: "usage",
-			// 		inputTokens: tokenUsage.prompt_tokens || 0,
-			// 		outputTokens: tokenUsage.completion_tokens || 0,
-			// 	}
-			// }
-			for await (const chunk of response.stream) {
-				const deltaContent = chunk.getDeltaContent()
-				if (deltaContent) {
-					yield { type: "text", text: deltaContent }
-				}
-
-				// Handle usage information
-				const usage = chunk.getTokenUsage()
-				if (usage) {
-					yield {
-						type: "usage",
-						inputTokens: usage.prompt_tokens || 0,
-						outputTokens: usage.completion_tokens || 0,
-					}
+			const tokenUsage = response.getTokenUsage()
+			if (tokenUsage) {
+				yield {
+					type: "usage",
+					inputTokens: tokenUsage.prompt_tokens || 0,
+					outputTokens: tokenUsage.completion_tokens || 0,
 				}
 			}
+			// for await (const chunk of response.stream) {
+			// 	const deltaContent = chunk.getDeltaContent()
+			// 	if (deltaContent) {
+			// 		yield { type: "text", text: deltaContent }
+			// 	}
+
+			// 	// Handle usage information
+			// 	const usage = chunk.getTokenUsage()
+			// 	if (usage) {
+			// 		yield {
+			// 			type: "usage",
+			// 			inputTokens: usage.prompt_tokens || 0,
+			// 			outputTokens: usage.completion_tokens || 0,
+			// 		}
+			// 	}
+			// }
 		} catch (error) {
 			console.error("Error in SAP orchestration mode:", error)
 			console.log("Error details:", error.stack)
@@ -382,7 +547,20 @@ export class SapAiCoreHandler implements ApiHandler {
 			"anthropic--claude-3-opus",
 		]
 
-		const openAIModels = ["gpt-4o", "gpt-4", "gpt-4o-mini", "o1", "gpt-4.1", "gpt-4.1-nano", "o3-mini", "o3", "o4-mini"]
+		const openAIModels = [
+			"gpt-4o",
+			"gpt-4",
+			"gpt-4o-mini",
+			"o1",
+			"gpt-4.1",
+			"gpt-4.1-nano",
+			"gpt-5",
+			"gpt-5-nano",
+			"gpt-5-mini",
+			"o3-mini",
+			"o3",
+			"o4-mini",
+		]
 
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
@@ -391,21 +569,47 @@ export class SapAiCoreHandler implements ApiHandler {
 		if (anthropicModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
+			// Format messages for Converse API. Note that the Invoke API has
+			// the same format for messages as the Converse API.
+			const formattedMessages = Bedrock.formatMessagesForConverseAPI(messages)
+
+			// Get message indices for caching
+			const userMsgIndices = messages.reduce(
+				(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+				[] as number[],
+			)
+			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
 			if (
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
 			) {
+				// Use converse-stream endpoint with caching support
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
+
+				// Apply caching controls to messages (enabled by default)
+				const messagesWithCache = Bedrock.applyCacheControlToMessages(
+					formattedMessages,
+					lastUserMsgIndex,
+					secondLastMsgUserIndex,
+				)
+
+				// Prepare system message with caching support (enabled by default)
+				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, true)
+
 				payload = {
 					inferenceConfig: {
 						maxTokens: model.info.maxTokens,
 						temperature: 0.0,
 					},
-					system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-					messages: this.formatAnthropicMessages(messages),
+					system: systemMessages,
+					messages: messagesWithCache,
 				}
 			} else {
+				// Use invoke-with-response-stream endpoint
+				// TODO: add caching support using Anthropic-native cache_control blocks
 				payload = {
 					max_tokens: model.info.maxTokens,
 					system: systemPrompt,
@@ -431,7 +635,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				stream_options: { include_usage: true },
 			}
 
-			if (["o1", "o3-mini", "o3", "o4-mini"].includes(model.id)) {
+			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
 				delete payload.max_tokens
 				delete payload.temperature
 			}
@@ -442,7 +646,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
-			payload = this.convertToGeminiFormat(systemPrompt, messages)
+			payload = Gemini.prepareRequestPayload(systemPrompt, messages, model, this.options.thinkingBudgetTokens)
 		} else {
 			throw new Error(`Unsupported model: ${model.id}`)
 		}
@@ -599,8 +803,16 @@ export class SapAiCoreHandler implements ApiHandler {
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
-								const inputTokens = data.metadata.usage.inputTokens || 0
+								let inputTokens = data.metadata.usage.inputTokens || 0
 								const outputTokens = data.metadata.usage.outputTokens || 0
+
+								// calibrate input token
+								const totalTokens = data.metadata.usage.totalTokens || 0
+								const cacheReadInputTokens = data.metadata.usage.cacheReadInputTokens || 0
+								const cacheWriteOutputTokens = data.metadata.usage.cacheWriteOutputTokens || 0
+								if (inputTokens + outputTokens + cacheReadInputTokens + cacheWriteOutputTokens !== totalTokens) {
+									inputTokens = totalTokens - outputTokens - cacheReadInputTokens - cacheWriteOutputTokens
+								}
 
 								yield {
 									type: "usage",
@@ -733,50 +945,31 @@ export class SapAiCoreHandler implements ApiHandler {
 						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							const candidateForThoughts = data?.candidates?.[0]
-							const partsForThoughts = candidateForThoughts?.content?.parts
-							let thoughts = ""
 
-							if (partsForThoughts) {
-								for (const part of partsForThoughts) {
-									const { thought, text } = part
-									if (thought && text) {
-										thoughts += text + "\n"
-									}
-								}
-							}
+							// Use Gemini namespace to process the chunk
+							const processed = Gemini.processStreamChunk(data)
 
-							if (thoughts.trim() !== "") {
+							// Yield reasoning if present
+							if (processed.reasoning) {
 								yield {
 									type: "reasoning",
-									reasoning: thoughts.trim(),
+									reasoning: processed.reasoning,
 								}
 							}
 
-							if (data.text) {
+							// Yield text if present
+							if (processed.text) {
 								yield {
 									type: "text",
-									text: data.text,
+									text: processed.text,
 								}
 							}
 
-							if (data.candidates && data.candidates[0]?.content?.parts) {
-								for (const part of data.candidates[0].content.parts) {
-									if (part.text && !part.thought) {
-										// Only non-thought text
-										yield {
-											type: "text",
-											text: part.text,
-										}
-									}
-								}
-							}
-
-							if (data.usageMetadata) {
-								promptTokens = data.usageMetadata.promptTokenCount ?? promptTokens
-								outputTokens = data.usageMetadata.candidatesTokenCount ?? outputTokens
-								thoughtsTokenCount = data.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount
-								cacheReadTokens = data.usageMetadata.cachedContentTokenCount ?? cacheReadTokens
+							if (processed.usageMetadata) {
+								promptTokens = processed.usageMetadata.promptTokenCount ?? promptTokens
+								outputTokens = processed.usageMetadata.candidatesTokenCount ?? outputTokens
+								thoughtsTokenCount = processed.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount
+								cacheReadTokens = processed.usageMetadata.cachedContentTokenCount ?? cacheReadTokens
 
 								yield {
 									type: "usage",
@@ -784,6 +977,7 @@ export class SapAiCoreHandler implements ApiHandler {
 									outputTokens,
 									thoughtsTokenCount,
 									cacheReadTokens,
+									cacheWriteTokens: 0,
 								}
 							}
 						} catch (error) {
@@ -794,97 +988,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Error streaming Gemini completion:", error)
-			throw error
-		}
-	}
-
-	private async *streamOrchestrationCompletion(
-		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
-	): AsyncGenerator<any, void, unknown> {
-		let isFirstChunk = true
-
-		try {
-			for await (const chunk of stream) {
-				const lines = chunk.toString().split("\n").filter(Boolean)
-
-				for (const line of lines) {
-					if (line.trim() === "data: [DONE]") {
-						return
-					}
-
-					if (line.startsWith("data: ")) {
-						const jsonData = line.slice(6).trim()
-
-						// Skip empty or incomplete data
-						if (!jsonData || jsonData === "[DONE]") {
-							continue
-						}
-
-						try {
-							const data = JSON.parse(jsonData)
-
-							// Handle errors
-							if (data.code && data.message) {
-								throw new Error(`Orchestration error ${data.code}: ${data.message}`)
-							}
-
-							// Skip first chunk (contains pre-LLM module results)
-							if (isFirstChunk) {
-								isFirstChunk = false
-								continue
-							}
-
-							// Extract LLM content from orchestration_result
-							const choice = data.orchestration_result?.choices?.[0]
-							if (choice?.delta?.content) {
-								yield {
-									type: "text",
-									text: choice.delta.content,
-								}
-							}
-
-							// Handle completion and usage
-							if (choice?.finish_reason === "stop") {
-								const llmResult = data.module_results?.llm
-								if (llmResult?.usage) {
-									yield {
-										type: "usage",
-										inputTokens: llmResult.usage.prompt_tokens || 0,
-										outputTokens: llmResult.usage.completion_tokens || 0,
-									}
-								}
-							}
-						} catch (error) {
-							console.error("Failed to parse orchestration JSON:", error)
-							console.error("Raw line:", line)
-							console.error("JSON data length:", jsonData.length)
-							console.error("JSON data preview:", jsonData.substring(0, 200) + "...")
-
-							// Try to identify the issue
-							if (jsonData.includes('"') && !jsonData.endsWith('"')) {
-								console.error("Likely cause: Unterminated string in streaming chunk")
-							}
-
-							// Check for common JSON parsing issues
-							if (error instanceof SyntaxError) {
-								if (error.message.includes("Unterminated string")) {
-									console.error(
-										"Detected unterminated string - this is likely due to streaming chunk boundaries",
-									)
-								} else if (error.message.includes("Unexpected token")) {
-									console.error("Detected unexpected token - JSON may be malformed or truncated")
-								}
-							}
-
-							// Continue processing other chunks instead of failing completely
-							continue
-						}
-					}
-				}
-			}
-		} catch (error) {
-			console.error("Error streaming orchestration completion:", error)
 			throw error
 		}
 	}
@@ -912,160 +1015,8 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
 	}
-
-	private getValidImageFormat(mediaType: string): string {
-		const format = mediaType.split("/")[1]?.toLowerCase()
-		const validFormats = ["png", "jpeg", "gif", "webp"]
-
-		if (validFormats.includes(format)) {
-			return format
-		}
-		throw new Error(`Unsupported image format: ${format}`)
-	}
-
-	private convertToGeminiFormat(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]) {
-		const contents = messages.map(this.convertAnthropicMessageToGemini)
-
-		const payload = {
-			contents,
-			systemInstruction: {
-				parts: [
-					{
-						text: systemPrompt,
-					},
-				],
-			},
-			generationConfig: {
-				maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0.0,
-			},
-		}
-
-		return payload
-	}
-
-	private convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam) {
-		const role = message.role === "assistant" ? "model" : "user"
-		const parts = []
-
-		if (typeof message.content === "string") {
-			parts.push({ text: message.content })
-		} else if (Array.isArray(message.content)) {
-			for (const block of message.content) {
-				if (block.type === "text") {
-					parts.push({ text: block.text })
-				} else if (block.type === "image") {
-					parts.push({
-						inlineData: {
-							mimeType: block.source.media_type,
-							data: block.source.data,
-						},
-					})
-				}
-			}
-		}
-
-		return { role, parts }
-	}
-	private formatAnthropicMessages(messages: Anthropic.Messages.MessageParam[]): any[] {
-		return messages.map((m) => {
-			const contentBlocks: any[] = []
-
-			if (typeof m.content === "string") {
-				contentBlocks.push({ text: m.content })
-			} else if (Array.isArray(m.content)) {
-				for (const block of m.content) {
-					if (block.type === "text") {
-						if (!block.text) {
-							throw new Error('Text block is missing the "text" field.')
-						}
-						contentBlocks.push({ text: block.text })
-					} else if (block.type === "image") {
-						if (!block.source) {
-							throw new Error('Image block is missing the "source" field.')
-						}
-
-						const { type, media_type, data } = block.source
-
-						if (!type || !media_type || !data) {
-							throw new Error('Image source must have "type", "media_type", and "data" fields.')
-						}
-
-						if (type !== "base64") {
-							throw new Error(`Unsupported image source type: ${type}. Only "base64" is supported.`)
-						}
-
-						const format = this.getValidImageFormat(media_type)
-
-						contentBlocks.push({
-							image: {
-								format,
-								source: {
-									bytes: data,
-								},
-							},
-						})
-					} else {
-						throw new Error(`Unsupported content block type: ${block.type}`)
-					}
-				}
-			} else {
-				throw new Error("Unsupported content format.")
-			}
-
-			return {
-				role: m.role,
-				content: contentBlocks,
-			}
-		})
-	}
-
 	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
 		// Use the existing OpenAI converter since the logic is identical
 		return convertToOpenAiMessages(messages) as ChatMessages
-	}
-
-	private convertToSAPOrchestrationFormat(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): { template: any[]; inputParams: Record<string, any> } {
-		// Convert messages to a single conversation string for SAP's templating system
-		let conversationText = ""
-
-		for (const message of messages) {
-			const role = message.role === "assistant" ? "Assistant" : "User"
-			let content = ""
-
-			if (typeof message.content === "string") {
-				content = message.content
-			} else if (Array.isArray(message.content)) {
-				// Extract text content from blocks, ignoring images and other types for now
-				content = message.content
-					.filter((block) => block.type === "text")
-					.map((block) => (block as any).text)
-					.join("\n")
-			}
-
-			conversationText += `${role}: ${content}\n\n`
-		}
-
-		// Create template with system prompt and conversation
-		const template = [
-			{
-				role: "system",
-				content: systemPrompt,
-			},
-			{
-				role: "user",
-				content: "{{?conversation}}",
-			},
-		]
-
-		// Input parameters for the template
-		const inputParams = {
-			conversation: conversationText.trim(),
-		}
-
-		return { template, inputParams }
 	}
 }

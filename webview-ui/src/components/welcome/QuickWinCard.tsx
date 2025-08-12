@@ -7,7 +7,7 @@ interface QuickWinCardProps {
 }
 
 const renderIcon = (iconName?: string) => {
-	if (!iconName) return <span className="codicon codicon-rocket text-lg"></span>
+	if (!iconName) return <span className="codicon codicon-rocket !text-[28px] !leading-[1]"></span>
 
 	let iconClass = "codicon-rocket"
 	switch (iconName) {
@@ -23,21 +23,25 @@ const renderIcon = (iconName?: string) => {
 		default:
 			break
 	}
-	return <span className={`codicon ${iconClass} text-lg`}></span>
+	return <span className={`codicon ${iconClass} !text-[28px] !leading-[1]`}></span>
 }
 
 const QuickWinCard: React.FC<QuickWinCardProps> = ({ task, onExecute }) => {
 	return (
 		<div
-			className="flex items-center p-1 space-x-1.5 rounded-full cursor-pointer group transition-colors duration-150 ease-in-out bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
+			className="flex items-center mb-2 py-0 px-5 space-x-3 rounded-full cursor-pointer group transition-colors duration-150 ease-in-out bg-white/[0.02] border border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
 			onClick={() => onExecute()}>
-			<div className="flex-shrink-0 flex items-center justify-center w-5 h-5 text-[var(--vscode-icon-foreground)]">
+			<div className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-[var(--vscode-icon-foreground)]">
 				{renderIcon(task.icon)}
 			</div>
 
 			<div className="flex-grow min-w-0">
-				<h3 className="text-xs font-medium truncate text-[var(--vscode-editor-foreground)]">{task.title}</h3>
-				<p className="text-xs truncate text-[var(--vscode-descriptionForeground)]">{task.description}</p>
+				<h3 className="text-sm font-medium truncate text-[var(--vscode-editor-foreground)] leading-tight mb-0 mt-0 pt-3">
+					{task.title}
+				</h3>
+				<p className="text-xs truncate text-[var(--vscode-descriptionForeground)] leading-tight mt-[1px]">
+					{task.description}
+				</p>
 			</div>
 		</div>
 	)

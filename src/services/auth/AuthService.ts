@@ -1,14 +1,13 @@
-import vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { storeSecret } from "@/core/storage/state"
-import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
+import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { openExternal } from "@/utils/env"
+import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
+import { HostProvider } from "@/hosts/host-provider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -196,8 +195,7 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackHost =
-			(await AuthHandler.getInstance().getCallbackUri()) || `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
+		const callbackHost = await HostProvider.get().getCallbackUri()
 		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction
@@ -234,12 +232,7 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.signIn(this._controller, token, provider)
 			this._authenticated = true
 
-			if (this._clineAuthInfo) {
-				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
-			}
-
 			await this.sendAuthStatusUpdate()
-			// return this._clineAuthInfo
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
@@ -267,7 +260,6 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._controller)
 			if (this._clineAuthInfo) {
 				this._authenticated = true
-				telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")
@@ -331,6 +323,15 @@ export class AuthService {
 					authInfo,
 					false, // Not the last message
 				)
+
+				// Identify the user in telemetry if available
+				// Fetch the feature flags for the user
+				if (this._clineAuthInfo?.userInfo?.id) {
+					telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+					for (const flag of Object.values(FEATURE_FLAGS)) {
+						await featureFlagsService?.isFeatureFlagEnabled(flag)
+					}
+				}
 
 				// Update the state in the webview
 				if (controller) {

@@ -27,6 +27,10 @@ service ModelsService {
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
    // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Baseten models
+  rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from SAP AI Core
+  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (StringArray);
 }
 
 // List of VS Code LM models
@@ -92,6 +96,16 @@ message OpenAiModelsRequest {
   string api_key = 3;
 }
 
+// Request for fetching SAP AI Core models
+message SapAiCoreModelsRequest {
+  Metadata metadata = 1;
+  string client_id = 2;
+  string client_secret = 3;
+  string base_url = 4;
+  string token_url = 5;
+  string resource_group = 6;
+}
+
 // Request for updating API configuration
 message UpdateApiConfigurationRequest {
   Metadata metadata = 1;
@@ -130,6 +144,7 @@ enum ApiProvider {
   MOONSHOT = 27;
   HUGGINGFACE = 28;
   HUAWEI_CLOUD_MAAS = 29;
+  BASETEN = 30;
 }
 
 // Model info for OpenAI-compatible models
@@ -232,6 +247,8 @@ message ModelsApiConfiguration {
   optional string groq_api_key = 60;
   optional string hugging_face_api_key = 61;
   optional string huawei_cloud_maas_api_key = 62;
+  optional string baseten_api_key = 63;
+  optional string ollama_api_key = 64;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -260,6 +277,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
   optional string plan_mode_huawei_cloud_maas_model_id = 124;
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
+  optional string plan_mode_baseten_model_id = 126;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -288,6 +307,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
   optional string act_mode_huawei_cloud_maas_model_id = 224;
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
+  optional string act_mode_baseten_model_id = 226;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
 
   repeated string favorited_model_ids = 300;
 }
