@@ -31,7 +31,7 @@ export async function showChangedFilesDiff(
 		messageIndex,
 		lastCheckpointHash,
 	)
-	if (!changedFiles) {
+	if (!changedFiles.length) {
 		return
 	}
 	const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"

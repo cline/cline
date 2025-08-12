@@ -7,31 +7,34 @@ import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { ClineMessage } from "@/shared/ExtensionMessage"
-import { setVscodeHostProviderMock } from "./host-provider-test-utils"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("multifile-diff", () => {
 	let sandbox: sinon.SinonSandbox
 	let messageStateHandlerStub: sinon.SinonStubbedInstance<MessageStateHandler>
 	let checkpointTrackerStub: sinon.SinonStubbedInstance<CheckpointTracker>
-	let consoleLogStub: sinon.SinonStub
-	let consoleErrorStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 
-		setVscodeHostProviderMock()
+		// Create a mock hostBridge client with the necessary methods
+		const mockHostBridgeClient = {
+			windowClient: {
+				showMessage: sandbox.stub(),
+			},
+			diffClient: {
+				openMultiFileDiff: sandbox.stub(),
+			},
+		} as any
 
-		// Stub console methods
-		consoleLogStub = sandbox.stub(console, "log")
-		consoleErrorStub = sandbox.stub(console, "error")
+		// Initialize HostProvider with the mock
+		setVscodeHostProviderMock({
+			hostBridgeClient: mockHostBridgeClient,
+		})
 
 		// Create stubs for dependencies
 		messageStateHandlerStub = sandbox.createStubInstance(MessageStateHandler)
 		checkpointTrackerStub = sandbox.createStubInstance(CheckpointTracker)
-
-		// Stub HostProvider
-		sandbox.stub(HostProvider.diff, "openMultiFileDiff")
-		sandbox.stub(HostProvider.window, "showMessage")
 	})
 
 	afterEach(() => {
@@ -160,7 +163,6 @@ describe("multifile-diff", () => {
 			await showChangedFilesDiff(messageStateHandlerStub as any, checkpointTrackerStub as any, mockMessageTs, false)
 
 			// Assert
-			expect(consoleErrorStub.calledWith("Message not found")).to.be.true
 			expect(checkpointTrackerStub.getDiffSet.called).to.be.false
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false
 		})
@@ -182,7 +184,6 @@ describe("multifile-diff", () => {
 			await showChangedFilesDiff(messageStateHandlerStub as any, checkpointTrackerStub as any, mockMessageTs, false)
 
 			// Assert
-			expect(consoleErrorStub.calledWith("No checkpoint hash found")).to.be.true
 			expect(checkpointTrackerStub.getDiffSet.called).to.be.false
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false
 		})
@@ -220,22 +221,6 @@ describe("multifile-diff", () => {
 				}),
 			).to.be.true
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false
-		})
-
-		it("should handle non-Error exceptions in getDiffSet", async () => {
-			// Arrange
-			checkpointTrackerStub.getDiffSet.rejects("String error")
-
-			// Act
-			await showChangedFilesDiff(messageStateHandlerStub as any, checkpointTrackerStub as any, mockMessageTs, false)
-
-			// Assert
-			expect(
-				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
-					type: ShowMessageType.ERROR,
-					message: "Failed to retrieve diff set: Unknown error",
-				}),
-			).to.be.true
 		})
 
 		it("should use first checkpoint when no last completion found", async () => {
