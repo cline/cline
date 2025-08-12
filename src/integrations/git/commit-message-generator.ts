@@ -3,7 +3,7 @@ import { writeTextToClipboard } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
-import { getAllExtensionState } from "@/core/storage/state"
+import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
 import { getWorkingState } from "@/utils/git"
 import { getCwd } from "@/utils/path"
 
@@ -71,7 +71,7 @@ The commit message should:
 Commit message:`
 
 		// Get the current API configuration
-		const { apiConfiguration } = await getAllExtensionState(context)
+		const { apiConfiguration } = await readStateFromDisk(context)
 		// Set to use Act mode for now by default
 		// TODO: A new mode for commit generation
 		const currentMode = "act"
