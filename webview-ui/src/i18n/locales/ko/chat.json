@@ -2,6 +2,8 @@
 	"greeting": "Roo Code에 오신 것을 환영합니다",
 	"task": {
 		"title": "작업",
+		"expand": "작업 펼치기",
+		"collapse": "작업 접기",
 		"seeMore": "더 보기",
 		"seeLess": "줄여보기",
 		"tokens": "토큰",

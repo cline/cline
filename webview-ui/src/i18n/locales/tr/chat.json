@@ -2,6 +2,8 @@
 	"greeting": "Roo Code'a Hoş Geldiniz",
 	"task": {
 		"title": "Görev",
+		"expand": "Görevi genişlet",
+		"collapse": "Görevi daralt",
 		"seeMore": "Daha fazla gör",
 		"seeLess": "Daha az gör",
 		"tokens": "Tokenlar",

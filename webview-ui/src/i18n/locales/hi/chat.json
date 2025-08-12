@@ -2,6 +2,8 @@
 	"greeting": "Roo Code में आपका स्वागत है",
 	"task": {
 		"title": "कार्य",
+		"expand": "कार्य विस्तृत करें",
+		"collapse": "कार्य संक्षिप्त करें",
 		"seeMore": "अधिक देखें",
 		"seeLess": "कम देखें",
 		"tokens": "Tokens",

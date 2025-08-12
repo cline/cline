@@ -2,6 +2,8 @@
 	"greeting": "Benvenuto a Roo Code",
 	"task": {
 		"title": "Attività",
+		"expand": "Espandi attività",
+		"collapse": "Comprimi attività",
 		"seeMore": "Vedi altro",
 		"seeLess": "Vedi meno",
 		"tokens": "Tokens",

@@ -2,6 +2,8 @@
 	"greeting": "Roo Code へようこそ",
 	"task": {
 		"title": "タスク",
+		"expand": "タスクを展開",
+		"collapse": "タスクを折りたたむ",
 		"seeMore": "もっと見る",
 		"seeLess": "表示を減らす",
 		"tokens": "トークン",

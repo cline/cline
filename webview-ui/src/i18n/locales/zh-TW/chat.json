@@ -2,6 +2,8 @@
 	"greeting": "歡迎使用 Roo Code",
 	"task": {
 		"title": "工作",
+		"expand": "展開工作",
+		"collapse": "收合工作",
 		"seeMore": "顯示更多",
 		"seeLess": "顯示較少",
 		"tokens": "Tokens",
