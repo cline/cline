@@ -6,7 +6,7 @@ import * as path from "path"
 import fs from "fs/promises"
 import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 enum EditType {

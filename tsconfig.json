@@ -22,7 +22,6 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["src/*"],
-			"@api/*": ["src/api/*"],
 			"@core/*": ["src/core/*"],
 			"@generated/*": ["src/generated/*"],
 			"@hosts/*": ["src/hosts/*"],

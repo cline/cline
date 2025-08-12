@@ -1,4 +1,4 @@
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 
 export function isClaude4ModelFamily(api: ApiHandler): boolean {
 	const model = api.getModel()
