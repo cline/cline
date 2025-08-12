@@ -140,7 +140,7 @@ export abstract class DiffViewProvider {
 	/**
 	 * Closes the diff editor tab or window.
 	 */
-	protected abstract closeDiffView(): Promise<void>
+	protected abstract closeAllDiffViews(): Promise<void>
 
 	/**
 	 * Cleans up the diff view resources and resets internal state.
@@ -268,7 +268,7 @@ export abstract class DiffViewProvider {
 				preserveFocus: true,
 			},
 		})
-		await this.closeDiffView()
+		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
 		const newProblemsMessage =
@@ -319,7 +319,7 @@ export abstract class DiffViewProvider {
 			// This is a load-bearing save statement- even though the file is saved and then immediately deleted.
 			// In vscode, it will not close the diff editor correctly if the file is not saved.
 			await this.saveDocument()
-			await this.closeDiffView()
+			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
@@ -346,7 +346,7 @@ export abstract class DiffViewProvider {
 					},
 				})
 			}
-			await this.closeDiffView()
+			await this.closeAllDiffViews()
 		}
 
 		// edit is done

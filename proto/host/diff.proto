@@ -25,8 +25,9 @@ service DiffService {
   // Save the diff document.
   rpc saveDocument(SaveDocumentRequest) returns (SaveDocumentResponse);
 
-  // Close the diff editor UI.
-  rpc closeDiff(CloseDiffRequest) returns (CloseDiffResponse);
+  // Close all the diff editor windows/tabs.
+  // Any diff editors with unsaved content should not closed.
+  rpc closeAllDiffs(CloseAllDiffsRequest) returns (CloseAllDiffsResponse);
 
   // Display a diff view comparing before/after states for multiple files.
   // Content is passed as in-memory data, not read from the file system.
@@ -80,12 +81,9 @@ message TruncateDocumentRequest {
 
 message TruncateDocumentResponse {}
 
-message CloseDiffRequest {
-  optional cline.Metadata metadata = 1;
-  optional string diff_id = 2;
-}
+message CloseAllDiffsRequest {}
 
-message CloseDiffResponse {}
+message CloseAllDiffsResponse {}
 
 message SaveDocumentRequest {
   optional cline.Metadata metadata = 1;
@@ -106,6 +104,4 @@ message ContentDiff {
   optional string right_content = 3;
 }
 
-message OpenMultiFileDiffResponse {
-  
-}
+message OpenMultiFileDiffResponse {}
