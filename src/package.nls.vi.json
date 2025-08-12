@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "Đường dẫn lưu trữ tùy chỉnh. Để trống để sử dụng vị trí mặc định. Hỗ trợ đường dẫn tuyệt đối (ví dụ: 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Bật sửa lỗi nhanh Roo Code.",
 	"settings.autoImportSettingsPath.description": "Đường dẫn đến tệp cấu hình RooCode để tự động nhập khi khởi động tiện ích mở rộng. Hỗ trợ đường dẫn tuyệt đối và đường dẫn tương đối đến thư mục chính (ví dụ: '~/Documents/roo-code-settings.json'). Để trống để tắt tính năng tự động nhập.",
-	"settings.useAgentRules.description": "Bật tải tệp AGENTS.md cho các quy tắc dành riêng cho tác nhân (xem https://agent-rules.org/)"
+	"settings.useAgentRules.description": "Bật tải tệp AGENTS.md cho các quy tắc dành riêng cho tác nhân (xem https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "Thời gian tối đa tính bằng giây để đợi phản hồi API (0 = không có thời gian chờ, 1-3600 giây, mặc định: 600 giây). Nên sử dụng các giá trị cao hơn cho các nhà cung cấp cục bộ như LM Studio và Ollama có thể cần thêm thời gian xử lý."
 }

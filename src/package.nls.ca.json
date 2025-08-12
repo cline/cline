@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "Ruta d'emmagatzematge personalitzada. Deixeu-la buida per utilitzar la ubicació predeterminada. Admet rutes absolutes (p. ex. 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Habilitar correccions ràpides de Roo Code.",
 	"settings.autoImportSettingsPath.description": "Ruta a un fitxer de configuració de RooCode per importar automàticament en iniciar l'extensió. Admet rutes absolutes i rutes relatives al directori d'inici (per exemple, '~/Documents/roo-code-settings.json'). Deixeu-ho en blanc per desactivar la importació automàtica.",
-	"settings.useAgentRules.description": "Activa la càrrega de fitxers AGENTS.md per a regles específiques de l'agent (vegeu https://agent-rules.org/)"
+	"settings.useAgentRules.description": "Activa la càrrega de fitxers AGENTS.md per a regles específiques de l'agent (vegeu https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "Temps màxim en segons per esperar les respostes de l'API (0 = sense temps d'espera, 1-3600s, per defecte: 600s). Es recomanen valors més alts per a proveïdors locals com LM Studio i Ollama que poden necessitar més temps de processament."
 }

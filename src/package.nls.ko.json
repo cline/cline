@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "사용자 지정 저장소 경로. 기본 위치를 사용하려면 비워두세요. 절대 경로를 지원합니다 (예: 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Roo Code 빠른 수정 사용 설정",
 	"settings.autoImportSettingsPath.description": "확장 프로그램 시작 시 자동으로 가져올 RooCode 구성 파일의 경로입니다. 절대 경로 및 홈 디렉토리에 대한 상대 경로를 지원합니다(예: '~/Documents/roo-code-settings.json'). 자동 가져오기를 비활성화하려면 비워 둡니다.",
-	"settings.useAgentRules.description": "에이전트별 규칙에 대한 AGENTS.md 파일 로드를 활성화합니다 (참조: https://agent-rules.org/)"
+	"settings.useAgentRules.description": "에이전트별 규칙에 대한 AGENTS.md 파일 로드를 활성화합니다 (참조: https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "API 응답을 기다리는 최대 시간(초) (0 = 시간 초과 없음, 1-3600초, 기본값: 600초). 더 많은 처리 시간이 필요할 수 있는 LM Studio 및 Ollama와 같은 로컬 공급자에게는 더 높은 값을 사용하는 것이 좋습니다."
 }

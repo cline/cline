@@ -391,6 +391,13 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%settings.useAgentRules.description%"
+				},
+				"roo-cline.apiRequestTimeout": {
+					"type": "number",
+					"default": 600,
+					"minimum": 0,
+					"maximum": 3600,
+					"description": "%settings.apiRequestTimeout.description%"
 				}
 			}
 		}

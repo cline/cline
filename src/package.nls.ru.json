@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "Пользовательский путь хранения. Оставьте пустым для использования пути по умолчанию. Поддерживает абсолютные пути (например, 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Включить быстрые исправления Roo Code.",
 	"settings.autoImportSettingsPath.description": "Путь к файлу конфигурации RooCode для автоматического импорта при запуске расширения. Поддерживает абсолютные пути и пути относительно домашнего каталога (например, '~/Documents/roo-code-settings.json'). Оставьте пустым, чтобы отключить автоматический импорт.",
-	"settings.useAgentRules.description": "Включить загрузку файлов AGENTS.md для специфичных для агента правил (см. https://agent-rules.org/)"
+	"settings.useAgentRules.description": "Включить загрузку файлов AGENTS.md для специфичных для агента правил (см. https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "Максимальное время в секундах для ожидания ответов API (0 = нет тайм-аута, 1-3600 с, по умолчанию: 600 с). Рекомендуются более высокие значения для локальных провайдеров, таких как LM Studio и Ollama, которым может потребоваться больше времени на обработку."
 }

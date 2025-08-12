@@ -115,6 +115,7 @@ describe("OpenAiHandler", () => {
 					"X-Title": "Roo Code",
 					"User-Agent": `RooCode/${Package.version}`,
 				},
+				timeout: expect.any(Number),
 			})
 		})
 	})

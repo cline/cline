@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "Aangepast opslagpad. Laat leeg om de standaardlocatie te gebruiken. Ondersteunt absolute paden (bijv. 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Snelle correcties van Roo Code inschakelen.",
 	"settings.autoImportSettingsPath.description": "Pad naar een RooCode-configuratiebestand om automatisch te importeren bij het opstarten van de extensie. Ondersteunt absolute paden en paden ten opzichte van de thuismap (bijv. '~/Documents/roo-code-settings.json'). Laat leeg om automatisch importeren uit te schakelen.",
-	"settings.useAgentRules.description": "Laden van AGENTS.md-bestanden voor agentspecifieke regels inschakelen (zie https://agent-rules.org/)"
+	"settings.useAgentRules.description": "Laden van AGENTS.md-bestanden voor agentspecifieke regels inschakelen (zie https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "Maximale tijd in seconden om te wachten op API-reacties (0 = geen time-out, 1-3600s, standaard: 600s). Hogere waarden worden aanbevolen voor lokale providers zoals LM Studio en Ollama die mogelijk meer verwerkingstijd nodig hebben."
 }

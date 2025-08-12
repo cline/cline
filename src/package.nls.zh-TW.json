@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "自訂儲存路徑。留空以使用預設位置。支援絕對路徑（例如：'D:\\RooCodeStorage'）",
 	"settings.enableCodeActions.description": "啟用 Roo Code 快速修復。",
 	"settings.autoImportSettingsPath.description": "RooCode 設定檔案的路徑，用於在擴充功能啟動時自動匯入。支援絕對路徑和相對於主目錄的路徑（例如 '~/Documents/roo-code-settings.json'）。留空以停用自動匯入。",
-	"settings.useAgentRules.description": "為特定於代理的規則啟用 AGENTS.md 檔案的載入（請參閱 https://agent-rules.org/）"
+	"settings.useAgentRules.description": "為特定於代理的規則啟用 AGENTS.md 檔案的載入（請參閱 https://agent-rules.org/）",
+	"settings.apiRequestTimeout.description": "等待 API 回應的最長時間（秒）（0 = 無超時，1-3600秒，預設值：600秒）。對於像 LM Studio 和 Ollama 這樣可能需要更多處理時間的本地提供商，建議使用更高的值。"
 }

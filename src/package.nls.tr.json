@@ -36,5 +36,6 @@
 	"settings.customStoragePath.description": "Özel depolama yolu. Varsayılan konumu kullanmak için boş bırakın. Mutlak yolları destekler (örn: 'D:\\RooCodeStorage')",
 	"settings.enableCodeActions.description": "Roo Code hızlı düzeltmeleri etkinleştir.",
 	"settings.autoImportSettingsPath.description": "Uzantı başlangıcında otomatik olarak içe aktarılacak bir RooCode yapılandırma dosyasının yolu. Mutlak yolları ve ana dizine göreli yolları destekler (ör. '~/Documents/roo-code-settings.json'). Otomatik içe aktarmayı devre dışı bırakmak için boş bırakın.",
-	"settings.useAgentRules.description": "Aracıya özgü kurallar için AGENTS.md dosyalarının yüklenmesini etkinleştirin (bkz. https://agent-rules.org/)"
+	"settings.useAgentRules.description": "Aracıya özgü kurallar için AGENTS.md dosyalarının yüklenmesini etkinleştirin (bkz. https://agent-rules.org/)",
+	"settings.apiRequestTimeout.description": "API yanıtları için beklenecek maksimum süre (saniye cinsinden) (0 = zaman aşımı yok, 1-3600s, varsayılan: 600s). LM Studio ve Ollama gibi daha fazla işlem süresi gerektirebilecek yerel sağlayıcılar için daha yüksek değerler önerilir."
 }
