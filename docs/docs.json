@@ -79,7 +79,7 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
-					"features/voice-recording",
+					"features/dictation",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",

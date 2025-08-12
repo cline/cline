@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Add voice dictation feature for Cline account users
+Add speech-to-text dictation feature for Cline account users

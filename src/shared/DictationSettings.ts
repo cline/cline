@@ -4,7 +4,7 @@ export interface DictationSettings {
 }
 
 export const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
-	dictationEnabled: true,
+	dictationEnabled: false, // While this service is in Experimental status, we should default to false
 	dictationLanguage: "en",
 }
 
