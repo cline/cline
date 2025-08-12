@@ -7,6 +7,7 @@ import { cp } from "fs/promises"
 import { glob } from "glob"
 import minimatch from "minimatch"
 import path from "path"
+
 const BUILD_DIR = "dist-standalone"
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 
@@ -102,6 +103,7 @@ function createIsIgnored(standaloneIgnores) {
 		"*.todo",
 		"tslint.yaml",
 		".eslintrc*",
+		"biome.json*",
 		".babelrc*",
 		".prettierrc*",
 		"biome.json*",
