@@ -65,6 +65,21 @@ describe("RequestyHandler", () => {
 		})
 	})
 
+	it("can use a base URL instead of the default", () => {
+		const handler = new RequestyHandler({ ...mockOptions, requestyBaseUrl: "some-base-url" })
+		expect(handler).toBeInstanceOf(RequestyHandler)
+
+		expect(OpenAI).toHaveBeenCalledWith({
+			baseURL: "some-base-url",
+			apiKey: mockOptions.requestyApiKey,
+			defaultHeaders: {
+				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+				"X-Title": "Roo Code",
+				"User-Agent": `RooCode/${Package.version}`,
+			},
+		})
+	})
+
 	describe("fetchModel", () => {
 		it("returns correct model info when options are provided", async () => {
 			const handler = new RequestyHandler(mockOptions)

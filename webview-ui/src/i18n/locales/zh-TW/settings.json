@@ -253,6 +253,8 @@
 			"error": "重新整理模型列表失敗。請再試一次。"
 		},
 		"getRequestyApiKey": "取得 Requesty API 金鑰",
+		"getRequestyBaseUrl": "基礎 URL",
+		"requestyUseCustomBaseUrl": "使用自訂基礎 URL",
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",
 		"anthropicApiKey": "Anthropic API 金鑰",
 		"getAnthropicApiKey": "取得 Anthropic API 金鑰",

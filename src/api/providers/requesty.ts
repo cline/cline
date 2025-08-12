@@ -47,7 +47,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		this.options = options
 
 		this.client = new OpenAI({
-			baseURL: "https://router.requesty.ai/v1",
+			baseURL: options.requestyBaseUrl || "https://router.requesty.ai/v1",
 			apiKey: this.options.requestyApiKey ?? "not-provided",
 			defaultHeaders: DEFAULT_HEADERS,
 		})

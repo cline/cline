@@ -253,6 +253,8 @@
 			"error": "모델 목록 새로고침에 실패했습니다. 다시 시도해 주세요."
 		},
 		"getRequestyApiKey": "Requesty API 키 받기",
+		"getRequestyBaseUrl": "기본 URL",
+		"requestyUseCustomBaseUrl": "사용자 정의 기본 URL 사용",
 		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API 키",
 		"getAnthropicApiKey": "Anthropic API 키 받기",

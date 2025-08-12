@@ -253,6 +253,8 @@
 			"error": "Nie udało się odświeżyć listy modeli. Spróbuj ponownie."
 		},
 		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
+		"getRequestyBaseUrl": "Bazowy URL",
+		"requestyUseCustomBaseUrl": "Użyj niestandardowego bazowego URL",
 		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)",
 		"anthropicApiKey": "Klucz API Anthropic",
 		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",

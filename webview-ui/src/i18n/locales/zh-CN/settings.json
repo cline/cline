@@ -253,6 +253,8 @@
 			"error": "刷新模型列表失败。请重试。"
 		},
 		"getRequestyApiKey": "获取 Requesty API 密钥",
+		"getRequestyBaseUrl": "基础 URL",
+		"requestyUseCustomBaseUrl": "使用自定义基础 URL",
 		"openRouterTransformsText": "自动压缩提示词和消息链到上下文长度限制内 (<a>OpenRouter转换</a>)",
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",
