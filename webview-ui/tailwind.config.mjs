@@ -14,7 +14,10 @@ export default {
 			},
 			colors: {
 				background: "var(--vscode-editor-background)",
-				border: "var(--vscode-focusBorder)",
+				border: {
+					DEFAULT: "var(--vscode-focusBorder)",
+					panel: "var(--vscode-panel-border)",
+				},
 				foreground: "var(--vscode-foreground)",
 				shadow: "var(--vscode-widget-shadow)",
 				code: {
@@ -65,6 +68,11 @@ export default {
 					DEFAULT: "var(--vscode-textLink-foreground)",
 					hover: "var(--vscode-textLink-activeForeground)",
 				},
+				list: {
+					background: {
+						hover: "var(--vscode-list-hoverBackground)",
+					},
+				},
 				badge: {
 					foreground: "var(--vscode-badge-foreground)",
 					background: "var(--vscode-badge-background)",
@@ -72,9 +80,10 @@ export default {
 				error: "var(--vscode-errorForeground)",
 			},
 			fontSize: {
-				lg: "calc(var(--vscode-font-size) * 16 / 13)",
-				md: "var(--vscode-font-size)",
-				sm: "calc(calc(12 / 13) * var(--vscode-font-size))",
+				xl: "calc(2 * var(--vscode-font-size))",
+				lg: "calc(1.5 * var(--vscode-font-size))",
+				md: "calc(1.25 * var(--vscode-font-size))",
+				sm: "var(--vscode-font-size)",
 			},
 		},
 	},
