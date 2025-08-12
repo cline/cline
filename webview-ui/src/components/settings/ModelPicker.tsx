@@ -155,7 +155,7 @@ export const ModelPicker = ({
 							aria-expanded={open}
 							className="w-full justify-between"
 							data-testid="model-picker-button">
-							<div>{selectedModelId ?? t("settings:common.select")}</div>
+							<div className="truncate">{selectedModelId ?? t("settings:common.select")}</div>
 							<ChevronsUpDown className="opacity-50" />
 						</Button>
 					</PopoverTrigger>
@@ -194,7 +194,7 @@ export const ModelPicker = ({
 											value={model}
 											onSelect={onSelect}
 											data-testid={`model-option-${model}`}>
-											{model}
+<span className="truncate" title={model}>{model}</span>
 											<Check
 												className={cn(
 													"size-4 p-0.5 ml-auto",
