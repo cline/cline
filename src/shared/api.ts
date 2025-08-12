@@ -107,7 +107,17 @@ export const getModelMaxOutputTokens = ({
 	}
 
 	// If model has explicit maxTokens, clamp it to 20% of the context window
+	// Exception: GPT-5 models should use their exact configured max output tokens
 	if (model.maxTokens) {
+		// Check if this is a GPT-5 model (case-insensitive)
+		const isGpt5Model = modelId.toLowerCase().includes("gpt-5")
+
+		// GPT-5 models bypass the 20% cap and use their full configured max tokens
+		if (isGpt5Model) {
+			return model.maxTokens
+		}
+
+		// All other models are clamped to 20% of context window
 		return Math.min(model.maxTokens, Math.ceil(model.contextWindow * 0.2))
 	}
 
