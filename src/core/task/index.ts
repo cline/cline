@@ -79,9 +79,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { CacheService } from "../storage/CacheService"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { ShowMessageType } from "@/shared/proto/index.host"
 import { summarizeTask } from "@core/prompts/contextManagement"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
