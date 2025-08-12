@@ -50,15 +50,20 @@ export class UrlContentFetcher {
 			return
 		}
 		const stats = await this.ensureChromiumExists()
+		const args = [
+			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+			"--disable-dev-shm-usage",
+			"--disable-accelerated-2d-canvas",
+			"--no-first-run",
+			"--disable-gpu",
+			"--disable-features=VizDisplayCompositor",
+		]
+		if (process.platform === "linux") {
+			// Fixes network errors on Linux hosts (see https://github.com/puppeteer/puppeteer/issues/8246)
+			args.push("--no-sandbox")
+		}
 		this.browser = await stats.puppeteer.launch({
-			args: [
-				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-				"--disable-dev-shm-usage",
-				"--disable-accelerated-2d-canvas",
-				"--no-first-run",
-				"--disable-gpu",
-				"--disable-features=VizDisplayCompositor",
-			],
+			args,
 			executablePath: stats.executablePath,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
