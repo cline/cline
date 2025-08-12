@@ -142,7 +142,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enable Dictation
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							Enables speech-to-text transcription using your Cline Account. Uses the Whisper model, at $0.006
+							Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at $0.006
 							credits per minute of audio processed. 5 minutes max per message. Use the microphone icon in the chat
 							area or set a hotkey in the Command Palette (Cline: Start Dictation).
 						</p>
@@ -177,7 +177,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							))}
 						</VSCodeDropdown>
 						<p className="text-xs mt-1 text-[var(--vscode-descriptionForeground)]">
-							The language you want to speak to the Dictation service in. Separate from preferred UI language.
+							The language you want to speak to the Dictation service in. This is separate from your preferred UI
+							language.
 						</p>
 					</div>
 					{/* </CollapsibleContent> */}
