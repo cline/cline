@@ -72,6 +72,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		}
 	}, [messages, setSendingDisabled])
 
+	if (!task) {
+		return null
+	}
+
 	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
 
 	if (showScrollToBottom) {
