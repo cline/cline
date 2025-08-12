@@ -24,6 +24,17 @@ interface ThinkingBudgetProps {
 	modelInfo?: ModelInfo
 }
 
+// Helper function to determine if minimal option should be shown
+const shouldShowMinimalOption = (
+	provider: string | undefined,
+	modelId: string | undefined,
+	supportsEffort: boolean | undefined,
+): boolean => {
+	const isGpt5Model = provider === "openai-native" && modelId?.startsWith("gpt-5")
+	const isOpenRouterWithEffort = provider === "openrouter" && supportsEffort === true
+	return !!(isGpt5Model || isOpenRouterWithEffort)
+}
+
 export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, modelInfo }: ThinkingBudgetProps) => {
 	const { t } = useAppTranslation()
 	const { id: selectedModelId } = useSelectedModel(apiConfiguration)
@@ -32,14 +43,21 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	const isGemini25Pro = selectedModelId && selectedModelId.includes("gemini-2.5-pro")
 	const minThinkingTokens = isGemini25Pro ? GEMINI_25_PRO_MIN_THINKING_TOKENS : 1024
 
-	// Check if this is a GPT-5 model to show "minimal" option
-	// Only show minimal for OpenAI Native provider GPT-5 models
-	const isOpenAiNativeProvider = apiConfiguration.apiProvider === "openai-native"
-	const isGpt5Model = isOpenAiNativeProvider && selectedModelId && selectedModelId.startsWith("gpt-5")
-	// Add "minimal" option for GPT-5 models
-	// Spread to convert readonly tuple into a mutable array, then expose as readonly for safety
+	// Check model capabilities
+	const isReasoningBudgetSupported = !!modelInfo && modelInfo.supportsReasoningBudget
+	const isReasoningBudgetRequired = !!modelInfo && modelInfo.requiredReasoningBudget
+	const isReasoningEffortSupported = !!modelInfo && modelInfo.supportsReasoningEffort
+
+	// Determine if minimal option should be shown
+	const showMinimalOption = shouldShowMinimalOption(
+		apiConfiguration.apiProvider,
+		selectedModelId,
+		isReasoningEffortSupported,
+	)
+
+	// Build available reasoning efforts list
 	const baseEfforts = [...reasoningEfforts] as ReasoningEffortWithMinimal[]
-	const availableReasoningEfforts: ReadonlyArray<ReasoningEffortWithMinimal> = isGpt5Model
+	const availableReasoningEfforts: ReadonlyArray<ReasoningEffortWithMinimal> = showMinimalOption
 		? (["minimal", ...baseEfforts] as ReasoningEffortWithMinimal[])
 		: baseEfforts
 
@@ -49,10 +67,6 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	const defaultReasoningEffort: ReasoningEffortWithMinimal = modelDefaultReasoningEffort || "medium"
 	const currentReasoningEffort: ReasoningEffortWithMinimal =
 		(apiConfiguration.reasoningEffort as ReasoningEffortWithMinimal | undefined) || defaultReasoningEffort
-
-	const isReasoningBudgetSupported = !!modelInfo && modelInfo.supportsReasoningBudget
-	const isReasoningBudgetRequired = !!modelInfo && modelInfo.requiredReasoningBudget
-	const isReasoningEffortSupported = !!modelInfo && modelInfo.supportsReasoningEffort
 
 	// Set default reasoning effort when model supports it and no value is set
 	useEffect(() => {

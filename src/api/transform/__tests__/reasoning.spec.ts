@@ -1,6 +1,6 @@
 // npx vitest run src/api/transform/__tests__/reasoning.spec.ts
 
-import type { ModelInfo, ProviderSettings } from "@roo-code/types"
+import type { ModelInfo, ProviderSettings, ReasoningEffortWithMinimal } from "@roo-code/types"
 
 import {
 	getOpenRouterReasoning,
@@ -154,22 +154,79 @@ describe("reasoning.ts", () => {
 
 			const result = getOpenRouterReasoning(optionsWithoutEffort)
 
-			expect(result).toEqual({ effort: undefined })
+			// When reasoningEffort is undefined, the function should return undefined
+			expect(result).toBeUndefined()
 		})
 
-		it("should handle all reasoning effort values", () => {
-			const efforts: Array<"low" | "medium" | "high"> = ["low", "medium", "high"]
+		it("should handle all reasoning effort values including minimal", () => {
+			const efforts: Array<ReasoningEffortWithMinimal> = ["minimal", "low", "medium", "high"]
 
 			efforts.forEach((effort) => {
 				const modelWithEffort: ModelInfo = {
 					...baseModel,
+					supportsReasoningEffort: true,
+				}
+
+				const settingsWithEffort: ProviderSettings = {
 					reasoningEffort: effort,
 				}
 
-				const options = { ...baseOptions, model: modelWithEffort, reasoningEffort: effort }
+				const options = {
+					...baseOptions,
+					model: modelWithEffort,
+					settings: settingsWithEffort,
+					reasoningEffort: effort,
+				}
 				const result = getOpenRouterReasoning(options)
+				// All effort values including "minimal" should be passed through
 				expect(result).toEqual({ effort })
 			})
+		})
+
+		it("should handle minimal reasoning effort specifically", () => {
+			const modelWithSupported: ModelInfo = {
+				...baseModel,
+				supportsReasoningEffort: true,
+			}
+
+			const settingsWithEffort: ProviderSettings = {
+				reasoningEffort: "minimal",
+			}
+
+			const options = {
+				...baseOptions,
+				model: modelWithSupported,
+				settings: settingsWithEffort,
+				reasoningEffort: "minimal" as ReasoningEffortWithMinimal,
+			}
+
+			const result = getOpenRouterReasoning(options)
+
+			// "minimal" should be passed through to OpenRouter
+			expect(result).toEqual({ effort: "minimal" })
+		})
+
+		it("should handle minimal reasoning effort from settings", () => {
+			const modelWithSupported: ModelInfo = {
+				...baseModel,
+				supportsReasoningEffort: true,
+			}
+
+			const settingsWithMinimal: ProviderSettings = {
+				reasoningEffort: "minimal" as ReasoningEffortWithMinimal,
+			}
+
+			const options = {
+				...baseOptions,
+				model: modelWithSupported,
+				settings: settingsWithMinimal,
+				reasoningEffort: "minimal" as ReasoningEffortWithMinimal,
+			}
+
+			const result = getOpenRouterReasoning(options)
+
+			// "minimal" should be passed through to OpenRouter
+			expect(result).toEqual({ effort: "minimal" })
 		})
 
 		it("should handle zero reasoningBudget", () => {
