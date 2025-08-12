@@ -2239,6 +2239,25 @@ export class Task {
 				this.api,
 				previousApiReqIndex,
 			)
+
+			// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
+			// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
+			// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
+			// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
+			// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
+			// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
+			// for now to prevent additional disk from needing to be used.
+			// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+			if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+				const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+
+				// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
+				// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
+				if (activeMessageCount <= 2) {
+					shouldCompact = false
+				}
+			}
 		}
 
 		let parsedUserContent: UserContent
