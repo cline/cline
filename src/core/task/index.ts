@@ -76,6 +76,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { CacheService } from "../storage/CacheService"
 import { MessageStateHandler } from "./message-state"
+import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
@@ -558,133 +559,49 @@ export class Task {
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		const relinquishButton = () => {
-			sendRelinquishControlEvent()
-		}
-		if (!this.enableCheckpoints) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "Checkpoints are disabled in settings. Cannot show diff.",
-			})
-			relinquishButton()
-			return
-		}
-
-		console.log("presentMultifileDiff", messageTs)
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
-		const message = clineMessages[messageIndex]
-		if (!message) {
-			console.error("Message not found")
-			relinquishButton()
-			return
-		}
-		const hash = message.lastCheckpointHash
-		if (!hash) {
-			console.error("No checkpoint hash found")
-			relinquishButton()
-			return
-		}
-
-		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
-		if (!this.checkpointTracker && this.enableCheckpoints && !this.taskState.checkpointTrackerErrorMessage) {
-			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controller.context.globalStorageUri.fsPath,
-					this.enableCheckpoints,
-				)
-				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage
-				await this.postStateToWebview()
+		try {
+			if (!this.enableCheckpoints) {
 				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
+					type: ShowMessageType.INFORMATION,
+					message: "Checkpoints are disabled in settings. Cannot show diff.",
 				})
-				relinquishButton()
 				return
 			}
-		}
-
-		let changedFiles:
-			| {
-					relativePath: string
-					absolutePath: string
-					before: string
-					after: string
-			  }[]
-			| undefined
-
-		try {
-			if (seeNewChangesSinceLastTaskCompletion) {
-				// Get last task completed
-				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.messageStateHandler.getClineMessages().slice(0, messageIndex),
-					(m) => m.say === "completion_result",
-				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-				// if undefined, then we get diff from beginning of git
-				// if (!lastTaskCompletedMessage) {
-				// 	console.error("No previous task completion message found")
-				// 	return
-				// }
-				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.messageStateHandler
-					.getClineMessages()
-					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
-
-				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-				if (!previousCheckpointHash) {
+			// TODO: handle if this is called from outside original workspace, in which case we need to
+			// show user error message we can't show diff outside of workspace?
+			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
+				try {
+					this.checkpointTracker = await CheckpointTracker.create(
+						this.taskId,
+						this.controller.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					)
+					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
+				} catch (error) {
+					console.error("Failed to initialize checkpoint tracker:", error)
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					this.taskState.checkpointTrackerErrorMessage = errorMessage
+					await this.postStateToWebview()
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: "Unexpected error: No checkpoint hash found",
+						message: errorMessage,
 					})
-					relinquishButton()
-					return
-				}
-
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
-				if (!changedFiles?.length) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes found",
-					})
-					relinquishButton()
-					return
-				}
-			} else {
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
-				if (!changedFiles?.length) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes found",
-					})
-					relinquishButton()
 					return
 				}
 			}
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: "Failed to retrieve diff set: " + errorMessage,
-			})
-			relinquishButton()
-			return
+			if (!this.checkpointTracker) {
+				return
+			}
+
+			showChangedFilesDiff(
+				this.messageStateHandler,
+				this.checkpointTracker,
+				messageTs,
+				seeNewChangesSinceLastTaskCompletion,
+			)
+		} finally {
+			sendRelinquishControlEvent()
 		}
-		const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"
-		const diffs = changedFiles.map((file) => ({
-			filePath: file.absolutePath,
-			leftContent: file.before,
-			rightContent: file.after,
-		}))
-		HostProvider.diff.openMultiFileDiff({ title, diffs })
-		relinquishButton()
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
