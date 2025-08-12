@@ -1,7 +1,6 @@
 import type { ToggleCursorRuleRequest } from "@shared/proto/cline/file"
 import { ClineRulesToggles } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
-import { getWorkspaceState, updateWorkspaceState } from "../../../core/storage/state"
 import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
@@ -22,12 +21,12 @@ export async function toggleCursorRule(controller: Controller, request: ToggleCu
 	}
 
 	// Update the toggles in workspace state
-	const toggles = ((await getWorkspaceState(controller.context, "localCursorRulesToggles")) as AppClineRulesToggles) || {}
+	const toggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 	toggles[rulePath] = enabled
-	await updateWorkspaceState(controller.context, "localCursorRulesToggles", toggles)
+	controller.cacheService.setWorkspaceState("localCursorRulesToggles", toggles)
 
 	// Get the current state to return in the response
-	const cursorToggles = ((await getWorkspaceState(controller.context, "localCursorRulesToggles")) as AppClineRulesToggles) || {}
+	const cursorToggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 
 	return ClineRulesToggles.create({
 		toggles: cursorToggles,

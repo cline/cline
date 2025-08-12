@@ -21,9 +21,7 @@ import {
 	InputSection,
 	MessagesArea,
 	TaskSection,
-	useButtonState,
 	useChatState,
-	useIsStreaming,
 	useMessageHandlers,
 	useScrollBehavior,
 	WelcomeSection,
@@ -80,25 +78,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
 	const {
-		inputValue,
 		setInputValue,
-		activeQuote,
-		setActiveQuote,
-		isTextAreaFocused,
 		selectedImages,
 		setSelectedImages,
 		selectedFiles,
 		setSelectedFiles,
 		sendingDisabled,
 		enableButtons,
-		primaryButtonText,
-		secondaryButtonText,
-		didClickCancel,
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
-		handleFocusChange,
-		clineAsk,
 	} = chatState
 
 	useEffect(() => {
@@ -193,16 +182,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows({})
 	}, [task?.ts])
 
-	// Use streaming hook
-	const isStreaming = useIsStreaming(modifiedMessages, clineAsk, enableButtons, primaryButtonText)
-
 	// handleFocusChange is already provided by chatState
 
-	// Use button state hook
-	useButtonState(messages, chatState)
-
 	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState, isStreaming)
+	const messageHandlers = useMessageHandlers(messages, chatState)
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode)
@@ -371,18 +354,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
-				{task && (
-					<ActionButtons
-						chatState={chatState}
-						messageHandlers={messageHandlers}
-						isStreaming={isStreaming}
-						scrollBehavior={{
-							scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-							disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-							showScrollToBottom: scrollBehavior.showScrollToBottom,
-						}}
-					/>
-				)}
+				<ActionButtons
+					task={task}
+					messages={messages}
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+					mode={mode}
+					scrollBehavior={{
+						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
+						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
+						showScrollToBottom: scrollBehavior.showScrollToBottom,
+					}}
+				/>
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}
