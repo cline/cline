@@ -2929,15 +2929,23 @@ export const sapAiCoreModels = {
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
 	"kimi-k2-0711-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 	},
+	"kimi-k2-turbo-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 10,
+	},
 	"moonshot-v1-128k-vision-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: true,
 		supportsPromptCache: false,
@@ -2945,7 +2953,7 @@ export const moonshotModels = {
 		outputPrice: 5,
 	},
 	"kimi-thinking-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
