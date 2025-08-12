@@ -142,21 +142,19 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = (await controller.context.globalState.get("FocusChainRemoteEnabled")) as boolean | undefined
+			const remoteEnabled = controller.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 			if (remoteEnabled === false) {
 				// No-op when feature flag disabled
 			} else {
-				const currentSettings = (await controller.context.globalState.get("focusChainSettings")) as
-					| FocusChainSettings
-					| undefined
-				const wasEnabled = currentSettings && "enabled" in currentSettings ? currentSettings.enabled : false
+				const currentSettings = controller.cacheService.getGlobalStateKey("focusChainSettings")
+				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled
 
 				const focusChainSettings = {
 					enabled: isEnabled,
 					remindClineInterval: request.focusChainSettings.remindClineInterval,
 				}
-				await controller.context.globalState.update("focusChainSettings", focusChainSettings)
+				controller.cacheService.setGlobalState("focusChainSettings", focusChainSettings)
 
 				// Capture telemetry when setting changes
 				if (wasEnabled !== isEnabled) {

@@ -11,7 +11,6 @@ import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 
-
 export type SecretKey =
 	| "apiKey"
 	| "clineAccountId"
@@ -224,8 +223,8 @@ export interface GlobalState {
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
-	focusChainSettings : FocusChainSettings // TODO NOT A STRING
-	focusChainFeatureFlagEnabled : boolean
+	focusChainSettings: FocusChainSettings
+	focusChainFeatureFlagEnabled: boolean
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

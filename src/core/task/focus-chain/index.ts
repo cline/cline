@@ -8,7 +8,6 @@ import { ClineSay } from "../../../shared/ExtensionMessage"
 import { HostProvider } from "../../../hosts/host-provider"
 import { SubscribeToFileRequest, FileChangeEvent_ChangeType } from "../../../shared/proto/host/watch"
 import { telemetryService, featureFlagsService } from "@services/posthog/PostHogClientProvider"
-import { updateGlobalState } from "../../storage/state"
 import { parseFocusChainListCounts } from "./utils"
 import {
 	getFocusChainFilePath,
@@ -17,12 +16,14 @@ import {
 	extractFocusChainItemsFromText,
 } from "./file-utils"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { CacheService } from "../../storage/CacheService"
 
 export interface FocusChainDependencies {
 	taskId: string
 	taskState: TaskState
 	mode: Mode
 	context: vscode.ExtensionContext
+	cacheService: CacheService
 	postStateToWebview: () => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
 	focusChainSettings: FocusChainSettings
@@ -33,6 +34,7 @@ export class FocusChainManager {
 	private taskState: TaskState
 	private mode: Mode
 	private context: vscode.ExtensionContext
+	private cacheService: CacheService
 	private postStateToWebview: () => Promise<void>
 	private say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
 	private focusChainFileWatcherCancel?: () => void
@@ -45,6 +47,7 @@ export class FocusChainManager {
 		this.taskState = dependencies.taskState
 		this.mode = dependencies.mode
 		this.context = dependencies.context
+		this.cacheService = dependencies.cacheService
 		this.postStateToWebview = dependencies.postStateToWebview
 		this.say = dependencies.say
 		this.focusChainSettings = dependencies.focusChainSettings
@@ -63,7 +66,7 @@ export class FocusChainManager {
 	private async initializeRemoteFeatureFlags(): Promise<void> {
 		try {
 			const enabled = await featureFlagsService.getFocusChainEnabled()
-			await updateGlobalState(this.context, "focusChainFeatureFlagEnabled", enabled)
+			this.cacheService.setGlobalState("focusChainFeatureFlagEnabled", enabled)
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Error initializing focus chain remote feature flags:", error)

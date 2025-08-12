@@ -248,6 +248,7 @@ export class Task {
 				taskState: this.taskState,
 				mode: this.mode,
 				context: this.getContext(),
+				cacheService: this.cacheService,
 				postStateToWebview: this.postStateToWebview,
 				say: this.say.bind(this),
 				focusChainSettings: this.focusChainSettings,

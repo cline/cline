@@ -162,8 +162,8 @@ export class Controller {
 		const apiConfiguration = this.cacheService.getApiConfiguration()
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
-		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings"),
-		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled"),
+		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
+		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")

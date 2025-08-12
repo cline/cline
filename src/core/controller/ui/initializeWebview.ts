@@ -186,7 +186,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 		featureFlagsService
 			.getFocusChainEnabled()
 			.then(async (enabled: boolean) => {
-				await updateGlobalState(controller.context, "focusChainFeatureFlagEnabled", enabled)
+				controller.cacheService.setGlobalState("focusChainFeatureFlagEnabled", enabled)
 				await controller.postStateToWebview()
 			})
 			.catch((err: any) => console.error("Failed to refresh focus chain remote flag on webview init", err))
