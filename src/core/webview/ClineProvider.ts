@@ -2145,7 +2145,7 @@ export class ClineProvider
 
 		const userInfo = CloudServiceImport.instance.getUserInfo()
 
-		const bridgeConfig = await CloudServiceImport.instance.cloudAPI?.bridgeConfig()
+		const bridgeConfig = await CloudServiceImport.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
 
 		if (!bridgeConfig) {
 			this.log("[CloudService] Failed to get bridge config")
@@ -2166,7 +2166,7 @@ export class ClineProvider
 			if (currentTask && !currentTask.taskBridgeService && CloudService.hasInstance()) {
 				try {
 					if (!currentTask.taskBridgeService) {
-						const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig()
+						const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
 
 						if (bridgeConfig) {
 							currentTask.taskBridgeService = await TaskBridgeService.createInstance({

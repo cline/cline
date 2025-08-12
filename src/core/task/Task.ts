@@ -982,7 +982,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		if (this.enableTaskBridge && CloudService.hasInstance()) {
 			if (!this.taskBridgeService) {
-				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig()
+				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
 
 				if (bridgeConfig) {
 					this.taskBridgeService = await TaskBridgeService.createInstance({
@@ -1049,7 +1049,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async resumeTaskFromHistory() {
 		if (this.enableTaskBridge && CloudService.hasInstance()) {
 			if (!this.taskBridgeService) {
-				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig()
+				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
 
 				if (bridgeConfig) {
 					this.taskBridgeService = await TaskBridgeService.createInstance({
