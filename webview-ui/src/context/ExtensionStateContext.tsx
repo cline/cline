@@ -46,7 +46,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
-	filePaths: string[]
 	totalTasksSize: number | null
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -205,7 +204,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<Record<string, string>>()
-	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -381,18 +379,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {
 				console.log("MCP servers subscription completed")
 			},
-		})
-
-		// Subscribe to workspace file updates
-		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				console.log("[DEBUG] Received workspace update event from gRPC stream")
-				setFilePaths(response.values || [])
-			},
-			onError: (error) => {
-				console.error("Error in workspace updates subscription:", error)
-			},
-			onComplete: () => {},
 		})
 
 		// Set up settings button clicked subscription
@@ -653,7 +639,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
-		filePaths,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,

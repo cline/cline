@@ -1,10 +1,9 @@
 import { getCwd } from "@/utils/path"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
-import { getAllExtensionState, updateGlobalState } from "@core/storage/state"
 import { WebviewProvider } from "@core/webview"
 import { Logger } from "@services/logging/Logger"
 import { ApiProvider } from "@shared/api"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { execa } from "execa"
 import * as http from "http"
@@ -49,11 +48,11 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const { autoApprovalSettings } = await getAllExtensionState(context)
+		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
-			...autoApprovalSettings,
+			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
 			enabled: true,
 			actions: {
 				readFiles: true,
@@ -68,7 +67,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, cont
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
@@ -209,7 +208,7 @@ export function createTestServer(controller: Controller): http.Server {
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
+						const apiConfiguration = visibleWebview.controller.cacheService.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {
