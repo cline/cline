@@ -23,22 +23,8 @@ export async function getCheckpointService(
 	if (!cline.enableCheckpoints) {
 		return undefined
 	}
-
 	if (cline.checkpointService) {
-		if (cline.checkpointServiceInitializing) {
-			console.log("[Task#getCheckpointService] checkpoint service is still initializing")
-			const service = cline.checkpointService
-			await pWaitFor(
-				() => {
-					console.log("[Task#getCheckpointService] waiting for service to initialize")
-					return service.isInitialized
-				},
-				{ interval, timeout },
-			)
-			return service.isInitialized ? cline.checkpointService : undefined
-		} else {
-			return cline.checkpointService
-		}
+		return cline.checkpointService
 	}
 
 	const provider = cline.providerRef.deref()
@@ -78,25 +64,32 @@ export async function getCheckpointService(
 			shadowDir: globalStorageDir,
 			log,
 		}
-
+		if (cline.checkpointServiceInitializing) {
+			await pWaitFor(
+				() => {
+					console.log("[Task#getCheckpointService] waiting for service to initialize")
+					return !!cline.checkpointService && !!cline?.checkpointService?.isInitialized
+				},
+				{ interval, timeout },
+			)
+			if (!cline?.checkpointService) {
+				cline.enableCheckpoints = false
+				return undefined
+			}
+			return cline.checkpointService
+		}
+		if (!cline.enableCheckpoints) {
+			return undefined
+		}
 		const service = RepoPerTaskCheckpointService.create(options)
 		cline.checkpointServiceInitializing = true
-
-		// Check if Git is installed before initializing the service
-		// Only assign the service after successful initialization
-		try {
-			await checkGitInstallation(cline, service, log, provider)
-			cline.checkpointService = service
-			return service
-		} catch (err) {
-			// Clean up on failure
-			cline.checkpointServiceInitializing = false
-			cline.enableCheckpoints = false
-			throw err
-		}
+		await checkGitInstallation(cline, service, log, provider)
+		cline.checkpointService = service
+		return service
 	} catch (err) {
 		log(`[Task#getCheckpointService] ${err.message}`)
 		cline.enableCheckpoints = false
+		cline.checkpointServiceInitializing = false
 		return undefined
 	}
 }
@@ -172,13 +165,6 @@ export async function checkpointSave(cline: Task, force = false) {
 	const service = await getCheckpointService(cline)
 
 	if (!service) {
-		return
-	}
-
-	if (!service.isInitialized) {
-		const provider = cline.providerRef.deref()
-		provider?.log("[checkpointSave] checkpoints didn't initialize in time, disabling checkpoints for this task")
-		cline.enableCheckpoints = false
 		return
 	}
 
