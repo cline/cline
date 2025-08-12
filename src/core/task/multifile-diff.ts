@@ -26,7 +26,7 @@ export async function showChangedFilesDiff(
 
 	const changedFiles = await getChangedFiles(
 		messageStateHandler,
-		checkpointTracker!!,
+		checkpointTracker,
 		seeNewChangesSinceLastTaskCompletion,
 		messageIndex,
 		lastCheckpointHash,

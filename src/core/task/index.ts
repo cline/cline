@@ -589,10 +589,13 @@ export class Task {
 					return
 				}
 			}
+			if (!this.checkpointTracker) {
+				return
+			}
 
 			showChangedFilesDiff(
 				this.messageStateHandler,
-				this.checkpointTracker!!,
+				this.checkpointTracker,
 				messageTs,
 				seeNewChangesSinceLastTaskCompletion,
 			)
