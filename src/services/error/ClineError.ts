@@ -69,7 +69,7 @@ export class ClineError extends Error {
 		this._error = {
 			message: raw.message || message,
 			status,
-			request_id: error.response?.headers?.["X-Request-ID"],
+			request_id: error.response?.headers?.["x-request-id"],
 			code: error.code || error?.cause?.code,
 			modelId,
 			providerId,
