@@ -99,9 +99,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		)
 	}
 
-	// const shouldShowButtons =
-	// 	(primaryButtonText || secondaryButtonText) && !isStreaming;
-
 	const shouldShowButtons = primaryButtonText || secondaryButtonText
 	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
 
@@ -126,7 +123,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				<VSCodeButton
 					appearance="secondary"
 					disabled={!enableButtons}
-					className={`${isStreaming ? "flex-[2]" : "flex-1 ml-[6px]"}`}
+					className={`${primaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
 					onClick={() => {
 						messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
 					}}>
