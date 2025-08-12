@@ -138,7 +138,7 @@ export abstract class DiffViewProvider {
 	protected abstract saveDocument(): Promise<Boolean>
 
 	/**
-	 * Closes the diff editor tab or window.
+	 * Closes all open diff views.
 	 */
 	protected abstract closeAllDiffViews(): Promise<void>
 
