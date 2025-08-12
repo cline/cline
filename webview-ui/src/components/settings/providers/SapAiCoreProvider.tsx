@@ -34,6 +34,8 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 
 	// State for dynamic model fetching
 	const [deployedModelsArray, setDeployedModelsArray] = useState<string[]>([])
+	const [orchestrationAvailable, setOrchestrationAvailable] = useState<boolean>(false)
+	const [hasCheckedOrchestration, setHasCheckedOrchestration] = useState<boolean>(false)
 	const [isLoadingModels, setIsLoadingModels] = useState(false)
 	const [modelError, setModelError] = useState<string | null>(null)
 
@@ -49,6 +51,8 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const fetchSapAiCoreModels = useCallback(async () => {
 		if (!hasRequiredCredentials) {
 			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(false)
 			return
 		}
 
@@ -66,15 +70,21 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				}),
 			)
 
-			if (response && response.values) {
-				setDeployedModelsArray(response.values)
+			if (response) {
+				setDeployedModelsArray(response.modelNames || [])
+				setOrchestrationAvailable(response.orchestrationAvailable || false)
+				setHasCheckedOrchestration(true)
 			} else {
 				setDeployedModelsArray([])
+				setOrchestrationAvailable(false)
+				setHasCheckedOrchestration(true)
 			}
 		} catch (error) {
 			console.error("Error fetching SAP AI Core models:", error)
 			setModelError("Failed to fetch models. Please check your configuration.")
 			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(true)
 		} finally {
 			setIsLoadingModels(false)
 		}
@@ -92,6 +102,13 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			fetchSapAiCoreModels()
 		}
 	}, [showModelOptions, hasRequiredCredentials, fetchSapAiCoreModels])
+
+	// Handle automatic disabling of orchestration mode when not available
+	useEffect(() => {
+		if (hasCheckedOrchestration && !orchestrationAvailable && apiConfiguration?.sapAiCoreUseOrchestrationMode) {
+			handleFieldChange("sapAiCoreUseOrchestrationMode", false)
+		}
+	}, [hasCheckedOrchestration, orchestrationAvailable, apiConfiguration?.sapAiCoreUseOrchestrationMode, handleFieldChange])
 
 	// Handle model selection
 	const handleModelChange = useCallback(
@@ -155,21 +172,23 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
-			<div className="flex flex-col gap-2.5 mt-[15px]">
-				<div className="flex items-center gap-2">
-					<VSCodeCheckbox
-						checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
-						onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
-						aria-label="Orchestration Mode"
-					/>
-					<span className="font-medium">Orchestration Mode</span>
-				</div>
+			{orchestrationAvailable && (
+				<div className="flex flex-col gap-2.5 mt-[15px]">
+					<div className="flex items-center gap-2">
+						<VSCodeCheckbox
+							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+							onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
+							aria-label="Orchestration Mode"
+						/>
+						<span className="font-medium">Orchestration Mode</span>
+					</div>
 
-				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-					Enable to use the harmonized API that provides access to all available models without requiring individual
-					deployments. When disabled, uses the traditional AI Core deployment-based approach.
-				</p>
-			</div>
+					<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						Enable to use the harmonized API that provides access to all available models without requiring individual
+						deployments. When disabled, uses the traditional AI Core deployment-based approach.
+					</p>
+				</div>
+			)}
 
 			<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 				These credentials are stored locally and only used to make API requests from this extension.

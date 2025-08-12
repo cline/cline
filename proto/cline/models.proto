@@ -30,7 +30,7 @@ service ModelsService {
   // Refreshes and returns Baseten models
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
-  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (StringArray);
+  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
 }
 
 // List of VS Code LM models
@@ -104,6 +104,12 @@ message SapAiCoreModelsRequest {
   string base_url = 4;
   string token_url = 5;
   string resource_group = 6;
+}
+
+// Response for SAP AI Core models with orchestration availability
+message SapAiCoreModelsResponse {
+  repeated string model_names = 1;
+  bool orchestration_available = 2;
 }
 
 // Request for updating API configuration

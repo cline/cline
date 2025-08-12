@@ -1,7 +1,6 @@
 import axios from "axios"
 import { Controller } from ".."
-import { SapAiCoreModelsRequest } from "@/shared/proto/cline/models"
-import { StringArray } from "@/shared/proto/cline/common"
+import { SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
 
 interface Token {
 	access_token: string
@@ -36,15 +35,19 @@ async function getToken(clientId: string, clientSecret: string, tokenUrl: string
 }
 
 /**
- * Fetches model names from SAP AI Core deployments
+ * Fetches model names and orchestration availability from SAP AI Core deployments
  * @param accessToken Access token for authentication
  * @param baseUrl SAP AI Core base URL
  * @param resourceGroup SAP AI Core resource group
- * @returns Promise<string[]> Array of model names from running deployments
+ * @returns Promise<{modelNames: string[], orchestrationAvailable: boolean}> Model names and orchestration availability
  */
-async function fetchAiCoreModelNames(accessToken: string, baseUrl: string, resourceGroup: string): Promise<string[]> {
+async function fetchAiCoreModelsAndOrchestration(
+	accessToken: string,
+	baseUrl: string,
+	resourceGroup: string,
+): Promise<{ modelNames: string[]; orchestrationAvailable: boolean }> {
 	if (!accessToken) {
-		return ["ai-core-not-configured"]
+		return { modelNames: ["ai-core-not-configured"], orchestrationAvailable: false }
 	}
 
 	const headers = {
@@ -60,8 +63,14 @@ async function fetchAiCoreModelNames(accessToken: string, baseUrl: string, resou
 		const response = await axios.get(url, { headers })
 		const deployments = response.data.resources
 
-		return deployments
-			.filter((deployment: any) => deployment.targetStatus === "RUNNING")
+		// Filter running deployments
+		const runningDeployments = deployments.filter((deployment: any) => deployment.targetStatus === "RUNNING")
+
+		// Check for orchestration deployment
+		const orchestrationAvailable = runningDeployments.some((deployment: any) => deployment.scenarioId === "orchestration")
+
+		// Extract model names from deployments
+		const modelNames = runningDeployments
 			.map((deployment: any) => {
 				const model = deployment.details?.resources?.backend_details?.model
 				if (!model?.name || !model?.version) {
@@ -70,6 +79,8 @@ async function fetchAiCoreModelNames(accessToken: string, baseUrl: string, resou
 				return `${model.name}:${model.version}`
 			})
 			.filter((modelName: string | null) => modelName !== null)
+
+		return { modelNames, orchestrationAvailable }
 	} catch (error) {
 		console.error("Error fetching deployments:", error)
 		throw new Error("Failed to fetch deployments")
@@ -77,29 +88,45 @@ async function fetchAiCoreModelNames(accessToken: string, baseUrl: string, resou
 }
 
 /**
- * Fetches available models from SAP AI Core deployments
+ * Fetches available models from SAP AI Core deployments with orchestration availability
  * @param controller The controller instance
  * @param request The request containing SAP AI Core configuration
- * @returns StringArray of model names
+ * @returns SapAiCoreModelsResponse with model names and orchestration availability
  */
-export async function getSapAiCoreModels(controller: Controller, request: SapAiCoreModelsRequest): Promise<StringArray> {
+export async function getSapAiCoreModels(
+	controller: Controller,
+	request: SapAiCoreModelsRequest,
+): Promise<SapAiCoreModelsResponse> {
 	try {
 		// Check if required configuration is provided
 		if (!request.clientId || !request.clientSecret || !request.baseUrl) {
-			// Return empty array if configuration is incomplete
-			return StringArray.create({ values: [] })
+			// Return empty response if configuration is incomplete
+			return SapAiCoreModelsResponse.create({
+				modelNames: [],
+				orchestrationAvailable: false,
+			})
 		}
 
-		// Direct authentication and model name fetching
+		// Direct authentication and model/orchestration fetching
 		const token = await getToken(request.clientId, request.clientSecret, request.tokenUrl)
-		const modelNames = await fetchAiCoreModelNames(token.access_token, request.baseUrl, request.resourceGroup)
+		const { modelNames, orchestrationAvailable } = await fetchAiCoreModelsAndOrchestration(
+			token.access_token,
+			request.baseUrl,
+			request.resourceGroup,
+		)
 
 		// Extract base model names (without version) and sort
-		const baseModelNames = modelNames.map((modelName) => modelName.split(":")[0].toLowerCase()).sort()
+		const baseModelNames = modelNames.map((modelName: string) => modelName.split(":")[0].toLowerCase()).sort()
 
-		return StringArray.create({ values: baseModelNames })
+		return SapAiCoreModelsResponse.create({
+			modelNames: baseModelNames,
+			orchestrationAvailable,
+		})
 	} catch (error) {
 		console.error("Error fetching SAP AI Core models:", error)
-		return StringArray.create({ values: [] })
+		return SapAiCoreModelsResponse.create({
+			modelNames: [],
+			orchestrationAvailable: false,
+		})
 	}
 }
