@@ -1858,7 +1858,8 @@ export class ToolExecutor {
 						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 						const keepStrategy = "none"
 
-						// clear the context history at this point in time
+						// clear the context history at this point in time. note that this will not include the assistant message
+						// for summarizing, which we will need to delete later
 						this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 							apiConversationHistory,
 							this.taskState.conversationHistoryDeletedRange,
@@ -1871,6 +1872,7 @@ export class ToolExecutor {
 						)
 					}
 					await this.saveCheckpoint()
+					this.taskState.currentlySummarizing = true
 					break
 				} catch (error) {
 					await this.handleError("summarizing context window", error, block)

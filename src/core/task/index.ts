@@ -89,6 +89,7 @@ import { updateApiReqMsg } from "./utils"
 import { CacheService } from "../storage/CacheService"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { summarizeTask } from "@core/prompts/contextManagement"
 
 export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
@@ -2214,6 +2215,32 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
+		// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
+		// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
+		// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
+		let shouldCompact = false
+		if (this.taskState.currentlySummarizing) {
+			this.taskState.currentlySummarizing = false
+
+			if (this.taskState.conversationHistoryDeletedRange) {
+				const [start, end] = this.taskState.conversationHistoryDeletedRange
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+
+				// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
+				const safeEnd = Math.min(end + 2, apiHistory.length - 1)
+				if (end + 2 <= safeEnd) {
+					this.taskState.conversationHistoryDeletedRange = [start, end + 2]
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				}
+			}
+		} else {
+			shouldCompact = this.contextManager.shouldCompactContextWindow(
+				this.messageStateHandler.getClineMessages(),
+				this.api,
+				previousApiReqIndex,
+			)
+		}
+
 		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
@@ -2226,7 +2253,14 @@ export class Task {
 
 		userContent = parsedUserContent
 		// add environment details as its own text block, separate from tool results
-		userContent.push({ type: "text", text: environmentDetails })
+		// do not add environment details to the message which we are compacting the context window
+		if (!shouldCompact) {
+			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		if (shouldCompact) {
+			userContent.push({ type: "text", text: summarizeTask() })
+		}
 
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",

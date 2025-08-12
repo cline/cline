@@ -1,6 +1,6 @@
-export const summarizeTask = (totalTokens: number, maxAllowedSize: number, contextWindow: number) =>
+export const summarizeTask = () =>
 	`<explicit_instructions type="summarize_task">
-The current conversation is rapidly running out of context (${totalTokens}/${contextWindow} tokens used). Now, your urgent task is to create a detailed, comprehensive summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
+The current conversation is rapidly running out of context. Now, your urgent task is to create a detailed, comprehensive summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context. You MUST ONLY respond to this message by using the summarize_task tool call.
 
 Before providing your final summary, wrap your analysis in <thinking> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:
