@@ -115,8 +115,7 @@ export class ContextManager {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
-				//const { maxAllowedSize } = getContextWindowInfo(api)
-				const maxAllowedSize = 20_000
+				const { maxAllowedSize } = getContextWindowInfo(api)
 				return totalTokens >= maxAllowedSize
 			}
 		}
@@ -124,7 +123,7 @@ export class ContextManager {
 	}
 
 	/**
-	 * primary entry point for getting up to date context & truncating when required
+	 * primary entry point for getting up to date context
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],

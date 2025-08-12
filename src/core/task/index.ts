@@ -2241,7 +2241,18 @@ export class Task {
 			)
 		}
 
-		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
+		let parsedUserContent: UserContent
+		let environmentDetails: string
+		let clinerulesError: boolean
+
+		// when summarizing the context window, we do not want to inject updated to the context
+		if (shouldCompact) {
+			parsedUserContent = userContent
+			environmentDetails = ""
+			clinerulesError = false
+		} else {
+			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
+		}
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
 		if (clinerulesError === true) {
