@@ -2531,7 +2531,19 @@ export class Task {
 						},
 					],
 				})
-				// Returns early to avoid retry since no assistant message was received
+
+				// Offer the user a chance to retry this API request
+				const { response } = await this.ask(
+					"api_req_failed",
+					"No assistant message was received. Would you like to retry the request?",
+				)
+
+				if (response === "yesButtonClicked") {
+					// Signal the loop to continue (i.e., do not end), so it will attempt again
+					return false
+				}
+
+				// Returns early to avoid retry since user dismissed
 				return true
 			}
 
