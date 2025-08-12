@@ -150,7 +150,7 @@ export async function regexSearchFiles(
 		throw new Error("Could not find ripgrep binary")
 	}
 
-	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
+	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", "--no-messages", directoryPath]
 
 	let output: string
 	try {
