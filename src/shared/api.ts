@@ -1148,14 +1148,6 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
-	},
 } as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
