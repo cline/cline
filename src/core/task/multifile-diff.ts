@@ -104,7 +104,8 @@ async function getChangesSinceLastTaskCompletion(
 		.getClineMessages()
 		.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
-	// either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
+	// either use the diff between the first checkpoint and the task completion, or the diff
+	// between the latest two task completions
 	const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash
 
 	if (!previousCheckpointHash) {
