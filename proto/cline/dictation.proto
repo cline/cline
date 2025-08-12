@@ -5,7 +5,7 @@ import "cline/common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
-service VoiceService {
+service DictationService {
   rpc startRecording(StartRecordingRequest) returns (RecordingResult);
   rpc stopRecording(StopRecordingRequest) returns (RecordedAudio);
   rpc getRecordingStatus(GetRecordingStatusRequest) returns (RecordingStatus);

@@ -2,8 +2,10 @@ import { Controller } from ".."
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
-import { convertProtoDictationSettingsToDictationSettings } from "../../../shared/proto-conversions/state/dictation-settings-conversion"
+import {
+	convertProtoApiConfigurationToApiConfiguration,
+	convertProtoDictationSettingsToDictationSettings,
+} from "@shared/proto-conversions/state/settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 

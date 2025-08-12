@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/voice"
+import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/dictation"
 import { voiceTranscriptionService } from "@/services/dictation/VoiceTranscriptionService"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { HostProvider } from "@/hosts/host-provider"

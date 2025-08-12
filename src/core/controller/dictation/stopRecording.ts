@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { StopRecordingRequest, RecordedAudio } from "@shared/proto/cline/voice"
+import { StopRecordingRequest, RecordedAudio } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
 

@@ -3,7 +3,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { SUPPORTED_DICTATION_LANGUAGES } from "@shared/DictationSettings"
 // import CollapsibleContent from "../CollapsibleContent"
-import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/dictation-settings-conversion"
+import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/settings-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { updateSetting } from "../utils/settingsHandlers"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
@@ -143,8 +143,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 							Enables speech-to-text transcription using your Cline Account. Uses the Whisper model, at $0.006
-							credits per minute of audio processed. Use the microphone icon in the chat area or set a hotkey in the
-							Command Palette (Cline: Start Dictation).
+							credits per minute of audio processed. 5 minutes max per message. Use the microphone icon in the chat
+							area or set a hotkey in the Command Palette (Cline: Start Dictation).
 						</p>
 					</div>
 

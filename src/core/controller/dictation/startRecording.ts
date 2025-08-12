@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { StartRecordingRequest, RecordingResult } from "@shared/proto/cline/voice"
+import { StartRecordingRequest, RecordingResult } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"

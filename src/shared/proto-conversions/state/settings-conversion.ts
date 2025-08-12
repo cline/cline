@@ -1,5 +1,11 @@
 import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
 import { ApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/state"
+import { DictationSettings } from "@shared/DictationSettings"
+import { DictationSettings as ProtoDictationSettings } from "@shared/proto/cline/state"
+
+/**
+ * Domain -> Proto conversions
+ */
 
 /**
  * Converts domain ApiConfiguration objects to proto ApiConfiguration objects
@@ -127,6 +133,20 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		favoritedModelIds: config.favoritedModelIds || [],
 	})
 }
+
+/**
+ * Converts domain DictationSettings to proto DictationSettings
+ */
+export function convertDictationSettingsToProtoDictationSettings(dictationSettings: DictationSettings): ProtoDictationSettings {
+	return ProtoDictationSettings.create({
+		dictationEnabled: dictationSettings.dictationEnabled,
+		dictationLanguage: dictationSettings.dictationLanguage,
+	})
+}
+
+/**
+ * Proto -> Domain conversions
+ */
 
 /**
  * Converts proto ApiConfiguration objects to domain ApiConfiguration objects
@@ -275,4 +295,16 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 	}
 
 	return config
+}
+
+/**
+ * Converts proto DictationSettings to domain DictationSettings
+ */
+export function convertProtoDictationSettingsToDictationSettings(
+	protoDictationSettings: ProtoDictationSettings,
+): DictationSettings {
+	return {
+		dictationEnabled: protoDictationSettings.dictationEnabled,
+		dictationLanguage: protoDictationSettings.dictationLanguage,
+	}
 }

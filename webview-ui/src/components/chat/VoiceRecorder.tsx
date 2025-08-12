@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from "react"
-import { VoiceServiceClient } from "@/services/grpc-client"
+import { DictationServiceClient } from "@/services/grpc-client"
 import {
 	StartRecordingRequest,
 	StopRecordingRequest,
 	TranscribeAudioRequest,
 	GetRecordingStatusRequest,
-} from "@shared/proto/cline/voice"
+} from "@shared/proto/cline/dictation"
 
 import HeroTooltip from "../common/HeroTooltip"
 import { formatSeconds } from "@/utils/format"
@@ -39,7 +39,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			setRecordingDuration(0) // Reset recording duration
 
 			// Call Extension Host to start recording
-			const response = await VoiceServiceClient.startRecording(StartRecordingRequest.create({}))
+			const response = await DictationServiceClient.startRecording(StartRecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
@@ -64,7 +64,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			onProcessingStateChange?.(true, "Processing...")
 
 			// Call Extension Host to stop recording and get audio
-			const response = await VoiceServiceClient.stopRecording(StopRecordingRequest.create({}))
+			const response = await DictationServiceClient.stopRecording(StopRecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
@@ -86,7 +86,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			onProcessingStateChange?.(true, "Transcribing...")
 
 			// Transcribe the audio using OpenAI Whisper
-			const transcriptionResponse = await VoiceServiceClient.transcribeAudio(
+			const transcriptionResponse = await DictationServiceClient.transcribeAudio(
 				TranscribeAudioRequest.create({
 					audioBase64: response.audioBase64,
 					language: language,
@@ -119,7 +119,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	useEffect(() => {
 		const pollRecordingStatus = async () => {
 			try {
-				const statusResponse = await VoiceServiceClient.getRecordingStatus(GetRecordingStatusRequest.create({}))
+				const statusResponse = await DictationServiceClient.getRecordingStatus(GetRecordingStatusRequest.create({}))
 				if (statusResponse.isRecording) {
 					setRecordingDuration(Math.floor(statusResponse.durationSeconds))
 
