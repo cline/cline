@@ -9,6 +9,7 @@ import { CodeIndexServiceFactory } from "./service-factory"
 import { CodeIndexSearchService } from "./search-service"
 import { CodeIndexOrchestrator } from "./orchestrator"
 import { CacheManager } from "./cache-manager"
+import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
 import fs from "fs/promises"
 import ignore from "ignore"
 import path from "path"
@@ -312,6 +313,7 @@ export class CodeIndexManager {
 			return
 		}
 
+		// Create .gitignore instance
 		const ignorePath = path.join(workspacePath, ".gitignore")
 		try {
 			const content = await fs.readFile(ignorePath, "utf8")
@@ -327,11 +329,16 @@ export class CodeIndexManager {
 			})
 		}
 
+		// Create RooIgnoreController instance
+		const rooIgnoreController = new RooIgnoreController(workspacePath)
+		await rooIgnoreController.initialize()
+
 		// (Re)Create shared service instances
 		const { embedder, vectorStore, scanner, fileWatcher } = this._serviceFactory.createServices(
 			this.context,
 			this._cacheManager!,
 			ignoreInstance,
+			rooIgnoreController,
 		)
 
 		// Validate embedder configuration before proceeding
