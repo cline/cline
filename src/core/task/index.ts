@@ -360,7 +360,7 @@ export class Task {
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
-			this.FocusChainManager?.updateTodoListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
+			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 		)
 	}
 
@@ -719,6 +719,7 @@ export class Task {
 		text?: string
 		images?: string[]
 		files?: string[]
+		askTs?: number
 	}> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.taskState.abort) {
@@ -727,8 +728,10 @@ export class Task {
 		let askTs: number
 		if (partial !== undefined) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastMessage = clineMessages.at(-1)
-			const lastMessageIndex = clineMessages.length - 1
+			const lastAskMessageIndex = findLastIndex(clineMessages, (m) => m.type === "ask")
+			const lastMessage = lastAskMessageIndex !== -1 ? clineMessages[lastAskMessageIndex] : undefined
+			const lastMessageIndex = lastAskMessageIndex
+
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {

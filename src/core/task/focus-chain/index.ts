@@ -385,7 +385,7 @@ ${listInstrunctionsReminder}\n`
 	 * @requires this.taskState, this.say method, and telemetryService to be available
 	 * @returns Promise<void> - Updates taskState.currentFocusChainChecklist and sends UI messages
 	 */
-	public async updateTodoListFromToolResponse(taskProgress: string | undefined) {
+	public async updateFCListFromToolResponse(taskProgress: string | undefined) {
 		try {
 			// Reset the counter if task_progress was provided
 			if (taskProgress && taskProgress.trim()) {
@@ -417,7 +417,7 @@ ${listInstrunctionsReminder}\n`
 				try {
 					await this.writeFocusChainToDisk(taskProgress.trim())
 
-					// Also send the task_progress message to the UI immediately
+					// Send the task_progress message to the UI immediately
 					await this.say("task_progress", taskProgress.trim())
 				} catch (error) {
 					console.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
@@ -439,7 +439,7 @@ ${listInstrunctionsReminder}\n`
 				}
 			}
 		} catch (error) {
-			console.error(`[Task ${this.taskId}] focus chain list: Error in updateTodoListFromToolResponse:`, error)
+			console.error(`[Task ${this.taskId}] focus chain list: Error in updateFCListFromToolResponse:`, error)
 		}
 	}
 
