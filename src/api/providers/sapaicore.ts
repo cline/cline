@@ -118,12 +118,48 @@ export class SapAiCoreHandler implements ApiHandler {
 		return deployment.id
 	}
 
+	private async getOrchestrationDeploymentUrl(): Promise<string> {
+		const token = await this.getToken()
+		const headers = {
+			Authorization: `Bearer ${token}`,
+			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
+			"Content-Type": "application/json",
+			"AI-Client-Type": "Cline",
+		}
+
+		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments`
+
+		try {
+			const response = await axios.get(url, { headers })
+			const deployments = response.data.resources
+
+			// Find deployment with configurationName: "defaultOrchestrationConfig"
+			const orchestrationDeployment = deployments.find(
+				(deployment: any) => deployment.configurationName === "defaultOrchestrationConfig",
+			)
+
+			if (!orchestrationDeployment) {
+				throw new Error("No orchestration deployment found with configurationName 'defaultOrchestrationConfig'")
+			}
+
+			if (!orchestrationDeployment.deploymentUrl) {
+				throw new Error("Orchestration deployment found but deploymentUrl is missing")
+			}
+
+			return orchestrationDeployment.deploymentUrl
+		} catch (error) {
+			console.error("Error fetching orchestration deployment:", error)
+			throw new Error("Failed to fetch orchestration deployment URL")
+		}
+	}
+
 	private hasDeploymentForModel(modelId: string): boolean {
 		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+			// yield* this.createMessageWithOrchestrationAPI(systemPrompt, messages)
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
@@ -152,15 +188,89 @@ export class SapAiCoreHandler implements ApiHandler {
 		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
 	}
 
+	private async *createMessageWithOrchestrationAPI(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+	): ApiStream {
+		try {
+			const model = this.getModel()
+			const deploymentUrl = await this.getOrchestrationDeploymentUrl()
+
+			// Use the deploymentUrl directly as provided by SAP AI Core
+			const url = `${deploymentUrl}/completion`
+
+			// Convert messages to SAP's templating format
+			const { template, inputParams } = this.convertToSAPOrchestrationFormat(systemPrompt, messages)
+
+			const payload = {
+				orchestration_config: {
+					stream: true,
+					module_configurations: {
+						llm_module_config: {
+							model_name: model.id,
+							model_params: {
+								max_tokens: model.info.maxTokens,
+								temperature: 0.0,
+								frequency_penalty: 0,
+								presence_penalty: 0,
+							},
+							model_version: "latest",
+						},
+						templating_module_config: {
+							template: template,
+						},
+					},
+				},
+				input_params: inputParams,
+			}
+
+			const token = await this.getToken()
+			const headers: Record<string, string> = {
+				Authorization: `Bearer ${token}`,
+				"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
+				"Content-Type": "application/json",
+				"AI-Client-Type": "Cline",
+			}
+
+			// Add Accept header for Claude models
+			const claudeModels = [
+				"anthropic--claude-4-sonnet",
+				"anthropic--claude-4-opus",
+				"anthropic--claude-3.7-sonnet",
+				"anthropic--claude-3.5-sonnet",
+				"anthropic--claude-3-sonnet",
+				"anthropic--claude-3-haiku",
+				"anthropic--claude-3-opus",
+			]
+
+			if (claudeModels.includes(model.id)) {
+				headers["Accept"] = "application/vnd.amazon.eventstream"
+			}
+
+			const response = await axios.post(url, JSON.stringify(payload), {
+				headers,
+				responseType: "stream",
+			})
+
+			yield* this.streamOrchestrationCompletion(response.data, model)
+		} catch (error) {
+			console.error("Error in SAP orchestration mode:", error)
+			console.log("Error details:", error.stack)
+			throw error
+		}
+	}
+
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
 			// Set up AI Core environment variable for service binding
 			this.setupAiCoreEnvVariable()
 			const model = this.getModel()
+			model.info.maxTokens
 
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
 				model_name: model.id,
+				model_params: { max_tokens: model.info.maxTokens },
 			}
 
 			const templating: TemplatingModuleConfig = {
@@ -181,17 +291,66 @@ export class SapAiCoreHandler implements ApiHandler {
 			const response = await orchestrationClient.stream({
 				messages: sapMessages,
 			})
+			// const model = this.getModel()
 
-			for await (const chunk of response.stream.toContentStream()) {
-				yield { type: "text", text: chunk }
-			}
+			// const jsonConfig = JSON.stringify({
+			// "module_configurations": {
+			// 	"llm_module_config": {
+			// 	"model_name": model.id,
+			// 	"model_params": {
+			// 		"max_tokens": 4000,
+			// 		"temperature": 0.1
+			// 	}
+			// 	},
+			// 	"templating_module_config": {
+			// 	"template": [
+			// 		{
+			// 		"role": "user",
+			// 		"content": "{{?input}}"
+			// 		}
+			// 	]
+			// 	}
+			// }
+			// })
 
-			const tokenUsage = response.getTokenUsage()
-			if (tokenUsage) {
-				yield {
-					type: "usage",
-					inputTokens: tokenUsage.prompt_tokens || 0,
-					outputTokens: tokenUsage.completion_tokens || 0,
+			// const orchestrationClient = new OrchestrationClient(
+			// jsonConfig,
+			// { resourceGroup: this.options.sapAiResourceGroup || "default" }
+			// )
+
+			// const sapMessages = this.convertMessageParamToSAPMessages(messages)
+
+			// const response = await orchestrationClient.stream({
+			// 	messages: sapMessages,
+			// inputParams: { input: "Tell me a funny story." }
+			// })
+
+			// for await (const chunk of response.stream.toContentStream()) {
+			// 	yield { type: "text", text: chunk }
+			// }
+
+			// const tokenUsage = response.getTokenUsage()
+			// if (tokenUsage) {
+			// 	yield {
+			// 		type: "usage",
+			// 		inputTokens: tokenUsage.prompt_tokens || 0,
+			// 		outputTokens: tokenUsage.completion_tokens || 0,
+			// 	}
+			// }
+			for await (const chunk of response.stream) {
+				const deltaContent = chunk.getDeltaContent()
+				if (deltaContent) {
+					yield { type: "text", text: deltaContent }
+				}
+
+				// Handle usage information
+				const usage = chunk.getTokenUsage()
+				if (usage) {
+					yield {
+						type: "usage",
+						inputTokens: usage.prompt_tokens || 0,
+						outputTokens: usage.completion_tokens || 0,
+					}
 				}
 			}
 		} catch (error) {
@@ -639,6 +798,97 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
+	private async *streamOrchestrationCompletion(
+		stream: any,
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let isFirstChunk = true
+
+		try {
+			for await (const chunk of stream) {
+				const lines = chunk.toString().split("\n").filter(Boolean)
+
+				for (const line of lines) {
+					if (line.trim() === "data: [DONE]") {
+						return
+					}
+
+					if (line.startsWith("data: ")) {
+						const jsonData = line.slice(6).trim()
+
+						// Skip empty or incomplete data
+						if (!jsonData || jsonData === "[DONE]") {
+							continue
+						}
+
+						try {
+							const data = JSON.parse(jsonData)
+
+							// Handle errors
+							if (data.code && data.message) {
+								throw new Error(`Orchestration error ${data.code}: ${data.message}`)
+							}
+
+							// Skip first chunk (contains pre-LLM module results)
+							if (isFirstChunk) {
+								isFirstChunk = false
+								continue
+							}
+
+							// Extract LLM content from orchestration_result
+							const choice = data.orchestration_result?.choices?.[0]
+							if (choice?.delta?.content) {
+								yield {
+									type: "text",
+									text: choice.delta.content,
+								}
+							}
+
+							// Handle completion and usage
+							if (choice?.finish_reason === "stop") {
+								const llmResult = data.module_results?.llm
+								if (llmResult?.usage) {
+									yield {
+										type: "usage",
+										inputTokens: llmResult.usage.prompt_tokens || 0,
+										outputTokens: llmResult.usage.completion_tokens || 0,
+									}
+								}
+							}
+						} catch (error) {
+							console.error("Failed to parse orchestration JSON:", error)
+							console.error("Raw line:", line)
+							console.error("JSON data length:", jsonData.length)
+							console.error("JSON data preview:", jsonData.substring(0, 200) + "...")
+
+							// Try to identify the issue
+							if (jsonData.includes('"') && !jsonData.endsWith('"')) {
+								console.error("Likely cause: Unterminated string in streaming chunk")
+							}
+
+							// Check for common JSON parsing issues
+							if (error instanceof SyntaxError) {
+								if (error.message.includes("Unterminated string")) {
+									console.error(
+										"Detected unterminated string - this is likely due to streaming chunk boundaries",
+									)
+								} else if (error.message.includes("Unexpected token")) {
+									console.error("Detected unexpected token - JSON may be malformed or truncated")
+								}
+							}
+
+							// Continue processing other chunks instead of failing completely
+							continue
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error streaming orchestration completion:", error)
+			throw error
+		}
+	}
+
 	createUserReadableRequest(
 		userContent: Array<
 			Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
@@ -773,5 +1023,49 @@ export class SapAiCoreHandler implements ApiHandler {
 	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
 		// Use the existing OpenAI converter since the logic is identical
 		return convertToOpenAiMessages(messages) as ChatMessages
+	}
+
+	private convertToSAPOrchestrationFormat(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+	): { template: any[]; inputParams: Record<string, any> } {
+		// Convert messages to a single conversation string for SAP's templating system
+		let conversationText = ""
+
+		for (const message of messages) {
+			const role = message.role === "assistant" ? "Assistant" : "User"
+			let content = ""
+
+			if (typeof message.content === "string") {
+				content = message.content
+			} else if (Array.isArray(message.content)) {
+				// Extract text content from blocks, ignoring images and other types for now
+				content = message.content
+					.filter((block) => block.type === "text")
+					.map((block) => (block as any).text)
+					.join("\n")
+			}
+
+			conversationText += `${role}: ${content}\n\n`
+		}
+
+		// Create template with system prompt and conversation
+		const template = [
+			{
+				role: "system",
+				content: systemPrompt,
+			},
+			{
+				role: "user",
+				content: "{{?conversation}}",
+			},
+		]
+
+		// Input parameters for the template
+		const inputParams = {
+			conversation: conversationText.trim(),
+		}
+
+		return { template, inputParams }
 	}
 }
