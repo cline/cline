@@ -19,7 +19,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setSelectedFiles,
 		setSendingDisabled,
 		setEnableButtons,
-		setDidClickCancel,
 		clineAsk,
 		lastMessage,
 	} = chatState
@@ -194,7 +193,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "cancel":
 					await TaskServiceClient.cancelTask(EmptyRequest.create({}))
-					setDidClickCancel(true)
 					return // Don't disable buttons for cancel
 
 				case "utility":
@@ -217,7 +215,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
 		},
-		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, setDidClickCancel, chatState],
+		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState],
 	)
 
 	// Unified button click handler that takes action directly

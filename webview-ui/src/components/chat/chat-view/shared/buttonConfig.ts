@@ -111,10 +111,10 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	followup: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
-		primaryAction: "approve",
-		secondaryAction: "reject",
+		primaryText: "Start New Task",
+		secondaryText: undefined,
+		primaryAction: "new_task",
+		secondaryAction: undefined,
 	},
 	plan_mode_respond: {
 		sendingDisabled: false,
@@ -218,9 +218,10 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 	}
 
 	const isStreaming = message.partial === true
-	const isError = message.ask && errorTypes.includes(message.ask)
+	const isError = message?.ask ? errorTypes.includes(message.ask) : false
 
 	// Handle partial/streaming messages first (most common during task execution)
+	// This must be checked before any other conditions to ensure streaming state takes precedence
 	if (isStreaming && !isError) {
 		return BUTTON_CONFIGS.partial
 	}
@@ -292,5 +293,5 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 		return BUTTON_CONFIGS.api_req_active
 	}
 
-	return BUTTON_CONFIGS.default
+	return BUTTON_CONFIGS.partial
 }

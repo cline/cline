@@ -38,8 +38,6 @@ export interface ChatState {
 	setPrimaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	secondaryButtonText: string | undefined
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
-	didClickCancel: boolean
-	setDidClickCancel: React.Dispatch<React.SetStateAction<boolean>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 

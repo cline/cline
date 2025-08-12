@@ -78,25 +78,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
 	const {
-		inputValue,
 		setInputValue,
-		activeQuote,
-		setActiveQuote,
-		isTextAreaFocused,
 		selectedImages,
 		setSelectedImages,
 		selectedFiles,
 		setSelectedFiles,
 		sendingDisabled,
 		enableButtons,
-		primaryButtonText,
-		secondaryButtonText,
-		didClickCancel,
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
-		handleFocusChange,
-		clineAsk,
 	} = chatState
 
 	useEffect(() => {
