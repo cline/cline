@@ -291,8 +291,41 @@ function getSelectedModel({
 		default: {
 			provider satisfies "anthropic" | "gemini-cli" | "human-relay" | "fake-ai"
 			const id = apiConfiguration.apiModelId ?? anthropicDefaultModelId
-			const info = anthropicModels[id as keyof typeof anthropicModels]
-			return { id, info }
+			const baseInfo = anthropicModels[id as keyof typeof anthropicModels]
+
+			// Apply 1M context beta tier pricing for Claude Sonnet 4
+			if (
+				provider === "anthropic" &&
+				id === "claude-sonnet-4-20250514" &&
+				apiConfiguration.anthropicBeta1MContext &&
+				baseInfo
+			) {
+				// Type assertion since we know claude-sonnet-4-20250514 has tiers
+				const modelWithTiers = baseInfo as typeof baseInfo & {
+					tiers?: Array<{
+						contextWindow: number
+						inputPrice?: number
+						outputPrice?: number
+						cacheWritesPrice?: number
+						cacheReadsPrice?: number
+					}>
+				}
+				const tier = modelWithTiers.tiers?.[0]
+				if (tier) {
+					// Create a new ModelInfo object with updated values
+					const info: ModelInfo = {
+						...baseInfo,
+						contextWindow: tier.contextWindow,
+						inputPrice: tier.inputPrice ?? baseInfo.inputPrice,
+						outputPrice: tier.outputPrice ?? baseInfo.outputPrice,
+						cacheWritesPrice: tier.cacheWritesPrice ?? baseInfo.cacheWritesPrice,
+						cacheReadsPrice: tier.cacheReadsPrice ?? baseInfo.cacheReadsPrice,
+					}
+					return { id, info }
+				}
+			}
+
+			return { id, info: baseInfo }
 		}
 	}
 }

@@ -6,6 +6,7 @@ import type { ProviderSettings } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
+import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 
 import { inputEventTransform, noTransform } from "../transforms"
 
@@ -16,8 +17,12 @@ type AnthropicProps = {
 
 export const Anthropic = ({ apiConfiguration, setApiConfigurationField }: AnthropicProps) => {
 	const { t } = useAppTranslation()
+	const selectedModel = useSelectedModel(apiConfiguration)
 
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+
+	// Check if the current model supports 1M context beta
+	const supports1MContextBeta = selectedModel?.id === "claude-sonnet-4-20250514"
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
@@ -79,6 +84,20 @@ export const Anthropic = ({ apiConfiguration, setApiConfigurationField }: Anthro
 					</>
 				)}
 			</div>
+			{supports1MContextBeta && (
+				<div>
+					<Checkbox
+						checked={apiConfiguration?.anthropicBeta1MContext ?? false}
+						onChange={(checked: boolean) => {
+							setApiConfigurationField("anthropicBeta1MContext", checked)
+						}}>
+						{t("settings:providers.anthropic1MContextBetaLabel")}
+					</Checkbox>
+					<div className="text-sm text-vscode-descriptionForeground mt-1 ml-6">
+						{t("settings:providers.anthropic1MContextBetaDescription")}
+					</div>
+				</div>
+			)}
 		</>
 	)
 }

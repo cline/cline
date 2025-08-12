@@ -41,6 +41,12 @@ export const ModelInfoView = ({
 			supportsLabel={t("settings:modelInfo.supportsPromptCache")}
 			doesNotSupportLabel={t("settings:modelInfo.noPromptCache")}
 		/>,
+		typeof modelInfo?.contextWindow === "number" && modelInfo.contextWindow > 0 && (
+			<>
+				<span className="font-medium">{t("settings:modelInfo.contextWindow")}</span>{" "}
+				{modelInfo.contextWindow?.toLocaleString()} tokens
+			</>
+		),
 		typeof modelInfo?.maxTokens === "number" && modelInfo.maxTokens > 0 && (
 			<>
 				<span className="font-medium">{t("settings:modelInfo.maxOutput")}:</span>{" "}
