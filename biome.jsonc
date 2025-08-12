@@ -138,6 +138,18 @@
 		{
 			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**", "!src/extension.ts"],
 			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
+		},
+		{
+			"includes": [
+				"**",
+				"!src/core/storage/state-migrations.ts",
+				"!src/core/storage/FileContextTracker.ts",
+				"!src/core/context/context-tracking/FileContextTracker.ts",
+				"!src/common.ts",
+				"!src/core/storage/utils/state-helpers.ts",
+				"!src/extension.ts"
+			],
+			"plugins": ["src/dev/grit/use-cache-service.grit"]
 		}
 	]
 }
