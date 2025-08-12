@@ -12,7 +12,6 @@ import { FileContextTracker } from "@core/context/context-tracking/FileContextTr
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
@@ -91,7 +90,6 @@ export class ToolExecutor {
 		private mcpHub: McpHub,
 		private fileContextTracker: FileContextTracker,
 		private clineIgnoreController: ClineIgnoreController,
-		private workspaceTracker: WorkspaceTracker,
 		private contextManager: ContextManager,
 		private cacheService: CacheService,
 
@@ -799,10 +797,6 @@ export class ToolExecutor {
 							)
 						}
 
-						if (!fileExists) {
-							this.workspaceTracker.populateFilePaths()
-						}
-
 						await this.diffViewProvider.reset()
 
 						await this.saveCheckpoint()
@@ -1433,9 +1427,6 @@ export class ToolExecutor {
 						if (userRejected) {
 							this.taskState.didRejectTool = true
 						}
-
-						// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-						this.workspaceTracker.populateFilePaths()
 
 						this.pushToolResult(result, block)
 

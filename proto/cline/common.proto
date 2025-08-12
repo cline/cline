@@ -55,6 +55,11 @@ message Boolean {
   bool value = 1;
 }
 
+// the same as Boolean, but avoiding name conflicts
+message BooleanResponse {
+  bool value = 1;
+}
+
 message StringArray {
   repeated string values = 1;
 }

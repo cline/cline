@@ -1,50 +1,11 @@
+import { HostProvider } from "@/hosts/host-provider"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, buildApiHandler } from "@api/index"
-import { AnthropicHandler } from "@api/providers/anthropic"
-import { ClineHandler } from "@api/providers/cline"
-import { OpenRouterHandler } from "@api/providers/openrouter"
 import { ApiStream } from "@api/transform/stream"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
-import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { listFiles } from "@services/glob/list-files"
-import { Logger } from "@services/logging/Logger"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import { ApiConfiguration } from "@shared/api"
-import { findLast, findLastIndex } from "@shared/array"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
-import { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
-import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
-import { arePathsEqual, getDesktopDir } from "@utils/path"
-import cloneDeep from "clone-deep"
-import { execa } from "execa"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import pTimeout from "p-timeout"
-import pWaitFor from "p-wait-for"
-import * as path from "path"
-import * as vscode from "vscode"
-import { ulid } from "ulid"
-
-import { HostProvider } from "@/hosts/host-provider"
-import { ClineErrorType } from "@/services/error/ClineError"
-import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
-import {
-	checkIsAnthropicContextWindowError,
-	checkIsOpenRouterContextWindowError,
-} from "@core/context/context-management/context-error-handling"
+import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
@@ -73,15 +34,47 @@ import {
 	getSavedClineMessages,
 	GlobalFileNames,
 } from "@core/storage/disk"
-import { getGlobalState } from "@core/storage/state"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex } from "@shared/array"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { isClaude4ModelFamily, isGemini2dot5ModelFamily, isGrok4ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { getGitRemoteUrls } from "@utils/git"
+import { isNextGenModelFamily } from "@utils/model-utils"
+import { arePathsEqual, getDesktopDir } from "@utils/path"
+import cloneDeep from "clone-deep"
+import { execa } from "execa"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pTimeout from "p-timeout"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+import { ulid } from "ulid"
+import * as vscode from "vscode"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
+import { Controller } from "../controller"
+import { CacheService } from "../storage/CacheService"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
@@ -109,9 +102,8 @@ export class Task {
 	private enableCheckpoints: boolean
 
 	// Core dependencies
-	private context: vscode.ExtensionContext
+	private controller: Controller
 	private mcpHub: McpHub
-	private workspaceTracker: WorkspaceTracker
 
 	// Service handlers
 	api: ApiHandler
@@ -147,9 +139,8 @@ export class Task {
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 	constructor(
-		context: vscode.ExtensionContext,
+		controller: Controller,
 		mcpHub: McpHub,
-		workspaceTracker: WorkspaceTracker,
 		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
 		postStateToWebview: () => Promise<void>,
 		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
@@ -174,9 +165,8 @@ export class Task {
 		historyItem?: HistoryItem,
 	) {
 		this.taskState = new TaskState()
-		this.context = context
+		this.controller = controller
 		this.mcpHub = mcpHub
-		this.workspaceTracker = workspaceTracker
 		this.updateTaskHistory = updateTaskHistory
 		this.postStateToWebview = postStateToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
@@ -200,8 +190,8 @@ export class Task {
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
-		this.urlContentFetcher = new UrlContentFetcher(context)
-		this.browserSession = new BrowserSession(context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.browserSession = new BrowserSession(controller.context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
@@ -236,7 +226,7 @@ export class Task {
 		}
 
 		this.messageStateHandler = new MessageStateHandler({
-			context,
+			context: controller.context,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			taskState: this.taskState,
@@ -245,8 +235,8 @@ export class Task {
 		})
 
 		// Initialize file context tracker
-		this.fileContextTracker = new FileContextTracker(context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
+		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
@@ -319,7 +309,7 @@ export class Task {
 		}
 
 		this.toolExecutor = new ToolExecutor(
-			this.context,
+			this.controller.context,
 			this.taskState,
 			this.messageStateHandler,
 			this.api,
@@ -329,7 +319,6 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
-			this.workspaceTracker,
 			this.contextManager,
 			this.cacheService,
 			this.autoApprovalSettings,
@@ -361,7 +350,7 @@ export class Task {
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
 	private getContext(): vscode.ExtensionContext {
-		const context = this.context
+		const context = this.controller.context
 		if (!context) {
 			throw new Error("Unable to access extension context")
 		}
@@ -418,7 +407,7 @@ export class Task {
 					try {
 						this.checkpointTracker = await CheckpointTracker.create(
 							this.taskId,
-							this.context.globalStorageUri.fsPath,
+							this.controller.context.globalStorageUri.fsPath,
 							this.enableCheckpoints,
 						)
 						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -606,7 +595,7 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.context.globalStorageUri.fsPath,
+					this.controller.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -692,32 +681,13 @@ export class Task {
 			relinquishButton()
 			return
 		}
-
-		// Check if multi-diff editor is enabled in VS Code settings
-		// const config = vscode.workspace.getConfiguration()
-		// const isMultiDiffEnabled = config.get("multiDiffEditor.experimental.enabled")
-
-		// if (!isMultiDiffEnabled) {
-		// 	vscode.window.showErrorMessage(
-		// 		"Please enable 'multiDiffEditor.experimental.enabled' in your VS Code settings to use this feature.",
-		// 	)
-		// 	relinquishButton()
-		// 	return
-		// }
-		// Open multi-diff editor
-		await vscode.commands.executeCommand(
-			"vscode.changes",
-			seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
-			changedFiles.map((file) => [
-				vscode.Uri.file(file.absolutePath),
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
-					query: Buffer.from(file.before ?? "").toString("base64"),
-				}),
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
-					query: Buffer.from(file.after ?? "").toString("base64"),
-				}),
-			]),
-		)
+		const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"
+		const diffs = changedFiles.map((file) => ({
+			filePath: file.absolutePath,
+			leftContent: file.before,
+			rightContent: file.after,
+		}))
+		HostProvider.diff.openMultiFileDiff({ title, diffs })
 		relinquishButton()
 	}
 
@@ -743,7 +713,7 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.context.globalStorageUri.fsPath,
+					this.controller.context.globalStorageUri.fsPath,
 					this.enableCheckpoints,
 				)
 				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -1332,7 +1302,7 @@ export class Task {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
-						this.context.globalStorageUri.fsPath,
+						this.controller.context.globalStorageUri.fsPath,
 						this.enableCheckpoints,
 					)
 				} catch (error) {
@@ -1376,7 +1346,7 @@ export class Task {
 				try {
 					this.checkpointTracker = await CheckpointTracker.create(
 						this.taskId,
-						this.context.globalStorageUri.fsPath,
+						this.controller.context.globalStorageUri.fsPath,
 						this.enableCheckpoints,
 					)
 					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
@@ -1695,6 +1665,21 @@ export class Task {
 		return { modelId, providerId }
 	}
 
+	private async handleContextWindowExceededError(): Promise<void> {
+		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+			this.messageStateHandler.getApiConversationHistory(),
+			this.taskState.conversationHistoryDeletedRange,
+			"quarter", // Force aggressive truncation
+		)
+		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+			Date.now(),
+			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+		)
+
+		this.taskState.didAutomaticallyRetryFailedApiRequest = true
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
@@ -1720,8 +1705,8 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), this.cwd)
+		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
@@ -1786,10 +1771,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
-			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
-			const isAnthropic = this.api instanceof AnthropicHandler
-			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
-			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
+			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
@@ -1798,41 +1780,13 @@ export class Task {
 			errorService.logMessage(clineError.message)
 			errorService.logException(clineError)
 
-			if (isAnthropic && isAnthropicContextWindowError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
-				this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-					this.messageStateHandler.getApiConversationHistory(),
-					this.taskState.conversationHistoryDeletedRange,
-					"quarter", // Force aggressive truncation
-				)
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-					Date.now(),
-					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-				)
-
-				this.taskState.didAutomaticallyRetryFailedApiRequest = true
-			} else if (isOpenRouter && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
-				if (isOpenRouterContextWindowError) {
-					this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-						this.messageStateHandler.getApiConversationHistory(),
-						this.taskState.conversationHistoryDeletedRange,
-						"quarter", // Force aggressive truncation
-					)
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-						Date.now(),
-						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-					)
-				}
-
-				console.log("first chunk failed, waiting 1 second before retrying")
-				await setTimeoutPromise(1000)
-				this.taskState.didAutomaticallyRetryFailedApiRequest = true
+			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
+				await this.handleContextWindowExceededError()
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 
-				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
+				if (isContextWindowExceededError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.messageStateHandler.getApiConversationHistory(),
 						this.taskState.conversationHistoryDeletedRange,
@@ -2161,7 +2115,11 @@ export class Task {
 
 				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath, this.enableCheckpoints),
+					CheckpointTracker.create(
+						this.taskId,
+						this.controller.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					),
 					{
 						milliseconds: 15_000,
 						message:
@@ -2611,7 +2569,7 @@ export class Task {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.getContext(), this.cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
 
 		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.

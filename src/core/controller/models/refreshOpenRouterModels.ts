@@ -115,6 +115,12 @@ export async function refreshOpenRouterModels(
 						modelInfo.outputPrice = 3
 						modelInfo.contextWindow = 131_000
 						break
+					case "openai/gpt-5":
+					case "openai/gpt-5-chat":
+					case "openai/gpt-5-mini":
+					case "openai/gpt-5-nano":
+						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
