@@ -177,7 +177,8 @@ export abstract class DiffViewProvider {
 			// Only proceed if we have new lines
 
 			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
+			// on previous lines are auto closed for example
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
