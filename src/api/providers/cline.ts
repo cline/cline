@@ -3,8 +3,6 @@ import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import type { CompletionUsage } from "openai/resources/completions.mjs"
-import type { ChatCompletionChunk } from "openai/resources/index.mjs"
 import { clineEnvConfig } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
@@ -25,16 +23,16 @@ interface ClineHandlerOptions {
 	clineAccountId?: string
 }
 
-interface OpenRouterCompletionUsage extends CompletionUsage {
+interface OpenRouterCompletionUsage extends OpenAI.CompletionUsage {
 	cost_details?: {
 		upstream_inference_cost?: number
 	}
 	cost?: number
 }
 
-interface OpenRouterCompletionChunkChoice extends Omit<ChatCompletionChunk.Choice, "finish_reason"> {
-	// Extends the original list of finish_reason to includes choice?.finish_reason === "error"
-	finish_reason: "error" | ChatCompletionChunk.Choice["finish_reason"]
+interface OpenRouterCompletionChunkChoice extends Omit<OpenAI.ChatCompletionChunk.Choice, "finish_reason"> {
+	// Extends the original list of finish_reason to includes "error"
+	finish_reason: "error" | OpenAI.ChatCompletionChunk.Choice["finish_reason"]
 }
 
 export class ClineHandler implements ApiHandler {
