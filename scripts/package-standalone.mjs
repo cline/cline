@@ -103,7 +103,6 @@ function createIsIgnored(standaloneIgnores) {
 		"*.todo",
 		"tslint.yaml",
 		".eslintrc*",
-		"biome.json*",
 		".babelrc*",
 		".prettierrc*",
 		"biome.json*",
