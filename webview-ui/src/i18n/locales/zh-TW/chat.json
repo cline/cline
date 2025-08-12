@@ -1,38 +1,33 @@
 {
-	"greeting": "歡迎使用 Roo Code",
+	"greeting": "歡迎使用 Roo Code！",
 	"task": {
 		"title": "工作",
 		"expand": "展開工作",
 		"collapse": "收合工作",
 		"seeMore": "顯示更多",
 		"seeLess": "顯示較少",
-		"tokens": "Tokens",
+		"tokens": "Token",
 		"cache": "快取",
-		"apiCost": "API 費用：",
+		"apiCost": "API 費用",
 		"size": "大小",
-		"contextWindow": "上下文長度：",
-		"closeAndStart": "關閉現有工作並開始一項新的工作",
-		"export": "匯出工作紀錄",
-		"delete": "刪除工作（按住 Shift 並點選可跳過確認）",
-		"condenseContext": "智慧壓縮上下文",
+		"condenseContext": "智慧壓縮內容",
+		"contextWindow": "上下文長度",
+		"closeAndStart": "關閉現有工作並開始新工作",
+		"export": "匯出工作記錄",
 		"share": "分享工作",
+		"delete": "刪除工作 (按住 Shift 並點選可跳過確認)",
 		"shareWithOrganization": "與組織分享",
 		"shareWithOrganizationDescription": "僅組織成員可存取",
 		"sharePublicly": "公開分享",
 		"sharePubliclyDescription": "任何擁有連結的人都可存取",
-		"connectToCloud": "連接到雲端",
+		"connectToCloud": "連線至雲端",
 		"connectToCloudDescription": "登入 Roo Code Cloud 以分享工作",
 		"sharingDisabledByOrganization": "組織已停用分享功能",
 		"shareSuccessOrganization": "組織連結已複製到剪貼簿",
 		"shareSuccessPublic": "公開連結已複製到剪貼簿"
 	},
-	"unpin": "取消置頂",
-	"pin": "置頂",
-	"tokenProgress": {
-		"availableSpace": "可用空間：{{amount}} tokens",
-		"tokensUsed": "已使用 tokens: {{used}} / {{total}}",
-		"reservedForResponse": "為模型回應保留：{{amount}} tokens"
-	},
+	"unpin": "取消釘選",
+	"pin": "釘選",
 	"retry": {
 		"title": "重試",
 		"tooltip": "再次嘗試操作"
@@ -49,6 +44,11 @@
 		"title": "儲存",
 		"tooltip": "儲存訊息變更"
 	},
+	"tokenProgress": {
+		"availableSpace": "可用空間：{{amount}} Token",
+		"tokensUsed": "已使用 Token： {{used}} / {{total}}",
+		"reservedForResponse": "模型回應保留：{{amount}} Token"
+	},
 	"reject": {
 		"title": "拒絕",
 		"tooltip": "拒絕此操作"
@@ -57,6 +57,14 @@
 	"approve": {
 		"title": "核准",
 		"tooltip": "核准此操作"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "全部核准"
+		},
+		"deny": {
+			"title": "全部拒絕"
+		}
 	},
 	"runCommand": {
 		"title": "執行命令",
@@ -67,8 +75,8 @@
 		"tooltip": "儘管有警告仍繼續執行"
 	},
 	"killCommand": {
-		"title": "終止指令",
-		"tooltip": "終止目前的指令"
+		"title": "終止命令",
+		"tooltip": "終止目前的命令"
 	},
 	"resumeTask": {
 		"title": "繼續工作",
@@ -82,16 +90,19 @@
 		"title": "取消",
 		"tooltip": "取消目前操作"
 	},
-	"scrollToBottom": "捲動至對話框底部",
-	"about": "透過 AI 輔助產生、重構和偵錯程式碼。查看我們的 <DocsLink>說明文件</DocsLink> 以瞭解更多資訊。",
-	"onboarding": "<strong>您在此工作區中的工作清單是空的。</strong> 請在下方輸入工作以開始。 不確定如何開始？ 在 <DocsLink>說明文件</DocsLink> 中閱讀更多關於 Roo 能為您做什麼的資訊。",
+	"editMessage": {
+		"placeholder": "編輯您的訊息..."
+	},
+	"scrollToBottom": "捲動至聊天室底部",
+	"about": "利用 AI 輔助產生、重構和偵錯程式碼。請參閱我們的<DocsLink>說明文件</DocsLink>以瞭解更多資訊。",
+	"onboarding": "此工作區的工作清單是空的。",
 	"rooTips": {
 		"boomerangTasks": {
-			"title": "任務編排",
-			"description": "將任務拆分為更小、更易於管理的部分。"
+			"title": "工作編排",
+			"description": "將工作拆分為更小、更易於管理的部分。"
 		},
 		"stickyModels": {
-			"title": "黏性模式",
+			"title": "記憶模型",
 			"description": "每個模式都會記住您上次使用的模型"
 		},
 		"tools": {
@@ -99,41 +110,36 @@
 			"description": "允許 AI 透過瀏覽網路、執行命令等方式解決問題。"
 		},
 		"customizableModes": {
-			"title": "自訂模式",
+			"title": "可自訂模式",
 			"description": "具有專屬行為和指定模型的特定角色"
 		}
 	},
 	"selectMode": "選擇互動模式",
 	"selectApiConfig": "選取 API 設定",
-	"enhancePrompt": "使用額外內容增強提示",
-	"addImages": "新增圖片到訊息中",
-	"sendMessage": "傳送訊息",
-	"stopTts": "停止文字轉語音",
-	"typeMessage": "輸入訊息...",
-	"typeTask": "在此處輸入您的工作...",
-	"addContext": "輸入 @ 新增內容，輸入 / 執行指令",
-	"dragFiles": "按住 Shift 鍵拖曳檔案",
-	"dragFilesImages": "按住 Shift 鍵拖曳檔案/圖片",
-	"enhancePromptDescription": "「增強提示」按鈕透過提供額外內容、說明或重新表述來幫助改進您的請求。嘗試在此處輸入請求，然後再次點選按鈕以了解其運作方式。",
+	"enhancePrompt": "使用額外內容強化提示詞",
 	"modeSelector": {
 		"title": "模式",
 		"marketplace": "模式市集",
 		"settings": "模式設定",
-		"description": "專門定制Roo行為的角色。",
+		"description": "專門量身打造 Roo 行為的角色。",
 		"searchPlaceholder": "搜尋模式...",
 		"noResults": "沒有找到結果"
 	},
+	"enhancePromptDescription": "「強化提示詞」按鈕可透過提供額外內容、說明或改寫來協助改善您的提示詞。請試著在這裡輸入提示詞，然後再次點選按鈕，以了解其運作方式。",
+	"addImages": "新增圖片到訊息中",
+	"sendMessage": "傳送訊息",
+	"stopTts": "停止文字轉語音",
+	"typeMessage": "輸入訊息...",
+	"typeTask": "在這裡輸入您的工作...",
+	"addContext": "輸入 @ 新增內容，/ 執行命令",
+	"dragFiles": "按住 Shift 鍵拖曳檔案",
+	"dragFilesImages": "按住 Shift 鍵拖曳檔案/圖片",
 	"errorReadingFile": "讀取檔案時發生錯誤：",
 	"noValidImages": "未處理到任何有效圖片",
 	"separator": "分隔符號",
 	"edit": "編輯...",
 	"forNextMode": "用於下一個模式",
 	"forPreviousMode": "用於上一個模式",
-	"error": "錯誤",
-	"diffError": {
-		"title": "編輯失敗"
-	},
-	"troubleMessage": "Roo 遇到問題...",
 	"apiRequest": {
 		"title": "API 請求",
 		"failed": "API 請求失敗",
@@ -143,7 +149,7 @@
 	},
 	"checkpoint": {
 		"regular": "檢查點",
-		"initializingWarning": "正在初始化檢查點...如果耗時過長，你可以在<settingsLink>設定</settingsLink>中停用檢查點並重新啟動任務。",
+		"initializingWarning": "正在初始化檢查點... 如果耗時過長，您可以在<settingsLink>設定</settingsLink>中停用檢查點並重新啟動工作。",
 		"menu": {
 			"viewDiff": "檢視差異",
 			"restore": "還原檢查點",
@@ -157,60 +163,73 @@
 		},
 		"current": "目前"
 	},
+	"contextCondense": {
+		"title": "上下文已壓縮",
+		"condensing": "正在壓縮上下文...",
+		"errorHeader": "壓縮上下文失敗",
+		"tokens": "Token"
+	},
 	"instructions": {
-		"wantsToFetch": "Roo 想要取得詳細指示以協助目前任務"
+		"wantsToFetch": "Roo 想要取得詳細指示以協助目前工作"
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo 想要讀取此檔案：",
+		"wantsToReadMultiple": "Roo 想要讀取多個檔案：",
+		"wantsToReadAndXMore": "Roo 想要讀取此檔案以及另外 {{count}} 個檔案：",
 		"wantsToReadOutsideWorkspace": "Roo 想要讀取此工作區外的檔案：",
 		"didRead": "Roo 已讀取此檔案：",
 		"wantsToEdit": "Roo 想要編輯此檔案：",
 		"wantsToEditOutsideWorkspace": "Roo 想要編輯此工作區外的檔案：",
 		"wantsToEditProtected": "Roo 想要編輯受保護的設定檔案：",
+		"wantsToApplyBatchChanges": "Roo 想要對多個檔案套用變更：",
 		"wantsToCreate": "Roo 想要建立新檔案：",
 		"wantsToSearchReplace": "Roo 想要在此檔案中搜尋和取代：",
 		"didSearchReplace": "Roo 已在此檔案執行搜尋和取代：",
 		"wantsToInsert": "Roo 想要在此檔案中插入內容：",
 		"wantsToInsertWithLineNumber": "Roo 想要在此檔案第 {{lineNumber}} 行插入內容：",
-		"wantsToInsertAtEnd": "Roo 想要在此檔案末尾新增內容：",
-		"wantsToReadAndXMore": "Roo 想要讀取此檔案以及另外 {{count}} 個檔案：",
-		"wantsToReadMultiple": "Roo 想要讀取多個檔案：",
-		"wantsToApplyBatchChanges": "Roo 想要對多個檔案套用變更："
+		"wantsToInsertAtEnd": "Roo 想要在此檔案尾端新增內容："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案：",
 		"didViewTopLevel": "Roo 已檢視此目錄中最上層的檔案：",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中最上層的檔案：",
+		"didViewTopLevelOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中最上層的檔案：",
 		"wantsToViewRecursive": "Roo 想要遞迴檢視此目錄中的所有檔案：",
 		"didViewRecursive": "Roo 已遞迴檢視此目錄中的所有檔案：",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo 想要遞迴檢視此目錄（工作區外）中的所有檔案：",
+		"didViewRecursiveOutsideWorkspace": "Roo 已遞迴檢視此目錄（工作區外）中的所有檔案：",
 		"wantsToViewDefinitions": "Roo 想要檢視此目錄中使用的原始碼定義名稱：",
 		"didViewDefinitions": "Roo 已檢視此目錄中使用的原始碼定義名稱：",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中使用的原始碼定義名稱：",
+		"didViewDefinitionsOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中使用的原始碼定義名稱：",
 		"wantsToSearch": "Roo 想要在此目錄中搜尋 <code>{{regex}}</code>：",
 		"didSearch": "Roo 已在此目錄中搜尋 <code>{{regex}}</code>：",
 		"wantsToSearchOutsideWorkspace": "Roo 想要在此目錄（工作區外）中搜尋 <code>{{regex}}</code>：",
-		"didSearchOutsideWorkspace": "Roo 已在此目錄（工作區外）中搜尋 <code>{{regex}}</code>：",
-		"wantsToViewTopLevelOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中最上層的檔案：",
-		"didViewTopLevelOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中最上層的檔案：",
-		"wantsToViewRecursiveOutsideWorkspace": "Roo 想要遞迴檢視此目錄（工作區外）中的所有檔案：",
-		"didViewRecursiveOutsideWorkspace": "Roo 已遞迴檢視此目錄（工作區外）中的所有檔案：",
-		"wantsToViewDefinitionsOutsideWorkspace": "Roo 想要檢視此目錄（工作區外）中使用的原始碼定義名稱：",
-		"didViewDefinitionsOutsideWorkspace": "Roo 已檢視此目錄（工作區外）中使用的原始碼定義名稱："
+		"didSearchOutsideWorkspace": "Roo 已在此目錄（工作區外）中搜尋 <code>{{regex}}</code>："
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo 想要在程式碼庫中搜尋：<code>{{query}}</code>",
+		"wantsToSearchWithPath": "Roo 想要在 <code>{{path}}</code> 中搜尋程式碼庫：<code>{{query}}</code>",
+		"didSearch_one": "找到 1 個結果",
+		"didSearch_other": "找到 {{count}} 個結果",
+		"resultTooltip": "相似度評分：{{score}} (點選開啟檔案)"
 	},
 	"commandOutput": "命令輸出",
 	"commandExecution": {
 		"running": "正在執行",
 		"pid": "PID: {{pid}}",
-		"exited": "已退出 ({{exitCode}})",
+		"exited": "已結束 ({{exitCode}})",
 		"manageCommands": "管理命令權限",
-		"commandManagementDescription": "管理命令權限：點擊 ✓ 允許自動執行，點擊 ✗ 拒絕執行。可以開啟/關閉模式或從清單中刪除。<settingsLink>檢視所有設定</settingsLink>",
+		"commandManagementDescription": "管理命令權限：點選 ✓ 允許自動執行，點選 ✗ 拒絕執行。規則可以開啟/關閉或從清單中移除。<settingsLink>檢視所有設定</settingsLink>",
 		"addToAllowed": "新增至允許清單",
 		"removeFromAllowed": "從允許清單中移除",
 		"addToDenied": "新增至拒絕清單",
 		"removeFromDenied": "從拒絕清單中移除",
 		"abortCommand": "中止命令執行",
 		"expandOutput": "展開輸出",
-		"collapseOutput": "折疊輸出",
+		"collapseOutput": "摺疊輸出",
 		"expandManagement": "展開命令管理部分",
-		"collapseManagement": "折疊命令管理部分"
+		"collapseManagement": "摺疊命令管理部分"
 	},
 	"response": "回應",
 	"arguments": "參數",
@@ -219,59 +238,58 @@
 		"wantsToAccessResource": "Roo 想要存取 {{serverName}} MCP 伺服器上的資源："
 	},
 	"modes": {
-		"wantsToSwitch": "Roo 想要切換至 <code>{{mode}}</code> 模式",
-		"wantsToSwitchWithReason": "Roo 想要切換至 <code>{{mode}}</code> 模式，原因：{{reason}}",
-		"didSwitch": "Roo 已切換至 <code>{{mode}}</code> 模式",
-		"didSwitchWithReason": "Roo 已切換至 <code>{{mode}}</code> 模式，原因：{{reason}}"
+		"wantsToSwitch": "Roo 想要切換至 {{mode}} 模式",
+		"wantsToSwitchWithReason": "Roo 想要切換至 {{mode}} 模式，原因：{{reason}}",
+		"didSwitch": "Roo 已切換至 {{mode}} 模式",
+		"didSwitchWithReason": "Roo 已切換至 {{mode}} 模式，原因：{{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Roo 想要在 <code>{{mode}}</code> 模式下建立新的子工作：",
+		"wantsToCreate": "Roo 想要在 {{mode}} 模式下建立新的子工作：",
 		"wantsToFinish": "Roo 想要完成此子工作",
 		"newTaskContent": "子工作指示",
 		"completionContent": "子工作已完成",
 		"resultContent": "子工作結果",
 		"defaultResult": "請繼續下一個工作。",
-		"completionInstructions": "子工作已完成！您可以檢閱結果並提出修正或下一步建議。如果一切看起來良好，請確認以將結果傳回主工作。"
+		"completionInstructions": "子工作已完成！您可以檢閱結果並提出修正或後續步驟。如果一切順利，請確認以將結果回傳給主任務。"
 	},
 	"questions": {
 		"hasQuestion": "Roo 有一個問題："
 	},
 	"taskCompleted": "工作完成",
+	"error": "錯誤",
+	"diffError": {
+		"title": "編輯失敗"
+	},
+	"troubleMessage": "Roo 遇到問題...",
 	"powershell": {
-		"issues": "看起來您遇到了 Windows PowerShell 的問題，請參考此處"
+		"issues": "您似乎遇到了 Windows PowerShell 的問題，請參閱此說明文件"
 	},
 	"autoApprove": {
 		"title": "自動核准：",
 		"none": "無",
-		"description": "自動核准讓 Roo Code 可以在無需徵求您同意的情況下執行動作。請僅對您完全信任的動作啟用此功能。您可以在<settingsLink>設定</settingsLink>中進行更詳細的調整。",
+		"description": "自動核准讓 Roo Code 可以在無需徵求您同意的情況下執行操作。請僅對您完全信任的動作啟用此功能。您可以在<settingsLink>設定</settingsLink>中進行更詳細的調整。",
 		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准",
 		"toggleAriaLabel": "切換自動核准",
 		"disabledAriaLabel": "自動核准已停用 - 請先選取選項"
-	},
-	"reasoning": {
-		"thinking": "思考中",
-		"seconds": "{{count}}秒"
-	},
-	"contextCondense": {
-		"title": "上下文已壓縮",
-		"condensing": "正在壓縮上下文...",
-		"errorHeader": "上下文壓縮失敗",
-		"tokens": "tokens"
-	},
-	"followUpSuggest": {
-		"copyToInput": "複製到輸入框（或按住 Shift 並點選）",
-		"autoSelectCountdown": "{{count}}秒後自動選擇",
-		"countdownDisplay": "{{count}}秒"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來強大的新功能和重大改進，提升您的開發工作流程。",
 		"whatsNew": "新功能",
 		"feature1": "<bold>訊息佇列</bold>：在 Roo 工作時將多個訊息排入佇列，讓您可以不間斷地繼續規劃工作流程。",
-		"feature2": "<bold>自訂斜線命令</bold>：建立個人化斜線命令，快速存取常用提示和工作流程，具備完整的 UI 管理功能。",
-		"feature3": "<bold>增強的 Gemini 工具</bold>：新的 URL 上下文和 Google 搜尋基礎功能為 Gemini 模型提供即時網路資訊和增強的研究能力。",
+		"feature2": "<bold>自訂斜線命令</bold>：建立個人化斜線命令，快速存取常用提示詞和工作流程，具備完整的 UI 管理功能。",
+		"feature3": "<bold>增強的 Gemini 工具</bold>：新的 URL 內容和 Google 搜尋基礎功能為 Gemini 模型提供即時網路資訊和增強的研究能力。",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
+	},
+	"reasoning": {
+		"thinking": "思考中",
+		"seconds": "{{count}} 秒"
+	},
+	"followUpSuggest": {
+		"copyToInput": "複製到輸入框 (或按住 Shift 並點選)",
+		"autoSelectCountdown": "{{count}} 秒後自動選擇",
+		"countdownDisplay": "{{count}} 秒"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo 想要使用瀏覽器：",
@@ -308,34 +326,19 @@
 	"profileViolationWarning": "目前設定檔與您的組織設定不相容",
 	"shellIntegration": {
 		"title": "命令執行警告",
-		"description": "您的命令正在沒有 VSCode 終端機 shell 整合的情況下執行。要隱藏此警告，您可以在 <settingsLink>Roo Code 設定</settingsLink>的 <strong>Terminal</strong> 部分停用 shell 整合，或使用下方連結排查 VSCode 終端機整合問題。",
-		"troubleshooting": "點擊此處查看 shell 整合文件。"
+		"description": "您的命令正在沒有 VSCode 終端機 Shell 整合的情況下執行。若要隱藏此警告，您可以在 <settingsLink>Roo Code 設定</settingsLink> 的<strong>終端機</strong>區塊中停用 Shell 整合，或使用下方的連結來排解 VSCode 終端機整合問題。",
+		"troubleshooting": "點選此處查看 Shell 整合文件。"
 	},
 	"ask": {
 		"autoApprovedRequestLimitReached": {
-			"title": "已達自動核准請求限制",
-			"description": "Roo 已達到 {{count}} 次 API 請求的自動核准限制。您想要重設計數並繼續工作嗎？",
+			"title": "已達自動核准請求上限",
+			"description": "Roo 已達到 {{count}} 次 API 請求的自動核准上限。您想重設計數並繼續工作嗎？",
 			"button": "重設並繼續"
 		},
 		"autoApprovedCostLimitReached": {
-			"title": "已达到自动批准成本上限",
-			"button": "重置并继续",
-			"description": "Roo已达到自动批准的成本限制${{count}}。您想要重置成本并继续任务吗？"
-		}
-	},
-	"codebaseSearch": {
-		"wantsToSearch": "Roo 想要搜尋程式碼庫：<code>{{query}}</code>",
-		"wantsToSearchWithPath": "Roo 想要在 <code>{{path}}</code> 中搜尋：<code>{{query}}</code>",
-		"didSearch_one": "找到 1 個結果",
-		"didSearch_other": "找到 {{count}} 個結果",
-		"resultTooltip": "相似度評分：{{score}} (點擊開啟檔案)"
-	},
-	"read-batch": {
-		"approve": {
-			"title": "全部核准"
-		},
-		"deny": {
-			"title": "全部拒絕"
+			"title": "已達自動核准費用上限",
+			"description": "Roo 已達到 ${{count}} 的自動核准費用上限。您想重設費用並繼續工作嗎？",
+			"button": "重設並繼續"
 		}
 	},
 	"indexingStatus": {
@@ -346,39 +349,36 @@
 		"status": "索引狀態"
 	},
 	"versionIndicator": {
-		"ariaLabel": "版本 {{version}} - 點擊查看發布說明"
+		"ariaLabel": "版本 {{version}} - 點選查看發布說明"
 	},
 	"rooCloudCTA": {
 		"title": "Roo Code Cloud 即將推出！",
-		"description": "在雲端執行遠端代理，隨時隨地存取您的工作，與他人協作等更多功能。",
+		"description": "在雲端執行 Roomote 遠端代理、隨時隨地存取您的工作、與他人協作等等。",
 		"joinWaitlist": "加入等候名單以獲得早期存取權限。"
-	},
-	"editMessage": {
-		"placeholder": "編輯訊息..."
 	},
 	"command": {
 		"triggerDescription": "觸發 {{name}} 命令"
 	},
 	"slashCommands": {
-		"tooltip": "管理斜線指令",
-		"title": "斜線指令",
-		"description": "建立自訂斜線指令，快速存取常用提示詞和工作流程。<DocsLink>說明文件</DocsLink>",
-		"globalCommands": "全域指令",
-		"workspaceCommands": "工作區指令",
-		"globalCommand": "全域指令",
-		"editCommand": "編輯指令",
-		"deleteCommand": "刪除指令",
-		"newGlobalCommandPlaceholder": "新增全域指令...",
-		"newWorkspaceCommandPlaceholder": "新增工作區指令...",
+		"tooltip": "管理斜線命令",
+		"title": "斜線命令",
+		"description": "建立自訂斜線命令，以便快速存取常用的提示詞和工作流程。<DocsLink>說明文件</DocsLink>",
+		"globalCommands": "全域命令",
+		"workspaceCommands": "工作區命令",
+		"globalCommand": "全域命令",
+		"editCommand": "編輯命令",
+		"deleteCommand": "刪除命令",
+		"newGlobalCommandPlaceholder": "新增全域命令...",
+		"newWorkspaceCommandPlaceholder": "新增工作區命令...",
 		"deleteDialog": {
-			"title": "刪除指令",
-			"description": "確定要刪除指令 \"{{name}}\" 嗎？此動作無法復原。",
+			"title": "刪除命令",
+			"description": "您確定要刪除「{{name}}」命令嗎？此操作無法復原。",
 			"cancel": "取消",
 			"confirm": "刪除"
 		}
 	},
 	"queuedMessages": {
-		"title": "佇列訊息:",
-		"clickToEdit": "點擊編輯訊息"
+		"title": "佇列中的訊息：",
+		"clickToEdit": "點選以編輯訊息"
 	}
 }

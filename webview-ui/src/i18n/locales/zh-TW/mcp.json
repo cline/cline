@@ -2,25 +2,26 @@
 	"title": "MCP 伺服器",
 	"done": "完成",
 	"marketplace": "MCP 市集",
-	"description": "<0>Model Context Protocol</0> 能與本機執行的 MCP 伺服器通訊，提供額外的工具和資源來擴展 Roo 的功能。您可以使用<1>社群開發的伺服器</1>，或請 Roo 為您的工作流程建立新工具（例如「新增一個取得最新 npm 文件的工具」）。",
+	"description": "<0>模型內容協定 (Model Context Protocol)</0> 能夠與在本機執行的 MCP 伺服器進行通訊，提供額外的工具和資源來擴展 Roo 的功能。您可以使用<1>社群開發的伺服器</1>，或請 Roo 為您的工作流程建立新工具 (例如：「建立一個能取得最新 npm 文件的工具」)。",
 	"instructions": "使用說明",
 	"enableToggle": {
 		"title": "啟用 MCP 伺服器",
-		"description": "開啟後 Roo 可用已連接 MCP 伺服器的工具，能力更強。不用這些工具時建議關閉，節省 API Token 費用。"
+		"description": "啟用此選項後，Roo 將可使用已連線 MCP 伺服器所提供的工具，進一步提升功能。如果您暫無使用這些額外工具的需求，建議關閉此選項以協助降低 API Token 費用。"
 	},
 	"enableServerCreation": {
-		"title": "啟用 MCP 伺服器建立",
-		"description": "開啟後 Roo 可協助你建立<1>新</1>自訂 MCP 伺服器。<0>了解伺服器建立</0>",
-		"hint": "提示：不需要 Roo 建立新 MCP 伺服器時建議關閉，減少 API Token 費用。"
+		"title": "啟用 MCP 伺服器建立功能",
+		"description": "啟用此選項後，Roo 可協助您建立<1>全新</1>自訂 MCP 伺服器。<0>深入了解伺服器建立流程</0>",
+		"hint": "提示：若您暫無建立新 MCP 伺服器的需求，建議停用此設定，以協助降低 API Token 費用。"
 	},
 	"editGlobalMCP": "編輯全域 MCP",
 	"editProjectMCP": "編輯專案 MCP",
-	"learnMoreEditingSettings": "了解如何編輯 MCP 設定檔",
+	"refreshMCP": "重新整理 MCP 伺服器",
+	"learnMoreEditingSettings": "了解更多關於編輯 MCP 設定檔的資訊",
 	"tool": {
 		"alwaysAllow": "總是允許",
 		"parameters": "參數",
-		"noDescription": "無說明",
-		"togglePromptInclusion": "切換在提示中的包含"
+		"noDescription": "暫無說明",
+		"togglePromptInclusion": "切換提示包含狀態"
 	},
 	"tabs": {
 		"tools": "工具",
@@ -34,7 +35,7 @@
 	},
 	"networkTimeout": {
 		"label": "網路逾時",
-		"description": "伺服器回應最大等待時間",
+		"description": "等待伺服器回應的最長時間",
 		"options": {
 			"15seconds": "15 秒",
 			"30seconds": "30 秒",
@@ -48,7 +49,7 @@
 	},
 	"deleteDialog": {
 		"title": "刪除 MCP 伺服器",
-		"description": "你確定要刪除 MCP 伺服器「{{serverName}}」嗎？此操作無法復原。",
+		"description": "您確定要刪除 MCP 伺服器「{{serverName}}」嗎？此操作無法復原。",
 		"cancel": "取消",
 		"delete": "刪除"
 	},
@@ -56,7 +57,6 @@
 		"retrying": "重試中...",
 		"retryConnection": "重試連線"
 	},
-	"refreshMCP": "重新整理 MCP 伺服器",
 	"execution": {
 		"running": "執行中",
 		"completed": "已完成",

@@ -46,7 +46,7 @@
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API 金鑰：",
-		"geminiApiKeyPlaceholder": "輸入您的Gemini API金鑰",
+		"geminiApiKeyPlaceholder": "輸入您的 Gemini API 金鑰",
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "API 金鑰：",
 		"mistralApiKeyPlaceholder": "輸入您的 Mistral API 金鑰",
@@ -59,10 +59,10 @@
 		"openAiCompatibleModelDimensionLabel": "嵌入維度：",
 		"modelDimensionLabel": "模型維度",
 		"openAiCompatibleModelDimensionPlaceholder": "例如，1536",
-		"openAiCompatibleModelDimensionDescription": "模型的嵌入維度（輸出大小）。請查閱您的提供商文件獲取此值。常見值：384、768、1536、3072。",
+		"openAiCompatibleModelDimensionDescription": "模型的嵌入維度（輸出大小）。請查閱您的提供商文件以取得此值。常見值：384、768、1536、3072。",
 		"modelLabel": "模型",
 		"selectModelPlaceholder": "選擇模型",
-		"ollamaUrlLabel": "Ollama URL：",
+		"ollamaUrlLabel": "Ollama URL:",
 		"qdrantUrlLabel": "Qdrant URL",
 		"qdrantKeyLabel": "Qdrant 金鑰：",
 		"startIndexingButton": "開始",
@@ -140,7 +140,7 @@
 		},
 		"write": {
 			"label": "寫入",
-			"description": "自動建立和編輯文件而無需核准",
+			"description": "自動建立和編輯檔案而無需核准",
 			"delayLabel": "寫入後延遲以允許診斷偵測潛在問題",
 			"outsideWorkspace": {
 				"label": "包含工作區外的檔案",
@@ -191,25 +191,25 @@
 		},
 		"updateTodoList": {
 			"label": "待辦",
-			"description": "自動更新待辦清單無需批准"
+			"description": "自動更新待辦清單無需核准"
 		},
 		"apiRequestLimit": {
 			"title": "最大請求數",
-			"description": "在請求批准以繼續執行工作之前，自動發出此數量的 API 請求。",
+			"description": "在請求核准以繼續執行工作之前，自動發出此數量的 API 請求。",
 			"unlimited": "無限制"
 		},
 		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准",
 		"apiCostLimit": {
-			"unlimited": "无限",
-			"title": "最高费用"
+			"unlimited": "無限",
+			"title": "最高費用"
 		},
 		"maxLimits": {
-			"description": "在请求获得继续操作的批准前，自动发送请求直至达到这些限制。"
+			"description": "在請求獲得繼續操作的核准前，自動發送請求直至達到這些限制。"
 		}
 	},
 	"providers": {
-		"providerDocumentation": "{{provider}} 文件",
-		"configProfile": "配置設定檔",
+		"providerDocumentation": "{{provider}} 說明文件",
+		"configProfile": "設定檔",
 		"description": "儲存不同的 API 設定以快速切換供應商和設定。",
 		"apiProvider": "API 供應商",
 		"model": "模型",
@@ -274,11 +274,11 @@
 		"getDoubaoApiKey": "取得豆包 API 金鑰",
 		"moonshotApiKey": "Moonshot API 金鑰",
 		"getMoonshotApiKey": "取得 Moonshot API 金鑰",
-		"moonshotBaseUrl": "Moonshot 服務站點",
+		"moonshotBaseUrl": "Moonshot 服務端點",
 		"zaiApiKey": "Z AI API 金鑰",
 		"getZaiApiKey": "取得 Z AI API 金鑰",
-		"zaiEntrypoint": "Z AI 服務站點",
-		"zaiEntrypointDescription": "請根據您的位置選擇適當的 API 服務站點。如果您在中國，請選擇 open.bigmodel.cn。否則，請選擇 api.z.ai。",
+		"zaiEntrypoint": "Z AI 服務端點",
+		"zaiEntrypointDescription": "請根據您的位置選擇適當的 API 服務端點。如果您在中國，請選擇 open.bigmodel.cn。否則，請選擇 api.z.ai。",
 		"geminiApiKey": "Gemini API 金鑰",
 		"getGroqApiKey": "取得 Groq API 金鑰",
 		"groqApiKey": "Groq API 金鑰",
@@ -368,7 +368,7 @@
 		"unboundApiKey": "Unbound API 金鑰",
 		"getUnboundApiKey": "取得 Unbound API 金鑰",
 		"unboundRefreshModelsSuccess": "模型列表已更新！您現在可以從最新模型中選擇。",
-		"unboundInvalidApiKey": "無效的API金鑰。請檢查您的API金鑰並重試。",
+		"unboundInvalidApiKey": "無效的 API 金鑰。請檢查您的 API 金鑰並重試。",
 		"humanRelay": {
 			"description": "不需要 API 金鑰，但使用者需要協助將資訊複製並貼上到網頁聊天 AI。",
 			"instructions": "使用期間會彈出對話框，並自動將目前訊息複製到剪貼簿。您需要將這些內容貼上到網頁版 AI（如 ChatGPT 或 Claude），然後將 AI 的回覆複製回對話框並點選確認按鈕。"
@@ -458,7 +458,7 @@
 	"browser": {
 		"enable": {
 			"label": "啟用瀏覽器工具",
-			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器與網站互動。 <0>瞭解更多</0>"
+			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器與網站互動。 <0>了解更多</0>"
 		},
 		"viewport": {
 			"label": "視窗大小",
@@ -486,7 +486,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "啟用自動檢查點",
-			"description": "啟用後，Roo 將在工作執行期間自動建立檢查點，使審核變更或回到早期狀態變得容易。 <0>瞭解更多</0>"
+			"description": "啟用後，Roo 將在工作執行期間自動建立檢查點，使審核變更或回到早期狀態變得容易。 <0>了解更多</0>"
 		}
 	},
 	"notifications": {
@@ -508,9 +508,9 @@
 			"description": "當上下文視窗達到此閾值時，Roo 將自動壓縮它。"
 		},
 		"condensingApiConfiguration": {
-			"label": "上下文壓縮的API配置",
-			"description": "選擇用於上下文壓縮操作的API配置。留空則使用當前活動的配置。",
-			"useCurrentConfig": "使用當前配置"
+			"label": "上下文壓縮的 API 設定",
+			"description": "選擇用於上下文壓縮操作的 API 設定。留空則使用目前啟用的設定。",
+			"useCurrentConfig": "使用目前設定"
 		},
 		"customCondensingPrompt": {
 			"label": "自訂上下文壓縮提示",
@@ -537,7 +537,7 @@
 		},
 		"maxReadFile": {
 			"label": "檔案讀取自動截斷閾值",
-			"description": "當模型未指定起始/結束值時，Roo 讀取的行數。如果此數值小於檔案總行數，Roo 將產生程式碼定義的行號索引。特殊情況：-1 指示 Roo 讀取整個檔案（不建立索引），0 指示不讀取任何行並僅提供行索引以取得最小上下文。較低的值可最小化初始上下文使用，允許後續精確的行範圍讀取。明確指定起始/結束的請求不受此設定限制。 <0>瞭解更多</0>",
+			"description": "當模型未指定起始/結束值時，Roo 讀取的行數。如果此數值小於檔案總行數，Roo 將產生程式碼定義的行號索引。特殊情況：-1 指示 Roo 讀取整個檔案（不建立索引），0 指示不讀取任何行並僅提供行索引以取得最小上下文。較低的值可最小化初始上下文使用，允許後續精確的行範圍讀取。明確指定起始/結束的請求不受此設定限制。 <0>了解更多</0>",
 			"lines": "行",
 			"always_full_read": "始終讀取整個檔案"
 		},
@@ -572,9 +572,9 @@
 			"usesGlobal": "（使用全域 {{threshold}}%）"
 		},
 		"maxImageFileSize": {
-			"label": "最大圖像檔案大小",
+			"label": "最大圖片檔案大小",
 			"mb": "MB",
-			"description": "read file工具可以處理的圖像檔案的最大大小（以MB為單位）。"
+			"description": "read file 工具可以處理的圖像檔案的最大大小（以 MB 為單位）。"
 		},
 		"maxTotalImageSize": {
 			"label": "圖片總大小上限",
@@ -593,7 +593,7 @@
 		},
 		"outputLineLimit": {
 			"label": "終端機輸出行數限制",
-			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。 <0>瞭解更多</0>"
+			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。 <0>了解更多</0>"
 		},
 		"outputCharacterLimit": {
 			"label": "終端機字元限制",
@@ -601,43 +601,43 @@
 		},
 		"shellIntegrationTimeout": {
 			"label": "終端機 Shell 整合逾時",
-			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。 <0>瞭解更多</0>"
+			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。 <0>了解更多</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "停用終端機 Shell 整合",
-			"description": "如果終端機指令無法正常運作或看到 'Shell Integration Unavailable' 錯誤，請啟用此項。這會使用較簡單的方法執行指令，繞過一些進階終端機功能。 <0>瞭解更多</0>"
+			"description": "如果終端機指令無法正常運作或看到 'Shell Integration Unavailable' 錯誤，請啟用此項。這會使用較簡單的方法執行指令，繞過一些進階終端機功能。 <0>了解更多</0>"
 		},
 		"commandDelay": {
 			"label": "終端機命令延遲",
-			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。 <0>瞭解更多</0>"
+			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。 <0>了解更多</0>"
 		},
 		"compressProgressBar": {
 			"label": "壓縮進度條輸出",
-			"description": "啟用後，將處理包含歸位字元 (\\r) 的終端機輸出，模擬真實終端機顯示內容的方式。這會移除進度條的中間狀態，只保留最終狀態，為更重要的資訊節省上下文空間。 <0>瞭解更多</0>"
+			"description": "啟用後，將處理包含歸位字元 (\\r) 的終端機輸出，模擬真實終端機顯示內容的方式。這會移除進度條的中間狀態，只保留最終狀態，為更重要的資訊節省上下文空間。 <0>了解更多</0>"
 		},
 		"powershellCounter": {
 			"label": "啟用 PowerShell 計數器解決方案",
-			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。 <0>瞭解更多</0>"
+			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。 <0>了解更多</0>"
 		},
 		"zshClearEolMark": {
 			"label": "清除 ZSH 行尾標記",
-			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。 <0>瞭解更多</0>"
+			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。 <0>了解更多</0>"
 		},
 		"zshOhMy": {
 			"label": "啟用 Oh My Zsh 整合",
-			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。套用此設定可能需要重新啟動 IDE。 <0>瞭解更多</0>"
+			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。套用此設定可能需要重新啟動 IDE。 <0>了解更多</0>"
 		},
 		"zshP10k": {
 			"label": "啟用 Powerlevel10k 整合",
-			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。 <0>瞭解更多</0>"
+			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。 <0>了解更多</0>"
 		},
 		"zdotdir": {
 			"label": "啟用 ZDOTDIR 處理",
-			"description": "啟用後將建立暫存目錄用於 ZDOTDIR，以正確處理 zsh shell 整合。這確保 VSCode shell 整合能與 zsh 正常運作，同時保留您的 zsh 設定。 <0>瞭解更多</0>"
+			"description": "啟用後將建立暫存目錄用於 ZDOTDIR，以正確處理 zsh shell 整合。這確保 VSCode shell 整合能與 zsh 正常運作，同時保留您的 zsh 設定。 <0>了解更多</0>"
 		},
 		"inheritEnv": {
 			"label": "繼承環境變數",
-			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`。 <0>瞭解更多</0>"
+			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`。 <0>了解更多</0>"
 		}
 	},
 	"advancedSettings": {
@@ -705,7 +705,7 @@
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
 			"name": "背景編輯",
-			"description": "啟用後可防止編輯器焦點中斷。檔案編輯會在背景進行，不會開啟 diff 檢視或搶奪焦點。您可以在 Roo 進行變更時繼續不受干擾地工作。檔案可能會在不獲得焦點的情況下開啟以捕獲診斷，或保持完全關閉。"
+			"description": "啟用後可防止編輯器焦點中斷。檔案編輯會在背景進行，不會開啟 diff 檢視或搶奪焦點。您可以在 Roo 進行變更時繼續不受幹擾地工作。檔案可能會在不獲得焦點的情況下開啟以捕獲診斷，或保持完全關閉。"
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "使用全新訊息解析器",

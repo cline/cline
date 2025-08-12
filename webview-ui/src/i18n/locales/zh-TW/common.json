@@ -1,7 +1,7 @@
 {
 	"errorBoundary": {
 		"title": "發生錯誤",
-		"reportText": "請幫助我們改進，在以下位置回報此錯誤",
+		"reportText": "請協助我們回報此錯誤，以利產品改善：",
 		"githubText": "我們的 GitHub Issues 頁面",
 		"copyInstructions": "複製並貼上以下錯誤訊息，將其作為提交內容的一部分：",
 		"errorStack": "錯誤堆疊：",
@@ -24,7 +24,7 @@
 		"no_results": "找不到結果"
 	},
 	"mermaid": {
-		"loading": "產生 Mermaid 圖表中...",
+		"loading": "正在產生 Mermaid 圖表...",
 		"render_error": "無法渲染圖表",
 		"buttons": {
 			"zoom": "縮放",
@@ -51,10 +51,10 @@
 	"file": {
 		"errors": {
 			"invalidDataUri": "無效的資料 URI 格式",
-			"copyingImage": "複製圖片時發生錯誤: {{error}}",
-			"openingImage": "開啟圖片時發生錯誤: {{error}}",
-			"pathNotExists": "路徑不存在: {{path}}",
-			"couldNotOpen": "無法開啟檔案: {{error}}",
+			"copyingImage": "複製圖片時發生錯誤：{{error}}",
+			"openingImage": "開啟圖片時發生錯誤：{{error}}",
+			"pathNotExists": "路徑不存在：{{path}}",
+			"couldNotOpen": "無法開啟檔案：{{error}}",
 			"couldNotOpenGeneric": "無法開啟檔案！"
 		},
 		"success": {
@@ -63,25 +63,25 @@
 	},
 	"confirmation": {
 		"deleteMessage": "刪除訊息",
-		"deleteWarning": "刪除此訊息將刪除對話中的所有後續訊息。是否繼續？",
+		"deleteWarning": "刪除此訊息將會刪除對話中所有後續的訊息。您要繼續嗎？",
 		"editMessage": "編輯訊息",
-		"editWarning": "編輯此訊息將刪除對話中的所有後續訊息。是否繼續？",
+		"editWarning": "編輯此訊息將會刪除對話中所有後續的訊息。您要繼續嗎？",
 		"proceed": "繼續"
 	},
 	"time_ago": {
 		"just_now": "剛剛",
-		"seconds_ago": "{{count}}秒前",
-		"minute_ago": "1分鐘前",
-		"minutes_ago": "{{count}}分鐘前",
-		"hour_ago": "1小時前",
-		"hours_ago": "{{count}}小時前",
-		"day_ago": "1天前",
-		"days_ago": "{{count}}天前",
-		"week_ago": "1週前",
-		"weeks_ago": "{{count}}週前",
-		"month_ago": "1個月前",
-		"months_ago": "{{count}}個月前",
-		"year_ago": "1年前",
-		"years_ago": "{{count}}年前"
+		"seconds_ago": "{{count}} 秒前",
+		"minute_ago": "1 分鐘前",
+		"minutes_ago": "{{count}} 分鐘前",
+		"hour_ago": "1 小時前",
+		"hours_ago": "{{count}} 小時前",
+		"day_ago": "1 天前",
+		"days_ago": "{{count}} 天前",
+		"week_ago": "1 週前",
+		"weeks_ago": "{{count}} 週前",
+		"month_ago": "1 個月前",
+		"months_ago": "{{count}} 個月前",
+		"year_ago": "1 年前",
+		"years_ago": "{{count}} 年前"
 	}
 }

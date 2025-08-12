@@ -1,6 +1,6 @@
 {
 	"greeting": "歡迎使用 Roo Code！",
-	"introduction": "透過一系列內建和可擴充的模式，Roo Code 讓您能夠以前所未有的方式進行規劃、架構設計、編碼、除錯並提升工作效率。",
+	"introduction": "Roo Code 提供一系列內建和可擴充的模式，讓您以前所未有的方式規劃專案、設計架構、編寫程式碼、除錯並提升工作效率。",
 	"notice": "開始使用前，此擴充功能需要一個 API 提供者。",
 	"start": "讓我們開始吧！",
 	"routers": {
@@ -12,13 +12,13 @@
 			"description": "LLM 的統一介面"
 		}
 	},
-	"chooseProvider": "Roo 需要一個 API 金鑰才能發揮魔力。",
+	"chooseProvider": "Roo 需要 API 金鑰才能發揮魔力。",
 	"startRouter": "我們建議使用 LLM 路由器：",
 	"startCustom": "或者您可以使用自己的 API 金鑰：",
 	"telemetry": {
 		"title": "協助改進 Roo Code",
-		"anonymousTelemetry": "傳送匿名的錯誤和使用資料，以協助我們修復錯誤並改進擴充功能。我們絕不會傳送任何程式碼、提示或個人資訊。",
-		"changeSettings": "您隨時可以在<settingsLink>設定</settingsLink>底端更改此選項",
+		"anonymousTelemetry": "傳送匿名錯誤和使用資料，以協助我們修復錯誤並改善擴充功能。我們絕不會傳送任何程式碼、命令提示詞、或個人資訊 (除非您使用了 Roo Code Cloud)。詳細資訊請參閱我們的<privacyLink>隱私權政策</privacyLink>。",
+		"changeSettings": "您隨時可以到<settingsLink>設定</settingsLink>頁面底部變更此選項",
 		"settings": "設定",
 		"allow": "允許",
 		"deny": "拒絕"

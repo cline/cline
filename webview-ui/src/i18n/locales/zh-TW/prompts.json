@@ -5,16 +5,16 @@
 		"title": "模式",
 		"createNewMode": "建立新模式",
 		"importMode": "匯入模式",
-		"noMatchFound": "找不到任何模式",
 		"editModesConfig": "編輯模式設定",
 		"editGlobalModes": "編輯全域模式",
 		"editProjectModes": "編輯專案模式 (.roomodes)",
 		"createModeHelpText": "模式是 Roo 的專屬角色，用於客製化其行為。<0>了解如何使用模式</0>或<1>自訂模式。</1>",
-		"selectMode": "搜尋模式"
+		"selectMode": "搜尋模式",
+		"noMatchFound": "找不到任何模式"
 	},
 	"apiConfiguration": {
 		"title": "API 設定",
-		"select": "選擇要用於此模式的 API 設定"
+		"select": "選擇此模式要使用的 API 設定"
 	},
 	"tools": {
 		"title": "可用工具",
@@ -34,28 +34,27 @@
 	"roleDefinition": {
 		"title": "角色定義",
 		"resetToDefault": "重設為預設值",
-		"description": "定義此模式下 Roo 的專業知識和個性。此描述會形塑 Roo 如何展現自己並處理工作。"
+		"description": "定義此模式下 Roo 的專業知識和個性。此描述將會形塑 Roo 展現自我及處理工作的方式。"
 	},
 	"description": {
 		"title": "簡短描述（給人看的）",
-		"resetToDefault": "重置為預設描述",
+		"resetToDefault": "重設為預設描述",
 		"description": "在模式選擇下拉選單中顯示的簡短描述。"
 	},
 	"whenToUse": {
 		"title": "使用時機（選用）",
-		"description": "描述何時應使用此模式。這有助於 Orchestrator 為任務選擇適當的模式。",
-		"resetToDefault": "重設「使用時機」描述為預設值"
+		"description": "為 Roo 提供何時應使用此模式的指引。這有助於「Orchestrator」為任務選擇正確的模式。",
+		"resetToDefault": "將「使用時機」描述重設為預設值"
 	},
 	"customInstructions": {
 		"title": "模式專屬自訂指令（選用）",
 		"resetToDefault": "重設為預設值",
 		"description": "為 {{modeName}} 模式新增專屬的行為指南。",
-		"loadFromFile": "{{mode}} 模式的自訂指令也可以從工作區的 <span>.roo/rules-{{slug}}/</span> 資料夾載入（.roorules-{{slug}} 和 .clinerules-{{slug}} 已棄用並將很快停止運作）。"
+		"loadFromFile": "{{mode}} 模式的自訂指令也可以從工作區的 <span>.roo/rules-{{slug}}/</span> 資料夾載入（.roorules-{{slug}} 和 .clinerules-{{slug}} 已被棄用，很快將停止運作）。"
 	},
 	"exportMode": {
 		"title": "匯出模式",
-		"description": "將此模式匯出為包含所有規則的 YAML 檔案，以便與他人輕鬆分享。",
-		"export": "匯出模式",
+		"description": "將此模式與 .roo/rules-{{slug}}/ 資料夾中的規則匯出，並合併成一個可分享的 YAML 檔案。原始檔案將維持不變。",
 		"exporting": "正在匯出..."
 	},
 	"importMode": {
@@ -63,18 +62,21 @@
 		"import": "匯入",
 		"importing": "匯入中...",
 		"global": {
-			"label": "全域",
-			"description": "適用於所有專案。規則將合併到自訂指令中。"
+			"label": "全域層級",
+			"description": "適用於所有專案。如果匯出的模式包含規則檔案，這些檔案將在全域的 .roo/rules-{slug}/ 資料夾中重新建立。"
 		},
 		"project": {
-			"label": "專案級",
+			"label": "專案層級",
 			"description": "僅在此工作區可用。如果匯出的模式包含規則檔案，則將在 .roo/rules-{slug}/ 資料夾中重新建立這些檔案。"
 		}
 	},
+	"advanced": {
+		"title": "進階：覆寫系統提示"
+	},
 	"globalCustomInstructions": {
 		"title": "所有模式的自訂指令",
-		"description": "這些指令適用於所有模式。它們提供了一組基本行為，可以透過下方的模式專屬自訂指令來強化。<0>了解更多</0>",
-		"loadFromFile": "指令也可以從工作區的 <span>.roo/rules/</span> 資料夾載入（.roorules 和 .clinerules 已棄用並將很快停止運作）。"
+		"description": "這些指令適用於所有模式。它們提供了一套可透過下方特定模式指令強化的基本行為。<0>了解更多</0>",
+		"loadFromFile": "指令也可以從工作區的 <span>.roo/rules/</span> 資料夾載入（.roorules 和 .clinerules 已被棄用，很快將停止運作）。"
 	},
 	"systemPrompt": {
 		"preview": "預覽系統提示詞",
@@ -87,27 +89,27 @@
 		"prompt": "提示詞",
 		"enhance": {
 			"apiConfiguration": "API 設定",
-			"apiConfigDescription": "您可以選擇一個固定的 API 設定用於增強提示詞，或使用目前選擇的設定",
+			"apiConfigDescription": "您可以選擇一個固定用於強化提示詞的 API 設定，或直接使用目前選擇的設定",
 			"useCurrentConfig": "使用目前選擇的 API 設定",
-			"testPromptPlaceholder": "輸入提示詞以測試增強效果",
-			"previewButton": "預覽提示詞增強",
-			"testEnhancement": "測試增強",
-			"includeTaskHistory": "包含工作歷史作為內容",
-			"includeTaskHistoryDescription": "啟用後，目前對話的最後 10 則訊息將作為內容包含在增強提示詞時，有助於產生更相關和內容感知的建議。"
+			"testPromptPlaceholder": "輸入提示詞以測試強化效果",
+			"previewButton": "預覽提示詞強化",
+			"testEnhancement": "測試強化",
+			"includeTaskHistory": "將任務歷史紀錄納入內容",
+			"includeTaskHistoryDescription": "啟用後，目前對話的最後 10 則訊息將在強化提示時被納入為前後文，有助於產生更相關且具備情境感知能力的建議。"
 		},
 		"condense": {
 			"apiConfiguration": "用於上下文壓縮的 API 設定",
-			"apiConfigDescription": "選取用於上下文壓縮作業的 API 設定。保留未選取狀態以使用目前作用中的設定。",
-			"useCurrentConfig": "使用當前選取的 API 設定"
+			"apiConfigDescription": "選擇用於上下文壓縮操作的 API 設定。保留未選取狀態則使用目前啟用的設定。",
+			"useCurrentConfig": "使用目前選擇的 API 設定"
 		},
 		"types": {
 			"ENHANCE": {
-				"label": "增強提示詞",
-				"description": "使用提示詞增強功能取得針對您輸入的客製化建議或改進。這確保 Roo 能理解您的意圖並提供最佳的回應。可透過聊天中的 ✨ 圖示使用。"
+				"label": "強化提示詞",
+				"description": "使用提示詞強化功能，為您的輸入取得量身打造的建議或改進。這能確保 Roo 理解您的意圖並提供最佳回應。可透過聊天室中的 ✨ 圖示使用。"
 			},
 			"CONDENSE": {
 				"label": "上下文壓縮",
-				"description": "設定如何壓縮對話上下文以管理權杖限制。此提示用於手動和自動上下文壓縮作業。"
+				"description": "設定對話內容的壓縮方式以管理 Token 限制。此提示用於手動和自動的上下文壓縮作業。"
 			},
 			"EXPLAIN": {
 				"label": "解釋程式碼",
@@ -115,7 +117,7 @@
 			},
 			"FIX": {
 				"label": "修復問題",
-				"description": "協助識別和解決錯誤、程式臭蟲或程式碼品質問題。提供逐步修復問題的指引。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單中使用。"
+				"description": "協助識別和解決錯誤、程式臭蟲或程式碼品質問題。提供修復問題的逐步指引。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單中使用。"
 			},
 			"IMPROVE": {
 				"label": "改進程式碼",
@@ -123,29 +125,29 @@
 			},
 			"ADD_TO_CONTEXT": {
 				"label": "新增至上下文",
-				"description": "為目前工作或對話新增上下文。用於提供額外資訊或說明。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單中使用。"
+				"description": "將內容新增至您目前的工作或對話。用於提供額外資訊或說明。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單中使用。"
 			},
 			"TERMINAL_ADD_TO_CONTEXT": {
 				"label": "新增終端機內容至上下文",
-				"description": "將終端機輸出新增至目前工作或對話。用於提供命令輸出或記錄。可在終端機右鍵選單中使用。"
+				"description": "將終端機輸出新增至目前的工作或對話。用於提供命令輸出或記錄。可在終端機右鍵選單中使用。"
 			},
 			"TERMINAL_FIX": {
 				"label": "修復終端機命令",
-				"description": "協助修復失敗或需要改進的終端機命令。可在終端機右鍵選單中使用。"
+				"description": "取得協助以修復失敗或需要改進的終端機命令。可在終端機右鍵選單中使用。"
 			},
 			"TERMINAL_EXPLAIN": {
 				"label": "說明終端機命令",
-				"description": "取得終端機命令及其輸出的詳細說明。可在終端機內容選單（選取終端機內容後按右鍵）使用。"
+				"description": "取得終端機命令及其輸出的詳細說明。可在終端機右鍵選單中使用。"
 			},
 			"NEW_TASK": {
 				"label": "開始新工作",
-				"description": "開始一個新的工作。可在命令選擇區使用。"
+				"description": "根據使用者輸入開始一個新的任務。可在命令選擇區使用。"
 			}
 		}
 	},
 	"advancedSystemPrompt": {
 		"title": "進階：覆寫系統提示詞",
-		"description": "<2>⚠️ 警告：</2> 此進階功能會略過安全防護。<1>使用前請閱讀！</1>透過在您的工作區中建立檔案 <span>.roo/system-prompt-{{slug}}</span> 來覆寫預設的系統提示詞。"
+		"description": "<2>⚠️ 警告：</2> 此進階功能會繞過安全措施。<1>使用前請詳閱！</1>透過在 <span>.roo/system-prompt-{{slug}}</span> 建立檔案來覆寫預設的系統提示詞。"
 	},
 	"createModeDialog": {
 		"title": "建立新模式",
@@ -174,17 +176,17 @@
 			"label": "角色定義",
 			"description": "定義此模式下 Roo 的專業知識和個性。"
 		},
+		"description": {
+			"label": "簡短描述（供人檢視）",
+			"description": "在模式選擇下拉選單中顯示的簡短描述。"
+		},
 		"whenToUse": {
 			"label": "使用時機（選用）",
-			"description": "提供清晰的描述，說明此模式最適合什麼時候使用，以及適合哪些類型的任務。"
+			"description": "為 Roo 提供何時應使用此模式的指引。這有助於「Orchestrator」為任務選擇正確的模式。"
 		},
 		"tools": {
 			"label": "可用工具",
 			"description": "選擇此模式可使用的工具。"
-		},
-		"description": {
-			"label": "簡短描述（給人看的）",
-			"description": "在模式選擇下拉選單中顯示的簡短描述。"
 		},
 		"customInstructions": {
 			"label": "自訂指令（選用）",
@@ -197,9 +199,6 @@
 		"deleteMode": "刪除模式"
 	},
 	"allFiles": "所有檔案",
-	"advanced": {
-		"title": "進階"
-	},
 	"deleteMode": {
 		"title": "刪除模式",
 		"message": "您確定要刪除「{{modeName}}」模式嗎？",

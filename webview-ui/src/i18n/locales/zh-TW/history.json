@@ -1,10 +1,10 @@
 {
 	"recentTasks": "最近工作",
-	"history": "歷史記錄",
+	"history": "歷史紀錄",
 	"exitSelectionMode": "離開選擇模式",
 	"enterSelectionMode": "進入選擇模式",
 	"done": "完成",
-	"searchPlaceholder": "模糊搜尋歷史記錄...",
+	"searchPlaceholder": "模糊搜尋歷史紀錄...",
 	"newest": "最新",
 	"oldest": "最舊",
 	"mostExpensive": "費用最高",
@@ -26,15 +26,15 @@
 	"deleteSelected": "刪除所選項目",
 	"deleteTasks": "刪除工作",
 	"confirmDeleteTasks": "確定要刪除 {{count}} 個工作嗎？",
-	"deleteTasksWarning": "已刪除的工作無法還原。請確認是否要繼續。",
+	"deleteTasksWarning": "已刪除的工作無法復原，請確認是否要繼續。",
 	"deleteItems": "刪除 {{count}} 個項目",
 	"workspace": {
-		"prefix": "工作區:",
+		"prefix": "工作區：",
 		"current": "目前",
 		"all": "所有"
 	},
 	"sort": {
-		"prefix": "排序:",
+		"prefix": "排序：",
 		"newest": "最新",
 		"oldest": "最舊",
 		"mostExpensive": "費用最高",

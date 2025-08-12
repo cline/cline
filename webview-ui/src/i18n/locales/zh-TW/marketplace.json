@@ -1,5 +1,5 @@
 {
-	"title": "Roo Marketplace",
+	"title": "Roo 市集",
 	"tabs": {
 		"installed": "已安裝",
 		"settings": "設定",
@@ -9,7 +9,7 @@
 	"refresh": "重新整理",
 	"filters": {
 		"search": {
-			"placeholder": "搜尋 Marketplace 項目...",
+			"placeholder": "搜尋市集項目...",
 			"placeholderMcp": "搜尋 MCP...",
 			"placeholderMode": "搜尋模式..."
 		},
@@ -31,13 +31,13 @@
 			"placeholder": "輸入以搜尋和選擇標籤...",
 			"noResults": "找不到符合的標籤",
 			"selected": "顯示包含任何選定標籤的項目",
-			"clickToFilter": "點擊標籤以篩選項目"
+			"clickToFilter": "點選標籤以篩選項目"
 		},
 		"none": "無"
 	},
 	"sections": {
 		"organizationMcps": "{{organization}} MCPs",
-		"marketplace": "Marketplace"
+		"marketplace": "市集"
 	},
 	"type-group": {
 		"modes": "模式",
@@ -45,9 +45,9 @@
 	},
 	"items": {
 		"empty": {
-			"noItems": "找不到 Marketplace 項目",
+			"noItems": "找不到市集項目",
 			"withFilters": "嘗試調整您的篩選條件",
-			"noSources": "嘗試在來源標籤頁中新增來源",
+			"noSources": "嘗試在「來源」分頁中新增來源",
 			"adjustFilters": "嘗試調整您的篩選條件或搜尋詞",
 			"clearAllFilters": "清除所有篩選條件"
 		},
@@ -70,13 +70,13 @@
 			"removeGlobal": "移除（全域）",
 			"viewSource": "檢視",
 			"viewOnSource": "在 {{source}} 上檢視",
-			"noWorkspaceTooltip": "開啟工作區以安裝 Marketplace 項目",
+			"noWorkspaceTooltip": "開啟工作區以安裝市集項目",
 			"installed": "已安裝",
 			"removeProjectTooltip": "從目前專案中移除",
 			"removeGlobalTooltip": "從全域設定中移除",
 			"actionsMenuLabel": "更多動作"
 		},
-		"removeFailed": "移除物品失敗: {{error}}",
+		"removeFailed": "移除項目失敗：{{error}}",
 		"unknownError": "發生未知錯誤"
 	},
 	"install": {
@@ -87,28 +87,28 @@
 		"project": "專案（目前工作區）",
 		"global": "全域（所有工作區）",
 		"method": "安裝方法",
+		"prerequisites": "前置條件",
 		"configuration": "設定",
 		"configurationDescription": "設定此 MCP 伺服器所需的參數",
 		"button": "安裝",
 		"successTitle": "{{name}} 已安裝",
 		"successDescription": "安裝成功完成",
 		"installed": "安裝成功！",
-		"whatNextMcp": "現在您可以設定和使用此 MCP 伺服器。點擊側邊欄中的 MCP 圖示以切換標籤頁。",
-		"whatNextMode": "現在您可以使用此模式。點擊側邊欄中的模式圖示以切換標籤頁。",
+		"whatNextMcp": "您現在可以設定和使用此 MCP 伺服器。點選側邊欄的 MCP 圖示來切換分頁。",
+		"whatNextMode": "您現在可以使用此模式。點選側邊欄的模式圖示來切換分頁。",
 		"done": "完成",
-		"goToMcp": "前往 MCP 標籤頁",
+		"goToMcp": "前往 MCP 分頁",
 		"goToModes": "前往模式設定",
 		"moreInfoMcp": "檢視 {{name}} MCP 文件",
-		"validationRequired": "請為 {{paramName}} 提供值",
-		"prerequisites": "前置條件"
+		"validationRequired": "請為 {{paramName}} 提供一個值"
 	},
 	"sources": {
-		"title": "設定 Marketplace 來源",
-		"description": "新增包含 Marketplace 項目的 Git 儲存庫。瀏覽 Marketplace 時將會擷取這些儲存庫。",
+		"title": "設定市集來源",
+		"description": "新增包含市集項目的 Git 儲存庫。瀏覽市集時將會擷取這些儲存庫。",
 		"add": {
 			"title": "新增來源",
 			"urlPlaceholder": "Git 儲存庫 URL（例如：https://github.com/username/repo）",
-			"urlFormats": "支援的格式：HTTPS（https://github.com/username/repo）、SSH（git@github.com:username/repo.git）或 Git 協定（git://github.com/username/repo.git）",
+			"urlFormats": "支援的格式：HTTPS (https://github.com/username/repo)、SSH (git@github.com:username/repo.git) 或 Git 協定 (git://github.com/username/repo.git)",
 			"namePlaceholder": "顯示名稱（最多 20 個字元）",
 			"button": "新增來源"
 		},
@@ -124,10 +124,10 @@
 			"nonVisibleChars": "URL 包含除空格外的不可見字元",
 			"invalidGitUrl": "URL 必須是有效的 Git 儲存庫 URL（例如：https://github.com/username/repo）",
 			"duplicateUrl": "此 URL 已在清單中（不區分大小寫和空格的比對）",
-			"nameTooLong": "名稱必須為 20 個字元或更少",
+			"nameTooLong": "名稱必須在 20 個字元以內",
 			"nonVisibleCharsName": "名稱包含除空格外的不可見字元",
 			"duplicateName": "此名稱已被使用（不區分大小寫和空格的比對）",
-			"emojiName": "表情符號字元可能導致顯示問題",
+			"emojiName": "表情符號字元可能會導致顯示問題",
 			"maxSources": "最多允許 {{max}} 個來源"
 		}
 	},
@@ -145,6 +145,6 @@
 		"confirm": "移除"
 	},
 	"footer": {
-		"issueText": "發現 marketplace 項目問題或有新項目建議？<0>在 GitHub 開啟 issue</0> 告訴我們！"
+		"issueText": "發現市集項目有問題或有新建議嗎？<0>到 GitHub 開個 issue</0> 告訴我們！"
 	}
 }
