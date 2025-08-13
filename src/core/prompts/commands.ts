@@ -178,7 +178,7 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 `
 
 export const deepPlanningToolResponse = () =>
-	`<explicit_instructions type="deep_planning">
+	`<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
 
 Your behavior should be methodical and thorough - take time to understand the codebase completely before making any recommendations. The quality of your investigation directly impacts the success of the implementation.

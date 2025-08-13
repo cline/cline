@@ -9,7 +9,7 @@ Focus Chain Feature
 • Strategic context inclusion logic: Plan mode transitions, user edits, reminder intervals, and first-time task creation
 
 Deep Planning Slash Command
-• New /deep_planning command for structured 4-step implementation planning workflow
+• New /deep-planning command for structured 4-step implementation planning workflow
 • Integration with Focus Chain for automatic progress tracking in created tasks
 • Comprehensive prompting system for silent investigation, discussion, plan creation, and task generation
 

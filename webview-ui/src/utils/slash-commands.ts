@@ -26,7 +26,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 	},
 	{
-		name: "deep_planning",
+		name: "deep-planning",
 		description: "Create a comprehensive implementation plan before coding",
 		section: "default",
 	},
