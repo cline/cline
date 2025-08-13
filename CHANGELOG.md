@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.25.13] - 2025-08-12
+
+- Add Sonnet 1M context checkbox to Bedrock
+- Fix: add --no-messages flag to ripgrep to suppress file access errors (#6756 by @R-omk, PR by @app/roomote)
+- Add support for AGENT.md alongside AGENTS.md (#6912 by @Brendan-Z, PR by @app/roomote)
+- Remove deprecated GPT-4.5 Preview model (thanks @PeterDaveHello!)
+
 ## [3.25.12] - 2025-08-12
 
 - Update: Claude Sonnet 4 context window configurable to 1 million tokens in Anthropic provider (thanks @daniel-lxs!)
