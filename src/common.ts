@@ -7,6 +7,7 @@ import {
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
 import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { EmptyRequest } from "./shared/proto/cline/common"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -23,7 +24,15 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
 	// Initialize PostHog client provider
-	const distinctId = context.globalState.get<string>("cline.distinctId")
+	let distinctId = context.globalState.get<string>("cline.distinctId")
+	if (!distinctId) {
+		try {
+			const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
+			distinctId = response.value
+		} catch (e) {
+			// ignore; PostHogProvider will fall back to uuid
+		}
+	}
 	PostHogClientProvider.getInstance(distinctId)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
