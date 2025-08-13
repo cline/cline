@@ -1,10 +1,10 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useState } from "react"
-import { getOpenRouterAuthUrl } from "../utils/providerUtils"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
-import VSCodeButtonLink from "../../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -59,7 +59,7 @@ interface OpenRouterProviderProps {
  * The OpenRouter provider configuration component
  */
 export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
-	const { apiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
@@ -81,12 +81,18 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 					</div>
 				</DebouncedTextField>
 				{!apiConfiguration?.openRouterApiKey && (
-					<VSCodeButtonLink
-						href={getOpenRouterAuthUrl(uriScheme)}
+					<VSCodeButton
+						onClick={async () => {
+							try {
+								await AccountServiceClient.openrouterAuthClicked(EmptyRequest.create())
+							} catch (error) {
+								console.error("Failed to open OpenRouter auth:", error)
+							}
+						}}
 						style={{ margin: "5px 0 0 0" }}
 						appearance="secondary">
 						Get OpenRouter API Key
-					</VSCodeButtonLink>
+					</VSCodeButton>
 				)}
 				<p
 					style={{
