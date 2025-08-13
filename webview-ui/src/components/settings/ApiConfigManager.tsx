@@ -3,7 +3,8 @@ import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle } from "lucide-react"
 
 import type { ProviderSettingsEntry } from "@roo-code/types"
-import type { OrganizationAllowList } from "@roo-code/cloud"
+
+import type { OrganizationAllowList } from "@roo/cloud"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import {

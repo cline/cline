@@ -896,9 +896,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.1.8
         version: 1.2.6(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@roo-code/cloud':
-        specifier: ^0.13.0
-        version: 0.13.0
       '@roo-code/types':
         specifier: workspace:^
         version: link:../packages/types

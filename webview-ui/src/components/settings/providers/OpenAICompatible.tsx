@@ -10,8 +10,8 @@ import {
 	azureOpenAiDefaultApiVersion,
 	openAiModelInfoSaneDefaults,
 } from "@roo-code/types"
-import { type OrganizationAllowList } from "@roo-code/cloud"
 
+import type { OrganizationAllowList } from "@roo/cloud"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
