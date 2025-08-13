@@ -1,7 +1,6 @@
 import { BrowserConnection } from "@shared/proto/cline/browser"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 
@@ -13,7 +12,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
  */
 export async function testBrowserConnection(controller: Controller, request: StringRequest): Promise<BrowserConnection> {
 	try {
-		const { browserSettings } = await getAllExtensionState(controller.context)
+		const browserSettings = controller.cacheService.getGlobalStateKey("browserSettings")
 		const browserSession = new BrowserSession(controller.context, browserSettings)
 		const text = request.value || ""
 

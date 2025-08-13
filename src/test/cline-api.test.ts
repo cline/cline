@@ -1,5 +1,4 @@
 import { createClineAPI } from "@/exports"
-import * as stateModule from "@core/storage/state"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
@@ -19,10 +18,6 @@ describe("ClineAPI Core Functionality", () => {
 		// Create mock log function
 		mockLogToChannel = sandbox.stub<[string], void>()
 		setVscodeHostProviderMock({ logToChannel: mockLogToChannel })
-
-		// Stub the getGlobalState function from the state module
-		// This is needed because the real createClineAPI uses it for getCustomInstructions
-		getGlobalStateStub = sandbox.stub(stateModule, "getGlobalState")
 
 		// Create a mock controller that matches what the real createClineAPI expects
 		// We don't import the real Controller to avoid the webview dependencies

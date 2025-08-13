@@ -26,7 +26,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 				initialValue={apiConfiguration?.requestyApiKey || ""}
 				onChange={(value) => handleFieldChange("requestyApiKey", value)}
 				providerName="Requesty"
-				signupUrl="https://app.requesty.ai/manage-api"
+				signupUrl="https://app.requesty.ai/api-keys"
 			/>
 
 			{showModelOptions && <RequestyModelPicker isPopup={isPopup} currentMode={currentMode} />}

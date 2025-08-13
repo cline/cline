@@ -1,7 +1,6 @@
 import { Controller } from ".."
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
 import { basetenModels } from "../../../shared/api"
 import axios from "axios"
 import path from "path"
@@ -23,8 +22,7 @@ export async function refreshBasetenModels(
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
-	const { apiConfiguration } = await getAllExtensionState(controller.context)
-	const basetenApiKey = apiConfiguration?.basetenApiKey
+	const basetenApiKey = controller.cacheService.getSecretKey("basetenApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {

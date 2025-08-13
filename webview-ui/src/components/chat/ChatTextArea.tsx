@@ -1,6 +1,6 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -279,7 +279,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
+		const { mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
 			useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -353,14 +353,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
 				...gitCommits,
-				...filePaths
-					.map((file) => "/" + file)
-					.map((path) => ({
-						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-						value: path,
-					})),
 			]
-		}, [filePaths, gitCommits])
+		}, [gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -412,6 +406,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedType(type)
 						setSearchQuery("")
 						setSelectedMenuIndex(0)
+
+						// Trigger search with the selected type
+						if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+							setSearchLoading(true)
+
+							// Map ContextMenuOptionType to FileSearchType enum
+							let searchType = undefined
+							if (type === ContextMenuOptionType.File) {
+								searchType = FileSearchType.FILE
+							} else if (type === ContextMenuOptionType.Folder) {
+								searchType = FileSearchType.FOLDER
+							}
+
+							FileServiceClient.searchFiles(
+								FileSearchRequest.create({
+									query: "",
+									mentionsRequestId: "",
+									selectedType: searchType,
+								}),
+							)
+								.then((results) => {
+									setFileSearchResults((results.results || []) as SearchResult[])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
+						}
 						return
 					}
 				}
@@ -749,6 +773,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								FileSearchRequest.create({
 									query: query,
 									mentionsRequestId: query,
+									selectedType: undefined, // No type filter for general search
 								}),
 							)
 								.then((results) => {

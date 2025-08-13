@@ -6,7 +6,6 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { getWorkspaceProblemsString } from "@/integrations/diagnostics"
 import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { getCommitInfo } from "@utils/git"
 import { getWorkingState } from "@utils/git"
@@ -15,6 +14,8 @@ import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { DiagnosticSeverity } from "@/shared/proto/index.host"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -233,7 +234,14 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	return await getWorkspaceProblemsString()
+	const response = await HostProvider.workspace.getDiagnostics({})
+	if (response.fileDiagnostics.length === 0) {
+		return "No errors or warnings detected."
+	}
+	return diagnosticsToProblemsString(response.fileDiagnostics, [
+		DiagnosticSeverity.DIAGNOSTIC_ERROR,
+		DiagnosticSeverity.DIAGNOSTIC_WARNING,
+	])
 }
 
 function isFileMention(mention: string): boolean {

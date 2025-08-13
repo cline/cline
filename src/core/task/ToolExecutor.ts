@@ -11,8 +11,7 @@ import { ApiHandler } from "@api/index"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
@@ -32,26 +31,19 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { extractFileContent, FileContentResult } from "@integrations/misc/extract-file-content"
+import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import {
-	isClaude4ModelFamily,
-	isGemini2dot5ModelFamily,
-	isGrok4ModelFamily,
-	modelDoesntSupportWebp,
-	isNextGenModelFamily,
-} from "@utils/model-utils"
+import { modelDoesntSupportWebp, isNextGenModelFamily } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
+import { ToolResponse } from "."
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
 import { constructNewFileContent } from "../assistant-message/diff"
-import { ChangeLocation, StreamingJsonReplacer } from "../assistant-message/diff-json"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
@@ -90,7 +82,6 @@ export class ToolExecutor {
 		private mcpHub: McpHub,
 		private fileContextTracker: FileContextTracker,
 		private clineIgnoreController: ClineIgnoreController,
-		private workspaceTracker: WorkspaceTracker,
 		private contextManager: ContextManager,
 		private cacheService: CacheService,
 
@@ -159,23 +150,15 @@ export class ToolExecutor {
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-				// Claude 4 family: Use function_results format
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: `<function_results>\n${resultText}\n</function_results>`,
-				})
-			} else {
-				// Non-Claude 4: Use traditional format with header
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: `${this.toolDescription(block)} Result:`,
-				})
-				this.taskState.userMessageContent.push({
-					type: "text",
-					text: resultText,
-				})
-			}
+			// Non-Claude 4: Use traditional format with header
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: `${this.toolDescription(block)} Result:`,
+			})
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: resultText,
+			})
 		} else {
 			this.taskState.userMessageContent.push(...content)
 		}
@@ -313,131 +296,6 @@ export class ToolExecutor {
 		return text.replace(tagRegex, "")
 	}
 
-	// Handle streaming JSON replacement for Claude 4 model family
-	private async handleStreamingJsonReplacement(
-		block: any,
-		relPath: string,
-		currentFullJson: string,
-	): Promise<{ shouldBreak: boolean; newContent?: string; error?: string }> {
-		// Calculate the delta - what's new since last time
-		const newJsonChunk = currentFullJson.substring(this.taskState.lastProcessedJsonLength)
-		if (block.partial) {
-			// Initialize on first chunk
-			if (!this.taskState.streamingJsonReplacer) {
-				if (!this.diffViewProvider.isEditing) {
-					await this.diffViewProvider.open(relPath)
-				}
-
-				// Set up callbacks
-				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
-					// Update diff view incrementally
-					this.diffViewProvider.update(newContent, false, changeLocation)
-				}
-
-				const onError = (error: Error) => {
-					console.error("StreamingJsonReplacer error:", error)
-					console.log("Failed StreamingJsonReplacer update:")
-					// Handle error: push tool result, cleanup
-					this.taskState.userMessageContent.push({
-						type: "text",
-						text: formatResponse.toolError(`JSON replacement error: ${error.message}`),
-					})
-					this.taskState.didAlreadyUseTool = true
-					this.taskState.userMessageContentReady = true
-					this.taskState.streamingJsonReplacer = undefined
-					this.taskState.lastProcessedJsonLength = 0
-					throw error
-				}
-
-				this.taskState.streamingJsonReplacer = new StreamingJsonReplacer(
-					this.diffViewProvider.originalContent || "",
-					onContentUpdated,
-					onError,
-				)
-				this.taskState.lastProcessedJsonLength = 0
-			}
-
-			// Feed only the new chunk
-			if (newJsonChunk.length > 0) {
-				try {
-					this.taskState.streamingJsonReplacer.write(newJsonChunk)
-					this.taskState.lastProcessedJsonLength = currentFullJson.length
-				} catch (e) {
-					// Handle write error
-					return { shouldBreak: true, error: `Write error: ${e}` }
-				}
-			}
-
-			return { shouldBreak: true } // Wait for more chunks
-		} else {
-			// Final chunk (!block.partial)
-			if (!this.taskState.streamingJsonReplacer) {
-				// JSON came all at once, initialize
-				if (!this.diffViewProvider.isEditing) {
-					await this.diffViewProvider.open(relPath)
-				}
-
-				// Initialize StreamingJsonReplacer for non-streaming case
-				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
-					// Update diff view incrementally
-					this.diffViewProvider.update(newContent, false, changeLocation)
-				}
-
-				const onError = (error: Error) => {
-					console.error("StreamingJsonReplacer error:", error)
-					// Handle error
-					this.taskState.userMessageContent.push({
-						type: "text",
-						text: formatResponse.toolError(`JSON replacement error: ${error.message}`),
-					})
-					this.taskState.didAlreadyUseTool = true
-					this.taskState.userMessageContentReady = true
-					throw error
-				}
-
-				this.taskState.streamingJsonReplacer = new StreamingJsonReplacer(
-					this.diffViewProvider.originalContent || "",
-					onContentUpdated,
-					onError,
-				)
-
-				// Write the entire JSON at once
-				this.taskState.streamingJsonReplacer.write(currentFullJson)
-
-				// Get the final content
-				const newContent = this.taskState.streamingJsonReplacer.getCurrentContent()
-
-				// Cleanup
-				this.taskState.streamingJsonReplacer = undefined
-				this.taskState.lastProcessedJsonLength = 0
-
-				// Update diff view with final content
-				await this.diffViewProvider.update(newContent, true)
-
-				return { shouldBreak: false, newContent }
-			}
-
-			// Feed final delta
-			if (newJsonChunk.length > 0) {
-				this.taskState.streamingJsonReplacer.write(newJsonChunk)
-			}
-
-			const newContent = this.taskState.streamingJsonReplacer.getCurrentContent()
-
-			// Get final list of replacements
-			const allReplacements = this.taskState.streamingJsonReplacer.getSuccessfullyParsedItems()
-
-			// Cleanup
-			this.taskState.streamingJsonReplacer = undefined
-			this.taskState.lastProcessedJsonLength = 0
-
-			// Update diff view with final content
-			await this.diffViewProvider.update(newContent, true)
-
-			return { shouldBreak: false, newContent }
-		}
-	}
-
 	public async executeTool(block: ToolUse): Promise<void> {
 		if (this.taskState.didRejectTool) {
 			// ignore any tool content after user has rejected tool once
@@ -526,62 +384,35 @@ export class ToolExecutor {
 							await this.diffViewProvider.open(relPath)
 						}
 
-						const currentFullJson = block.params.diff
-						// Check if we should use streaming (e.g., for specific models)
-						const isNextGenModel = isNextGenModelFamily(this.api)
-						// Going through claude family of models
-						if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
-							const streamingResult = await this.handleStreamingJsonReplacement(block, relPath, currentFullJson)
+						try {
+							newContent = await constructNewFileContent(
+								diff,
+								this.diffViewProvider.originalContent || "",
+								!block.partial,
+							)
+						} catch (error) {
+							await this.say("diff_error", relPath)
 
-							if (streamingResult.error) {
-								await this.say("diff_error", relPath)
-								this.pushToolResult(formatResponse.toolError(streamingResult.error), block)
-								await this.diffViewProvider.revertChanges()
-								await this.diffViewProvider.reset()
-								await this.saveCheckpoint()
-								break
-							}
+							// Extract error type from error message if possible, or use a generic type
+							const errorType =
+								error instanceof Error && error.message.includes("does not match anything")
+									? "search_not_found"
+									: "other_diff_error"
 
-							if (streamingResult.shouldBreak) {
-								break // Wait for more chunks or handle initialization
-							}
+							// Add telemetry for diff edit failure
+							telemetryService.captureDiffEditFailure(this.ulid, this.api.getModel().id, errorType)
 
-							// If we get here, we have the final content
-							if (streamingResult.newContent) {
-								newContent = streamingResult.newContent
-								// Continue with approval flow...
-							}
-						} else {
-							try {
-								newContent = await constructNewFileContent(
-									diff,
-									this.diffViewProvider.originalContent || "",
-									!block.partial,
-								)
-							} catch (error) {
-								await this.say("diff_error", relPath)
-
-								// Extract error type from error message if possible, or use a generic type
-								const errorType =
-									error instanceof Error && error.message.includes("does not match anything")
-										? "search_not_found"
-										: "other_diff_error"
-
-								// Add telemetry for diff edit failure
-								telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
-
-								this.pushToolResult(
-									formatResponse.toolError(
-										`${(error as Error)?.message}\n\n` +
-											formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
-									),
-									block,
-								)
-								await this.diffViewProvider.revertChanges()
-								await this.diffViewProvider.reset()
-								await this.saveCheckpoint()
-								break
-							}
+							this.pushToolResult(
+								formatResponse.toolError(
+									`${(error as Error)?.message}\n\n` +
+										formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+								),
+								block,
+							)
+							await this.diffViewProvider.revertChanges()
+							await this.diffViewProvider.reset()
+							await this.saveCheckpoint()
+							break
 						}
 					} else if (content) {
 						newContent = content
@@ -694,7 +525,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 
 							// we need an artificial delay to let the diagnostics catch up to the changes
 							await setTimeoutPromise(3_500)
@@ -729,7 +560,7 @@ export class ToolExecutor {
 								}
 								this.taskState.didRejectTool = true
 								didApprove = false
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 							} else {
 								// User hit the approve button, and may have provided feedback
 								if (text || (images && images.length > 0) || (askFiles && askFiles.length > 0)) {
@@ -742,7 +573,7 @@ export class ToolExecutor {
 									await this.say("user_feedback", text, images, askFiles)
 									await this.saveCheckpoint()
 								}
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 							}
 
 							if (!didApprove) {
@@ -794,10 +625,6 @@ export class ToolExecutor {
 								),
 								block,
 							)
-						}
-
-						if (!fileExists) {
-							this.workspaceTracker.populateFilePaths()
 						}
 
 						await this.diffViewProvider.reset()
@@ -862,7 +689,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to read ${path.basename(absolutePath)}`,
@@ -873,10 +700,10 @@ export class ToolExecutor {
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
 								await this.saveCheckpoint()
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						// now execute the tool like normal
 						const supportsImages = this.api.getModel().info.supportsImages ?? false
@@ -951,7 +778,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to view directory ${path.basename(absolutePath)}/`,
@@ -961,11 +788,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
 						await this.saveCheckpoint()
@@ -1023,7 +850,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
@@ -1033,11 +860,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
 						await this.saveCheckpoint()
@@ -1107,7 +934,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to search files in ${path.basename(absolutePath)}/`,
@@ -1117,11 +944,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(results, block)
 						await this.saveCheckpoint()
@@ -1431,9 +1258,6 @@ export class ToolExecutor {
 							this.taskState.didRejectTool = true
 						}
 
-						// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-						this.workspaceTracker.populateFilePaths()
-
 						this.pushToolResult(result, block)
 
 						await this.saveCheckpoint()
@@ -1725,6 +1549,7 @@ export class ToolExecutor {
 
 						// Check if options contains the text response
 						if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+							telemetryService.captureOptionSelected(this.ulid, options.length, "act")
 							// Valid option selected, don't show user message in UI
 							// Update last followup message with selected option
 							const lastFollowupMessage = findLast(
@@ -1740,7 +1565,7 @@ export class ToolExecutor {
 							}
 						} else {
 							// Option not selected, send user feedback
-							telemetryService.captureOptionsIgnored(this.taskId, options.length, "act")
+							telemetryService.captureOptionsIgnored(this.ulid, options.length, "act")
 							await this.say("user_feedback", text ?? "", images, followupFiles)
 						}
 
@@ -2086,7 +1911,7 @@ export class ToolExecutor {
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
 							telemetryService.captureToolUsage(
-								this.taskId,
+								this.ulid,
 								"web_fetch" as ToolUseName,
 								this.api.getModel().id,
 								true,
@@ -2102,7 +1927,7 @@ export class ToolExecutor {
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
 								telemetryService.captureToolUsage(
-									this.taskId,
+									this.ulid,
 									"web_fetch" as ToolUseName,
 									this.api.getModel().id,
 									false,
@@ -2112,7 +1937,7 @@ export class ToolExecutor {
 								break
 							}
 							telemetryService.captureToolUsage(
-								this.taskId,
+								this.ulid,
 								"web_fetch" as ToolUseName,
 								this.api.getModel().id,
 								false,
@@ -2199,6 +2024,7 @@ export class ToolExecutor {
 
 						// Check if options contains the text response
 						if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+							telemetryService.captureOptionSelected(this.ulid, options.length, "plan")
 							// Valid option selected, don't show user message in UI
 							// Update last followup message with selected option
 							const lastPlanMessage = findLast(
@@ -2215,7 +2041,7 @@ export class ToolExecutor {
 						} else {
 							// Option not selected, send user feedback
 							if (text || (images && images.length > 0) || (planResponseFiles && planResponseFiles.length > 0)) {
-								telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
+								telemetryService.captureOptionsIgnored(this.ulid, options.length, "plan")
 								await this.say("user_feedback", text ?? "", images, planResponseFiles)
 								await this.saveCheckpoint()
 							}
@@ -2359,7 +2185,7 @@ export class ToolExecutor {
 								await this.say("completion_result", result, undefined, undefined, false)
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
-								telemetryService.captureTaskCompleted(this.taskId, this.ulid)
+								telemetryService.captureTaskCompleted(this.ulid)
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
@@ -2384,7 +2210,7 @@ export class ToolExecutor {
 							await this.say("completion_result", result, undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
-							telemetryService.captureTaskCompleted(this.taskId, this.ulid)
+							telemetryService.captureTaskCompleted(this.ulid)
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field

@@ -38,7 +38,7 @@ export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
-	taskId?: string // Used to identify the task in API requests
+	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
@@ -1140,7 +1140,7 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 export const openAiNativeModels = {
 	"gpt-5-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192, // 128000 breaks context window truncation
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1149,7 +1149,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 	},
 	"gpt-5-mini-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1158,7 +1158,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.025,
 	},
 	"gpt-5-nano-2025-08-07": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1167,7 +1167,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.005,
 	},
 	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
-		maxTokens: 128000,
+		maxTokens: 8_192,
 		contextWindow: 256000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1282,14 +1282,6 @@ export const openAiNativeModels = {
 		supportsPromptCache: false,
 		inputPrice: 5,
 		outputPrice: 15,
-	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
 	},
 } as const satisfies Record<string, ModelInfo>
 
