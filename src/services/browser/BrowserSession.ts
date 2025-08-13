@@ -171,7 +171,7 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Set the task ID for telemetry tracking
+	 * Set the ULID for telemetry tracking
 	 * @param ulid The task ID to associate with browser actions
 	 */
 	setUlid(ulid: string) {
