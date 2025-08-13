@@ -12,7 +12,6 @@ import { FileContextTracker } from "@core/context/context-tracking/FileContextTr
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
