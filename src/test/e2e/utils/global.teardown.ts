@@ -4,12 +4,12 @@ import { test as teardown } from "@playwright/test"
 import { ClineApiServerMock } from "../fixtures/server"
 import { getResultsDir, rmForRetries } from "./helpers"
 
-teardown("cleanup test environment", async () => {
-	ClineApiServerMock.stopGlobalServer()
-		.then(() => console.log("ClineApiServerMock stopped successfully."))
-		.catch((error) => console.error("Error stopping ClineApiServerMock:", error))
-
+teardown("cleanup test environment", async ({ page }) => {
 	try {
+		ClineApiServerMock.stopGlobalServer()
+			.then(() => console.log("ClineApiServerMock stopped successfully."))
+			.catch((error) => console.error("Error stopping ClineApiServerMock:", error))
+
 		const assetsDir = getResultsDir()
 		const results = await fs.readdir(assetsDir, { withFileTypes: true })
 		await Promise.all(
@@ -30,5 +30,7 @@ teardown("cleanup test environment", async () => {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 			console.error("Error during cleanup:", error)
 		}
+	} finally {
+		await page.close()
 	}
 })
