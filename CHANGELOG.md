@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.24.0]
+
+- Add OpenAI GPT-5 Chat(gpt-5-chat-latest)
+- Add custom browser arguments setting to allow passing flags to the Chrome executable for better headless compatibility.
+- Add 1m context window model support for claude sonnet 4
+- Fis the API Keys URL for Requesty
+- Set gpt5 max tokens to 8_192 to fix 'context window exceeded' error
+- Fix issue where fallback request to retrieve cost was not using correct auth token
+- Add OpenAI context window exceeded error handling
+- Calibrate input token counts when using anthropic models of sap ai core provider
+
 ## [3.23.0]
 
 - Add caching support for Bedrock inferences using SAP AI Core and minor refactor
