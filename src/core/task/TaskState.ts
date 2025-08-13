@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
-import { StreamingJsonReplacer } from "@core/assistant-message/diff-json"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 
 export class TaskState {
@@ -18,10 +17,6 @@ export class TaskState {
 	// Presentation locks
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
-
-	// Claude 4 experimental JSON streaming
-	streamingJsonReplacer?: StreamingJsonReplacer
-	lastProcessedJsonLength: number = 0
 
 	// Ask/Response handling
 	askResponse?: ClineAskResponse
