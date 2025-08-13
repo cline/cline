@@ -180,7 +180,11 @@ namespace Bedrock {
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
 			} else if (item.source.data && typeof item.source.data === "object") {
 				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+				if (Buffer.isBuffer(item.source.data)) {
+					imageData = new Uint8Array(item.source.data)
+				} else {
+					imageData = new Uint8Array(item.source.data as Uint8Array)
+				}
 			} else {
 				throw new Error("Unsupported image data format")
 			}
@@ -340,6 +344,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
+	private aiCoreEnvSetup: boolean = false
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
@@ -437,7 +442,13 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
-	private setupAiCoreEnvVariable(): void {
+	// TODO: support credentials changes after initial setup
+	private ensureAiCoreEnvSetup(): void {
+		// Only set up once to avoid redundant operations
+		if (this.aiCoreEnvSetup) {
+			return
+		}
+
 		// Validate required credentials
 		if (
 			!this.options.sapAiCoreClientId ||
@@ -457,12 +468,15 @@ export class SapAiCoreHandler implements ApiHandler {
 			},
 		}
 		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
+
+		// Mark as set up to avoid redundant calls
+		this.aiCoreEnvSetup = true
 	}
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		try {
-			// Set up AI Core environment variable for service binding
-			this.setupAiCoreEnvVariable()
+			// Ensure AI Core environment variable is set up (only runs once)
+			this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
 
 			// Define the LLM to be used by the Orchestration pipeline
@@ -502,25 +516,8 @@ export class SapAiCoreHandler implements ApiHandler {
 					outputTokens: tokenUsage.completion_tokens || 0,
 				}
 			}
-			// for await (const chunk of response.stream) {
-			// 	const deltaContent = chunk.getDeltaContent()
-			// 	if (deltaContent) {
-			// 		yield { type: "text", text: deltaContent }
-			// 	}
-
-			// 	// Handle usage information
-			// 	const usage = chunk.getTokenUsage()
-			// 	if (usage) {
-			// 		yield {
-			// 			type: "usage",
-			// 			inputTokens: usage.prompt_tokens || 0,
-			// 			outputTokens: usage.completion_tokens || 0,
-			// 		}
-			// 	}
-			// }
 		} catch (error) {
 			console.error("Error in SAP orchestration mode:", error)
-			console.log("Error details:", error.stack)
 			throw error
 		}
 	}
