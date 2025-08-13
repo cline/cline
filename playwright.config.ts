@@ -13,6 +13,9 @@ export default defineConfig({
 	},
 	fullyParallel: true,
 	reporter: isCI ? [["github"], ["list"]] : [["list"]],
+	use: {
+		video: "retain-on-failure",
+	},
 	projects: [
 		{
 			name: "setup test environment",
