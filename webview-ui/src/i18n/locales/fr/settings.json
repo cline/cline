@@ -261,6 +261,8 @@
 		"anthropicUseAuthToken": "Passer la clé API Anthropic comme en-tête d'autorisation au lieu de X-Api-Key",
 		"anthropic1MContextBetaLabel": "Activer la fenêtre de contexte de 1M (Bêta)",
 		"anthropic1MContextBetaDescription": "Étend la fenêtre de contexte à 1 million de tokens pour Claude Sonnet 4",
+		"awsBedrock1MContextBetaLabel": "Activer la fenêtre de contexte de 1M (Bêta)",
+		"awsBedrock1MContextBetaDescription": "Étend la fenêtre de contexte à 1 million de tokens pour Claude Sonnet 4",
 		"cerebrasApiKey": "Clé API Cerebras",
 		"getCerebrasApiKey": "Obtenir la clé API Cerebras",
 		"chutesApiKey": "Clé API Chutes",

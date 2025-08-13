@@ -261,6 +261,8 @@
 		"anthropicUseAuthToken": "Anthropic API Anahtarını X-Api-Key yerine Authorization başlığı olarak geçir",
 		"anthropic1MContextBetaLabel": "1M bağlam penceresini etkinleştir (Beta)",
 		"anthropic1MContextBetaDescription": "Claude Sonnet 4 için bağlam penceresini 1 milyon token'a genişletir",
+		"awsBedrock1MContextBetaLabel": "1M bağlam penceresini etkinleştir (Beta)",
+		"awsBedrock1MContextBetaDescription": "Claude Sonnet 4 için bağlam penceresini 1 milyon token'a genişletir",
 		"cerebrasApiKey": "Cerebras API Anahtarı",
 		"getCerebrasApiKey": "Cerebras API Anahtarını Al",
 		"chutesApiKey": "Chutes API Anahtarı",

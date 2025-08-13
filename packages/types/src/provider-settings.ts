@@ -3,6 +3,9 @@ import { z } from "zod"
 import { reasoningEffortsSchema, verbosityLevelsSchema, modelInfoSchema } from "./model.js"
 import { codebaseIndexProviderSchema } from "./codebase-index.js"
 
+// Bedrock Claude Sonnet 4 model ID that supports 1M context
+export const BEDROCK_CLAUDE_SONNET_4_MODEL_ID = "anthropic.claude-sonnet-4-20250514-v1:0"
+
 // Extended schema that includes "minimal" for GPT-5 models
 export const extendedReasoningEffortsSchema = z.union([reasoningEffortsSchema, z.literal("minimal")])
 
@@ -135,6 +138,7 @@ const bedrockSchema = apiModelIdProviderModelSchema.extend({
 	awsModelContextWindow: z.number().optional(),
 	awsBedrockEndpointEnabled: z.boolean().optional(),
 	awsBedrockEndpoint: z.string().optional(),
+	awsBedrock1MContext: z.boolean().optional(), // Enable 'context-1m-2025-08-07' beta for 1M context window
 })
 
 const vertexSchema = apiModelIdProviderModelSchema.extend({

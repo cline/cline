@@ -25,6 +25,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => {
 
 import { AwsBedrockHandler } from "../bedrock"
 import { ConverseStreamCommand, BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
+import { BEDROCK_CLAUDE_SONNET_4_MODEL_ID } from "@roo-code/types"
 
 import type { Anthropic } from "@anthropic-ai/sdk"
 
@@ -562,6 +563,186 @@ describe("AwsBedrockHandler", () => {
 			expect(model.info.contextWindow).toBeDefined()
 			expect(typeof model.info.supportsImages).toBe("boolean")
 			expect(typeof model.info.supportsPromptCache).toBe("boolean")
+		})
+	})
+
+	describe("1M context beta feature", () => {
+		it("should enable 1M context window when awsBedrock1MContext is true for Claude Sonnet 4", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: true,
+			})
+
+			const model = handler.getModel()
+
+			// Should have 1M context window when enabled
+			expect(model.info.contextWindow).toBe(1_000_000)
+		})
+
+		it("should use default context window when awsBedrock1MContext is false for Claude Sonnet 4", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: false,
+			})
+
+			const model = handler.getModel()
+
+			// Should use default context window (200k)
+			expect(model.info.contextWindow).toBe(200_000)
+		})
+
+		it("should not affect context window for non-Claude Sonnet 4 models", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: true,
+			})
+
+			const model = handler.getModel()
+
+			// Should use default context window for non-Sonnet 4 models
+			expect(model.info.contextWindow).toBe(200_000)
+		})
+
+		it("should include anthropic_beta parameter when 1M context is enabled", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: true,
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Test message",
+				},
+			]
+
+			const generator = handler.createMessage("", messages)
+			await generator.next() // Start the generator
+
+			// Verify the command was created with the right payload
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+			// Should include anthropic_beta parameter but NOT anthropic_version (only for thinking)
+			expect(commandArg.anthropic_beta).toEqual(["context-1m-2025-08-07"])
+			expect(commandArg.anthropic_version).toBeUndefined()
+		})
+
+		it("should not include anthropic_beta parameter when 1M context is disabled", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: false,
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Test message",
+				},
+			]
+
+			const generator = handler.createMessage("", messages)
+			await generator.next() // Start the generator
+
+			// Verify the command was created with the right payload
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+			// Should not include anthropic_beta parameter
+			expect(commandArg.anthropic_beta).toBeUndefined()
+		})
+
+		it("should not include anthropic_beta parameter for non-Claude Sonnet 4 models", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsBedrock1MContext: true,
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Test message",
+				},
+			]
+
+			const generator = handler.createMessage("", messages)
+			await generator.next() // Start the generator
+
+			// Verify the command was created with the right payload
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
+
+			// Should not include anthropic_beta parameter for non-Sonnet 4 models
+			expect(commandArg.anthropic_beta).toBeUndefined()
+		})
+
+		it("should enable 1M context window with cross-region inference for Claude Sonnet 4", () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsUseCrossRegionInference: true,
+				awsBedrock1MContext: true,
+			})
+
+			const model = handler.getModel()
+
+			// Should have 1M context window even with cross-region prefix
+			expect(model.info.contextWindow).toBe(1_000_000)
+			// Model ID should have cross-region prefix
+			expect(model.id).toBe(`us.${BEDROCK_CLAUDE_SONNET_4_MODEL_ID}`)
+		})
+
+		it("should include anthropic_beta parameter with cross-region inference for Claude Sonnet 4", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				awsAccessKey: "test",
+				awsSecretKey: "test",
+				awsRegion: "us-east-1",
+				awsUseCrossRegionInference: true,
+				awsBedrock1MContext: true,
+			})
+
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Test message",
+				},
+			]
+
+			const generator = handler.createMessage("", messages)
+			await generator.next() // Start the generator
+
+			// Verify the command was created with the right payload
+			expect(mockConverseStreamCommand).toHaveBeenCalled()
+			const commandArg = mockConverseStreamCommand.mock.calls[
+				mockConverseStreamCommand.mock.calls.length - 1
+			][0] as any
+
+			// Should include anthropic_beta parameter but NOT anthropic_version (only for thinking)
+			expect(commandArg.anthropic_beta).toEqual(["context-1m-2025-08-07"])
+			expect(commandArg.anthropic_version).toBeUndefined()
+			// Model ID should have cross-region prefix
+			expect(commandArg.modelId).toBe(`us.${BEDROCK_CLAUDE_SONNET_4_MODEL_ID}`)
 		})
 	})
 })

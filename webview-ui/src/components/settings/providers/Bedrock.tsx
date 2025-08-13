@@ -2,7 +2,12 @@ import { useCallback, useState, useEffect } from "react"
 import { Checkbox } from "vscrui"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { type ProviderSettings, type ModelInfo, BEDROCK_REGIONS } from "@roo-code/types"
+import {
+	type ProviderSettings,
+	type ModelInfo,
+	BEDROCK_REGIONS,
+	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+} from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, StandardTooltip } from "@src/components/ui"
@@ -18,6 +23,9 @@ type BedrockProps = {
 export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedModelInfo }: BedrockProps) => {
 	const { t } = useAppTranslation()
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpointEnabled)
+
+	// Check if the selected model supports 1M context (Claude Sonnet 4)
+	const supports1MContextBeta = apiConfiguration?.apiModelId === BEDROCK_CLAUDE_SONNET_4_MODEL_ID
 
 	// Update the endpoint enabled state when the configuration changes
 	useEffect(() => {
@@ -158,6 +166,20 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 						{t("settings:providers.cacheUsageNote")}
 					</div>
 				</>
+			)}
+			{supports1MContextBeta && (
+				<div>
+					<Checkbox
+						checked={apiConfiguration?.awsBedrock1MContext ?? false}
+						onChange={(checked: boolean) => {
+							setApiConfigurationField("awsBedrock1MContext", checked)
+						}}>
+						{t("settings:providers.awsBedrock1MContextBetaLabel")}
+					</Checkbox>
+					<div className="text-sm text-vscode-descriptionForeground mt-1 ml-6">
+						{t("settings:providers.awsBedrock1MContextBetaDescription")}
+					</div>
+				</div>
 			)}
 			<Checkbox
 				checked={awsEndpointSelected}

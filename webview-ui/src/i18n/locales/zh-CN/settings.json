@@ -261,6 +261,8 @@
 		"anthropicUseAuthToken": "将 Anthropic API 密钥作为 Authorization 标头传递，而不是 X-Api-Key",
 		"anthropic1MContextBetaLabel": "启用 1M 上下文窗口 (Beta)",
 		"anthropic1MContextBetaDescription": "为 Claude Sonnet 4 将上下文窗口扩展至 100 万个 token",
+		"awsBedrock1MContextBetaLabel": "启用 1M 上下文窗口 (Beta)",
+		"awsBedrock1MContextBetaDescription": "为 Claude Sonnet 4 将上下文窗口扩展至 100 万个 token",
 		"cerebrasApiKey": "Cerebras API 密钥",
 		"getCerebrasApiKey": "获取 Cerebras API 密钥",
 		"chutesApiKey": "Chutes API 密钥",

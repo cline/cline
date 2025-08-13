@@ -263,6 +263,8 @@
 		"anthropicUseAuthToken": "Anthropic API-Schlüssel als Authorization-Header anstelle von X-Api-Key übergeben",
 		"anthropic1MContextBetaLabel": "1M Kontextfenster aktivieren (Beta)",
 		"anthropic1MContextBetaDescription": "Erweitert das Kontextfenster für Claude Sonnet 4 auf 1 Million Token",
+		"awsBedrock1MContextBetaLabel": "1M Kontextfenster aktivieren (Beta)",
+		"awsBedrock1MContextBetaDescription": "Erweitert das Kontextfenster für Claude Sonnet 4 auf 1 Million Token",
 		"cerebrasApiKey": "Cerebras API-Schlüssel",
 		"getCerebrasApiKey": "Cerebras API-Schlüssel erhalten",
 		"chutesApiKey": "Chutes API-Schlüssel",

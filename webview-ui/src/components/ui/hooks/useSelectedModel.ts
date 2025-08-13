@@ -48,6 +48,7 @@ import {
 	fireworksDefaultModelId,
 	ioIntelligenceDefaultModelId,
 	ioIntelligenceModels,
+	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
 } from "@roo-code/types"
 
 import type { ModelRecord, RouterModels } from "@roo/api"
@@ -174,7 +175,7 @@ function getSelectedModel({
 		}
 		case "bedrock": {
 			const id = apiConfiguration.apiModelId ?? bedrockDefaultModelId
-			const info = bedrockModels[id as keyof typeof bedrockModels]
+			const baseInfo = bedrockModels[id as keyof typeof bedrockModels]
 
 			// Special case for custom ARN.
 			if (id === "custom-arn") {
@@ -184,7 +185,17 @@ function getSelectedModel({
 				}
 			}
 
-			return { id, info }
+			// Apply 1M context for Claude Sonnet 4 when enabled
+			if (id === BEDROCK_CLAUDE_SONNET_4_MODEL_ID && apiConfiguration.awsBedrock1MContext && baseInfo) {
+				// Create a new ModelInfo object with updated context window
+				const info: ModelInfo = {
+					...baseInfo,
+					contextWindow: 1_000_000,
+				}
+				return { id, info }
+			}
+
+			return { id, info: baseInfo }
 		}
 		case "vertex": {
 			const id = apiConfiguration.apiModelId ?? vertexDefaultModelId

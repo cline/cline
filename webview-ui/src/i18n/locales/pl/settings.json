@@ -261,6 +261,8 @@
 		"anthropicUseAuthToken": "Przekaż klucz API Anthropic jako nagłówek Authorization zamiast X-Api-Key",
 		"anthropic1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
 		"anthropic1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4",
+		"awsBedrock1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
+		"awsBedrock1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4",
 		"cerebrasApiKey": "Klucz API Cerebras",
 		"getCerebrasApiKey": "Pobierz klucz API Cerebras",
 		"chutesApiKey": "Klucz API Chutes",
