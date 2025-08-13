@@ -1,6 +1,7 @@
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useMemo } from "react"
 import { sapAiCoreModels } from "@shared/api"
+import { DropdownContainer } from "./common/ModelSelector"
 
 export const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000
 
@@ -106,7 +107,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 	}
 
 	return (
-		<div className="relative w-full z-[1000]">
+		<DropdownContainer className="dropdown-container" zIndex={SAP_AI_CORE_MODEL_PICKER_Z_INDEX}>
 			<label htmlFor="sap-ai-core-model-dropdown">
 				<span className="font-medium">Model</span>
 			</label>
@@ -117,7 +118,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 				style={{ width: "100%" }}>
 				{renderOptions()}
 			</VSCodeDropdown>
-		</div>
+		</DropdownContainer>
 	)
 }
 
