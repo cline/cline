@@ -566,7 +566,7 @@ export class ToolExecutor {
 										: "other_diff_error"
 
 								// Add telemetry for diff edit failure
-								telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
+								telemetryService.captureDiffEditFailure(this.ulid, this.api.getModel().id, errorType)
 
 								this.pushToolResult(
 									formatResponse.toolError(
@@ -692,7 +692,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 
 							// we need an artificial delay to let the diagnostics catch up to the changes
 							await setTimeoutPromise(3_500)
@@ -727,7 +727,7 @@ export class ToolExecutor {
 								}
 								this.taskState.didRejectTool = true
 								didApprove = false
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 							} else {
 								// User hit the approve button, and may have provided feedback
 								if (text || (images && images.length > 0) || (askFiles && askFiles.length > 0)) {
@@ -740,7 +740,7 @@ export class ToolExecutor {
 									await this.say("user_feedback", text, images, askFiles)
 									await this.saveCheckpoint()
 								}
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 							}
 
 							if (!didApprove) {
@@ -856,7 +856,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to read ${path.basename(absolutePath)}`,
@@ -867,10 +867,10 @@ export class ToolExecutor {
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
 								await this.saveCheckpoint()
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						// now execute the tool like normal
 						const supportsImages = this.api.getModel().info.supportsImages ?? false
@@ -945,7 +945,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to view directory ${path.basename(absolutePath)}/`,
@@ -955,11 +955,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
 						await this.saveCheckpoint()
@@ -1017,7 +1017,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
@@ -1027,11 +1027,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
 						await this.saveCheckpoint()
@@ -1101,7 +1101,7 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
 						} else {
 							showNotificationForApprovalIfAutoApprovalEnabled(
 								`Cline wants to search files in ${path.basename(absolutePath)}/`,
@@ -1111,11 +1111,11 @@ export class ToolExecutor {
 							this.removeLastPartialMessageIfExistsWithType("say", "tool")
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
-								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
 								await this.saveCheckpoint()
 								break
 							}
-							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(results, block)
 						await this.saveCheckpoint()
@@ -1716,6 +1716,7 @@ export class ToolExecutor {
 
 						// Check if options contains the text response
 						if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+							telemetryService.captureOptionSelected(this.ulid, options.length, "act")
 							// Valid option selected, don't show user message in UI
 							// Update last followup message with selected option
 							const lastFollowupMessage = findLast(
@@ -1731,7 +1732,7 @@ export class ToolExecutor {
 							}
 						} else {
 							// Option not selected, send user feedback
-							telemetryService.captureOptionsIgnored(this.taskId, options.length, "act")
+							telemetryService.captureOptionsIgnored(this.ulid, options.length, "act")
 							await this.say("user_feedback", text ?? "", images, followupFiles)
 						}
 
@@ -2077,7 +2078,7 @@ export class ToolExecutor {
 							await this.say("tool", completeMessage, undefined, undefined, false)
 							this.taskState.consecutiveAutoApprovedRequestsCount++
 							telemetryService.captureToolUsage(
-								this.taskId,
+								this.ulid,
 								"web_fetch" as ToolUseName,
 								this.api.getModel().id,
 								true,
@@ -2093,7 +2094,7 @@ export class ToolExecutor {
 							const didApprove = await this.askApproval("tool", block, completeMessage)
 							if (!didApprove) {
 								telemetryService.captureToolUsage(
-									this.taskId,
+									this.ulid,
 									"web_fetch" as ToolUseName,
 									this.api.getModel().id,
 									false,
@@ -2103,7 +2104,7 @@ export class ToolExecutor {
 								break
 							}
 							telemetryService.captureToolUsage(
-								this.taskId,
+								this.ulid,
 								"web_fetch" as ToolUseName,
 								this.api.getModel().id,
 								false,
@@ -2190,6 +2191,7 @@ export class ToolExecutor {
 
 						// Check if options contains the text response
 						if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+							telemetryService.captureOptionSelected(this.ulid, options.length, "plan")
 							// Valid option selected, don't show user message in UI
 							// Update last followup message with selected option
 							const lastPlanMessage = findLast(
@@ -2206,7 +2208,7 @@ export class ToolExecutor {
 						} else {
 							// Option not selected, send user feedback
 							if (text || (images && images.length > 0) || (planResponseFiles && planResponseFiles.length > 0)) {
-								telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
+								telemetryService.captureOptionsIgnored(this.ulid, options.length, "plan")
 								await this.say("user_feedback", text ?? "", images, planResponseFiles)
 								await this.saveCheckpoint()
 							}
@@ -2350,7 +2352,7 @@ export class ToolExecutor {
 								await this.say("completion_result", result, undefined, undefined, false)
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
-								telemetryService.captureTaskCompleted(this.taskId, this.ulid)
+								telemetryService.captureTaskCompleted(this.ulid)
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
@@ -2375,7 +2377,7 @@ export class ToolExecutor {
 							await this.say("completion_result", result, undefined, undefined, false)
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
-							telemetryService.captureTaskCompleted(this.taskId, this.ulid)
+							telemetryService.captureTaskCompleted(this.ulid)
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field

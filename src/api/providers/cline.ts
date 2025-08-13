@@ -15,7 +15,7 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
-	taskId?: string
+	ulid?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	openRouterProviderSorting?: string
@@ -51,7 +51,7 @@ export class ClineHandler implements ApiHandler {
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
-						"X-Task-ID": this.options.taskId || "",
+						"X-Task-ID": this.options.ulid || "",
 						"X-Cline-Version": extensionVersion,
 					},
 				})

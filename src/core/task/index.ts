@@ -238,7 +238,7 @@ export class Task {
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
-			taskId: this.taskId,
+			ulid: this.ulid,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
@@ -283,11 +283,11 @@ export class Task {
 			}
 		}
 
-		// Now that taskId is initialized, we can build the API handler
+		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
 
-		// Set taskId on browserSession for telemetry tracking
-		this.browserSession.setTaskId(this.taskId)
+		// Set ulid on browserSession for telemetry tracking
+		this.browserSession.setUlid(this.ulid)
 
 		// Continue with task initialization
 		if (historyItem) {
@@ -299,10 +299,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -2105,7 +2105,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2170,20 +2170,13 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					this.ulid,
-					providerId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2352,7 +2345,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
