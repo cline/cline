@@ -79,8 +79,8 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
-					"features/dictation",
 					"features/editing-messages",
+					"features/dictation",
 					{
 						"group": "@ Mentions",
 						"pages": [
