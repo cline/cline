@@ -8,7 +8,7 @@ Focus Chain is a task management enhancement feature in Cline that provides auto
 This enables Cline to work on long-horizon tasks, seamlessly managing the context sent to LLMs, and keeping Cline on track across many context window resets.
 
 <Tip>
-  Focus Chain works particularly well with Cline's Deep Planning Workflow, providing seamless progress tracking for implementation tasks created through the [planning process](/features/plan-and-act).
+  Focus Chain works particularly well with Cline's Deep Planning slash command, providing seamless progress tracking for implementation tasks created through the [planning process](/features/plan-and-act).
 </Tip>
 
 ## Key Features
@@ -56,7 +56,7 @@ Configurable reminders ensure todo lists stay current:
       - Optionally adjust "Remind Cline Interval" (default: 6 messages)
   </Step>
   <Step title="Start a New Task">
-      - Begin a new task or continue an existing one
+      - Begin a new task
       - Cline will automatically start creating and managing todo lists
   </Step>
 </Steps>
@@ -258,6 +258,7 @@ Having issues? Try these quick fixes:
 <AccordionGroup>
   <Accordion title="Todo list not updating?">
     - Check that Focus Chain is enabled in settings
+    - Focus Chain may not work as well with smaller, less capable models
     - Ensure file permissions are correct in the task directory
   </Accordion>
   <Accordion title="Can't edit todo file?">
