@@ -1,14 +1,14 @@
 import { z } from "zod"
 
-import type {
-	ProviderSettings,
-	PromptComponent,
-	ModeConfig,
-	InstallMarketplaceItemOptions,
-	MarketplaceItem,
-	ShareVisibility,
+import {
+	type ProviderSettings,
+	type PromptComponent,
+	type ModeConfig,
+	type InstallMarketplaceItemOptions,
+	type MarketplaceItem,
+	marketplaceItemSchema,
 } from "@roo-code/types"
-import { marketplaceItemSchema } from "@roo-code/types"
+import type { ShareVisibility } from "@roo-code/cloud"
 
 import { Mode } from "./modes"
 

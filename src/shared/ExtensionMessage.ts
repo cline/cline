@@ -7,17 +7,15 @@ import type {
 	TelemetrySetting,
 	Experiments,
 	ClineMessage,
-	OrganizationAllowList,
-	CloudUserInfo,
-	ShareVisibility,
+	MarketplaceItem,
 } from "@roo-code/types"
+import type { CloudUserInfo, OrganizationAllowList, ShareVisibility } from "@roo-code/cloud"
 
 import { GitCommit } from "../utils/git"
 
 import { McpServer } from "./mcp"
 import { Mode } from "./modes"
 import { ModelRecord, RouterModels } from "./api"
-import type { MarketplaceItem } from "@roo-code/types"
 
 // Command interface for frontend/backend communication
 export interface Command {

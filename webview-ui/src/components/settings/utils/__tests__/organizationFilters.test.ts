@@ -1,4 +1,5 @@
-import type { ModelInfo, OrganizationAllowList } from "@roo-code/types"
+import type { ModelInfo } from "@roo-code/types"
+import type { OrganizationAllowList } from "@roo-code/cloud"
 
 import { filterProviders, filterModels } from "../organizationFilters"
 

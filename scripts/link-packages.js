@@ -14,6 +14,13 @@ const config = {
 			npmPath: "npm",
 			watchCommand: "pnpm build:development:watch",
 		},
+		{
+			name: "@roo-code/cloud",
+			sourcePath: "../Roo-Code-Cloud/packages/sdk",
+			targetPath: "webview-ui/node_modules/@roo-code/cloud",
+			npmPath: "npm",
+			watchCommand: "pnpm build:development:watch",
+		},
 	],
 }
 

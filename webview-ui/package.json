@@ -29,6 +29,7 @@
 		"@radix-ui/react-slider": "^1.2.3",
 		"@radix-ui/react-slot": "^1.1.2",
 		"@radix-ui/react-tooltip": "^1.1.8",
+		"@roo-code/cloud": "^0.13.0",
 		"@roo-code/types": "workspace:^",
 		"@tailwindcss/vite": "^4.0.0",
 		"@tanstack/react-query": "^5.68.0",

@@ -1,4 +1,6 @@
-import { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
+import type { ProviderSettings } from "@roo-code/types"
+import type { OrganizationAllowList } from "@roo-code/cloud"
+
 import { RouterModels } from "@roo/api"
 
 import { getModelValidationError, validateApiConfigurationExcludingModelErrors } from "../validate"

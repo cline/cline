@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
-import type { CloudUserInfo } from "@roo-code/types"
 import { TelemetryEventName } from "@roo-code/types"
+import type { CloudUserInfo } from "@roo-code/cloud"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useExtensionState } from "@src/context/ExtensionStateContext"

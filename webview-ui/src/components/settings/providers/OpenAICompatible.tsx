@@ -7,10 +7,10 @@ import {
 	type ProviderSettings,
 	type ModelInfo,
 	type ReasoningEffort,
-	type OrganizationAllowList,
 	azureOpenAiDefaultApiVersion,
 	openAiModelInfoSaneDefaults,
 } from "@roo-code/types"
+import { type OrganizationAllowList } from "@roo-code/cloud"
 
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 
