@@ -30,13 +30,5 @@
 	},
 	"[json]": {
 		"editor.defaultFormatter": "biomejs.biome"
-	},
-	// Automatically format the document on save.
-	"editor.formatOnSave": true,
-	"editor.insertSpaces": true,
-	"editor.codeActionsOnSave": {
-		"source.fixAll.biome": "explicit",
-		"source.removeUnusedImports.biome": "explicit",
-    	"source.organizeImports.biome": "explicit"
 	}
 }
