@@ -30,13 +30,6 @@ export const DEFAULT_WRITE_DELAY_MS = 1000
 export const DEFAULT_TERMINAL_OUTPUT_CHARACTER_LIMIT = 50_000
 
 /**
- * Default timeout for background usage collection in milliseconds.
- * This timeout prevents the background task from running indefinitely
- * when collecting usage data from streaming API responses.
- */
-export const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 30_000
-
-/**
  * GlobalSettings
  */
 
