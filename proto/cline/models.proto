@@ -187,7 +187,7 @@ message ModelsApiConfiguration {
   // Global configuration fields (not mode-specific)
   optional string api_key = 1;
   optional string cline_api_key = 2;
-  optional string task_id = 3;
+  optional string ulid = 3;
   optional string lite_llm_base_url = 4;
   optional string lite_llm_api_key = 5;
   optional bool lite_llm_use_prompt_cache = 6;
