@@ -193,15 +193,6 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
 	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
-		cacheReadsPrice: 37.5,
-	},
 	"gpt-4o": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
