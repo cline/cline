@@ -170,7 +170,7 @@ const standaloneConfig = {
 const e2eBuildConfig = {
 	...baseConfig,
 	entryPoints: ["src/test/e2e/utils/build.ts"],
-	outfile: `${destDir}/e2e-build.js`,
+	outfile: `${destDir}/e2e-build.mjs`,
 	external: ["@vscode/test-electron", "execa"],
 	sourcemap: false,
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
