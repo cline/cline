@@ -1,4 +1,4 @@
-export function addUserInstructions(
+export function formatUserInstructions(
 	globalClineRulesFileInstructions?: string,
 	localClineRulesFileInstructions?: string,
 	localCursorRulesFileInstructions?: string,

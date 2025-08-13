@@ -51,9 +51,9 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		await openFile(controller, { value: filePath })
 	} else {
 		if (request.type === "workflow") {
-			await refreshWorkflowToggles(controller, cwd)
+			await refreshWorkflowToggles(controller.cacheService, cwd)
 		} else {
-			await refreshClineRulesToggles(controller, cwd)
+			await refreshClineRulesToggles(controller.cacheService, cwd)
 		}
 		await controller.postStateToWebview()
 

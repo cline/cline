@@ -55,7 +55,6 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
@@ -78,7 +77,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
+import { buildUserInstructions } from "../prompts/system-prompt/user-instructions/buildUserInstructions"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -1698,52 +1697,15 @@ export class Task {
 			this.api.getModel(),
 		)
 
-		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
-		const preferredLanguageInstructions =
-			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
-				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
-				: ""
-
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
-
-		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
-
-		const localClineRulesFileInstructions = await getLocalClineRules(this.cwd, localToggles)
-		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
+		const userInstructions = await buildUserInstructions(
+			this.preferredLanguage,
+			this.controller.cacheService,
 			this.cwd,
-			cursorLocalToggles,
+			this.clineIgnoreController,
 		)
-		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(this.cwd, windsurfLocalToggles)
 
-		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
-		let clineIgnoreInstructions: string | undefined
-		if (clineIgnoreContent) {
-			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
-		}
+		systemPrompt += userInstructions
 
-		if (
-			globalClineRulesFileInstructions ||
-			localClineRulesFileInstructions ||
-			localCursorRulesFileInstructions ||
-			localCursorRulesDirInstructions ||
-			localWindsurfRulesFileInstructions ||
-			clineIgnoreInstructions ||
-			preferredLanguageInstructions
-		) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			const userInstructions = addUserInstructions(
-				globalClineRulesFileInstructions,
-				localClineRulesFileInstructions,
-				localCursorRulesFileInstructions,
-				localCursorRulesDirInstructions,
-				localWindsurfRulesFileInstructions,
-				clineIgnoreInstructions,
-				preferredLanguageInstructions,
-			)
-			systemPrompt += userInstructions
-		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
@@ -2502,7 +2464,10 @@ export class Task {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(
+			this.controller.cacheService,
+			this.cwd,
+		)
 
 		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.

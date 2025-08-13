@@ -15,9 +15,9 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 export async function refreshRules(controller: Controller, _request: EmptyRequest): Promise<RefreshedRules> {
 	try {
 		const cwd = await getCwd(getDesktopDir())
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(controller, cwd)
-		const { cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(controller, cwd)
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller, cwd)
+		const { globalToggles, localToggles } = await refreshClineRulesToggles(controller.cacheService, cwd)
+		const { cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(controller.cacheService, cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller.cacheService, cwd)
 
 		return RefreshedRules.create({
 			globalClineRulesToggles: { toggles: globalToggles },

@@ -10,26 +10,26 @@ import {
 	readDirectoryRecursive,
 } from "@core/context/instructions/user-instructions/rule-helpers"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { Controller } from "@/core/controller"
+import { CacheService } from "@/core/storage/CacheService"
 
 /**
  * Refreshes the toggles for windsurf and cursor rules
  */
 export async function refreshExternalRulesToggles(
-	controller: Controller,
+	cacheService: CacheService,
 	workingDirectory: string,
 ): Promise<{
 	windsurfLocalToggles: ClineRulesToggles
 	cursorLocalToggles: ClineRulesToggles
 }> {
 	// local windsurf toggles
-	const localWindsurfRulesToggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
+	const localWindsurfRulesToggles = cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 	const localWindsurfRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.windsurfRules)
 	const updatedLocalWindsurfToggles = await synchronizeRuleToggles(localWindsurfRulesFilePath, localWindsurfRulesToggles)
-	controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
+	cacheService.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
 
 	// local cursor toggles
-	const localCursorRulesToggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
+	const localCursorRulesToggles = cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 
 	// cursor has two valid locations for rules files, so we need to check both and combine
 	// synchronizeRuleToggles will drop whichever rules files are not in each given path, but combining the results will result in no data loss
@@ -40,7 +40,7 @@ export async function refreshExternalRulesToggles(
 	const updatedLocalCursorToggles2 = await synchronizeRuleToggles(localCursorRulesFilePath, localCursorRulesToggles)
 
 	const updatedLocalCursorToggles = combineRuleToggles(updatedLocalCursorToggles1, updatedLocalCursorToggles2)
-	controller.cacheService.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
+	cacheService.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
 
 	return {
 		windsurfLocalToggles: updatedLocalWindsurfToggles,
