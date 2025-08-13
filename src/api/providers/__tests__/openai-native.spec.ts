@@ -258,6 +258,68 @@ describe("OpenAiNativeHandler", () => {
 			})
 		})
 
+		it("should not include verbosity parameter for models that don't support it", async () => {
+			// Test with gpt-4.1 which does NOT support verbosity
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-4.1",
+				verbosity: "high", // Set verbosity but it should be ignored
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify that verbosity is NOT included in the request
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs).not.toHaveProperty("verbosity")
+			expect(callArgs.model).toBe("gpt-4.1")
+			expect(callArgs.temperature).toBe(0)
+			expect(callArgs.stream).toBe(true)
+		})
+
+		it("should not include verbosity for gpt-4o models", async () => {
+			// Test with gpt-4o which does NOT support verbosity
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-4o",
+				verbosity: "medium", // Set verbosity but it should be ignored
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify that verbosity is NOT included in the request
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs).not.toHaveProperty("verbosity")
+			expect(callArgs.model).toBe("gpt-4o")
+		})
+
+		it("should not include verbosity for gpt-4.1-mini models", async () => {
+			// Test with gpt-4.1-mini which does NOT support verbosity
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-4.1-mini",
+				verbosity: "low", // Set verbosity but it should be ignored
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify that verbosity is NOT included in the request
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs).not.toHaveProperty("verbosity")
+			expect(callArgs.model).toBe("gpt-4.1-mini")
+		})
+
 		it("should handle empty delta content", async () => {
 			const mockStream = [
 				{ choices: [{ delta: {} }], usage: null },

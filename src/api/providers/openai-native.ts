@@ -194,8 +194,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			...(reasoning && reasoning),
 		}
 
-		// Add verbosity if supported
-		if (verbosity) {
+		// Add verbosity only if the model supports it
+		if (verbosity && model.info.supportsVerbosity) {
 			params.verbosity = verbosity
 		}
 
