@@ -50,6 +50,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
@@ -80,6 +81,7 @@ import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
+import { FocusChainManager } from "./focus-chain"
 import { summarizeTask } from "@core/prompts/contextManagement"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -116,6 +118,9 @@ export class Task {
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
 
+	// Focus Chain
+	private FocusChainManager?: FocusChainManager
+
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
@@ -128,6 +133,7 @@ export class Task {
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	focusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -144,6 +150,7 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
+		focusChainSettings: FocusChainSettings,
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
@@ -192,6 +199,7 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
 		this.mode = mode
@@ -233,6 +241,20 @@ export class Task {
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
+
+		// Initialize focus chain manager only if enabled
+		if (this.focusChainSettings.enabled) {
+			this.FocusChainManager = new FocusChainManager({
+				taskId: this.taskId,
+				taskState: this.taskState,
+				mode: this.mode,
+				context: this.getContext(),
+				cacheService: this.cacheService,
+				postStateToWebview: this.postStateToWebview,
+				say: this.say.bind(this),
+				focusChainSettings: this.focusChainSettings,
+			})
+		}
 
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
@@ -295,6 +317,13 @@ export class Task {
 			this.startTask(task, images, files)
 		}
 
+		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
+		if (this.FocusChainManager) {
+			this.FocusChainManager.setupFocusChainFileWatcher().catch((error) => {
+				console.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
+			})
+		}
+
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
@@ -319,6 +348,7 @@ export class Task {
 			this.cacheService,
 			this.autoApprovalSettings,
 			this.browserSettings,
+			this.focusChainSettings,
 			cwd,
 			this.taskId,
 			this.ulid,
@@ -331,12 +361,16 @@ export class Task {
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
+			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 		)
 	}
 
 	public updateMode(mode: Mode): void {
 		this.mode = mode
 		this.toolExecutor.updateMode(mode)
+		if (this.FocusChainManager) {
+			this.FocusChainManager.updateMode(mode)
+		}
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
@@ -686,6 +720,7 @@ export class Task {
 		text?: string
 		images?: string[]
 		files?: string[]
+		askTs?: number
 	}> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.taskState.abort) {
@@ -694,8 +729,10 @@ export class Task {
 		let askTs: number
 		if (partial !== undefined) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastMessage = clineMessages.at(-1)
-			const lastMessageIndex = clineMessages.length - 1
+			const lastAskMessageIndex = findLastIndex(clineMessages, (m) => m.type === "ask")
+			const lastMessage = lastAskMessageIndex !== -1 ? clineMessages[lastAskMessageIndex] : undefined
+			const lastMessageIndex = lastAskMessageIndex
+
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
@@ -1172,6 +1209,11 @@ export class Task {
 	}
 
 	async abortTask() {
+		// Check for incomplete progress before aborting
+		if (this.FocusChainManager) {
+			this.FocusChainManager.checkIncompleteProgressOnCompletion()
+		}
+
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
@@ -1183,6 +1225,9 @@ export class Task {
 		await this.diffViewProvider.revertChanges()
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
+		if (this.FocusChainManager) {
+			this.FocusChainManager.dispose()
+		}
 	}
 
 	// Checkpoints
@@ -1609,7 +1654,14 @@ export class Task {
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+		let systemPrompt = await SYSTEM_PROMPT(
+			this.cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			this.focusChainSettings,
+			isNextGenModel,
+		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1891,6 +1943,10 @@ export class Task {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
+
+		// Increment API request counter for focus chain list management
+		this.taskState.apiRequestCount++
+		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { modelId, providerId } = await this.getCurrentProviderInfo()
@@ -2525,6 +2581,18 @@ export class Task {
 		let clinerulesError = false
 		if (needsClinerulesFileCheck) {
 			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
+		}
+
+		// Add focu chain list instructions if needed
+		if (this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
+			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
+			processedUserContent.push({
+				type: "text",
+				text: focusChainInstructions,
+			})
+
+			this.taskState.apiRequestsSinceLastTodoUpdate = 0
+			this.taskState.todoListWasUpdatedByUser = false
 		}
 
 		// Return all results

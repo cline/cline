@@ -1239,6 +1239,8 @@ export const ChatRowContent = memo(
 								</div>
 							</>
 						)
+					case "task_progress":
+						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
 						return (
 							<>
