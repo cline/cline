@@ -1,12 +1,12 @@
+import { Anthropic } from "@anthropic-ai/sdk"
+import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import { execa } from "@packages/execa"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import fs from "fs/promises"
+import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
-import fs from "fs/promises"
-import { Anthropic } from "@anthropic-ai/sdk"
-import { fileExistsAtPath } from "@utils/fs"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
-import os from "os"
-import { execa } from "@packages/execa"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -36,7 +36,7 @@ export async function getDocumentsPath(): Promise<string> {
 			if (trimmedPath) {
 				return trimmedPath
 			}
-		} catch (err) {
+		} catch (_err) {
 			console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
 		}
 	} else if (process.platform === "linux") {
@@ -72,7 +72,7 @@ export async function ensureRulesDirectoryExists(): Promise<string> {
 	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
 	try {
 		await fs.mkdir(clineRulesDir, { recursive: true })
-	} catch (error) {
+	} catch (_error) {
 		return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
 	return clineRulesDir
@@ -83,7 +83,7 @@ export async function ensureWorkflowsDirectoryExists(): Promise<string> {
 	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
 	try {
 		await fs.mkdir(clineWorkflowsDir, { recursive: true })
-	} catch (error) {
+	} catch (_error) {
 		return path.join(os.homedir(), "Documents", "Cline", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
 	return clineWorkflowsDir
@@ -94,7 +94,7 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
 	try {
 		await fs.mkdir(mcpServersDir, { recursive: true })
-	} catch (error) {
+	} catch (_error) {
 		return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
 	}
 	return mcpServersDir

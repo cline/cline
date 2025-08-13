@@ -1,6 +1,6 @@
-import { StreamingCallbacks } from "@/hosts/host-provider-types"
-import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
+import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
+import { StreamingCallbacks } from "@/hosts/host-provider-types"
 
 /**
  * Type definition for a streaming response handler
@@ -40,7 +40,7 @@ export class GrpcHandler {
 		let completionCalled = false
 
 		// Create a response handler that will call the client's callbacks
-		const responseHandler: StreamingResponseHandler = async (response, isLast = false, sequenceNumber) => {
+		const responseHandler: StreamingResponseHandler = async (response, isLast = false, _sequenceNumber) => {
 			try {
 				// Call the client's onResponse callback with the response
 				streamingCallbacks.onResponse(response)

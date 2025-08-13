@@ -1,11 +1,11 @@
+import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import * as path from "path"
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
-import type { FileMetadataEntry } from "./ContextTrackerTypes"
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import { getCwd } from "@/utils/path"
-import { HistoryItem } from "@/shared/HistoryItem"
 import { Controller } from "@/core/controller"
+import { HistoryItem } from "@/shared/HistoryItem"
+import { getCwd } from "@/utils/path"
+import type { FileMetadataEntry } from "./ContextTrackerTypes"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -123,7 +123,7 @@ export class FileContextTracker {
 				return relevantEntries.length > 0 ? (relevantEntries[0][field] as number) : null
 			}
 
-			let newEntry: FileMetadataEntry = {
+			const newEntry: FileMetadataEntry = {
 				path: filePath,
 				record_state: "active",
 				record_source: source,

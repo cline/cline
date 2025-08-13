@@ -1,5 +1,5 @@
-import * as net from "net"
 import axios from "axios"
+import * as net from "net"
 
 /**
  * Check if a port is open on a given host
@@ -46,7 +46,7 @@ export async function tryConnect(ipAddress: string): Promise<{ endpoint: string;
 		const response = await axios.get(`http://${ipAddress}:9222/json/version`, { timeout: 1000 })
 		const data = response.data
 		return { endpoint: data.webSocketDebuggerUrl, ip: ipAddress }
-	} catch (error) {
+	} catch (_error) {
 		return null
 	}
 }

@@ -1,5 +1,5 @@
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
-import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 /**
  * Props for the ApiKeyField component
@@ -29,12 +29,12 @@ export const ApiKeyField = ({
 	return (
 		<div>
 			<VSCodeTextField
-				value={localValue}
+				onInput={(e: any) => setLocalValue(e.target.value)}
+				placeholder={placeholder}
+				required={true}
 				style={{ width: "100%" }}
 				type="password"
-				onInput={(e: any) => setLocalValue(e.target.value)}
-				required={true}
-				placeholder={placeholder}>
+				value={localValue}>
 				<span style={{ fontWeight: 500 }}>{providerName} API Key</span>
 			</VSCodeTextField>
 			<p

@@ -1,19 +1,19 @@
 import {
-	ApiConfiguration,
-	ApiProvider,
-	BedrockModelId,
-	ModelInfo,
-	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
-	LiteLLMModelInfo as AppLiteLLMModelInfo,
-} from "../../api"
-import {
-	ModelsApiConfiguration as ProtoApiConfiguration,
-	ApiProvider as ProtoApiProvider,
 	LiteLLMModelInfo,
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
+	ModelsApiConfiguration as ProtoApiConfiguration,
+	ApiProvider as ProtoApiProvider,
 	ThinkingConfig,
 } from "@shared/proto/cline/models"
+import {
+	ApiConfiguration,
+	ApiProvider,
+	LiteLLMModelInfo as AppLiteLLMModelInfo,
+	OpenAiCompatibleModelInfo as AppOpenAiCompatibleModelInfo,
+	BedrockModelId,
+	ModelInfo,
+} from "../../api"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {

@@ -1,13 +1,13 @@
 import { anthropicModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -47,16 +47,16 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 			<BaseUrlField
 				initialValue={apiConfiguration?.anthropicBaseUrl}
+				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
 				placeholder="Default: https://api.anthropic.com"
-				label="Use custom base URL"
 			/>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={anthropicModels}
-						selectedModelId={selectedModelId}
 						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -64,14 +64,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

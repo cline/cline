@@ -1,4 +1,3 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import type {
 	BalanceResponse,
 	OrganizationBalanceResponse,
@@ -7,8 +6,9 @@ import type {
 	UsageTransaction,
 	UserResponse,
 } from "@shared/ClineAccount"
-import { AuthService } from "../auth/AuthService"
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { clineEnvConfig } from "@/config"
+import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
@@ -223,7 +223,7 @@ export class ClineAccountService {
 		// Call API to switch account
 		try {
 			// make XHR request to switch account
-			const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+			const _response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",

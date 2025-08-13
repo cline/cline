@@ -96,7 +96,7 @@ export const ErrorBlockTitle = ({
 		} else if (retryStatus) {
 			// Handle retry state
 			const retryOperations = Math.max(0, retryStatus.maxAttempts - 1)
-			return <RetryMessage seconds={retryStatus.delaySec} attempt={retryStatus.attempt} retryOperations={retryOperations} />
+			return <RetryMessage attempt={retryStatus.attempt} retryOperations={retryOperations} seconds={retryStatus.delaySec} />
 		}
 
 		return <span className={details.classNames.join(" ")}>{details.title}</span>

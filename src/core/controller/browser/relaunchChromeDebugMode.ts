@@ -1,6 +1,6 @@
 import { EmptyRequest, String as StringMessage } from "@shared/proto/cline/common"
-import { Controller } from "../index"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
+import { Controller } from "../index"
 
 /**
  * Relaunch Chrome in debug mode

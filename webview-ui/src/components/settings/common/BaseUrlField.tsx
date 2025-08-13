@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react"
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**
@@ -41,11 +41,11 @@ export const BaseUrlField = ({
 
 			{isEnabled && (
 				<VSCodeTextField
-					value={localValue}
-					style={{ width: "100%", marginTop: 3 }}
-					type="url"
 					onInput={(e: any) => setLocalValue(e.target.value.trim())}
 					placeholder={placeholder}
+					style={{ width: "100%", marginTop: 3 }}
+					type="url"
+					value={localValue}
 				/>
 			)}
 		</div>

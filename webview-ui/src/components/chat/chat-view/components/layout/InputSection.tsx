@@ -1,6 +1,6 @@
 import React from "react"
-import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
 import ChatTextArea from "@/components/chat/ChatTextArea"
+import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
 import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 
 interface InputSectionProps {
@@ -45,33 +45,33 @@ export const InputSection: React.FC<InputSectionProps> = ({
 			{activeQuote && (
 				<div style={{ marginBottom: "-12px", marginTop: "10px" }}>
 					<QuotedMessagePreview
-						text={activeQuote}
-						onDismiss={() => setActiveQuote(null)}
 						isFocused={isTextAreaFocused}
+						onDismiss={() => setActiveQuote(null)}
+						text={activeQuote}
 					/>
 				</div>
 			)}
 
 			<ChatTextArea
-				ref={textAreaRef}
-				onFocusChange={handleFocusChange}
 				activeQuote={activeQuote}
 				inputValue={inputValue}
-				setInputValue={setInputValue}
-				sendingDisabled={sendingDisabled}
-				placeholderText={placeholderText}
-				selectedImages={selectedImages}
-				setSelectedImages={setSelectedImages}
-				setSelectedFiles={setSelectedFiles}
-				selectedFiles={selectedFiles}
-				onSend={() => messageHandlers.handleSendMessage(inputValue, selectedImages, selectedFiles)}
-				onSelectFilesAndImages={selectFilesAndImages}
-				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+				onFocusChange={handleFocusChange}
 				onHeightChange={() => {
 					if (isAtBottom) {
 						scrollToBottomAuto()
 					}
 				}}
+				onSelectFilesAndImages={selectFilesAndImages}
+				onSend={() => messageHandlers.handleSendMessage(inputValue, selectedImages, selectedFiles)}
+				placeholderText={placeholderText}
+				ref={textAreaRef}
+				selectedFiles={selectedFiles}
+				selectedImages={selectedImages}
+				sendingDisabled={sendingDisabled}
+				setInputValue={setInputValue}
+				setSelectedFiles={setSelectedFiles}
+				setSelectedImages={setSelectedImages}
+				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
 			/>
 		</>
 	)

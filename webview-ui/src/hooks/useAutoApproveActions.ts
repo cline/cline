@@ -1,8 +1,8 @@
-import { useCallback } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { useCallback } from "react"
 import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
 import { ActionMetadata } from "@/components/chat/auto-approve-menu/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 export function useAutoApproveActions() {
 	const { autoApprovalSettings } = useExtensionState()
@@ -75,7 +75,7 @@ export function useAutoApproveActions() {
 				return
 			}
 
-			let newActions = {
+			const newActions = {
 				...autoApprovalSettings.actions,
 				[actionId]: value,
 			}
@@ -128,8 +128,8 @@ export function useAutoApproveActions() {
 
 	// Toggle all actions
 	const toggleAll = useCallback(
-		async (action: ActionMetadata, checked: boolean) => {
-			let actions = { ...autoApprovalSettings.actions }
+		async (_action: ActionMetadata, checked: boolean) => {
+			const actions = { ...autoApprovalSettings.actions }
 
 			for (const action of Object.keys(actions)) {
 				actions[action as keyof AutoApprovalSettings["actions"]] = checked

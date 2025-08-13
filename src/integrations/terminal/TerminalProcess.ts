@@ -227,7 +227,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer += chunk
 		let lineEndIndex: number
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
+			const line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)

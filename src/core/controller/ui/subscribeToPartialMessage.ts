@@ -1,7 +1,7 @@
-import { Controller } from "../index"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { ClineMessage } from "@shared/proto/cline/ui"
-import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active partial message subscriptions
 const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()

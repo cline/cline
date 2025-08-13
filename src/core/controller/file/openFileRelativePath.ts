@@ -1,8 +1,8 @@
+import { openFile as openFileIntegration } from "@integrations/misc/open-file"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { getWorkspacePath } from "@utils/path"
 import * as path from "path"
 import { Controller } from ".."
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { getWorkspacePath } from "@utils/path"
 
 /**
  * Opens a file in the editor by a relative path

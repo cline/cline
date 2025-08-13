@@ -1,7 +1,6 @@
 import type { ToggleCursorRuleRequest } from "@shared/proto/cline/file"
 import { ClineRulesToggles } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Cursor rule (enable or disable)

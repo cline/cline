@@ -1,10 +1,10 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
 import assert from "node:assert"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -19,10 +19,10 @@ import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
-import type { ExtensionContext } from "vscode"
 import { initialize, tearDown } from "./common"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"

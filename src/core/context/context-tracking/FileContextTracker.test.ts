@@ -1,19 +1,19 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import { Controller } from "@/core/controller"
+import { HostProvider } from "@/hosts/host-provider"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
 import { FileContextTracker } from "./FileContextTracker"
-import { Controller } from "@/core/controller"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockController: Controller
-	let mockWorkspace: sinon.SinonStub
+	let _mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
 	let tracker: FileContextTracker
 	let taskId: string
@@ -25,7 +25,7 @@ describe("FileContextTracker", () => {
 		sandbox = sinon.createSandbox()
 
 		// Mock vscode workspace
-		mockWorkspace = sandbox.stub(vscode.workspace, "workspaceFolders").value([
+		_mockWorkspace = sandbox.stub(vscode.workspace, "workspaceFolders").value([
 			{
 				uri: {
 					fsPath: "/mock/workspace",
@@ -40,9 +40,7 @@ describe("FileContextTracker", () => {
 		}
 
 		// Use a function replacement instead of a direct stub
-		vscode.workspace.createFileSystemWatcher = function () {
-			return mockFileSystemWatcher
-		}
+		vscode.workspace.createFileSystemWatcher = () => mockFileSystemWatcher
 
 		// Mock controller and context
 		mockController = {

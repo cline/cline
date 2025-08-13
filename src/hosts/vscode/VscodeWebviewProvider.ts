@@ -4,11 +4,11 @@ import { WebviewProvider } from "@core/webview"
 import { getTheme } from "@integrations/theme/getTheme"
 import type { Uri } from "vscode"
 import * as vscode from "vscode"
+import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
-import type { WebviewProviderType } from "@/shared/webview/types"
 import { WebviewMessage } from "@/shared/WebviewMessage"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
+import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

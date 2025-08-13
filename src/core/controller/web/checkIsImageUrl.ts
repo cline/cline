@@ -1,7 +1,7 @@
-import { Controller } from "../index"
+import { detectImageUrl } from "@integrations/misc/link-preview"
 import { StringRequest } from "@shared/proto/cline/common"
 import { IsImageUrl } from "@shared/proto/cline/web"
-import { detectImageUrl } from "@integrations/misc/link-preview"
+import { Controller } from "../index"
 
 /**
  * Checks if a URL is an image URL

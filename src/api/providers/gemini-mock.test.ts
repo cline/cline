@@ -1,12 +1,12 @@
 // Mock for @google/genai module to avoid ESM compatibility issues in tests
 
 export class GoogleGenAI {
-	constructor(options: any) {
+	constructor(_options: any) {
 		// Mock constructor
 	}
 
 	models = {
-		generateContentStream: async (params: any) => {
+		generateContentStream: async (_params: any) => {
 			// Mock implementation that returns an async iterator
 			return {
 				async *[Symbol.asyncIterator]() {
@@ -23,7 +23,7 @@ export class GoogleGenAI {
 				},
 			}
 		},
-		countTokens: async (params: any) => {
+		countTokens: async (_params: any) => {
 			// Mock token counting
 			return {
 				totalTokens: 100,

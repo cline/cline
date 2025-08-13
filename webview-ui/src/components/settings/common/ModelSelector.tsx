@@ -1,5 +1,5 @@
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { ModelInfo } from "@shared/api"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
 /**
@@ -52,17 +52,17 @@ export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label
 			<label htmlFor="model-id">
 				<span style={{ fontWeight: 500 }}>{label}</span>
 			</label>
-			<VSCodeDropdown id="model-id" value={selectedModelId} onChange={onChange} style={{ width: "100%" }}>
+			<VSCodeDropdown id="model-id" onChange={onChange} style={{ width: "100%" }} value={selectedModelId}>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{Object.keys(models).map((modelId) => (
 					<VSCodeOption
 						key={modelId}
-						value={modelId}
 						style={{
 							whiteSpace: "normal",
 							wordWrap: "break-word",
 							maxWidth: "100%",
-						}}>
+						}}
+						value={modelId}>
 						{modelId}
 					</VSCodeOption>
 				))}

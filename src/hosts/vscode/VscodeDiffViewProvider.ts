@@ -1,8 +1,8 @@
-import { arePathsEqual } from "@/utils/path"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -21,8 +21,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.documentWasOpen = false
 		// close the tab if it's open (it's already been saved)
 		const tabs = vscode.window.tabGroups.all
-			.map((tg) => tg.tabs)
-			.flat()
+			.flatMap((tg) => tg.tabs)
 			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
 		for (const tab of tabs) {
 			if (!tab.isDirty) {

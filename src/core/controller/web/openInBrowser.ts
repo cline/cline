@@ -1,6 +1,6 @@
-import { Controller } from ".."
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { openExternal } from "@utils/env"
+import { Controller } from ".."
 
 /**
  * Opens a URL in the user's default browser

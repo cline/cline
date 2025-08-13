@@ -1,4 +1,4 @@
-import { window, TabInputText } from "vscode"
+import { TabInputText, window } from "vscode"
 import { GetOpenTabsRequest, GetOpenTabsResponse } from "@/shared/proto/host/window"
 
 export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsResponse> {

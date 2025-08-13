@@ -1,10 +1,9 @@
 import { String } from "@shared/proto/cline/common"
-import type vscode from "vscode"
 import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
 import type { UserResponse } from "@/shared/ClineAccount"
 import { AuthService, type ServiceConfig } from "./AuthService"
-import { Controller } from "@/core/controller"
 
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller, config: ServiceConfig, authProvider?: any) {

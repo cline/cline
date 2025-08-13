@@ -1,12 +1,13 @@
 import { sapAiCoreModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Props for the SapAiCoreProvider component
  */
@@ -30,9 +31,9 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
+				placeholder="Enter AI Core Client Id..."
 				style={{ width: "100%" }}
-				type="password"
-				placeholder="Enter AI Core Client Id...">
+				type="password">
 				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
@@ -44,9 +45,9 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientSecret || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
+				placeholder="Enter AI Core Client Secret..."
 				style={{ width: "100%" }}
-				type="password"
-				placeholder="Enter AI Core Client Secret...">
+				type="password">
 				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
@@ -58,24 +59,24 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreBaseUrl || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Base URL...">
+				placeholder="Enter AI Core Base URL..."
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreTokenUrl || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Auth URL...">
+				placeholder="Enter AI Core Auth URL..."
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiResourceGroup || ""}
 				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Resource Group...">
+				placeholder="Enter AI Core Resource Group..."
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
 			</DebouncedTextField>
 
@@ -96,8 +97,8 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={sapAiCoreModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -105,10 +106,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

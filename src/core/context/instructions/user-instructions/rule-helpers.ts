@@ -1,8 +1,8 @@
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import * as path from "path"
-import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
 import { Controller } from "@/core/controller"
 
 /**
@@ -15,7 +15,7 @@ export async function readDirectoryRecursive(
 ): Promise<string[]> {
 	try {
 		const entries = await readDirectory(directoryPath, excludedPaths)
-		let results: string[] = []
+		const results: string[] = []
 		for (const entry of entries) {
 			if (allowedFileExtension !== "") {
 				const fileExtension = path.extname(entry)
@@ -148,18 +148,18 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 				await fs.unlink(tempPath).catch(() => {}) // delete backup
 
 				return false // conversion successful with no errors
-			} catch (conversionError) {
+			} catch (_conversionError) {
 				// attempt to restore backup on conversion failure
 				try {
 					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
 					await fs.rename(tempPath, clinerulePath) // restore backup
-				} catch (restoreError) {}
+				} catch (_restoreError) {}
 				return true // in either case here we consider this an error
 			}
 		}
 		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
 		return false
-	} catch (error) {
+	} catch (_error) {
 		return true
 	}
 }
@@ -214,7 +214,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 		await fs.writeFile(filePath, "", "utf8")
 
 		return { filePath, fileExists: false }
-	} catch (error) {
+	} catch (_error) {
 		return { filePath: null, fileExists: false }
 	}
 }

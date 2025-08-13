@@ -1,6 +1,6 @@
+import { status } from "@grpc/grpc-js"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { status } from "@grpc/grpc-js"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditorId: string | undefined

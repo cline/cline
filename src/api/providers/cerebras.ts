@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import Cerebras from "@cerebras/cerebras_cloud_sdk"
-import { withRetry } from "../retry"
-import { ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
-import { ApiHandler } from "../index"
 import { ApiStream } from "@api/transform/stream"
+import Cerebras from "@cerebras/cerebras_cloud_sdk"
+import { CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, ModelInfo } from "@shared/api"
+import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
 
 interface CerebrasHandlerOptions {
 	cerebrasApiKey?: string
@@ -126,7 +126,7 @@ export class CerebrasHandler implements ApiHandler {
 							reasoning = (reasoning || "") + content
 
 							// Clean the content by removing think tags for display
-							let cleanContent = content.replace(/<think>/g, "").replace(/<\/think>/g, "")
+							const cleanContent = content.replace(/<think>/g, "").replace(/<\/think>/g, "")
 
 							// Only yield reasoning content if there's actual content after cleaning
 							if (cleanContent.trim()) {
@@ -178,7 +178,7 @@ export class CerebrasHandler implements ApiHandler {
 			// Enhanced error handling for Cerebras API
 			if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
 				// Rate limit error - will be handled by retry decorator with patient backoff
-				const limits = this.getRateLimits()
+				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
 			} else if (error?.status === 401) {
 				throw new Error("Cerebras API authentication failed. Please check your API key.")

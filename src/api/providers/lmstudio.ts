@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { withRetry } from "../retry"
 
 interface LmStudioHandlerOptions {
 	lmStudioBaseUrl?: string
@@ -62,7 +62,7 @@ export class LmStudioHandler implements ApiHandler {
 					}
 				}
 			}
-		} catch (error) {
+		} catch (_error) {
 			// LM Studio doesn't return an error code/body for now
 			throw new Error(
 				"Please check the LM Studio developer logs to debug what went wrong. You may need to load the model with a larger context length to work with Cline's prompts.",

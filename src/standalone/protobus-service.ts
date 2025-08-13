@@ -86,7 +86,7 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 			const requestId = call.metadata.get("request-id").pop()?.toString()
 			log(`gRPC streaming request: ${call.getPath()}`)
 
-			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, sequenceNumber) => {
+			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, _sequenceNumber) => {
 				try {
 					call.write(response) // Use a bound version of call.write to maintain proper 'this' context
 

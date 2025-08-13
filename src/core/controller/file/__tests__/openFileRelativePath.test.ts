@@ -1,12 +1,12 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import { Controller } from "@core/controller"
+import * as openFileIntegration from "@integrations/misc/open-file"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
+import * as pathUtils from "@utils/path"
 import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as path from "path"
 import * as sinon from "sinon"
 import { openFileRelativePath } from "../openFileRelativePath"
-import { Controller } from "@core/controller"
-import { StringRequest, Empty } from "@shared/proto/cline/common"
-import * as openFileIntegration from "@integrations/misc/open-file"
-import * as pathUtils from "@utils/path"
-import * as path from "path"
 
 describe("openFileRelativePath", () => {
 	let sandbox: sinon.SinonSandbox

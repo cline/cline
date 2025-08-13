@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, LiteLLMModelInfo } from "@shared/api"
 import { ApiHandler } from ".."
-import { ApiStream } from "../transform/stream"
-import { convertToOpenAiMessages } from "../transform/openai-format"
 import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 interface LiteLlmHandlerOptions {
 	liteLlmApiKey?: string
@@ -186,7 +186,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budgetTokens !== 0 ? true : false
+		const reasoningOn = budgetTokens !== 0
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0

@@ -1,9 +1,9 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { TaskServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber } from "@/utils/format"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber } from "@/utils/format"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -106,8 +106,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								.slice(0, 3)
 								.map((item) => (
 									<div
-										key={item.id}
 										className="history-preview-item"
+										key={item.id}
 										onClick={() => handleHistorySelect(item.id)}>
 										<div style={{ padding: "12px" }}>
 											<div style={{ marginBottom: "8px" }}>
@@ -129,13 +129,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 														right: "12px",
 														color: "var(--vscode-button-background)",
 													}}>
-													<span className="codicon codicon-star-full" aria-label="Favorited" />
+													<span aria-label="Favorited" className="codicon codicon-star-full" />
 												</div>
 											)}
 
 											<div
-												id={`history-preview-task-${item.id}`}
 												className="history-preview-task"
+												id={`history-preview-task-${item.id}`}
 												style={{
 													fontSize: "var(--vscode-font-size)",
 													color: "var(--vscode-descriptionForeground)",

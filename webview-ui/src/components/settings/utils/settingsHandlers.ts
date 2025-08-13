@@ -1,6 +1,6 @@
-import { StateServiceClient, BrowserServiceClient } from "@/services/grpc-client"
-import { UpdateSettingsRequest, OpenaiReasoningEffort, McpDisplayMode } from "@shared/proto/cline/state"
 import { UpdateBrowserSettingsRequest } from "@shared/proto/cline/browser"
+import { McpDisplayMode, OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { BrowserServiceClient, StateServiceClient } from "@/services/grpc-client"
 
 /**
  * Converts values to their corresponding proto format

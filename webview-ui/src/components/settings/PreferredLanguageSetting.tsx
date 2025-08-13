@@ -12,12 +12,12 @@ const PreferredLanguageSetting: React.FC = () => {
 
 	return (
 		<div style={{}}>
-			<label htmlFor="preferred-language-dropdown" className="block mb-1 text-sm font-medium">
+			<label className="block mb-1 text-sm font-medium" htmlFor="preferred-language-dropdown">
 				Preferred Language
 			</label>
 			<VSCodeDropdown
-				id="preferred-language-dropdown"
 				currentValue={preferredLanguage || "English"}
+				id="preferred-language-dropdown"
 				onChange={(e: any) => {
 					handleLanguageChange(e.target.value)
 				}}
