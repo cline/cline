@@ -21,6 +21,7 @@ export class RooProtectedController {
 		".vscode/**",
 		".rooprotected", // For future use
 		"AGENTS.md",
+		"AGENT.md", // Alternative singular form for compatibility
 	]
 
 	constructor(cwd: string) {
