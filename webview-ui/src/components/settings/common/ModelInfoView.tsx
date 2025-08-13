@@ -178,9 +178,9 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				doesNotSupportLabel="Does not support prompt caching"
 			/>
 		),
-		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
-			<span key="maxTokens">
-				<span style={{ fontWeight: 500 }}>Max output:</span> {formatTokenLimit(modelInfo.maxTokens)} tokens
+		modelInfo.contextWindow !== undefined && modelInfo.contextWindow > 0 && (
+			<span key="contextWindow">
+				<span style={{ fontWeight: 500 }}>Context Window:</span> {formatTokenLimit(modelInfo.contextWindow)} tokens
 			</span>
 		),
 		inputPriceElement, // Add the generated input price block
