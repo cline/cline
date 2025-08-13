@@ -1,13 +1,6 @@
+import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
+import { Diagnostic, DiagnosticPosition, DiagnosticRange, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import * as vscode from "vscode"
-import {
-	GetDiagnosticsRequest,
-	GetDiagnosticsResponse,
-	FileDiagnostics,
-	Diagnostic,
-	DiagnosticRange,
-	DiagnosticPosition,
-	DiagnosticSeverity,
-} from "@/shared/proto/host/workspace"
 
 export async function getDiagnostics(request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
 	// Get all diagnostics from VS Code

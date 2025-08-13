@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "mocha"
 import { expect } from "chai"
 import { getNewDiagnostics, diagnosticsToProblemsString } from "../"
-import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.host"
+import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.cline"
 import * as sinon from "sinon"
 import * as pathUtils from "@/utils/path"
 

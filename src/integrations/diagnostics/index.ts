@@ -1,7 +1,7 @@
 import * as path from "path"
 import deepEqual from "fast-deep-equal"
 import { getCwd } from "@/utils/path"
-import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.host"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {
 	const oldMap = new Map<string, Diagnostic[]>()
