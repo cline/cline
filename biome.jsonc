@@ -123,6 +123,9 @@
 			"!**/playwright/**",
 			"!**/test-results/**",
 			"!**/node_modules/**",
+			"!**/webview-ui/build/**",
+			"!**/generated/**",
+			"!**/proto/**",
 			"!**/webview-ui/build/**"
 		]
 	},
