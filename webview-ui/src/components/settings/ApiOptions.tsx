@@ -180,7 +180,7 @@ const ApiOptions = ({
 					</VSCodeDropdown>
 				</DropdownContainer>
 				{isPopup && (
-					<VSCodeButton appearance="icon" onClick={closeTooltip} style={{}} aria-label="Close task">
+					<VSCodeButton appearance="icon" onClick={closeTooltip} style={{}} aria-label="Close options tooltip">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				)}
