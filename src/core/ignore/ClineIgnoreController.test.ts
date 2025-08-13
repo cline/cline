@@ -1,8 +1,8 @@
-import { ClineIgnoreController } from "./ClineIgnoreController"
 import fs from "fs/promises"
-import path from "path"
-import os from "os"
 import { after, beforeEach, describe, it } from "mocha"
+import os from "os"
+import path from "path"
+import { ClineIgnoreController } from "./ClineIgnoreController"
 import "should"
 
 describe("ClineIgnoreController", () => {

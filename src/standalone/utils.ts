@@ -1,5 +1,5 @@
-import * as fs from "fs"
 import * as protoLoader from "@grpc/proto-loader"
+import * as fs from "fs"
 import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
 

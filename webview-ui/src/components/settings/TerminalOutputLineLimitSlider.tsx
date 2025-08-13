@@ -17,14 +17,14 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 			</label>
 			<div style={{ display: "flex", alignItems: "center" }}>
 				<input
-					type="range"
 					id="terminal-output-limit"
-					min="100"
 					max="5000"
-					step="100"
-					value={terminalOutputLineLimit ?? 500}
+					min="100"
 					onChange={handleSliderChange}
+					step="100"
 					style={{ flexGrow: 1, marginRight: "1rem" }}
+					type="range"
+					value={terminalOutputLineLimit ?? 500}
 				/>
 				<span>{terminalOutputLineLimit ?? 500}</span>
 			</div>

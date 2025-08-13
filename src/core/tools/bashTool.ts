@@ -1,6 +1,6 @@
 export const bashToolName = "Bash"
 
-const CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)
+const _CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)
 
    Co-Authored-By: Cline <noreply@cline.bot>`
 const CO_AUTHORED_PR_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)`

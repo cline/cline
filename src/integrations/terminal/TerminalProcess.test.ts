@@ -1,5 +1,5 @@
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { afterEach, beforeEach, describe, it } from "mocha"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
@@ -218,7 +218,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 		// Check that the correct methods were called and events emitted
 		sendTextStub.calledWith("test-command", true).should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
-		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+		;(emitSpy as sinon.SinonSpy)
+			.calledWith("continue")
+			.should.be.true()
 
 		// This event should be emitted for terminals without shell integration
 		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
@@ -227,7 +229,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 	// The following tests require shell integration and controlled terminal output
 	describe("Shell integration tests", () => {
 		// We'll mock the terminal run process and TerminalProcess for these tests
-		it("should emit completed and continue events when command finishes", async function () {
+		it("should emit completed and continue events when command finishes", async () => {
 			// Create a terminal to ensure proper interface, but we'll use mocking under the hood
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -252,7 +254,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			await process.run(terminal, "echo test")
 
 			// Verify the executeCommand was called with the right command
-			mockExecuteCommand.calledWith("echo test").should.be.true()
+			mockExecuteCommand
+				.calledWith("echo test")
+				.should.be.true()
 
 			// Check that the events were emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -262,7 +266,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 	// Tests with controlled output
 	describe("Controlled output tests", () => {
-		it("should emit line events for each line of output", async function () {
+		it("should emit line events for each line of output", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -287,7 +291,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "line3").should.be.true()
 		})
 
-		it("should properly handle process hot state (e.g. compiling)", async function () {
+		it("should properly handle process hot state (e.g. compiling)", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -315,7 +319,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			foundCompilingTimeout.length.should.be.greaterThan(0)
 		})
 
-		it("should handle standard commands with normal hot timeout", async function () {
+		it("should handle standard commands with normal hot timeout", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -345,7 +349,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
-		it("should correctly filter command echoes based on current implementation", async function () {
+		it("should correctly filter command echoes based on current implementation", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
@@ -371,12 +375,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			// Check that "test-command" was filtered out but "test command" was not
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test command").should.be.true()
-			;(emitSpy as sinon.SinonSpy).calledWith("line", "other output").should.be.true()
+			;(emitSpy as sinon.SinonSpy)
+				.calledWith("line", "other output")
+				.should.be.true()
 			// This should never be called because it should be filtered
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command").should.be.false()
 		})
 
-		it("should handle npm run commands", async function () {
+		it("should handle npm run commands", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)

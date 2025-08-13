@@ -1,7 +1,7 @@
-import React from "react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import React from "react"
+import { describe, expect, it, vi } from "vitest"
 import Announcement from "../Announcement"
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -14,12 +14,12 @@ describe("Announcement", () => {
 	const hideAnnouncement = vi.fn()
 
 	it("renders the announcement with the correct version", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
+		render(<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />)
 		expect(screen.getByText(/New in v2.0/)).toBeInTheDocument()
 	})
 
 	it("calls hideAnnouncement when close button is clicked", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
+		render(<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />)
 		fireEvent.click(screen.getByTestId("close-button"))
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})

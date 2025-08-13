@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
-import { GrpcHandler } from "@/hosts/vscode/hostbridge-grpc-handler"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import { GrpcHandler } from "@/hosts/vscode/hostbridge-grpc-handler"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {

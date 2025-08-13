@@ -1,10 +1,10 @@
-import { ApiHandler } from ".."
-import { huaweiCloudMaasDefaultModelId, HuaweiCloudMaasModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { ApiHandler } from ".."
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { withRetry } from "../retry"
 
 interface HuaweiCloudMaaSHandlerOptions {
 	huaweiCloudMaasApiKey?: string
@@ -61,7 +61,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]

@@ -1,7 +1,4 @@
 import { JSONParser } from "@streamparser/json"
-import * as fs from "fs"
-import * as path from "path"
-import * as os from "os"
 
 // Fallback type definition based on the error message: "Property 'value' is optional in type 'ParsedElementInfo'"
 type ParsedElementInfo = {
@@ -28,7 +25,6 @@ export class StreamingJsonReplacer {
 	private parser: JSONParser
 	private onContentUpdated: (newContent: string, isFinalItem: boolean, changeLocation?: ChangeLocation) => void
 	private onErrorCallback: (error: Error) => void
-	private itemsProcessed: number = 0
 	private successfullyParsedItems: ReplacementItem[] = []
 
 	constructor(
@@ -37,7 +33,7 @@ export class StreamingJsonReplacer {
 		onErrorCallback: (error: Error) => void,
 	) {
 		// Initialize log file path
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+		const _timestamp = new Date().toISOString().replace(/[:.]/g, "-")
 
 		this.currentFileContent = initialContent
 		this.onContentUpdated = onContentUpdatedCallback
@@ -58,11 +54,9 @@ export class StreamingJsonReplacer {
 						// Calculate the change location before making the replacement
 						const changeLocation = this.calculateChangeLocation(item.old_string, item.new_string)
 
-						const beforeLength = this.currentFileContent.length
+						const _beforeLength = this.currentFileContent.length
 						this.currentFileContent = this.currentFileContent.replace(item.old_string, item.new_string)
-						const afterLength = this.currentFileContent.length
-
-						this.itemsProcessed++
+						const _afterLength = this.currentFileContent.length
 
 						// Notify that an item has been processed. The `isFinalItem` argument here is tricky
 						// as we don't know from the parser alone if this is the *absolute* last item
@@ -106,7 +100,7 @@ export class StreamingJsonReplacer {
 		return [...this.successfullyParsedItems] // Return a copy
 	}
 
-	private calculateChangeLocation(oldStr: string, newStr: string): ChangeLocation {
+	private calculateChangeLocation(oldStr: string, _newStr: string): ChangeLocation {
 		// Find the index where the old string starts
 		const startIndex = this.currentFileContent.indexOf(oldStr)
 

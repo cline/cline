@@ -1,5 +1,5 @@
-import Section from "../Section"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import Section from "../Section"
 
 interface AboutSectionProps {
 	version: string
@@ -14,7 +14,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 				<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
 					<p className="break-words m-0 p-0">
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/cline/cline" className="inline">
+						<VSCodeLink className="inline" href="https://github.com/cline/cline">
 							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>

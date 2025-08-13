@@ -1,17 +1,42 @@
 import {
 	ApiConfiguration,
 	ApiProvider,
-	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
+	askSageDefaultModelId,
+	askSageModels,
+	basetenDefaultModelId,
+	basetenModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	cerebrasDefaultModelId,
+	cerebrasModels,
+	claudeCodeDefaultModelId,
+	claudeCodeModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
+	doubaoDefaultModelId,
+	doubaoModels,
 	geminiDefaultModelId,
 	geminiModels,
+	groqDefaultModelId,
+	groqModels,
+	huaweiCloudMaasDefaultModelId,
+	huaweiCloudMaasModels,
+	huggingFaceDefaultModelId,
+	huggingFaceModels,
+	internationalQwenDefaultModelId,
+	internationalQwenModels,
+	liteLlmModelInfoSaneDefaults,
+	ModelInfo,
+	mainlandQwenDefaultModelId,
+	mainlandQwenModels,
 	mistralDefaultModelId,
 	mistralModels,
+	moonshotDefaultModelId,
+	moonshotModels,
+	nebiusDefaultModelId,
+	nebiusModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -19,39 +44,14 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
-	mainlandQwenModels,
-	internationalQwenModels,
-	mainlandQwenDefaultModelId,
-	internationalQwenDefaultModelId,
+	sambanovaDefaultModelId,
+	sambanovaModels,
+	sapAiCoreDefaultModelId,
+	sapAiCoreModels,
 	vertexDefaultModelId,
 	vertexModels,
-	askSageModels,
-	askSageDefaultModelId,
 	xaiDefaultModelId,
 	xaiModels,
-	sambanovaModels,
-	sambanovaDefaultModelId,
-	doubaoModels,
-	doubaoDefaultModelId,
-	liteLlmModelInfoSaneDefaults,
-	moonshotModels,
-	moonshotDefaultModelId,
-	huggingFaceModels,
-	huggingFaceDefaultModelId,
-	nebiusModels,
-	nebiusDefaultModelId,
-	cerebrasModels,
-	cerebrasDefaultModelId,
-	sapAiCoreModels,
-	sapAiCoreDefaultModelId,
-	claudeCodeDefaultModelId,
-	claudeCodeModels,
-	groqModels,
-	groqDefaultModelId,
-	huaweiCloudMaasModels,
-	huaweiCloudMaasDefaultModelId,
-	basetenModels,
-	basetenDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -404,12 +404,16 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) return
+	if (!apiConfiguration) {
+		return
+	}
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) return
+	if (!apiProvider) {
+		return
+	}
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {

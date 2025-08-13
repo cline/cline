@@ -1,7 +1,7 @@
 import { UpdateBrowserSettingsRequest } from "@shared/proto/cline/browser"
 import { Boolean } from "@shared/proto/cline/common"
+import { DEFAULT_BROWSER_SETTINGS, BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from "../index"
-import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 
 /**
  * Update browser settings

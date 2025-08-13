@@ -1,5 +1,5 @@
-import { vscode } from "../utils/vscode"
 import { v4 as uuidv4 } from "uuid"
+import { vscode } from "../utils/vscode"
 
 export interface Callbacks<TResponse> {
 	onResponse: (response: TResponse) => void
@@ -26,7 +26,7 @@ export abstract class ProtoBusClient {
 					// Remove listener once we get our response
 					window.removeEventListener("message", handleResponse)
 					if (message.grpc_response.message) {
-						const response = this.decode(message.grpc_response.message, decodeResponse)
+						const response = ProtoBusClient.decode(message.grpc_response.message, decodeResponse)
 						resolve(response)
 					} else if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
@@ -41,9 +41,9 @@ export abstract class ProtoBusClient {
 			vscode.postMessage({
 				type: "grpc_request",
 				grpc_request: {
-					service: this.serviceName,
+					service: ProtoBusClient.serviceName,
 					method: methodName,
-					message: this.encode(request, encodeRequest),
+					message: ProtoBusClient.encode(request, encodeRequest),
 					request_id: requestId,
 					is_streaming: false,
 				},
@@ -65,7 +65,7 @@ export abstract class ProtoBusClient {
 			if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
 				if (message.grpc_response.message) {
 					// Process streaming message
-					const response = this.decode(message.grpc_response.message, decodeResponse)
+					const response = ProtoBusClient.decode(message.grpc_response.message, decodeResponse)
 					callbacks.onResponse(response)
 				} else if (message.grpc_response.error) {
 					// Handle error
@@ -91,9 +91,9 @@ export abstract class ProtoBusClient {
 		vscode.postMessage({
 			type: "grpc_request",
 			grpc_request: {
-				service: this.serviceName,
+				service: ProtoBusClient.serviceName,
 				method: methodName,
-				message: this.encode(request, encodeRequest),
+				message: ProtoBusClient.encode(request, encodeRequest),
 				request_id: requestId,
 				is_streaming: true,
 			},

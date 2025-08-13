@@ -1,7 +1,7 @@
-import { FileServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
 import React, { memo, useLayoutEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
+import { FileServiceClient } from "@/services/grpc-client"
 
 interface ThumbnailsProps {
 	images: string[]
@@ -65,12 +65,13 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 			{images.map((image, index) => (
 				<div
 					key={`image-${index}`}
-					style={{ position: "relative" }}
 					onMouseEnter={() => setHoveredIndex(`image-${index}`)}
-					onMouseLeave={() => setHoveredIndex(null)}>
+					onMouseLeave={() => setHoveredIndex(null)}
+					style={{ position: "relative" }}>
 					<img
-						src={image}
 						alt={`Thumbnail image-${index + 1}`}
+						onClick={() => handleImageClick(image)}
+						src={image}
 						style={{
 							width: 34,
 							height: 34,
@@ -78,7 +79,6 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 							borderRadius: 4,
 							cursor: "pointer",
 						}}
-						onClick={() => handleImageClick(image)}
 					/>
 					{isDeletableImages && hoveredIndex === `image-${index}` && (
 						<div
@@ -114,10 +114,11 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 				return (
 					<div
 						key={`file-${index}`}
-						style={{ position: "relative" }}
 						onMouseEnter={() => setHoveredIndex(`file-${index}`)}
-						onMouseLeave={() => setHoveredIndex(null)}>
+						onMouseLeave={() => setHoveredIndex(null)}
+						style={{ position: "relative" }}>
 						<div
+							onClick={() => handleFileClick(filePath)}
 							style={{
 								width: 34,
 								height: 34,
@@ -129,8 +130,7 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 								flexDirection: "column",
 								alignItems: "center",
 								justifyContent: "center",
-							}}
-							onClick={() => handleFileClick(filePath)}>
+							}}>
 							<span
 								className="codicon codicon-file"
 								style={{

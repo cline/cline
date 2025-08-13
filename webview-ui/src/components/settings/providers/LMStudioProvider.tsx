@@ -1,14 +1,15 @@
-import { VSCodeRadioGroup, VSCodeRadio, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useState, useCallback, useEffect } from "react"
-import { useInterval } from "react-use"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
-import { BaseUrlField } from "../common/BaseUrlField"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { Mode } from "@shared/storage/types"
+import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useState } from "react"
+import { useInterval } from "react-use"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { BaseUrlField } from "../common/BaseUrlField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
 /**
  * Props for the LMStudioProvider component
  */
@@ -56,9 +57,9 @@ export const LMStudioProvider = ({ showModelOptions, isPopup, currentMode }: LMS
 		<div>
 			<BaseUrlField
 				initialValue={apiConfiguration?.lmStudioBaseUrl}
+				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
-				label="Use custom base URL"
 			/>
 
 			<DebouncedTextField
@@ -66,14 +67,13 @@ export const LMStudioProvider = ({ showModelOptions, isPopup, currentMode }: LMS
 				onChange={(value) =>
 					handleModeFieldChange({ plan: "planModeLmStudioModelId", act: "actModeLmStudioModelId" }, value, currentMode)
 				}
-				style={{ width: "100%" }}
-				placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
+				placeholder={"e.g. meta-llama-3.1-8b-instruct"}
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</DebouncedTextField>
 
 			{lmStudioModels.length > 0 && (
 				<VSCodeRadioGroup
-					value={lmStudioModels.includes(lmStudioModelId || "") ? lmStudioModelId : ""}
 					onChange={(e) => {
 						const value = (e.target as HTMLInputElement)?.value
 						// need to check value first since radio group returns empty string sometimes
@@ -84,9 +84,10 @@ export const LMStudioProvider = ({ showModelOptions, isPopup, currentMode }: LMS
 								currentMode,
 							)
 						}
-					}}>
+					}}
+					value={lmStudioModels.includes(lmStudioModelId || "") ? lmStudioModelId : ""}>
 					{lmStudioModels.map((model) => (
-						<VSCodeRadio key={model} value={model} checked={lmStudioModelId === model}>
+						<VSCodeRadio checked={lmStudioModelId === model} key={model} value={model}>
 							{model}
 						</VSCodeRadio>
 					))}

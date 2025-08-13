@@ -1,10 +1,11 @@
-import { ApiKeyField } from "../common/ApiKeyField"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { ApiConfiguration } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
 /**
  * Props for the FireworksProvider component
  */
@@ -29,7 +30,7 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 			return
 		}
 		const num = parseInt(value, 10)
-		if (isNaN(num)) {
+		if (Number.isNaN(num)) {
 			return
 		}
 		handleFieldChange(field, num)
@@ -55,8 +56,8 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 								currentMode,
 							)
 						}
-						style={{ width: "100%" }}
-						placeholder={"Enter Model ID..."}>
+						placeholder={"Enter Model ID..."}
+						style={{ width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</DebouncedTextField>
 					<p
@@ -73,15 +74,15 @@ export const FireworksProvider = ({ showModelOptions, isPopup, currentMode }: Fi
 					<DebouncedTextField
 						initialValue={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
 						onChange={(value) => handleNumberInputChange("fireworksModelMaxCompletionTokens", value)}
-						style={{ width: "100%", marginBottom: 8 }}
-						placeholder={"2000"}>
+						placeholder={"2000"}
+						style={{ width: "100%", marginBottom: 8 }}>
 						<span style={{ fontWeight: 500 }}>Max Completion Tokens</span>
 					</DebouncedTextField>
 					<DebouncedTextField
 						initialValue={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
 						onChange={(value) => handleNumberInputChange("fireworksModelMaxTokens", value)}
-						style={{ width: "100%", marginBottom: 8 }}
-						placeholder={"4000"}>
+						placeholder={"4000"}
+						style={{ width: "100%", marginBottom: 8 }}>
 						<span style={{ fontWeight: 500 }}>Max Context Tokens</span>
 					</DebouncedTextField>
 				</>

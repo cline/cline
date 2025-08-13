@@ -1,12 +1,10 @@
-import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import { TaskServiceClient } from "@/services/grpc-client"
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-
-import { useExtensionState } from "@/context/ExtensionStateContext"
-
 import React from "react"
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
@@ -60,6 +58,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			</VSCodeButtonLink>
 
 			<VSCodeButton
+				appearance="secondary"
 				onClick={async () => {
 					try {
 						await TaskServiceClient.askResponse(
@@ -73,7 +72,6 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 						console.error("Error invoking action:", error)
 					}
 				}}
-				appearance="secondary"
 				style={{
 					width: "100%",
 				}}>

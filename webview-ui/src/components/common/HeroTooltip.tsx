@@ -1,5 +1,5 @@
-import React from "react"
 import { Tooltip } from "@heroui/react"
+import React from "react"
 
 interface HeroTooltipProps {
 	content: React.ReactNode
@@ -41,16 +41,16 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 
 	return (
 		<Tooltip
-			content={formattedContent}
-			delay={delay}
-			closeDelay={0} // Immediate close when cursor moves away
-			placement={placement}
-			isDisabled={false}
-			showArrow={false}
-			disableAnimation={true} // Disable animation for immediate appearance/disappearance
 			classNames={{
 				content: "hero-tooltip-content pointer-events-none", // Prevent hovering over tooltip
-			}}>
+			}}
+			closeDelay={0}
+			content={formattedContent} // Immediate close when cursor moves away
+			delay={delay}
+			disableAnimation={true}
+			isDisabled={false}
+			placement={placement} // Disable animation for immediate appearance/disappearance
+			showArrow={false}>
 			{children}
 		</Tooltip>
 	)

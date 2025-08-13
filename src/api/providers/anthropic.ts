@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
+import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 
 interface AnthropicHandlerOptions {
@@ -46,7 +46,7 @@ export class AnthropicHandler implements ApiHandler {
 		const modelId = model.id
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0 ? true : false
+		const reasoningOn = !!((modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0)
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control

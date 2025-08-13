@@ -1,8 +1,8 @@
-import { Controller } from "./index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
-import { GrpcRequestRegistry } from "./grpc-request-registry"
-import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import { GrpcRequestRegistry } from "./grpc-request-registry"
+import { Controller } from "./index"
 
 /**
  * Type definition for a streaming response handler

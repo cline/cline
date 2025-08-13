@@ -1,8 +1,8 @@
-import * as path from "path"
-import * as fs from "fs"
-import { Controller } from ".."
-import { StringRequest, BooleanResponse } from "@shared/proto/cline/common"
+import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
 import { getWorkspacePath } from "@utils/path"
+import * as fs from "fs"
+import * as path from "path"
+import { Controller } from ".."
 
 /**
  * Check if a file exists in the project using a relative path

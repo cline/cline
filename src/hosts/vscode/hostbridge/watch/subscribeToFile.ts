@@ -1,7 +1,7 @@
-import * as fs from "fs/promises"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "@shared/proto/host/watch"
 import * as fsSync from "fs"
-import { SubscribeToFileRequest, FileChangeEvent_ChangeType } from "@shared/proto/host/watch"
-import { StreamingResponseHandler, getRequestRegistry } from "@/hosts/vscode/hostbridge-grpc-handler"
+import * as fs from "fs/promises"
+import { getRequestRegistry, StreamingResponseHandler } from "@/hosts/vscode/hostbridge-grpc-handler"
 
 // Debounce configuration
 const DEBOUNCE_DELAY = 100 // ms
@@ -38,7 +38,7 @@ export async function subscribeToFile(
 		if (!fileWatchers.has(filePath)) {
 			// Create a new watcher for this file using Node.js fs.watch API
 			// This is more reliable than the VSCode FileSystemWatcher for detecting file saves
-			const watcher = fsSync.watch(filePath, { persistent: true }, async (eventType, filename) => {
+			const watcher = fsSync.watch(filePath, { persistent: true }, async (eventType, _filename) => {
 				if (eventType === "change") {
 					try {
 						const content = await fs.readFile(filePath, "utf8")
@@ -120,7 +120,7 @@ export async function subscribeToFile(
 								}
 							}
 						}
-					} catch (error) {
+					} catch (_error) {
 						// File doesn't exist, so it was deleted
 						console.log(`[DEBUG] File deleted: ${filePath}`)
 

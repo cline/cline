@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { writeFileWithMkdirs } from "./file-utils.mjs"
-import * as path from "path"
 import chalk from "chalk"
-import { loadServicesFromProtoDescriptor, getFqn } from "./proto-utils.mjs"
+import * as path from "path"
+import { writeFileWithMkdirs } from "./file-utils.mjs"
+import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
 // Contains the interface definitions for the host bridge clients.
 const TYPES_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")

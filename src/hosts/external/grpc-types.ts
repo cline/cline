@@ -1,5 +1,5 @@
-import * as grpc from "@grpc/grpc-js"
 import { Controller } from "@core/controller"
+import * as grpc from "@grpc/grpc-js"
 import { Channel, createChannel } from "nice-grpc"
 
 /**

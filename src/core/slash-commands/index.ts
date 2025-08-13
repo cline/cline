@@ -1,6 +1,6 @@
-import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse, reportBugToolResponse } from "../prompts/commands"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import fs from "fs/promises"
+import { condenseToolResponse, newRuleToolResponse, newTaskToolResponse, reportBugToolResponse } from "../prompts/commands"
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
@@ -23,10 +23,10 @@ export async function parseSlashCommands(
 
 	// this currently allows matching prepended whitespace prior to /slash-command
 	const tagPatterns = [
-		{ tag: "task", regex: /<task>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/task>/is },
-		{ tag: "feedback", regex: /<feedback>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/feedback>/is },
-		{ tag: "answer", regex: /<answer>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/answer>/is },
-		{ tag: "user_message", regex: /<user_message>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/user_message>/is },
+		{ tag: "task", regex: /<task>(\s*\/([a-zA-Z0-9_.-]+))(\s+.+?)?\s*<\/task>/is },
+		{ tag: "feedback", regex: /<feedback>(\s*\/([a-zA-Z0-9_.-]+))(\s+.+?)?\s*<\/feedback>/is },
+		{ tag: "answer", regex: /<answer>(\s*\/([a-zA-Z0-9_.-]+))(\s+.+?)?\s*<\/answer>/is },
+		{ tag: "user_message", regex: /<user_message>(\s*\/([a-zA-Z0-9_.-]+))(\s+.+?)?\s*<\/user_message>/is },
 	]
 
 	// if we find a valid match, we will return inside that block
@@ -56,7 +56,7 @@ export async function parseSlashCommands(
 				const textWithoutSlashCommand = text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
 				const processedText = commandReplacements[commandName] + textWithoutSlashCommand
 
-				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
+				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
 			}
 
 			const globalWorkflows = Object.entries(globalWorkflowToggles)

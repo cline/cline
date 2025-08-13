@@ -1,14 +1,15 @@
-import { useState } from "react"
 import { liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
+import { useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
-import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Props for the LiteLlmProvider component
  */
@@ -39,17 +40,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
 				onChange={(value) => handleFieldChange("liteLlmBaseUrl", value)}
+				placeholder={"Default: http://localhost:4000"}
 				style={{ width: "100%" }}
-				type="url"
-				placeholder={"Default: http://localhost:4000"}>
+				type="url">
 				<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 			</DebouncedTextField>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmApiKey || ""}
 				onChange={(value) => handleFieldChange("liteLlmApiKey", value)}
+				placeholder="Default: noop"
 				style={{ width: "100%" }}
-				type="password"
-				placeholder="Default: noop">
+				type="password">
 				<span style={{ fontWeight: 500 }}>API Key</span>
 			</DebouncedTextField>
 			<DebouncedTextField
@@ -57,8 +58,8 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={(value) =>
 					handleModeFieldChange({ plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" }, value, currentMode)
 				}
-				style={{ width: "100%" }}
-				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}>
+				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</DebouncedTextField>
 
@@ -82,32 +83,30 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				)}
 			</div>
 
-			<>
-				<ThinkingBudgetSlider currentMode={currentMode} />
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
-					<VSCodeLink
-						href="https://docs.litellm.ai/docs/reasoning_content"
-						style={{ display: "inline", fontSize: "inherit" }}>
-						thinking mode configuration
-					</VSCodeLink>
-				</p>
-			</>
+			<ThinkingBudgetSlider currentMode={currentMode} />
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: "5px",
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
+				<VSCodeLink
+					href="https://docs.litellm.ai/docs/reasoning_content"
+					style={{ display: "inline", fontSize: "inherit" }}>
+					thinking mode configuration
+				</VSCodeLink>
+			</p>
 
 			<div
+				onClick={() => setModelConfigurationSelected((val) => !val)}
 				style={{
 					color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 					display: "flex",
 					margin: "10px 0",
 					cursor: "pointer",
 					alignItems: "center",
-				}}
-				onClick={() => setModelConfigurationSelected((val) => !val)}>
+				}}>
 				<span
 					className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
 					style={{
@@ -145,7 +144,6 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									? liteLlmModelInfo.contextWindow.toString()
 									: (liteLlmModelInfoSaneDefaults.contextWindow?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
@@ -155,7 +153,8 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
 						</DebouncedTextField>
 						<DebouncedTextField
@@ -164,7 +163,6 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									? liteLlmModelInfo.maxTokens.toString()
 									: (liteLlmModelInfoSaneDefaults.maxTokens?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
@@ -174,7 +172,8 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</DebouncedTextField>
 					</div>
@@ -189,7 +188,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 
 								// Check if the input ends with a decimal point or has trailing zeros after decimal
-								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+								const _shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
 
 								modelInfo.temperature =
 									value === "" ? liteLlmModelInfoSaneDefaults.temperature : parseFloat(value)
@@ -219,7 +218,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			</p>
 
 			{showModelOptions && (
-				<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			)}
 		</div>
 	)

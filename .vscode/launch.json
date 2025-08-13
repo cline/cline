@@ -9,8 +9,14 @@
 			"name": "Run Extension (production)",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
-			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
@@ -22,8 +28,14 @@
 			"name": "Run Extension (staging)",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
-			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
@@ -35,8 +47,14 @@
 			"name": "Run Extension (local)",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
-			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
@@ -57,7 +75,9 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],
-			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
 			"preLaunchTask": "clean-tmp-user",
 			"internalConsoleOptions": "openOnSessionStart",
 			"postDebugTask": "stop",
@@ -72,11 +92,18 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Run cline-core service",
-			"skipFiles": ["<node_internals>/**"],
+			"skipFiles": [
+				"<node_internals>/**"
+			],
 			"sourceMaps": true,
-			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
 			"cwd": "${workspaceFolder}/dist-standalone",
-			"outFiles": ["${workspaceFolder}/dist-standalone/**/*.js"],
+			"outFiles": [
+				"${workspaceFolder}/dist-standalone/**/*.js"
+			],
 			"preLaunchTask": "compile-standalone",
 			"env": {
 				// Turns on grpc debug log.

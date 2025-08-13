@@ -1,9 +1,9 @@
-import * as vscode from "vscode"
 import { writeTextToClipboard } from "@utils/env"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
+import * as vscode from "vscode"
 import { buildApiHandler } from "@/api"
 import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType, ShowTextDocumentRequest } from "@/shared/proto/host/window"
 import { getWorkingState } from "@/utils/git"
 import { getCwd } from "@/utils/path"
 
@@ -15,7 +15,7 @@ export const GitCommitGenerator = {
 	abort,
 }
 
-let commitGenerationAbortController: AbortController | undefined = undefined
+let commitGenerationAbortController: AbortController | undefined
 
 async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
 	const cwd = await getCwd()
@@ -122,7 +122,7 @@ function abort() {
  * @param gitDiff The git diff to format
  * @returns A formatted prompt for the AI
  */
-function formatGitDiffPrompt(gitDiff: string): string {
+function _formatGitDiffPrompt(gitDiff: string): string {
 	// Limit the diff size to avoid token limits
 	const maxDiffLength = 5000
 	let truncatedDiff = gitDiff

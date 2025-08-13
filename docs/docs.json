@@ -68,7 +68,10 @@
 			},
 			{
 				"group": "Improving Your Prompting Skills",
-				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+				"pages": [
+					"prompting/prompt-engineering-guide",
+					"prompting/cline-memory-bank"
+				]
 			},
 			{
 				"group": "Features",
@@ -173,11 +176,16 @@
 			},
 			{
 				"group": "Troubleshooting",
-				"pages": ["troubleshooting/terminal-quick-fixes", "troubleshooting/terminal-integration-guide"]
+				"pages": [
+					"troubleshooting/terminal-quick-fixes",
+					"troubleshooting/terminal-integration-guide"
+				]
 			},
 			{
 				"group": "More Info",
-				"pages": ["more-info/telemetry"]
+				"pages": [
+					"more-info/telemetry"
+				]
 			}
 		]
 	},
@@ -192,6 +200,8 @@
 		"prompt": "Search Cline documentation..."
 	},
 	"contextual": {
-		"options": ["copy"]
+		"options": [
+			"copy"
+		]
 	}
 }

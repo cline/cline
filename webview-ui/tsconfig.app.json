@@ -3,8 +3,15 @@
 		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
 		"target": "ES2020",
 		"useDefineForClassFields": true,
-		"lib": ["ES2020", "DOM", "DOM.Iterable"],
-		"types": ["vitest/globals", "@testing-library/jest-dom"],
+		"lib": [
+			"ES2020",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"vitest/globals",
+			"@testing-library/jest-dom"
+		],
 		"module": "ESNext",
 		"skipLibCheck": true,
 
@@ -24,12 +31,24 @@
 		/* Aliasing */
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["src/*"],
-			"@components/*": ["src/components/*"],
-			"@context/*": ["src/context/*"],
-			"@shared/*": ["../src/shared/*"],
-			"@utils/*": ["src/utils/*"]
+			"@/*": [
+				"src/*"
+			],
+			"@components/*": [
+				"src/components/*"
+			],
+			"@context/*": [
+				"src/context/*"
+			],
+			"@shared/*": [
+				"../src/shared/*"
+			],
+			"@utils/*": [
+				"src/utils/*"
+			]
 		}
 	},
-	"include": ["src"]
+	"include": [
+		"src"
+	]
 }

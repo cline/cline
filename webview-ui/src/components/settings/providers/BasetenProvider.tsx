@@ -1,8 +1,8 @@
 import { Mode } from "@shared/storage/types"
-import { ApiKeyField } from "../common/ApiKeyField"
-import BasetenModelPicker from "../BasetenModelPicker"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import BasetenModelPicker from "../BasetenModelPicker"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the BasetenProvider component
@@ -29,7 +29,7 @@ export const BasetenProvider = ({ showModelOptions, isPopup, currentMode }: Base
 				signupUrl="https://app.baseten.co/settings/api_keys"
 			/>
 
-			{showModelOptions && <BasetenModelPicker isPopup={isPopup} currentMode={currentMode} />}
+			{showModelOptions && <BasetenModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>
 	)
 }

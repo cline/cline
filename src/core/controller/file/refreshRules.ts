@@ -1,10 +1,10 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { RefreshedRules } from "@shared/proto/cline/file"
-import type { Controller } from "../index"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { RefreshedRules } from "@shared/proto/cline/file"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import type { Controller } from "../index"
 
 /**
  * Refreshes all rule toggles (Cline, External, and Workflows)

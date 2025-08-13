@@ -1,5 +1,5 @@
-import type { Controller } from "../index"
 import { GetOrganizationCreditsRequest, OrganizationCreditsData, OrganizationUsageTransaction } from "@shared/proto/cline/account"
+import type { Controller } from "../index"
 
 /**
  * Handles fetching all organization credits data (balance, usage, payments)

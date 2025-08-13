@@ -1,7 +1,7 @@
 /**
  * Script to install dependencies for running E2E tests in GitHub Actions.
  */
-import { SilentReporter, downloadAndUnzipVSCode } from "@vscode/test-electron"
+import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { execa } from "execa"
 
 const TIMEOUT_MINUTE = 1

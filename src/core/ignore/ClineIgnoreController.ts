@@ -1,7 +1,7 @@
-import path from "path"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
+import path from "path"
 import * as vscode from "vscode"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
@@ -152,7 +152,7 @@ export class ClineIgnoreController {
 
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
-		} catch (error) {
+		} catch (_error) {
 			// console.error(`Error validating access for ${filePath}:`, error)
 			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
 			return true

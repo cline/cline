@@ -1,12 +1,12 @@
-import React, { useState, useRef, forwardRef } from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { forwardRef, useState } from "react"
 import styled from "styled-components"
 
 // ======== Interfaces ========
 
 interface CopyButtonProps {
 	textToCopy?: string
-	onCopy?: () => string | void | null
+	onCopy?: () => string | undefined | null
 	className?: string
 	ariaLabel?: string
 }
@@ -14,7 +14,7 @@ interface CopyButtonProps {
 interface WithCopyButtonProps {
 	children: React.ReactNode
 	textToCopy?: string
-	onCopy?: () => string | void | null
+	onCopy?: () => string | undefined | null
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
 	className?: string
@@ -62,7 +62,9 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, clas
 	const [copied, setCopied] = useState(false)
 
 	const handleCopy = () => {
-		if (!textToCopy && !onCopy) return
+		if (!textToCopy && !onCopy) {
+			return
+		}
 
 		let textToCopyFinal = textToCopy
 
@@ -87,9 +89,9 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, clas
 	return (
 		<StyledButton
 			appearance="icon"
-			onClick={handleCopy}
+			aria-label={copied ? "Copied" : ariaLabel || "Copy"}
 			className={className}
-			aria-label={copied ? "Copied" : ariaLabel || "Copy"}>
+			onClick={handleCopy}>
 			<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
 		</StyledButton>
 	)
@@ -114,14 +116,14 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 		ref,
 	) => {
 		return (
-			<ContentContainer ref={ref} onMouseUp={onMouseUp} style={style} className={className} {...props}>
+			<ContentContainer className={className} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
 				{children}
 				{(textToCopy || onCopy) && (
 					<ButtonContainer $position={position}>
 						<CopyButton
-							textToCopy={textToCopy}
+							ariaLabel={ariaLabel}
 							onCopy={onCopy}
-							ariaLabel={ariaLabel} // Pass through the ariaLabel prop directly
+							textToCopy={textToCopy} // Pass through the ariaLabel prop directly
 						/>
 					</ButtonContainer>
 				)}

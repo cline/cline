@@ -1,8 +1,8 @@
 import "should"
-import { AwsBedrockHandler } from "../bedrock"
-import { ApiHandlerOptions } from "@shared/api"
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { ApiHandlerOptions } from "@shared/api"
 import { Readable } from "stream"
+import { AwsBedrockHandler } from "../bedrock"
 
 describe("AwsBedrockHandler", () => {
 	// Helper function to create a mock stream

@@ -1,13 +1,13 @@
-import * as vscode from "vscode"
-import * as path from "path"
-import * as fs from "fs"
 import * as childProcess from "child_process"
+import * as fs from "fs"
+import type { FzfResultItem } from "fzf"
+import * as path from "path"
 import * as readline from "readline"
-import { getBinPath } from "../ripgrep"
-import type { Fzf, FzfResultItem } from "fzf"
+import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
-import { isLocatedInWorkspace, asRelativePath } from "@/utils/path"
+import { asRelativePath, isLocatedInWorkspace } from "@/utils/path"
+import { getBinPath } from "../ripgrep"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn

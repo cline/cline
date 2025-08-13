@@ -1,20 +1,20 @@
-import HeroTooltip from "@/components/common/HeroTooltip"
-import Thumbnails from "@/components/common/Thumbnails"
-import { normalizeApiConfiguration, getModeSpecificFields } from "@/components/settings/utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber, formatSize } from "@/utils/format"
-import { validateSlashCommand } from "@/utils/slash-commands"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import TaskTimeline from "./TaskTimeline"
-import DeleteTaskButton from "./buttons/DeleteTaskButton"
+import HeroTooltip from "@/components/common/HeroTooltip"
+import Thumbnails from "@/components/common/Thumbnails"
+import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber, formatSize } from "@/utils/format"
+import { validateSlashCommand } from "@/utils/slash-commands"
 import CopyTaskButton from "./buttons/CopyTaskButton"
+import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
+import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -179,14 +179,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							}}>
 							<HeroTooltip content="Context window usage">
 								<div
+									className="cursor-pointer"
 									style={{
 										flex: 1,
 										height: "4px",
 										backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
 										borderRadius: "2px",
 										overflow: "hidden",
-									}}
-									className="cursor-pointer">
+									}}>
 									<div
 										style={{
 											width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
@@ -228,6 +228,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						alignItems: "center",
 					}}>
 					<div
+						onClick={() => setIsTaskExpanded(!isTaskExpanded)}
 						style={{
 							display: "flex",
 							alignItems: "center",
@@ -239,8 +240,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							msUserSelect: "none",
 							flexGrow: 1,
 							minWidth: 0, // This allows the div to shrink below its content size
-						}}
-						onClick={() => setIsTaskExpanded(!isTaskExpanded)}>
+						}}>
 						<div
 							style={{
 								display: "flex",
@@ -287,9 +287,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					)}
 					<VSCodeButton
 						appearance="icon"
+						aria-label="Close task"
 						onClick={onClose}
-						style={{ marginLeft: 6, flexShrink: 0 }}
-						aria-label="Close task">
+						style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -335,14 +335,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										}}
 									/>
 									<div
+										onClick={() => setIsTextExpanded(!isTextExpanded)}
 										style={{
 											cursor: "pointer",
 											color: "var(--vscode-textLink-foreground)",
 											paddingRight: 0,
 											paddingLeft: 3,
 											backgroundColor: "var(--vscode-badge-background)",
-										}}
-										onClick={() => setIsTextExpanded(!isTextExpanded)}>
+										}}>
 										See more
 									</div>
 								</div>
@@ -350,19 +350,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						</div>
 						{isTextExpanded && showSeeMore && (
 							<div
+								onClick={() => setIsTextExpanded(!isTextExpanded)}
 								style={{
 									cursor: "pointer",
 									color: "var(--vscode-textLink-foreground)",
 									marginLeft: "auto",
 									textAlign: "right",
 									paddingRight: 2,
-								}}
-								onClick={() => setIsTextExpanded(!isTextExpanded)}>
+								}}>
 								See less
 							</div>
 						)}
 						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
-							<Thumbnails images={task.images ?? []} files={task.files ?? []} />
+							<Thumbnails files={task.files ?? []} images={task.images ?? []} />
 						)}
 
 						<div
@@ -420,8 +420,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{IS_DEV === '"true"' && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
 										<CopyTaskButton taskText={task.text} />
 										<DeleteTaskButton
-											taskSize={formatSize(currentTaskItem?.size)}
 											taskId={currentTaskItem?.id}
+											taskSize={formatSize(currentTaskItem?.size)}
 										/>
 									</div>
 								)}
@@ -479,8 +479,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{IS_DEV === '"true"' && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
 										<CopyTaskButton taskText={task.text} />
 										<DeleteTaskButton
-											taskSize={formatSize(currentTaskItem?.size)}
 											taskId={currentTaskItem?.id}
+											taskSize={formatSize(currentTaskItem?.size)}
 										/>
 									</div>
 								</div>
@@ -502,27 +502,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<span>
 										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
-											<>
-												<button
-													onClick={() => {
-														// First open the settings panel using direct navigation
-														navigateToSettings()
+											<button
+												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+												onClick={() => {
+													// First open the settings panel using direct navigation
+													navigateToSettings()
 
-														// After a short delay, send a message to scroll to settings
-														setTimeout(async () => {
-															try {
-																await UiServiceClient.scrollToSettings(
-																	StringRequest.create({ value: "features" }),
-																)
-															} catch (error) {
-																console.error("Error scrolling to checkpoint settings:", error)
-															}
-														}, 300)
-													}}
-													className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit">
-													disabling checkpoints.
-												</button>
-											</>
+													// After a short delay, send a message to scroll to settings
+													setTimeout(async () => {
+														try {
+															await UiServiceClient.scrollToSettings(
+																StringRequest.create({ value: "features" }),
+															)
+														} catch (error) {
+															console.error("Error scrolling to checkpoint settings:", error)
+														}
+													}, 300)
+												}}>
+												disabling checkpoints.
+											</button>
 										)}
 										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
@@ -570,7 +568,7 @@ const highlightSlashCommands = (text: string, withShadow = true) => {
 
 	return [
 		beforeCommand,
-		<span key="slashCommand" className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
+		<span className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} key="slashCommand">
 			/{commandName}
 		</span>,
 		afterCommand,
@@ -591,10 +589,10 @@ export const highlightMentions = (text: string, withShadow = true) => {
 			// This is a mention
 			return (
 				<span
-					key={index}
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
-					style={{ cursor: "pointer" }}
-					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}>
+					key={index}
+					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
+					style={{ cursor: "pointer" }}>
 					@{part}
 				</span>
 			)

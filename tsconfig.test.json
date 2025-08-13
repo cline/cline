@@ -8,11 +8,26 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": ["node", "mocha", "should", "vscode", "chai"],
-		"typeRoots": ["./node_modules/@types", "./src/test/types"],
+		"types": [
+			"node",
+			"mocha",
+			"should",
+			"vscode",
+			"chai"
+		],
+		"typeRoots": [
+			"./node_modules/@types",
+			"./src/test/types"
+		],
 		"outDir": "out",
 		"rootDir": "."
 	},
-	"include": ["src/**/*.test.ts"],
-	"exclude": ["src/test/**/*.js", "src/**/__tests__/*", "src/test/e2e/**/*.test.ts"]
+	"include": [
+		"src/**/*.test.ts"
+	],
+	"exclude": [
+		"src/test/**/*.js",
+		"src/**/__tests__/*",
+		"src/test/e2e/**/*.test.ts"
+	]
 }

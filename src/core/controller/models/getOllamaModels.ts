@@ -1,6 +1,6 @@
-import { Controller } from ".."
 import { StringArray, StringRequest } from "@shared/proto/cline/common"
 import axios from "axios"
+import { Controller } from ".."
 
 /**
  * Fetches available models from Ollama
@@ -8,9 +8,9 @@ import axios from "axios"
  * @param request The request containing the base URL (optional)
  * @returns Array of model names
  */
-export async function getOllamaModels(controller: Controller, request: StringRequest): Promise<StringArray> {
+export async function getOllamaModels(_controller: Controller, request: StringRequest): Promise<StringArray> {
 	try {
-		let baseUrl = request.value || "http://localhost:11434"
+		const baseUrl = request.value || "http://localhost:11434"
 
 		if (!URL.canParse(baseUrl)) {
 			return StringArray.create({ values: [] })
@@ -21,7 +21,7 @@ export async function getOllamaModels(controller: Controller, request: StringReq
 		const models = [...new Set<string>(modelsArray)].sort()
 
 		return StringArray.create({ values: models })
-	} catch (error) {
+	} catch (_error) {
 		return StringArray.create({ values: [] })
 	}
 }

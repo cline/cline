@@ -1,6 +1,6 @@
-import { Controller } from ".."
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { openMention as coreOpenMention } from "../../mentions"
+import { Controller } from ".."
 
 /**
  * Opens a mention (file path, problem, terminal, or URL)
