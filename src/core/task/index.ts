@@ -4,7 +4,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, buildApiHandler } from "@api/index"
 import { ApiStream } from "@api/transform/stream"
-import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
+import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -79,8 +79,6 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-
-export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -2320,12 +2318,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isNextGenModel = isNextGenModelFamily(this.api)
-							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
-							} else {
-								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-							}
+
+							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
