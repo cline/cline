@@ -52,4 +52,7 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Auto-context summarization
+	currentlySummarizing: boolean = false
 }
