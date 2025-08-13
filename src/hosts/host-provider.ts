@@ -61,6 +61,19 @@ export class HostProvider {
 			logToChannel,
 			getCallbackUri,
 		)
+
+		// If telemetry was created early, update its machineId now that hostbridge is ready
+		try {
+			const { PostHogClientProvider } = require("@/services/posthog/PostHogClientProvider")
+			if (PostHogClientProvider?.isInitialized?.()) {
+				PostHogClientProvider.getInstance().updateMachineIdAsync?.()
+			}
+		} catch (err) {
+			const msg = `[Telemetry] skipped PostHog update: ${String(err)}`
+			if (HostProvider.isInitialized()) {
+				HostProvider.get().logToChannel(msg)
+			}
+		}
 		return HostProvider.instance
 	}
 

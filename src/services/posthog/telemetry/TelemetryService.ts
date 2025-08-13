@@ -104,8 +104,10 @@ export class TelemetryService {
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
 	public constructor(private provider: PostHogClientProvider) {
-		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info("[TelemetryService] Initialized with PostHogClientProvider")
+		// Defer the first telemetry_enabled event just long enough to pick up the real distinctId
+		void this.provider.whenDistinctIdReady().then(() => {
+			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		})
 	}
 
 	/**
