@@ -119,12 +119,6 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 		[handleModeFieldChange, currentMode],
 	)
 
-	// When orchestration mode is enabled, use all supported Cline models
-	// When disabled, use only the deployed models from the API
-	const modelsToShow = apiConfiguration?.sapAiCoreUseOrchestrationMode
-		? Object.keys(sapAiCoreModels) // All supported models
-		: deployedModelsArray // Only deployed models
-
 	return (
 		<div className="flex flex-col gap-1.5">
 			<DebouncedTextField
@@ -235,7 +229,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 									selectedModelId={selectedModelId || ""}
 									onModelChange={handleModelChange}
 									placeholder="Select a model..."
-									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? false}
+									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
 								/>
 							</>
 						) : (
