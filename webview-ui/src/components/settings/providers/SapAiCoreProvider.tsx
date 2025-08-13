@@ -8,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import { sapAiCoreModels } from "@shared/api"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 /**
  * Props for the SapAiCoreProvider component
@@ -118,6 +119,12 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 		[handleModeFieldChange, currentMode],
 	)
 
+	// When orchestration mode is enabled, use all supported Cline models
+	// When disabled, use only the deployed models from the API
+	const modelsToShow = apiConfiguration?.sapAiCoreUseOrchestrationMode
+		? Object.keys(sapAiCoreModels) // All supported models
+		: deployedModelsArray // Only deployed models
+
 	return (
 		<div className="flex flex-col gap-1.5">
 			<DebouncedTextField
@@ -172,6 +179,15 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
+			<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+				These credentials are stored locally and only used to make API requests from this extension.
+				<VSCodeLink
+					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
+					className="inline">
+					You can find more information about SAP AI Core API access here.
+				</VSCodeLink>
+			</p>
+
 			{orchestrationAvailable && (
 				<div className="flex flex-col gap-2.5 mt-[15px]">
 					<div className="flex items-center gap-2">
@@ -184,20 +200,13 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 					</div>
 
 					<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-						Enable to use the harmonized API that provides access to all available models without requiring individual
-						deployments. When disabled, uses the traditional AI Core deployment-based approach.
+						When enabled, provides access to all available models without requiring individual deployments.
+						<br />
+						<br />
+						When disabled, provides access only to deployed models in your AI Core service instance.
 					</p>
 				</div>
 			)}
-
-			<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-				These credentials are stored locally and only used to make API requests from this extension.
-				<VSCodeLink
-					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
-					className="inline">
-					You can find more information about SAP AI Core API access here.
-				</VSCodeLink>
-			</p>
 
 			{showModelOptions && (
 				<>
@@ -226,6 +235,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 									selectedModelId={selectedModelId || ""}
 									onModelChange={handleModelChange}
 									placeholder="Select a model..."
+									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? false}
 								/>
 							</>
 						) : (
