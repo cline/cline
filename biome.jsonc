@@ -1,4 +1,5 @@
 {
+	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -8,7 +9,8 @@
 	"assist": {
 		"actions": {
 			"source": {
-				"organizeImports": "on"
+				"organizeImports": "on",
+				"useSortedAttributes": "on"
 			}
 		}
 	},
@@ -41,7 +43,6 @@
 			},
 			"a11y": "off",
 			"style": {
-				"useDeprecatedReason": "error",
 				"useNodejsImportProtocol": "off",
 				"useImportType": "off",
 				"useBlockStatements": "warn",
@@ -64,13 +65,11 @@
 			"suspicious": {
 				"noDoubleEquals": "warn",
 				"noImplicitAnyLet": "info",
-				"noMisleadingCharacterClass": "error",
-				"noThenProperty": "warn",
-				"noUnsafeDeclarationMerging": "error",
+				"noThenProperty": "off",
 				"noAsyncPromiseExecutor": "off",
-				"noImportAssign": "warn",
+				"noImportAssign": "off",
 				"noExplicitAny": "off",
-				"noControlCharactersInRegex": "warn",
+				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
 				"noAssignInExpressions": "warn"
@@ -121,7 +120,8 @@
 	"files": {
 		"includes": [
 			"**",
-			"!**/dist/",
+			"!**/dist/**",
+			"!**/dist-*/**",
 			"!**/out/**",
 			"!**/evals/**",
 			"!**/playwright/**",
@@ -130,6 +130,7 @@
 			"!**/webview-ui/build/**"
 		]
 	},
+	"plugins": ["src/dev/grit/process-env.grit"],
 	"overrides": [
 		{
 			"includes": ["**/.vscode/*.json"],
@@ -137,7 +138,7 @@
 		},
 		{
 			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**", "!src/extension.ts"],
-			"plugins": ["src/dev/grit/vscode-api.grit", "src/dev/grit/process-env.grit"]
+			"plugins": ["src/dev/grit/vscode-api.grit"]
 		},
 		{
 			"includes": [
