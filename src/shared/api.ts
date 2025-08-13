@@ -37,7 +37,7 @@ export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
-	taskId?: string // Used to identify the task in API requests
+	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
@@ -1147,14 +1147,6 @@ export const openAiNativeModels = {
 		supportsPromptCache: false,
 		inputPrice: 5,
 		outputPrice: 15,
-	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
 	},
 } as const satisfies Record<string, ModelInfo>
 

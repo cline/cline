@@ -23,11 +23,7 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	override isVisible() {
 		return true
 	}
-	override getWebview() {
-		return {}
-	}
-
-	override resolveWebviewView(_: any): Promise<void> {
-		return Promise.resolve()
+	protected override isActive(): boolean {
+		return true
 	}
 }
