@@ -1,4 +1,4 @@
-import { anthropicModels } from "@shared/api"
+import { anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelSelector } from "../common/ModelSelector"
@@ -13,6 +13,7 @@ import { Mode } from "@shared/storage/types"
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
+	`claude-sonnet-4-20250514${CLAUDE_SONNET_4_1M_SUFFIX}`,
 	"claude-opus-4-20250514",
 	"claude-opus-4-1-20250805",
 ]

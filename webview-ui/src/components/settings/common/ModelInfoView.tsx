@@ -33,13 +33,13 @@ const formatTiers = (
 			return (
 				<span style={{ paddingLeft: "15px" }} key={index}>
 					{formatPrice(price)}/million tokens (
-					{tier.contextWindow === Number.POSITIVE_INFINITY ? (
+					{tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER ? (
 						<span>
 							{">"} {prevLimit.toLocaleString()}
 						</span>
 					) : (
 						<span>
-							{"<="} {tier.contextWindow.toLocaleString()}
+							{"<="} {tier.contextWindow?.toLocaleString()}
 						</span>
 					)}
 					{" tokens)"}
