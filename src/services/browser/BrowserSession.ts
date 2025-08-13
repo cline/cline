@@ -46,7 +46,7 @@ export class BrowserSession {
 	// Telemetry tracking properties
 	private sessionStartTime: number = 0
 	private browserActions: string[] = []
-	private taskId?: string
+	private ulid?: string
 
 	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
 		this.context = context
@@ -171,11 +171,11 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Set the task ID for telemetry tracking
-	 * @param taskId The task ID to associate with browser actions
+	 * Set the ULID for telemetry tracking
+	 * @param ulid The task ID to associate with browser actions
 	 */
-	setTaskId(taskId: string) {
-		this.taskId = taskId
+	setUlid(ulid: string) {
+		this.ulid = ulid
 	}
 
 	async launchBrowser() {
@@ -197,8 +197,8 @@ export class BrowserSession {
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
 
 				// Send telemetry for browser tool start
-				if (this.taskId) {
-					telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
+				if (this.ulid) {
+					telemetryService.captureBrowserToolStart(this.ulid, this.browserSettings)
 				}
 
 				return
@@ -206,9 +206,9 @@ export class BrowserSession {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"remote_browser_launch_error",
 						error instanceof Error ? error.message : String(error),
 						{
@@ -228,8 +228,8 @@ export class BrowserSession {
 		this.page = await this.browser?.newPage()
 
 		// Send telemetry for browser tool start
-		if (this.taskId) {
-			telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
+		if (this.ulid) {
+			telemetryService.captureBrowserToolStart(this.ulid, this.browserSettings)
 		}
 	}
 
@@ -285,9 +285,9 @@ export class BrowserSession {
 				console.log(`Failed to connect using cached endpoint: ${error}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"cached_endpoint_connection_error",
 						error instanceof Error ? error.message : String(error),
 						{
@@ -337,9 +337,9 @@ export class BrowserSession {
 				console.log(`Failed to connect to remote browser: ${error}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"remote_host_connection_error",
 						error instanceof Error ? error.message : String(error),
 						{
@@ -394,9 +394,9 @@ export class BrowserSession {
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			// Send telemetry for browser tool end if we have a task ID and session was started
-			if (this.taskId && this.sessionStartTime > 0) {
+			if (this.ulid && this.sessionStartTime > 0) {
 				const sessionDuration = Date.now() - this.sessionStartTime
-				telemetryService.captureBrowserToolEnd(this.taskId, {
+				telemetryService.captureBrowserToolEnd(this.ulid, {
 					actionCount: this.browserActions.length,
 					duration: sessionDuration,
 					actions: this.browserActions,
@@ -466,8 +466,8 @@ export class BrowserSession {
 				logs.push(`[Error] ${errorMessage}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
-					telemetryService.captureBrowserError(this.taskId, "browser_action_error", errorMessage, {
+				if (this.ulid) {
+					telemetryService.captureBrowserError(this.ulid, "browser_action_error", errorMessage, {
 						isRemote: this.isConnectedToRemote,
 						action: this.browserActions[this.browserActions.length - 1],
 					})
@@ -511,8 +511,8 @@ export class BrowserSession {
 
 		if (!screenshotBase64) {
 			// Capture error telemetry
-			if (this.taskId) {
-				telemetryService.captureBrowserError(this.taskId, "screenshot_error", "Failed to take screenshot", {
+			if (this.ulid) {
+				telemetryService.captureBrowserError(this.ulid, "screenshot_error", "Failed to take screenshot", {
 					isRemote: this.isConnectedToRemote,
 					action: this.browserActions[this.browserActions.length - 1],
 				})

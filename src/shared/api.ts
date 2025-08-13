@@ -37,7 +37,7 @@ export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
-	taskId?: string // Used to identify the task in API requests
+	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean

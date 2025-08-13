@@ -268,7 +268,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
-			telemetryService.captureButtonClick("codeAction_addToChat", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_addToChat", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -443,7 +443,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send to last active instance with diagnostics
 			const activeWebview = WebviewProvider.getLastActiveInstance()
 			await activeWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
-			telemetryService.captureButtonClick("codeAction_fixWithCline", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_fixWithCline", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -468,7 +468,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = activeWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await activeWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_explainCode", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_explainCode", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -493,7 +493,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = activeWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await activeWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_improveCode", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_improveCode", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -544,7 +544,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			sendFocusChatInputEvent(clientId)
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.taskId)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.ulid)
 		}),
 	)
 
