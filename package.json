@@ -17,7 +17,14 @@
 		"url": "https://github.com/cline/cline"
 	},
 	"homepage": "https://cline.bot",
-	"categories": ["AI", "Chat", "Programming Languages", "Education", "Snippets", "Testing"],
+	"categories": [
+		"AI",
+		"Chat",
+		"Programming Languages",
+		"Education",
+		"Snippets",
+		"Testing"
+	],
 	"keywords": [
 		"cline",
 		"claude",
@@ -32,7 +39,11 @@
 		"ai",
 		"llama"
 	],
-	"activationEvents": ["onLanguage", "onStartupFinished", "workspaceContains:evals.env"],
+	"activationEvents": [
+		"onLanguage",
+		"onStartupFinished",
+		"workspaceContains:evals.env"
+	],
 	"main": "./dist/extension.js",
 	"contributes": {
 		"walkthroughs": [
@@ -368,10 +379,12 @@
 		"report-issue": "node scripts/report-issue.js"
 	},
 	"lint-staged": {
-		"*": ["biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"]
+		"*": [
+			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+		]
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.0.6",
+		"@biomejs/biome": "^2.1.4",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
