@@ -11,7 +11,7 @@ jobs:
     build:
         needs: test
         name: Build Extension
-        runs-on: ubuntu-latest
+        runs-on: [high-capacity-runner]
 
         steps:
             - uses: actions/checkout@v4
