@@ -79,6 +79,7 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
+					"features/focus-chain",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",
