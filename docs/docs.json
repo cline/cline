@@ -98,7 +98,8 @@
 							"features/slash-commands/new-task",
 							"features/slash-commands/new-rule",
 							"features/slash-commands/smol",
-							"features/slash-commands/report-bug"
+							"features/slash-commands/report-bug",
+							"features/slash-commands/deep-planning"
 						]
 					},
 					{
