@@ -102,7 +102,7 @@
 			},
 			{
 				"command": "roo-cline.accountButtonClicked",
-				"title": "Account",
+				"title": "%command.account.title%",
 				"icon": "$(account)"
 			},
 			{

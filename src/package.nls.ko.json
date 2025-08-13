@@ -23,6 +23,7 @@
 	"command.history.title": "기록",
 	"command.marketplace.title": "마켓플레이스",
 	"command.openInEditor.title": "에디터에서 열기",
+	"command.account.title": "계정",
 	"command.settings.title": "설정",
 	"command.documentation.title": "문서",
 	"configuration.title": "Roo Code",

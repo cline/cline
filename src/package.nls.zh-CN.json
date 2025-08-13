@@ -23,6 +23,7 @@
 	"command.history.title": "历史记录",
 	"command.marketplace.title": "应用市场",
 	"command.openInEditor.title": "在编辑器中打开",
+	"command.account.title": "账户",
 	"command.settings.title": "设置",
 	"command.documentation.title": "文档",
 	"configuration.title": "Roo Code",
