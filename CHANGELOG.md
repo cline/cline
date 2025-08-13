@@ -2,14 +2,9 @@
 
 ## 3.24.0
 
-### Minor Changes
-
 - 8d69e63: Add OpenAI GPT-5 Chat(gpt-5-chat-latest)
 - 9dc021a: Remove deprecated GPT-4.5 Preview
 - 3e2bdf8: Add CLINE_ACTIVE environment variable to Cline-managed terminals
-
-### Patch Changes
-
 - 0f67508: Added custom browser arguments setting to allow passing flags to the Chrome executable for better headless compatibility.
 - 79bda97: Add 1m context window model support for claude sonnet 4
 - 2081bb8: Fixes the API Keys URL for Requesty
