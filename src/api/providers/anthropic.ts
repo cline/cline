@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 
 interface AnthropicHandlerOptions {
@@ -43,7 +43,11 @@ export class AnthropicHandler implements ApiHandler {
 
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
-		const modelId = model.id
+
+		const modelId = model.id.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
+			? model.id.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+			: model.id
+		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0 ? true : false
@@ -117,25 +121,15 @@ export class AnthropicHandler implements ApiHandler {
 						stream: true,
 					},
 					(() => {
-						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
-						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
-						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
-						switch (modelId) {
-							case "claude-sonnet-4-20250514":
-							case "claude-opus-4-20250514":
-							case "claude-opus-4-1-20250805":
-							case "claude-3-7-sonnet-20250219":
-							case "claude-3-5-sonnet-20241022":
-							case "claude-3-5-haiku-20241022":
-							case "claude-3-opus-20240229":
-							case "claude-3-haiku-20240307":
-								return {
-									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31",
-									},
-								}
-							default:
-								return undefined
+						// 1m context window beta header
+						if (enable1mContextWindow) {
+							return {
+								headers: {
+									"anthropic-beta": "context-1m-2025-08-07",
+								},
+							}
+						} else {
+							return undefined
 						}
 					})(),
 				)
