@@ -59,7 +59,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
+import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
@@ -2645,6 +2645,11 @@ export class Task {
 			const gitRemotes = await getGitRemoteUrls(this.cwd)
 			if (gitRemotes.length > 0) {
 				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
+			}
+
+			const lastestGitHash = await getLatestGitCommitHash(this.cwd)
+			if (lastestGitHash) {
+				details += `\n\n# Latest Git Commit Hash\n${lastestGitHash}`
 			}
 		}
 
