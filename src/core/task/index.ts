@@ -4,7 +4,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, buildApiHandler } from "@api/index"
 import { ApiStream } from "@api/transform/stream"
-import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
+import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -25,7 +25,7 @@ import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelin
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
@@ -60,7 +60,6 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -79,8 +78,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-
-export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
+import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -1692,8 +1690,13 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+		let systemPrompt = await buildSystemPrompt(
+			this.cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			this.api.getModel(),
+		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -2320,12 +2323,9 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isNextGenModel = isNextGenModelFamily(this.api)
-							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
-							} else {
-								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-							}
+							const apiHandlerModel = this.api.getModel()
+
+							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
