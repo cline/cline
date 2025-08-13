@@ -58,7 +58,7 @@ export abstract class WebviewProvider {
 		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.isActive())
 	}
 
-	protected abstract isActive(): Boolean
+	protected abstract isActive(): boolean
 
 	public static getAllInstances(): WebviewProvider[] {
 		return Array.from(WebviewProvider.activeInstances)
