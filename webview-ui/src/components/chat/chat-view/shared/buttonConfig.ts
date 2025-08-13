@@ -118,7 +118,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 	plan_mode_respond: {
 		sendingDisabled: false,
-		enableButtons: true,
+		enableButtons: false,
 		primaryText: "Approve",
 		secondaryText: "Reject",
 		primaryAction: "approve",
