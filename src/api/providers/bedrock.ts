@@ -47,12 +47,14 @@ interface BedrockInferenceConfig {
 	topP?: number
 }
 
-// Define interface for Bedrock thinking configuration
-interface BedrockThinkingConfig {
-	thinking: {
+// Define interface for Bedrock additional model request fields
+// This includes thinking configuration, 1M context beta, and other model-specific parameters
+interface BedrockAdditionalModelFields {
+	thinking?: {
 		type: "enabled"
 		budget_tokens: number
 	}
+	anthropic_beta?: string[]
 	[key: string]: any // Add index signature to be compatible with DocumentType
 }
 
@@ -63,8 +65,7 @@ interface BedrockPayload {
 	system?: SystemContentBlock[]
 	inferenceConfig: BedrockInferenceConfig
 	anthropic_version?: string
-	anthropic_beta?: string[]
-	additionalModelRequestFields?: BedrockThinkingConfig
+	additionalModelRequestFields?: BedrockAdditionalModelFields
 }
 
 // Define specific types for content block events to avoid 'as any' usage
@@ -341,7 +342,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			conversationId,
 		)
 
-		let additionalModelRequestFields: BedrockThinkingConfig | undefined
+		let additionalModelRequestFields: BedrockAdditionalModelFields | undefined
 		let thinkingEnabled = false
 
 		// Determine if thinking should be enabled
@@ -382,16 +383,22 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		const baseModelId = this.parseBaseModelId(modelConfig.id)
 		const is1MContextEnabled = baseModelId === BEDROCK_CLAUDE_SONNET_4_MODEL_ID && this.options.awsBedrock1MContext
 
+		// Add anthropic_beta for 1M context to additionalModelRequestFields
+		if (is1MContextEnabled) {
+			if (!additionalModelRequestFields) {
+				additionalModelRequestFields = {} as BedrockAdditionalModelFields
+			}
+			additionalModelRequestFields.anthropic_beta = ["context-1m-2025-08-07"]
+		}
+
 		const payload: BedrockPayload = {
 			modelId: modelConfig.id,
 			messages: formatted.messages,
 			system: formatted.system,
 			inferenceConfig,
 			...(additionalModelRequestFields && { additionalModelRequestFields }),
-			// Add anthropic_version when using thinking features
+			// Add anthropic_version at top level when using thinking features
 			...(thinkingEnabled && { anthropic_version: "bedrock-2023-05-31" }),
-			// Add anthropic_beta when 1M context is enabled
-			...(is1MContextEnabled && { anthropic_beta: ["context-1m-2025-08-07"] }),
 		}
 
 		// Create AbortController with 10 minute timeout

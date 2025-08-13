@@ -635,9 +635,11 @@ describe("AwsBedrockHandler", () => {
 			expect(mockConverseStreamCommand).toHaveBeenCalled()
 			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
 
-			// Should include anthropic_beta parameter but NOT anthropic_version (only for thinking)
-			expect(commandArg.anthropic_beta).toEqual(["context-1m-2025-08-07"])
-			expect(commandArg.anthropic_version).toBeUndefined()
+			// Should include anthropic_beta in additionalModelRequestFields
+			expect(commandArg.additionalModelRequestFields).toBeDefined()
+			expect(commandArg.additionalModelRequestFields.anthropic_beta).toEqual(["context-1m-2025-08-07"])
+			// Should not include anthropic_version since thinking is not enabled
+			expect(commandArg.additionalModelRequestFields.anthropic_version).toBeUndefined()
 		})
 
 		it("should not include anthropic_beta parameter when 1M context is disabled", async () => {
@@ -663,8 +665,8 @@ describe("AwsBedrockHandler", () => {
 			expect(mockConverseStreamCommand).toHaveBeenCalled()
 			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
 
-			// Should not include anthropic_beta parameter
-			expect(commandArg.anthropic_beta).toBeUndefined()
+			// Should not include anthropic_beta in additionalModelRequestFields
+			expect(commandArg.additionalModelRequestFields).toBeUndefined()
 		})
 
 		it("should not include anthropic_beta parameter for non-Claude Sonnet 4 models", async () => {
@@ -690,8 +692,8 @@ describe("AwsBedrockHandler", () => {
 			expect(mockConverseStreamCommand).toHaveBeenCalled()
 			const commandArg = mockConverseStreamCommand.mock.calls[0][0] as any
 
-			// Should not include anthropic_beta parameter for non-Sonnet 4 models
-			expect(commandArg.anthropic_beta).toBeUndefined()
+			// Should not include anthropic_beta for non-Sonnet 4 models
+			expect(commandArg.additionalModelRequestFields).toBeUndefined()
 		})
 
 		it("should enable 1M context window with cross-region inference for Claude Sonnet 4", () => {
@@ -738,9 +740,11 @@ describe("AwsBedrockHandler", () => {
 				mockConverseStreamCommand.mock.calls.length - 1
 			][0] as any
 
-			// Should include anthropic_beta parameter but NOT anthropic_version (only for thinking)
-			expect(commandArg.anthropic_beta).toEqual(["context-1m-2025-08-07"])
-			expect(commandArg.anthropic_version).toBeUndefined()
+			// Should include anthropic_beta in additionalModelRequestFields
+			expect(commandArg.additionalModelRequestFields).toBeDefined()
+			expect(commandArg.additionalModelRequestFields.anthropic_beta).toEqual(["context-1m-2025-08-07"])
+			// Should not include anthropic_version since thinking is not enabled
+			expect(commandArg.additionalModelRequestFields.anthropic_version).toBeUndefined()
 			// Model ID should have cross-region prefix
 			expect(commandArg.modelId).toBe(`us.${BEDROCK_CLAUDE_SONNET_4_MODEL_ID}`)
 		})
