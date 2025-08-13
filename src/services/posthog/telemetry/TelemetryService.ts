@@ -621,10 +621,10 @@ export class TelemetryService {
 
 	/**
 	 * Records when a task progress list is returned by the model for the first time in a task
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param totalItems Number of items in the initial focus chain list
 	 */
-	public captureFocusChainProgressFirst(taskId: string, totalItems: number) {
+	public captureFocusChainProgressFirst(ulid: string, totalItems: number) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
@@ -632,7 +632,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_FIRST,
 			properties: {
-				taskId,
+				ulid,
 				totalItems,
 			},
 		})
@@ -640,11 +640,11 @@ export class TelemetryService {
 
 	/**
 	 * Records when a task progress list is updated by the model mid-task
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param totalItems Total number of items in the focus chain list
 	 * @param completedItems Number of completed items in the focus chain list
 	 */
-	public captureFocusChainProgressUpdate(taskId: string, totalItems: number, completedItems: number) {
+	public captureFocusChainProgressUpdate(ulid: string, totalItems: number, completedItems: number) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
@@ -652,7 +652,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_UPDATE,
 			properties: {
-				taskId,
+				ulid,
 				totalItems,
 				completedItems,
 				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
@@ -662,13 +662,13 @@ export class TelemetryService {
 
 	/**
 	 * Records when a task ends but the task progress list is not complete
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param totalItems Total number of items in the focus chain list
 	 * @param completedItems Number of completed items
 	 * @param incompleteItems Number of incomplete items
 	 */
 	public captureFocusChainIncompleteOnCompletion(
-		taskId: string,
+		ulid: string,
 		totalItems: number,
 		completedItems: number,
 		incompleteItems: number,
@@ -680,7 +680,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION,
 			properties: {
-				taskId,
+				ulid,
 				totalItems,
 				completedItems,
 				incompleteItems,
@@ -691,9 +691,9 @@ export class TelemetryService {
 
 	/**
 	 * Records when users click to open the focus chain markdown file
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 */
-	public captureFocusChainListOpened(taskId: string) {
+	public captureFocusChainListOpened(ulid: string) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
@@ -701,16 +701,16 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_OPENED,
 			properties: {
-				taskId,
+				ulid,
 			},
 		})
 	}
 
 	/**
 	 * Records when users save and write to the focus chain markdown file
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 */
-	public captureFocusChainListWritten(taskId: string) {
+	public captureFocusChainListWritten(ulid: string) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
@@ -718,7 +718,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
 			properties: {
-				taskId,
+				ulid,
 			},
 		})
 	}
