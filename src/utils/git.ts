@@ -221,6 +221,26 @@ export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
 	}
 }
 
+export async function getLatestGitCommitHash(cwd: string): Promise<string | null> {
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			return null
+		}
+
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			return null
+		}
+
+		const { stdout } = await execAsync("git rev-parse HEAD", { cwd })
+		return stdout.trim() || null
+	} catch (error) {
+		console.error("Error getting latest git commit hash:", error)
+		return null
+	}
+}
+
 function truncateOutput(content: string): string {
 	if (!GIT_OUTPUT_LINE_LIMIT) {
 		return content

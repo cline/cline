@@ -59,7 +59,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { getGitRemoteUrls } from "@utils/git"
+import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
@@ -76,6 +76,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { CacheService } from "../storage/CacheService"
 import { MessageStateHandler } from "./message-state"
+import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
@@ -235,7 +236,7 @@ export class Task {
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
-			taskId: this.taskId,
+			ulid: this.ulid,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
@@ -280,11 +281,11 @@ export class Task {
 			}
 		}
 
-		// Now that taskId is initialized, we can build the API handler
+		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
 
-		// Set taskId on browserSession for telemetry tracking
-		this.browserSession.setTaskId(this.taskId)
+		// Set ulid on browserSession for telemetry tracking
+		this.browserSession.setUlid(this.ulid)
 
 		// Continue with task initialization
 		if (historyItem) {
@@ -296,10 +297,10 @@ export class Task {
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -556,133 +557,49 @@ export class Task {
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		const relinquishButton = () => {
-			sendRelinquishControlEvent()
-		}
-		if (!this.enableCheckpoints) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "Checkpoints are disabled in settings. Cannot show diff.",
-			})
-			relinquishButton()
-			return
-		}
-
-		console.log("presentMultifileDiff", messageTs)
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
-		const message = clineMessages[messageIndex]
-		if (!message) {
-			console.error("Message not found")
-			relinquishButton()
-			return
-		}
-		const hash = message.lastCheckpointHash
-		if (!hash) {
-			console.error("No checkpoint hash found")
-			relinquishButton()
-			return
-		}
-
-		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
-		if (!this.checkpointTracker && this.enableCheckpoints && !this.taskState.checkpointTrackerErrorMessage) {
-			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controller.context.globalStorageUri.fsPath,
-					this.enableCheckpoints,
-				)
-				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.taskState.checkpointTrackerErrorMessage = errorMessage
-				await this.postStateToWebview()
+		try {
+			if (!this.enableCheckpoints) {
 				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
+					type: ShowMessageType.INFORMATION,
+					message: "Checkpoints are disabled in settings. Cannot show diff.",
 				})
-				relinquishButton()
 				return
 			}
-		}
-
-		let changedFiles:
-			| {
-					relativePath: string
-					absolutePath: string
-					before: string
-					after: string
-			  }[]
-			| undefined
-
-		try {
-			if (seeNewChangesSinceLastTaskCompletion) {
-				// Get last task completed
-				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.messageStateHandler.getClineMessages().slice(0, messageIndex),
-					(m) => m.say === "completion_result",
-				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-				// if undefined, then we get diff from beginning of git
-				// if (!lastTaskCompletedMessage) {
-				// 	console.error("No previous task completion message found")
-				// 	return
-				// }
-				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.messageStateHandler
-					.getClineMessages()
-					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
-
-				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-				if (!previousCheckpointHash) {
+			// TODO: handle if this is called from outside original workspace, in which case we need to
+			// show user error message we can't show diff outside of workspace?
+			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
+				try {
+					this.checkpointTracker = await CheckpointTracker.create(
+						this.taskId,
+						this.controller.context.globalStorageUri.fsPath,
+						this.enableCheckpoints,
+					)
+					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
+				} catch (error) {
+					console.error("Failed to initialize checkpoint tracker:", error)
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					this.taskState.checkpointTrackerErrorMessage = errorMessage
+					await this.postStateToWebview()
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: "Unexpected error: No checkpoint hash found",
+						message: errorMessage,
 					})
-					relinquishButton()
-					return
-				}
-
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
-				if (!changedFiles?.length) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes found",
-					})
-					relinquishButton()
-					return
-				}
-			} else {
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
-				if (!changedFiles?.length) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "No changes found",
-					})
-					relinquishButton()
 					return
 				}
 			}
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: "Failed to retrieve diff set: " + errorMessage,
-			})
-			relinquishButton()
-			return
+			if (!this.checkpointTracker) {
+				return
+			}
+
+			showChangedFilesDiff(
+				this.messageStateHandler,
+				this.checkpointTracker,
+				messageTs,
+				seeNewChangesSinceLastTaskCompletion,
+			)
+		} finally {
+			sendRelinquishControlEvent()
 		}
-		const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"
-		const diffs = changedFiles.map((file) => ({
-			filePath: file.absolutePath,
-			leftContent: file.before,
-			rightContent: file.after,
-		}))
-		HostProvider.diff.openMultiFileDiff({ title, diffs })
-		relinquishButton()
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
@@ -2186,7 +2103,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2251,20 +2168,13 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					this.ulid,
-					providerId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2429,7 +2339,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
@@ -2722,6 +2632,11 @@ export class Task {
 			const gitRemotes = await getGitRemoteUrls(this.cwd)
 			if (gitRemotes.length > 0) {
 				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
+			}
+
+			const latestGitHash = await getLatestGitCommitHash(this.cwd)
+			if (latestGitHash) {
+				details += `\n\n# Latest Git Commit Hash\n${latestGitHash}`
 			}
 		}
 

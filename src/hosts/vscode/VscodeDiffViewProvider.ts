@@ -171,7 +171,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return true
 	}
 
-	protected async closeDiffView(): Promise<void> {
+	protected async closeAllDiffViews(): Promise<void> {
 		// Close all the cline diff views.
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)

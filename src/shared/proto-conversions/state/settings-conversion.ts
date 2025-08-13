@@ -9,7 +9,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		// Global configuration fields (not mode-specific)
 		apiKey: config.apiKey,
 		clineAccountId: config.clineAccountId,
-		taskId: config.taskId,
+		ulid: config.ulid,
 		liteLlmBaseUrl: config.liteLlmBaseUrl,
 		liteLlmApiKey: config.liteLlmApiKey,
 		liteLlmUsePromptCache: config.liteLlmUsePromptCache,
@@ -136,7 +136,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		// Global configuration fields (not mode-specific)
 		apiKey: protoConfig.apiKey,
 		clineAccountId: protoConfig.clineAccountId,
-		taskId: protoConfig.taskId,
+		ulid: protoConfig.ulid,
 		liteLlmBaseUrl: protoConfig.liteLlmBaseUrl,
 		liteLlmApiKey: protoConfig.liteLlmApiKey,
 		liteLlmUsePromptCache: protoConfig.liteLlmUsePromptCache,
