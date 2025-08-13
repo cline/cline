@@ -2647,9 +2647,9 @@ export class Task {
 				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
 			}
 
-			const lastestGitHash = await getLatestGitCommitHash(this.cwd)
-			if (lastestGitHash) {
-				details += `\n\n# Latest Git Commit Hash\n${lastestGitHash}`
+			const latestGitHash = await getLatestGitCommitHash(this.cwd)
+			if (latestGitHash) {
+				details += `\n\n# Latest Git Commit Hash\n${latestGitHash}`
 			}
 		}
 
