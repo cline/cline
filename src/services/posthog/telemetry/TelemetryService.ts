@@ -105,8 +105,10 @@ export class TelemetryService {
 	 */
 	public constructor(private provider: PostHogClientProvider) {
 		// Defer the first telemetry_enabled event just long enough to pick up the real distinctId
-		void this.provider.whenDistinctIdReady().then(() => {
-			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		void this.provider.whenDistinctIdReady().then((ready) => {
+			if (ready) {
+				this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+			}
 		})
 	}
 
@@ -164,14 +166,16 @@ export class TelemetryService {
 	 */
 	public capture(event: { event: string; properties?: unknown }): void {
 		const propertiesWithVersion = this.addProperties(event.properties)
-
 		// Use the provider's log method instead of direct client capture
 		this.provider.log(event.event, propertiesWithVersion)
 	}
 
 	public captureExtensionActivated() {
-		// Use provider's log method for the activation event
-		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
+		void this.provider.whenDistinctIdReady().then((ready) => {
+			if (ready) {
+				this.capture({ event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED })
+			}
+		})
 	}
 
 	/**
