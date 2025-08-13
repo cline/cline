@@ -15,7 +15,9 @@
 	"typescript.preferences.quoteStyle": "double",
 	// Protobuf settings
 	"protoc": {
-		"options": ["--proto_path=proto"]
+		"options": [
+			"--proto_path=proto"
+		]
 	},
 	// Enable Lint and format using Biome
 	"biome.enabled": true,

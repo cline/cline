@@ -7,6 +7,7 @@
 		"defaultBranch": "main"
 	},
 	"assist": {
+		"enabled": true,
 		"actions": {
 			"source": {
 				"organizeImports": "on",
@@ -96,7 +97,11 @@
 		"lineEnding": "lf",
 		"formatWithErrors": false,
 		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
-		"includes": ["!src/core/prompts/**", "!webview-ui/src/components/chat/**"]
+		"includes": [
+			"**",
+			"!src/core/prompts/**",
+			"!webview-ui/src/components/chat/**"
+		]
 	},
 	"javascript": {
 		"formatter": {
@@ -111,10 +116,8 @@
 	},
 	"json": {
 		"formatter": {
-			"indentWidth": 4,
-			"lineWidth": 130,
 			"trailingCommas": "none",
-			"expand": "auto"
+			"expand": "always"
 		}
 	},
 	"files": {
@@ -130,15 +133,20 @@
 			"!**/webview-ui/build/**"
 		]
 	},
-	"plugins": ["src/dev/grit/process-env.grit"],
+	"plugins": [
+		"src/dev/grit/process-env.grit"
+	],
 	"overrides": [
 		{
-			"includes": ["**/.vscode/*.json"],
-			"json": { "parser": { "allowComments": true } }
-		},
-		{
-			"includes": ["**", "!**/hosts/vscode/**", "!**/test/**", "!src/extension.ts"],
-			"plugins": ["src/dev/grit/vscode-api.grit"]
+			"includes": [
+				"**",
+				"!**/hosts/vscode/**",
+				"!**/test/**",
+				"!src/extension.ts"
+			],
+			"plugins": [
+				"src/dev/grit/vscode-api.grit"
+			]
 		},
 		{
 			"includes": [
@@ -150,7 +158,9 @@
 				"!src/core/storage/utils/state-helpers.ts",
 				"!src/extension.ts"
 			],
-			"plugins": ["src/dev/grit/use-cache-service.grit"]
+			"plugins": [
+				"src/dev/grit/use-cache-service.grit"
+			]
 		}
 	]
 }

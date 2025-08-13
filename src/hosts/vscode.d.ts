@@ -8,7 +8,7 @@
  *
  * Exemptions: Files in src/hosts/vscode/ and standalone/runtime-files/ directories
  * are allowed to use these APIs directly as they provide the abstraction layer.
- * 
+ *
  * To ensure error on usage, update src/dev/grit/vscode-api.grit to include the banned apis.
  */
 
