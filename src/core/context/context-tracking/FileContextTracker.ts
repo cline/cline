@@ -1,5 +1,6 @@
 import * as path from "path"
 import * as vscode from "vscode"
+import chokidar, { FSWatcher } from "chokidar"
 import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 import type { ClineMessage } from "@shared/ExtensionMessage"
@@ -26,7 +27,7 @@ export class FileContextTracker {
 	readonly taskId: string
 
 	// File tracking and watching
-	private fileWatchers = new Map<string, vscode.FileSystemWatcher>()
+	private fileWatchers = new Map<string, FSWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByCline = new Set<string>()
 
@@ -50,14 +51,21 @@ export class FileContextTracker {
 			return
 		}
 
-		// Create a file system watcher for this specific file
-		const fileUri = vscode.Uri.file(path.resolve(cwd, filePath))
-		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(path.dirname(fileUri.fsPath), path.basename(fileUri.fsPath)),
-		)
+		// Create a chokidar file watcher for this specific file
+		const resolvedFilePath = path.resolve(cwd, filePath)
+		const watcher = chokidar.watch(resolvedFilePath, {
+			persistent: true, // Keep process alive while watching
+			ignoreInitial: true, // Don't emit events for existing files on startup
+			atomic: true, // Handle atomic writes (editors that use temp files)
+			awaitWriteFinish: {
+				// Wait for writes to finish before emitting events
+				stabilityThreshold: 100, // Wait 100ms for file size to stabilize
+				pollInterval: 100, // Check every 100ms while waiting
+			},
+		})
 
 		// Track file changes
-		watcher.onDidChange(() => {
+		watcher.on("change", () => {
 			if (this.recentlyEditedByCline.has(filePath)) {
 				this.recentlyEditedByCline.delete(filePath) // This was an edit by Cline, no need to inform Cline
 			} else {
@@ -178,10 +186,9 @@ export class FileContextTracker {
 	/**
 	 * Disposes all file watchers
 	 */
-	dispose(): void {
-		for (const watcher of this.fileWatchers.values()) {
-			watcher.dispose()
-		}
+	async dispose(): Promise<void> {
+		const closePromises = Array.from(this.fileWatchers.values()).map((watcher) => watcher.close())
+		await Promise.all(closePromises)
 		this.fileWatchers.clear()
 	}
 

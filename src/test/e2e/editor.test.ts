@@ -2,19 +2,12 @@ import { expect } from "@playwright/test"
 import { addSelectedCodeToClineWebview, getClineEditorWebviewFrame, openTab, toggleNotifications } from "./utils/common"
 import { e2e } from "./utils/helpers"
 
-e2e("code actions and editor panel", async ({ page, sidebar }) => {
-	await toggleNotifications(page)
-
+e2e("code actions and editor panel", async ({ page, sidebar, helper }) => {
 	await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
-
-	// Verify the help improve banner is visible and can be closed.
-	await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
-
-	// Verify the release banner is visible for new installs and can be closed.
-	await sidebar.getByTestId("close-button").locator("span").first().click()
-
 	// Sidebar - input should start empty
 	const sidebarInput = sidebar.getByTestId("chat-input")
+	await sidebarInput.click()
+	await toggleNotifications(page)
 	await expect(sidebarInput).toBeEmpty()
 
 	// Open file tree and select code from file

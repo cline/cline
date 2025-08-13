@@ -24,6 +24,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		use_mcp_server: ClineAsk.USE_MCP_SERVER,
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
+		summarize_task: ClineAsk.SUMMARIZE_TASK,
 		report_bug: ClineAsk.REPORT_BUG,
 	}
 
@@ -57,6 +58,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.USE_MCP_SERVER]: "use_mcp_server",
 		[ClineAsk.NEW_TASK]: "new_task",
 		[ClineAsk.CONDENSE]: "condense",
+		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
 		[ClineAsk.REPORT_BUG]: "report_bug",
 	}
 

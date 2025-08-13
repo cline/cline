@@ -95,7 +95,7 @@ export class E2ETestHelper {
 		}
 	}
 
-	public static async signin(webview: Frame): Promise<void> {
+	public async signin(webview: Frame): Promise<void> {
 		const byokButton = webview.getByRole("button", {
 			name: "Use your own API key",
 		})
@@ -282,9 +282,3 @@ export const e2e = test
 
 // Backward compatibility exports
 export const getResultsDir = E2ETestHelper.getResultsDir
-export const getSidebar = (page: Page) => new E2ETestHelper().getSidebar(page)
-export const rmForRetries = E2ETestHelper.rmForRetries
-export const signin = E2ETestHelper.signin
-export const openClineSidebar = E2ETestHelper.openClineSidebar
-export const runCommandPalette = E2ETestHelper.runCommandPalette
-export const waitUntil = E2ETestHelper.waitUntil
