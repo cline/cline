@@ -3,9 +3,7 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL } from "@core/prompts/model_prompts/claude4-experimental"
 import { SYSTEM_PROMPT_CLAUDE4 } from "@core/prompts/model_prompts/claude4"
-import { USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "@core/task/index"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
@@ -14,10 +12,6 @@ export const SYSTEM_PROMPT = async (
 	browserSettings: BrowserSettings,
 	isNextGenModel: boolean = false,
 ) => {
-	if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-		return SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL(cwd, supportsBrowserUse, mcpHub, browserSettings)
-	}
-
   	if (isNextGenModel) {
 		return SYSTEM_PROMPT_CLAUDE4(cwd, supportsBrowserUse, mcpHub, browserSettings)
   	}
