@@ -14,6 +14,8 @@ import {
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 /**
  * Updates multiple extension settings in a single request
@@ -30,7 +32,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
-				controller.task.api = buildApiHandler({ ...apiConfiguration, taskId: controller.task.taskId }, currentMode)
+				controller.task.api = buildApiHandler({ ...apiConfiguration, ulid: controller.task.ulid }, currentMode)
 			}
 		}
 
@@ -145,6 +147,29 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		// Update focus chain settings
+		if (request.focusChainSettings !== undefined) {
+			const remoteEnabled = controller.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
+			if (remoteEnabled === false) {
+				// No-op when feature flag disabled
+			} else {
+				const currentSettings = controller.cacheService.getGlobalStateKey("focusChainSettings")
+				const wasEnabled = currentSettings?.enabled ?? false
+				const isEnabled = request.focusChainSettings.enabled
+
+				const focusChainSettings = {
+					enabled: isEnabled,
+					remindClineInterval: request.focusChainSettings.remindClineInterval,
+				}
+				controller.cacheService.setGlobalState("focusChainSettings", focusChainSettings)
+
+				// Capture telemetry when setting changes
+				if (wasEnabled !== isEnabled) {
+					telemetryService.captureFocusChainToggle(isEnabled)
+				}
+			}
 		}
 
 		// Post updated state to webview

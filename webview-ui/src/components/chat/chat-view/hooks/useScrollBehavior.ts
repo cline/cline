@@ -72,24 +72,20 @@ export function useScrollBehavior(
 			}
 
 			let groupIndex = -1
-			let currentVisibleIndex = 0
 
 			for (let i = 0; i < groupedMessages.length; i++) {
 				const group = groupedMessages[i]
 				if (Array.isArray(group)) {
-					const groupSize = group.length
 					const messageInGroup = group.some((msg) => msg.ts === targetMessage.ts)
 					if (messageInGroup) {
 						groupIndex = i
 						break
 					}
-					currentVisibleIndex += groupSize
 				} else {
 					if (group.ts === targetMessage.ts) {
 						groupIndex = i
 						break
 					}
-					currentVisibleIndex++
 				}
 			}
 
@@ -194,6 +190,12 @@ export function useScrollBehavior(
 			scrollToMessage(pendingScrollToMessage)
 		}
 	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
+
+	useEffect(() => {
+		if (!messages?.length) {
+			setShowScrollToBottom(false)
+		}
+	}, [messages.length])
 
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent

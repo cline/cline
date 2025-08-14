@@ -37,7 +37,7 @@ export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
 	clineAccountId?: string
-	taskId?: string // Used to identify the task in API requests
+	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
@@ -200,11 +200,40 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	isR1FormatRequired?: boolean
 }
 
+export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
+export const CLAUDE_SONNET_4_1M_TIERS = [
+	{
+		contextWindow: 200000,
+		inputPrice: 3.0,
+		outputPrice: 15,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	{
+		contextWindow: Number.MAX_SAFE_INTEGER, // storing infinity in vs storage is not possible, it converts to 'null', which causes crash in webview ModelInfoView
+		inputPrice: 6,
+		outputPrice: 22.5,
+		cacheWritesPrice: 7.5,
+		cacheReadsPrice: 0.6,
+	},
+]
+
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
 export const anthropicModels = {
+	"claude-sonnet-4-20250514:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
+	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -331,6 +360,17 @@ export const claudeCodeModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const bedrockModels = {
+	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
+	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -482,7 +522,7 @@ export const bedrockModels = {
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
-	contextWindow: 200_000,
+	contextWindow: 1_000_000,
 	supportsImages: true,
 
 	supportsPromptCache: true,
@@ -490,6 +530,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
+	tiers: CLAUDE_SONNET_4_1M_TIERS,
 	description:
 		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
@@ -1031,6 +1072,15 @@ export const openAiNativeModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.005,
 	},
+	"gpt-5-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
 		maxTokens: 8_192,
 		contextWindow: 256000,
@@ -1147,14 +1197,6 @@ export const openAiNativeModels = {
 		supportsPromptCache: false,
 		inputPrice: 5,
 		outputPrice: 15,
-	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -2937,15 +2979,23 @@ export const sapAiCoreModels = {
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
 	"kimi-k2-0711-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 	},
+	"kimi-k2-turbo-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 10,
+	},
 	"moonshot-v1-128k-vision-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: true,
 		supportsPromptCache: false,
@@ -2953,7 +3003,7 @@ export const moonshotModels = {
 		outputPrice: 5,
 	},
 	"kimi-thinking-preview": {
-		maxTokens: 131_072,
+		maxTokens: 32_000,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,

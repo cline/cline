@@ -60,6 +60,9 @@ service FileService {
 
   // Open a file in editor by a relative path
   rpc openFileRelativePath(StringRequest) returns (Empty);
+  
+  // Opens or creates a focus chain checklist markdown file for editing
+  rpc openFocusChainFile(StringRequest) returns (Empty);
 }
 
 // Response for refreshRules operation

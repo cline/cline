@@ -32,6 +32,7 @@ import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/posthog/PostHogClientProvider"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { AuthHandler } from "./hosts/external/AuthHandler"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -57,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
+		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, sidebarWebview, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	)
@@ -119,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.TAB)
+		const tabWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.TAB) as VscodeWebviewProvider
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -130,7 +131,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
+		const panel = vscode.window.createWebviewPanel(VscodeWebviewProvider.TAB_PANEL_ID, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -195,10 +196,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	/*
-	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
+	We use the text document content provider API to show the left side for diff view by creating a 
+	virtual document for the original content. This makes it readonly so users know to edit the right 
+	side if they want to keep their changes.
 
-	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by claiming an uri-scheme for which your provider then returns text contents. The scheme must be provided when registering a provider and cannot change afterwards.
-	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents given such an uri. In return, content providers are wired into the open document logic so that providers are always considered.
+	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by 
+	claiming an uri-scheme for which your provider then returns text contents. The scheme must be 
+	provided when registering a provider and cannot change afterwards.
+	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents
+	 given such an uri. In return, content providers are wired into the open document logic so that 
+	 providers are always considered.
 	https://code.visualstudio.com/api/extension-guides/virtual-documents
 	*/
 	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
@@ -262,7 +269,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
-			telemetryService.captureButtonClick("codeAction_addToChat", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_addToChat", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -437,7 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send to last active instance with diagnostics
 			const activeWebview = WebviewProvider.getLastActiveInstance()
 			await activeWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
-			telemetryService.captureButtonClick("codeAction_fixWithCline", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_fixWithCline", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -462,7 +469,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = activeWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await activeWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_explainCode", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_explainCode", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -487,7 +494,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = activeWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await activeWebview?.controller.initTask(prompt)
-			telemetryService.captureButtonClick("codeAction_improveCode", activeWebview?.controller.task?.taskId)
+			telemetryService.captureButtonClick("codeAction_improveCode", activeWebview?.controller.task?.ulid)
 		}),
 	)
 
@@ -495,7 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.focusChatInput", async () => {
 			// Fast path: check for existing active instance
-			let activeWebview = WebviewProvider.getLastActiveInstance()
+			let activeWebview = WebviewProvider.getLastActiveInstance() as VscodeWebviewProvider
 
 			if (activeWebview) {
 				// Instance exists - just reveal and focus it
@@ -512,7 +519,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				WebviewProvider.setLastActiveControllerId(null)
 
 				// Check for existing tab instances first (cheaper than focusing sidebar)
-				const tabInstances = WebviewProvider.getTabInstances()
+				const tabInstances = WebviewProvider.getTabInstances() as VscodeWebviewProvider[]
 				if (tabInstances.length > 0) {
 					activeWebview = tabInstances[tabInstances.length - 1]
 				} else {
@@ -521,8 +528,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 					// Small delay for focus to complete
 					await new Promise((resolve) => setTimeout(resolve, 200))
-					// Last resort: create new tab
-					activeWebview = WebviewProvider.getSidebarInstance() || (await openClineInNewTab())
+					activeWebview = WebviewProvider.getSidebarInstance() as VscodeWebviewProvider
+					if (!activeWebview) {
+						// Last resort: create new tab
+						activeWebview = (await openClineInNewTab()) as VscodeWebviewProvider
+					}
 				}
 			}
 
@@ -538,7 +548,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			sendFocusChatInputEvent(clientId)
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.taskId)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.ulid)
 		}),
 	)
 

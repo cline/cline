@@ -162,6 +162,8 @@ export class Controller {
 		const apiConfiguration = this.cacheService.getApiConfiguration()
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
+		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")
@@ -189,6 +191,12 @@ export class Controller {
 			}
 			this.cacheService.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
+		// Apply remote feature flag gate to focus chain settings
+		const effectiveFocusChainSettings = {
+			...(focusChainSettings || { enabled: false, remindClineInterval: 6 }),
+			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
+		}
+
 		this.task = new Task(
 			this,
 			this.mcpHub,
@@ -199,6 +207,7 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
+			effectiveFocusChainSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
@@ -238,12 +247,12 @@ export class Controller {
 		this.cacheService.setGlobalState("mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
-		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
+		telemetryService.captureModeSwitch(this.task?.ulid ?? "0", modeToSwitchTo)
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
 			const apiConfiguration = this.cacheService.getApiConfiguration()
-			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
 		}
 
 		await this.postStateToWebview()
@@ -336,7 +345,7 @@ export class Controller {
 			this.cacheService.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
 
 			await this.postStateToWebview()
@@ -480,7 +489,7 @@ export class Controller {
 
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
@@ -651,6 +660,8 @@ export class Controller {
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
+		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")
@@ -700,11 +711,14 @@ export class Controller {
 			currentTaskItem,
 			checkpointTrackerErrorMessage,
 			clineMessages,
+			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
 			platform,
 			autoApprovalSettings,
 			browserSettings,
+			focusChainSettings,
+			focusChainFeatureFlagEnabled,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,

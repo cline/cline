@@ -10,7 +10,7 @@ import * as fs from "fs"
 import * as isBinaryFileModule from "isbinaryfile"
 import * as path from "path"
 import * as sinon from "sinon"
-import { parseMentions } from "../index"
+import { parseMentions } from "."
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
