@@ -344,20 +344,33 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
-	private aiCoreEnvSetup: boolean = false
+	private isAiCoreEnvSetup: boolean = false
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
 	}
 
+	private validateCredentials(): void {
+		if (
+			!this.options.sapAiCoreClientId ||
+			!this.options.sapAiCoreClientSecret ||
+			!this.options.sapAiCoreTokenUrl ||
+			!this.options.sapAiCoreBaseUrl
+		) {
+			throw new Error("Missing required SAP AI Core credentials. Please check your configuration.")
+		}
+	}
+
 	private async authenticate(): Promise<Token> {
+		this.validateCredentials()
+
 		const payload = {
 			grant_type: "client_credentials",
-			client_id: this.options.sapAiCoreClientId || "",
-			client_secret: this.options.sapAiCoreClientSecret || "",
+			client_id: this.options.sapAiCoreClientId,
+			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
-		const tokenUrl = (this.options.sapAiCoreTokenUrl || "").replace(/\/+$/, "") + "/oauth/token"
+		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
@@ -445,32 +458,25 @@ export class SapAiCoreHandler implements ApiHandler {
 	// TODO: support credentials changes after initial setup
 	private ensureAiCoreEnvSetup(): void {
 		// Only set up once to avoid redundant operations
-		if (this.aiCoreEnvSetup) {
+		if (this.isAiCoreEnvSetup) {
 			return
 		}
 
 		// Validate required credentials
-		if (
-			!this.options.sapAiCoreClientId ||
-			!this.options.sapAiCoreClientSecret ||
-			!this.options.sapAiCoreTokenUrl ||
-			!this.options.sapAiCoreBaseUrl
-		) {
-			throw new Error("Missing required SAP AI Core credentials for orchestration mode. Please check your configuration.")
-		}
+		this.validateCredentials()
 
 		const aiCoreServiceCredentials = {
-			clientid: this.options.sapAiCoreClientId,
-			clientsecret: this.options.sapAiCoreClientSecret,
-			url: this.options.sapAiCoreTokenUrl,
+			clientid: this.options.sapAiCoreClientId!,
+			clientsecret: this.options.sapAiCoreClientSecret!,
+			url: this.options.sapAiCoreTokenUrl!,
 			serviceurls: {
-				AI_API_URL: this.options.sapAiCoreBaseUrl,
+				AI_API_URL: this.options.sapAiCoreBaseUrl!,
 			},
 		}
 		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
 
 		// Mark as set up to avoid redundant calls
-		this.aiCoreEnvSetup = true
+		this.isAiCoreEnvSetup = true
 	}
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

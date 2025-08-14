@@ -88,7 +88,7 @@ async function fetchAiCoreModelsAndOrchestration(
 }
 
 /**
- * Fetches available models from SAP AI Core deployments with orchestration availability
+ * Fetches available models from SAP AI Core deployments and orchestration availability
  * @param controller The controller instance
  * @param request The request containing SAP AI Core configuration
  * @returns SapAiCoreModelsResponse with model names and orchestration availability
