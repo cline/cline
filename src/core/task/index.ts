@@ -292,7 +292,13 @@ export class Task {
 				context: this.getContext(),
 				cacheService: this.cacheService,
 				postStateToWebview: this.postStateToWebview,
-				say: this.say.bind(this),
+				say: this.say.bind(this) as (
+					type: ClineSay,
+					text?: string,
+					images?: string[],
+					files?: string[],
+					partial?: boolean,
+				) => Promise<undefined>,
 				focusChainSettings: this.focusChainSettings,
 			})
 		}
@@ -403,7 +409,6 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			this.checkLatestTaskCompletionHasNewChanges.bind(this),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
-			
 		)
 	}
 
