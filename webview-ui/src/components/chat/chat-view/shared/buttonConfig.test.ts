@@ -126,7 +126,7 @@ describe("getButtonConfig", () => {
 			{ ask: "new_task", say: undefined, expectedConfig: "new_task" },
 			{ ask: "condense", say: undefined, expectedConfig: "condense" },
 			{ ask: "report_bug", say: undefined, expectedConfig: "report_bug" },
-			{ ask: undefined, say: "task_progress", expectedConfig: undefined },
+			{ ask: undefined, say: "task_progress", expectedConfig: "default" },
 		]
 
 		stateConfigs.forEach(({ ask, say, expectedConfig }) => {
