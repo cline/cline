@@ -17,7 +17,7 @@ export async function codebaseSearchTool(
 	removeClosingTag: RemoveClosingTag,
 ) {
 	const toolName = "codebase_search"
-	const workspacePath = getWorkspacePath()
+	const workspacePath = (cline.cwd && cline.cwd.trim() !== '') ? cline.cwd : getWorkspacePath()
 
 	if (!workspacePath) {
 		// This case should ideally not happen if Cline is initialized correctly
