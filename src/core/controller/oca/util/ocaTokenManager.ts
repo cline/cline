@@ -224,7 +224,21 @@ export class OcaTokenManager {
 					res.send("✅ Token obtained. You may close this tab.")
 					resolve(stored)
 				} catch (err) {
-					res.status(400).send(`❌ OAuth failed. {error: ${err}}`)
+					let code = err?.error || ""
+					let desc = err?.error_description || err?.message || "" + err
+					let userMsg = ""
+
+					if (
+						(code === "invalid_grant" || desc.includes("invalid_grant")) &&
+						desc.toLowerCase().includes("code verifier")
+					) {
+						userMsg =
+							'❌ OAuth failed: Authentication popup blocked. In the VSCode search bar type `>Manage Trusted Domains` and add "*.oraclecloud.com" to allow access.'
+					} else {
+						userMsg = `❌ OAuth failed. {error: ${desc}}`
+					}
+
+					res.status(400).send(userMsg)
 					reject(err)
 				} finally {
 					server.close()
