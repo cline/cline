@@ -64,7 +64,7 @@ function commitVersionChanges(version) {
 
 		try {
 			const status = execSync("git status --porcelain", { encoding: "utf8" })
-			const relevantChanges = status.split("\n").filter((line) => line.includes("packages/sdk/npm/package"))
+			const relevantChanges = status.split("\n").filter((line) => line.includes("packages/types/npm/package"))
 
 			if (relevantChanges.length === 0) {
 				console.log("  ⚠️  No version changes to commit")
