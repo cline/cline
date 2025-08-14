@@ -24,6 +24,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		use_mcp_server: ClineAsk.USE_MCP_SERVER,
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
+		summarize_task: ClineAsk.SUMMARIZE_TASK,
 		report_bug: ClineAsk.REPORT_BUG,
 	}
 
@@ -57,6 +58,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.USE_MCP_SERVER]: "use_mcp_server",
 		[ClineAsk.NEW_TASK]: "new_task",
 		[ClineAsk.CONDENSE]: "condense",
+		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
 		[ClineAsk.REPORT_BUG]: "report_bug",
 	}
 
@@ -97,6 +99,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		checkpoint_created: ClineSay.CHECKPOINT_CREATED,
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
+		task_progress: ClineSay.TASK_PROGRESS,
 	}
 
 	const result = mapping[say]
@@ -141,6 +144,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.CHECKPOINT_CREATED]: "checkpoint_created",
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
+		[ClineSay.TASK_PROGRESS]: "task_progress",
 	}
 
 	return mapping[say]

@@ -44,20 +44,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<ul style={ulStyle}>
-				<li>
-					<b>GPT-5 Model Support:</b> Added support for the new GPT-5 model family including GPT-5, GPT-5 Mini, and
-					GPT-5 Nano with prompt caching support. GPT-5 is now the default model for new users.
-				</li>
-				<li>
-					<b>Improved Onboarding:</b> New users now see a "Take a Tour" button that opens the VSCode walkthrough to help
-					them get started with Cline more easily.
-				</li>
-				<li>
-					<b>Enhanced Plan Mode:</b> Better exploration parameter support in plan mode for more thorough planning before
-					execution.
-				</li>
-			</ul>
+			<b>1M Context Window:</b> Claude Sonnet 4 now supports a 1 million token context window to handle larger codebases and
+			more complex tasks. Cline/OpenRouter users get instant access, Anthropic users with Tier 4 access can select the{" "}
+			<code>
+				claude-sonnet-4-20250514<b>:1m</b>
+			</code>{" "}
+			model.
 			<Accordion isCompact className="pl-0">
 				<AccordionItem
 					key="1"

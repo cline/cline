@@ -1,0 +1,153 @@
+---
+title: "Deep Planning Command"
+sidebarTitle: "/deep-planning"
+---
+
+`/deep-planning` transforms Cline into a meticulous architect who investigates your codebase, asks clarifying questions, and creates a comprehensive implementation plan before writing a single line of code. 
+
+When you use `/deep-planning`, Cline follows a four-step process that mirrors how senior developers approach complex features: thorough investigation, discussion & clarification of requirements, detailed planning, and structured task creation with progress tracking.
+
+## The Four-Step Process
+
+### Step 1: Silent Investigation
+
+Cline becomes a detective, silently exploring your codebase to understand its structure, patterns, and constraints. He examines source files, analyzes import patterns, discovers class hierarchies, and identifies technical debt markers. No commentary, no narration - just focused research.
+
+During this phase, Cline runs commands like:
+- Finding all class and function definitions across your codebase
+- Analyzing import patterns to understand dependencies
+- Discovering project structure and file organization
+- Identifying TODOs and technical debt
+
+### Step 2: Discussion and Questions
+
+Once Cline understands your codebase, he asks targeted questions that will shape the implementation. These aren't generic questions - they're specific to your project and the feature you're building.
+
+Questions might cover:
+- Clarifying ambiguous requirements
+- Choosing between equally valid implementation approaches
+- Confirming assumptions about system behavior
+- Understanding preferences for technical decisions
+
+### Step 3: Implementation Plan Document
+
+Cline creates a structured markdown document (`implementation_plan.md`) that serves as your implementation blueprint. This isn't a vague outline - it's a detailed specification with exact file paths, function signatures, and implementation order.
+
+The plan includes eight comprehensive sections:
+- **Overview**: The goal and high-level approach
+- **Types**: Complete type definitions and data structures
+- **Files**: Exact files to create, modify, or delete
+- **Functions**: New and modified functions with signatures
+- **Classes**: Class modifications and inheritance details
+- **Dependencies**: Package requirements and versions
+- **Testing**: Validation strategies and test requirements
+- **Implementation Order**: Step-by-step execution sequence
+
+### Step 4: Implementation Task Creation
+
+Cline creates a new task that references the plan document and includes trackable implementation steps. The task comes with specific commands to read each section of the plan, ensuring the implementing agent (whether that's you or Cline in Act Mode) can navigate the blueprint efficiently.
+
+<Tip>
+  Deep Planning works beautifully with [Focus Chain](/features/focus-chain). The implementation steps automatically become a todo list with real-time progress tracking, keeping complex projects organized and on track.
+</Tip>
+
+## Using Deep Planning
+
+Start a deep planning session by typing `/deep-planning` followed by your feature description:
+
+```
+/deep-planning Add user authentication with JWT tokens and role-based access control
+```
+
+Cline will begin his investigation immediately. You'll see him reading files and running commands to understand your codebase. Once he's gathered enough context, he'll engage you in discussion before creating the plan.
+
+## Example Workflow
+
+Here's how I use `/deep-planning` for a real feature:
+
+<Steps>
+  <Step title="Initiate Planning">
+    I type `/deep-planning implement a caching layer for API responses`
+  </Step>
+  <Step title="Silent Investigation">
+    Cline explores my codebase, examining:
+    - Current API structure and endpoints
+    - Existing data flow patterns
+    - Database queries and performance bottlenecks
+    - Configuration and environment setup
+  </Step>
+  <Step title="Targeted Discussion">
+    Cline asks me:
+    - "Should we use Redis or in-memory caching?"
+    - "What's the acceptable cache staleness for user data?"
+    - "Do you need cache invalidation webhooks?"
+  </Step>
+  <Step title="Plan Creation">
+    Cline generates `implementation_plan.md` with:
+    - Cache service class specifications
+    - Redis connection configuration
+    - Modified API endpoints with caching logic
+    - Cache key generation strategies
+    - TTL configurations for different data types
+  </Step>
+  <Step title="Task Generation">
+    Cline creates a new task with:
+    - Reference to the implementation plan
+    - Commands to read specific sections
+    - Trackable todo items for each implementation step
+    - Request to switch to Act Mode for execution
+  </Step>
+</Steps>
+
+## Integration with Plan/Act Mode
+
+Deep Planning is designed to work seamlessly with [Plan/Act Mode](/features/plan-and-act):
+
+- Use `/deep-planning` in Plan Mode for the investigation and planning phases
+- The generated task requests switching to Act Mode for implementation
+- Focus Chain automatically tracks progress through the implementation steps
+
+This separation ensures planning stays focused on architecture while implementation stays focused on execution.
+
+## Best Practices
+
+### When to Use Deep Planning
+
+Use `/deep-planning` for:
+- Features touching multiple parts of your codebase
+- Architectural changes requiring careful coordination
+- Complex integrations with external services
+- Refactoring efforts that need systematic execution
+- Any feature where you'd normally spend time whiteboarding
+
+### Making the Most of Investigation
+
+Let Cline complete his investigation thoroughly. The quality of the plan directly correlates with how well he understands your codebase. If you have specific areas he should examine, mention them in your initial request.
+
+### Reviewing the Plan
+
+Always review `implementation_plan.md` before starting implementation. The plan is comprehensive but not immutable - you can edit it directly if needed. Think of it as a collaborative document between you and Cline.
+
+### Tracking Progress
+
+With Focus Chain enabled, your implementation progress displays in the task header. Each completed step gets checked off automatically as Cline works through the plan, giving you real-time visibility into complex implementations.
+
+## Inspiration
+
+I use `/deep-planning` whenever I'm about to build something that would normally require a design document. Recent examples from my workflow:
+
+- **Migrating authentication systems**: Deep Planning mapped every endpoint, identified all authentication touchpoints, and created a migration plan that avoided breaking changes.
+
+- **Adding real-time features**: The plan covered WebSocket integration, event handling, state synchronization, and fallback mechanisms for disconnections.
+
+- **Database schema refactoring**: Cline identified all affected queries, created migration scripts, and planned the rollout to minimize downtime.
+
+- **API versioning implementation**: The plan detailed route changes, backward compatibility layers, deprecation notices, and client migration paths.
+
+The power of `/deep-planning` is that it forces thoughtful architecture before implementation. It's like having a senior developer review your approach before you write code, except that developer has perfect knowledge of your entire codebase.
+
+<Note>
+  Deep Planning requires models with strong reasoning capabilities. It works best with the latest generation of models, like GPT-5, Claude 4, Gemini 2.5, or Grok 4. Smaller models may struggle with the comprehensive analysis required.
+</Note>
+
+For simpler tasks that don't require extensive planning, consider using [/newtask](/features/slash-commands/new-task) to create focused tasks with context, or jump straight into implementation if the path forward is clear.
