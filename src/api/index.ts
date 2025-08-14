@@ -99,7 +99,7 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
-				taskId: options.taskId,
+				ulid: options.ulid,
 			})
 		case "openai":
 			return new OpenAiHandler({
@@ -133,7 +133,7 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				taskId: options.taskId,
+				ulid: options.ulid,
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({
@@ -194,7 +194,7 @@ function createHandlerForProvider(
 		case "cline":
 			return new ClineHandler({
 				clineAccountId: options.clineAccountId,
-				taskId: options.taskId,
+				ulid: options.ulid,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
@@ -211,7 +211,7 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				liteLlmUsePromptCache: options.liteLlmUsePromptCache,
-				taskId: options.taskId,
+				ulid: options.ulid,
 			})
 		case "moonshot":
 			return new MoonshotHandler({
@@ -275,6 +275,8 @@ function createHandlerForProvider(
 				sapAiResourceGroup: options.sapAiResourceGroup,
 				sapAiCoreBaseUrl: options.sapAiCoreBaseUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({

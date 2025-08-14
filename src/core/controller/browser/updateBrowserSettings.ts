@@ -1,7 +1,6 @@
 import { UpdateBrowserSettingsRequest } from "@shared/proto/cline/browser"
 import { Boolean } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { updateGlobalState, getGlobalState } from "../../storage/state"
 import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 
 /**
@@ -13,7 +12,7 @@ import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } fr
 export async function updateBrowserSettings(controller: Controller, request: UpdateBrowserSettingsRequest): Promise<Boolean> {
 	try {
 		// Get current browser settings to preserve fields not in the request
-		const currentSettings = (await getGlobalState(controller.context, "browserSettings")) as SharedBrowserSettings | undefined
+		const currentSettings = controller.cacheService.getGlobalStateKey("browserSettings")
 		const mergedWithDefaults = { ...DEFAULT_BROWSER_SETTINGS, ...currentSettings }
 
 		// Convert from protobuf format to shared format, merging with existing settings
@@ -36,10 +35,11 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 				// Otherwise, fall back to mergedWithDefaults.
 				"chromeExecutablePath" in request ? request.chromeExecutablePath : mergedWithDefaults.chromeExecutablePath,
 			disableToolUse: request.disableToolUse === undefined ? mergedWithDefaults.disableToolUse : request.disableToolUse,
+			customArgs: "customArgs" in request ? request.customArgs : mergedWithDefaults.customArgs,
 		}
 
 		// Update global state with new settings
-		await updateGlobalState(controller.context, "browserSettings", newBrowserSettings)
+		controller.cacheService.setGlobalState("browserSettings", newBrowserSettings)
 
 		// Update task browser settings if task exists
 		if (controller.task) {

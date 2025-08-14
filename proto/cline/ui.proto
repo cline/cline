@@ -41,6 +41,7 @@ enum ClineAsk {
   NEW_TASK = 13;
   CONDENSE = 14;
   REPORT_BUG = 15;
+  SUMMARIZE_TASK = 16;
 }
 
 // Enum for ClineSay types
@@ -72,6 +73,7 @@ enum ClineSay {
   CHECKPOINT_CREATED = 24;
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
+  TASK_PROGRESS = 27;
 }
 
 // Enum for ClineSayTool tool types
@@ -227,7 +229,7 @@ service UiService {
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
   
   // Subscribe to addToInput events (when user adds content via context menu)
-  rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+  rpc subscribeToAddToInput(StringRequest) returns (stream String);
   
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);

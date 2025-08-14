@@ -6,23 +6,30 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 import React from "react"
+import { useClineAuth } from "@/context/ClineAuthContext"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
 	totalSpent?: number
 	totalPromotions?: number
 	message: string
-	buyCreditsUrl?: string
+	// buyCreditsUrl?: string
 }
 
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	currentBalance = 0,
 	totalSpent = 0,
 	totalPromotions = 0,
-	message = "You have run out of credit.",
-	buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
+	message = "You have run out of credits.",
+	// buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 }) => {
 	const { uriScheme } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
+
+	const isPersonal = !activeOrganization?.organizationId
+	const buyCreditsUrl = isPersonal
+		? "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
 
 	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
 	const fullPurchaseUrl = new URL(buyCreditsUrl)
@@ -33,13 +40,13 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
 			<div className="mb-3 font-azeret-mono">
 				<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
-				<div style={{ marginBottom: "12px" }}>
+				{/* <div style={{ marginBottom: "12px" }}>
 					<div style={{ color: "var(--vscode-foreground)" }}>
 						Current Balance: <span style={{ fontWeight: "bold" }}>{currentBalance.toFixed(2)}</span>
 					</div>
 					<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: {totalSpent.toFixed(2)}</div>
 					<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: {totalPromotions.toFixed(2)}</div>
-				</div>
+				</div> */}
 			</div>
 
 			<VSCodeButtonLink

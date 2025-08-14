@@ -1,4 +1,4 @@
-import { WebviewProvider } from "@core/webview"
+import { WebviewProvider } from "@/core/webview"
 import { HostBridgeClientProvider } from "./host-provider-types"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"

@@ -195,7 +195,8 @@ class StandaloneTerminalProcess extends EventEmitter {
 				return ["/c", command]
 			}
 		} else {
-			return ["-c", command]
+			// Use -l for login shell, -c for command
+			return ["-l", "-c", command]
 		}
 	}
 

@@ -20,7 +20,7 @@ import { ClineAccountUserInfo } from "@/services/auth/AuthService"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
 
 /**
  * Maximum length for error messages to prevent excessive data
@@ -32,6 +32,7 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
 		["browser", true], // Browser telemetry enabled
+		["focus_chain", true], // Focus Chain telemetry enabled
 	])
 
 	// Event constants for tracking user interactions and system events
@@ -82,6 +83,20 @@ export class TelemetryService {
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
+			// Tracks when users enable the focus chain feature
+			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
+			// Tracks when users disable the focus chain feature
+			FOCUS_CHAIN_DISABLED: "task.focus_chain_disabled",
+			// Tracks when the first focus chain return is returned by the model
+			FOCUS_CHAIN_PROGRESS_FIRST: "task.focus_chain_progress_first",
+			// Tracks when subsequent focus chain list returns are returned
+			FOCUS_CHAIN_PROGRESS_UPDATE: "task.focus_chain_progress_update",
+			// Tracks the statusn of the focus chain list when the task reaches a task completion state
+			FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION: "task.focus_chain_incomplete_on_completion",
+			// Tracks when users click to open the focus chain markdfown file
+			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
+			// Tracks when users save and write to the focus chain markdown file
+			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -178,49 +193,48 @@ export class TelemetryService {
 	// Task events
 	/**
 	 * Records when a new task/conversation is started
-	 * @param taskId Unique identifier for the new task
+	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskCreated(taskId: string, ulid: string, apiProvider?: string) {
+	public captureTaskCreated(ulid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { taskId, ulid, apiProvider },
+			properties: { ulid, apiProvider },
 		})
 	}
 
 	/**
 	 * Records when a task/conversation is restarted
-	 * @param taskId Unique identifier for the new task
+	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
 	 */
-	public captureTaskRestarted(taskId: string, ulid: string, apiProvider?: string) {
+	public captureTaskRestarted(ulid: string, apiProvider?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { taskId, ulid, apiProvider },
+			properties: { ulid, apiProvider },
 		})
 	}
 
 	/**
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 */
-	public captureTaskCompleted(taskId: string, ulid: string) {
+	public captureTaskCompleted(ulid: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { taskId, ulid },
+			properties: { ulid },
 		})
 	}
 
 	/**
 	 * Captures that a message was sent, and includes the API provider and model used
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
 	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
-		taskId: string,
 		ulid: string,
 		provider: string = "unknown",
 		model: string = "unknown",
@@ -234,13 +248,12 @@ export class TelemetryService {
 		} = {},
 	) {
 		// Ensure required parameters are provided
-		if (!taskId || !ulid || !provider || !model || !source) {
+		if (!ulid || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
 		const properties: Record<string, unknown> = {
-			taskId,
 			ulid,
 			provider,
 			model,
@@ -257,16 +270,16 @@ export class TelemetryService {
 
 	/**
 	 * Records token usage metrics for cost tracking and usage analysis
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
 	 * @param tokensOut Number of output tokens generated
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string) {
+	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 			properties: {
-				taskId,
+				ulid,
 				tokensIn,
 				tokensOut,
 				model,
@@ -276,14 +289,14 @@ export class TelemetryService {
 
 	/**
 	 * Records when a task switches between plan and act modes
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param mode The mode being switched to (plan or act)
 	 */
-	public captureModeSwitch(taskId: string, mode: Mode) {
+	public captureModeSwitch(ulid: string, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
 			properties: {
-				taskId,
+				ulid,
 				mode,
 			},
 		})
@@ -291,18 +304,18 @@ export class TelemetryService {
 
 	/**
 	 * Records user feedback on completed tasks
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
-	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+	public captureTaskFeedback(ulid: string, feedbackType: TaskFeedbackType) {
 		console.info("TelemetryService: Capturing task feedback", {
-			taskId,
+			ulid,
 			feedbackType,
 		})
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FEEDBACK,
 			properties: {
-				taskId,
+				ulid,
 				feedbackType,
 			},
 		})
@@ -311,16 +324,16 @@ export class TelemetryService {
 	// Tool events
 	/**
 	 * Records when a tool is used during task execution
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(taskId: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
+	public captureToolUsage(ulid: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
 			properties: {
-				taskId,
+				ulid,
 				tool,
 				autoApproved,
 				success,
@@ -331,12 +344,12 @@ export class TelemetryService {
 
 	/**
 	 * Records interactions with the git-based checkpoint system
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
 	public captureCheckpointUsage(
-		taskId: string,
+		ulid: string,
 		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
 		durationMs?: number,
 	) {
@@ -347,7 +360,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CHECKPOINT_USED,
 			properties: {
-				taskId,
+				ulid,
 				action,
 				durationMs,
 			},
@@ -356,14 +369,14 @@ export class TelemetryService {
 
 	/**
 	 * Records when a diff edit (replace_in_file) operation fails
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(taskId: string, modelId: string, errorType?: string) {
+	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
-				taskId,
+				ulid,
 				errorType,
 				modelId,
 			},
@@ -374,51 +387,25 @@ export class TelemetryService {
 	 * Records when a different model is selected for use
 	 * @param model Name of the selected model
 	 * @param provider Provider of the selected model
-	 * @param taskId Optional task identifier if model was selected during a task
+	 * @param ulid Optional task identifier if model was selected during a task
 	 */
-	public captureModelSelected(model: string, provider: string, taskId?: string) {
+	public captureModelSelected(model: string, provider: string, ulid?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
 			properties: {
 				model,
 				provider,
-				taskId,
-			},
-		})
-	}
-
-	/**
-	 * Records when a historical task is loaded from storage
-	 * @param taskId Unique identifier for the historical task
-	 */
-	public captureHistoricalTaskLoaded(taskId: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.HISTORICAL_LOADED,
-			properties: {
-				taskId,
-			},
-		})
-	}
-
-	/**
-	 * Records when the retry button is clicked for failed operations
-	 * @param taskId Unique identifier for the task being retried
-	 */
-	public captureRetryClicked(taskId: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.RETRY_CLICKED,
-			properties: {
-				taskId,
+				ulid,
 			},
 		})
 	}
 
 	/**
 	 * Records when the browser tool is started
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
+	public captureBrowserToolStart(ulid: string, browserSettings: BrowserSettings) {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
@@ -426,7 +413,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_START,
 			properties: {
-				taskId,
+				ulid,
 				viewport: browserSettings.viewport,
 				isRemote: !!browserSettings.remoteBrowserEnabled,
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
@@ -437,11 +424,11 @@ export class TelemetryService {
 
 	/**
 	 * Records when the browser tool is completed
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param stats Statistics about the browser session
 	 */
 	public captureBrowserToolEnd(
-		taskId: string,
+		ulid: string,
 		stats: {
 			actionCount: number
 			duration: number
@@ -455,7 +442,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_END,
 			properties: {
-				taskId,
+				ulid,
 				actionCount: stats.actionCount,
 				duration: stats.duration,
 				actions: stats.actions,
@@ -466,13 +453,13 @@ export class TelemetryService {
 
 	/**
 	 * Records when browser errors occur during a task
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param errorType Type of error that occurred (e.g., "launch_error", "connection_error", "navigation_error")
 	 * @param errorMessage The error message
 	 * @param context Additional context about where the error occurred
 	 */
 	public captureBrowserError(
-		taskId: string,
+		ulid: string,
 		errorType: string,
 		errorMessage: string,
 		context?: {
@@ -489,7 +476,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.BROWSER_ERROR,
 			properties: {
-				taskId,
+				ulid,
 				errorType,
 				errorMessage,
 				context,
@@ -500,15 +487,15 @@ export class TelemetryService {
 
 	/**
 	 * Records when a user selects an option from AI-generated followup questions
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
-	public captureOptionSelected(taskId: string, qty: number, mode: Mode) {
+	public captureOptionSelected(ulid: string, qty: number, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
 			properties: {
-				taskId,
+				ulid,
 				qty,
 				mode,
 			},
@@ -517,15 +504,15 @@ export class TelemetryService {
 
 	/**
 	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
-	public captureOptionsIgnored(taskId: string, qty: number, mode: Mode) {
+	public captureOptionsIgnored(ulid: string, qty: number, mode: Mode) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
 			properties: {
-				taskId,
+				ulid,
 				qty,
 				mode,
 			},
@@ -534,12 +521,12 @@ export class TelemetryService {
 
 	/**
 	 * Captures Gemini API performance metrics.
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param modelId Specific Gemini model ID
 	 * @param data Performance data including TTFT, durations, token counts, cache stats, and API success status
 	 */
 	public captureGeminiApiPerformance(
-		taskId: string,
+		ulid: string,
 		modelId: string,
 		data: {
 			ttftSec?: number
@@ -557,7 +544,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
 			properties: {
-				taskId,
+				ulid,
 				modelId,
 				...data,
 			},
@@ -579,19 +566,19 @@ export class TelemetryService {
 		})
 	}
 
-	public captureButtonClick(button: string, taskId?: string) {
+	public captureButtonClick(button: string, ulid?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
 			properties: {
 				button,
-				taskId,
+				ulid,
 			},
 		})
 	}
 
 	/**
 	 * Records telemetry when an API provider returns an error
-	 * @param taskId Unique identifier for the task
+	 * @param ulid Unique identifier for the task
 	 * @param model Identifier of the model used
 	 * @param requestId Unique identifier for the specific API request
 	 * @param errorMessage Detailed error message from the API provider
@@ -599,7 +586,6 @@ export class TelemetryService {
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
 	public captureProviderApiError(args: {
-		taskId: string
 		ulid: string
 		model: string
 		errorMessage: string
@@ -612,6 +598,127 @@ export class TelemetryService {
 				...args,
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when focus chain is enabled/disabled by the user
+	 * @param enabled Whether focus chain was enabled (true) or disabled (false)
+	 */
+	public captureFocusChainToggle(enabled: boolean) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: enabled ? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED : TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
+			properties: {
+				enabled,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task progress list is returned by the model for the first time in a task
+	 * @param ulid Unique identifier for the task
+	 * @param totalItems Number of items in the initial focus chain list
+	 */
+	public captureFocusChainProgressFirst(ulid: string, totalItems: number) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_FIRST,
+			properties: {
+				ulid,
+				totalItems,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task progress list is updated by the model mid-task
+	 * @param ulid Unique identifier for the task
+	 * @param totalItems Total number of items in the focus chain list
+	 * @param completedItems Number of completed items in the focus chain list
+	 */
+	public captureFocusChainProgressUpdate(ulid: string, totalItems: number, completedItems: number) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_UPDATE,
+			properties: {
+				ulid,
+				totalItems,
+				completedItems,
+				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+			},
+		})
+	}
+
+	/**
+	 * Records when a task ends but the task progress list is not complete
+	 * @param ulid Unique identifier for the task
+	 * @param totalItems Total number of items in the focus chain list
+	 * @param completedItems Number of completed items
+	 * @param incompleteItems Number of incomplete items
+	 */
+	public captureFocusChainIncompleteOnCompletion(
+		ulid: string,
+		totalItems: number,
+		completedItems: number,
+		incompleteItems: number,
+	) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION,
+			properties: {
+				ulid,
+				totalItems,
+				completedItems,
+				incompleteItems,
+				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+			},
+		})
+	}
+
+	/**
+	 * Records when users click to open the focus chain markdown file
+	 * @param ulid Unique identifier for the task
+	 */
+	public captureFocusChainListOpened(ulid: string) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_OPENED,
+			properties: {
+				ulid,
+			},
+		})
+	}
+
+	/**
+	 * Records when users save and write to the focus chain markdown file
+	 * @param ulid Unique identifier for the task
+	 */
+	public captureFocusChainListWritten(ulid: string) {
+		if (!this.isCategoryEnabled("focus_chain")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
+			properties: {
+				ulid,
 			},
 		})
 	}
