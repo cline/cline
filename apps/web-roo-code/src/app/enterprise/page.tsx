@@ -5,6 +5,54 @@ import { AnimatedText } from "@/components/animated-text"
 import { AnimatedBackground } from "@/components/homepage"
 import { ContactForm } from "@/components/enterprise/contact-form"
 import { EXTERNAL_LINKS } from "@/lib/constants"
+import type { Metadata } from "next"
+import { SEO } from "@/lib/seo"
+
+const TITLE = "Enterprise Solution"
+const DESCRIPTION =
+	"The control-plane for AI-powered software development. Gain visibility, governance, and control over your AI coding initiatives."
+const PATH = "/enterprise"
+const OG_IMAGE = SEO.ogImage
+
+export const metadata: Metadata = {
+	title: TITLE,
+	description: DESCRIPTION,
+	alternates: {
+		canonical: `${SEO.url}${PATH}`,
+	},
+	openGraph: {
+		title: TITLE,
+		description: DESCRIPTION,
+		url: `${SEO.url}${PATH}`,
+		siteName: SEO.name,
+		images: [
+			{
+				url: OG_IMAGE.url,
+				width: OG_IMAGE.width,
+				height: OG_IMAGE.height,
+				alt: OG_IMAGE.alt,
+			},
+		],
+		locale: SEO.locale,
+		type: "website",
+	},
+	twitter: {
+		card: SEO.twitterCard,
+		title: TITLE,
+		description: DESCRIPTION,
+		images: [OG_IMAGE.url],
+	},
+	keywords: [
+		...SEO.keywords,
+		"Enterprise AI",
+		"AI governance",
+		"AI control-plane",
+		"developer productivity",
+		"SAML",
+		"SCIM",
+		"cost management",
+	],
+}
 
 export default async function Enterprise() {
 	return (

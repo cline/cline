@@ -1,9 +1,41 @@
-import { Metadata } from "next"
+import type { Metadata } from "next"
+import { SEO } from "@/lib/seo"
+
+const TITLE = "Terms of Service"
+const DESCRIPTION =
+	"Terms of Service for Roo Code Cloud. Learn about our service terms, commercial conditions, and legal framework."
+const PATH = "/terms"
+const OG_IMAGE = SEO.ogImage
 
 export const metadata: Metadata = {
-	title: "Terms of Service - Roo Code",
-	description:
-		"Terms of Service for Roo Code Cloud. Learn about our service terms, commercial conditions, and legal framework.",
+	title: TITLE,
+	description: DESCRIPTION,
+	alternates: {
+		canonical: `${SEO.url}${PATH}`,
+	},
+	openGraph: {
+		title: TITLE,
+		description: DESCRIPTION,
+		url: `${SEO.url}${PATH}`,
+		siteName: SEO.name,
+		images: [
+			{
+				url: OG_IMAGE.url,
+				width: OG_IMAGE.width,
+				height: OG_IMAGE.height,
+				alt: OG_IMAGE.alt,
+			},
+		],
+		locale: SEO.locale,
+		type: "article",
+	},
+	twitter: {
+		card: SEO.twitterCard,
+		title: TITLE,
+		description: DESCRIPTION,
+		images: [OG_IMAGE.url],
+	},
+	keywords: [...SEO.keywords, "terms of service", "legal", "agreement", "subscription"],
 }
 
 export default function Terms() {
