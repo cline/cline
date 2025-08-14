@@ -207,18 +207,6 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
-			},
-			{
-				"command": "cline.startDictation",
-				"title": "Start Dictation",
-				"category": "Cline",
-				"icon": "$(mic)"
-			},
-			{
-				"command": "cline.stopDictation",
-				"title": "Stop Dictation",
-				"category": "Cline",
-				"icon": "$(mic-off)"
 			}
 		],
 		"keybindings": [
