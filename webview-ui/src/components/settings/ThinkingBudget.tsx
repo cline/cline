@@ -20,7 +20,11 @@ import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 
 interface ThinkingBudgetProps {
 	apiConfiguration: ProviderSettings
-	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
+	setApiConfigurationField: <K extends keyof ProviderSettings>(
+		field: K,
+		value: ProviderSettings[K],
+		isUserAction?: boolean,
+	) => void
 	modelInfo?: ModelInfo
 }
 
@@ -71,7 +75,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	// Set default reasoning effort when model supports it and no value is set
 	useEffect(() => {
 		if (isReasoningEffortSupported && !apiConfiguration.reasoningEffort && defaultReasoningEffort) {
-			setApiConfigurationField("reasoningEffort", defaultReasoningEffort)
+			setApiConfigurationField("reasoningEffort", defaultReasoningEffort, false)
 		}
 	}, [isReasoningEffortSupported, apiConfiguration.reasoningEffort, defaultReasoningEffort, setApiConfigurationField])
 
@@ -91,7 +95,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	// appropriately.
 	useEffect(() => {
 		if (isReasoningBudgetSupported && customMaxThinkingTokens > modelMaxThinkingTokens) {
-			setApiConfigurationField("modelMaxThinkingTokens", modelMaxThinkingTokens)
+			setApiConfigurationField("modelMaxThinkingTokens", modelMaxThinkingTokens, false)
 		}
 	}, [isReasoningBudgetSupported, customMaxThinkingTokens, modelMaxThinkingTokens, setApiConfigurationField])
 

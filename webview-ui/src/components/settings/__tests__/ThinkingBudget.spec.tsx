@@ -112,7 +112,7 @@ describe("ThinkingBudget", () => {
 		)
 
 		// Effect should trigger and cap the value
-		expect(setApiConfigurationField).toHaveBeenCalledWith("modelMaxThinkingTokens", 8000) // 80% of 10000
+		expect(setApiConfigurationField).toHaveBeenCalledWith("modelMaxThinkingTokens", 8000, false) // 80% of 10000
 	})
 
 	it("should use default thinking tokens if not provided", () => {

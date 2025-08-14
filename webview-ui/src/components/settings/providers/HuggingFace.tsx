@@ -34,7 +34,11 @@ type HuggingFaceModel = {
 
 type HuggingFaceProps = {
 	apiConfiguration: ProviderSettings
-	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+	setApiConfigurationField: (
+		field: keyof ProviderSettings,
+		value: ProviderSettings[keyof ProviderSettings],
+		isUserAction?: boolean,
+	) => void
 }
 
 export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: HuggingFaceProps) => {
@@ -93,7 +97,7 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 					// Set to "auto" as default
 					const defaultProvider = "auto"
 					setSelectedProvider(defaultProvider)
-					setApiConfigurationField("huggingFaceInferenceProvider", defaultProvider)
+					setApiConfigurationField("huggingFaceInferenceProvider", defaultProvider, false) // false = automatic default
 				}
 			}
 		}
