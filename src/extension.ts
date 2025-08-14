@@ -33,6 +33,9 @@ import { telemetryService } from "./services/posthog/PostHogClientProvider"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { AuthHandler } from "./hosts/external/AuthHandler"
+import { addToCline } from "./core/controller/commands/addToCline"
+import { FileDiagnostics } from "./shared/proto/index.cline"
+import { convertToFileDiagnostics, convertVscodeDiagnostics } from "./hosts/vscode/hostbridge/workspace/getDiagnostics"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -238,39 +241,41 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
-			const activeWebview = WebviewProvider.getLastActiveInstance()
-			const clientId = activeWebview?.getClientId()
-			await pWaitFor(() => !!activeWebview)
-			const editor = vscode.window.activeTextEditor
-			if (!editor || !clientId) {
-				return
-			}
+		vscode.commands.registerCommand(
+			"cline.addToChat",
+			async (range?: vscode.Range, vscodeDiagnostics?: vscode.Diagnostic[]) => {
+				await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
 
-			await sendFocusChatInputEvent(clientId)
+				const activeWebview = WebviewProvider.getLastActiveInstance()
+				await pWaitFor(() => !!activeWebview)
+				const clientId = activeWebview?.getClientId()
+				if (!activeWebview || !clientId) {
+					return
+				}
+				const editor = vscode.window.activeTextEditor
+				if (!editor) {
+					return
+				}
 
-			// Use provided range if available, otherwise use current selection
-			// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
-			const textRange = range instanceof vscode.Range ? range : editor.selection
-			const selectedText = editor.document.getText(textRange)
+				await sendFocusChatInputEvent(clientId)
 
-			if (!selectedText) {
-				return
-			}
+				// Use provided range if available, otherwise use current selection
+				// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
+				const textRange = range instanceof vscode.Range ? range : editor.selection
+				const selectedText = editor.document.getText(textRange)
 
-			// Get the file path and language ID
-			const filePath = editor.document.uri.fsPath
-			const languageId = editor.document.languageId
+				if (!selectedText) {
+					return
+				}
 
-			await activeWebview?.controller.addSelectedCodeToChat(
-				selectedText,
-				filePath,
-				languageId,
-				Array.isArray(diagnostics) ? diagnostics : undefined,
-			)
-			telemetryService.captureButtonClick("codeAction_addToChat", activeWebview?.controller.task?.ulid)
-		}),
+				// Get the file path, language ID and diagnostics.
+				const filePath = editor.document.uri.fsPath
+				const language = editor.document.languageId
+				const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
+
+				await addToCline(activeWebview.controller, { filePath, selectedText, language, diagnostics })
+			},
+		),
 	)
 
 	context.subscriptions.push(
