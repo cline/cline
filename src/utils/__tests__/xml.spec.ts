@@ -1,4 +1,4 @@
-import { parseXml } from "../xml"
+import { parseXml, parseXmlForDiff } from "../xml"
 
 describe("parseXml", () => {
 	describe("type conversion", () => {
@@ -112,6 +112,129 @@ describe("parseXml", () => {
 			// With stopNodes, the parser still parses the structure but stops at the specified node
 			expect(result.root.data.nestedXml).toBeTruthy()
 			expect(result.root.data.nestedXml).toHaveProperty("item", "Should not parse this")
+		})
+	})
+})
+
+describe("parseXmlForDiff", () => {
+	describe("HTML entity handling", () => {
+		it("should NOT decode HTML entities like &amp;", () => {
+			const xml = `
+        <root>
+          <content>Team Identity &amp; Project Positioning</content>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			// The &amp; should remain as-is, not be decoded to &
+			expect(result.root.content).toBe("Team Identity &amp; Project Positioning")
+		})
+
+		it("should preserve & character without encoding", () => {
+			const xml = `
+        <root>
+          <content>Team Identity & Project Positioning</content>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			// The & should remain as-is
+			expect(result.root.content).toBe("Team Identity & Project Positioning")
+		})
+
+		it("should NOT decode other HTML entities", () => {
+			const xml = `
+        <root>
+          <content>&lt;div&gt; &quot;Hello&quot; &apos;World&apos;</content>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			// All HTML entities should remain as-is
+			expect(result.root.content).toBe("&lt;div&gt; &quot;Hello&quot; &apos;World&apos;")
+		})
+
+		it("should handle mixed content with entities correctly", () => {
+			const xml = `
+        <root>
+          <code>if (a &lt; b &amp;&amp; c &gt; d) { return &quot;test&quot;; }</code>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			// All entities should remain unchanged
+			expect(result.root.code).toBe("if (a &lt; b &amp;&amp; c &gt; d) { return &quot;test&quot;; }")
+		})
+	})
+
+	describe("basic functionality (same as parseXml)", () => {
+		it("should correctly parse a simple XML string", () => {
+			const xml = `
+        <root>
+          <name>Test Name</name>
+          <description>Some description</description>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			expect(result).toHaveProperty("root")
+			expect(result.root).toHaveProperty("name", "Test Name")
+			expect(result.root).toHaveProperty("description", "Some description")
+		})
+
+		it("should handle attributes correctly", () => {
+			const xml = `
+        <root>
+          <item id="1" category="test">Item content</item>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml) as any
+
+			expect(result.root.item).toHaveProperty("@_id", "1")
+			expect(result.root.item).toHaveProperty("@_category", "test")
+			expect(result.root.item).toHaveProperty("#text", "Item content")
+		})
+
+		it("should support stopNodes parameter", () => {
+			const xml = `
+        <root>
+          <data>
+            <nestedXml><item>Should not parse this</item></nestedXml>
+          </data>
+        </root>
+      `
+
+			const result = parseXmlForDiff(xml, ["nestedXml"]) as any
+
+			expect(result.root.data.nestedXml).toBeTruthy()
+			expect(result.root.data.nestedXml).toHaveProperty("item", "Should not parse this")
+		})
+	})
+
+	describe("diff-specific use case", () => {
+		it("should preserve exact content for diff matching", () => {
+			// This simulates the actual use case from the issue
+			const xml = `
+        <args>
+          <file>
+            <path>./doc.md</path>
+            <diff>
+              <content>Team Identity & Project Positioning</content>
+            </diff>
+          </file>
+        </args>
+      `
+
+			const result = parseXmlForDiff(xml, ["file.diff.content"]) as any
+
+			// The & should remain as-is for exact matching with file content
+			expect(result.args.file.diff.content).toBe("Team Identity & Project Positioning")
 		})
 	})
 })
