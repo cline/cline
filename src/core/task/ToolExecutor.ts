@@ -57,6 +57,9 @@ import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
 import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import { ToolValidator } from "./tools/ToolValidator"
+import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
+import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import type { TaskConfig } from "./TaskConfig"
 
 export class ToolExecutor {
@@ -127,6 +130,11 @@ export class ToolExecutor {
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
 		this.coordinator = new ToolExecutorCoordinator()
+
+		// Register tool handlers
+		const validator = new ToolValidator(this.clineIgnoreController)
+		this.coordinator.register(new ListFilesToolHandler(validator))
+		this.coordinator.register(new ReadFileToolHandler(validator))
 	}
 
 	// Provide a minimal TaskConfig-like object for handlers. Cast to any to avoid coupling yet.
@@ -156,6 +164,7 @@ export class ToolExecutor {
 			callbacks: {
 				say: this.say,
 				ask: this.ask,
+				askApproval: this.askApproval,
 				saveCheckpoint: this.saveCheckpoint,
 				postStateToWebview: async () => {},
 				reinitExistingTaskFromId: async () => {},
@@ -164,6 +173,9 @@ export class ToolExecutor {
 				executeCommandTool: this.executeCommandTool,
 				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
 				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
+				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
+				removeLastPartialMessageIfExistsWithType: this.removeLastPartialMessageIfExistsWithType,
+				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 			},
 		} as any
 	}
