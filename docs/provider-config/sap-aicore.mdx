@@ -7,12 +7,13 @@ SAP AI Core and the generative AI hub help you to integrate LLMs and AI into new
 
 **Website:** [SAP Help Portal](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/what-is-sap-ai-core)
 
-### Getting a Service Binding
 
 > 💡 **Information**
 >
 > SAP AI Core, and Generative AI Hub, are offerings from SAP BTP.
-> You need an active SAP BTP contract and a existing subaccount with a SAP AI Core instance with a chosen service plan (For more details about SAP AI Core service plans and their capabilities, see the [Service Plans documentation](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/service-plans)) to perform these steps.
+> You need an active SAP BTP contract and a existing subaccount with a SAP AI Core instance with the `extended` service plan (For more details about SAP AI Core service plans and their capabilities, see the [Service Plans documentation](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/service-plans)) to perform these steps.
+
+### Getting a Service Binding
 
 1. **Access:** Go to your subaccount via [BTP Cloud Cockpit](cockpit.btp.cloud.sap/cockpit)
 2. **Create a Service Binding:** Go to "Instances and Subscriptions", select your SAP AI Core service instance and click on Service Bindings > Create.
@@ -38,18 +39,20 @@ Refer to the [Generative AI Hub Supported Models page](https://me.sap.com/notes/
 ### Orchestration Mode vs Native API
 
 **Orchestration Mode:**
-- **Requires Generative AI Hub:** Only available with SAP AI Core `extended` service plan
-- **Simplified usage:** provides access to all available models without requiring individual deployments using the [Harmonized API](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/harmonized-api)
-
+- **Simplified usage:** Provides access to all available models without requiring individual deployments using the [Harmonized API](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/harmonized-api)
 
 **Native API Mode:**
-- **Available on all plans:** Works with any SAP AI Core service plan
 - **Manual deployments:** Requires manual model deployment and management in your SAP AI Core service instance
+
 ### Tips and Notes
 
-- In case your service plan is `extended`, keep Orchestration Mode enabled unless you have specific requirements that necessitate direct AI Core API access or need features not supported by the orchestration mode.
+- **Service Plan Requirement:** You must have the SAP AI Core `extended` service plan to use LLMs with Cline. Other service plans do not provide access to Generative AI Hub.
 
-- In case your Orchestration Mode is disabled:
+- **Orchestration Mode (Recommended):** Keep Orchestration Mode enabled for the simplest setup. It provides automatic access to all available models without requiring manual deployments.
+
+- **Native API Mode:** Only disable Orchestration Mode if you have specific requirements that necessitate direct AI Core API access or need features not supported by the orchestration mode.
+
+- **When using Native API Mode:**
     -   **Model Selection:** The model dropdown displays models in two separate lists:
         -   **Deployed Models:** These models are already deployed in your specified resource group and are ready to use immediately.
         -   **Not Deployed Models:** These models don't have active deployments in your specified resource group. You won't be able to use these models until you create deployments for them in SAP AI Core.
