@@ -33,6 +33,8 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent, sendAddToInputEventToClient } from "./ui/subscribeToAddToInput"
 import { WebviewProvider } from "../webview"
+import { Diagnostic, FileDiagnostics } from "@/shared/proto/index.cline"
+import { diagnosticsToProblemsString, singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -523,13 +525,13 @@ export class Controller {
 	}
 
 	// 'Add to Cline' context menu in editor and code action
-	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
+	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics: Diagnostic[]) {
 		// Post message to webview with the selected code
 		const fileMention = await this.getFileMentionFromPath(filePath)
 
 		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
-		if (diagnostics) {
-			const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
+		if (diagnostics.length) {
+			const problemsString = singleFileDiagnosticsToProblemsString(filePath, diagnostics)
 			input += `\nProblems:\n${problemsString}`
 		}
 
