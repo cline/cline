@@ -963,6 +963,7 @@ export class CacheService {
 			liteLlmUsePromptCache: this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.globalStateCache["qwenApiLine"],
 			moonshotApiLine: this.globalStateCache["moonshotApiLine"],
+			zaiApiLine: this.globalStateCache["zaiApiLine"],
 			asksageApiUrl: this.globalStateCache["asksageApiUrl"],
 			favoritedModelIds: this.globalStateCache["favoritedModelIds"],
 			requestTimeoutMs: this.globalStateCache["requestTimeoutMs"],

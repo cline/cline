@@ -201,6 +201,7 @@ export interface GlobalState {
 	fireworksModelMaxTokens: number | undefined
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
+	zaiApiLine: string | undefined
 	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
@@ -311,6 +312,7 @@ export interface Secrets {
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
 	moonshotApiKey: string | undefined
+	zaiApiKey: string | undefined
 	huggingFaceApiKey: string | undefined
 	nebiusApiKey: string | undefined
 	sambanovaApiKey: string | undefined
