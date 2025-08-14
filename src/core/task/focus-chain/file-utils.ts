@@ -79,3 +79,44 @@ export async function ensureFocusChainFile(
 
 	return focusChainFilePath
 }
+
+/**
+ * Get focus chain file contents
+ * Returns file existence status and extracted focus chain items
+ */
+export async function getFocusChainFileContents(
+	context: vscode.ExtensionContext,
+	taskId: string,
+): Promise<{ exists: boolean; contents: string }> {
+	const taskDir = await ensureTaskDirectoryExists(context, taskId)
+	const focusChainFilePath = getFocusChainFilePath(taskDir, taskId)
+
+	// Check if file exists
+	let fileExists = false
+	try {
+		await fs.access(focusChainFilePath)
+		fileExists = true
+	} catch {
+		// File doesn't exist
+	}
+
+	// Read and extract focus chain items if file exists
+	if (fileExists) {
+		try {
+			const rawContents = await fs.readFile(focusChainFilePath, "utf8")
+			const extractedFocusChain = extractFocusChainListFromText(rawContents)
+			return {
+				exists: true,
+				contents: extractedFocusChain || "",
+			}
+		} catch {
+			// If we can access but can't read
+		}
+	}
+
+	// File doesn't exist
+	return {
+		exists: false,
+		contents: "",
+	}
+}

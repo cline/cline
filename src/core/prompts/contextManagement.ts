@@ -66,9 +66,16 @@ Here's an example of how your output should be structured:
 </explicit_instructions>\n
 `
 
-export const continuationPrompt = (summaryText: string) => `
+export const continuationPrompt = (summaryText: string, focusChainContents: string | undefined) => `
 This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:
-${summaryText}.
+${summaryText}.${
+	focusChainContents
+		? `
+
+Additionally, here is the latest saved version of the todo list for this task:
+${focusChainContents}`
+		: ""
+}
 
 Please continue the conversation from where we left it off without asking the user any further questions. Continue with the last task that you were asked to work on. Pay special attention to the most recent user message when responding rather than the initial task message, if applicable.
 If the most recent user's message starts with "/newtask", "/smol", "/compact", "/newrule", or "/reportbug", you should indicate to the user that they will need to run this command again.

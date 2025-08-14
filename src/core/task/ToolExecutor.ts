@@ -56,6 +56,7 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
+import { getFocusChainFileContents } from "./focus-chain/file-utils"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -1708,8 +1709,23 @@ export class ToolExecutor {
 
 						await this.say("tool", completeMessage, undefined, undefined, false)
 
+						// Try to get focus chain contents if feature is enabled
+						// This is important because we effectively wipe the context window after this
+						let focusChainContents: string | undefined
+						if (this.focusChainSettings.enabled) {
+							try {
+								const focusChainResult = await getFocusChainFileContents(this.context, this.taskId)
+								if (focusChainResult.exists && focusChainResult.contents) {
+									focusChainContents = focusChainResult.contents
+								}
+							} catch (error) {
+								// Silently fail - proceed without focus chain content
+								console.debug("Failed to read focus chain file:", error)
+							}
+						}
+
 						// Use the continuationPrompt to format the tool result
-						this.pushToolResult(formatResponse.toolResult(continuationPrompt(context)), block)
+						this.pushToolResult(formatResponse.toolResult(continuationPrompt(context, focusChainContents)), block)
 
 						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 						const keepStrategy = "none"
