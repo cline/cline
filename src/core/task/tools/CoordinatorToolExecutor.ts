@@ -73,11 +73,32 @@ export class CoordinatorToolExecutor {
 	 * Handle partial block streaming UI updates
 	 */
 	private async handlePartialBlock(block: ToolUse): Promise<void> {
-		// Currently only read_file and list_files support partial streaming
-		if (block.name !== "read_file" && block.name !== "list_files") {
-			return
+		// Handle different tools that support partial streaming
+		switch (block.name) {
+			case "read_file":
+			case "list_files":
+			case "list_code_definition_names":
+			case "search_files":
+				await this.handleFileToolPartialBlock(block)
+				break
+			case "write_to_file":
+			case "replace_in_file":
+			case "new_rule":
+				await this.handleWriteToolPartialBlock(block)
+				break
+			case "execute_command":
+				await this.handleCommandPartialBlock(block)
+				break
+			default:
+				// Other tools don't support partial streaming yet
+				return
 		}
+	}
 
+	/**
+	 * Handle partial blocks for file-related tools
+	 */
+	private async handleFileToolPartialBlock(block: ToolUse): Promise<void> {
 		const relPath = block.params.path
 		const tool = this.getToolDisplayName(block)
 
@@ -100,16 +121,83 @@ export class CoordinatorToolExecutor {
 	}
 
 	/**
+	 * Handle partial blocks for write-related tools
+	 */
+	private async handleWriteToolPartialBlock(block: ToolUse): Promise<void> {
+		const relPath = block.params.path
+		const content = block.params.content || block.params.diff
+
+		const fileExists = this.config.services.diffViewProvider.editType === "modify"
+		const sharedMessageProps = {
+			tool: fileExists ? "editedExistingFile" : "newFileCreated",
+			path: getReadablePath(this.config.cwd, this.removeClosingTag(block, "path", relPath)),
+			content: this.removeClosingTag(block, block.name === "replace_in_file" ? "diff" : "content", content),
+			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+		}
+
+		const partialMessage = JSON.stringify(sharedMessageProps)
+
+		if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			await this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+			await this.say("tool" as ClineSay, partialMessage, undefined, undefined, block.partial)
+		} else {
+			await this.removeLastPartialMessageIfExistsWithType("say", "tool")
+			await this.ask("tool" as ClineAsk, partialMessage, block.partial).catch(() => {})
+		}
+	}
+
+	/**
+	 * Handle partial blocks for command execution
+	 */
+	private async handleCommandPartialBlock(block: ToolUse): Promise<void> {
+		const command = block.params.command
+
+		// For commands, we need to wait for the requires_approval parameter before showing UI
+		// This is because the approval flow depends on that parameter
+		if (!block.params.requires_approval) {
+			return // Wait for complete block
+		}
+
+		// Command partial streaming is handled differently - just show the command
+		const partialCommand = this.removeClosingTag(block, "command", command)
+
+		// Don't auto-approve partial commands - wait for complete block
+		await this.removeLastPartialMessageIfExistsWithType("say", "command")
+		await this.ask("command" as ClineAsk, partialCommand, block.partial).catch(() => {})
+	}
+
+	/**
 	 * Handle complete block execution with approval flow
 	 */
 	private async handleCompleteBlock(block: ToolUse): Promise<void> {
-		// Currently only read_file and list_files are migrated
-		if (block.name === "read_file" || block.name === "list_files") {
-			await this.handleFileToolExecution(block)
-		} else {
-			// For future tools that might be added, just execute and push result
-			const result = await this.coordinator.execute(this.config, block)
-			this.pushToolResult(result, block)
+		// Handle different tool types with their specific approval flows
+		switch (block.name) {
+			case "read_file":
+			case "list_files":
+			case "list_code_definition_names":
+			case "search_files":
+				await this.handleFileToolExecution(block)
+				break
+			case "write_to_file":
+			case "replace_in_file":
+			case "new_rule":
+				await this.handleWriteToolExecution(block)
+				break
+			case "execute_command":
+				await this.handleCommandExecution(block)
+				break
+			case "ask_followup_question":
+			case "web_fetch":
+			case "browser_action":
+				// These tools have simpler approval flows - just execute and push result
+				const result = await this.coordinator.execute(this.config, block)
+				this.pushToolResult(result, block)
+				break
+			default:
+				// For any other tools that might be added, just execute and push result
+				const defaultResult = await this.coordinator.execute(this.config, block)
+				this.pushToolResult(defaultResult, block)
+				break
 		}
 
 		// Handle focus chain updates
@@ -176,6 +264,44 @@ export class CoordinatorToolExecutor {
 			typeof result === "string" &&
 			(result.includes("Missing required parameter") || result.includes("blocked by .clineignore"))
 		)
+	}
+
+	/**
+	 * Handle execution of write-related tools (write_to_file, replace_in_file, new_rule)
+	 */
+	private async handleWriteToolExecution(block: ToolUse): Promise<void> {
+		const relPath = block.params.path
+
+		// Execute the tool to get the result (handlers validate params and check clineignore)
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// For write tools, the handler manages the entire approval flow and diff view
+		// The result is already the final formatted response
+		this.pushToolResult(result, block)
+	}
+
+	/**
+	 * Handle execution of command tool
+	 */
+	private async handleCommandExecution(block: ToolUse): Promise<void> {
+		// Execute the command through the handler
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// For commands, the handler manages the approval flow and execution
+		// The result is already the final formatted response
+		this.pushToolResult(result, block)
 	}
 
 	/**

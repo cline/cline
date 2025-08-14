@@ -65,6 +65,9 @@ import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
+import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
+import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
+import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -144,6 +147,9 @@ export class ToolExecutor {
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
 		this.coordinator.register(new WebFetchToolHandler())
 		this.coordinator.register(new WriteToFileToolHandler(validator))
+		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
+		this.coordinator.register(new SearchFilesToolHandler(validator))
+		this.coordinator.register(new ExecuteCommandToolHandler(validator))
 
 		// Initialize the coordinator executor with all necessary dependencies
 		this.coordinatorExecutor = new CoordinatorToolExecutor(
