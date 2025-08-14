@@ -33,7 +33,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 
 	const isStreaming = useMemo(() => task?.partial === true, [task])
-	const [buttonConfig, setButtonConfig] = useState<ButtonConfig | undefined>(undefined)
+	const [buttonConfig, setButtonConfig] = useState<ButtonConfig>(BUTTON_CONFIGS.default)
 
 	const [lastMessage, secondLastMessage] = useMemo(() => {
 		return [messages.at(-1), messages.at(-2)]
