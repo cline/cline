@@ -144,6 +144,7 @@ export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500
 			} catch {}
 			return
 		}
+		log("Waiting for hostbridge to be ready...")
 		// eslint-disable-next-line no-await-in-loop
 		await new Promise((r) => setTimeout(r, intervalMs))
 	}
