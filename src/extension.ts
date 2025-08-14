@@ -540,9 +540,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Get the currently active/visible Cline webview instance.
 				await vscode.commands.executeCommand("cline.focusChatInput")
-				await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+				await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
 
-				const visibleWebview = WebviewProvider.getVisibleInstance()
+				const visibleWebview = WebviewProvider.getLastActiveInstance()
 				if (!visibleWebview) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
@@ -588,9 +588,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Get the active Cline webview instance.
 				await vscode.commands.executeCommand("cline.focusChatInput")
-				await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+				await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
 
-				const visibleWebview = WebviewProvider.getVisibleInstance()
+				const visibleWebview = WebviewProvider.getLastActiveInstance()
 				if (!visibleWebview) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
