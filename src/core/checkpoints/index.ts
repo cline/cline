@@ -42,7 +42,7 @@ export async function getCheckpointService(
 	console.log("[Task#getCheckpointService] initializing checkpoints service")
 
 	try {
-		const workspaceDir = getWorkspacePath()
+		const workspaceDir = cline.cwd || getWorkspacePath()
 
 		if (!workspaceDir) {
 			log("[Task#getCheckpointService] workspace folder not found, disabling checkpoints")
