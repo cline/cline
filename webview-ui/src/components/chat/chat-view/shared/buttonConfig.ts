@@ -212,7 +212,7 @@ const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_ma
  * Determines button configuration based on message type and state
  * This is the single source of truth used by both ActionButtons and useMessageHandlers
  */
-export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode = "act"): ButtonConfig {
+export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode = "act"): ButtonConfig | undefined {
 	if (!message) {
 		return BUTTON_CONFIGS.default
 	}
@@ -293,5 +293,5 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 		return BUTTON_CONFIGS.api_req_active
 	}
 
-	return BUTTON_CONFIGS.partial
+	return isStreaming ? BUTTON_CONFIGS.partial : undefined
 }

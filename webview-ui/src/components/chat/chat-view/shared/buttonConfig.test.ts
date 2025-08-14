@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { BUTTON_CONFIGS, getButtonConfig } from "./buttonConfig"
 
@@ -30,7 +30,7 @@ describe("getButtonConfig", () => {
 			it(`returns correct config for ${errorState}`, () => {
 				const errorMessage: ClineMessage = {
 					type: "ask",
-					ask: errorState as any,
+					ask: errorState as ClineAsk,
 					partial: true,
 					text: "",
 					ts: Date.now(),
@@ -94,29 +94,52 @@ describe("getButtonConfig", () => {
 	})
 
 	// Test other specific ask states
-	describe("Other Ask States", () => {
+	describe("Other States", () => {
 		const stateConfigs = [
-			{ ask: "followup", expectedConfig: "followup" },
-			{ ask: "browser_action_launch", expectedConfig: "browser_action_launch" },
-			{ ask: "use_mcp_server", expectedConfig: "use_mcp_server" },
-			{ ask: "plan_mode_respond", expectedConfig: "plan_mode_respond" },
-			{ ask: "completion_result", expectedConfig: "completion_result" },
-			{ ask: "resume_task", expectedConfig: "resume_task" },
-			{ ask: "resume_completed_task", expectedConfig: "resume_completed_task" },
-			{ ask: "new_task", expectedConfig: "new_task" },
-			{ ask: "condense", expectedConfig: "condense" },
-			{ ask: "report_bug", expectedConfig: "report_bug" },
+			{ ask: "followup", say: undefined, expectedConfig: "followup" },
+			{
+				ask: "browser_action_launch",
+				say: undefined,
+				expectedConfig: "browser_action_launch",
+			},
+			{
+				ask: "use_mcp_server",
+				say: undefined,
+				expectedConfig: "use_mcp_server",
+			},
+			{
+				ask: "plan_mode_respond",
+				say: undefined,
+				expectedConfig: "plan_mode_respond",
+			},
+			{
+				ask: "completion_result",
+				say: undefined,
+				expectedConfig: "completion_result",
+			},
+			{ ask: "resume_task", say: undefined, expectedConfig: "resume_task" },
+			{
+				ask: "resume_completed_task",
+				say: undefined,
+				expectedConfig: "resume_completed_task",
+			},
+			{ ask: "new_task", say: undefined, expectedConfig: "new_task" },
+			{ ask: "condense", say: undefined, expectedConfig: "condense" },
+			{ ask: "report_bug", say: undefined, expectedConfig: "report_bug" },
+			{ ask: undefined, say: "task_progress", expectedConfig: undefined },
 		]
 
-		stateConfigs.forEach(({ ask, expectedConfig }) => {
-			it(`returns ${expectedConfig} config for ${ask} ask`, () => {
+		stateConfigs.forEach(({ ask, say, expectedConfig }) => {
+			it(`returns ${expectedConfig} config for ${ask ?? say} ${ask ? "ask" : "say"}`, () => {
 				const message: ClineMessage = {
-					type: "ask",
-					ask: ask as any,
+					type: ask ? "ask" : "say",
+					ask: ask as ClineAsk | undefined,
+					say: say as ClineSay | undefined,
 					ts: Date.now(),
+					partial: false,
 				}
 				const config = getButtonConfig(message)
-				expect(config).toEqual(BUTTON_CONFIGS[expectedConfig])
+				expect(config).toEqual(expectedConfig ? BUTTON_CONFIGS[expectedConfig] : undefined)
 			})
 		})
 	})

@@ -89,6 +89,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
+		setSendingDisabled,
 	} = chatState
 
 	useEffect(() => {
@@ -177,7 +178,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			document.removeEventListener("copy", handleCopy)
 		}
 	}, [])
-	// Button state is now managed by useButtonState hook
+	// Enable sending button when we stopped streaming
+	useEffect(() => {
+		if (task?.partial !== true) {
+			setSendingDisabled(false)
+		}
+	}, [task?.partial, setSendingDisabled])
 
 	useEffect(() => {
 		setExpandedRows({})
@@ -199,12 +205,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					value: selectedModelInfo.supportsImages,
 				}),
 			)
-			if (
-				response &&
-				response.values1 &&
-				response.values2 &&
-				(response.values1.length > 0 || response.values2.length > 0)
-			) {
+			if (response?.values1.length > 0 || response?.values2.length > 0) {
 				const currentTotal = selectedImages.length + selectedFiles.length
 				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - currentTotal
 

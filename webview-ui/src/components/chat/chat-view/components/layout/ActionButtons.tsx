@@ -3,7 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useEffect, useMemo, useState } from "react"
-import { BUTTON_CONFIGS, getButtonConfig } from "../../shared/buttonConfig"
+import { BUTTON_CONFIGS, type ButtonConfig, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -33,11 +33,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 
 	const isStreaming = useMemo(() => task?.partial === true, [task])
-
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
-
-	const [enableButtons, setEnableButtons] = useState<boolean>(false)
+	const [buttonConfig, setButtonConfig] = useState<ButtonConfig | undefined>(undefined)
 
 	const [lastMessage, secondLastMessage] = useMemo(() => {
 		return [messages.at(-1), messages.at(-2)]
@@ -55,20 +51,17 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Apply button configuration with a single batched update
 	useEffect(() => {
-		const buttonConfig = getButtonConfig(lastMessage, mode)
-		setEnableButtons(buttonConfig.enableButtons)
-		setSendingDisabled(buttonConfig.sendingDisabled)
-		setPrimaryButtonText(buttonConfig.primaryText)
-		setSecondaryButtonText(buttonConfig.secondaryText)
+		const config = getButtonConfig(lastMessage, mode)
+		if (config) {
+			setButtonConfig((prevConfig) => ({ ...prevConfig, ...config }))
+			setSendingDisabled(config.sendingDisabled)
+		}
 	}, [lastMessage, mode, setSendingDisabled])
 
 	useEffect(() => {
 		if (!messages?.length) {
-			const buttonConfig = BUTTON_CONFIGS.default
-			setEnableButtons(buttonConfig.enableButtons)
-			setSendingDisabled(buttonConfig.sendingDisabled)
-			setPrimaryButtonText(buttonConfig.primaryText)
-			setSecondaryButtonText(buttonConfig.secondaryText)
+			setButtonConfig(BUTTON_CONFIGS.default)
+			setSendingDisabled(false)
 		}
 	}, [messages, setSendingDisabled])
 
@@ -103,8 +96,14 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		)
 	}
 
+	const primaryButtonText = buttonConfig?.primaryText
+	const secondaryButtonText = buttonConfig?.secondaryText
+
+	const enableButtons = buttonConfig?.enableButtons ?? true
+
 	const shouldShowButtons = primaryButtonText || secondaryButtonText
-	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
+	const activeButtonOpacity = enableButtons || isStreaming ? 1 : 0.5
+	const opacity = shouldShowButtons ? activeButtonOpacity : 0
 
 	return (
 		<div className={`flex px-[15px] ${shouldShowButtons ? "pt-[10px]" : "pt-0"}`} style={{ opacity }}>
