@@ -21,9 +21,7 @@ import {
 	InputSection,
 	MessagesArea,
 	TaskSection,
-	useButtonState,
 	useChatState,
-	useIsStreaming,
 	useMessageHandlers,
 	useScrollBehavior,
 	WelcomeSection,
@@ -53,6 +51,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		navigateToChat,
 		mode,
 		userInfo,
+		currentFocusChainChecklist,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -80,25 +79,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
 	const {
-		inputValue,
 		setInputValue,
-		activeQuote,
-		setActiveQuote,
-		isTextAreaFocused,
 		selectedImages,
 		setSelectedImages,
 		selectedFiles,
 		setSelectedFiles,
 		sendingDisabled,
 		enableButtons,
-		primaryButtonText,
-		secondaryButtonText,
-		didClickCancel,
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
-		handleFocusChange,
-		clineAsk,
 	} = chatState
 
 	useEffect(() => {
@@ -193,16 +183,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows({})
 	}, [task?.ts])
 
-	// Use streaming hook
-	const isStreaming = useIsStreaming(modifiedMessages, clineAsk, enableButtons, primaryButtonText)
-
 	// handleFocusChange is already provided by chatState
 
-	// Use button state hook
-	useButtonState(messages, chatState)
-
 	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState, isStreaming)
+	const messageHandlers = useMessageHandlers(messages, chatState)
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode)
@@ -263,7 +247,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+		const clientId = (window as { clineClientId?: string }).clineClientId
+		if (!clientId) {
+			console.error("Client ID not found in window object for addToInput subscription")
+			return
+		}
+
+		const request = StringRequest.create({ value: clientId })
+		const cleanup = UiServiceClient.subscribeToAddToInput(request, {
 			onResponse: (event) => {
 				if (event.value) {
 					setInputValue((prevValue) => {
@@ -312,6 +303,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
+	const lastProgressMessageText = useMemo(() => {
+		// First check if we have a current focus chain list from the extension state
+		if (currentFocusChainChecklist) {
+			return currentFocusChainChecklist
+		}
+
+		// Fall back to the last task_progress message if no state focus chain list
+		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
+		return lastProgressMessage?.text
+	}, [modifiedMessages, currentFocusChainChecklist])
+
 	const groupedMessages = useMemo(() => {
 		return groupMessages(visibleMessages)
 	}, [visibleMessages])
@@ -339,6 +341,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
 						messageHandlers={messageHandlers}
 						scrollBehavior={scrollBehavior}
+						lastProgressMessageText={lastProgressMessageText}
 					/>
 				) : (
 					<WelcomeSection
@@ -364,18 +367,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
-				{task && (
-					<ActionButtons
-						chatState={chatState}
-						messageHandlers={messageHandlers}
-						isStreaming={isStreaming}
-						scrollBehavior={{
-							scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-							disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-							showScrollToBottom: scrollBehavior.showScrollToBottom,
-						}}
-					/>
-				)}
+				<ActionButtons
+					task={task}
+					messages={messages}
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+					mode={mode}
+					scrollBehavior={{
+						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
+						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
+						showScrollToBottom: scrollBehavior.showScrollToBottom,
+					}}
+				/>
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

@@ -15,7 +15,7 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
-	taskId?: string
+	ulid?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	openRouterProviderSorting?: string
@@ -51,7 +51,7 @@ export class ClineHandler implements ApiHandler {
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
-						"X-Task-ID": this.options.taskId || "",
+						"X-Task-ID": this.options.ulid || "",
 						"X-Cline-Version": extensionVersion,
 					},
 				})
@@ -133,7 +133,6 @@ export class ClineHandler implements ApiHandler {
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-					const modelId = this.getModel().id
 
 					// const provider = modelId.split("/")[0]
 					// // If provider is x-ai, set totalCost to 0 (we're doing a promo)
@@ -141,27 +140,14 @@ export class ClineHandler implements ApiHandler {
 					// 	totalCost = 0
 					// }
 
-					if (modelId.includes("gemini")) {
-						yield {
-							type: "usage",
-							cacheWriteTokens: 0,
-							cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-							inputTokens:
-								(chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-							outputTokens: chunk.usage.completion_tokens || 0,
-							// @ts-ignore-next-line
-							totalCost,
-						}
-					} else {
-						yield {
-							type: "usage",
-							cacheWriteTokens: 0,
-							cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-							inputTokens: chunk.usage.prompt_tokens || 0,
-							outputTokens: chunk.usage.completion_tokens || 0,
-							// @ts-ignore-next-line
-							totalCost,
-						}
+					yield {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						outputTokens: chunk.usage.completion_tokens || 0,
+						// @ts-ignore-next-line
+						totalCost: totalCost,
 					}
 					didOutputUsage = true
 				}
@@ -186,36 +172,26 @@ export class ClineHandler implements ApiHandler {
 			try {
 				// TODO: replace this with firebase auth
 				// TODO: use global API Host
-
+				const clineAccountAuthToken = await this._authService.getAuthToken()
+				if (!clineAccountAuthToken) {
+					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
+				}
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${this.options.clineAccountId}`,
+						Authorization: `Bearer ${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})
 
 				const generation = response.data
-				let modelId = this.options.openRouterModelId
-				if (modelId && modelId.includes("gemini")) {
-					return {
-						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: generation?.native_tokens_cached || 0,
-						// openrouter generation endpoint fails often
-						inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
-						outputTokens: generation?.native_tokens_completion || 0,
-						totalCost: generation?.total_cost || 0,
-					}
-				} else {
-					return {
-						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: generation?.native_tokens_cached || 0,
-						// openrouter generation endpoint fails often
-						inputTokens: generation?.native_tokens_prompt || 0,
-						outputTokens: generation?.native_tokens_completion || 0,
-						totalCost: generation?.total_cost || 0,
-					}
+				return {
+					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: generation?.native_tokens_cached || 0,
+					// openrouter generation endpoint fails often
+					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+					outputTokens: generation?.native_tokens_completion || 0,
+					totalCost: generation?.total_cost || 0,
 				}
 			} catch (error) {
 				// ignore if fails

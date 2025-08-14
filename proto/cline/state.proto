@@ -52,6 +52,18 @@ enum PlanActMode {
   ACT = 1;
 }
 
+enum OpenaiReasoningEffort {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+}
+
+enum McpDisplayMode {
+  RICH = 0;
+  PLAIN = 1;
+  MARKDOWN = 2;
+}
+
 message ChatContent {
   optional string message = 1;
   repeated string images = 2;
@@ -105,12 +117,13 @@ message UpdateSettingsRequest {
   optional int32 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
-  optional string mcp_display_mode = 11;
+  optional McpDisplayMode mcp_display_mode = 11;
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional string openai_reasoning_effort = 15;
+  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
+  optional FocusChainSettings focus_chain_settings = 17;
 }
 
 // Complete API Configuration message
@@ -118,7 +131,7 @@ message ApiConfiguration {
   // Global configuration fields (not mode-specific)
   optional string api_key = 1; // anthropic
   optional string cline_api_key = 2;
-  optional string task_id = 3;
+  optional string ulid = 3;
   optional string lite_llm_base_url = 4;
   optional string lite_llm_api_key = 5;
   optional bool lite_llm_use_prompt_cache = 6;
@@ -234,6 +247,11 @@ message ApiConfiguration {
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
+}
+
+message FocusChainSettings {
+  bool enabled = 1;
+  int32 remind_cline_interval = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {

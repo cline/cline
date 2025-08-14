@@ -1,7 +1,6 @@
 import { Controller } from ".."
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
 import { groqModels } from "../../../shared/api"
 import axios from "axios"
 import path from "path"
@@ -19,9 +18,7 @@ import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 export async function refreshGroqModels(controller: Controller, request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
 
-	// Get the Groq API key from the controller's state
-	const { apiConfiguration } = await getAllExtensionState(controller.context)
-	const groqApiKey = apiConfiguration?.groqApiKey
+	const groqApiKey = controller.cacheService.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
@@ -113,8 +110,7 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 		}
 
 		telemetryService.captureProviderApiError({
-			taskId: controller.task?.taskId || "",
-			uuid: controller.task?.uuid || "",
+			ulid: controller.task?.ulid || "",
 			errorMessage,
 			errorStatus: error.status,
 			model: "groq",

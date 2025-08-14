@@ -69,7 +69,7 @@ export class ClineError extends Error {
 		this._error = {
 			message: raw.message || message,
 			status,
-			request_id: error.request_id || error.response?.request_id,
+			request_id: error.response?.headers?.["x-request-id"],
 			code: error.code || error?.cause?.code,
 			modelId,
 			providerId,
@@ -129,7 +129,7 @@ export class ClineError extends Error {
 		const { code, status, details } = err._error
 
 		// Check balance error first (most specific)
-		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
+		if (status === 402 || (code === "insufficient_credits" && typeof details?.current_balance === "number")) {
 			return ClineErrorType.Balance
 		}
 

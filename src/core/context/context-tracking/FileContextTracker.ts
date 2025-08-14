@@ -1,12 +1,12 @@
 import * as path from "path"
 import * as vscode from "vscode"
+import chokidar, { FSWatcher } from "chokidar"
 import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
-import { getWorkspaceState, updateWorkspaceState } from "@core/storage/state"
-import { getGlobalState } from "@core/storage/state"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import { HostProvider } from "@/hosts/host-provider"
 import { getCwd } from "@/utils/path"
+import { HistoryItem } from "@/shared/HistoryItem"
+import { Controller } from "@/core/controller"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -23,16 +23,16 @@ If a file is modified outside of Cline, we detect and track this change to preve
 This is used when restoring a task (non-git "checkpoint" restore), and mid-task.
 */
 export class FileContextTracker {
-	private context: vscode.ExtensionContext
+	private controller: Controller
 	readonly taskId: string
 
 	// File tracking and watching
-	private fileWatchers = new Map<string, vscode.FileSystemWatcher>()
+	private fileWatchers = new Map<string, FSWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByCline = new Set<string>()
 
-	constructor(context: vscode.ExtensionContext, taskId: string) {
-		this.context = context
+	constructor(controller: Controller, taskId: string) {
+		this.controller = controller
 		this.taskId = taskId
 	}
 
@@ -51,14 +51,21 @@ export class FileContextTracker {
 			return
 		}
 
-		// Create a file system watcher for this specific file
-		const fileUri = vscode.Uri.file(path.resolve(cwd, filePath))
-		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(path.dirname(fileUri.fsPath), path.basename(fileUri.fsPath)),
-		)
+		// Create a chokidar file watcher for this specific file
+		const resolvedFilePath = path.resolve(cwd, filePath)
+		const watcher = chokidar.watch(resolvedFilePath, {
+			persistent: true, // Keep process alive while watching
+			ignoreInitial: true, // Don't emit events for existing files on startup
+			atomic: true, // Handle atomic writes (editors that use temp files)
+			awaitWriteFinish: {
+				// Wait for writes to finish before emitting events
+				stabilityThreshold: 100, // Wait 100ms for file size to stabilize
+				pollInterval: 100, // Check every 100ms while waiting
+			},
+		})
 
 		// Track file changes
-		watcher.onDidChange(() => {
+		watcher.on("change", () => {
 			if (this.recentlyEditedByCline.has(filePath)) {
 				this.recentlyEditedByCline.delete(filePath) // This was an edit by Cline, no need to inform Cline
 			} else {
@@ -84,7 +91,7 @@ export class FileContextTracker {
 			}
 
 			// Add file to metadata
-			await this.addFileToFileContextTracker(this.context, this.taskId, filePath, operation)
+			await this.addFileToFileContextTracker(this.controller.context, this.taskId, filePath, operation)
 
 			// Set up file watcher for this file
 			await this.setupFileWatcher(filePath)
@@ -179,10 +186,9 @@ export class FileContextTracker {
 	/**
 	 * Disposes all file watchers
 	 */
-	dispose(): void {
-		for (const watcher of this.fileWatchers.values()) {
-			watcher.dispose()
-		}
+	async dispose(): Promise<void> {
+		const closePromises = Array.from(this.fileWatchers.values()).map((watcher) => watcher.close())
+		await Promise.all(closePromises)
 		this.fileWatchers.clear()
 	}
 
@@ -195,7 +201,7 @@ export class FileContextTracker {
 
 		try {
 			// Check task metadata for files that were edited by Cline or users after the message timestamp
-			const taskMetadata = await getTaskMetadata(this.context, this.taskId)
+			const taskMetadata = await getTaskMetadata(this.controller.context, this.taskId)
 
 			if (taskMetadata?.files_in_context) {
 				for (const fileEntry of taskMetadata.files_in_context) {
@@ -237,7 +243,7 @@ export class FileContextTracker {
 			const key = `pendingFileContextWarning_${this.taskId}`
 			// NOTE: Using 'as any' because dynamic keys like pendingFileContextWarning_${taskId}
 			// are legitimate workspace state keys but don't fit the strict LocalStateKey type system
-			await updateWorkspaceState(this.context, key as any, files)
+			this.controller.cacheService.setWorkspaceState(key as any, files)
 		} catch (error) {
 			console.error("Error storing pending file context warning:", error)
 		}
@@ -249,7 +255,7 @@ export class FileContextTracker {
 	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			const files = (await getWorkspaceState(this.context, key as any)) as string[]
+			const files = this.controller.cacheService.getWorkspaceStateKey(key as any) as string[]
 			return files
 		} catch (error) {
 			console.error("Error retrieving pending file context warning:", error)
@@ -264,7 +270,7 @@ export class FileContextTracker {
 		try {
 			const files = await this.retrievePendingFileContextWarning()
 			if (files) {
-				await updateWorkspaceState(this.context, `pendingFileContextWarning_${this.taskId}` as any, undefined)
+				this.controller.cacheService.setWorkspaceState(`pendingFileContextWarning_${this.taskId}` as any, undefined)
 				return files
 			}
 		} catch (error) {
@@ -280,7 +286,8 @@ export class FileContextTracker {
 	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
 		const startTime = Date.now()
 		try {
-			const taskHistory = ((await getGlobalState(context, "taskHistory")) as Array<{ id: string }>) || []
+			// eslint-disable-next-line eslint-rules/no-direct-vscode-state-api
+			const taskHistory = (context.globalState.get("taskHistory") as HistoryItem[]) || []
 			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
 			const allStateKeys = context.workspaceState.keys()
 			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))
@@ -295,7 +302,8 @@ export class FileContextTracker {
 
 			if (orphanedPendingContextTasks.length > 0) {
 				for (const key of orphanedPendingContextTasks) {
-					await updateWorkspaceState(context, key as any, undefined)
+					// eslint-disable-next-line eslint-rules/no-direct-vscode-state-api
+					await context.workspaceState.update(key, undefined)
 				}
 			}
 

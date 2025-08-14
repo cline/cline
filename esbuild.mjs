@@ -1,7 +1,7 @@
 import fs from "node:fs"
-import * as esbuild from "esbuild"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import * as esbuild from "esbuild"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -170,7 +170,7 @@ const standaloneConfig = {
 const e2eBuildConfig = {
 	...baseConfig,
 	entryPoints: ["src/test/e2e/utils/build.ts"],
-	outfile: `${destDir}/e2e-build.js`,
+	outfile: `${destDir}/e2e-build.mjs`,
 	external: ["@vscode/test-electron", "execa"],
 	sourcemap: false,
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],

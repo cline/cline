@@ -44,27 +44,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<ul style={ulStyle}>
-				<li>
-					<b>Cerebras Provider Support:</b> Enhanced performance with updated model selection (Qwen and Llama 3.3 70B
-					only) and increased context window for Qwen 3 32B from 16K to 64K tokens.
-				</li>
-				<li>
-					<b>Claude Code for Windows:</b> Improved system prompt handling to fix E2BIG errors and better error messages
-					with guidance for common setup issues.
-				</li>
-				<li>
-					<b>Hugging Face Provider:</b> Added as a new API provider with support for their inference API models.
-				</li>
-				<li>
-					<b>Moonshot Chinese Endpoints:</b> Added ability to choose Chinese endpoint for Moonshot provider and added
-					Moonshot AI as a new provider.
-				</li>
-				<li>
-					<b>Enhanced Stability:</b> Robust checkpoint timeout handling, fixed MCP servers starting when disabled, and
-					improved authentication sync across multiple VSCode windows.
-				</li>
-			</ul>
+			<b>1M Context Window:</b> Claude Sonnet 4 now supports a 1 million token context window to handle larger codebases and
+			more complex tasks. Cline/OpenRouter users get instant access, Anthropic users with Tier 4 access can select the{" "}
+			<code>
+				claude-sonnet-4-20250514<b>:1m</b>
+			</code>{" "}
+			model.
 			<Accordion isCompact className="pl-0">
 				<AccordionItem
 					key="1"

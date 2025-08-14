@@ -15,8 +15,8 @@ export async function taskFeedback(controller: Controller, request: StringReques
 	}
 
 	try {
-		if (controller.task?.taskId) {
-			telemetryService.captureTaskFeedback(controller.task.taskId, request.value as any)
+		if (controller.task?.ulid) {
+			telemetryService.captureTaskFeedback(controller.task.ulid, request.value as any)
 		} else {
 			console.warn("taskFeedback: No active task to receive feedback")
 		}

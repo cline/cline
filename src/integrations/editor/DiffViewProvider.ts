@@ -1,12 +1,14 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 import { createDirectoriesForFile } from "@utils/fs"
-import { arePathsEqual, getCwd } from "@utils/path"
+import { getCwd } from "@utils/path"
 import { formatResponse } from "@core/prompts/responses"
 import * as diff from "diff"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
+import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -14,6 +16,7 @@ export abstract class DiffViewProvider {
 	originalContent: string | undefined
 	private createdDirs: string[] = []
 	protected documentWasOpen = false
+	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
 	protected fileEncoding: string = "utf8"
@@ -47,6 +50,8 @@ export abstract class DiffViewProvider {
 		if (!fileExists) {
 			await fs.writeFile(this.absolutePath, "")
 		}
+		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
+		this.preDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
 		await this.openDiffEditor()
 		await this.scrollEditorToLine(0)
 		this.streamedLines = []
@@ -114,7 +119,16 @@ export abstract class DiffViewProvider {
 	 * applying a fix, Cline won't be notified, which is generally fine since the
 	 * initial fix is usually correct and it may just take time for linters to catch up.
 	 */
-	protected abstract getNewDiagnosticProblems(): Promise<string>
+	private async getNewDiagnosticProblems(): Promise<string> {
+		// Get the diagnostics after changing the document.
+		const postDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
+
+		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
+		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+		// will be empty string if no errors
+		const problems = await diagnosticsToProblemsString(newProblems, [DiagnosticSeverity.DIAGNOSTIC_ERROR])
+		return problems
+	}
 
 	/**
 	 * Save the contents of the diff editor UI to the file.
@@ -124,9 +138,9 @@ export abstract class DiffViewProvider {
 	protected abstract saveDocument(): Promise<Boolean>
 
 	/**
-	 * Closes the diff editor tab or window.
+	 * Closes all open diff views.
 	 */
-	protected abstract closeDiffView(): Promise<void>
+	protected abstract closeAllDiffViews(): Promise<void>
 
 	/**
 	 * Cleans up the diff view resources and resets internal state.
@@ -163,7 +177,8 @@ export abstract class DiffViewProvider {
 			// Only proceed if we have new lines
 
 			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
+			// on previous lines are auto closed for example
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
@@ -253,7 +268,7 @@ export abstract class DiffViewProvider {
 				preserveFocus: true,
 			},
 		})
-		await this.closeDiffView()
+		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
 		const newProblemsMessage =
@@ -304,7 +319,7 @@ export abstract class DiffViewProvider {
 			// This is a load-bearing save statement- even though the file is saved and then immediately deleted.
 			// In vscode, it will not close the diff editor correctly if the file is not saved.
 			await this.saveDocument()
-			await this.closeDiffView()
+			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
@@ -331,7 +346,7 @@ export abstract class DiffViewProvider {
 					},
 				})
 			}
-			await this.closeDiffView()
+			await this.closeAllDiffViews()
 		}
 
 		// edit is done
@@ -359,12 +374,19 @@ export abstract class DiffViewProvider {
 
 	// close editor if open?
 	async reset() {
-		this.editType = undefined
 		this.isEditing = false
+		this.editType = undefined
+		this.absolutePath = undefined
+		this.relPath = undefined
+		this.preDiagnostics = []
+
 		this.originalContent = undefined
-		this.createdDirs = []
+		this.fileEncoding = "utf8"
 		this.documentWasOpen = false
+
 		this.streamedLines = []
+		this.createdDirs = []
+		this.newContent = undefined
 
 		await this.resetDiffView()
 	}

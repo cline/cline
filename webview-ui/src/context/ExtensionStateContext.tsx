@@ -4,6 +4,7 @@ import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
@@ -46,7 +47,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
-	filePaths: string[]
 	totalTasksSize: number | null
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -178,6 +178,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
+		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: false,
 		preferredLanguage: "English",
 		openaiReasoningEffort: "medium",
 		mode: "act",
@@ -205,7 +207,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<Record<string, string>>()
-	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -381,18 +382,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {
 				console.log("MCP servers subscription completed")
 			},
-		})
-
-		// Subscribe to workspace file updates
-		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				console.log("[DEBUG] Received workspace update event from gRPC stream")
-				setFilePaths(response.values || [])
-			},
-			onError: (error) => {
-				console.error("Error in workspace updates subscription:", error)
-			},
-			onComplete: () => {},
 		})
 
 		// Set up settings button clicked subscription
@@ -653,7 +642,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
-		filePaths,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,
@@ -669,6 +657,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
+		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
 		// Navigation functions
 		navigateToMcp,

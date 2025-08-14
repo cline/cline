@@ -1,0 +1,296 @@
+---
+title: "Focus Chain"
+sidebarTitle: "Focus Chain"
+---
+
+Focus Chain is a task management enhancement feature in Cline that provides automatic todo list management with real-time progress tracking throughout your tasks. 
+
+This enables Cline to work on long-horizon tasks, seamlessly managing the context sent to LLMs, and keeping Cline on track across many context window resets.
+
+<Tip>
+  Focus Chain works particularly well with Cline's [Deep Planning slash command](/features/slash-commands/deep-planning), providing seamless progress tracking for implementation tasks created through the [planning process](/features/plan-and-act).
+</Tip>
+
+## Key Features
+
+### Automatic Todo List Generation
+
+Cline analyzes your task and automatically creates a comprehensive todo list with:
+- Clear, actionable items in markdown checklist format
+- Logical breakdown of complex tasks into manageable steps
+- Real-time updates as work progresses
+
+### User-Editable Todo Lists
+
+Todo lists are stored as editable markdown files:
+- Direct editing through your preferred markdown editor
+- Automatic detection of changes you make
+- Seamless integration back into Cline's workflow
+- Quick access through the edit button in the task header
+
+### Visual Progress Tracking
+
+The task header displays clear progress indicators:
+- **Step counters** showing current progress (e.g., "3/8")
+- **Completed items** clearly marked with checkmarks
+- **Current work** highlighted with indicators
+- **Expandable view** to see the full todo list
+
+### Smart Reminder System
+
+Configurable reminders ensure todo lists stay current:
+- Default reminder every 6 messages (customizable 1-100)
+- Automatic prompts when switching from Plan Mode to Act Mode
+- User-triggered updates when todo lists are manually edited
+
+
+## Getting Started
+
+<Steps>
+  <Step title="Open Cline Settings">
+      - Click the gear icon in the Cline sidebar
+      - Navigate to the "Features" section
+  </Step>
+  <Step title="Enable Focus Chain">
+      - Check "Enable Focus Chain"
+      - Optionally adjust "Remind Cline Interval" (default: 6 messages)
+  </Step>
+  <Step title="Start a New Task">
+      - Begin a new task
+      - Cline will automatically start creating and managing todo lists
+  </Step>
+</Steps>
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| Enable Focus Chain | Disabled | On/Off | Enables enhanced task progress tracking |
+| Remind Cline Interval | 6 | 1-100 messages | How often Cline updates the todo list |
+
+## Usage Examples
+
+#### 1. Task Initiation
+
+When you start a new task with Focus Chain enabled:
+
+``` markdown User Request
+User: "Create a user authentication system for my React app"
+
+Cline: [Analyzes request and creates todo list]
+```
+
+#### 2. Todo List Created
+
+Cline creates a comprehensive plan for the task, stored in a markdown file:
+
+```markdown Todo List Created
+- [ ] Set up project structure
+- [ ] Install authentication dependencies
+- [ ] Create user registration component
+- [ ] Implement login functionality
+- [ ] Add password validation
+- [ ] Set up user database schema
+- [ ] Write authentication tests
+- [ ] Deploy to staging environment
+```
+
+#### 3. Progress Tracking
+
+As Cline works, the task header shows real-time progress:
+
+```markdown Todo List Header
+[3/8] Implement login functionality     ⌄
+```
+
+Click to expand and see the full list:
+
+```markdown Full Todo List
+✓ Set up project structure
+✓ Install authentication dependencies
+✓ Create user registration component
+○ Implement login functionality  ← Currently working
+○ Add password validation
+○ Set up user database schema
+○ Write authentication tests
+○ Deploy to staging environment
+```
+
+#### 4. User Editing
+
+Need to tweak the todo list? No problem.
+
+<Steps>
+  <Step title="Open the todo list">
+    Click the edit button in the expanded todo view
+  </Step>
+  <Step title="Edit the markdown file">
+    A markdown file opens in your editor:
+
+    ```markdown Editing Todo List
+    # Focus Chain Todo List for Task abc123
+
+    <!-- Edit this markdown file to update your focus chain todo list -->
+    <!-- Use - [ ] for incomplete items and - [x] for completed items -->
+
+    - [x] Set up project structure
+    - [x] Install authentication dependencies (e.g., Firebase Auth)
+    - [x] Create user registration component
+    - [ ] Implement login functionality
+    - [ ] Add password reset feature
+    - [ ] Set up protected routes
+    - [ ] Implement logout functionality
+    - [ ] Add user profile page
+    - [ ] Write authentication tests
+    - [ ] Deploy to staging environment
+
+    <!-- Save this file to update the task's todo list -->
+    ```
+  </Step>
+  <Step title="Make your changes">
+    Add, remove, or reorder items as needed
+  </Step>
+  <Step title="Save the file">
+    Cline automatically detects and uses your updates
+  </Step>
+</Steps>
+
+## File Structure
+
+### Todo List Storage
+
+Todo lists are stored as markdown files in your task directory:
+
+``` markdown
+<VSCode Global Storage>/
+  tasks/
+    <taskId>/
+      focus_chain_taskid_<taskId>.md
+      ... other task files
+```
+
+### Markdown Format
+
+Todo files use standard markdown checklist syntax:
+
+```markdown Example Todo Syntax
+# Focus Chain Todo List for Task abc123
+
+<!-- Edit this markdown file to update your focus chain todo list -->
+<!-- Use the format: - [ ] for incomplete items and - [x] for completed items -->
+
+- [x] Set up project structure
+- [x] Install authentication dependencies
+- [ ] Create user registration component
+- [ ] Implement login functionality
+- [ ] Add password validation
+- [ ] Set up user database schema
+- [ ] Write authentication tests
+- [ ] Deploy to staging environment
+
+<!-- Save this file and the todo list will be updated in the task -->
+```
+
+
+## Integration with Plan/Act Mode
+
+Focus Chain works seamlessly with Cline's [Plan/Act mode](/features/plan-and-act):
+
+- **Plan Mode**: Optional todo lists for presenting concrete steps
+- **Act Mode**: Automatic todo creation when switching from Plan Mode
+
+<Tip>
+  For complex projects, start in Plan Mode to discuss and refine your approach before switching to Act Mode for implementation.
+</Tip>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="For Effective Todo Lists">
+    1. **Start with Clear Requests**
+      - Provide detailed initial task descriptions
+      - Include specific requirements and constraints
+      - Mention any preferred technologies or approaches
+
+    2. **Review Generated Lists**
+      - Check that Cline's breakdown aligns with your expectations
+      - Verify that all important steps are included
+      - Ensure the order makes sense for your project
+
+    3. **Edit When Needed**
+      - Add missing steps you identify
+      - Remove unnecessary items
+      - Reorder steps for better workflow
+      - Add more specific details to general items
+  </Accordion>
+  <Accordion title="For Complex Projects">
+    1. **Use Plan Mode First**
+      - Discuss the approach before implementation
+      - Refine requirements through conversation
+      - Switch to Act Mode when ready to begin work
+
+    2. **Break Down Large Tasks**
+      - Split complex projects into smaller, manageable tasks
+      - Create separate todo lists for different components
+      - Focus on one major area at a time
+
+    3. **Regular Reviews**
+      - Check progress periodically during long tasks
+      - Update todo lists as requirements evolve
+      - Communicate changes to Cline through edits
+  </Accordion>
+  <Accordion title="For Collaboration">
+    1. **Share Todo Files**
+      - Todo markdown files can be shared with team members
+      - Include in version control for project documentation
+      - Use as basis for project planning discussions
+
+    2. **Consistent Format**
+      - Follow the standard markdown checklist format
+      - Keep item descriptions clear and actionable
+      - Use consistent terminology across todo lists
+  </Accordion>
+</AccordionGroup>
+
+
+## Troubleshooting
+
+Having issues? Try these quick fixes:
+
+<AccordionGroup>
+  <Accordion title="Todo list not updating?">
+    - Check that Focus Chain is enabled in settings
+    - Focus Chain may not work as well with smaller, less capable models
+    - Ensure file permissions are correct in the task directory
+  </Accordion>
+  <Accordion title="Can't edit todo file?">
+    - Verify your editor supports markdown
+    - Check VSCode has write permissions for the directory
+  </Accordion>
+  <Accordion title="Progress not displaying?">
+    - Ensure todo items use correct syntax (`- [ ]` and `- [x]`)
+    - Verify the markdown file is properly formatted
+  </Accordion>
+</AccordionGroup>
+
+Still stuck? Use the [/reportbug](/features/slash-commands/report-bug) command in Cline to get help.
+
+## Technical Details (for the curious)
+
+<AccordionGroup>
+  <Accordion title="File Monitoring">
+    - Real-time file watching detects changes to todo markdown files
+    - Automatic synchronization between file edits and UI updates
+    - Graceful handling of file creation, modification, and deletion
+  </Accordion>
+  <Accordion title="Progress Calculation">
+    - Dynamic counting of completed vs. total todo items
+    - Support for both `- [x]` and `- [X]` completion syntax
+    - Unicode symbols (✓, ○) for enhanced visual display
+  </Accordion>
+  <Accordion title="Privacy Considerations">
+    - Todo lists stored locally in VSCode workspace
+    - No todo content transmitted to external services
+    - Usage telemetry (can be disabled in settings)
+  </Accordion>
+</AccordionGroup>
+
+Focus Chain turns Cline into your personal project manager, keeping you on track and your tasks organized. Give it a try on your next project!
