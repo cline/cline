@@ -80,6 +80,7 @@
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
 					"features/focus-chain",
+					"features/auto-compact",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",
