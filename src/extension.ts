@@ -273,7 +273,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const language = editor.document.languageId
 				const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
 
-				addToCline(activeWebview.controller, { filePath, selectedText, language, diagnostics })
+				await addToCline(activeWebview.controller, { filePath, selectedText, language, diagnostics })
 			},
 		),
 	)
