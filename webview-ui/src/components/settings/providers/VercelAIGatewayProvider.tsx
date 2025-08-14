@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { ModelSelector } from "../common/ModelSelector"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -24,9 +23,8 @@ interface VercelAIGatewayProviderProps {
  * The Vercel AI Gateway provider configuration component
  */
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, vercelAiGatewayModels, setVercelAiGatewayModels } = useExtensionState()
 	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
-	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [isLoadingModels, setIsLoadingModels] = useState(true)
 
 	// Get the normalized configuration (includes defaults)
@@ -44,7 +42,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			setVercelAiGatewayModels({})
 			setIsLoadingModels(false)
 		}
-	}, [])
+	}, [setVercelAiGatewayModels])
 
 	const handleModelChange = (modelId: string) => {
 		const modelInfo = vercelAiGatewayModels[modelId]
