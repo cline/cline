@@ -242,6 +242,7 @@ export class CacheService {
 			claudeCodePath,
 			basetenApiKey,
 			huggingFaceApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -424,6 +425,7 @@ export class CacheService {
 			sapAiCoreClientSecret,
 			basetenApiKey,
 			huggingFaceApiKey,
+			zaiApiKey,
 		})
 	}
 
@@ -644,6 +646,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			claudeCodePath,
 			huggingFaceApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -831,6 +834,7 @@ export class CacheService {
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
 			huggingFaceApiKey,
+			zaiApiKey,
 		}
 
 		// Populate secrets cache directly
@@ -875,6 +879,7 @@ export class CacheService {
 			sapAiCoreClientId: this.secretsCache.get("sapAiCoreClientId"),
 			sapAiCoreClientSecret: this.secretsCache.get("sapAiCoreClientSecret"),
 			huggingFaceApiKey: this.secretsCache.get("huggingFaceApiKey"),
+			zaiApiKey: this.secretsCache.get("zaiApiKey"),
 
 			// Global state
 			awsRegion: this.globalStateCache.get("awsRegion"),
