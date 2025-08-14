@@ -30,7 +30,8 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 			const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
 			distinctId = response.value
 		} catch (e) {
-			// ignore; PostHogProvider will fall back to uuid
+			Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
+			// PostHogProvider will fall back to uuid
 		}
 	}
 	PostHogClientProvider.getInstance(distinctId)
