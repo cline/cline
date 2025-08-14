@@ -45,11 +45,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				🎉{"  "}New in v{minorVersion}
 			</h3>
 			<b>1M Context Window:</b> Claude Sonnet 4 now supports a 1 million token context window to handle larger codebases and
-			more complex tasks. Cline/OpenRouter users get instant access, Anthropic users with Tier 4 access can select the{" "}
+			more complex tasks. Cline/OpenRouter users get instant access, Anthropic users need Tier 4, and Bedrock users must be
+			on a supported region. Select the{" "}
 			<code>
-				claude-sonnet-4-20250514<b>:1m</b>
+				claude-sonnet-4<b>:1m</b>
 			</code>{" "}
-			model.
+			model for 1M context, or use the original for 200K.
 			<Accordion isCompact className="pl-0">
 				<AccordionItem
 					key="1"
