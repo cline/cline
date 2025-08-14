@@ -8,7 +8,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
-import { sapAiCoreModels } from "@shared/api"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 /**
  * Props for the SapAiCoreProvider component
