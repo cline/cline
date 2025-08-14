@@ -7,6 +7,7 @@
 		"check-types": "tsc --noEmit",
 		"dev": "next dev",
 		"build": "next build",
+		"postbuild": "next-sitemap --config next-sitemap.config.cjs",
 		"start": "next start",
 		"clean": "rimraf .next .turbo"
 	},
@@ -42,6 +43,7 @@
 		"@types/react": "^18.3.23",
 		"@types/react-dom": "^18.3.7",
 		"autoprefixer": "^10.4.21",
+		"next-sitemap": "^4.2.3",
 		"postcss": "^8.5.4",
 		"tailwindcss": "^3.4.17"
 	}
