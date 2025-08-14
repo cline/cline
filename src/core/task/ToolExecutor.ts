@@ -56,9 +56,12 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
+import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import type { TaskConfig } from "./TaskConfig"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
+	private coordinator: ToolExecutorCoordinator
 
 	// Auto-approval methods using the AutoApprove class
 	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
@@ -123,6 +126,46 @@ export class ToolExecutor {
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
+		this.coordinator = new ToolExecutorCoordinator()
+	}
+
+	// Provide a minimal TaskConfig-like object for handlers. Cast to any to avoid coupling yet.
+	private asToolConfig(): any /* TaskConfig */ {
+		return {
+			taskId: this.taskId,
+			ulid: this.ulid,
+			context: this.context,
+			mode: this.mode,
+			cwd: this.cwd,
+			taskState: this.taskState,
+			messageState: this.messageStateHandler,
+			api: this.api,
+			autoApprovalSettings: this.autoApprovalSettings,
+			browserSettings: this.browserSettings,
+			focusChainSettings: this.focusChainSettings,
+			services: {
+				mcpHub: this.mcpHub,
+				browserSession: this.browserSession,
+				diffViewProvider: this.diffViewProvider,
+				fileContextTracker: this.fileContextTracker,
+				clineIgnoreController: this.clineIgnoreController,
+				contextManager: this.contextManager,
+				cacheService: this.cacheService,
+				// terminalManager not used by file/list/search handlers; omit for now
+			},
+			callbacks: {
+				say: this.say,
+				ask: this.ask,
+				saveCheckpoint: this.saveCheckpoint,
+				postStateToWebview: async () => {},
+				reinitExistingTaskFromId: async () => {},
+				cancelTask: async () => {},
+				updateTaskHistory: async (_: any) => [],
+				executeCommandTool: this.executeCommandTool,
+				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
+				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
+			},
+		} as any
 	}
 
 	/**
@@ -340,6 +383,26 @@ export class ToolExecutor {
 
 		if (block.name !== "browser_action") {
 			await this.browserSession.closeBrowser()
+		}
+
+		// Coordinator fallback path: if a handler is registered for this tool, delegate to it.
+		// No behavior change unless handlers are explicitly registered elsewhere.
+		if (this.coordinator?.has(block.name)) {
+			try {
+				const result = await this.coordinator.execute(this.asToolConfig(), block)
+				this.pushToolResult(result, block)
+
+				if (!block.partial && this.focusChainSettings.enabled) {
+					await this.updateFCListFromToolResponse(block.params.task_progress)
+				}
+
+				await this.saveCheckpoint()
+				return
+			} catch (error) {
+				await this.handleError(`executing ${block.name}`, error as Error, block)
+				await this.saveCheckpoint()
+				return
+			}
 		}
 
 		switch (block.name) {
