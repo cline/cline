@@ -73,7 +73,6 @@ export class GrpcHandler {
 		)
 
 		// Call the streaming handler directly
-		console.log(`[DEBUG] Streaming gRPC host call to ${service}.${method} req:${requestId}`)
 		try {
 			await this.handleStreamingRequest(service, method, request, requestId)
 		} catch (error) {

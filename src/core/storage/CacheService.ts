@@ -4,6 +4,7 @@ import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
 import type { ExtensionContext } from "vscode"
 import { readStateFromDisk } from "./utils/state-helpers"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 
 /**
  * Interface for persistence error event data
@@ -730,6 +731,8 @@ export class CacheService {
 			autoApprovalSettings: state.autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS,
 			globalClineRulesToggles: state.globalClineRulesToggles,
 			browserSettings: state.browserSettings,
+			focusChainSettings: state.focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+			focusChainFeatureFlagEnabled: state.focusChainFeatureFlagEnabled,
 			preferredLanguage: state.preferredLanguage,
 			openaiReasoningEffort: state.openaiReasoningEffort,
 			mode: state.mode,

@@ -25,7 +25,7 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
-   // Refreshes and returns Groq models
+  // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);

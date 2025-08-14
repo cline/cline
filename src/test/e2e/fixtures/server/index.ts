@@ -345,7 +345,7 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
-									setTimeout(sendChunk, 50)
+									setTimeout(sendChunk, 10)
 								} else {
 									const finalChunk = {
 										id: generationId,

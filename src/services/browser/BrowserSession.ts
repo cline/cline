@@ -32,6 +32,15 @@ export interface BrowserConnectionInfo {
 
 const DEBUG_PORT = 9222 // Chrome's default debugging port
 
+// helper function required to append custom browser arguments from UI
+function splitArgs(str?: string | null): string[] {
+	if (!str) {
+		return []
+	}
+	// split on spaces but keep quoted chunks; strip quotes
+	return (str.match(/"[^"]+"|\S+/g) || []).map((s) => s.replace(/^"(.*)"$/, "$1"))
+}
+
 export class BrowserSession {
 	private context: vscode.ExtensionContext
 	private browser?: Browser
@@ -137,10 +146,13 @@ export class BrowserSession {
 			}
 			console.info("chrome installation", installation)
 
+			const userArgs = splitArgs(this.browserSettings.customArgs)
+
 			const args = [
 				`--remote-debugging-port=${DEBUG_PORT}`,
 				`--user-data-dir=${userDataDir}`,
 				"--disable-notifications",
+				...userArgs,
 				"chrome://newtab",
 			]
 
@@ -235,9 +247,11 @@ export class BrowserSession {
 
 	async launchLocalBrowser() {
 		const { path } = await this.getDetectedChromePath()
+		const userArgs = splitArgs(this.browserSettings.customArgs)
 		this.browser = await launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				...userArgs,
 			],
 			executablePath: path,
 			defaultViewport: this.browserSettings.viewport,
