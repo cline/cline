@@ -660,6 +660,7 @@ export class Controller {
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const dictationSettings = this.cacheService.getGlobalStateKey("dictationSettings")
 		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
 		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
@@ -681,7 +682,6 @@ export class Controller {
 		const welcomeViewCompleted = this.cacheService.getGlobalStateKey("welcomeViewCompleted")
 		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
-		const dictationSettings = this.cacheService.getGlobalStateKey("dictationSettings")
 
 		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -717,6 +717,7 @@ export class Controller {
 			platform,
 			autoApprovalSettings,
 			browserSettings,
+			dictationSettings,
 			focusChainSettings,
 			focusChainFeatureFlagEnabled,
 			preferredLanguage,
@@ -743,7 +744,6 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
-			dictationSettings,
 		}
 	}
 

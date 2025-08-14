@@ -7,10 +7,7 @@ import {
 	McpDisplayMode as ProtoMcpDisplayMode,
 } from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
-import {
-	convertProtoApiConfigurationToApiConfiguration,
-	convertProtoDictationSettingsToDictationSettings,
-} from "@shared/proto-conversions/state/settings-conversion"
+import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
@@ -119,12 +116,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.cacheService.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
-		// Update dictation settings
-		if (request.dictationSettings) {
-			const dictationSettings = convertProtoDictationSettingsToDictationSettings(request.dictationSettings)
-			await controller.context.globalState.update("dictationSettings", dictationSettings)
-		}
-
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
 			controller.cacheService.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
@@ -146,6 +137,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		if (request.dictationSettings !== undefined) {
+			controller.cacheService.setGlobalState("dictationSettings", request.dictationSettings)
 		}
 
 		// Update focus chain settings

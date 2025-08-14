@@ -106,12 +106,6 @@ message TelemetrySettingRequest {
   TelemetrySettingEnum setting = 2;
 }
 
-message DictationSettings {
-  bool dictation_enabled = 1;
-  string dictation_language = 2;
-}
-
-
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -254,6 +248,11 @@ message ApiConfiguration {
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
+}
+
+message DictationSettings {
+  bool dictation_enabled = 1;
+  string dictation_language = 2;
 }
 
 message FocusChainSettings {

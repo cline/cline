@@ -3,7 +3,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { SUPPORTED_DICTATION_LANGUAGES } from "@shared/DictationSettings"
 // import CollapsibleContent from "../CollapsibleContent"
-import { convertDictationSettingsToProtoDictationSettings } from "@shared/proto-conversions/state/settings-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { updateSetting } from "../utils/settingsHandlers"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
@@ -128,62 +127,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enforces strict tool use while in plan mode, preventing file edits.
 						</p>
 					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={dictationSettings?.dictationEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								const updatedDictationSettings = {
-									...dictationSettings,
-									dictationEnabled: checked,
-								}
-								const protoDictationSettings =
-									convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
-								updateSetting("dictationSettings", protoDictationSettings)
-							}}>
-							Enable Dictation
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at $0.006
-							credits per minute of audio processed. 5 minutes max per message. Use the microphone icon in the chat
-							area or set a hotkey in the Command Palette (Cline: Start Dictation).
-						</p>
-					</div>
-
-					{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
-					<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
-					<div className={dictationSettings?.dictationEnabled ? "mt-4" : "hidden"}>
-						<label
-							htmlFor="dictation-language-dropdown"
-							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
-							Dictation Language
-						</label>
-						<VSCodeDropdown
-							id="dictation-language-dropdown"
-							currentValue={dictationSettings?.dictationLanguage || "en"}
-							onChange={(e: any) => {
-								const newValue = e.target.value
-								const updatedDictationSettings = {
-									...dictationSettings,
-									dictationLanguage: newValue,
-								}
-								const protoDictationSettings =
-									convertDictationSettingsToProtoDictationSettings(updatedDictationSettings)
-								updateSetting("dictationSettings", protoDictationSettings)
-							}}
-							className="w-full">
-							{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
-								<VSCodeOption key={language.code} value={language.code} className="py-0.5">
-									{language.name}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-						<p className="text-xs mt-1 text-[var(--vscode-descriptionForeground)]">
-							The language you want to speak to the Dictation service in. This is separate from your preferred UI
-							language.
-						</p>
-					</div>
-					{/* </CollapsibleContent> */}
 					{focusChainFeatureFlagEnabled && (
 						<div style={{ marginTop: 10 }}>
 							<VSCodeCheckbox
@@ -227,6 +170,59 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={dictationSettings?.dictationEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								const updatedDictationSettings = {
+									...dictationSettings,
+									dictationEnabled: checked,
+								}
+								updateSetting("dictationSettings", updatedDictationSettings)
+							}}>
+							Enable Dictation
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+							Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at $0.006
+							credits per minute of audio processed. 5 minutes max per message.
+						</p>
+					</div>
+
+					{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
+					<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
+					{dictationSettings?.dictationEnabled && (
+						<div style={{ marginTop: 10, marginLeft: 20 }}>
+							<label
+								htmlFor="dictation-language-dropdown"
+								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+								Dictation Language
+							</label>
+							<VSCodeDropdown
+								id="dictation-language-dropdown"
+								currentValue={dictationSettings?.dictationLanguage || "en"}
+								onChange={(e: any) => {
+									const newValue = e.target.value
+									const updatedDictationSettings = {
+										...dictationSettings,
+										dictationLanguage: newValue,
+									}
+									updateSetting("dictationSettings", updatedDictationSettings)
+								}}
+								className="w-full">
+								{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
+									<VSCodeOption key={language.code} value={language.code} className="py-0.5">
+										{language.name}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+							<p className="text-xs mt-1 text-[var(--vscode-descriptionForeground)]">
+								The language you want to speak to the Dictation service in. This is separate from your preferred
+								UI language.
+							</p>
+						</div>
+					)}
+					{/* </CollapsibleContent> */}
 				</div>
 			</Section>
 		</div>
