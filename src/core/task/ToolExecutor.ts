@@ -57,6 +57,7 @@ import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
 import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import { CoordinatorToolExecutor } from "./tools/CoordinatorToolExecutor"
 import { ToolValidator } from "./tools/ToolValidator"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
@@ -65,6 +66,7 @@ import type { TaskConfig } from "./TaskConfig"
 export class ToolExecutor {
 	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
+	private coordinatorExecutor: CoordinatorToolExecutor
 
 	// Auto-approval methods using the AutoApprove class
 	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
@@ -135,6 +137,23 @@ export class ToolExecutor {
 		const validator = new ToolValidator(this.clineIgnoreController)
 		this.coordinator.register(new ListFilesToolHandler(validator))
 		this.coordinator.register(new ReadFileToolHandler(validator))
+
+		// Initialize the coordinator executor with all necessary dependencies
+		this.coordinatorExecutor = new CoordinatorToolExecutor(
+			this.coordinator,
+			this.asToolConfig(),
+			this.pushToolResult,
+			this.removeClosingTag,
+			this.shouldAutoApproveToolWithPath.bind(this),
+			this.sayAndCreateMissingParamError,
+			this.removeLastPartialMessageIfExistsWithType,
+			this.say,
+			this.ask,
+			this.askApproval,
+			this.saveCheckpoint,
+			this.updateFCListFromToolResponse,
+			this.handleError,
+		)
 	}
 
 	// Provide a minimal TaskConfig-like object for handlers. Cast to any to avoid coupling yet.
@@ -397,24 +416,9 @@ export class ToolExecutor {
 			await this.browserSession.closeBrowser()
 		}
 
-		// Coordinator fallback path: if a handler is registered for this tool, delegate to it.
-		// No behavior change unless handlers are explicitly registered elsewhere.
-		if (this.coordinator?.has(block.name)) {
-			try {
-				const result = await this.coordinator.execute(this.asToolConfig(), block)
-				this.pushToolResult(result, block)
-
-				if (!block.partial && this.focusChainSettings.enabled) {
-					await this.updateFCListFromToolResponse(block.params.task_progress)
-				}
-
-				await this.saveCheckpoint()
-				return
-			} catch (error) {
-				await this.handleError(`executing ${block.name}`, error as Error, block)
-				await this.saveCheckpoint()
-				return
-			}
+		// Use the CoordinatorToolExecutor for tools registered with the coordinator
+		if (await this.coordinatorExecutor.execute(block)) {
+			return // Tool was handled by the coordinator
 		}
 
 		switch (block.name) {
