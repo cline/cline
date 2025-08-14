@@ -7,7 +7,7 @@ import * as diff from "diff"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
-import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.host"
+import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 
 export abstract class DiffViewProvider {

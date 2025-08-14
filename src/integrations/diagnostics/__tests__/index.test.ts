@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "mocha"
 import { expect } from "chai"
 import { getNewDiagnostics, diagnosticsToProblemsString } from "../"
-import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.host"
+import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.cline"
 import * as sinon from "sinon"
 import * as pathUtils from "@/utils/path"
 
@@ -459,6 +459,56 @@ describe("Diagnostics Tests", () => {
 
 			// Line 0 should be displayed as Line 1 (1-indexed)
 			expect(result).to.equal("src/file1.ts\n- [Error] Line 1: Error on first line")
+		})
+
+		it("should include all diagnostics when severities is undefined", async () => {
+			const diagnostics: FileDiagnostics[] = [
+				{
+					filePath: "/workspace/src/file1.ts",
+					diagnostics: [
+						{
+							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
+							message: "Error message",
+							range: {
+								start: { line: 0, character: 0 },
+								end: { line: 0, character: 10 },
+							},
+						},
+						{
+							severity: DiagnosticSeverity.DIAGNOSTIC_WARNING,
+							message: "Warning message",
+							range: {
+								start: { line: 1, character: 0 },
+								end: { line: 1, character: 10 },
+							},
+						},
+						{
+							severity: DiagnosticSeverity.DIAGNOSTIC_INFORMATION,
+							message: "Info message",
+							range: {
+								start: { line: 2, character: 0 },
+								end: { line: 2, character: 10 },
+							},
+						},
+						{
+							severity: DiagnosticSeverity.DIAGNOSTIC_HINT,
+							message: "Hint message",
+							range: {
+								start: { line: 3, character: 0 },
+								end: { line: 3, character: 10 },
+							},
+						},
+					],
+				},
+			]
+
+			// Call without severities parameter (undefined)
+			const result = await diagnosticsToProblemsString(diagnostics)
+
+			// Should include all diagnostics regardless of severity
+			expect(result).to.equal(
+				"src/file1.ts\n- [Error] Line 1: Error message\n- [Warning] Line 2: Warning message\n- [Information] Line 3: Info message\n- [Hint] Line 4: Hint message",
+			)
 		})
 	})
 })

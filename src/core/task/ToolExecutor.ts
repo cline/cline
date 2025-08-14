@@ -17,6 +17,7 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -54,6 +55,7 @@ import { MessageStateHandler } from "./message-state"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
+import { continuationPrompt } from "../prompts/contextManagement"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -88,6 +90,7 @@ export class ToolExecutor {
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
 		private browserSettings: BrowserSettings,
+		private focusChainSettings: FocusChainSettings,
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
@@ -117,6 +120,7 @@ export class ToolExecutor {
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
+		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
 	}
@@ -201,6 +205,8 @@ export class ToolExecutor {
 			case "new_task":
 				return `[${block.name} for creating a new task]`
 			case "condense":
+				return `[${block.name}]`
+			case "summarize_task":
 				return `[${block.name}]`
 			case "report_bug":
 				return `[${block.name}]`
@@ -629,6 +635,10 @@ export class ToolExecutor {
 
 						await this.diffViewProvider.reset()
 
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						await this.saveCheckpoint()
 
 						break
@@ -718,6 +728,10 @@ export class ToolExecutor {
 							this.taskState.userMessageContent.push(result.imageBlock)
 						}
 
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
@@ -795,6 +809,11 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
+
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
@@ -867,6 +886,11 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(result, block)
+
+						if (!block.partial) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
@@ -951,6 +975,11 @@ export class ToolExecutor {
 							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
 						}
 						this.pushToolResult(results, block)
+
+						if (!block.partial) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						await this.saveCheckpoint()
 						break
 					}
@@ -1125,6 +1154,11 @@ export class ToolExecutor {
 									),
 									block,
 								)
+
+								if (!block.partial) {
+									await this.updateFCListFromToolResponse(block.params.task_progress)
+								}
+
 								await this.saveCheckpoint()
 								break
 							case "close":
@@ -1645,6 +1679,63 @@ export class ToolExecutor {
 					break
 				}
 			}
+			case "summarize_task": {
+				const context: string | undefined = block.params.context
+				try {
+					if (block.partial) {
+						// Show streaming summary generation in tool UI
+						const partialMessage = JSON.stringify({
+							tool: "summarizeTask",
+							content: this.removeClosingTag(block, "context", context),
+						} satisfies ClineSayTool)
+
+						await this.say("tool", partialMessage, undefined, undefined, block.partial)
+						break
+					} else {
+						if (!context) {
+							this.taskState.consecutiveMistakeCount++
+							this.pushToolResult(await this.sayAndCreateMissingParamError("summarize_task", "context"), block)
+							await this.saveCheckpoint()
+							break
+						}
+						this.taskState.consecutiveMistakeCount = 0
+
+						// Show completed summary in tool UI
+						const completeMessage = JSON.stringify({
+							tool: "summarizeTask",
+							content: context,
+						} satisfies ClineSayTool)
+
+						await this.say("tool", completeMessage, undefined, undefined, false)
+
+						// Use the continuationPrompt to format the tool result
+						this.pushToolResult(formatResponse.toolResult(continuationPrompt(context)), block)
+
+						const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+						const keepStrategy = "none"
+
+						// clear the context history at this point in time. note that this will not include the assistant message
+						// for summarizing, which we will need to delete later
+						this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+							apiConversationHistory,
+							this.taskState.conversationHistoryDeletedRange,
+							keepStrategy,
+						)
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+							Date.now(),
+							await ensureTaskDirectoryExists(this.context, this.taskId),
+						)
+					}
+					await this.saveCheckpoint()
+					this.taskState.currentlySummarizing = true
+					break
+				} catch (error) {
+					await this.handleError("summarizing context window", error, block)
+					await this.saveCheckpoint()
+					break
+				}
+			}
 			case "condense": {
 				const context: string | undefined = block.params.context
 				try {
@@ -2009,6 +2100,10 @@ export class ToolExecutor {
 						// Store the number of options for telemetry
 						const options = parsePartialArrayString(optionsRaw || "[]")
 
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						this.taskState.isAwaitingPlanResponse = true
 						let {
 							text,
@@ -2064,6 +2159,8 @@ export class ToolExecutor {
 								),
 								block,
 							)
+							// Reset the flag after using it to prevent it from persisting
+							this.taskState.didRespondToPlanAskBySwitchingMode = false
 						} else {
 							// if we didn't switch to ACT MODE, then we can just send the user_feedback message
 							this.pushToolResult(
@@ -2186,9 +2283,17 @@ export class ToolExecutor {
 								await this.saveCheckpoint(true)
 								await addNewChangesFlagToLastCompletionResultMessage()
 								telemetryService.captureTaskCompleted(this.ulid)
+
+								if (this.focusChainSettings.enabled) {
+									await this.updateFCListFromToolResponse(block.params.task_progress)
+								}
 							} else {
 								// we already sent a command message, meaning the complete completion message has also been sent
 								await this.saveCheckpoint(true)
+
+								if (this.focusChainSettings.enabled) {
+									await this.updateFCListFromToolResponse(block.params.task_progress)
+								}
 							}
 
 							// complete command message
@@ -2211,6 +2316,10 @@ export class ToolExecutor {
 							await this.saveCheckpoint(true)
 							await addNewChangesFlagToLastCompletionResultMessage()
 							telemetryService.captureTaskCompleted(this.ulid)
+
+							if (this.focusChainSettings.enabled) {
+								await this.updateFCListFromToolResponse(block.params.task_progress)
+							}
 						}
 
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field

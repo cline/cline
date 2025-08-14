@@ -30,6 +30,25 @@ export class FeatureFlagsService {
 	}
 
 	/**
+	 * Wrapper: safely get boolean flag with default fallback
+	 */
+	public async getBooleanFlagEnabled(flagName: string, defaultValue = false): Promise<boolean> {
+		try {
+			return await this.isFeatureFlagEnabled(flagName)
+		} catch (error) {
+			console.error(`Error getting boolean flag ${flagName}:`, error)
+			return defaultValue
+		}
+	}
+
+	/**
+	 * Convenience: focus chain checklist remote gate
+	 */
+	public async getFocusChainEnabled(): Promise<boolean> {
+		return this.getBooleanFlagEnabled("focus_chain_checklist", false)
+	}
+
+	/**
 	 * Get the feature flag payload for advanced use cases
 	 * @param flagName The feature flag key
 	 * @returns The feature flag payload or null if not found

@@ -1,6 +1,7 @@
 ---
-title: "AWS Bedrock"
-description: "Learn how to set up AWS Bedrock with Cline using credentials authentication. This guide covers AWS environment setup, regional access verification, and secure integration with the Cline VS Code extension."
+title: "API Key (Simple Setup)"
+sidebarTitle: "API Key"
+description: "Set up AWS Bedrock with Cline using Bedrock API Keys. Simplest setup for individual developers to access frontier models."
 ---
 
 ### Overview
@@ -121,14 +122,14 @@ You can create a custom IAM policy with these permissions and attach it to your 
 
 ### Conclusion
 
-By following these steps, your enterprise team can securely integrate AWS Bedrock with the Cline VS Code extension to accelerate development:
+By following these steps, you can quickly integrate AWS Bedrock with the Cline VS Code extension to accelerate development:
 
-1. **Prepare Your AWS Environment:** Create or use a secure IAM role/user, attach the `AmazonBedrockLimitedAccess` policy, and ensure necessary permissions.
+1. **Prepare Your AWS Environment:** Create a Bedrock API Key with the necessary permissions.
 2. **Verify Region and Model Access:** Confirm that your selected region supports your required models.
-3. **Configure Cline in VS Code:** Install and set up Cline with your AWS credentials and choose an appropriate model.
+3. **Configure Cline in VS Code:** Install and set up Cline with your AWS API Key and choose an appropriate model.
 4. **Implement Security and Monitoring:** Use best practices for IAM, network security, monitoring, and cost management.
 
-For further details, consult the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) and coordinate with your internal cloud team. Happy coding!
+For further details, consult the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html). Happy coding!
 
 ---
 

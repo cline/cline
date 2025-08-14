@@ -146,6 +146,9 @@ export async function createOpenRouterStream(
 	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
 
+	// Force 1m context window for Claude Sonnet 4
+	const isClaudeSonnet4 = model.id === "anthropic/claude-sonnet-4"
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -164,6 +167,8 @@ export async function createOpenRouterStream(
 		...(isKimiK2
 			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
 			: {}),
+		// limit providers to only those that support the 1m context window
+		...(isClaudeSonnet4 ? { provider: { order: ["anthropic", "amazon-bedrock"], allow_fallbacks: false } } : {}),
 	})
 
 	return stream

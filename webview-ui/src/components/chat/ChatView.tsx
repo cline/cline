@@ -51,6 +51,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		navigateToChat,
 		mode,
 		userInfo,
+		currentFocusChainChecklist,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -302,6 +303,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
+	const lastProgressMessageText = useMemo(() => {
+		// First check if we have a current focus chain list from the extension state
+		if (currentFocusChainChecklist) {
+			return currentFocusChainChecklist
+		}
+
+		// Fall back to the last task_progress message if no state focus chain list
+		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
+		return lastProgressMessage?.text
+	}, [modifiedMessages, currentFocusChainChecklist])
+
 	const groupedMessages = useMemo(() => {
 		return groupMessages(visibleMessages)
 	}, [visibleMessages])
@@ -329,6 +341,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
 						messageHandlers={messageHandlers}
 						scrollBehavior={scrollBehavior}
+						lastProgressMessageText={lastProgressMessageText}
 					/>
 				) : (
 					<WelcomeSection
