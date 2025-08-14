@@ -18,8 +18,9 @@
 		"check-types": "tsc --noEmit",
 		"test": "vitest run",
 		"build": "tsup",
-		"npm:publish": "cd npm && npm version minor && cd - && tsup --outDir npm/dist && cd npm && npm publish",
-		"clean": "rimraf dist npm/dist .turbo"
+		"build:watch": "tsup --watch --outDir npm/dist --onSuccess 'echo ✅ Types rebuilt to npm/dist'",
+		"npm:publish": "node scripts/publish-npm.cjs",
+		"clean": "rimraf dist .turbo"
 	},
 	"dependencies": {
 		"zod": "^3.25.61"
@@ -27,7 +28,8 @@
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
 		"@roo-code/config-typescript": "workspace:^",
-		"@types/node": "20.x",
+		"@types/node": "^24.1.0",
+		"globals": "^16.3.0",
 		"tsup": "^8.3.5",
 		"vitest": "^3.2.3"
 	}

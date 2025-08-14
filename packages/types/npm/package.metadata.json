@@ -1,6 +1,6 @@
 {
 	"name": "@roo-code/types",
-	"version": "1.46.0",
+	"version": "1.48.0",
 	"description": "TypeScript type definitions for Roo Code.",
 	"publishConfig": {
 		"access": "public",
@@ -17,28 +17,6 @@
 		"url": "https://github.com/RooCodeInc/Roo-Code/issues"
 	},
 	"homepage": "https://roocode.com",
-	"keywords": [
-		"roo",
-		"roo-code",
-		"ai"
-	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"require": {
-				"types": "./dist/index.d.cts",
-				"default": "./dist/index.cjs"
-			}
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"dependencies": {
-		"zod": "^3.25.61"
-	}
+	"keywords": ["roo", "roo-code", "ai"],
+	"files": ["dist"]
 }

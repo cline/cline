@@ -560,18 +560,16 @@ export class ClineProvider
 		this.log("Resolving webview view")
 
 		this.view = webviewView
-
-		// Set panel reference according to webview type
 		const inTabMode = "onDidChangeViewState" in webviewView
+
 		if (inTabMode) {
-			// Tag page type
 			setPanel(webviewView, "tab")
 		} else if ("onDidChangeVisibility" in webviewView) {
-			// Sidebar Type
 			setPanel(webviewView, "sidebar")
 		}
 
-		// Initialize out-of-scope variables that need to receive persistent global state values
+		// Initialize out-of-scope variables that need to receive persistent
+		// global state values.
 		this.getState().then(
 			({
 				terminalShellIntegrationTimeout = Terminal.defaultShellIntegrationTimeout,
@@ -594,18 +592,15 @@ export class ClineProvider
 			},
 		)
 
-		// Initialize tts enabled state
 		this.getState().then(({ ttsEnabled }) => {
 			setTtsEnabled(ttsEnabled ?? false)
 		})
 
-		// Initialize tts speed state
 		this.getState().then(({ ttsSpeed }) => {
 			setTtsSpeed(ttsSpeed ?? 1)
 		})
 
 		webviewView.webview.options = {
-			// Allow scripts in the webview
 			enableScripts: true,
 			localResourceRoots: [this.contextProxy.extensionUri],
 		}
@@ -616,32 +611,31 @@ export class ClineProvider
 				: this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
-		// and executes code based on the message that is received
+		// and executes code based on the message that is received.
 		this.setWebviewMessageListener(webviewView.webview)
 
-		// Initialize code index status subscription for the current workspace
+		// Initialize code index status subscription for the current workspace.
 		this.updateCodeIndexStatusSubscription()
 
-		// Listen for active editor changes to update code index status for the current workspace
+		// Listen for active editor changes to update code index status for the
+		// current workspace.
 		const activeEditorSubscription = vscode.window.onDidChangeActiveTextEditor(() => {
-			// Update subscription when workspace might have changed
+			// Update subscription when workspace might have changed.
 			this.updateCodeIndexStatusSubscription()
 		})
 		this.webviewDisposables.push(activeEditorSubscription)
 
-		// Logs show up in bottom panel > Debug Console
-		//console.log("registering listener")
-
-		// Listen for when the panel becomes visible
+		// Listen for when the panel becomes visible.
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
-			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
-			// panel
+			// WebviewView and WebviewPanel have all the same properties except
+			// for this visibility listener panel.
 			const viewStateDisposable = webviewView.onDidChangeViewState(() => {
 				if (this.view?.visible) {
 					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
 				}
 			})
+
 			this.webviewDisposables.push(viewStateDisposable)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
@@ -650,6 +644,7 @@ export class ClineProvider
 					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
 				}
 			})
+
 			this.webviewDisposables.push(visibilityDisposable)
 		}
 
@@ -838,8 +833,8 @@ export class ClineProvider
 	}
 
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
-		// Try to read the port from the file
-		let localPort = "5173" // Default fallback
+		let localPort = "5173"
+
 		try {
 			const fs = require("fs")
 			const path = require("path")
@@ -855,7 +850,6 @@ export class ClineProvider
 			}
 		} catch (err) {
 			console.error("[ClineProvider:Vite] Failed to read Vite port file:", err)
-			// Continue with default port if file reading fails
 		}
 
 		const localServerUrl = `localhost:${localPort}`
@@ -865,7 +859,6 @@ export class ClineProvider
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
 			vscode.window.showErrorMessage(t("common:errors.hmr_not_running"))
-
 			return this.getHtmlContent(webview)
 		}
 
@@ -2130,12 +2123,8 @@ export class ClineProvider
 		return true
 	}
 
-	/**
-	 * Handle remote control enabled/disabled state changes
-	 * Manages UnifiedBridgeService lifecycle
-	 */
 	public async handleRemoteControlToggle(enabled: boolean) {
-		const { CloudService: CloudServiceImport, UnifiedBridgeService } = await import("@roo-code/cloud")
+		const { CloudService: CloudServiceImport, ExtensionBridgeService } = await import("@roo-code/cloud")
 
 		const userInfo = CloudServiceImport.instance.getUserInfo()
 
@@ -2146,10 +2135,10 @@ export class ClineProvider
 			return
 		}
 
-		await UnifiedBridgeService.handleRemoteControlState(
+		await ExtensionBridgeService.handleRemoteControlState(
 			userInfo,
 			enabled,
-			{ ...bridgeConfig, provider: this },
+			{ ...bridgeConfig, provider: this, sessionId: vscode.env.sessionId },
 			(message: string) => this.log(message),
 		)
 
@@ -2158,7 +2147,7 @@ export class ClineProvider
 
 			if (currentTask && !currentTask.bridgeService) {
 				try {
-					currentTask.bridgeService = UnifiedBridgeService.getInstance()
+					currentTask.bridgeService = ExtensionBridgeService.getInstance()
 
 					if (currentTask.bridgeService) {
 						await currentTask.bridgeService.subscribeToTask(currentTask)
@@ -2183,7 +2172,7 @@ export class ClineProvider
 				}
 			}
 
-			UnifiedBridgeService.resetInstance()
+			ExtensionBridgeService.resetInstance()
 		}
 	}
 

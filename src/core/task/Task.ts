@@ -11,6 +11,7 @@ import { serializeError } from "serialize-error"
 
 import {
 	type TaskLike,
+	type TaskMetadata,
 	type TaskEvents,
 	type ProviderSettings,
 	type TokenUsage,
@@ -32,7 +33,7 @@ import {
 	isBlockingAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
-import { CloudService, UnifiedBridgeService } from "@roo-code/cloud"
+import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
@@ -122,9 +123,11 @@ export type TaskOptions = {
 }
 
 export class Task extends EventEmitter<TaskEvents> implements TaskLike {
-	todoList?: TodoItem[]
 	readonly taskId: string
 	readonly instanceId: string
+	readonly metadata: TaskMetadata
+
+	todoList?: TodoItem[]
 
 	readonly rootTask: Task | undefined = undefined
 	readonly parentTask: Task | undefined = undefined
@@ -240,7 +243,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Task Bridge
 	enableTaskBridge: boolean
-	bridgeService: UnifiedBridgeService | null = null
+	bridgeService: ExtensionBridgeService | null = null
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -284,6 +287,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
+
+		this.metadata = {
+			taskId: this.taskId,
+			task: historyItem ? historyItem.task : task,
+			images: historyItem ? [] : images,
+		}
 
 		// Normal use-case is usually retry similar history task with new workspace.
 		this.workspacePath = parentTask
@@ -981,7 +990,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		if (this.enableTaskBridge) {
 			try {
-				this.bridgeService = this.bridgeService || UnifiedBridgeService.getInstance()
+				this.bridgeService = this.bridgeService || ExtensionBridgeService.getInstance()
 
 				if (this.bridgeService) {
 					await this.bridgeService.subscribeToTask(this)
@@ -1046,7 +1055,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async resumeTaskFromHistory() {
 		if (this.enableTaskBridge) {
 			try {
-				this.bridgeService = this.bridgeService || UnifiedBridgeService.getInstance()
+				this.bridgeService = this.bridgeService || ExtensionBridgeService.getInstance()
 
 				if (this.bridgeService) {
 					await this.bridgeService.subscribeToTask(this)
