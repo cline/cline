@@ -15,7 +15,7 @@ export class WriteToFileToolHandler implements IToolHandler {
 	constructor(private validator: ToolValidator) {}
 
 	async execute(config: any, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
+		// For partial blocks, return empty string to let coordinator handle UI
 		if (block.partial) {
 			return ""
 		}
@@ -27,24 +27,23 @@ export class WriteToFileToolHandler implements IToolHandler {
 		// Validate required parameters based on tool type
 		if (!relPath) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "path")
+			return "Missing required parameter: path"
 		}
 
 		if (block.name === "replace_in_file" && !diff) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("replace_in_file", "diff")
+			return "Missing required parameter: diff"
 		}
 
 		if ((block.name === "write_to_file" || block.name === "new_rule") && !content) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
+			return "Missing required parameter: content"
 		}
 
 		// Check clineignore access
 		const accessValidation = this.validator.checkClineIgnorePath(relPath)
 		if (!accessValidation.ok) {
-			await config.callbacks.say("clineignore_error", relPath)
-			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath))
+			return `Error: File access blocked by .clineignore rules: ${relPath}`
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
@@ -83,11 +82,9 @@ export class WriteToFileToolHandler implements IToolHandler {
 						true, // isFinal = true since we're not streaming
 					)
 				} catch (error) {
-					await config.callbacks.say("diff_error", relPath)
-					return formatResponse.toolError(
-						`${(error as Error)?.message}\n\n` +
-							formatResponse.diffError(relPath, config.services.diffViewProvider.originalContent),
-					)
+					await config.services.diffViewProvider.revertChanges()
+					await config.services.diffViewProvider.reset()
+					return `Error: ${(error as Error)?.message}\n\nDiff parsing failed for ${relPath}`
 				}
 			} else if (content) {
 				// Handle write_to_file and new_rule with direct content
@@ -160,7 +157,7 @@ export class WriteToFileToolHandler implements IToolHandler {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()
 			await config.services.diffViewProvider.reset()
-			throw error // Re-throw to be handled by coordinator
+			return `Error: ${(error as Error)?.message}`
 		}
 	}
 }

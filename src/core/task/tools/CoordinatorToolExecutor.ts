@@ -271,8 +271,62 @@ export class CoordinatorToolExecutor {
 	 */
 	private async handleWriteToolExecution(block: ToolUse): Promise<void> {
 		const relPath = block.params.path
+		const content = block.params.content || block.params.diff
 
-		// Execute the tool to get the result (handlers validate params and check clineignore)
+		// Validate path parameter
+		if (!relPath) {
+			this.config.taskState.consecutiveMistakeCount++
+			this.pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"), block)
+			return
+		}
+
+		// Check if file exists for UI messaging
+		const absolutePath = path.resolve(this.config.cwd, relPath)
+		const fileExists =
+			this.config.services.diffViewProvider.editType === "modify" || (await this.config.services.diffViewProvider.isEditing)
+				? this.config.services.diffViewProvider.editType === "modify"
+				: await require("@utils/fs").fileExistsAtPath(absolutePath)
+
+		// Create shared message props for UI
+		const sharedMessageProps = {
+			tool: fileExists ? "editedExistingFile" : "newFileCreated",
+			path: getReadablePath(this.config.cwd, relPath),
+			content: content,
+			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+		}
+
+		const completeMessage = JSON.stringify(sharedMessageProps)
+
+		// Handle approval flow for write tools
+		if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			await this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+			await this.say("tool" as ClineSay, completeMessage, undefined, undefined, false)
+			this.config.taskState.consecutiveAutoApprovedRequestsCount++
+			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, true, true)
+		} else {
+			const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`
+
+			showNotificationForApprovalIfAutoApprovalEnabled(
+				notificationMessage,
+				this.config.autoApprovalSettings.enabled,
+				this.config.autoApprovalSettings.enableNotifications,
+			)
+
+			await this.removeLastPartialMessageIfExistsWithType("say", "tool")
+			const didApprove = await this.askApproval("tool" as ClineAsk, block, completeMessage)
+
+			if (!didApprove) {
+				telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, false)
+				// Reset diff view if user rejected
+				await this.config.services.diffViewProvider.revertChanges()
+				await this.config.services.diffViewProvider.reset()
+				return
+			}
+
+			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, true)
+		}
+
+		// User approved or auto-approved, now execute the tool
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
@@ -281,8 +335,7 @@ export class CoordinatorToolExecutor {
 			return
 		}
 
-		// For write tools, the handler manages the entire approval flow and diff view
-		// The result is already the final formatted response
+		// Push the successful result
 		this.pushToolResult(result, block)
 	}
 
