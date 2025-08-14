@@ -61,7 +61,10 @@ import { CoordinatorToolExecutor } from "./tools/CoordinatorToolExecutor"
 import { ToolValidator } from "./tools/ToolValidator"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
-import type { TaskConfig } from "./TaskConfig"
+import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
+import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
+import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
+import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -137,6 +140,10 @@ export class ToolExecutor {
 		const validator = new ToolValidator(this.clineIgnoreController)
 		this.coordinator.register(new ListFilesToolHandler(validator))
 		this.coordinator.register(new ReadFileToolHandler(validator))
+		this.coordinator.register(new BrowserToolHandler())
+		this.coordinator.register(new AskFollowupQuestionToolHandler())
+		this.coordinator.register(new WebFetchToolHandler())
+		this.coordinator.register(new WriteToFileToolHandler(validator))
 
 		// Initialize the coordinator executor with all necessary dependencies
 		this.coordinatorExecutor = new CoordinatorToolExecutor(
@@ -726,96 +733,6 @@ export class ToolExecutor {
 					await this.handleError("writing file", error, block)
 					await this.diffViewProvider.revertChanges()
 					await this.diffViewProvider.reset()
-					await this.saveCheckpoint()
-					break
-				}
-			}
-			case "read_file": {
-				const relPath: string | undefined = block.params.path
-				const sharedMessageProps: ClineSayTool = {
-					tool: "readFile",
-					path: getReadablePath(this.cwd, this.removeClosingTag(block, "path", relPath)),
-				}
-				try {
-					if (block.partial) {
-						const partialMessage = JSON.stringify({
-							...sharedMessageProps,
-							content: undefined,
-							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-						} satisfies ClineSayTool)
-						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-							await this.say("tool", partialMessage, undefined, undefined, block.partial)
-						} else {
-							this.removeLastPartialMessageIfExistsWithType("say", "tool")
-							await this.ask("tool", partialMessage, block.partial).catch(() => {})
-						}
-						break
-					} else {
-						if (!relPath) {
-							this.taskState.consecutiveMistakeCount++
-							this.pushToolResult(await this.sayAndCreateMissingParamError("read_file", "path"), block)
-							await this.saveCheckpoint()
-							break
-						}
-
-						const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
-						if (!accessAllowed) {
-							await this.say("clineignore_error", relPath)
-							this.pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)), block)
-							await this.saveCheckpoint()
-							break
-						}
-
-						this.taskState.consecutiveMistakeCount = 0
-						const absolutePath = path.resolve(this.cwd, relPath)
-						const completeMessage = JSON.stringify({
-							...sharedMessageProps,
-							content: absolutePath,
-							operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-						} satisfies ClineSayTool)
-						if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-							await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
-							this.taskState.consecutiveAutoApprovedRequestsCount++
-							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, true, true)
-						} else {
-							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to read ${path.basename(absolutePath)}`,
-								this.autoApprovalSettings.enabled,
-								this.autoApprovalSettings.enableNotifications,
-							)
-							this.removeLastPartialMessageIfExistsWithType("say", "tool")
-							const didApprove = await this.askApproval("tool", block, completeMessage)
-							if (!didApprove) {
-								await this.saveCheckpoint()
-								telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, false)
-								break
-							}
-							telemetryService.captureToolUsage(this.ulid, block.name, this.api.getModel().id, false, true)
-						}
-						// now execute the tool like normal
-						const supportsImages = this.api.getModel().info.supportsImages ?? false
-						const result = await extractFileContent(absolutePath, supportsImages)
-
-						// Track file read operation
-						await this.fileContextTracker.trackFileContext(relPath, "read_tool")
-
-						this.pushToolResult(result.text, block)
-
-						if (result.imageBlock) {
-							this.taskState.userMessageContent.push(result.imageBlock)
-						}
-
-						if (!block.partial && this.focusChainSettings.enabled) {
-							await this.updateFCListFromToolResponse(block.params.task_progress)
-						}
-
-						await this.saveCheckpoint()
-						break
-					}
-				} catch (error) {
-					await this.handleError("reading file", error, block)
 					await this.saveCheckpoint()
 					break
 				}
