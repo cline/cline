@@ -49,6 +49,7 @@ export class Controller {
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
+	authService: AuthService
 	readonly cacheService: CacheService
 
 	constructor(
@@ -60,13 +61,13 @@ export class Controller {
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.cacheService = new CacheService(context)
-		const authService = AuthService.getInstance(this)
+		this.authService = AuthService.getInstance(this)
 
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.cacheService
 			.initialize()
 			.then(() => {
-				authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
 				console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
@@ -313,7 +314,7 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await AuthService.getInstance(this).handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -680,7 +681,9 @@ export class Controller {
 		const terminalReuseEnabled = this.cacheService.getGlobalStateKey("terminalReuseEnabled")
 		const defaultTerminalProfile = this.cacheService.getGlobalStateKey("defaultTerminalProfile")
 		const isNewUser = this.cacheService.getGlobalStateKey("isNewUser")
-		const welcomeViewCompleted = this.cacheService.getGlobalStateKey("welcomeViewCompleted")
+		const welcomeViewCompleted = Boolean(
+			this.cacheService.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
+		)
 		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
 		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
