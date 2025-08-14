@@ -68,6 +68,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
@@ -191,6 +192,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
+		localAgentsRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
 		localWorkflowToggles: {},
@@ -652,6 +654,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showAnnouncement,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
+		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
@@ -694,6 +697,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				localClineRulesToggles: toggles,
+			})),
+		setLocalAgentsRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localAgentsRulesToggles: toggles,
 			})),
 		setLocalCursorRulesToggles: (toggles) =>
 			setState((prevState) => ({

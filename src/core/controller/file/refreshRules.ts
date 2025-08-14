@@ -16,12 +16,16 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 	try {
 		const cwd = await getCwd(getDesktopDir())
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(controller, cwd)
-		const { cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(controller, cwd)
+		const { agentsLocalToggles, cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(
+			controller,
+			cwd,
+		)
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller, cwd)
 
 		return RefreshedRules.create({
 			globalClineRulesToggles: { toggles: globalToggles },
 			localClineRulesToggles: { toggles: localToggles },
+			localAgentsRulesToggles: { toggles: agentsLocalToggles },
 			localCursorRulesToggles: { toggles: cursorLocalToggles },
 			localWindsurfRulesToggles: { toggles: windsurfLocalToggles },
 			localWorkflowToggles: { toggles: localWorkflowToggles },
