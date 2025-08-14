@@ -9,6 +9,7 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 export type SecretKey =
 	| "apiKey"
@@ -98,6 +99,8 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	| "strictPlanModeEnabled"
+	| "focusChainSettings"
+	| "focusChainFeatureFlagEnabled"
 	// Settings around plan/act and ephemeral model configuration
 	| "preferredLanguage"
 	| "openaiReasoningEffort"
@@ -220,6 +223,8 @@ export interface GlobalState {
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
+	focusChainSettings: FocusChainSettings
+	focusChainFeatureFlagEnabled: boolean
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

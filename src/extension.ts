@@ -32,6 +32,7 @@ import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/posthog/PostHogClientProvider"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { AuthHandler } from "./hosts/external/AuthHandler"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
