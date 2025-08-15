@@ -2235,17 +2235,18 @@ export class ToolExecutor {
 								// 	() => {},
 								// )
 							} else {
-								// last message is completion_result
-								// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
-								await this.say(
-									"completion_result",
-									this.removeClosingTag(block, "result", result),
-									undefined,
-									undefined,
-									false,
-								)
-								await this.saveCheckpoint(true)
-								await addNewChangesFlagToLastCompletionResultMessage()
+								// Now that we don't stream a command, we shouldn't be completing the attempt_completion tool in the block.partial conditional, and instead do it when partial is false below
+								//
+								// last message is completion_result, we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
+								// await this.say(
+								// 	"completion_result",
+								// 	this.removeClosingTag(block, "result", result),
+								// 	undefined,
+								// 	undefined,
+								// 	false,
+								// )
+								// await this.saveCheckpoint(true)
+								// await addNewChangesFlagToLastCompletionResultMessage()
 								// await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
 								// 	() => {},
 								// )
