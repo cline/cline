@@ -227,6 +227,11 @@ export class CoordinatorToolExecutor {
 			case "load_mcp_documentation":
 				await this.handleLoadMcpDocumentationExecution(block)
 				break
+			case "plan_mode_respond":
+			case "attempt_completion":
+			case "new_task":
+				await this.handleTaskManagementExecution(block)
+				break
 			case "ask_followup_question":
 			case "web_fetch":
 			case "browser_action":
@@ -487,6 +492,24 @@ export class CoordinatorToolExecutor {
 		}
 
 		// Push the successful result
+		this.pushToolResult(result, block)
+	}
+
+	/**
+	 * Handle execution of task management tools (plan_mode_respond, attempt_completion, new_task)
+	 */
+	private async handleTaskManagementExecution(block: ToolUse): Promise<void> {
+		// Execute the tool through the handler
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// For task management tools, the handler manages the entire flow
+		// The result is already the final formatted response
 		this.pushToolResult(result, block)
 	}
 
