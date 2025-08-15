@@ -3,7 +3,7 @@ import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { BasetenModelId, ModelInfo, basetenDefaultModelId, basetenModels } from "@shared/api"
-import { calculateApiCostOpenAI } from "../../utils/cost"
+import { calculateApiCostOpenAI } from "@utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 

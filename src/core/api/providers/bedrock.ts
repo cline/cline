@@ -3,7 +3,7 @@ import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { convertToR1Format } from "../transform/r1-format"
 import { bedrockDefaultModelId, BedrockModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { calculateApiCostOpenAI } from "../../utils/cost"
+import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import {

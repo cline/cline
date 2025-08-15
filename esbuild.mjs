@@ -20,7 +20,6 @@ const aliasResolverPlugin = {
 	setup(build) {
 		const aliases = {
 			"@": path.resolve(__dirname, "src"),
-			"@api": path.resolve(__dirname, "src/api"),
 			"@core": path.resolve(__dirname, "src/core"),
 			"@integrations": path.resolve(__dirname, "src/integrations"),
 			"@services": path.resolve(__dirname, "src/services"),

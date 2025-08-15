@@ -1,4 +1,4 @@
-import type { LanguageModelChatSelector } from "../api/providers/types"
+import type { LanguageModelChatSelector } from "../core/api/providers/types"
 
 export type ApiProvider =
 	| "anthropic"

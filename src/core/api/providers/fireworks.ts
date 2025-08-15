@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from ".."
-import { ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 

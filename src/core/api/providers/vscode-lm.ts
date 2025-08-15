@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiStream } from "@api/transform/stream"
-import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
+import { ApiStream } from "../transform/stream"
+import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
