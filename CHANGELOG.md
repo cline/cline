@@ -2,8 +2,6 @@
 
 ## 3.25.1
 
-### Patch Changes
-
 - 7098c1a: fix: attempt_completion command showing twice in chat view when updating progress checklist
 - 7b2dddd: Fix bug where announcement banner could not be dismissed
 - a6e657e: feat(bedrock): GPT-OSS
