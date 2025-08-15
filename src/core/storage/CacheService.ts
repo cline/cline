@@ -49,8 +49,8 @@ export class CacheService {
 	 */
 	async initialize(): Promise<void> {
 		try {
-			// In testing mode, initialize with empty caches
-			if (!this.setInMemoryStoreMode()) {
+			// In special testing mode, we initialize with empty caches
+			if (!this.isInMemoryOnlyMode) {
 				// Load all extension state from disk
 				const state = await readStateFromDisk(this.context)
 
@@ -659,7 +659,6 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
-			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -861,7 +860,6 @@ export class CacheService {
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
-			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
