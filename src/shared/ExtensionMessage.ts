@@ -2,6 +2,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
+import { FocusChainSettings } from "./FocusChainSettings"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { HistoryItem } from "./HistoryItem"
 import { TelemetrySetting } from "./TelemetrySetting"
@@ -40,6 +41,7 @@ export interface ExtensionState {
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
+	currentFocusChainChecklist?: string | null
 	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
@@ -64,6 +66,8 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
+	focusChainSettings: FocusChainSettings
+	focusChainFeatureFlagEnabled?: boolean
 }
 
 export interface ClineMessage {
@@ -99,6 +103,7 @@ export type ClineAsk =
 	| "use_mcp_server"
 	| "new_task"
 	| "condense"
+	| "summarize_task"
 	| "report_bug"
 
 export type ClineSay =
@@ -129,6 +134,7 @@ export type ClineSay =
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
+	| "task_progress"
 
 export interface ClineSayTool {
 	tool:
@@ -140,6 +146,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "summarizeTask"
 	path?: string
 	diff?: string
 	content?: string

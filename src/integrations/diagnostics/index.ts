@@ -1,7 +1,7 @@
 import * as path from "path"
 import deepEqual from "fast-deep-equal"
 import { getCwd } from "@/utils/path"
-import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.host"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {
 	const oldMap = new Map<string, Diagnostic[]>()
@@ -27,28 +27,36 @@ export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnost
 // will return empty string if no problems with the given severity are found
 export async function diagnosticsToProblemsString(
 	diagnostics: FileDiagnostics[],
-	severities: DiagnosticSeverity[],
+	severities?: DiagnosticSeverity[],
 ): Promise<string> {
-	const cwd = await getCwd()
-	let result = ""
+	let results = []
 	for (const fileDiagnostics of diagnostics) {
-		const problems = fileDiagnostics.diagnostics.filter((d) => severities.includes(d.severity))
-
-		if (problems.length > 0) {
-			const filePath = path.relative(cwd, fileDiagnostics.filePath).toPosix()
-			result += `\n\n${filePath}`
-
-			for (const diagnostic of problems) {
-				const label = severityToString(diagnostic.severity)
-				// Lines are 0-indexed
-				const line = diagnostic.range?.start ? `${diagnostic.range.start.line + 1}` : ""
-
-				const source = diagnostic.source ? `${diagnostic.source} ` : ""
-				result += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
-			}
+		const problems = fileDiagnostics.diagnostics.filter((d) => !severities || severities.includes(d.severity))
+		const problemString = await singleFileDiagnosticsToProblemsString(fileDiagnostics.filePath, problems)
+		if (problemString) {
+			results.push(problemString)
 		}
 	}
-	return result.trim()
+	return results.join("\n\n")
+}
+
+export async function singleFileDiagnosticsToProblemsString(filePath: string, diagnostics: Diagnostic[]): Promise<string> {
+	if (!diagnostics.length) {
+		return ""
+	}
+	const cwd = await getCwd()
+	const relPath = path.relative(cwd, filePath).toPosix()
+	let result = `${relPath}`
+
+	for (const diagnostic of diagnostics) {
+		const label = severityToString(diagnostic.severity)
+		// Lines are 0-indexed
+		const line = diagnostic.range?.start ? `${diagnostic.range.start.line + 1}` : ""
+
+		const source = diagnostic.source ? `${diagnostic.source} ` : ""
+		result += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
+	}
+	return result
 }
 
 function severityToString(severity: DiagnosticSeverity): string {

@@ -24,10 +24,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "auto_approval_max_req_reached":
 				// Handle API request errors with special error parsing
 				if (apiRequestFailedMessage || apiReqStreamingFailedMessage) {
+					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
 					const clineError = ClineError.parse(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 					const clineErrorMessage = clineError?.message
 					const requestId = clineError?._error?.request_id
-					const isClineProvider = clineError?.providerId === "cline"
+					const isClineProvider = clineError?.providerId === "cline" // FIXME: since we are modifying backend to return generic error, we need to make sure we're not expecting providerId here
 
 					if (clineError) {
 						if (clineError.isErrorType(ClineErrorType.Balance)) {

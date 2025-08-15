@@ -55,7 +55,8 @@ Think of context like a whiteboard you and Cline share:
     -   Each model has a fixed size:
         -   Claude 3.5 Sonnet: 200,000 tokens
         -   DeepSeek: 64,000 tokens
-    -   When the whiteboard is full, you need to erase (clear context) to write more
+    -   When the whiteboard is full, Cline automatically summarizes the conversation to free up space
+        -   [Learn about Automatic Context Summarization](/features/automatic-context-summarization)
         -   [How Cline manages context under the hood](https://cline.bot/blog/understanding-the-new-context-window-progress-bar-in-cline)
 
 ⚠️ **Important**: Having a large context window (like Claude's 200k tokens) doesn't mean you should fill it completely. Just like a cluttered whiteboard, too much information can make it harder to focus on what's important.
@@ -85,7 +86,28 @@ Cline provides a visual way to monitor your context window usage through a progr
 -   Before starting complex tasks
 -   When Cline seems to lose context
 
-💡 **Tip**: Consider starting a fresh session when usage reaches 70-80% to maintain optimal performance.
+💡 **Tip**: With [Automatic Context Summarization](/features/automatic-context-summarization), Cline can now handle long conversations automatically. When combined with [Focus Chain](/features/focus-chain), you can work on complex projects that span multiple context windows without losing progress.
+
+## Automatic Context Management
+
+Cline now includes intelligent features to manage context automatically:
+
+### Automatic Context Summarization
+
+When your conversation approaches the context window limit, Cline automatically:
+- Creates a comprehensive summary of the conversation
+- Preserves all essential technical details and decisions
+- Seamlessly continues work without interruption
+- Maintains full task continuity
+
+This means you can work on larger projects without manually managing context. [Learn more about Automatic Context Summarization](/features/automatic-context-summarization).
+
+### Focus Chain Integration
+
+When combined with [Focus Chain](/features/focus-chain), Cline can:
+- Maintain todo lists across context resets
+- Track progress through multiple summarizations
+- Keep working on long-horizon tasks without losing direction
 
 ## Working with Context Files
 

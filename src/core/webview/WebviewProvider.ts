@@ -13,8 +13,6 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 
 export abstract class WebviewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
 	controller: Controller
@@ -24,7 +22,6 @@ export abstract class WebviewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
@@ -58,14 +55,10 @@ export abstract class WebviewProvider {
 	}
 
 	public static getActiveInstance(): WebviewProvider | undefined {
-		return Array.from(WebviewProvider.activeInstances).find((instance) => {
-			const webview = instance.getWebview()
-			if (webview && webview.viewType === "claude-dev.TabPanelProvider" && "active" in webview) {
-				return webview.active === true
-			}
-			return false
-		})
+		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.isActive())
 	}
+
+	protected abstract isActive(): boolean
 
 	public static getAllInstances(): WebviewProvider[] {
 		return Array.from(WebviewProvider.activeInstances)
@@ -116,21 +109,6 @@ export abstract class WebviewProvider {
 	}
 
 	/**
-	 * Initializes and sets up the webview when it's first created.
-	 *
-	 * @param webviewView - The webview view or panel instance to be resolved
-	 * @returns A promise that resolves when the webview has been fully initialized
-	 */
-	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
-
-	/**
-	 * Gets the current webview instance.
-	 *
-	 * @returns The webview instance (WebviewView, WebviewPanel, or similar)
-	 */
-	abstract getWebview(): any
-
-	/**
 	 * Converts a local URI to a webview URI that can be used within the webview.
 	 *
 	 * @param uri - The local URI to convert
@@ -177,14 +155,6 @@ export abstract class WebviewProvider {
 		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
 		// don't forget to add font-src ${webview.cspSource};
 		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
-
-		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
-
-		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
-
-		// // Same for stylesheet
-		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -349,9 +319,6 @@ export abstract class WebviewProvider {
 	 * @returns A URI pointing to the file/resource
 	 */
 	private getExtensionUri(...pathList: string[]): Uri {
-		if (!this.getWebview()) {
-			throw Error("webview is not initialized.")
-		}
 		return this.getWebviewUri(Uri.joinPath(this.context.extensionUri, ...pathList))
 	}
 }

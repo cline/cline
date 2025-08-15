@@ -19,6 +19,7 @@ interface TaskSectionProps {
 	}
 	messageHandlers: MessageHandlers
 	scrollBehavior: ScrollBehavior
+	lastProgressMessageText?: string
 }
 
 /**
@@ -32,6 +33,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 	selectedModelInfo,
 	messageHandlers,
 	scrollBehavior,
+	lastProgressMessageText,
 }) => {
 	return (
 		<TaskHeader
@@ -43,6 +45,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 			cacheReads={apiMetrics.totalCacheReads}
 			totalCost={apiMetrics.totalCost}
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
+			lastProgressMessageText={lastProgressMessageText}
 			onClose={messageHandlers.handleTaskCloseButtonClick}
 			onScrollToMessage={scrollBehavior.scrollToMessage}
 		/>

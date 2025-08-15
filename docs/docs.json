@@ -79,6 +79,8 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
+					"features/focus-chain",
+					"features/auto-compact",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",
@@ -97,7 +99,8 @@
 							"features/slash-commands/new-task",
 							"features/slash-commands/new-rule",
 							"features/slash-commands/smol",
-							"features/slash-commands/report-bug"
+							"features/slash-commands/report-bug",
+							"features/slash-commands/deep-planning"
 						]
 					},
 					{
@@ -146,9 +149,14 @@
 				"pages": [
 					"provider-config/anthropic",
 					"provider-config/claude-code",
-					"provider-config/aws-bedrock-with-apikey-authentication",
-					"provider-config/aws-bedrock-with-credentials-authentication",
-					"provider-config/aws-bedrock-with-profile-authentication",
+					{
+						"group": "AWS Bedrock",
+						"pages": [
+							"provider-config/aws-bedrock/api-key",
+							"provider-config/aws-bedrock/iam-credentials",
+							"provider-config/aws-bedrock/cli-profile"
+						]
+					},
 					"provider-config/gcp-vertex-ai",
 					"provider-config/litellm-and-cline-using-codestral",
 					"provider-config/vscode-language-model-api",

@@ -15,7 +15,7 @@ import { openExternal } from "@utils/env"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { diagnosticsToProblemsString } from "@integrations/diagnostics"
-import { DiagnosticSeverity } from "@/shared/proto/index.host"
+import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -42,6 +42,15 @@ export async function openMention(mention?: string): Promise<void> {
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
+}
+
+export async function getFileMentionFromPath(filePath: string) {
+	const cwd = await getCwd()
+	if (!cwd) {
+		return "@/" + filePath
+	}
+	const relativePath = path.relative(cwd, filePath)
+	return "@/" + relativePath
 }
 
 export async function parseMentions(
