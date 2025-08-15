@@ -25,7 +25,7 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
-   // Refreshes and returns Groq models
+  // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
@@ -175,7 +175,7 @@ message ModelsApiConfiguration {
   // Global configuration fields (not mode-specific)
   optional string api_key = 1;
   optional string cline_api_key = 2;
-  optional string task_id = 3;
+  optional string ulid = 3;
   optional string lite_llm_base_url = 4;
   optional string lite_llm_api_key = 5;
   optional bool lite_llm_use_prompt_cache = 6;
@@ -205,38 +205,39 @@ message ModelsApiConfiguration {
   optional string open_ai_native_api_key = 30;
   optional string deep_seek_api_key = 31;
   optional string requesty_api_key = 32;
-  optional string together_api_key = 33;
-  optional string fireworks_api_key = 34;
-  optional int32 fireworks_model_max_completion_tokens = 35;
-  optional int32 fireworks_model_max_tokens = 36;
-  optional string qwen_api_key = 37;
-  optional string doubao_api_key = 38;
-  optional string mistral_api_key = 39;
-  optional string azure_api_version = 40;
-  optional string qwen_api_line = 41;
-  optional string nebius_api_key = 42;
-  optional string asksage_api_url = 43;
-  optional string asksage_api_key = 44;
-  optional string xai_api_key = 45;
-  optional string sambanova_api_key = 46;
-  optional string cerebras_api_key = 47;
-  optional int32 request_timeout_ms = 48;
-  optional string sap_ai_core_client_id = 49;
-  optional string sap_ai_core_client_secret = 50;
-  optional string sap_ai_resource_group = 51;
-  optional string sap_ai_core_token_url = 52;
-  optional string sap_ai_core_base_url = 53;
-  optional string moonshot_api_key = 54;
-  optional string moonshot_api_line = 55;
-  optional string aws_authentication = 56;
-  optional string aws_bedrock_api_key = 57;
-  optional string cline_account_id = 58;
-  optional string groq_api_key = 59;
-  optional string hugging_face_api_key = 60;
-  optional string huawei_cloud_maas_api_key = 61;
-  optional string baseten_api_key = 62;
-  optional string ollama_api_key = 63;
-  optional string lm_studio_max_tokens = 64;
+  optional string requesty_base_url = 33;
+  optional string together_api_key = 34;
+  optional string fireworks_api_key = 35;
+  optional int32 fireworks_model_max_completion_tokens = 36;
+  optional int32 fireworks_model_max_tokens = 37;
+  optional string qwen_api_key = 38;
+  optional string doubao_api_key = 39;
+  optional string mistral_api_key = 40;
+  optional string azure_api_version = 41;
+  optional string qwen_api_line = 42;
+  optional string nebius_api_key = 43;
+  optional string asksage_api_url = 44;
+  optional string asksage_api_key = 45;
+  optional string xai_api_key = 46;
+  optional string sambanova_api_key = 47;
+  optional string cerebras_api_key = 48;
+  optional int32 request_timeout_ms = 49;
+  optional string sap_ai_core_client_id = 50;
+  optional string sap_ai_core_client_secret = 51;
+  optional string sap_ai_resource_group = 52;
+  optional string sap_ai_core_token_url = 53;
+  optional string sap_ai_core_base_url = 54;
+  optional string moonshot_api_key = 55;
+  optional string moonshot_api_line = 56;
+  optional string aws_authentication = 57;
+  optional string aws_bedrock_api_key = 58;
+  optional string cline_account_id = 59;
+  optional string groq_api_key = 60;
+  optional string hugging_face_api_key = 61;
+  optional string huawei_cloud_maas_api_key = 62;
+  optional string baseten_api_key = 63;
+  optional string ollama_api_key = 64;
+  optional string lm_studio_max_tokens = 65;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

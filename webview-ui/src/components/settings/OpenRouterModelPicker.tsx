@@ -51,13 +51,13 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "anthropic/claude-opus-4.1",
-		description: "Anthropic's newest model topping benchmarks",
+		id: "anthropic/claude-sonnet-4:1m",
+		description: "Large 1M context window for complex tasks",
 		label: "New",
 	},
 	{
-		id: "google/gemini-2.5-pro",
-		description: "Large 1M context window, great value",
+		id: "anthropic/claude-opus-4.1",
+		description: "Anthropic's newest model topping benchmarks",
 		label: "Trending",
 	},
 ]
@@ -219,6 +219,24 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		)
 	}, [selectedModelId])
 
+	// Check if the current model is Claude Sonnet 4 and determine the alternate variant
+	const claudeSonnet4Variant = useMemo(() => {
+		if (selectedModelId === "anthropic/claude-sonnet-4") {
+			return {
+				current: "anthropic/claude-sonnet-4",
+				alternate: "anthropic/claude-sonnet-4:1m",
+				linkText: "Switch to 1M context window model",
+			}
+		} else if (selectedModelId === "anthropic/claude-sonnet-4:1m") {
+			return {
+				current: "anthropic/claude-sonnet-4:1m",
+				alternate: "anthropic/claude-sonnet-4",
+				linkText: "Switch to 200K context window model",
+			}
+		}
+		return null
+	}, [selectedModelId])
+
 	return (
 		<div style={{ width: "100%" }}>
 			<style>
@@ -318,6 +336,20 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{claudeSonnet4Variant && (
+					<div style={{ marginBottom: 2 }}>
+						<VSCodeLink
+							style={{
+								display: "inline",
+								fontSize: "10.5px",
+								color: "var(--vscode-textLink-foreground)",
+							}}
+							onClick={() => handleModelChange(claudeSonnet4Variant.alternate)}>
+							{claudeSonnet4Variant.linkText}
+						</VSCodeLink>
+					</div>
+				)}
 			</div>
 
 			{hasInfo ? (

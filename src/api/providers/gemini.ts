@@ -20,7 +20,7 @@ interface GeminiHandlerOptions {
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
 	apiModelId?: string
-	taskId?: string
+	ulid?: string
 }
 
 /**
@@ -28,7 +28,7 @@ interface GeminiHandlerOptions {
  *
  * Key features:
  * - One cache per task: Creates a single cache per task and reuses it for subsequent turns
- * - Stable cache keys: Uses taskId as a stable identifier for caches
+ * - Stable cache keys: Uses ulid as a stable identifier for caches
  * - Efficient cache updates: Only updates caches when there's new content to add
  * - Split cost accounting: Separates immediate costs from ongoing cache storage costs
  *
@@ -255,8 +255,8 @@ export class GeminiHandler implements ApiHandler {
 			const throughputTokensPerSecSdk =
 				totalDurationSdkMs > 0 && outputTokens > 0 ? outputTokens / (totalDurationSdkMs / 1000) : undefined
 
-			if (this.options.taskId) {
-				telemetryService.captureGeminiApiPerformance(this.options.taskId, modelId, {
+			if (this.options.ulid) {
+				telemetryService.captureGeminiApiPerformance(this.options.ulid, modelId, {
 					ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
 					totalDurationSec: totalDurationSdkMs / 1000,
 					promptTokens,
@@ -269,7 +269,7 @@ export class GeminiHandler implements ApiHandler {
 					throughputTokensPerSec: throughputTokensPerSecSdk,
 				})
 			} else {
-				console.warn("GeminiHandler: taskId not available for telemetry in createMessage.")
+				console.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
 	}

@@ -22,7 +22,6 @@ import { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -31,8 +30,6 @@ import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalF
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
-import { sendAddToInputEvent, sendAddToInputEventToClient } from "./ui/subscribeToAddToInput"
-import { WebviewProvider } from "../webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -47,6 +44,7 @@ export class Controller {
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
+	authService: AuthService
 	readonly cacheService: CacheService
 
 	constructor(
@@ -58,13 +56,13 @@ export class Controller {
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.cacheService = new CacheService(context)
-		const authService = AuthService.getInstance(this)
+		this.authService = AuthService.getInstance(this)
 
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.cacheService
 			.initialize()
 			.then(() => {
-				authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
 				console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
@@ -162,6 +160,8 @@ export class Controller {
 		const apiConfiguration = this.cacheService.getApiConfiguration()
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
+		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")
@@ -189,6 +189,12 @@ export class Controller {
 			}
 			this.cacheService.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
+		// Apply remote feature flag gate to focus chain settings
+		const effectiveFocusChainSettings = {
+			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
+			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
+		}
+
 		this.task = new Task(
 			this,
 			this.mcpHub,
@@ -199,6 +205,7 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
+			effectiveFocusChainSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
@@ -238,12 +245,12 @@ export class Controller {
 		this.cacheService.setGlobalState("mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
-		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
+		telemetryService.captureModeSwitch(this.task?.ulid ?? "0", modeToSwitchTo)
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
 			const apiConfiguration = this.cacheService.getApiConfiguration()
-			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
 		}
 
 		await this.postStateToWebview()
@@ -302,7 +309,7 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await AuthService.getInstance(this).handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -336,7 +343,7 @@ export class Controller {
 			this.cacheService.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
 
 			await this.postStateToWebview()
@@ -480,7 +487,7 @@ export class Controller {
 
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
@@ -500,87 +507,6 @@ export class Controller {
 			return JSON.parse(fileContents)
 		}
 		return undefined
-	}
-
-	// Context menus and code actions
-
-	async getFileMentionFromPath(filePath: string) {
-		const cwd = await getCwd()
-		if (!cwd) {
-			return "@/" + filePath
-		}
-		const relativePath = path.relative(cwd, filePath)
-		return "@/" + relativePath
-	}
-
-	// 'Add to Cline' context menu in editor and code action
-	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
-		// Post message to webview with the selected code
-		const fileMention = await this.getFileMentionFromPath(filePath)
-
-		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
-		if (diagnostics) {
-			const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-			input += `\nProblems:\n${problemsString}`
-		}
-
-		const lastActiveWebview = WebviewProvider.getLastActiveInstance()
-		if (lastActiveWebview) {
-			await sendAddToInputEventToClient(lastActiveWebview.getClientId(), input)
-		}
-
-		console.log("addSelectedCodeToChat", code, filePath, languageId)
-	}
-
-	// 'Add to Cline' context menu in Terminal
-	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-		await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${output}\n\`\`\``)
-
-		console.log("addSelectedTerminalOutputToChat", output, terminalName)
-	}
-
-	// 'Fix with Cline' in code actions
-	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-
-		const fileMention = await this.getFileMentionFromPath(filePath)
-		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
-
-		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
-	}
-
-	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
-		let problemsString = ""
-		for (const diagnostic of diagnostics) {
-			let label: string
-			switch (diagnostic.severity) {
-				case vscode.DiagnosticSeverity.Error:
-					label = "Error"
-					break
-				case vscode.DiagnosticSeverity.Warning:
-					label = "Warning"
-					break
-				case vscode.DiagnosticSeverity.Information:
-					label = "Information"
-					break
-				case vscode.DiagnosticSeverity.Hint:
-					label = "Hint"
-					break
-				default:
-					label = "Diagnostic"
-			}
-			const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-			const source = diagnostic.source ? `${diagnostic.source} ` : ""
-			problemsString += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
-		}
-		problemsString = problemsString.trim()
-		return problemsString
 	}
 
 	// Task history
@@ -651,6 +577,8 @@ export class Controller {
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
+		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")
@@ -667,7 +595,9 @@ export class Controller {
 		const terminalReuseEnabled = this.cacheService.getGlobalStateKey("terminalReuseEnabled")
 		const defaultTerminalProfile = this.cacheService.getGlobalStateKey("defaultTerminalProfile")
 		const isNewUser = this.cacheService.getGlobalStateKey("isNewUser")
-		const welcomeViewCompleted = this.cacheService.getGlobalStateKey("welcomeViewCompleted")
+		const welcomeViewCompleted = Boolean(
+			this.cacheService.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
+		)
 		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
 		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
@@ -698,11 +628,14 @@ export class Controller {
 			currentTaskItem,
 			checkpointTrackerErrorMessage,
 			clineMessages,
+			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
 			platform,
 			autoApprovalSettings,
 			browserSettings,
+			focusChainSettings,
+			focusChainFeatureFlagEnabled,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,

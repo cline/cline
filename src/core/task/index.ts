@@ -4,7 +4,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, buildApiHandler } from "@api/index"
 import { ApiStream } from "@api/transform/stream"
-import { parseAssistantMessageV2, parseAssistantMessageV3, ToolUseName } from "@core/assistant-message"
+import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -50,6 +50,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
@@ -80,8 +81,8 @@ import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-
-export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
+import { FocusChainManager } from "./focus-chain"
+import { summarizeTask } from "@core/prompts/contextManagement"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -117,6 +118,9 @@ export class Task {
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
 
+	// Focus Chain
+	private FocusChainManager?: FocusChainManager
+
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private postStateToWebview: () => Promise<void>
@@ -129,6 +133,7 @@ export class Task {
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	focusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -145,6 +150,7 @@ export class Task {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
+		focusChainSettings: FocusChainSettings,
 		preferredLanguage: string,
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
@@ -193,6 +199,7 @@ export class Task {
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
 		this.mode = mode
@@ -235,10 +242,24 @@ export class Task {
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
+		// Initialize focus chain manager only if enabled
+		if (this.focusChainSettings.enabled) {
+			this.FocusChainManager = new FocusChainManager({
+				taskId: this.taskId,
+				taskState: this.taskState,
+				mode: this.mode,
+				context: this.getContext(),
+				cacheService: this.cacheService,
+				postStateToWebview: this.postStateToWebview,
+				say: this.say.bind(this),
+				focusChainSettings: this.focusChainSettings,
+			})
+		}
+
 		// Prepare effective API configuration
 		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
-			taskId: this.taskId,
+			ulid: this.ulid,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
@@ -283,11 +304,11 @@ export class Task {
 			}
 		}
 
-		// Now that taskId is initialized, we can build the API handler
+		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
 
-		// Set taskId on browserSession for telemetry tracking
-		this.browserSession.setTaskId(this.taskId)
+		// Set ulid on browserSession for telemetry tracking
+		this.browserSession.setUlid(this.ulid)
 
 		// Continue with task initialization
 		if (historyItem) {
@@ -296,13 +317,20 @@ export class Task {
 			this.startTask(task, images, files)
 		}
 
+		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
+		if (this.FocusChainManager) {
+			this.FocusChainManager.setupFocusChainFileWatcher().catch((error) => {
+				console.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
+			})
+		}
+
 		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -320,6 +348,7 @@ export class Task {
 			this.cacheService,
 			this.autoApprovalSettings,
 			this.browserSettings,
+			this.focusChainSettings,
 			cwd,
 			this.taskId,
 			this.ulid,
@@ -332,12 +361,16 @@ export class Task {
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
 			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
+			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 		)
 	}
 
 	public updateMode(mode: Mode): void {
 		this.mode = mode
 		this.toolExecutor.updateMode(mode)
+		if (this.FocusChainManager) {
+			this.FocusChainManager.updateMode(mode)
+		}
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
@@ -687,6 +720,7 @@ export class Task {
 		text?: string
 		images?: string[]
 		files?: string[]
+		askTs?: number
 	}> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.taskState.abort) {
@@ -697,6 +731,7 @@ export class Task {
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const lastMessage = clineMessages.at(-1)
 			const lastMessageIndex = clineMessages.length - 1
+
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
@@ -1173,6 +1208,11 @@ export class Task {
 	}
 
 	async abortTask() {
+		// Check for incomplete progress before aborting
+		if (this.FocusChainManager) {
+			this.FocusChainManager.checkIncompleteProgressOnCompletion()
+		}
+
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
@@ -1184,6 +1224,9 @@ export class Task {
 		await this.diffViewProvider.revertChanges()
 		// Clear the notification callback when task is aborted
 		this.mcpHub.clearNotificationCallback()
+		if (this.FocusChainManager) {
+			this.FocusChainManager.dispose()
+		}
 	}
 
 	// Checkpoints
@@ -1610,7 +1653,14 @@ export class Task {
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(this.cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isNextGenModel)
+		let systemPrompt = await SYSTEM_PROMPT(
+			this.cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			this.focusChainSettings,
+			isNextGenModel,
+		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1893,6 +1943,10 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
+		// Increment API request counter for focus chain list management
+		this.taskState.apiRequestCount++
+		this.taskState.apiRequestsSinceLastTodoUpdate++
+
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { modelId, providerId } = await this.getCurrentProviderInfo()
 		if (providerId && modelId) {
@@ -2086,7 +2140,64 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
-		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
+		// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
+		// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
+		// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
+		let shouldCompact = false
+		if (this.taskState.currentlySummarizing) {
+			this.taskState.currentlySummarizing = false
+
+			if (this.taskState.conversationHistoryDeletedRange) {
+				const [start, end] = this.taskState.conversationHistoryDeletedRange
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+
+				// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
+				const safeEnd = Math.min(end + 2, apiHistory.length - 1)
+				if (end + 2 <= safeEnd) {
+					this.taskState.conversationHistoryDeletedRange = [start, end + 2]
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				}
+			}
+		} else {
+			shouldCompact = this.contextManager.shouldCompactContextWindow(
+				this.messageStateHandler.getClineMessages(),
+				this.api,
+				previousApiReqIndex,
+			)
+
+			// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
+			// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
+			// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
+			// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
+			// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
+			// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
+			// for now to prevent additional disk from needing to be used.
+			// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+			if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+				const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+
+				// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
+				// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
+				if (activeMessageCount <= 2) {
+					shouldCompact = false
+				}
+			}
+		}
+
+		let parsedUserContent: UserContent
+		let environmentDetails: string
+		let clinerulesError: boolean
+
+		// when summarizing the context window, we do not want to inject updated to the context
+		if (shouldCompact) {
+			parsedUserContent = userContent
+			environmentDetails = ""
+			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
+		} else {
+			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
+		}
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
 		if (clinerulesError === true) {
@@ -2098,14 +2209,21 @@ export class Task {
 
 		userContent = parsedUserContent
 		// add environment details as its own text block, separate from tool results
-		userContent.push({ type: "text", text: environmentDetails })
+		// do not add environment details to the message which we are compacting the context window
+		if (!shouldCompact) {
+			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		if (shouldCompact) {
+			userContent.push({ type: "text", text: summarizeTask() })
+		}
 
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2170,20 +2288,13 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					this.ulid,
-					providerId,
-					this.api.getModel().id,
-					"assistant",
-					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
-					},
-				)
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				})
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2237,12 +2348,8 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
-							const isNextGenModel = isNextGenModelFamily(this.api)
-							if (isNextGenModel && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
-								this.taskState.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
-							} else {
-								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-							}
+
+							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
@@ -2352,7 +2459,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, this.ulid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
@@ -2404,7 +2511,19 @@ export class Task {
 						},
 					],
 				})
-				// Returns early to avoid retry since no assistant message was received
+
+				// Offer the user a chance to retry this API request
+				const { response } = await this.ask(
+					"api_req_failed",
+					"No assistant message was received. Would you like to retry the request?",
+				)
+
+				if (response === "yesButtonClicked") {
+					// Signal the loop to continue (i.e., do not end), so it will attempt again
+					return false
+				}
+
+				// Returns early to avoid retry since user dismissed
 				return true
 			}
 
@@ -2474,6 +2593,18 @@ export class Task {
 		let clinerulesError = false
 		if (needsClinerulesFileCheck) {
 			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
+		}
+
+		// Add focu chain list instructions if needed
+		if (this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
+			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
+			processedUserContent.push({
+				type: "text",
+				text: focusChainInstructions,
+			})
+
+			this.taskState.apiRequestsSinceLastTodoUpdate = 0
+			this.taskState.todoListWasUpdatedByUser = false
 		}
 
 		// Return all results

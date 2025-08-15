@@ -1,5 +1,35 @@
 # Changelog
 
+## [3.25.2]
+
+- Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
+- Fix OpenRouter showing cline credits error after 402 response
+
+## [3.25.1]
+
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
+
+## [3.25.0]
+
+- **Focus Chain:** Automatically creates and maintains todo lists as you work with Cline, breaking down complex tasks into manageable steps with real-time progress tracking
+- **Auto Compact:** Intelligently manages conversation context to prevent token limit errors by automatically compacting older messages while preserving important context
+- **Deep Planning:** New `/deep-planning` slash command for structured 4-step implementation planning that integrates with Focus Chain for automatic progress tracking
+- Add support for 200k context window for Claude Sonnet 4 in OpenRouter and Cline providers
+- Add option to configure custom base URL for Requesty provider
+
+## [3.24.0]
+
+- Add OpenAI GPT-5 Chat(gpt-5-chat-latest)
+- Add custom browser arguments setting to allow passing flags to the Chrome executable for better headless compatibility.
+- Add 1m context window model support for claude sonnet 4
+- Fis the API Keys URL for Requesty
+- Set gpt5 max tokens to 8_192 to fix 'context window exceeded' error
+- Fix issue where fallback request to retrieve cost was not using correct auth token
+- Add OpenAI context window exceeded error handling
+- Calibrate input token counts when using anthropic models of sap ai core provider
+
 ## [3.23.0]
 
 - Add caching support for Bedrock inferences using SAP AI Core and minor refactor
