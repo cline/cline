@@ -266,7 +266,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					return
 				}
 				// Ensure the sidebar view is visible
-				focusChatInput()
+				await focusChatInput()
 
 				await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${terminalContents}\n\`\`\``)
 
