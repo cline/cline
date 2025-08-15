@@ -59,6 +59,7 @@ export type GlobalStateKey =
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
 	| "taskHistory"
+	| "requestyBaseUrl"
 	| "openAiBaseUrl"
 	| "openAiHeaders"
 	| "ollamaBaseUrl"
@@ -181,6 +182,7 @@ export interface GlobalState {
 	vertexRegion: string | undefined
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
+	requestyBaseUrl: string | undefined
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
 	ollamaBaseUrl: string | undefined

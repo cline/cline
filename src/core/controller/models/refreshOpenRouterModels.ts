@@ -6,7 +6,8 @@ import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
-import { CLAUDE_SONNET_4_1M_TIERS } from "@/shared/api"
+import { CLAUDE_SONNET_4_1M_TIERS, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import cloneDeep from "clone-deep"
 
 /**
  * Refreshes the OpenRouter models and returns the updated model list
@@ -50,12 +51,6 @@ export async function refreshOpenRouterModels(
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4":
-						modelInfo.supportsPromptCache = true
-						modelInfo.cacheWritesPrice = 3.75
-						modelInfo.cacheReadsPrice = 0.3
-						modelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
-						modelInfo.tiers = CLAUDE_SONNET_4_1M_TIERS
-						break
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":
@@ -147,6 +142,14 @@ export async function refreshOpenRouterModels(
 				}
 
 				models[rawModel.id] = modelInfo
+
+				// add custom :1m model variant
+				if (rawModel.id === "anthropic/claude-sonnet-4") {
+					const claudeSonnet41mModelInfo = cloneDeep(modelInfo)
+					claudeSonnet41mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
+					claudeSonnet41mModelInfo.tiers = CLAUDE_SONNET_4_1M_TIERS
+					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
+				}
 			}
 		} else {
 			console.error("Invalid response from OpenRouter API")

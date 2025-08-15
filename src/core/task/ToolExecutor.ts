@@ -2100,10 +2100,6 @@ export class ToolExecutor {
 						// Store the number of options for telemetry
 						const options = parsePartialArrayString(optionsRaw || "[]")
 
-						if (!block.partial && this.focusChainSettings.enabled) {
-							await this.updateFCListFromToolResponse(block.params.task_progress)
-						}
-
 						this.taskState.isAwaitingPlanResponse = true
 						let {
 							text,
@@ -2167,6 +2163,10 @@ export class ToolExecutor {
 								formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images, fileContentString),
 								block,
 							)
+						}
+
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
 						}
 
 						//

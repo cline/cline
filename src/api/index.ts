@@ -148,6 +148,7 @@ function createHandlerForProvider(
 			})
 		case "requesty":
 			return new RequestyHandler({
+				requestyBaseUrl: options.requestyBaseUrl,
 				requestyApiKey: options.requestyApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
