@@ -27,6 +27,8 @@ import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
+import { addPromptToChat } from "./core/controller/commands/addPromptToChat"
+import { addFileMentionToChat } from "./core/controller/commands/addFileMentionToChat"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
@@ -518,19 +520,17 @@ export async function activate(context: vscode.ExtensionContext) {
 				let prompt: string | undefined
 				let submit: boolean = false
 
-				// Determine the prompt and submit flag from the arguments
 				if (typeof args === "string") {
 					prompt = args
 				} else if (typeof args === "object" && args !== null) {
 					prompt = args.prompt
-					submit = !!args.submit // Coerce to boolean
+					submit = !!args.submit
 				}
 
-				// Interactive fallback if no prompt was provided
 				if (!prompt) {
 					prompt = (
 						await HostProvider.window.showInputBox({
-							title: "Enter Prompt", // Added missing title property
+							title: "Enter Prompt",
 							prompt: "Enter the prompt to send to Cline",
 							value: "e.g., Explain this code",
 						})
@@ -538,22 +538,10 @@ export async function activate(context: vscode.ExtensionContext) {
 					if (!prompt) return
 				}
 
-				// Get the currently active/visible Cline webview instance.
-				await vscode.commands.executeCommand("cline.focusChatInput")
-				await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
+				const activeWebview = await focusChatInput()
+				if (!activeWebview) return
 
-				const visibleWebview = WebviewProvider.getLastActiveInstance()
-				if (!visibleWebview) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Could not find an active Cline chat window.",
-					})
-					return
-				}
-
-				await visibleWebview.controller.addPromptToChat(prompt, submit)
-
-				telemetryService.captureButtonClick("command_addPromptToChat", visibleWebview.controller.task?.taskId)
+				await addPromptToChat(activeWebview.controller, { prompt, submit, diagnostics: [] })
 			},
 		),
 	)
@@ -565,7 +553,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				let filePath: string | undefined
 				let submit: boolean = false
 
-				// Determine the filePath and submit flag from the arguments
 				if (typeof args === "string") {
 					filePath = args
 				} else if (typeof args === "object" && args !== null) {
@@ -573,36 +560,21 @@ export async function activate(context: vscode.ExtensionContext) {
 					submit = !!args.submit
 				}
 
-				// Interactive fallback if no path was provided
 				if (!filePath) {
 					const fileUris = (
 						await HostProvider.window.showOpenDialogue({
-							// Corrected method name
 							canSelectMany: false,
 							openLabel: "Select File to Mention",
 						})
-					).paths // Changed .response to .paths
+					).paths
 					if (!fileUris || fileUris.length === 0) return
-					filePath = fileUris[0] // Removed non-null assertion as it should be a string now
+					filePath = fileUris[0]
 				}
 
-				// Get the active Cline webview instance.
-				await vscode.commands.executeCommand("cline.focusChatInput")
-				await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
+				const activeWebview = await focusChatInput()
+				if (!activeWebview) return
 
-				const visibleWebview = WebviewProvider.getLastActiveInstance()
-				if (!visibleWebview) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Could not find an active Cline chat window.",
-					})
-					return
-				}
-
-				// Call the controller with both arguments
-				await visibleWebview.controller.addFileMentionToChat(filePath, submit)
-
-				telemetryService.captureButtonClick("command_addFileMentionToChat", visibleWebview.controller.task?.taskId)
+				await addFileMentionToChat(activeWebview.controller, { filePath, submit, diagnostics: [] })
 			},
 		),
 	)
