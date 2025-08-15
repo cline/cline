@@ -59,6 +59,8 @@ import { continuationPrompt } from "../prompts/contextManagement"
 import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { CoordinatorToolExecutor } from "./tools/CoordinatorToolExecutor"
 import { ToolValidator } from "./tools/ToolValidator"
+import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
+import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
@@ -180,7 +182,7 @@ export class ToolExecutor {
 			this.coordinator,
 			this.asToolConfig(),
 			this.pushToolResult,
-			this.removeClosingTag,
+			ToolDisplayUtils.removeClosingTag,
 			this.shouldAutoApproveToolWithPath.bind(this),
 			this.sayAndCreateMissingParamError,
 			this.removeLastPartialMessageIfExistsWithType,
@@ -260,92 +262,22 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel = isNextGenModelFamily(this.api)
-
-		if (typeof content === "string") {
-			const resultText = content || "(tool did not return anything)"
-
-			// Non-Claude 4: Use traditional format with header
-			this.taskState.userMessageContent.push({
-				type: "text",
-				text: `${this.toolDescription(block)} Result:`,
-			})
-			this.taskState.userMessageContent.push({
-				type: "text",
-				text: resultText,
-			})
-		} else {
-			this.taskState.userMessageContent.push(...content)
-		}
-		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
-		this.taskState.didAlreadyUseTool = true
-	}
-
-	private toolDescription = (block: ToolUse) => {
-		switch (block.name) {
-			case "execute_command":
-				return `[${block.name} for '${block.params.command}']`
-			case "read_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "write_to_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "replace_in_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "search_files":
-				return `[${block.name} for '${block.params.regex}'${
-					block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-				}]`
-			case "list_files":
-				return `[${block.name} for '${block.params.path}']`
-			case "list_code_definition_names":
-				return `[${block.name} for '${block.params.path}']`
-			case "browser_action":
-				return `[${block.name} for '${block.params.action}']`
-			case "use_mcp_tool":
-				return `[${block.name} for '${block.params.server_name}']`
-			case "access_mcp_resource":
-				return `[${block.name} for '${block.params.server_name}']`
-			case "ask_followup_question":
-				return `[${block.name} for '${block.params.question}']`
-			case "plan_mode_respond":
-				return `[${block.name}]`
-			case "load_mcp_documentation":
-				return `[${block.name}]`
-			case "attempt_completion":
-				return `[${block.name}]`
-			case "new_task":
-				return `[${block.name} for creating a new task]`
-			case "condense":
-				return `[${block.name}]`
-			case "summarize_task":
-				return `[${block.name}]`
-			case "report_bug":
-				return `[${block.name}]`
-			case "new_rule":
-				return `[${block.name} for '${block.params.path}']`
-			case "web_fetch":
-				return `[${block.name} for '${block.params.url}']`
-		}
+		ToolResultUtils.pushToolResult(
+			content,
+			block,
+			this.taskState.userMessageContent,
+			ToolDisplayUtils.getToolDescription,
+			this.api,
+			() => {
+				this.taskState.didAlreadyUseTool = true
+			},
+		)
 	}
 
 	// The user can approve, reject, or provide feedback (rejection). However the user may also send a message along with an approval, in which case we add a separate user message with this feedback.
-	private pushAdditionalToolFeedback = (feedback?: string, images?: string[], fileContentString?: string) => {
-		if (!feedback && (!images || images.length === 0) && !fileContentString) {
-			return
-		}
-		const content = formatResponse.toolResult(
-			`The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
-			images,
-			fileContentString,
-		)
-		if (typeof content === "string") {
-			this.taskState.userMessageContent.push({
-				type: "text",
-				text: content,
-			})
-		} else {
-			this.taskState.userMessageContent.push(...content)
-		}
+	private pushAdditionalToolFeedback = async (feedback?: string, images?: string[], files?: string[]) => {
+		const fileContentString = await ToolResultUtils.processFilesForFeedback(files)
+		ToolResultUtils.pushAdditionalToolFeedback(this.taskState.userMessageContent, feedback, images, fileContentString)
 	}
 
 	private askApproval = async (type: ClineAsk, block: ToolUse, partialMessage: string) => {
@@ -354,12 +286,7 @@ export class ToolExecutor {
 			// User pressed reject button or responded with a message, which we treat as a rejection
 			this.pushToolResult(formatResponse.toolDenied(), block)
 			if (text || (images && images.length > 0) || (files && files.length > 0)) {
-				let fileContentString = ""
-				if (files && files.length > 0) {
-					fileContentString = await processFilesIntoText(files)
-				}
-
-				this.pushAdditionalToolFeedback(text, images, fileContentString)
+				await this.pushAdditionalToolFeedback(text, images, files)
 				await this.say("user_feedback", text, images, files)
 				await this.saveCheckpoint()
 			}
@@ -368,12 +295,7 @@ export class ToolExecutor {
 		} else {
 			// User hit the approve button, and may have provided feedback
 			if (text || (images && images.length > 0) || (files && files.length > 0)) {
-				let fileContentString = ""
-				if (files && files.length > 0) {
-					fileContentString = await processFilesIntoText(files)
-				}
-
-				this.pushAdditionalToolFeedback(text, images, fileContentString)
+				await this.pushAdditionalToolFeedback(text, images, files)
 				await this.say("user_feedback", text, images, files)
 				await this.saveCheckpoint()
 			}
@@ -392,40 +314,19 @@ export class ToolExecutor {
 		this.pushToolResult(formatResponse.toolError(errorString), block)
 	}
 
-	// If block is partial, remove partial closing tag so its not presented to user
-	private removeClosingTag = (block: ToolUse, tag: ToolParamName, text?: string) => {
-		if (!block.partial) {
-			return text || ""
-		}
-		if (!text) {
-			return ""
-		}
-		// This regex dynamically constructs a pattern to match the closing tag:
-		// - Optionally matches whitespace before the tag
-		// - Matches '<' or '</' optionally followed by any subset of characters from the tag name
-		const tagRegex = new RegExp(
-			`\\s?<\/?${tag
-				.split("")
-				.map((char) => `(?:${char})?`)
-				.join("")}$`,
-			"g",
-		)
-		return text.replace(tagRegex, "")
-	}
-
 	public async executeTool(block: ToolUse): Promise<void> {
 		if (this.taskState.didRejectTool) {
 			// ignore any tool content after user has rejected tool once
 			if (!block.partial) {
 				this.taskState.userMessageContent.push({
 					type: "text",
-					text: `Skipping tool ${this.toolDescription(block)} due to user rejecting a previous tool.`,
+					text: `Skipping tool ${ToolDisplayUtils.getToolDescription(block)} due to user rejecting a previous tool.`,
 				})
 			} else {
 				// partial tool after user rejected a previous tool
 				this.taskState.userMessageContent.push({
 					type: "text",
-					text: `Tool ${this.toolDescription(block)} was interrupted and not executed due to user rejecting a previous tool.`,
+					text: `Tool ${ToolDisplayUtils.getToolDescription(block)} was interrupted and not executed due to user rejecting a previous tool.`,
 				})
 			}
 			return

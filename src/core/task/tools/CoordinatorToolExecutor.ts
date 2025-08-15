@@ -6,6 +6,9 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { ToolUse, ToolUseName } from "../../assistant-message"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../utils"
 import { ToolExecutorCoordinator } from "./ToolExecutorCoordinator"
+import { ToolDisplayUtils } from "./utils/ToolDisplayUtils"
+import { ToolValidationUtils } from "./utils/ToolValidationUtils"
+import { ToolMessageUtils } from "./utils/ToolMessageUtils"
 
 /**
  * Handles the execution of tools registered with the coordinator.
@@ -106,15 +109,11 @@ export class CoordinatorToolExecutor {
 	 * Handle partial blocks for file-related tools
 	 */
 	private async handleFileToolPartialBlock(block: ToolUse): Promise<void> {
-		const relPath = block.params.path
-		const tool = this.getToolDisplayName(block)
-
-		const sharedMessageProps = {
-			tool,
-			path: getReadablePath(this.config.cwd, this.removeClosingTag(block, "path", relPath)),
-			content: block.name === "list_files" ? "" : undefined,
-			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
+		const sharedMessageProps = await ToolMessageUtils.createFileToolMessageProps(
+			block,
+			this.config.cwd,
+			this.removeClosingTag,
+		)
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -131,20 +130,17 @@ export class CoordinatorToolExecutor {
 	 * Handle partial blocks for write-related tools
 	 */
 	private async handleWriteToolPartialBlock(block: ToolUse): Promise<void> {
-		const relPath = block.params.path
-		const content = block.params.content || block.params.diff
-
 		const fileExists = this.config.services.diffViewProvider.editType === "modify"
-		const sharedMessageProps = {
-			tool: fileExists ? "editedExistingFile" : "newFileCreated",
-			path: getReadablePath(this.config.cwd, this.removeClosingTag(block, "path", relPath)),
-			content: this.removeClosingTag(block, block.name === "replace_in_file" ? "diff" : "content", content),
-			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
+		const sharedMessageProps = await ToolMessageUtils.createWriteToolMessageProps(
+			block,
+			this.config.cwd,
+			fileExists,
+			this.removeClosingTag,
+		)
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
-		if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
+		if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 			await this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await this.say("tool" as ClineSay, partialMessage, undefined, undefined, block.partial)
 		} else {
@@ -177,18 +173,7 @@ export class CoordinatorToolExecutor {
 	 * Handle partial blocks for MCP tools
 	 */
 	private async handleMcpToolPartialBlock(block: ToolUse): Promise<void> {
-		const server_name = block.params.server_name
-		const tool_name = block.params.tool_name
-		const uri = block.params.uri
-		const mcp_arguments = block.params.arguments
-
-		const partialMessage = JSON.stringify({
-			type: block.name === "use_mcp_tool" ? "use_mcp_tool" : "access_mcp_resource",
-			serverName: this.removeClosingTag(block, "server_name", server_name),
-			toolName: this.removeClosingTag(block, "tool_name", tool_name),
-			uri: this.removeClosingTag(block, "uri", uri),
-			arguments: this.removeClosingTag(block, "arguments", mcp_arguments),
-		})
+		const partialMessage = JSON.stringify(ToolMessageUtils.createMcpToolMessageProps(block, this.removeClosingTag))
 
 		// MCP tools use a different message type
 		if (this.config.autoApprovalSettings.enabled) {
@@ -274,13 +259,13 @@ export class CoordinatorToolExecutor {
 		}
 
 		const absolutePath = path.resolve(this.config.cwd, relPath)
-		const tool = this.getToolDisplayName(block)
+		const tool = ToolDisplayUtils.getToolDisplayName(block)
 
 		// Execute the tool to get the result (handlers validate params and check clineignore)
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			await this.saveCheckpoint()
 			return
@@ -295,26 +280,6 @@ export class CoordinatorToolExecutor {
 
 		// Tool was approved, push the result
 		this.pushToolResult(result, block)
-	}
-
-	/**
-	 * Get the display name for a tool based on its parameters
-	 */
-	private getToolDisplayName(block: ToolUse): string {
-		if (block.name === "list_files") {
-			return block.params.recursive?.toLowerCase() === "true" ? "listFilesRecursive" : "listFilesTopLevel"
-		}
-		return "readFile"
-	}
-
-	/**
-	 * Check if a result is a validation error
-	 */
-	private isValidationError(result: any): boolean {
-		return (
-			typeof result === "string" &&
-			(result.includes("Missing required parameter") || result.includes("blocked by .clineignore"))
-		)
 	}
 
 	/**
@@ -381,7 +346,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
@@ -398,7 +363,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
@@ -471,7 +436,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
@@ -491,7 +456,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
@@ -508,7 +473,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
@@ -526,7 +491,7 @@ export class CoordinatorToolExecutor {
 		const result = await this.coordinator.execute(this.config, block)
 
 		// Check if handler returned an error
-		if (this.isValidationError(result)) {
+		if (ToolValidationUtils.isValidationError(result)) {
 			this.pushToolResult(result, block)
 			return
 		}
