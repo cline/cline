@@ -1011,15 +1011,6 @@ export class AwsBedrockHandler implements ApiHandler {
 			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
 			let outputTokens = 0
 
-			// Report initial usage
-			const initialCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, 0, 0, 0)
-			yield {
-				type: "usage",
-				inputTokens: inputTokenEstimate,
-				outputTokens: 0,
-				totalCost: initialCost,
-			}
-
 			// Execute the non-streaming request
 			const response = await client.send(command)
 
@@ -1047,10 +1038,10 @@ export class AwsBedrockHandler implements ApiHandler {
 			// If we have actual usage data from the response, use it
 			if (response.usage) {
 				const actualInputTokens = response.usage.inputTokens || inputTokenEstimate
-				const actualOutputTokens = response.usage.outputTokens || 0
+				const actualOutputTokens = response.usage.outputTokens || this.estimateTokenCount(fullText + reasoningText)
 				outputTokens = actualOutputTokens
 
-				// Report actual usage before streaming
+				// Report actual usage after processing content
 				const actualCost = calculateApiCostOpenAI(model.info, actualInputTokens, actualOutputTokens, 0, 0)
 				yield {
 					type: "usage",
@@ -1059,8 +1050,8 @@ export class AwsBedrockHandler implements ApiHandler {
 					totalCost: actualCost,
 				}
 			} else {
-				// Estimate output tokens if not provided
-				outputTokens = this.estimateTokenCount(fullText)
+				// Estimate output tokens if not provided (includes both regular text and reasoning)
+				outputTokens = this.estimateTokenCount(fullText + reasoningText)
 			}
 
 			// Yield reasoning content first if present
