@@ -27,7 +27,7 @@ export async function addToCline(controller: Controller, request: CommandContext
 		await sendAddToInputEventToClient(lastActiveWebview.getClientId(), input)
 	}
 
-	console.log("addSelectedCodeToChat", request.selectedText, filePath, request.language)
+	console.log("addToCline", request.selectedText, filePath, request.language)
 	telemetryService.captureButtonClick("codeAction_addToChat", controller.task?.ulid)
 
 	return {}
