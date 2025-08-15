@@ -15,7 +15,7 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
-	taskId?: string
+	ulid?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	openRouterProviderSorting?: string
@@ -51,7 +51,7 @@ export class ClineHandler implements ApiHandler {
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
-						"X-Task-ID": this.options.taskId || "",
+						"X-Task-ID": this.options.ulid || "",
 						"X-Cline-Version": extensionVersion,
 					},
 				})
@@ -172,10 +172,13 @@ export class ClineHandler implements ApiHandler {
 			try {
 				// TODO: replace this with firebase auth
 				// TODO: use global API Host
-
+				const clineAccountAuthToken = await this._authService.getAuthToken()
+				if (!clineAccountAuthToken) {
+					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
+				}
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${this.options.clineAccountId}`,
+						Authorization: `Bearer ${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})

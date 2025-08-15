@@ -1,4 +1,4 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { memo } from "react"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
@@ -19,6 +19,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
+		focusChainSettings,
+		focusChainFeatureFlagEnabled,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -122,6 +124,49 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enforces strict tool use while in plan mode, preventing file edits.
 						</p>
 					</div>
+					{focusChainFeatureFlagEnabled && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={focusChainSettings?.enabled || false}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
+								}}>
+								Enable Focus Chain
+							</VSCodeCheckbox>
+							<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+								Enables enhanced task progress tracking and automatic focus chain list management throughout
+								tasks.
+							</p>
+						</div>
+					)}
+					{focusChainFeatureFlagEnabled && focusChainSettings?.enabled && (
+						<div style={{ marginTop: 10, marginLeft: 20 }}>
+							<label
+								htmlFor="focus-chain-remind-interval"
+								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1">
+								Focus Chain Reminder Interval
+							</label>
+							<VSCodeTextField
+								id="focus-chain-remind-interval"
+								value={String(focusChainSettings?.remindClineInterval || 6)}
+								onChange={(e: any) => {
+									const value = parseInt(e.target.value, 10)
+									if (!isNaN(value) && value >= 1 && value <= 100) {
+										updateSetting("focusChainSettings", {
+											...focusChainSettings,
+											remindClineInterval: value,
+										})
+									}
+								}}
+								className="w-20"
+							/>
+							<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+								Interval (in messages) to remind Cline about it's focus chain checklist (1-100). Lower values
+								provide more frequent reminders.
+							</p>
+						</div>
+					)}
 				</div>
 			</Section>
 		</div>

@@ -3,6 +3,7 @@ import { useMemo } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import HeroTooltip from "../common/HeroTooltip"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 // Custom MCP Server Icon component using VSCode codicon
 const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
@@ -22,7 +23,14 @@ export const Navbar = () => {
 				name: "Chat",
 				tooltip: "New Task",
 				icon: PlusIcon,
-				navigate: navigateToChat,
+				navigate: () => {
+					// Close the current task, then navigate to the chat view
+					TaskServiceClient.clearTask({})
+						.catch((error) => {
+							console.error("Failed to clear task:", error)
+						})
+						.finally(() => navigateToChat())
+				},
 			},
 			{
 				id: "mcp",

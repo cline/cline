@@ -46,16 +46,35 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>GPT-5 Model Support:</b> Added support for the new GPT-5 model family including GPT-5, GPT-5 Mini, and
-					GPT-5 Nano with prompt caching support. GPT-5 is now the default model for new users.
+					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
+					down complex tasks into manageable steps with real-time progress tracking and passive reminders. Steps are
+					displayed in a handy todo list, which can be edited mid-task.{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/focus-chain">
+						Learn more
+					</VSCodeLink>
 				</li>
 				<li>
-					<b>Improved Onboarding:</b> New users now see a "Take a Tour" button that opens the VSCode walkthrough to help
-					them get started with Cline more easily.
+					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model’s
+					context window limit. This significantly helps Cline stay on track for long task sessions!{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/auto-compact">
+						Learn more
+					</VSCodeLink>
 				</li>
 				<li>
-					<b>Enhanced Plan Mode:</b> Better exploration parameter support in plan mode for more thorough planning before
-					execution.
+					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
+					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
+					code.{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/slash-commands/deep-planning">
+						Learn more
+					</VSCodeLink>
+				</li>
+				<li>
+					<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need Tier 4,
+					and Bedrock users must be on a supported region. Select the{" "}
+					<code>
+						claude-sonnet-4<b>:1m</b>
+					</code>{" "}
+					model for 1M context, or use the original for 200K.
 				</li>
 			</ul>
 			<Accordion isCompact className="pl-0">

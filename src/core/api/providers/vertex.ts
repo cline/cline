@@ -13,7 +13,7 @@ interface VertexHandlerOptions {
 	thinkingBudgetTokens?: number
 	geminiApiKey?: string
 	geminiBaseUrl?: string
-	taskId?: string
+	ulid?: string
 }
 
 export class VertexHandler implements ApiHandler {

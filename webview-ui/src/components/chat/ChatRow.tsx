@@ -598,6 +598,81 @@ export const ChatRowContent = memo(
 							/>
 						</>
 					)
+				case "summarizeTask":
+					return (
+						<>
+							<div style={headerStyle}>
+								{toolIcon("book")}
+								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+								}}>
+								<div
+									style={{
+										color: "var(--vscode-descriptionForeground)",
+										padding: "9px 10px",
+										cursor: "pointer",
+										userSelect: "none",
+										WebkitUserSelect: "none",
+										MozUserSelect: "none",
+										msUserSelect: "none",
+									}}
+									onClick={handleToggle}>
+									{isExpanded ? (
+										<div>
+											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
+												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Summary:</span>
+												<div style={{ flexGrow: 1 }}></div>
+												<span
+													className="codicon codicon-chevron-up"
+													style={{
+														fontSize: 13.5,
+														margin: "1px 0",
+													}}></span>
+											</div>
+											<span
+												className="ph-no-capture"
+												style={{
+													whiteSpace: "pre-wrap",
+													wordBreak: "break-word",
+													overflowWrap: "anywhere",
+												}}>
+												{tool.content}
+											</span>
+										</div>
+									) : (
+										<div style={{ display: "flex", alignItems: "center" }}>
+											<span
+												className="ph-no-capture"
+												style={{
+													whiteSpace: "nowrap",
+													overflow: "hidden",
+													textOverflow: "ellipsis",
+													marginRight: "8px",
+													direction: "rtl",
+													textAlign: "left",
+													flex: 1,
+												}}>
+												{tool.content + "\u200E"}
+											</span>
+											<span
+												className="codicon codicon-chevron-down"
+												style={{
+													fontSize: 13.5,
+													margin: "1px 0",
+													flexShrink: 0,
+												}}></span>
+										</div>
+									)}
+								</div>
+							</div>
+						</>
+					)
 				case "webFetch":
 					return (
 						<>
@@ -1164,6 +1239,8 @@ export const ChatRowContent = memo(
 								</div>
 							</>
 						)
+					case "task_progress":
+						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
 						return (
 							<>
