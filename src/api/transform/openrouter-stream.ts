@@ -1,4 +1,4 @@
-import { ModelInfo } from "@shared/api"
+import { CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo, openRouterClaudeSonnet41mModelId } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { convertToR1Format } from "@api/transform/r1-format"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -18,6 +18,12 @@ export async function createOpenRouterStream(
 		{ role: "system", content: systemPrompt },
 		...convertToOpenAiMessages(messages),
 	]
+
+	const isClaudeSonnet41m = model.id === openRouterClaudeSonnet41mModelId
+	if (isClaudeSonnet41m) {
+		// remove the custom :1m suffix, to create the model id openrouter API expects
+		model.id = model.id.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+	}
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
@@ -146,9 +152,6 @@ export async function createOpenRouterStream(
 	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
 
-	// Force 1m context window for Claude Sonnet 4
-	const isClaudeSonnet4 = model.id === "anthropic/claude-sonnet-4"
-
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -168,7 +171,7 @@ export async function createOpenRouterStream(
 			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
 			: {}),
 		// limit providers to only those that support the 1m context window
-		...(isClaudeSonnet4 ? { provider: { order: ["anthropic", "amazon-bedrock"], allow_fallbacks: false } } : {}),
+		...(isClaudeSonnet41m ? { provider: { order: ["anthropic", "amazon-bedrock"], allow_fallbacks: false } } : {}),
 	})
 
 	return stream

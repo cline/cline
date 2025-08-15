@@ -110,9 +110,9 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 	followup: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Start New Task",
-		secondaryText: undefined,
+		enableButtons: false,
+		primaryText: "Approve",
+		secondaryText: "Reject",
 		primaryAction: "new_task",
 		secondaryAction: undefined,
 	},

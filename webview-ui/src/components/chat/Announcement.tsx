@@ -44,12 +44,39 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<b>1M Context Window:</b> Claude Sonnet 4 now supports a 1 million token context window to handle larger codebases and
-			more complex tasks. Cline/OpenRouter users get instant access, Anthropic users with Tier 4 access can select the{" "}
-			<code>
-				claude-sonnet-4-20250514<b>:1m</b>
-			</code>{" "}
-			model.
+			<ul style={ulStyle}>
+				<li>
+					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
+					down complex tasks into manageable steps with real-time progress tracking and passive reminders. Steps are
+					displayed in a handy todo list, which can be edited mid-task.{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/focus-chain">
+						Learn more
+					</VSCodeLink>
+				</li>
+				<li>
+					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model’s
+					context window limit. This significantly helps Cline stay on track for long task sessions!{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/auto-compact">
+						Learn more
+					</VSCodeLink>
+				</li>
+				<li>
+					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
+					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
+					code.{" "}
+					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/slash-commands/deep-planning">
+						Learn more
+					</VSCodeLink>
+				</li>
+				<li>
+					<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need Tier 4,
+					and Bedrock users must be on a supported region. Select the{" "}
+					<code>
+						claude-sonnet-4<b>:1m</b>
+					</code>{" "}
+					model for 1M context, or use the original for 200K.
+				</li>
+			</ul>
 			<Accordion isCompact className="pl-0">
 				<AccordionItem
 					key="1"

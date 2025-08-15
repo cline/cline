@@ -7,12 +7,20 @@ import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvid
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { WebviewProviderType } from "@shared/webview/types"
-import { startProtobusService } from "./protobus-service"
+import { startProtobusService, waitForHostBridgeReady } from "./protobus-service"
 import { log } from "./utils"
 import { extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
+
+	try {
+		await waitForHostBridgeReady()
+		log("HostBridge is serving; continuing startup")
+	} catch (err) {
+		log(`ERROR: HostBridge error: ${String(err)}`)
+		process.exit(1)
+	}
 
 	setupHostProvider()
 

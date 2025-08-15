@@ -1,6 +1,7 @@
 import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
 import { Diagnostic, DiagnosticPosition, DiagnosticRange, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import * as vscode from "vscode"
+import "@/utils/path" // for String.prototype.toPosix
 
 export async function getDiagnostics(_request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
 	// Get all diagnostics from VS Code
@@ -17,7 +18,7 @@ export function convertToFileDiagnostics(vscodeAllDiagnostics: [vscode.Uri, vsco
 		if (diagnostics.length > 0) {
 			result.push(
 				FileDiagnostics.create({
-					filePath: uri.fsPath,
+					filePath: uri.fsPath.toPosix(),
 					diagnostics: convertVscodeDiagnostics(diagnostics),
 				}),
 			)
