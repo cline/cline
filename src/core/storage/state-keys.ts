@@ -165,7 +165,12 @@ export type GlobalStateKey =
 	| "actModeHuaweiCloudMaasModelId"
 	| "actModeHuaweiCloudMaasModelInfo"
 
-export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
+export type LocalStateKey =
+	| "localClineRulesToggles"
+	| "localAgentsRulesToggles"
+	| "localCursorRulesToggles"
+	| "localWindsurfRulesToggles"
+	| "workflowToggles"
 
 export interface GlobalState {
 	awsRegion: string | undefined
@@ -324,6 +329,7 @@ export interface Secrets {
 
 export interface LocalState {
 	localClineRulesToggles: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
