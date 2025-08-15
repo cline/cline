@@ -41,7 +41,7 @@ export class RequestyHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: this.options.requestyBaseUrl ?? "https://router.requesty.ai/v1",
+					baseURL: this.options.requestyBaseUrl || "https://router.requesty.ai/v1",
 					apiKey: this.options.requestyApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",

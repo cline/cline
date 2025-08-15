@@ -40,7 +40,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					setRequestyEndpointSelected(isChecked)
 
 					if (!isChecked) {
-						handleFieldChange("requestyBaseUrl", undefined)
+						handleFieldChange("requestyBaseUrl", "")
 					}
 				}}>
 				Use custom base URL
