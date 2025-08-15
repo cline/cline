@@ -606,7 +606,7 @@ export class Controller {
 		const workflowToggles = this.cacheService.getWorkspaceStateKey("workflowToggles")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
+		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
 
 		const processedTaskHistory = (taskHistory || [])
@@ -626,12 +626,12 @@ export class Controller {
 			apiConfiguration,
 			uriScheme,
 			currentTaskItem,
-			checkpointTrackerErrorMessage,
+			checkpointManagerErrorMessage: this.task?.taskState.checkpointManagerErrorMessage,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
-			platform,
+			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
