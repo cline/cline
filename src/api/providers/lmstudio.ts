@@ -23,9 +23,8 @@ export class LmStudioHandler implements ApiHandler {
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			try {
-				const endpoint = new URL("v1", this.options.lmStudioBaseUrl || "http://localhost:1234")
 				this.client = new OpenAI({
-					baseURL: endpoint.toString(),
+					baseURL: new URL("v1", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
 					apiKey: "noop",
 				})
 			} catch (error) {
@@ -74,12 +73,14 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const info = { ...openAiModelInfoSaneDefaults }
+		const maxTokens = Number(this.options.lmStudioMaxTokens)
+		if (!Number.isNaN(maxTokens)) {
+			info.contextWindow = maxTokens
+		}
 		return {
 			id: this.options.lmStudioModelId || "",
-			info: {
-				...openAiModelInfoSaneDefaults,
-				contextWindow: Number(this.options.lmStudioMaxTokens),
-			},
+			info,
 		}
 	}
 }
