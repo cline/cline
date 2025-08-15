@@ -2,27 +2,22 @@
 
 ## 3.25.0
 
-### Minor Changes
-
 - 88000d4: Focus Chain Feature
-  • Context-aware todo list injection into system prompts based on task state, mode transitions, and reminder intervals
-  • Dynamic prompt generation with conditional instructions for Plan/Act mode switching and user-edited lists
-  • FocusChainManager class with file-based persistence, real-time watching, and enhanced TaskHeader UI with progress indicators
-  • Strategic context inclusion logic: Plan mode transitions, user edits, reminder intervals, and first-time task creation
+• Context-aware todo list injection into system prompts based on task state, mode transitions, and reminder intervals
+• Dynamic prompt generation with conditional instructions for Plan/Act mode switching and user-edited lists
+• FocusChainManager class with file-based persistence, real-time watching, and enhanced TaskHeader UI with progress indicators
+• Strategic context inclusion logic: Plan mode transitions, user edits, reminder intervals, and first-time task creation
 
-    Deep Planning Slash Command
-    • New /deep-planning command for structured 4-step implementation planning workflow
-    • Integration with Focus Chain for automatic progress tracking in created tasks
-    • Comprehensive prompting system for silent investigation, discussion, plan creation, and task generation
+Deep Planning Slash Command
+• New /deep-planning command for structured 4-step implementation planning workflow
+• Integration with Focus Chain for automatic progress tracking in created tasks
+• Comprehensive prompting system for silent investigation, discussion, plan creation, and task generation
 
-    Telemetry
-    • Focus Chain usage tracking and Deep planning workflow analytics
+Telemetry
+• Focus Chain usage tracking and Deep planning workflow analytics
 
-    Feature Flags
-    • PostHog remote feature flag integration for Focus Chain gradual rollout
-
-### Patch Changes
-
+Feature Flags
+• PostHog remote feature flag integration for Focus Chain gradual rollout
 - fbc517c: Add support for 200k context for claude sonnet 4 using openrouter/cline
 - b5be6f5: Adding the option to have a Requesty base URL
 
