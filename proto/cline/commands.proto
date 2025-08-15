@@ -11,13 +11,16 @@ option java_multiple_files = true;
 // intended to be called by the IDE directly instead of through the webview,
 // because they are triggered by interactions in the IDE.
 service CommandsService {
-  rpc addToCline(AddToClineRequest) returns (Empty);
+  rpc addToCline(CommandContext) returns (Empty);
+  rpc fixWithCline(CommandContext) returns (Empty);
+  rpc explainWithCline(CommandContext) returns (Empty);
+  rpc improveWithCline(CommandContext) returns (Empty);
 }
 
-message AddToClineRequest {
+message CommandContext {
   // The absolute path of the current file.
   optional string file_path = 1;
-  // The selected source code.
+  // The selected source text.
   optional string selected_text = 2;
   // The language identifier for the current file.
   optional string language = 3;
