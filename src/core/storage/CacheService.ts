@@ -1,9 +1,9 @@
-import { ApiConfiguration } from "@shared/api"
-import { SecretKey, GlobalStateKey, LocalStateKey, GlobalState, Secrets, LocalState } from "./state-keys"
-import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import type { ApiConfiguration } from "@shared/api"
 import type { ExtensionContext } from "vscode"
-import { readStateFromDisk } from "./utils/state-helpers"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import type { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
+import { readStateFromDisk } from "./utils/state-helpers"
 
 /**
  * Interface for persistence error event data
@@ -33,8 +33,15 @@ export class CacheService {
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
 
+	/**
+	 * Check if the cache service is in in-memory only mode
+	 * Only available in testing mode with temporary profile enabled
+	 */
+	private readonly isInMemoryOnlyMode: boolean
+
 	constructor(context: ExtensionContext) {
-		this.context = context
+		this.isInMemoryOnlyMode = this.setInMemoryStoreMode()
+		this.context = this.isInMemoryOnlyMode ? ({} as ExtensionContext) : context
 	}
 
 	/**
@@ -42,13 +49,16 @@ export class CacheService {
 	 */
 	async initialize(): Promise<void> {
 		try {
-			// Load all extension state from disk
-			const state = await readStateFromDisk(this.context)
+			// In testing mode, initialize with empty caches
+			if (!this.setInMemoryStoreMode()) {
+				// Load all extension state from disk
+				const state = await readStateFromDisk(this.context)
 
-			if (state) {
-				// Populate the caches with all extension state fields
-				// Use populate method to avoid triggering persistence during initialization
-				this.populateCache(state)
+				if (state) {
+					// Populate the caches with all extension state fields
+					// Use populate method to avoid triggering persistence during initialization
+					this.populateCache(state)
+				}
 			}
 
 			this.isInitialized = true
@@ -477,8 +487,30 @@ export class CacheService {
 		// Clear all cached data and pending state
 		this.dispose()
 
-		// Reinitialize from disk
+		// Reinitialize from disk (or empty if in-memory mode)
 		await this.initialize()
+	}
+
+	/**
+	 * Enable or disable in-memory only mode
+	 * When enabled, no data is persisted to disk
+	 */
+	private setInMemoryStoreMode(): boolean {
+		if (!(process?.env?.TEMP_PROFILE && process?.env?.IS_DEV)) {
+			return false
+		}
+		this.globalStateCache = {} as GlobalState
+		this.secretsCache = {} as Secrets
+		this.workspaceStateCache = {} as LocalState
+		// Clear any pending persistence operations
+		if (this.persistenceTimeout) {
+			clearTimeout(this.persistenceTimeout)
+			this.persistenceTimeout = null
+		}
+		this.pendingGlobalState.clear()
+		this.pendingSecrets.clear()
+		this.pendingWorkspaceState.clear()
+		return true
 	}
 
 	/**
@@ -505,6 +537,15 @@ export class CacheService {
 	 * Schedule debounced persistence - simple timeout-based persistence
 	 */
 	private scheduleDebouncedPersistence(): void {
+		// Skip persistence entirely in in-memory only mode
+		if (this.isInMemoryOnlyMode) {
+			// Clear pending sets immediately since we're not persisting
+			this.pendingGlobalState.clear()
+			this.pendingSecrets.clear()
+			this.pendingWorkspaceState.clear()
+			return
+		}
+
 		// Clear existing timeout if one is pending
 		if (this.persistenceTimeout) {
 			clearTimeout(this.persistenceTimeout)
@@ -618,6 +659,7 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -819,6 +861,7 @@ export class CacheService {
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
