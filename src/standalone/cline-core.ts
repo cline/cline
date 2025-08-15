@@ -7,9 +7,10 @@ import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvid
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { WebviewProviderType } from "@shared/webview/types"
-import { startProtobusService, waitForHostBridgeReady } from "./protobus-service"
+import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
 import { extensionContext } from "./vscode-context"
+import { waitForHostBridgeReady } from "./hostbridge-client"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")

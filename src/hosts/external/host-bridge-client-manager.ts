@@ -14,7 +14,8 @@ import {
 	DiffServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
-import { HOSTBRIDGE_PORT } from "@/standalone/protobus-service"
+
+export const HOST_BRIDGE_PORT = 26041
 
 /**
  * Manager to hold the gRPC clients for the host bridge. The clients should be re-used to avoid
@@ -28,7 +29,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	diffClient: DiffServiceClientInterface
 
 	constructor() {
-		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
+		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOST_BRIDGE_PORT}`
 
 		this.watchServiceClient = new WatchServiceClientImpl(address)
 		this.workspaceClient = new WorkspaceServiceClientImpl(address)
