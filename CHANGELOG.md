@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.25.1]
+
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
+
 ## [3.25.0]
 
 - **Focus Chain:** Automatically creates and maintains todo lists as you work with Cline, breaking down complex tasks into manageable steps with real-time progress tracking
