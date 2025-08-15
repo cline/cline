@@ -516,6 +516,26 @@ export const bedrockModels = {
 		inputPrice: 1.35,
 		outputPrice: 5.4,
 	},
+	"openai.gpt-oss-120b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description:
+			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+	},
+	"openai.gpt-oss-20b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.07,
+		outputPrice: 0.3,
+		description:
+			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
