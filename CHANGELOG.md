@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.25.2]
+
+- Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
+- Fix OpenRouter showing cline credits error after 402 response
+
 ## [3.25.1]
 
 - Fix attempt_completion command showing twice in chat view when updating progress checklist
