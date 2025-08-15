@@ -1734,6 +1734,7 @@ export class ToolExecutor {
 					const telemetryData = this.contextManager.getContextTelemetryData(
 						this.messageStateHandler.getClineMessages(),
 						this.api,
+						this.taskState.lastAutoCompactTriggerIndex,
 					)
 
 					if (telemetryData) {

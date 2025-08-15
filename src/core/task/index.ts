@@ -2194,6 +2194,7 @@ export class Task {
 			parsedUserContent = userContent
 			environmentDetails = ""
 			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
 		} else {
 			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 		}
