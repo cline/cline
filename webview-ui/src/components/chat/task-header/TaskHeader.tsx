@@ -696,7 +696,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									{/* Edit button for focus chain list */}
 									{parseCurrentTodoInfo(lastProgressMessageText)?.hasItems &&
 										(() => {
-											// Used to adust the position of the focus chain edit button as needed
+											// Used to adjust the position of the focus chain edit button as needed
 											const lines = lastProgressMessageText.split("\n").filter((line) => line.trim())
 											const items = lines.filter((line) => {
 												const trimmedLine = line.trim()
