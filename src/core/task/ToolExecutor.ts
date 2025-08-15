@@ -68,6 +68,9 @@ import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
+import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
+import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
+import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -156,6 +159,9 @@ export class ToolExecutor {
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
 		this.coordinator.register(new ExecuteCommandToolHandler(validator))
+		this.coordinator.register(new UseMcpToolHandler())
+		this.coordinator.register(new AccessMcpResourceHandler())
+		this.coordinator.register(new LoadMcpDocumentationHandler())
 
 		// Initialize the coordinator executor with all necessary dependencies
 		this.coordinatorExecutor = new CoordinatorToolExecutor(
@@ -629,244 +635,6 @@ export class ToolExecutor {
 				} catch (error) {
 					await this.browserSession.closeBrowser() // if any error occurs, the browser session is terminated
 					await this.handleError("executing browser action", error, block)
-					await this.saveCheckpoint()
-					break
-				}
-			}
-			case "use_mcp_tool": {
-				const server_name: string | undefined = block.params.server_name
-				const tool_name: string | undefined = block.params.tool_name
-				const mcp_arguments: string | undefined = block.params.arguments
-				try {
-					if (block.partial) {
-						const partialMessage = JSON.stringify({
-							type: "use_mcp_tool",
-							serverName: this.removeClosingTag(block, "server_name", server_name),
-							toolName: this.removeClosingTag(block, "tool_name", tool_name),
-							arguments: this.removeClosingTag(block, "arguments", mcp_arguments),
-						} satisfies ClineAskUseMcpServer)
-
-						if (this.shouldAutoApproveTool(block.name)) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-							await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
-						} else {
-							this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-							await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
-						}
-
-						break
-					} else {
-						if (!server_name) {
-							this.taskState.consecutiveMistakeCount++
-							this.pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "server_name"), block)
-							await this.saveCheckpoint()
-							break
-						}
-						if (!tool_name) {
-							this.taskState.consecutiveMistakeCount++
-							this.pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "tool_name"), block)
-							await this.saveCheckpoint()
-							break
-						}
-						// arguments are optional, but if they are provided they must be valid JSON
-						// if (!mcp_arguments) {
-						// 	this.consecutiveMistakeCount++
-						// 	pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "arguments"))
-						// 	break
-						// }
-						let parsedArguments: Record<string, unknown> | undefined
-						if (mcp_arguments) {
-							try {
-								parsedArguments = JSON.parse(mcp_arguments)
-							} catch (error) {
-								this.taskState.consecutiveMistakeCount++
-								await this.say(
-									"error",
-									`Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`,
-								)
-								this.pushToolResult(
-									formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name)),
-									block,
-								)
-								await this.saveCheckpoint()
-								break
-							}
-						}
-						this.taskState.consecutiveMistakeCount = 0
-						const completeMessage = JSON.stringify({
-							type: "use_mcp_tool",
-							serverName: server_name,
-							toolName: tool_name,
-							arguments: mcp_arguments,
-						} satisfies ClineAskUseMcpServer)
-
-						const isToolAutoApproved = this.mcpHub.connections
-							?.find((conn) => conn.server.name === server_name)
-							?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
-
-						if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-							await this.say("use_mcp_server", completeMessage, undefined, undefined, false)
-							this.taskState.consecutiveAutoApprovedRequestsCount++
-						} else {
-							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to use ${tool_name} on ${server_name}`,
-								this.autoApprovalSettings.enabled,
-								this.autoApprovalSettings.enableNotifications,
-							)
-							this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-							const didApprove = await this.askApproval("use_mcp_server", block, completeMessage)
-							if (!didApprove) {
-								await this.saveCheckpoint()
-								break
-							}
-						}
-
-						// now execute the tool
-						await this.say("mcp_server_request_started") // same as browser_action_result
-
-						// Check for any pending notifications before the tool call
-						const notificationsBefore = this.mcpHub.getPendingNotifications()
-						for (const notification of notificationsBefore) {
-							await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
-						}
-
-						const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
-
-						// Check for any pending notifications after the tool call
-						const notificationsAfter = this.mcpHub.getPendingNotifications()
-						for (const notification of notificationsAfter) {
-							await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
-						}
-
-						// TODO: add progress indicator
-
-						const toolResultImages =
-							toolResult?.content
-								.filter((item) => item.type === "image")
-								.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
-						let toolResultText =
-							(toolResult?.isError ? "Error:\n" : "") +
-								toolResult?.content
-									.map((item) => {
-										if (item.type === "text") {
-											return item.text
-										}
-										if (item.type === "resource") {
-											const { blob, ...rest } = item.resource
-											return JSON.stringify(rest, null, 2)
-										}
-										return ""
-									})
-									.filter(Boolean)
-									.join("\n\n") || "(No response)"
-						// webview extracts images from the text response to display in the UI
-						const toolResultToDisplay = toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
-						await this.say("mcp_server_response", toolResultToDisplay)
-
-						// MCP's might return images to display to the user, but the model may not support them
-						const supportsImages = this.api.getModel().info.supportsImages ?? false
-						if (toolResultImages.length > 0 && !supportsImages) {
-							toolResultText += `\n\n[${toolResultImages.length} images were provided in the response, and while they are displayed to the user, you do not have the ability to view them.]`
-						}
-
-						// only passes in images if model supports them
-						this.pushToolResult(
-							formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined),
-							block,
-						)
-
-						await this.saveCheckpoint()
-
-						break
-					}
-				} catch (error) {
-					await this.handleError("executing MCP tool", error, block)
-					await this.saveCheckpoint()
-					break
-				}
-			}
-			case "access_mcp_resource": {
-				const server_name: string | undefined = block.params.server_name
-				const uri: string | undefined = block.params.uri
-				try {
-					if (block.partial) {
-						const partialMessage = JSON.stringify({
-							type: "access_mcp_resource",
-							serverName: this.removeClosingTag(block, "server_name", server_name),
-							uri: this.removeClosingTag(block, "uri", uri),
-						} satisfies ClineAskUseMcpServer)
-
-						if (this.shouldAutoApproveTool(block.name)) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-							await this.say("use_mcp_server", partialMessage, undefined, undefined, block.partial)
-						} else {
-							this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-							await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
-						}
-
-						break
-					} else {
-						if (!server_name) {
-							this.taskState.consecutiveMistakeCount++
-							this.pushToolResult(
-								await this.sayAndCreateMissingParamError("access_mcp_resource", "server_name"),
-								block,
-							)
-							await this.saveCheckpoint()
-							break
-						}
-						if (!uri) {
-							this.taskState.consecutiveMistakeCount++
-							this.pushToolResult(await this.sayAndCreateMissingParamError("access_mcp_resource", "uri"), block)
-							await this.saveCheckpoint()
-							break
-						}
-						this.taskState.consecutiveMistakeCount = 0
-						const completeMessage = JSON.stringify({
-							type: "access_mcp_resource",
-							serverName: server_name,
-							uri,
-						} satisfies ClineAskUseMcpServer)
-
-						if (this.shouldAutoApproveTool(block.name)) {
-							this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-							await this.say("use_mcp_server", completeMessage, undefined, undefined, false)
-							this.taskState.consecutiveAutoApprovedRequestsCount++
-						} else {
-							showNotificationForApprovalIfAutoApprovalEnabled(
-								`Cline wants to access ${uri} on ${server_name}`,
-								this.autoApprovalSettings.enabled,
-								this.autoApprovalSettings.enableNotifications,
-							)
-							this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-							const didApprove = await this.askApproval("use_mcp_server", block, completeMessage)
-							if (!didApprove) {
-								await this.saveCheckpoint()
-								break
-							}
-						}
-
-						// now execute the tool
-						await this.say("mcp_server_request_started")
-						const resourceResult = await this.mcpHub.readResource(server_name, uri)
-						const resourceResultPretty =
-							resourceResult?.contents
-								.map((item) => {
-									if (item.text) {
-										return item.text
-									}
-									return ""
-								})
-								.filter(Boolean)
-								.join("\n\n") || "(Empty response)"
-						await this.say("mcp_server_response", resourceResultPretty)
-						this.pushToolResult(formatResponse.toolResult(resourceResultPretty), block)
-						await this.saveCheckpoint()
-						break
-					}
-				} catch (error) {
-					await this.handleError("accessing MCP resource", error, block)
 					await this.saveCheckpoint()
 					break
 				}

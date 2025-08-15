@@ -89,6 +89,13 @@ export class CoordinatorToolExecutor {
 			case "execute_command":
 				await this.handleCommandPartialBlock(block)
 				break
+			case "use_mcp_tool":
+			case "access_mcp_resource":
+				await this.handleMcpToolPartialBlock(block)
+				break
+			case "load_mcp_documentation":
+				// load_mcp_documentation doesn't support partial streaming
+				return
 			default:
 				// Other tools don't support partial streaming yet
 				return
@@ -167,6 +174,33 @@ export class CoordinatorToolExecutor {
 	}
 
 	/**
+	 * Handle partial blocks for MCP tools
+	 */
+	private async handleMcpToolPartialBlock(block: ToolUse): Promise<void> {
+		const server_name = block.params.server_name
+		const tool_name = block.params.tool_name
+		const uri = block.params.uri
+		const mcp_arguments = block.params.arguments
+
+		const partialMessage = JSON.stringify({
+			type: block.name === "use_mcp_tool" ? "use_mcp_tool" : "access_mcp_resource",
+			serverName: this.removeClosingTag(block, "server_name", server_name),
+			toolName: this.removeClosingTag(block, "tool_name", tool_name),
+			uri: this.removeClosingTag(block, "uri", uri),
+			arguments: this.removeClosingTag(block, "arguments", mcp_arguments),
+		})
+
+		// MCP tools use a different message type
+		if (this.config.autoApprovalSettings.enabled) {
+			await this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
+			await this.say("use_mcp_server" as ClineSay, partialMessage, undefined, undefined, block.partial)
+		} else {
+			await this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
+			await this.ask("use_mcp_server" as ClineAsk, partialMessage, block.partial).catch(() => {})
+		}
+	}
+
+	/**
 	 * Handle complete block execution with approval flow
 	 */
 	private async handleCompleteBlock(block: ToolUse): Promise<void> {
@@ -185,6 +219,13 @@ export class CoordinatorToolExecutor {
 				break
 			case "execute_command":
 				await this.handleCommandExecution(block)
+				break
+			case "use_mcp_tool":
+			case "access_mcp_resource":
+				await this.handleMcpToolExecution(block)
+				break
+			case "load_mcp_documentation":
+				await this.handleLoadMcpDocumentationExecution(block)
 				break
 			case "ask_followup_question":
 			case "web_fetch":
@@ -354,6 +395,98 @@ export class CoordinatorToolExecutor {
 
 		// For commands, the handler manages the approval flow and execution
 		// The result is already the final formatted response
+		this.pushToolResult(result, block)
+	}
+
+	/**
+	 * Handle execution of MCP tools (use_mcp_tool, access_mcp_resource)
+	 */
+	private async handleMcpToolExecution(block: ToolUse): Promise<void> {
+		const server_name = block.params.server_name
+		const tool_name = block.params.tool_name
+		const uri = block.params.uri
+		const mcp_arguments = block.params.arguments
+
+		// Create complete message for approval
+		const completeMessage = JSON.stringify({
+			type: block.name === "use_mcp_tool" ? "use_mcp_tool" : "access_mcp_resource",
+			serverName: server_name,
+			toolName: tool_name,
+			uri: uri,
+			arguments: mcp_arguments,
+		})
+
+		// Handle approval flow for MCP tools
+		let shouldAutoApprove = false
+		if (block.name === "use_mcp_tool") {
+			// Check if this specific tool is auto-approved on the server
+			const isToolAutoApproved = this.config.services.mcpHub.connections
+				?.find((conn: any) => conn.server.name === server_name)
+				?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
+
+			shouldAutoApprove = this.config.autoApprovalSettings.enabled && isToolAutoApproved
+		} else {
+			// access_mcp_resource uses general auto-approval
+			shouldAutoApprove = this.config.autoApprovalSettings.enabled
+		}
+
+		if (shouldAutoApprove) {
+			await this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
+			await this.say("use_mcp_server" as ClineSay, completeMessage, undefined, undefined, false)
+			this.config.taskState.consecutiveAutoApprovedRequestsCount++
+		} else {
+			const notificationMessage =
+				block.name === "use_mcp_tool"
+					? `Cline wants to use ${tool_name} on ${server_name}`
+					: `Cline wants to access ${uri} on ${server_name}`
+
+			showNotificationForApprovalIfAutoApprovalEnabled(
+				notificationMessage,
+				this.config.autoApprovalSettings.enabled,
+				this.config.autoApprovalSettings.enableNotifications,
+			)
+
+			await this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
+			const didApprove = await this.askApproval("use_mcp_server" as ClineAsk, block, completeMessage)
+
+			if (!didApprove) {
+				return
+			}
+		}
+
+		// Show MCP request started message
+		await this.say("mcp_server_request_started" as ClineSay)
+
+		// Execute the MCP tool through the handler
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// Push the successful result
+		this.pushToolResult(result, block)
+	}
+
+	/**
+	 * Handle execution of load_mcp_documentation tool
+	 */
+	private async handleLoadMcpDocumentationExecution(block: ToolUse): Promise<void> {
+		// Show loading message
+		await this.say("load_mcp_documentation" as ClineSay, "", undefined, undefined, false)
+
+		// Execute the tool through the handler
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// Push the successful result
 		this.pushToolResult(result, block)
 	}
 
