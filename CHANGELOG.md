@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.25.1
+## [3.25.1]
 
-- 7098c1a: fix: attempt_completion command showing twice in chat view when updating progress checklist
-- 7b2dddd: Fix bug where announcement banner could not be dismissed
-- a6e657e: feat(bedrock): GPT-OSS
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
 
 ## [3.25.0]
 
