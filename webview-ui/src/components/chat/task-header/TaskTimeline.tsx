@@ -137,7 +137,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				style={{
 					position: "relative",
 					width: "100%",
-					marginTop: "4px",
 					marginBottom: "4px",
 					overflow: "hidden",
 				}}>
