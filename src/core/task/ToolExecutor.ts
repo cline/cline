@@ -1729,6 +1729,23 @@ export class ToolExecutor {
 					}
 					await this.saveCheckpoint()
 					this.taskState.currentlySummarizing = true
+
+					// Capture telemetry after main business logic is complete
+					const telemetryData = this.contextManager.getContextTelemetryData(
+						this.messageStateHandler.getClineMessages(),
+						this.api,
+						this.taskState.lastAutoCompactTriggerIndex,
+					)
+
+					if (telemetryData) {
+						telemetryService.captureSummarizeTask(
+							this.ulid,
+							this.api.getModel().id,
+							telemetryData.tokensUsed,
+							telemetryData.maxContextWindow,
+						)
+					}
+
 					break
 				} catch (error) {
 					await this.handleError("summarizing context window", error, block)
