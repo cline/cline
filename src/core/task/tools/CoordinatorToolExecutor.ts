@@ -232,6 +232,11 @@ export class CoordinatorToolExecutor {
 			case "new_task":
 				await this.handleTaskManagementExecution(block)
 				break
+			case "condense":
+			case "summarize_task":
+			case "report_bug":
+				await this.handleContextAndUtilityExecution(block)
+				break
 			case "ask_followup_question":
 			case "web_fetch":
 			case "browser_action":
@@ -509,6 +514,24 @@ export class CoordinatorToolExecutor {
 		}
 
 		// For task management tools, the handler manages the entire flow
+		// The result is already the final formatted response
+		this.pushToolResult(result, block)
+	}
+
+	/**
+	 * Handle execution of context and utility tools (condense, summarize_task, report_bug)
+	 */
+	private async handleContextAndUtilityExecution(block: ToolUse): Promise<void> {
+		// Execute the tool through the handler
+		const result = await this.coordinator.execute(this.config, block)
+
+		// Check if handler returned an error
+		if (this.isValidationError(result)) {
+			this.pushToolResult(result, block)
+			return
+		}
+
+		// For context and utility tools, the handler manages the entire flow
 		// The result is already the final formatted response
 		this.pushToolResult(result, block)
 	}
