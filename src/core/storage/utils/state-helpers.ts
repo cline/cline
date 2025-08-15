@@ -102,6 +102,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
 		ollamaApiKey,
+		featherlessApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -134,6 +135,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
+		context.secrets.get("featherlessApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -307,6 +309,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			huaweiCloudMaasApiKey,
 			basetenApiKey,
 			ollamaApiKey,
+			featherlessApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,

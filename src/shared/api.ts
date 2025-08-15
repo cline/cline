@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "baseten"
+	| "featherless"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)

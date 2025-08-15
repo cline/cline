@@ -248,6 +248,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLAUDE_CODE
 		case "huawei-cloud-maas":
 			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
+		case "featherless":
+			return ProtoApiProvider.FEATHERLESS
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -318,6 +320,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "claude-code"
 		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
 			return "huawei-cloud-maas"
+		case ProtoApiProvider.FEATHERLESS:
+			return "featherless"
 		default:
 			return "anthropic"
 	}
@@ -390,6 +394,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: config.huaweiCloudMaasApiKey,
+		featherlessApiKey: config.featherlessApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -523,6 +528,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		huaweiCloudMaasApiKey: protoConfig.huaweiCloudMaasApiKey,
+		featherlessApiKey: protoConfig.featherlessApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider:
