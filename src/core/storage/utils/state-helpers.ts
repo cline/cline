@@ -32,7 +32,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const ollamaBaseUrl = context.globalState.get("ollamaBaseUrl") as string | undefined
 	const ollamaApiOptionsCtxNum = context.globalState.get("ollamaApiOptionsCtxNum") as string | undefined
 	const lmStudioBaseUrl = context.globalState.get("lmStudioBaseUrl") as string | undefined
-	const lmStudioMaxTokens = context.globalState.get("lmStudioMaxTokens") as number | undefined
+	const lmStudioMaxTokens = context.globalState.get("lmStudioMaxTokens") as string | undefined
 	const anthropicBaseUrl = context.globalState.get("anthropicBaseUrl") as string | undefined
 	const geminiBaseUrl = context.globalState.get("geminiBaseUrl") as string | undefined
 	const azureApiVersion = context.globalState.get("azureApiVersion") as string | undefined
