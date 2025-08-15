@@ -91,6 +91,7 @@ export interface ApiHandlerOptions {
 	cerebrasApiKey?: string
 	groqApiKey?: string
 	basetenApiKey?: string
+	featherlessApiKey?: string
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
