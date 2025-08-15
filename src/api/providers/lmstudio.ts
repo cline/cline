@@ -1,14 +1,15 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiHandler } from "../"
 import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import type { ApiStream } from "../transform/stream"
 
 interface LmStudioHandlerOptions {
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
+	lmStudioMaxTokens?: string
 }
 
 export class LmStudioHandler implements ApiHandler {
@@ -22,8 +23,9 @@ export class LmStudioHandler implements ApiHandler {
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			try {
+				const endpoint = new URL("v1", this.options.lmStudioBaseUrl || "http://localhost:1234")
 				this.client = new OpenAI({
-					baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
+					baseURL: endpoint.toString(),
 					apiKey: "noop",
 				})
 			} catch (error) {
@@ -46,6 +48,7 @@ export class LmStudioHandler implements ApiHandler {
 				model: this.getModel().id,
 				messages: openAiMessages,
 				stream: true,
+				max_completion_tokens: this.options.lmStudioMaxTokens ? Number(this.options.lmStudioMaxTokens) : undefined,
 			})
 			for await (const chunk of stream) {
 				const delta = chunk.choices[0]?.delta
@@ -62,7 +65,7 @@ export class LmStudioHandler implements ApiHandler {
 					}
 				}
 			}
-		} catch (error) {
+		} catch {
 			// LM Studio doesn't return an error code/body for now
 			throw new Error(
 				"Please check the LM Studio developer logs to debug what went wrong. You may need to load the model with a larger context length to work with Cline's prompts.",
@@ -73,7 +76,10 @@ export class LmStudioHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.lmStudioModelId || "",
-			info: openAiModelInfoSaneDefaults,
+			info: {
+				...openAiModelInfoSaneDefaults,
+				contextWindow: Number(this.options.lmStudioMaxTokens),
+			},
 		}
 	}
 }

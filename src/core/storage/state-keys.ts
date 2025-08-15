@@ -62,6 +62,7 @@ export type GlobalStateKey =
 	| "ollamaBaseUrl"
 	| "ollamaApiOptionsCtxNum"
 	| "lmStudioBaseUrl"
+	| "lmStudioMaxTokens"
 	| "anthropicBaseUrl"
 	| "geminiBaseUrl"
 	| "azureApiVersion"
@@ -181,6 +182,7 @@ export interface GlobalState {
 	ollamaBaseUrl: string | undefined
 	ollamaApiOptionsCtxNum: string | undefined
 	lmStudioBaseUrl: string | undefined
+	lmStudioMaxTokens: string | undefined
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
