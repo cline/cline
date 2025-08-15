@@ -1,14 +1,14 @@
 import * as path from "path"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { ClineAsk, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
+import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { ToolUse, ToolUseName } from "../../assistant-message"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../utils"
 import { ToolExecutorCoordinator } from "./ToolExecutorCoordinator"
 import { ToolDisplayUtils } from "./utils/ToolDisplayUtils"
 import { ToolValidationUtils } from "./utils/ToolValidationUtils"
 import { ToolMessageUtils } from "./utils/ToolMessageUtils"
+import { ToolApprovalManager } from "./utils/ToolApprovalManager"
+import { ToolErrorHandler } from "./utils/ToolErrorHandler"
+import { ToolExecutionStrategies } from "./utils/ToolExecutionStrategies"
 
 /**
  * Handles the execution of tools registered with the coordinator.
@@ -16,6 +16,8 @@ import { ToolMessageUtils } from "./utils/ToolMessageUtils"
  * for coordinator-managed tools, keeping the main ToolExecutor clean.
  */
 export class CoordinatorToolExecutor {
+	private approvalManager: ToolApprovalManager
+
 	constructor(
 		private coordinator: ToolExecutorCoordinator,
 		private config: any,
@@ -45,7 +47,17 @@ export class CoordinatorToolExecutor {
 		private saveCheckpoint: () => Promise<void>,
 		private updateFCListFromToolResponse: (taskProgress?: string) => Promise<void>,
 		private handleError: (action: string, error: Error, block: ToolUse) => Promise<void>,
-	) {}
+	) {
+		// Initialize the approval manager
+		this.approvalManager = new ToolApprovalManager(
+			config,
+			shouldAutoApproveToolWithPath,
+			removeLastPartialMessageIfExistsWithType,
+			say,
+			ask,
+			askApproval,
+		)
+	}
 
 	/**
 	 * Execute a tool through the coordinator if it's registered
@@ -226,13 +238,11 @@ export class CoordinatorToolExecutor {
 			case "web_fetch":
 			case "browser_action":
 				// These tools have simpler approval flows - just execute and push result
-				const result = await this.coordinator.execute(this.config, block)
-				this.pushToolResult(result, block)
+				await ToolExecutionStrategies.executeSimpleTool(block, this.coordinator, this.config, this.pushToolResult)
 				break
 			default:
 				// For any other tools that might be added, just execute and push result
-				const defaultResult = await this.coordinator.execute(this.config, block)
-				this.pushToolResult(defaultResult, block)
+				await ToolExecutionStrategies.executeSimpleTool(block, this.coordinator, this.config, this.pushToolResult)
 				break
 		}
 
@@ -250,29 +260,28 @@ export class CoordinatorToolExecutor {
 	private async handleFileToolExecution(block: ToolUse): Promise<void> {
 		const relPath = block.params.path
 
-		// Validate path parameter
-		if (!relPath) {
-			this.config.taskState.consecutiveMistakeCount++
-			this.pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"), block)
-			await this.saveCheckpoint()
-			return
-		}
-
-		const absolutePath = path.resolve(this.config.cwd, relPath)
-		const tool = ToolDisplayUtils.getToolDisplayName(block)
-
 		// Execute the tool to get the result (handlers validate params and check clineignore)
 		const result = await this.coordinator.execute(this.config, block)
 
-		// Check if handler returned an error
-		if (ToolValidationUtils.isValidationError(result)) {
-			this.pushToolResult(result, block)
-			await this.saveCheckpoint()
-			return
+		// Handle validation errors using the error handler
+		if (
+			await ToolErrorHandler.handleValidationError(
+				block,
+				result,
+				this.config,
+				this.pushToolResult,
+				this.saveCheckpoint,
+				this.sayAndCreateMissingParamError,
+			)
+		) {
+			return // Error was handled
 		}
 
-		// Handle approval flow
-		const approved = await this.handleApprovalFlow(block, relPath, absolutePath, tool, result)
+		const absolutePath = path.resolve(this.config.cwd, relPath || "")
+		const tool = ToolDisplayUtils.getToolDisplayName(block)
+
+		// Handle approval flow using the approval manager
+		const approved = await this.approvalManager.handleFileToolApproval(block, relPath || "", absolutePath, tool, result)
 		if (!approved) {
 			await this.saveCheckpoint()
 			return
@@ -289,57 +298,33 @@ export class CoordinatorToolExecutor {
 		const relPath = block.params.path
 		const content = block.params.content || block.params.diff
 
-		// Validate path parameter
-		if (!relPath) {
-			this.config.taskState.consecutiveMistakeCount++
-			this.pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"), block)
-			return
+		// Validate path parameter using error handler
+		if (
+			await ToolErrorHandler.handleValidationError(
+				block,
+				null, // No result yet, just checking params
+				this.config,
+				this.pushToolResult,
+				this.saveCheckpoint,
+				this.sayAndCreateMissingParamError,
+			)
+		) {
+			return // Error was handled
 		}
 
 		// Check if file exists for UI messaging
-		const absolutePath = path.resolve(this.config.cwd, relPath)
+		const absolutePath = path.resolve(this.config.cwd, relPath || "")
 		const fileExists =
 			this.config.services.diffViewProvider.editType === "modify" || (await this.config.services.diffViewProvider.isEditing)
 				? this.config.services.diffViewProvider.editType === "modify"
 				: await require("@utils/fs").fileExistsAtPath(absolutePath)
 
-		// Create shared message props for UI
-		const sharedMessageProps = {
-			tool: fileExists ? "editedExistingFile" : "newFileCreated",
-			path: getReadablePath(this.config.cwd, relPath),
-			content: content,
-			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
-
-		const completeMessage = JSON.stringify(sharedMessageProps)
-
-		// Handle approval flow for write tools
-		if (await this.shouldAutoApproveToolWithPath(block.name, relPath)) {
-			await this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await this.say("tool" as ClineSay, completeMessage, undefined, undefined, false)
-			this.config.taskState.consecutiveAutoApprovedRequestsCount++
-			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, true, true)
-		} else {
-			const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`
-
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				this.config.autoApprovalSettings.enabled,
-				this.config.autoApprovalSettings.enableNotifications,
-			)
-
-			await this.removeLastPartialMessageIfExistsWithType("say", "tool")
-			const didApprove = await this.askApproval("tool" as ClineAsk, block, completeMessage)
-
-			if (!didApprove) {
-				telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, false)
-				// Reset diff view if user rejected
-				await this.config.services.diffViewProvider.revertChanges()
-				await this.config.services.diffViewProvider.reset()
-				return
-			}
-
-			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, true)
+		// Handle approval flow using the approval manager
+		const approved = await this.approvalManager.handleWriteToolApproval(block, relPath || "", fileExists, content || "")
+		if (!approved) {
+			// Reset diff view if user rejected
+			await ToolErrorHandler.handleDiffViewReset(this.config)
+			return
 		}
 
 		// User approved or auto-approved, now execute the tool
@@ -377,56 +362,10 @@ export class CoordinatorToolExecutor {
 	 * Handle execution of MCP tools (use_mcp_tool, access_mcp_resource)
 	 */
 	private async handleMcpToolExecution(block: ToolUse): Promise<void> {
-		const server_name = block.params.server_name
-		const tool_name = block.params.tool_name
-		const uri = block.params.uri
-		const mcp_arguments = block.params.arguments
-
-		// Create complete message for approval
-		const completeMessage = JSON.stringify({
-			type: block.name === "use_mcp_tool" ? "use_mcp_tool" : "access_mcp_resource",
-			serverName: server_name,
-			toolName: tool_name,
-			uri: uri,
-			arguments: mcp_arguments,
-		})
-
-		// Handle approval flow for MCP tools
-		let shouldAutoApprove = false
-		if (block.name === "use_mcp_tool") {
-			// Check if this specific tool is auto-approved on the server
-			const isToolAutoApproved = this.config.services.mcpHub.connections
-				?.find((conn: any) => conn.server.name === server_name)
-				?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
-
-			shouldAutoApprove = this.config.autoApprovalSettings.enabled && isToolAutoApproved
-		} else {
-			// access_mcp_resource uses general auto-approval
-			shouldAutoApprove = this.config.autoApprovalSettings.enabled
-		}
-
-		if (shouldAutoApprove) {
-			await this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-			await this.say("use_mcp_server" as ClineSay, completeMessage, undefined, undefined, false)
-			this.config.taskState.consecutiveAutoApprovedRequestsCount++
-		} else {
-			const notificationMessage =
-				block.name === "use_mcp_tool"
-					? `Cline wants to use ${tool_name} on ${server_name}`
-					: `Cline wants to access ${uri} on ${server_name}`
-
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				this.config.autoApprovalSettings.enabled,
-				this.config.autoApprovalSettings.enableNotifications,
-			)
-
-			await this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-			const didApprove = await this.askApproval("use_mcp_server" as ClineAsk, block, completeMessage)
-
-			if (!didApprove) {
-				return
-			}
+		// Handle approval flow using the approval manager
+		const approved = await this.approvalManager.handleMcpToolApproval(block)
+		if (!approved) {
+			return
 		}
 
 		// Show MCP request started message
@@ -449,105 +388,27 @@ export class CoordinatorToolExecutor {
 	 * Handle execution of load_mcp_documentation tool
 	 */
 	private async handleLoadMcpDocumentationExecution(block: ToolUse): Promise<void> {
-		// Show loading message
-		await this.say("load_mcp_documentation" as ClineSay, "", undefined, undefined, false)
-
-		// Execute the tool through the handler
-		const result = await this.coordinator.execute(this.config, block)
-
-		// Check if handler returned an error
-		if (ToolValidationUtils.isValidationError(result)) {
-			this.pushToolResult(result, block)
-			return
-		}
-
-		// Push the successful result
-		this.pushToolResult(result, block)
+		await ToolExecutionStrategies.executeToolWithLoadingMessage(
+			block,
+			this.coordinator,
+			this.config,
+			this.pushToolResult,
+			this.say,
+			"load_mcp_documentation" as ClineSay,
+		)
 	}
 
 	/**
 	 * Handle execution of task management tools (plan_mode_respond, attempt_completion, new_task)
 	 */
 	private async handleTaskManagementExecution(block: ToolUse): Promise<void> {
-		// Execute the tool through the handler
-		const result = await this.coordinator.execute(this.config, block)
-
-		// Check if handler returned an error
-		if (ToolValidationUtils.isValidationError(result)) {
-			this.pushToolResult(result, block)
-			return
-		}
-
-		// For task management tools, the handler manages the entire flow
-		// The result is already the final formatted response
-		this.pushToolResult(result, block)
+		await ToolExecutionStrategies.executeToolWithValidation(block, this.coordinator, this.config, this.pushToolResult)
 	}
 
 	/**
 	 * Handle execution of context and utility tools (condense, summarize_task, report_bug)
 	 */
 	private async handleContextAndUtilityExecution(block: ToolUse): Promise<void> {
-		// Execute the tool through the handler
-		const result = await this.coordinator.execute(this.config, block)
-
-		// Check if handler returned an error
-		if (ToolValidationUtils.isValidationError(result)) {
-			this.pushToolResult(result, block)
-			return
-		}
-
-		// For context and utility tools, the handler manages the entire flow
-		// The result is already the final formatted response
-		this.pushToolResult(result, block)
-	}
-
-	/**
-	 * Handle the approval flow for a tool execution
-	 */
-	private async handleApprovalFlow(
-		block: ToolUse,
-		relPath: string,
-		absolutePath: string,
-		tool: string,
-		result: any,
-	): Promise<boolean> {
-		const sharedMessageProps = {
-			tool,
-			path: getReadablePath(this.config.cwd, relPath),
-			content: block.name === "list_files" ? result : absolutePath,
-			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
-
-		const completeMessage = JSON.stringify(sharedMessageProps)
-
-		if (await this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
-			await this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await this.say("tool" as ClineSay, completeMessage, undefined, undefined, false)
-			this.config.taskState.consecutiveAutoApprovedRequestsCount++
-			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, true, true)
-			return true
-		} else {
-			const notificationMessage =
-				block.name === "list_files"
-					? `Cline wants to view directory ${path.basename(absolutePath)}/`
-					: `Cline wants to read ${path.basename(absolutePath)}`
-
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				this.config.autoApprovalSettings.enabled,
-				this.config.autoApprovalSettings.enableNotifications,
-			)
-
-			await this.removeLastPartialMessageIfExistsWithType("say", "tool")
-			const didApprove = await this.askApproval("tool" as ClineAsk, block, completeMessage)
-
-			if (!didApprove) {
-				telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, false)
-				return false
-			}
-
-			telemetryService.captureToolUsage(this.config.ulid, block.name, this.config.api.getModel().id, false, true)
-			return true
-		}
+		await ToolExecutionStrategies.executeToolWithValidation(block, this.coordinator, this.config, this.pushToolResult)
 	}
 }
