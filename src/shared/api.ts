@@ -70,6 +70,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
+	requestyBaseUrl?: string
 	togetherApiKey?: string
 	fireworksApiKey?: string
 	fireworksModelMaxCompletionTokens?: number
