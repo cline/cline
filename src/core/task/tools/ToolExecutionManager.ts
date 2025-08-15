@@ -3,19 +3,38 @@ import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { ToolUse, ToolUseName } from "../../assistant-message"
 import { ToolExecutorCoordinator } from "./ToolExecutorCoordinator"
+import { ToolValidator } from "./ToolValidator"
 import { ToolDisplayUtils } from "./utils/ToolDisplayUtils"
 import { ToolValidationUtils } from "./utils/ToolValidationUtils"
 import { ToolMessageUtils } from "./utils/ToolMessageUtils"
 import { ToolApprovalManager } from "./utils/ToolApprovalManager"
 import { ToolErrorHandler } from "./utils/ToolErrorHandler"
 import { ToolExecutionStrategies } from "./utils/ToolExecutionStrategies"
+import { ListFilesToolHandler } from "./handlers/ListFilesToolHandler"
+import { ReadFileToolHandler } from "./handlers/ReadFileToolHandler"
+import { BrowserToolHandler } from "./handlers/BrowserToolHandler"
+import { AskFollowupQuestionToolHandler } from "./handlers/AskFollowupQuestionToolHandler"
+import { WebFetchToolHandler } from "./handlers/WebFetchToolHandler"
+import { WriteToFileToolHandler } from "./handlers/WriteToFileToolHandler"
+import { ListCodeDefinitionNamesToolHandler } from "./handlers/ListCodeDefinitionNamesToolHandler"
+import { SearchFilesToolHandler } from "./handlers/SearchFilesToolHandler"
+import { ExecuteCommandToolHandler } from "./handlers/ExecuteCommandToolHandler"
+import { UseMcpToolHandler } from "./handlers/UseMcpToolHandler"
+import { AccessMcpResourceHandler } from "./handlers/AccessMcpResourceHandler"
+import { LoadMcpDocumentationHandler } from "./handlers/LoadMcpDocumentationHandler"
+import { PlanModeRespondHandler } from "./handlers/PlanModeRespondHandler"
+import { NewTaskHandler } from "./handlers/NewTaskHandler"
+import { AttemptCompletionHandler } from "./handlers/AttemptCompletionHandler"
+import { CondenseHandler } from "./handlers/CondenseHandler"
+import { SummarizeTaskHandler } from "./handlers/SummarizeTaskHandler"
+import { ReportBugHandler } from "./handlers/ReportBugHandler"
 
 /**
- * Handles the execution of tools registered with the coordinator.
- * This class encapsulates all the approval flow, UI updates, and telemetry
- * for coordinator-managed tools, keeping the main ToolExecutor clean.
+ * Manages the execution of tools registered with the coordinator.
+ * This class encapsulates all the approval flow, UI updates, telemetry,
+ * and orchestration logic, keeping the main ToolExecutor thin and focused.
  */
-export class CoordinatorToolExecutor {
+export class ToolExecutionManager {
 	private approvalManager: ToolApprovalManager
 
 	constructor(
@@ -56,6 +75,85 @@ export class CoordinatorToolExecutor {
 			say,
 			ask,
 			askApproval,
+		)
+	}
+
+	/**
+	 * Factory method to create a ToolExecutionManager with all tool handlers registered
+	 */
+	static create(
+		config: any,
+		pushToolResult: (content: any, block: ToolUse) => void,
+		shouldAutoApproveToolWithPath: (toolName: ToolUseName, path?: string) => Promise<boolean>,
+		sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string) => Promise<any>,
+		removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: any) => Promise<void>,
+		say: (
+			type: ClineSay,
+			text?: string,
+			images?: string[],
+			files?: string[],
+			partial?: boolean,
+		) => Promise<number | undefined>,
+		ask: (
+			type: ClineAsk,
+			text?: string,
+			partial?: boolean,
+		) => Promise<{
+			response: ClineAskResponse
+			text?: string
+			images?: string[]
+			files?: string[]
+		}>,
+		askApproval: (type: ClineAsk, block: ToolUse, message: string) => Promise<boolean>,
+		saveCheckpoint: () => Promise<void>,
+		updateFCListFromToolResponse: (taskProgress?: string) => Promise<void>,
+		handleError: (action: string, error: Error, block: ToolUse) => Promise<void>,
+	): ToolExecutionManager {
+		// Create and configure the coordinator
+		const coordinator = new ToolExecutorCoordinator()
+
+		// Register tool handlers
+		const validator = new ToolValidator(config.services.clineIgnoreController)
+		coordinator.register(new ListFilesToolHandler(validator))
+		coordinator.register(new ReadFileToolHandler(validator))
+		coordinator.register(new BrowserToolHandler())
+		coordinator.register(new AskFollowupQuestionToolHandler())
+		coordinator.register(new WebFetchToolHandler())
+
+		// Register WriteToFileToolHandler for all three file tools
+		const writeHandler = new WriteToFileToolHandler(validator)
+		coordinator.register(writeHandler) // registers as "write_to_file"
+		coordinator.register({ name: "replace_in_file", execute: writeHandler.execute.bind(writeHandler) })
+		coordinator.register({ name: "new_rule", execute: writeHandler.execute.bind(writeHandler) })
+
+		coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
+		coordinator.register(new SearchFilesToolHandler(validator))
+		coordinator.register(new ExecuteCommandToolHandler(validator))
+		coordinator.register(new UseMcpToolHandler())
+		coordinator.register(new AccessMcpResourceHandler())
+		coordinator.register(new LoadMcpDocumentationHandler())
+		coordinator.register(new PlanModeRespondHandler())
+		coordinator.register(new NewTaskHandler())
+		coordinator.register(new AttemptCompletionHandler())
+		coordinator.register(new CondenseHandler())
+		coordinator.register(new SummarizeTaskHandler())
+		coordinator.register(new ReportBugHandler())
+
+		// Create and return the execution manager
+		return new ToolExecutionManager(
+			coordinator,
+			config,
+			pushToolResult,
+			ToolDisplayUtils.removeClosingTag,
+			shouldAutoApproveToolWithPath,
+			sayAndCreateMissingParamError,
+			removeLastPartialMessageIfExistsWithType,
+			say,
+			ask,
+			askApproval,
+			saveCheckpoint,
+			updateFCListFromToolResponse,
+			handleError,
 		)
 	}
 

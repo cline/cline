@@ -102,7 +102,7 @@ export class ToolApprovalManager {
 			arguments: mcp_arguments,
 		})
 
-		const shouldAutoApprove = this.shouldAutoApproveMcpTool(block, server_name, tool_name)
+		const shouldAutoApprove = this.shouldAutoApproveMcpTool(block, server_name || "", tool_name || "")
 
 		if (shouldAutoApprove) {
 			await this.handleAutoApproval("use_mcp_server", completeMessage, block)

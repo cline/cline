@@ -56,34 +56,13 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
-import { ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
-import { CoordinatorToolExecutor } from "./tools/CoordinatorToolExecutor"
-import { ToolValidator } from "./tools/ToolValidator"
+import { ToolExecutionManager } from "./tools/ToolExecutionManager"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
-import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
-import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
-import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
-import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
-import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
-import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
-import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
-import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
-import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
-import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
-import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
-import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
-import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
-import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
-import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
-import { CondenseHandler } from "./tools/handlers/CondenseHandler"
-import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
-import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
-	private coordinator: ToolExecutorCoordinator
-	private coordinatorExecutor: CoordinatorToolExecutor
+	private executionManager: ToolExecutionManager
 
 	// Auto-approval methods using the AutoApprove class
 	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
@@ -148,41 +127,11 @@ export class ToolExecutor {
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings)
-		this.coordinator = new ToolExecutorCoordinator()
 
-		// Register tool handlers
-		const validator = new ToolValidator(this.clineIgnoreController)
-		this.coordinator.register(new ListFilesToolHandler(validator))
-		this.coordinator.register(new ReadFileToolHandler(validator))
-		this.coordinator.register(new BrowserToolHandler())
-		this.coordinator.register(new AskFollowupQuestionToolHandler())
-		this.coordinator.register(new WebFetchToolHandler())
-
-		// Register WriteToFileToolHandler for all three file tools
-		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file"
-		this.coordinator.register({ name: "replace_in_file", execute: writeHandler.execute.bind(writeHandler) })
-		this.coordinator.register({ name: "new_rule", execute: writeHandler.execute.bind(writeHandler) })
-
-		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
-		this.coordinator.register(new SearchFilesToolHandler(validator))
-		this.coordinator.register(new ExecuteCommandToolHandler(validator))
-		this.coordinator.register(new UseMcpToolHandler())
-		this.coordinator.register(new AccessMcpResourceHandler())
-		this.coordinator.register(new LoadMcpDocumentationHandler())
-		this.coordinator.register(new PlanModeRespondHandler())
-		this.coordinator.register(new NewTaskHandler())
-		this.coordinator.register(new AttemptCompletionHandler())
-		this.coordinator.register(new CondenseHandler())
-		this.coordinator.register(new SummarizeTaskHandler())
-		this.coordinator.register(new ReportBugHandler())
-
-		// Initialize the coordinator executor with all necessary dependencies
-		this.coordinatorExecutor = new CoordinatorToolExecutor(
-			this.coordinator,
+		// Initialize the execution manager using the factory method (handles tool registration internally)
+		this.executionManager = ToolExecutionManager.create(
 			this.asToolConfig(),
 			this.pushToolResult,
-			ToolDisplayUtils.removeClosingTag,
 			this.shouldAutoApproveToolWithPath.bind(this),
 			this.sayAndCreateMissingParamError,
 			this.removeLastPartialMessageIfExistsWithType,
@@ -354,9 +303,9 @@ export class ToolExecutor {
 			await this.browserSession.closeBrowser()
 		}
 
-		// Use the CoordinatorToolExecutor for tools registered with the coordinator
-		if (await this.coordinatorExecutor.execute(block)) {
-			return // Tool was handled by the coordinator
+		// Use the ToolExecutionManager for tools registered with the coordinator
+		if (await this.executionManager.execute(block)) {
+			return // Tool was handled by the execution manager
 		}
 
 		// All tools are now handled by the coordinator - no legacy switch cases remain!
