@@ -403,6 +403,13 @@ export class ClineProvider
 		await this.removeClineFromStack()
 	}
 
+	resumeTask(taskId: string): void {
+		// Use the existing showTaskWithId method which handles both current and historical tasks
+		this.showTaskWithId(taskId).catch((error) => {
+			this.log(`Failed to resume task ${taskId}: ${error.message}`)
+		})
+	}
+
 	getRecentTasks(): string[] {
 		if (this.recentTasksCache) {
 			return this.recentTasksCache

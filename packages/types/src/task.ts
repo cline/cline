@@ -25,6 +25,7 @@ export interface TaskProviderLike {
 	createTask(text?: string, images?: string[], parentTask?: TaskLike): Promise<TaskLike>
 	cancelTask(): Promise<void>
 	clearTask(): Promise<void>
+	resumeTask(taskId: string): void
 
 	getState(): Promise<TaskProviderState>
 	postStateToWebview(): Promise<void>
