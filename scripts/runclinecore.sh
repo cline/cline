@@ -4,6 +4,10 @@ set -eu #x
 # This installs the cline-core app to the user's home directory,
 # and starts the service.
 
+if [[ "${1:-}" == "-h" ]]; then
+    ./scripts/test-hostbridge-server.ts &
+fi
+
 CORE_DIR=~/.cline/core
 INSTALL_DIR=$CORE_DIR/0.0.1
 LOG_FILE=~/.cline/cline-core-service.log

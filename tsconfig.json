@@ -33,6 +33,6 @@
 			"@utils/*": ["src/utils/*"]
 		}
 	},
-	"include": ["src/**/*", "scripts/**/*"],
+	"include": ["src/**/*"],
 	"exclude": ["node_modules", ".vscode-test", "webview-ui", "src/test/e2e/**/*"]
 }
