@@ -6,6 +6,7 @@ import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/service
 import { formatLargeNumber, formatSize } from "@/utils/format"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import { mentionRegexGlobal } from "@shared/context-mentions"
+import { isFocusChainItem, isCompletedFocusChainItem } from "@shared/focus-chain-utils"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -28,8 +29,8 @@ const parseCurrentTodoInfo = (text: string) => {
 
 	lines.forEach((line, index) => {
 		const trimmedLine = line.trim()
-		if (trimmedLine.startsWith("- [ ]") || trimmedLine.startsWith("- [x]") || trimmedLine.startsWith("- [X]")) {
-			const completed = trimmedLine.startsWith("- [x]") || trimmedLine.startsWith("- [X]")
+		if (isFocusChainItem(trimmedLine)) {
+			const completed = isCompletedFocusChainItem(trimmedLine)
 			const text = trimmedLine.substring(5).trim() // Remove "- [ ] " or "- [x] "
 			todoItems.push({ text, completed, index })
 		}
