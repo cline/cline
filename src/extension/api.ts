@@ -78,6 +78,17 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 						await vscode.commands.executeCommand("workbench.action.files.saveFiles")
 						await vscode.commands.executeCommand("workbench.action.closeWindow")
 						break
+					case TaskCommandName.ResumeTask:
+						this.log(`[API] ResumeTask -> ${data}`)
+						try {
+							await this.resumeTask(data)
+						} catch (error) {
+							const errorMessage = error instanceof Error ? error.message : String(error)
+							this.log(`[API] ResumeTask failed for taskId ${data}: ${errorMessage}`)
+							// Don't rethrow - we want to prevent IPC server crashes
+							// The error is logged for debugging purposes
+						}
+						break
 				}
 			})
 		}

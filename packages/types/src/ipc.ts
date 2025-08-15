@@ -44,6 +44,7 @@ export enum TaskCommandName {
 	StartNewTask = "StartNewTask",
 	CancelTask = "CancelTask",
 	CloseTask = "CloseTask",
+	ResumeTask = "ResumeTask",
 }
 
 /**
@@ -66,6 +67,10 @@ export const taskCommandSchema = z.discriminatedUnion("commandName", [
 	}),
 	z.object({
 		commandName: z.literal(TaskCommandName.CloseTask),
+		data: z.string(),
+	}),
+	z.object({
+		commandName: z.literal(TaskCommandName.ResumeTask),
 		data: z.string(),
 	}),
 ])
