@@ -1,6 +1,5 @@
 import type { Controller } from "../index"
 import { EmptyRequest, Empty } from "@shared/proto/cline/common"
-
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { telemetryService } from "@/services/posthog/PostHogClientProvider"
@@ -166,7 +165,7 @@ export async function initializeWebview(controller: Controller, request: EmptyRe
 			if (response && response.models) {
 				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const { planActSeparateModelsSetting } = await getAllExtensionState(controller.context)
+				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
