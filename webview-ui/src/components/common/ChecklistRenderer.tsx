@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react"
+import { parseFocusChainItem } from "@shared/focus-chain-utils"
 
 interface ChecklistRendererProps {
 	text: string
@@ -21,12 +22,9 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 
 		for (const line of lines) {
 			const trimmedLine = line.trim()
-			// Match patterns like "- [x] text" or "- [ ] text"
-			const match = trimmedLine.match(/^-\s*\[([ x])\]\s*(.+)$/)
-			if (match) {
-				const checked = match[1] === "x"
-				const text = match[2].trim()
-				items.push({ checked, text })
+			const parsed = parseFocusChainItem(trimmedLine)
+			if (parsed) {
+				items.push({ checked: parsed.checked, text: parsed.text })
 			}
 		}
 
