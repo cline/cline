@@ -39,7 +39,7 @@ export const FeatherlessProvider = ({ showModelOptions, isPopup, currentMode }: 
 						handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, value, currentMode)
 					}
 					style={{ width: "100%", marginBottom: 10 }}
-					placeholder={"e.g. openai/openai-oss-120b"}>
+					placeholder={"e.g. moonshotai/Kimi-K2-Instruct"}>
 					<span style={{ fontWeight: 500 }}>Model ID</span>
 				</DebouncedTextField>
 			)}
