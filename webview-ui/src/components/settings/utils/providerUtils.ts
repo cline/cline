@@ -52,6 +52,10 @@ import {
 	huaweiCloudMaasDefaultModelId,
 	basetenModels,
 	basetenDefaultModelId,
+	mainlandZAiModels,
+	internationalZAiModels,
+	mainlandZAiDefaultModelId,
+	internationalZAiDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -281,6 +285,11 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "zai":
+			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+			const zaiDefaultId =
+				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+			return getProviderData(zaiModels, zaiDefaultId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -530,6 +539,7 @@ export async function syncModeConfigurations(
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":
+		case "zai":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId
