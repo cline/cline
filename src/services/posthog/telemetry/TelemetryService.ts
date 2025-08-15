@@ -97,6 +97,8 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
+			// Tracks when the context window is auto-condensed with the summarize_task tool call
+			AUTO_COMPACT: "task.summarize_task",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -135,20 +137,28 @@ export class TelemetryService {
 		if (!vscode.env.isTelemetryEnabled) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
-				void HostProvider.window
-					.showMessage({
+				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
+				if (isVsCodeHost) {
+					void HostProvider.window
+						.showMessage({
+							type: ShowMessageType.WARNING,
+							message:
+								"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+							options: {
+								items: ["Open Settings"],
+							},
+						})
+						.then((response) => {
+							if (response.selectedOption === "Open Settings") {
+								void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+							}
+						})
+				} else {
+					void HostProvider.window.showMessage({
 						type: ShowMessageType.WARNING,
-						message:
-							"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-						options: {
-							items: ["Open Settings"],
-						},
+						message: "Anonymous Cline error and usage reporting is enabled, but host telemetry is disabled.",
 					})
-					.then((response) => {
-						if (response.selectedOption === "Open Settings") {
-							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
-						}
-					})
+				}
 			}
 		}
 
@@ -298,6 +308,25 @@ export class TelemetryService {
 			properties: {
 				ulid,
 				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when context summarization is triggered due to context window pressure
+	 * @param ulid Unique identifier for the task
+	 * @param modelId The model that triggered summarization
+	 * @param currentTokens Total tokens in context window when summarization was triggered
+	 * @param maxContextWindow Maximum context window size for the model
+	 */
+	public captureSummarizeTask(ulid: string, modelId: string, currentTokens: number, maxContextWindow: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
+			properties: {
+				ulid,
+				modelId,
+				currentTokens,
+				maxContextWindow,
 			},
 		})
 	}

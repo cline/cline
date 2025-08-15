@@ -256,7 +256,7 @@ export class McpHub {
 					if (stderrStream) {
 						stderrStream.on("data", async (data: Buffer) => {
 							const output = data.toString()
-							const isInfoLog = /INFO/i.test(output)
+							const isInfoLog = !/\berror\b/i.test(output)
 
 							if (isInfoLog) {
 								console.log(`Server "${name}" info:`, output)

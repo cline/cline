@@ -214,6 +214,7 @@ export class CacheService {
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
+			requestyBaseUrl,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -380,6 +381,7 @@ export class CacheService {
 			awsAuthentication,
 			vertexProjectId,
 			vertexRegion,
+			requestyBaseUrl,
 			openAiBaseUrl,
 			openAiHeaders,
 			ollamaBaseUrl,
@@ -625,6 +627,7 @@ export class CacheService {
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
+			requestyBaseUrl,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -659,6 +662,7 @@ export class CacheService {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			requestTimeoutMs,
+			authNonce,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -746,6 +750,8 @@ export class CacheService {
 			defaultTerminalProfile: state.defaultTerminalProfile,
 			globalWorkflowToggles: state.globalWorkflowToggles,
 			taskHistory: state.taskHistory,
+			lastShownAnnouncementId: state.lastShownAnnouncementId,
+			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
 
 			// Plan mode configuration updates
 			planModeApiProvider,
@@ -815,8 +821,10 @@ export class CacheService {
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+			awsBedrockApiKey,
 			vertexProjectId,
 			vertexRegion,
+			requestyBaseUrl,
 			openAiBaseUrl,
 			openAiHeaders,
 			ollamaBaseUrl,
@@ -839,7 +847,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
-		}
+		} satisfies GlobalState
 
 		// Populate global state cache directly
 		Object.assign(this.globalStateCache, globalStateFields)
@@ -875,9 +883,10 @@ export class CacheService {
 			nebiusApiKey,
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
+			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
-		}
+		} satisfies Secrets
 
 		// Populate secrets cache directly
 		Object.assign(this.secretsCache, secretsFields)
@@ -941,6 +950,7 @@ export class CacheService {
 			awsAuthentication: this.globalStateCache["awsAuthentication"],
 			vertexProjectId: this.globalStateCache["vertexProjectId"],
 			vertexRegion: this.globalStateCache["vertexRegion"],
+			requestyBaseUrl: this.globalStateCache["requestyBaseUrl"],
 			openAiBaseUrl: this.globalStateCache["openAiBaseUrl"],
 			openAiHeaders: this.globalStateCache["openAiHeaders"] || {},
 			ollamaBaseUrl: this.globalStateCache["ollamaBaseUrl"],

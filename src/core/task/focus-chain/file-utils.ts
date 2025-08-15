@@ -2,6 +2,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
+import { isFocusChainItem } from "@shared/focus-chain-utils"
 
 /**
  * Generate the standard file path for a task's focusChain markdown file
@@ -32,7 +33,7 @@ export function extractFocusChainItemsFromText(text: string): string[] {
 	const lines = text.split("\n")
 	return lines.filter((line) => {
 		const trimmed = line.trim()
-		return trimmed.startsWith("- [ ]") || trimmed.startsWith("- [x]") || trimmed.startsWith("- [X]")
+		return isFocusChainItem(trimmed)
 	})
 }
 

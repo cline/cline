@@ -8,6 +8,7 @@ import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 
 interface RequestyHandlerOptions {
+	requestyBaseUrl?: string
 	requestyApiKey?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
@@ -40,7 +41,7 @@ export class RequestyHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://router.requesty.ai/v1",
+					baseURL: this.options.requestyBaseUrl || "https://router.requesty.ai/v1",
 					apiKey: this.options.requestyApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
