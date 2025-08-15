@@ -83,7 +83,8 @@ export async function newTaskTool(
 			cline.pausedModeSlug = (await provider.getState()).mode ?? defaultModeSlug
 
 			// Create new task instance first (this preserves parent's current mode in its history)
-			const newCline = await provider.initClineWithTask(unescapedMessage, undefined, cline)
+			const newCline = await provider.createTask(unescapedMessage, undefined, cline)
+
 			if (!newCline) {
 				pushToolResult(t("tools:newTask.errors.policy_restriction"))
 				return

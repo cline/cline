@@ -22,7 +22,7 @@ const mockAskApproval = vi.fn<AskApproval>()
 const mockHandleError = vi.fn<HandleError>()
 const mockPushToolResult = vi.fn()
 const mockRemoveClosingTag = vi.fn((_name: string, value: string | undefined) => value ?? "")
-const mockInitClineWithTask = vi.fn<() => Promise<MockClineInstance>>().mockResolvedValue({ taskId: "mock-subtask-id" })
+const mockCreateTask = vi.fn<() => Promise<MockClineInstance>>().mockResolvedValue({ taskId: "mock-subtask-id" })
 const mockEmit = vi.fn()
 const mockRecordToolError = vi.fn()
 const mockSayAndCreateMissingParamError = vi.fn()
@@ -40,7 +40,7 @@ const mockCline = {
 		deref: vi.fn(() => ({
 			getState: vi.fn(() => ({ customModes: [], mode: "ask" })),
 			handleModeSwitch: vi.fn(),
-			initClineWithTask: mockInitClineWithTask,
+			createTask: mockCreateTask,
 		})),
 	},
 }
@@ -88,8 +88,8 @@ describe("newTaskTool", () => {
 		// Verify askApproval was called
 		expect(mockAskApproval).toHaveBeenCalled()
 
-		// Verify the message passed to initClineWithTask reflects the code's behavior in unit tests
-		expect(mockInitClineWithTask).toHaveBeenCalledWith(
+		// Verify the message passed to createTask reflects the code's behavior in unit tests
+		expect(mockCreateTask).toHaveBeenCalledWith(
 			"Review this: \\@file1.txt and also \\\\\\@file2.txt", // Unit Test Expectation: \\@ -> \@, \\\\@ -> \\\\@
 			undefined,
 			mockCline,
@@ -122,7 +122,7 @@ describe("newTaskTool", () => {
 			mockRemoveClosingTag,
 		)
 
-		expect(mockInitClineWithTask).toHaveBeenCalledWith(
+		expect(mockCreateTask).toHaveBeenCalledWith(
 			"This is already unescaped: \\@file1.txt", // Expected: \@ remains \@
 			undefined,
 			mockCline,
@@ -149,7 +149,7 @@ describe("newTaskTool", () => {
 			mockRemoveClosingTag,
 		)
 
-		expect(mockInitClineWithTask).toHaveBeenCalledWith(
+		expect(mockCreateTask).toHaveBeenCalledWith(
 			"A normal mention @file1.txt", // Expected: @ remains @
 			undefined,
 			mockCline,
@@ -176,7 +176,7 @@ describe("newTaskTool", () => {
 			mockRemoveClosingTag,
 		)
 
-		expect(mockInitClineWithTask).toHaveBeenCalledWith(
+		expect(mockCreateTask).toHaveBeenCalledWith(
 			"Mix: @file0.txt, \\@file1.txt, \\@file2.txt, \\\\\\@file3.txt", // Unit Test Expectation: @->@, \@->\@, \\@->\@, \\\\@->\\\\@
 			undefined,
 			mockCline,

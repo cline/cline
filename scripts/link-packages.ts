@@ -212,7 +212,7 @@ function startWatch(pkg: PackageConfig): WatcherResult {
 		throw new Error(`Invalid watch command for ${pkg.name}`)
 	}
 
-	console.log(`Watching for changes to ${pkg.sourcePath} with ${cmd} ${args.join(" ")}`)
+	console.log(`👀 Watching for changes to ${pkg.sourcePath} with ${cmd} ${args.join(" ")}`)
 
 	const child = spawn(cmd, args, {
 		cwd: path.resolve(__dirname, "..", pkg.sourcePath),
@@ -251,7 +251,7 @@ function startWatch(pkg: PackageConfig): WatcherResult {
 				debounceTimer = setTimeout(() => {
 					linkPackage(pkg)
 
-					console.log(`📋 Copied ${pkg.name} to ${pkg.targetPaths.length} paths\n`)
+					console.log(`♻️ Copied ${pkg.name} to ${pkg.targetPaths.length} paths\n`)
 
 					debounceTimer = null
 				}, DEBOUNCE_DELAY)

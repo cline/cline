@@ -196,7 +196,7 @@ export async function getWorkspaceGitInfo(): Promise<GitRepositoryInfo> {
 		return {}
 	}
 
-	// Use the first workspace folder
+	// Use the first workspace folder.
 	const workspaceRoot = workspaceFolders[0].uri.fsPath
 	return getGitRepositoryInfo(workspaceRoot)
 }

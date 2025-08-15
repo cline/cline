@@ -42,7 +42,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 	const mode = message.mode ?? defaultModeSlug
 	const customModes = await provider.customModesManager.getCustomModes()
 
-	const rooIgnoreInstructions = provider.getCurrentCline()?.rooIgnoreController?.getInstructions()
+	const rooIgnoreInstructions = provider.getCurrentTask()?.rooIgnoreController?.getInstructions()
 
 	// Determine if browser tools can be used based on model support, mode, and user settings
 	let modelSupportsComputerUse = false

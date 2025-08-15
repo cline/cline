@@ -1951,7 +1951,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						const history = await provider?.getTaskWithId(this.taskId)
 
 						if (history) {
-							await provider?.initClineWithHistoryItem(history.historyItem)
+							await provider?.createTaskWithHistoryItem(history.historyItem)
 						}
 					}
 				} finally {

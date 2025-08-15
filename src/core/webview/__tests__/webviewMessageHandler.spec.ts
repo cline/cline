@@ -32,9 +32,9 @@ const mockClineProvider = {
 	},
 	log: vi.fn(),
 	postStateToWebview: vi.fn(),
-	getCurrentCline: vi.fn(),
+	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
-	initClineWithHistoryItem: vi.fn(),
+	createTaskWithHistoryItem: vi.fn(),
 } as unknown as ClineProvider
 
 import { t } from "../../../i18n"
@@ -533,7 +533,7 @@ describe("webviewMessageHandler - message dialog preferences", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		// Mock a current Cline instance
-		vi.mocked(mockClineProvider.getCurrentCline).mockReturnValue({
+		vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({
 			taskId: "test-task-id",
 			apiConversationHistory: [],
 			clineMessages: [],
@@ -544,7 +544,7 @@ describe("webviewMessageHandler - message dialog preferences", () => {
 
 	describe("deleteMessage", () => {
 		it("should always show dialog for delete confirmation", async () => {
-			vi.mocked(mockClineProvider.getCurrentCline).mockReturnValue({} as any) // Mock current cline exists
+			vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({} as any)
 
 			await webviewMessageHandler(mockClineProvider, {
 				type: "deleteMessage",
@@ -560,12 +560,12 @@ describe("webviewMessageHandler - message dialog preferences", () => {
 
 	describe("submitEditedMessage", () => {
 		it("should always show dialog for edit confirmation", async () => {
-			vi.mocked(mockClineProvider.getCurrentCline).mockReturnValue({} as any) // Mock current cline exists
+			vi.mocked(mockClineProvider.getCurrentTask).mockReturnValue({} as any)
 
 			await webviewMessageHandler(mockClineProvider, {
 				type: "submitEditedMessage",
-				value: 123456789, // messageTs as number
-				editedMessageContent: "edited content", // text content in editedMessageContent field
+				value: 123456789,
+				editedMessageContent: "edited content",
 			})
 
 			expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({

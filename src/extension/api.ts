@@ -148,7 +148,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		await provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
-		const cline = await provider.initClineWithTask(text, images, undefined, {
+		const cline = await provider.createTask(text, images, undefined, {
 			consecutiveMistakeLimit: Number.MAX_SAFE_INTEGER,
 		})
 
@@ -161,7 +161,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 	public async resumeTask(taskId: string): Promise<void> {
 		const { historyItem } = await this.sidebarProvider.getTaskWithId(taskId)
-		await this.sidebarProvider.initClineWithHistoryItem(historyItem)
+		await this.sidebarProvider.createTaskWithHistoryItem(historyItem)
 		await this.sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 

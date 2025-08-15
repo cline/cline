@@ -415,7 +415,7 @@ describe("ClineProvider - Sticky Mode", () => {
 		})
 	})
 
-	describe("initClineWithHistoryItem", () => {
+	describe("createTaskWithHistoryItem", () => {
 		it("should restore mode from history item when reopening task", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
 
@@ -437,7 +437,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			const updateGlobalStateSpy = vi.spyOn(provider as any, "updateGlobalState").mockResolvedValue(undefined)
 
 			// Initialize task with history item
-			await provider.initClineWithHistoryItem(historyItem)
+			await provider.createTaskWithHistoryItem(historyItem)
 
 			// Verify mode was restored via updateGlobalState
 			expect(updateGlobalStateSpy).toHaveBeenCalledWith("mode", "architect")
@@ -479,7 +479,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			const handleModeSwitchSpy = vi.spyOn(provider, "handleModeSwitch").mockResolvedValue()
 
 			// Initialize task with history item
-			await provider.initClineWithHistoryItem(historyItem)
+			await provider.createTaskWithHistoryItem(historyItem)
 
 			// Verify mode was not changed (should use current mode)
 			expect(handleModeSwitchSpy).not.toHaveBeenCalled()
@@ -606,15 +606,15 @@ describe("ClineProvider - Sticky Mode", () => {
 			// Initialize subtask with parent's mode
 			taskModes[subtaskId] = "architect"
 
-			// Mock getCurrentCline to return the parent task initially
-			const getCurrentClineMock = vi.spyOn(provider, "getCurrentCline")
-			getCurrentClineMock.mockReturnValue(parentTask as any)
+			// Mock getCurrentTask to return the parent task initially
+			const getCurrentTaskMock = vi.spyOn(provider, "getCurrentTask")
+			getCurrentTaskMock.mockReturnValue(parentTask as any)
 
 			// Add subtask to stack
 			await provider.addClineToStack(subtask)
 
-			// Now mock getCurrentCline to return the subtask (simulating stack behavior)
-			getCurrentClineMock.mockReturnValue(subtask as any)
+			// Now mock getCurrentTask to return the subtask (simulating stack behavior)
+			getCurrentTaskMock.mockReturnValue(subtask as any)
 
 			// Switch subtask to code mode - this should only affect the subtask
 			await provider.handleModeSwitch("code")
@@ -678,7 +678,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			const handleModeSwitchSpy = vi.spyOn(provider, "handleModeSwitch").mockResolvedValue()
 
 			// Initialize task with history item - should not throw
-			await expect(provider.initClineWithHistoryItem(historyItem)).resolves.not.toThrow()
+			await expect(provider.createTaskWithHistoryItem(historyItem)).resolves.not.toThrow()
 
 			// Verify mode switch was not called with null
 			expect(handleModeSwitchSpy).not.toHaveBeenCalledWith(null)
@@ -719,7 +719,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			}
 
 			// Restore the task from history
-			await provider.initClineWithHistoryItem(historyItem)
+			await provider.createTaskWithHistoryItem(historyItem)
 
 			// Verify that the mode was restored
 			const state = await provider.getState()
@@ -764,7 +764,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			const handleModeSwitchSpy = vi.spyOn(provider, "handleModeSwitch").mockResolvedValue()
 
 			// Initialize task with history item - should not throw
-			await expect(provider.initClineWithHistoryItem(historyItem)).resolves.not.toThrow()
+			await expect(provider.createTaskWithHistoryItem(historyItem)).resolves.not.toThrow()
 
 			// Verify mode switch was not called with deleted mode
 			expect(handleModeSwitchSpy).not.toHaveBeenCalledWith("deleted-mode")
@@ -1105,17 +1105,17 @@ describe("ClineProvider - Sticky Mode", () => {
 				.spyOn(provider, "updateTaskHistory")
 				.mockImplementation(() => Promise.resolve([]))
 
-			// Mock getCurrentCline to return different tasks
-			const getCurrentClineSpy = vi.spyOn(provider, "getCurrentCline")
+			// Mock getCurrentTask to return different tasks
+			const getCurrentTaskSpy = vi.spyOn(provider, "getCurrentTask")
 
 			// Simulate simultaneous mode switches for different tasks
-			getCurrentClineSpy.mockReturnValue(task1 as any)
+			getCurrentTaskSpy.mockReturnValue(task1 as any)
 			const switch1 = provider.handleModeSwitch("architect")
 
-			getCurrentClineSpy.mockReturnValue(task2 as any)
+			getCurrentTaskSpy.mockReturnValue(task2 as any)
 			const switch2 = provider.handleModeSwitch("debug")
 
-			getCurrentClineSpy.mockReturnValue(task3 as any)
+			getCurrentTaskSpy.mockReturnValue(task3 as any)
 			const switch3 = provider.handleModeSwitch("code")
 
 			await Promise.all([switch1, switch2, switch3])
@@ -1166,7 +1166,7 @@ describe("ClineProvider - Sticky Mode", () => {
 			vi.clearAllMocks()
 
 			// Start initialization
-			const initPromise = provider.initClineWithHistoryItem(historyItem)
+			const initPromise = provider.createTaskWithHistoryItem(historyItem)
 
 			// Try to switch mode during initialization
 			await provider.handleModeSwitch("code")
@@ -1201,13 +1201,13 @@ describe("ClineProvider - Sticky Mode", () => {
 				await provider.addClineToStack(task as any)
 			}
 
-			// Mock getCurrentCline
-			const getCurrentClineSpy = vi.spyOn(provider, "getCurrentCline")
+			// Mock getCurrentTask
+			const getCurrentTaskSpy = vi.spyOn(provider, "getCurrentTask")
 
 			// Rapidly switch between tasks and modes
 			const switches: Promise<void>[] = []
 			tasks.forEach((task, index) => {
-				getCurrentClineSpy.mockReturnValue(task as any)
+				getCurrentTaskSpy.mockReturnValue(task as any)
 				const mode = ["architect", "debug", "code"][index % 3]
 				switches.push(provider.handleModeSwitch(mode as any))
 			})
