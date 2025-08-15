@@ -2100,10 +2100,6 @@ export class ToolExecutor {
 						// Store the number of options for telemetry
 						const options = parsePartialArrayString(optionsRaw || "[]")
 
-						if (!block.partial && this.focusChainSettings.enabled) {
-							await this.updateFCListFromToolResponse(block.params.task_progress)
-						}
-
 						this.taskState.isAwaitingPlanResponse = true
 						let {
 							text,
@@ -2169,6 +2165,10 @@ export class ToolExecutor {
 							)
 						}
 
+						if (!block.partial && this.focusChainSettings.enabled) {
+							await this.updateFCListFromToolResponse(block.params.task_progress)
+						}
+
 						//
 						break
 					}
@@ -2229,25 +2229,27 @@ export class ToolExecutor {
 							// const secondLastMessage = this.clineMessages.at(-2)
 							// NOTE: we do not want to auto approve a command run as part of the attempt_completion tool
 							if (lastMessage && lastMessage.ask === "command") {
+								// we are not going to stream the attempt_completion's command anymore since we might also need to send out a task_progress message before waiting for the user to approve the command, so the tool call checks everything on the progress check list.
 								// update command
-								await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
-									() => {},
-								)
+								// await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
+								// 	() => {},
+								// )
 							} else {
-								// last message is completion_result
-								// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
-								await this.say(
-									"completion_result",
-									this.removeClosingTag(block, "result", result),
-									undefined,
-									undefined,
-									false,
-								)
-								await this.saveCheckpoint(true)
-								await addNewChangesFlagToLastCompletionResultMessage()
-								await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
-									() => {},
-								)
+								// Now that we don't stream a command, we shouldn't be completing the attempt_completion tool in the block.partial conditional, and instead do it when partial is false below
+								//
+								// last message is completion_result, we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
+								// await this.say(
+								// 	"completion_result",
+								// 	this.removeClosingTag(block, "result", result),
+								// 	undefined,
+								// 	undefined,
+								// 	false,
+								// )
+								// await this.saveCheckpoint(true)
+								// await addNewChangesFlagToLastCompletionResultMessage()
+								// await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
+								// 	() => {},
+								// )
 							}
 						} else {
 							// no command, still outputting partial result

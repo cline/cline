@@ -8,6 +8,8 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { Mode } from "@shared/storage/types"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useMemo } from "react"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -36,6 +38,25 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// Check if the current model is Claude Sonnet 4 and determine the alternate variant
+	const claudeSonnet4Variant = useMemo(() => {
+		const SONNET_4_MODEL_ID = "claude-sonnet-4-20250514"
+		if (selectedModelId === SONNET_4_MODEL_ID) {
+			return {
+				current: SONNET_4_MODEL_ID,
+				alternate: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
+				linkText: "Switch to 1M context window model",
+			}
+		} else if (selectedModelId === `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`) {
+			return {
+				current: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
+				alternate: SONNET_4_MODEL_ID,
+				linkText: "Switch to 200K context window model",
+			}
+		}
+		return null
+	}, [selectedModelId])
 
 	return (
 		<div>
@@ -67,6 +88,26 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						}
 						label="Model"
 					/>
+
+					{claudeSonnet4Variant && (
+						<div style={{ marginBottom: 2 }}>
+							<VSCodeLink
+								style={{
+									display: "inline",
+									fontSize: "10.5px",
+									color: "var(--vscode-textLink-foreground)",
+								}}
+								onClick={() =>
+									handleModeFieldChange(
+										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+										claudeSonnet4Variant.alternate,
+										currentMode,
+									)
+								}>
+								{claudeSonnet4Variant.linkText}
+							</VSCodeLink>
+						</div>
+					)}
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
