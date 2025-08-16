@@ -7,9 +7,7 @@ export class FeatureFlagsService {
 	public constructor(
 		private readonly getFeatureFlag: (flag: string) => Promise<boolean | string | undefined>,
 		private readonly getFeatureFlagPayload: (flag: string) => Promise<unknown>,
-	) {
-		console.log("[FeatureFlagsService] Initialized with distinctId:")
-	}
+	) {}
 
 	/**
 	 * Check if a feature flag is enabled
