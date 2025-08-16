@@ -1,7 +1,7 @@
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
@@ -47,6 +47,7 @@ interface ApiOptionsProps {
 	modelIdErrorMessage?: string
 	isPopup?: boolean
 	currentMode: Mode
+	closeTooltip?: () => void
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -73,7 +74,14 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
+const ApiOptions = ({
+	showModelOptions,
+	apiErrorMessage,
+	modelIdErrorMessage,
+	isPopup,
+	currentMode,
+	closeTooltip,
+}: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration } = useExtensionState()
 
@@ -119,57 +127,64 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
-			<DropdownContainer className="dropdown-container">
-				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
-				</label>
-				<VSCodeDropdown
-					id="api-provider"
-					value={selectedProvider}
-					onChange={(e: any) => {
-						handleModeFieldChange(
-							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-							e.target.value,
-							currentMode,
-						)
-					}}
-					style={{
-						minWidth: 130,
-						position: "relative",
-					}}>
-					<VSCodeOption value="cline">Cline</VSCodeOption>
-					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
-					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
-					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="groq">Groq</VSCodeOption>
-					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
-					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
-					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
-					<VSCodeOption value="baseten">Baseten</VSCodeOption>
-					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
-					<VSCodeOption value="mistral">Mistral</VSCodeOption>
-					<VSCodeOption value="requesty">Requesty</VSCodeOption>
-					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
-					<VSCodeOption value="together">Together</VSCodeOption>
-					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
-					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
-					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
-					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
-					<VSCodeOption value="moonshot">Moonshot</VSCodeOption>
-					<VSCodeOption value="huggingface">Hugging Face</VSCodeOption>
-					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
-					<VSCodeOption value="asksage">AskSage</VSCodeOption>
-					<VSCodeOption value="xai">xAI</VSCodeOption>
-					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
-					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
-					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
-				</VSCodeDropdown>
-			</DropdownContainer>
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+				<DropdownContainer className="dropdown-container">
+					<label htmlFor="api-provider">
+						<span style={{ fontWeight: 500 }}>API Provider</span>
+					</label>
+					<VSCodeDropdown
+						id="api-provider"
+						value={selectedProvider}
+						onChange={(e: any) => {
+							handleModeFieldChange(
+								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+								e.target.value,
+								currentMode,
+							)
+						}}
+						style={{
+							minWidth: 130,
+							position: "relative",
+						}}>
+						<VSCodeOption value="cline">Cline</VSCodeOption>
+						<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+						<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+						<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
+						<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
+						<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+						<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+						<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+						<VSCodeOption value="groq">Groq</VSCodeOption>
+						<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
+						<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
+						<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+						<VSCodeOption value="baseten">Baseten</VSCodeOption>
+						<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
+						<VSCodeOption value="mistral">Mistral</VSCodeOption>
+						<VSCodeOption value="requesty">Requesty</VSCodeOption>
+						<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
+						<VSCodeOption value="together">Together</VSCodeOption>
+						<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+						<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
+						<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
+						<VSCodeOption value="ollama">Ollama</VSCodeOption>
+						<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+						<VSCodeOption value="moonshot">Moonshot</VSCodeOption>
+						<VSCodeOption value="huggingface">Hugging Face</VSCodeOption>
+						<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
+						<VSCodeOption value="asksage">AskSage</VSCodeOption>
+						<VSCodeOption value="xai">xAI</VSCodeOption>
+						<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+						<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
+						<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					</VSCodeDropdown>
+				</DropdownContainer>
+				{isPopup && (
+					<VSCodeButton appearance="icon" onClick={closeTooltip} style={{}} aria-label="Close options tooltip">
+						<span className="codicon codicon-close"></span>
+					</VSCodeButton>
+				)}
+			</div>
 
 			{apiConfiguration && selectedProvider === "cline" && (
 				<ClineProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
