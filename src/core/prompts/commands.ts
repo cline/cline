@@ -44,7 +44,7 @@ Your task is to create or update a structured, detailed summary of the current t
   3.  **Clean Up:** After the note is added, you MUST use the \`run_command\` tool to delete the temporary file with \`rm temp_gitnote.md\`.
 
 ## STEP 2B: If an Existing Note IS Found (Subsequent Run)
-- You must retrieve the full content of the existing master note using \`git notes show <sha_of_master_note>\`.
+- **To retrieve the full, unpaginated content of the existing master note, you MUST use the command \`GIT_PAGER=cat git notes show <sha_of_master_note>\`.** This is essential to prevent the command from hanging.
 - Analyze the conversation that has occurred *since the last commit delta was logged in the note*.
 - You MUST generate a new entry under the "Commit History & Deltas" section for the current target commit.
 - **To update the note, you MUST follow this three-step process:**
