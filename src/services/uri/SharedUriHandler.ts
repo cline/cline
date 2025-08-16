@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { WebviewProvider } from "@/core/webview"
+import type { WebviewProvider } from "@/core/webview"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks
@@ -8,21 +8,14 @@ export class SharedUriHandler {
 	/**
 	 * Processes a URI and routes it to the appropriate handler
 	 * @param uri The URI to process (can be from VSCode or converted from HTTP)
+	 * @param visibleWebview The webview instance to use for handling the URI
 	 * @returns Promise<boolean> indicating success (true) or failure (false)
 	 */
-	public static async handleUri(uri: vscode.Uri): Promise<boolean> {
-		console.log("SharedUriHandler: Processing URI:", {
-			path: uri.path,
-			query: uri.query,
-			scheme: uri.scheme,
-		})
-
+	public static async handleUri(uri: vscode.Uri, visibleWebview?: WebviewProvider): Promise<boolean> {
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleWebview = WebviewProvider.getVisibleInstance()
 
 		if (!visibleWebview) {
-			console.warn("SharedUriHandler: No visible webview found")
 			return false
 		}
 
