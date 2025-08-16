@@ -1,12 +1,14 @@
-import { sapAiCoreModels } from "@shared/api"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useState, useCallback, useEffect } from "react"
+import { VSCodeLink, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { Mode } from "@shared/storage/types"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 /**
  * Props for the SapAiCoreProvider component
  */
@@ -23,20 +25,111 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
+	// Handle orchestration checkbox change
+	const handleOrchestrationChange = async (checked: boolean) => {
+		await handleFieldChange("sapAiCoreUseOrchestrationMode", checked)
+	}
+
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
+	// State for dynamic model fetching
+	const [deployedModelsArray, setDeployedModelsArray] = useState<string[]>([])
+	const [orchestrationAvailable, setOrchestrationAvailable] = useState<boolean>(false)
+	const [hasCheckedOrchestration, setHasCheckedOrchestration] = useState<boolean>(false)
+	const [isLoadingModels, setIsLoadingModels] = useState(false)
+	const [modelError, setModelError] = useState<string | null>(null)
+
+	// Check if all required credentials are available
+	const hasRequiredCredentials =
+		apiConfiguration?.sapAiCoreClientId &&
+		apiConfiguration?.sapAiCoreClientSecret &&
+		apiConfiguration?.sapAiCoreBaseUrl &&
+		apiConfiguration?.sapAiCoreTokenUrl &&
+		apiConfiguration?.sapAiResourceGroup
+
+	// Function to fetch SAP AI Core models
+	const fetchSapAiCoreModels = useCallback(async () => {
+		if (!hasRequiredCredentials) {
+			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(false)
+			return
+		}
+
+		setIsLoadingModels(true)
+		setModelError(null)
+
+		try {
+			const response = await ModelsServiceClient.getSapAiCoreModels(
+				SapAiCoreModelsRequest.create({
+					clientId: apiConfiguration.sapAiCoreClientId,
+					clientSecret: apiConfiguration.sapAiCoreClientSecret,
+					baseUrl: apiConfiguration.sapAiCoreBaseUrl,
+					tokenUrl: apiConfiguration.sapAiCoreTokenUrl,
+					resourceGroup: apiConfiguration.sapAiResourceGroup,
+				}),
+			)
+
+			if (response) {
+				setDeployedModelsArray(response.modelNames || [])
+				setOrchestrationAvailable(response.orchestrationAvailable || false)
+				setHasCheckedOrchestration(true)
+			} else {
+				setDeployedModelsArray([])
+				setOrchestrationAvailable(false)
+				setHasCheckedOrchestration(true)
+			}
+		} catch (error) {
+			console.error("Error fetching SAP AI Core models:", error)
+			setModelError("Failed to fetch models. Please check your configuration.")
+			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(true)
+		} finally {
+			setIsLoadingModels(false)
+		}
+	}, [
+		apiConfiguration?.sapAiCoreClientId,
+		apiConfiguration?.sapAiCoreClientSecret,
+		apiConfiguration?.sapAiCoreBaseUrl,
+		apiConfiguration?.sapAiCoreTokenUrl,
+		apiConfiguration?.sapAiResourceGroup,
+	])
+
+	// Fetch models when configuration changes
+	useEffect(() => {
+		if (showModelOptions && hasRequiredCredentials) {
+			fetchSapAiCoreModels()
+		}
+	}, [showModelOptions, hasRequiredCredentials, fetchSapAiCoreModels])
+
+	// Handle automatic disabling of orchestration mode when not available
+	useEffect(() => {
+		if (hasCheckedOrchestration && !orchestrationAvailable && apiConfiguration?.sapAiCoreUseOrchestrationMode) {
+			handleFieldChange("sapAiCoreUseOrchestrationMode", false)
+		}
+	}, [hasCheckedOrchestration, orchestrationAvailable, apiConfiguration?.sapAiCoreUseOrchestrationMode, handleFieldChange])
+
+	// Handle model selection
+	const handleModelChange = useCallback(
+		(modelId: string) => {
+			handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+		},
+		[handleModeFieldChange, currentMode],
+	)
+
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+		<div className="flex flex-col gap-1.5">
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
 				style={{ width: "100%" }}
 				type="password"
 				placeholder="Enter AI Core Client Id...">
-				<span style={{ fontWeight: 500 }}>AI Core Client Id</span>
+				<span className="font-medium">AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
-				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Client Id is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -47,10 +140,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				style={{ width: "100%" }}
 				type="password"
 				placeholder="Enter AI Core Client Secret...">
-				<span style={{ fontWeight: 500 }}>AI Core Client Secret</span>
+				<span className="font-medium">AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
-				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Client Secret is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -60,7 +153,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Base URL...">
-				<span style={{ fontWeight: 500 }}>AI Core Base URL</span>
+				<span className="font-medium">AI Core Base URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
@@ -68,7 +161,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Auth URL...">
-				<span style={{ fontWeight: 500 }}>AI Core Auth URL</span>
+				<span className="font-medium">AI Core Auth URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
@@ -76,37 +169,74 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
 				style={{ width: "100%" }}
 				placeholder="Enter AI Core Resource Group...">
-				<span style={{ fontWeight: 500 }}>AI Core Resource Group</span>
+				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
+			<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 				These credentials are stored locally and only used to make API requests from this extension.
 				<VSCodeLink
 					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
-					style={{ display: "inline" }}>
+					className="inline">
 					You can find more information about SAP AI Core API access here.
 				</VSCodeLink>
 			</p>
 
+			{orchestrationAvailable && (
+				<div className="flex flex-col gap-2.5 mt-[15px]">
+					<div className="flex items-center gap-2">
+						<VSCodeCheckbox
+							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+							onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
+							aria-label="Orchestration Mode"
+						/>
+						<span className="font-medium">Orchestration Mode</span>
+					</div>
+
+					<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						When enabled, provides access to all available models without requiring individual deployments.
+						<br />
+						<br />
+						When disabled, provides access only to deployed models in your AI Core service instance.
+					</p>
+				</div>
+			)}
+
 			{showModelOptions && (
 				<>
-					<ModelSelector
-						models={sapAiCoreModels}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						label="Model"
-					/>
+					<div className="flex flex-col gap-1.5">
+						{isLoadingModels ? (
+							<div className="text-xs text-[var(--vscode-descriptionForeground)]">Loading models...</div>
+						) : modelError ? (
+							<div className="text-xs text-[var(--vscode-errorForeground)]">
+								{modelError}
+								<button
+									onClick={fetchSapAiCoreModels}
+									className="ml-2 text-[11px] px-1.5 py-0.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border-none rounded-sm cursor-pointer">
+									Retry
+								</button>
+							</div>
+						) : hasRequiredCredentials ? (
+							<>
+								{deployedModelsArray.length === 0 && (
+									<div className="text-xs text-[var(--vscode-errorForeground)] mb-2">
+										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
+										configuration or ensure your deployments are deployed and running in the service instance
+									</div>
+								)}
+								<SapAiCoreModelPicker
+									sapAiCoreDeployedModels={deployedModelsArray}
+									selectedModelId={selectedModelId || ""}
+									onModelChange={handleModelChange}
+									placeholder="Select a model..."
+									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+								/>
+							</>
+						) : (
+							<div className="text-xs text-[var(--vscode-errorForeground)]">
+								Please configure your SAP AI Core credentials to see available models.
+							</div>
+						)}
+					</div>
 
 					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
 				</>

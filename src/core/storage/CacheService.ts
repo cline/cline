@@ -244,6 +244,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			basetenApiKey,
 			huggingFaceApiKey,
@@ -403,6 +404,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 		})
 
@@ -658,6 +660,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
@@ -846,6 +849,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 		} satisfies GlobalState
 
@@ -972,6 +976,7 @@ export class CacheService {
 			sapAiCoreBaseUrl: this.globalStateCache["sapAiCoreBaseUrl"],
 			sapAiCoreTokenUrl: this.globalStateCache["sapAiCoreTokenUrl"],
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
+			sapAiCoreUseOrchestrationMode: this.globalStateCache["sapAiCoreUseOrchestrationMode"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
 
 			// Plan mode configurations

@@ -98,6 +98,7 @@ export type GlobalStateKey =
 	| "sapAiCoreTokenUrl"
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
+	| "sapAiCoreUseOrchestrationMode"
 	| "claudeCodePath"
 	| "strictPlanModeEnabled"
 	| "focusChainSettings"
@@ -220,6 +221,7 @@ export interface GlobalState {
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
+	sapAiCoreUseOrchestrationMode: boolean | undefined
 	claudeCodePath: string | undefined
 	strictPlanModeEnabled: boolean
 	preferredLanguage: string
