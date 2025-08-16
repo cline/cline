@@ -31,7 +31,7 @@ export async function openImage(dataUri: string) {
 	}
 }
 
-export async function openFile(absolutePath: string, preserveFocus: boolean = false) {
+export async function openFile(absolutePath: string, preserveFocus: boolean = false, preview: boolean = false) {
 	try {
 		const uri = vscode.Uri.file(absolutePath)
 
@@ -55,7 +55,7 @@ export async function openFile(absolutePath: string, preserveFocus: boolean = fa
 
 		await HostProvider.window.showTextDocument({
 			path: uri.fsPath,
-			options: { preserveFocus, preview: false },
+			options: { preserveFocus, preview },
 		})
 	} catch (error) {
 		HostProvider.window.showMessage({
