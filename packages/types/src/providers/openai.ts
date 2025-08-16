@@ -6,6 +6,18 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 
 export const openAiNativeModels = {
+	"gpt-5-chat-latest": {
+		maxTokens: 128000,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningEffort: false,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.13,
+		description: "GPT-5 Chat Latest: Optimized for conversational AI and non-reasoning tasks",
+		supportsVerbosity: true,
+	},
 	"gpt-5-2025-08-07": {
 		maxTokens: 128000,
 		contextWindow: 400000,
