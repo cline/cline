@@ -5,6 +5,7 @@ import type { ExtensionContext } from "vscode"
 import { readStateFromDisk } from "./utils/state-helpers"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import { DEFAULT_DICTATION_SETTINGS } from "@/shared/DictationSettings"
 
 /**
  * Interface for persistence error event data
@@ -732,6 +733,7 @@ export class CacheService {
 			autoApprovalSettings: state.autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS,
 			globalClineRulesToggles: state.globalClineRulesToggles,
 			browserSettings: state.browserSettings,
+			dictationSettings: state.dictationSettings || DEFAULT_DICTATION_SETTINGS,
 			focusChainSettings: state.focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
 			focusChainFeatureFlagEnabled: state.focusChainFeatureFlagEnabled,
 			preferredLanguage: state.preferredLanguage,

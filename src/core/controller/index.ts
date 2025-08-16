@@ -577,6 +577,7 @@ export class Controller {
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.cacheService.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.cacheService.getGlobalStateKey("browserSettings")
+		const dictationSettings = this.cacheService.getGlobalStateKey("dictationSettings")
 		const focusChainSettings = this.cacheService.getGlobalStateKey("focusChainSettings")
 		const focusChainFeatureFlagEnabled = this.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.cacheService.getGlobalStateKey("preferredLanguage")
@@ -600,6 +601,7 @@ export class Controller {
 		)
 		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
+
 		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
@@ -634,6 +636,7 @@ export class Controller {
 			platform,
 			autoApprovalSettings,
 			browserSettings,
+			dictationSettings,
 			focusChainSettings,
 			focusChainFeatureFlagEnabled,
 			preferredLanguage,

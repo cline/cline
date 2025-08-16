@@ -11,6 +11,7 @@ import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/A
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { SecretKey } from "../state-keys"
 import { Controller } from "@/core/controller"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/DictationSettings"
 
 export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
@@ -68,6 +69,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const claudeCodePath = context.globalState.get("claudeCodePath") as string | undefined
 	const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
+	const dictationSettings = context.globalState.get("dictationSettings") as DictationSettings | undefined
 
 	// Get all secret values
 	const [
@@ -393,6 +395,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localWorkflowToggles: localWorkflowToggles || {},
+		dictationSettings: dictationSettings || DEFAULT_DICTATION_SETTINGS,
 	}
 }
 
