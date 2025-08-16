@@ -102,7 +102,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
-				onChange={(value) => handleFieldChange("ollamaApiOptionsCtxNum", value)}
+				onChange={(v) => handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)}
 				style={{ width: "100%" }}
 				placeholder={"e.g. 32768"}>
 				<span style={{ fontWeight: 500 }}>Model Context Window</span>

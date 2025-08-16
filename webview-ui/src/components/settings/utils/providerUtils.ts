@@ -185,7 +185,10 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: ollamaModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					contextWindow: Number(apiConfiguration?.ollamaApiOptionsCtxNum ?? 32768),
+				},
 			}
 		case "lmstudio":
 			const lmStudioModelId =
@@ -193,7 +196,10 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					contextWindow: Number(apiConfiguration?.lmStudioMaxTokens ?? 32768),
+				},
 			}
 		case "vscode-lm":
 			const vsCodeLmModelSelector =
