@@ -30,6 +30,11 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 		description: "Create a comprehensive implementation plan before coding",
 		section: "default",
 	},
+	{
+		name: "gitnote",
+		description: "Create or update a structured note for a commit",
+		section: "default",
+	},
 ]
 
 export function getWorkflowCommands(

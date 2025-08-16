@@ -26,6 +26,77 @@ Below is the the user's input when they indicated that they wanted to create a n
 </explicit_instructions>\n
 `
 
+export const gitNoteToolResponse = () =>
+	`<explicit_instructions type="git-note">
+Your task is to create or update a structured, detailed summary of the current task conversation and attach it as a git note to a specified git commit. The quality and structure of this note are critical for future developers and for automated documentation generation.
+
+## STEP 1: Identify Target Commit and Check for Existing Notes
+- First, determine the target commit SHA. If the user provided one (e.g., "/gitnote a1b2c3d"), you MUST use it. Otherwise, you MUST find the latest commit SHA by executing the \`run_command\` tool with the command \`git rev-parse HEAD\`.
+- **CRITICAL:** You must then check if a git note from this specific Cline Task ID already exists in the repository. A reliable way to check is to search the git log for notes containing this task's unique ID. You can use a command like \`git log --notes --grep="Task ID: YOUR_TASK_ID_HERE"\` where YOUR_TASK_ID_HERE is the ULID of the current task.
+
+## STEP 2A: If NO Existing Note is Found (First Run)
+- You must generate a complete "master note" using the full template below.
+- Synthesize the overall Objective, Implementation Details, and Key Decisions from the entire conversation.
+- Create an initial entry under "Commit History & Deltas" for the current target commit.
+- Use the \`run_command\` tool with \`git notes add -m "THE_ENTIRE_MARKDOWN_STRING" <target_sha>\` to attach this new note.
+
+## STEP 2B: If an Existing Note IS Found (Subsequent Run)
+- You must retrieve the full content of the existing master note using \`git notes show <sha_of_master_note>\`.
+- Analyze the conversation that has occurred *since the last commit delta was logged in the note*.
+- You MUST generate a new entry under the "Commit History & Deltas" section for the current target commit. This new entry must include a "Rationale for this commit" and a list of "Key Changes".
+- You will then use the \`run_command\` tool with \`git notes add --force -m "THE_UPDATED_MARKDOWN_STRING" <sha_of_master_note>\` to REPLACE the old master note with the new, updated version. This keeps all context consolidated on the single master note.
+
+## Git Note Template
+You MUST format the note using this exact markdown template:
+
+\`\`\`markdown
+---
+Category: {{feat, fix, docs, style, refactor, perf, test, chore}}
+User Impact: {{A one-sentence, non-technical description of the change's effect.}}
+Breaking Change: {{true or false}}
+Related Issues: {{e.g., "closes #123", "ref #456", or "N/A"}}
+---
+
+# Cline Task Summary: {{A short, descriptive title for the task}}
+
+**Task ID:** {{The ULID of the current task}}
+**Master Note for Commit:** {{SHA of the commit the note is attached to}}
+
+### 1. Objective
+{{The original goal or user request in 1-2 sentences.}}
+
+### 2. Public Interface Changes
+{{Describe any changes to APIs, function signatures, UI components, etc., or state "No public-facing API changes."}}
+
+### 3. Implementation Details (Overall)
+- **Files Touched:** {{List of key files created or modified}}
+- **Dependencies Added:** {{List of new dependencies or "N/A"}}
+
+### 4. Key Decisions & Rationale (Overall)
+- **Why {{Brief summary of decision 1}}?**
+  - **Decision:** {{The decision made}}
+  - **Rationale:** {{The reasoning behind the decision}}
+
+---
+### 5. Commit History & Deltas
+
+#### **Commit \`{{commit_sha}}\` ({{A short description, e.g., "Initial Implementation"}})**
+- **Overview:** {{Briefly describe the purpose of this specific commit.}}
+- **Key Changes:**
+  - \`{{File 1}}\`: {{List of important changes.}}
+  - \`{{File 2}}\`: {{List of important changes.}}
+---
+\`\`\`
+
+## STEP 3: Confirm Completion
+- After the command executes successfully, use the \`say\` tool to confirm the action. Be clear about whether the note was created or updated.
+- Example (Creation): "✅ Git note created and attached to commit a1b2c3d."
+- Example (Update): "✅ Git note on commit a1b2c3d was updated with details from commit f4e5d6c."
+
+Below is the user's input when they requested to create a git note.
+</explicit_instructions>\n
+`
+
 export const condenseToolResponse = () =>
 	`<explicit_instructions type="condense">
 The user has explicitly asked you to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. The user may have provided instructions or additional information for you to consider when summarizing the conversation.

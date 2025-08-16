@@ -100,7 +100,8 @@
 							"features/slash-commands/new-rule",
 							"features/slash-commands/smol",
 							"features/slash-commands/report-bug",
-							"features/slash-commands/deep-planning"
+							"features/slash-commands/deep-planning",
+							"features/slash-commands/git-note"
 						]
 					},
 					{
