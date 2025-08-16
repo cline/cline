@@ -43,7 +43,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		try {
 			// Write content to the selected location
 			await writeFile(saveResponse.selectedPath, markdownContent)
-			openFile(saveResponse.selectedPath, false, true)
+			await openFile(saveResponse.selectedPath, false, true)
 		} catch (error) {
 			await HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
