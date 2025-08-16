@@ -28,6 +28,7 @@ interface LMStudioApiModel {
 	quantization?: string
 	state?: string
 	max_context_length?: number
+	loaded_context_length?: number
 }
 
 /**
@@ -40,15 +41,20 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
+
 	const currentLMStudioModel = useMemo(
-		() => (lmStudioModelId && lmStudioModels.find((model) => model.id === lmStudioModelId)) || lmStudioModels?.[0],
+		() => lmStudioModels.find((model) => model.id === lmStudioModelId),
 		[lmStudioModels, lmStudioModelId],
+	)
+	const endpoint = useMemo(
+		() => apiConfiguration?.lmStudioBaseUrl || "http://localhost:1234",
+		[apiConfiguration?.lmStudioBaseUrl],
 	)
 
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
-			value: apiConfiguration?.lmStudioBaseUrl || "http://localhost:1234",
+			value: endpoint,
 		})
 			.then((response) => {
 				if (response?.values) {
@@ -60,17 +66,29 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [apiConfiguration?.lmStudioBaseUrl])
+	}, [endpoint])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: set up request on start up
 	useEffect(() => {
 		requestLmStudioModels()
-	}, [requestLmStudioModels])
+	}, [])
+
+	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
+	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
 
 	useEffect(() => {
-		if (currentLMStudioModel?.max_context_length) {
-			handleFieldChange("lmStudioMaxTokens", currentLMStudioModel?.max_context_length?.toString())
+		const curr = currentLMStudioModel?.loaded_context_length?.toString()
+		const max = currentLMStudioModel?.max_context_length?.toString()
+		const choice = apiConfiguration?.lmStudioMaxTokens ?? max
+		if (curr && curr !== choice) {
+			handleFieldChange("lmStudioMaxTokens", curr)
 		}
-	}, [currentLMStudioModel?.max_context_length, handleFieldChange])
+	}, [
+		currentLMStudioModel?.loaded_context_length,
+		currentLMStudioModel?.max_context_length,
+		apiConfiguration?.lmStudioMaxTokens,
+		handleFieldChange,
+	])
 
 	useInterval(requestLmStudioModels, 6000)
 
@@ -82,18 +100,20 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				placeholder="Default: http://localhost:1234"
 				label="Use custom base URL"
 			/>
+
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
 				<VSCodeDropdown
 					className="w-full mb-3"
 					value={lmStudioModelId}
 					onChange={(e: any) => {
+						const value = e?.target?.value
 						handleModeFieldChange(
 							{
 								plan: "planModeLmStudioModelId",
 								act: "actModeLmStudioModelId",
 							},
-							e.target.value,
+							value,
 							currentMode,
 						)
 					}}>
@@ -123,7 +143,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 			<div className="font-semibold">Context Window</div>
 			<VSCodeTextField
-				value={String(currentLMStudioModel?.max_context_length ?? "-")}
+				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
 				className="w-full pointer-events-none"
