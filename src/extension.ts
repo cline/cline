@@ -27,6 +27,8 @@ import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
+import { addPromptToChat } from "./core/controller/commands/addPromptToChat"
+import { addFileMentionToChat } from "./core/controller/commands/addFileMentionToChat"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
@@ -509,6 +511,72 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"cline.addPromptToChat",
+			async (args: string | { prompt: string; submit?: boolean } | undefined) => {
+				let prompt: string | undefined
+				let submit: boolean = false
+
+				if (typeof args === "string") {
+					prompt = args
+				} else if (typeof args === "object" && args !== null) {
+					prompt = args.prompt
+					submit = !!args.submit
+				}
+
+				if (!prompt) {
+					prompt = (
+						await HostProvider.window.showInputBox({
+							title: "Enter Prompt",
+							prompt: "Enter the prompt to send to Cline",
+							value: "e.g., Explain this code",
+						})
+					).response
+					if (!prompt) return
+				}
+
+				const activeWebview = await focusChatInput()
+				if (!activeWebview) return
+
+				await addPromptToChat(activeWebview.controller, { prompt, submit, diagnostics: [] })
+			},
+		),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"cline.addFileMentionToChat",
+			async (args: string | { filePath: string; submit?: boolean } | undefined) => {
+				let filePath: string | undefined
+				let submit: boolean = false
+
+				if (typeof args === "string") {
+					filePath = args
+				} else if (typeof args === "object" && args !== null) {
+					filePath = args.filePath
+					submit = !!args.submit
+				}
+
+				if (!filePath) {
+					const fileUris = (
+						await HostProvider.window.showOpenDialogue({
+							canSelectMany: false,
+							openLabel: "Select File to Mention",
+						})
+					).paths
+					if (!fileUris || fileUris.length === 0) return
+					filePath = fileUris[0]
+				}
+
+				const activeWebview = await focusChatInput()
+				if (!activeWebview) return
+
+				await addFileMentionToChat(activeWebview.controller, { filePath, submit, diagnostics: [] })
+			},
+		),
 	)
 
 	return createClineAPI(sidebarWebview.controller)

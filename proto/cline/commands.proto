@@ -15,6 +15,8 @@ service CommandsService {
   rpc fixWithCline(CommandContext) returns (Empty);
   rpc explainWithCline(CommandContext) returns (Empty);
   rpc improveWithCline(CommandContext) returns (Empty);
+  rpc addPromptToChat(CommandContext) returns (Empty);
+  rpc addFileMentionToChat(CommandContext) returns (Empty);
 }
 
 message CommandContext {
@@ -26,4 +28,6 @@ message CommandContext {
   optional string language = 3;
   // Any diagnostic problems for the current file.
   repeated cline.Diagnostic diagnostics = 4;
+  optional string prompt = 5;
+  optional bool submit = 6;
 }
