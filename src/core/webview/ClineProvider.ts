@@ -29,6 +29,7 @@ import {
 	type TerminalActionId,
 	type TerminalActionPromptType,
 	type HistoryItem,
+	type ClineAsk,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
@@ -176,6 +177,8 @@ export class ClineProvider
 			const onTaskFocused = () => this.emit(RooCodeEventName.TaskFocused, instance.taskId)
 			const onTaskUnfocused = () => this.emit(RooCodeEventName.TaskUnfocused, instance.taskId)
 			const onTaskActive = (taskId: string) => this.emit(RooCodeEventName.TaskActive, taskId)
+			const onTaskInteractive = (taskId: string) => this.emit(RooCodeEventName.TaskInteractive, taskId)
+			const onTaskResumable = (taskId: string) => this.emit(RooCodeEventName.TaskResumable, taskId)
 			const onTaskIdle = (taskId: string) => this.emit(RooCodeEventName.TaskIdle, taskId)
 
 			// Attach the listeners.
@@ -185,6 +188,8 @@ export class ClineProvider
 			instance.on(RooCodeEventName.TaskFocused, onTaskFocused)
 			instance.on(RooCodeEventName.TaskUnfocused, onTaskUnfocused)
 			instance.on(RooCodeEventName.TaskActive, onTaskActive)
+			instance.on(RooCodeEventName.TaskInteractive, onTaskInteractive)
+			instance.on(RooCodeEventName.TaskResumable, onTaskResumable)
 			instance.on(RooCodeEventName.TaskIdle, onTaskIdle)
 
 			// Store the cleanup functions for later removal.
@@ -195,6 +200,8 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskFocused, onTaskFocused),
 				() => instance.off(RooCodeEventName.TaskUnfocused, onTaskUnfocused),
 				() => instance.off(RooCodeEventName.TaskActive, onTaskActive),
+				() => instance.off(RooCodeEventName.TaskInteractive, onTaskInteractive),
+				() => instance.off(RooCodeEventName.TaskResumable, onTaskResumable),
 				() => instance.off(RooCodeEventName.TaskIdle, onTaskIdle),
 			])
 		}

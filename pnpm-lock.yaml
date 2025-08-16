@@ -584,8 +584,8 @@ importers:
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
       '@roo-code/cloud':
-        specifier: ^0.16.0
-        version: 0.16.0
+        specifier: ^0.17.0
+        version: 0.17.0
       '@roo-code/ipc':
         specifier: workspace:^
         version: link:../packages/ipc
@@ -3106,11 +3106,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@roo-code/cloud@0.16.0':
-    resolution: {integrity: sha512-AMHjPFK6lSZeutELzdYgxs4r7tUW8NEffRkM3NagtGKK5KY/pCRwctdP0TDCJGwLCRu5JI21Ww9uYCgAQ4MM3Q==}
+  '@roo-code/cloud@0.17.0':
+    resolution: {integrity: sha512-Sh7KGbVapxocnoyDzWkvvtVzam5jZnU2RGKT7V0v3CbFMQc329NBnHRAgVtJUwcGPHUFyAkwEHo181Fn3rFpZw==}
 
-  '@roo-code/types@1.51.0':
-    resolution: {integrity: sha512-h+wihwF9iuKfb7xycS5yXgDzGGypjiZF4Sy4tu6vdkhzVcE8ExFtCwGn1w535p9KaLE1QCV/G5NddgajqRyPAQ==}
+  '@roo-code/types@1.52.0':
+    resolution: {integrity: sha512-jPCVZ2j4Y0MUiHvAJbXduR3yFGb5A3KDvIThi8cKBAUg8zb7jhIYKTvJ5vub1MGZkpK11K0JG6ex4RL19FjobA==}
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -12314,9 +12314,9 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.40.2':
     optional: true
 
-  '@roo-code/cloud@0.16.0':
+  '@roo-code/cloud@0.17.0':
     dependencies:
-      '@roo-code/types': 1.51.0
+      '@roo-code/types': 1.52.0
       ioredis: 5.6.1
       p-wait-for: 5.0.2
       socket.io-client: 4.8.1
@@ -12326,7 +12326,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@roo-code/types@1.51.0':
+  '@roo-code/types@1.52.0':
     dependencies:
       zod: 3.25.76
 
@@ -13555,7 +13555,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@20.17.50)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
+      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@24.2.1)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
 
   '@vitest/utils@3.2.4':
     dependencies:

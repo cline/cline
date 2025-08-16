@@ -21,16 +21,21 @@ import {
 	type ClineMessage,
 	type ClineSay,
 	type ClineAsk,
-	type BlockingAsk,
+	type IdleAsk,
+	type ResumableAsk,
+	type InteractiveAsk,
 	type ToolProgressStatus,
 	type HistoryItem,
 	RooCodeEventName,
 	TelemetryEventName,
+	TaskStatus,
 	TodoItem,
+	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	getApiProtocol,
 	getModelId,
-	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
-	isBlockingAsk,
+	isIdleAsk,
+	isInteractiveAsk,
+	isResumableAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
@@ -182,7 +187,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
 	abort: boolean = false
-	blockingAsk?: BlockingAsk
+
+	// TaskStatus
+	idleAsk?: ClineMessage
+	resumableAsk?: ClineMessage
+	interactiveAsk?: ClineMessage
+
 	didFinishAbortingStream = false
 	abandoned = false
 	isInitialized = false
@@ -290,7 +300,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
 
 		this.metadata = {
-			taskId: this.taskId,
 			task: historyItem ? historyItem.task : task,
 			images: historyItem ? [] : images,
 		}
@@ -497,6 +506,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (this._taskMode === undefined) {
 			throw new Error("Task mode accessed before initialization. Use getTaskMode() or wait for taskModeReady.")
 		}
+
 		return this._taskMode
 	}
 
@@ -615,6 +625,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 	}
 
+	private findMessageByTimestamp(ts: number): ClineMessage | undefined {
+		for (let i = this.clineMessages.length - 1; i >= 0; i--) {
+			if (this.clineMessages[i].ts === ts) {
+				return this.clineMessages[i]
+			}
+		}
+
+		return undefined
+	}
+
 	// Note that `partial` has three valid states true (partial message),
 	// false (completion of partial message), undefined (individual complete
 	// message).
@@ -713,16 +733,55 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, isProtected })
 		}
 
-		// Detect if the task will enter an idle state.
-		const isReady = this.askResponse !== undefined || this.lastMessageTs !== askTs
+		// The state is mutable if the message is complete and the task will
+		// block (via the `pWaitFor`).
+		const isBlocking = !(this.askResponse !== undefined || this.lastMessageTs !== askTs)
+		const isStatusMutable = !partial && isBlocking
+		let statusMutationTimeouts: NodeJS.Timeout[] = []
 
-		if (!partial && !isReady && isBlockingAsk(type)) {
-			this.blockingAsk = type
-			this.emit(RooCodeEventName.TaskIdle, this.taskId)
+		if (isStatusMutable) {
+			if (isInteractiveAsk(type)) {
+				statusMutationTimeouts.push(
+					setTimeout(() => {
+						const message = this.findMessageByTimestamp(askTs)
+
+						if (message) {
+							this.interactiveAsk = message
+							this.emit(RooCodeEventName.TaskInteractive, this.taskId)
+						}
+					}, 1_000),
+				)
+			} else if (isResumableAsk(type)) {
+				statusMutationTimeouts.push(
+					setTimeout(() => {
+						const message = this.findMessageByTimestamp(askTs)
+
+						if (message) {
+							this.resumableAsk = message
+							this.emit(RooCodeEventName.TaskResumable, this.taskId)
+						}
+					}, 1_000),
+				)
+			} else if (isIdleAsk(type)) {
+				statusMutationTimeouts.push(
+					setTimeout(() => {
+						const message = this.findMessageByTimestamp(askTs)
+
+						if (message) {
+							this.idleAsk = message
+							this.emit(RooCodeEventName.TaskIdle, this.taskId)
+						}
+					}, 1_000),
+				)
+			}
 		}
 
-		console.log(`[Task#${this.taskId}] pWaitFor askResponse(${type}) -> blocking`)
+		console.log(
+			`[Task#${this.taskId}] pWaitFor askResponse(${type}) -> blocking (isStatusMutable = ${isStatusMutable}, statusMutationTimeouts = ${statusMutationTimeouts.length})`,
+		)
+
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
+
 		console.log(`[Task#${this.taskId}] pWaitFor askResponse(${type}) -> unblocked (${this.askResponse})`)
 
 		if (this.lastMessageTs !== askTs) {
@@ -737,9 +796,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.askResponseText = undefined
 		this.askResponseImages = undefined
 
+		// Cancel the timeouts if they are still running.
+		statusMutationTimeouts.forEach((timeout) => clearTimeout(timeout))
+
 		// Switch back to an active state.
-		if (this.blockingAsk) {
-			this.blockingAsk = undefined
+		if (this.idleAsk || this.resumableAsk || this.interactiveAsk) {
+			this.idleAsk = undefined
+			this.resumableAsk = undefined
+			this.interactiveAsk = undefined
 			this.emit(RooCodeEventName.TaskActive, this.taskId)
 		}
 
@@ -757,27 +821,30 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.askResponseImages = images
 	}
 
+	public approveAsk({ text, images }: { text?: string; images?: string[] } = {}) {
+		this.handleWebviewAskResponse("yesButtonClicked", text, images)
+	}
+
+	public denyAsk({ text, images }: { text?: string; images?: string[] } = {}) {
+		this.handleWebviewAskResponse("noButtonClicked", text, images)
+	}
+
 	public submitUserMessage(text: string, images?: string[]): void {
 		try {
-			const trimmed = (text ?? "").trim()
-			const imgs = images ?? []
+			text = (text ?? "").trim()
+			images = images ?? []
 
-			if (!trimmed && imgs.length === 0) {
+			if (text.length === 0 && images.length === 0) {
 				return
 			}
 
 			const provider = this.providerRef.deref()
-			if (!provider) {
-				console.error("[Task#submitUserMessage] Provider reference lost")
-				return
-			}
 
-			void provider.postMessageToWebview({
-				type: "invoke",
-				invoke: "sendMessage",
-				text: trimmed,
-				images: imgs,
-			})
+			if (provider) {
+				provider.postMessageToWebview({ type: "invoke", invoke: "sendMessage", text, images })
+			} else {
+				console.error("[Task#submitUserMessage] Provider reference lost")
+			}
 		} catch (error) {
 			console.error("[Task#submitUserMessage] Failed to submit user message:", error)
 		}
@@ -1030,12 +1097,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	public async resumePausedTask(lastMessage: string) {
-		// Release this Cline instance from paused state.
 		this.isPaused = false
 		this.emit(RooCodeEventName.TaskUnpaused)
 
 		// Fake an answer from the subtask that it has completed running and
-		// this is the result of what it has done  add the message to the chat
+		// this is the result of what it has done add the message to the chat
 		// history and to the webview ui.
 		try {
 			await this.say("subtask_result", lastMessage)
@@ -2519,5 +2585,25 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public get cwd() {
 		return this.workspacePath
+	}
+
+	public get taskStatus(): TaskStatus {
+		if (this.interactiveAsk) {
+			return TaskStatus.Interactive
+		}
+
+		if (this.resumableAsk) {
+			return TaskStatus.Resumable
+		}
+
+		if (this.idleAsk) {
+			return TaskStatus.Idle
+		}
+
+		return TaskStatus.Running
+	}
+
+	public get taskAsk(): ClineMessage | undefined {
+		return this.idleAsk || this.resumableAsk || this.interactiveAsk
 	}
 }

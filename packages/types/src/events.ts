@@ -18,6 +18,8 @@ export enum RooCodeEventName {
 	TaskFocused = "taskFocused",
 	TaskUnfocused = "taskUnfocused",
 	TaskActive = "taskActive",
+	TaskInteractive = "taskInteractive",
+	TaskResumable = "taskResumable",
 	TaskIdle = "taskIdle",
 
 	// Subtask Lifecycle
@@ -59,6 +61,8 @@ export const rooCodeEventsSchema = z.object({
 	[RooCodeEventName.TaskFocused]: z.tuple([z.string()]),
 	[RooCodeEventName.TaskUnfocused]: z.tuple([z.string()]),
 	[RooCodeEventName.TaskActive]: z.tuple([z.string()]),
+	[RooCodeEventName.TaskInteractive]: z.tuple([z.string()]),
+	[RooCodeEventName.TaskResumable]: z.tuple([z.string()]),
 	[RooCodeEventName.TaskIdle]: z.tuple([z.string()]),
 
 	[RooCodeEventName.TaskPaused]: z.tuple([z.string()]),
@@ -122,6 +126,16 @@ export const taskEventSchema = z.discriminatedUnion("eventName", [
 	z.object({
 		eventName: z.literal(RooCodeEventName.TaskActive),
 		payload: rooCodeEventsSchema.shape[RooCodeEventName.TaskActive],
+		taskId: z.number().optional(),
+	}),
+	z.object({
+		eventName: z.literal(RooCodeEventName.TaskInteractive),
+		payload: rooCodeEventsSchema.shape[RooCodeEventName.TaskInteractive],
+		taskId: z.number().optional(),
+	}),
+	z.object({
+		eventName: z.literal(RooCodeEventName.TaskResumable),
+		payload: rooCodeEventsSchema.shape[RooCodeEventName.TaskResumable],
 		taskId: z.number().optional(),
 	}),
 	z.object({
