@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.25.3
+
+### Patch Changes
+
+- 8c49ce5: Prevent non-error logs from being misclassified as errors
+- 2635f5f: Focus chain regex matching moved into /shared
+- 2615ea8: Logic to move the position of the focus chain edit button when a scrollbar is present. Also made the pencil icon bigger and better centered.
+
 ## [3.25.2]
 
 - Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
