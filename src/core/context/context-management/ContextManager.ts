@@ -400,9 +400,13 @@ export class ContextManager {
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
 	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
-		const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		/*
+        const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
 		const userUpdated = this.applyFirstUserMessageReplacement(timestamp)
-		if (assistantUpdated || userUpdated) {
+		if (assistantUpdated || userUpdated)
+		*/
+		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		if (updated) {
 			await this.saveContextHistory(taskDirectory)
 		}
 	}
