@@ -331,20 +331,22 @@ export abstract class DiffViewProvider {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
-			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
+			const contents = await this.getDocumentText()
+			if (contents !== undefined) {
+				const lineCount = (contents.match(/\n/g) || []).length + 1
+				await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
-			await this.saveDocument()
-			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
-			if (this.documentWasOpen) {
-				await HostProvider.window.showTextDocument({
-					path: this.absolutePath,
-					options: {
-						preview: false,
-						preserveFocus: true,
-					},
-				})
+				await this.saveDocument()
+				console.log(`File ${this.absolutePath} has been reverted to its original content.`)
+				if (this.documentWasOpen) {
+					await HostProvider.window.showTextDocument({
+						path: this.absolutePath,
+						options: {
+							preview: false,
+							preserveFocus: true,
+						},
+					})
+				}
 			}
 			await this.closeAllDiffViews()
 		}
