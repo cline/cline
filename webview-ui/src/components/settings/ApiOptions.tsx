@@ -31,6 +31,7 @@ import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
+import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
@@ -149,6 +150,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="vercel-ai-gateway">Vercel AI Gateway</VSCodeOption>
 					<VSCodeOption value="baseten">Baseten</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
@@ -217,6 +219,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "openai" && (
 				<OpenAICompatibleProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
+
+			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
+				<VercelAIGatewayProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiConfiguration && selectedProvider === "sambanova" && (

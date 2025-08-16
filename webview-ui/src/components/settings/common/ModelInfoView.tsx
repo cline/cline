@@ -11,6 +11,8 @@ import {
 	formatTokenPrice,
 	formatTokenLimit,
 } from "../utils/pricingUtils"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 /**
  * Returns an array of formatted tier strings
