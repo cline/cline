@@ -101,16 +101,9 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	// Internal state management for description expansion
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
-	// Get extension state to check the current provider
-	const { apiConfiguration, mode } = useExtensionState()
-
-	// Detect current provider from the configuration
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, mode)
-
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
-	const isVercelAiGateway = selectedProvider === "vercel-ai-gateway"
 
 	// Create elements for input pricing
 	const inputPriceElement = hasTiers ? (
@@ -167,22 +160,18 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				isPopup={isPopup}
 			/>
 		),
-		!isVercelAiGateway && (
-			<ModelInfoSupportsItem
-				key="supportsImages"
-				isSupported={supportsImages(modelInfo)}
-				supportsLabel="Supports images"
-				doesNotSupportLabel="Does not support images"
-			/>
-		),
-		!isVercelAiGateway && (
-			<ModelInfoSupportsItem
-				key="supportsBrowserUse"
-				isSupported={supportsBrowserUse(modelInfo)}
-				supportsLabel="Supports browser use"
-				doesNotSupportLabel="Does not support browser use"
-			/>
-		),
+		<ModelInfoSupportsItem
+			key="supportsImages"
+			isSupported={supportsImages(modelInfo)}
+			supportsLabel="Supports images"
+			doesNotSupportLabel="Does not support images"
+		/>,
+		<ModelInfoSupportsItem
+			key="supportsBrowserUse"
+			isSupported={supportsBrowserUse(modelInfo)}
+			supportsLabel="Supports browser use"
+			doesNotSupportLabel="Does not support browser use"
+		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
 				key="supportsPromptCache"

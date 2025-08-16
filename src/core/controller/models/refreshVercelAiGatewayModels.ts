@@ -48,6 +48,7 @@ export async function refreshVercelAiGatewayModels(
 					outputPrice: parsePrice(rawModel.pricing?.output) ?? 0,
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write) ?? 0,
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read) ?? 0,
+					supportsImages: true, // assume all models support images since vercel ai doesn't give this info
 					supportsPromptCache: !!(rawModel.pricing?.input_cache_read && rawModel.pricing?.input_cache_write),
 					description: rawModel.description ?? "",
 				})
