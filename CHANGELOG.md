@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.25.3
+## [3.25.3]
 
-- 8c49ce5: Prevent non-error logs from being misclassified as errors
-- 2635f5f: Focus chain regex matching moved into /shared
-- 2615ea8: Logic to move the position of the focus chain edit button when a scrollbar is present. Also made the pencil icon bigger and better centered.
+- Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload
+- Move the position of the focus chain edit button when a scrollbar is present. Make the pencil icon bigger and better centered.
 
 ## [3.25.2]
 
