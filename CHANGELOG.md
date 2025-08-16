@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.25.3]
+
+- Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload
+- Move the position of the focus chain edit button when a scrollbar is present. Make the pencil icon bigger and better centered.
+
 ## [3.25.2]
 
 - Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
