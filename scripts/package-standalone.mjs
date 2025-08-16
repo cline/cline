@@ -7,6 +7,7 @@ import { cp } from "fs/promises"
 import { glob } from "glob"
 import minimatch from "minimatch"
 import path from "path"
+
 const BUILD_DIR = "dist-standalone"
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 
@@ -104,6 +105,7 @@ function createIsIgnored(standaloneIgnores) {
 		".eslintrc*",
 		".babelrc*",
 		".prettierrc*",
+		"biome.json*",
 		".cz-config.js",
 		".commitlintrc*",
 		"webpack.config.js",

@@ -6,12 +6,31 @@
 	},
 	"search.exclude": {
 		"out": true, // set this to false to include "out" folder in search results
-		"dist": true // set this to false to include "dist" folder in search results
+		"dist": true, // set this to false to include "dist" folder in search results,
+		"node_modules": true,
+		"dist-standalone": true
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
 	"typescript.tsc.autoDetect": "off",
+	"typescript.preferences.quoteStyle": "double",
 	// Protobuf settings
 	"protoc": {
-		"options": ["--proto_path=proto"]
+		"options": [
+			"--proto_path=proto"
+		]
+	},
+	// Enable Lint and format using Biome
+	"biome.enabled": true,
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
 	}
 }

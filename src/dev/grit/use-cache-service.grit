@@ -1,0 +1,12 @@
+`$fn($args)` where {
+	or {
+		$fn <: `context.globalState.get`,
+		$fn <: `context.globalState.update`,
+		$fn <: `context.workspaceState.get`,
+		$fn <: `context.workspaceState.update`,
+		$fn <: `context.secrets.get`,
+		$fn <: `context.secrets.store`,
+		$fn <: `context.secrets.delete`
+	},
+	register_diagnostic(span=$fn, message="Use CacheService instead.")
+}
