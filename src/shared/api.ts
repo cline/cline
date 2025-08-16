@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "baseten"
+	| "featherless"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -91,6 +92,7 @@ export interface ApiHandlerOptions {
 	cerebrasApiKey?: string
 	groqApiKey?: string
 	basetenApiKey?: string
+	featherlessApiKey?: string
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string

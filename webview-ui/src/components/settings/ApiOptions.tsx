@@ -40,6 +40,7 @@ import { GroqProvider } from "./providers/GroqProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
 import { Mode } from "@shared/storage/types"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
+import { FeatherlessProvider } from "./providers/FeatherlessProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -168,6 +169,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					<VSCodeOption value="featherless">Featherless</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -289,6 +291,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
 				<HuaweiCloudMaasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+			)}
+
+			{apiConfiguration && selectedProvider === "featherless" && (
+				<FeatherlessProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
 			)}
 
 			{apiErrorMessage && (

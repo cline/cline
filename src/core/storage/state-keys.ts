@@ -44,6 +44,7 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "featherlessApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -320,6 +321,7 @@ export interface Secrets {
 	groqApiKey: string | undefined
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
+	featherlessApiKey: string | undefined
 }
 
 export interface LocalState {

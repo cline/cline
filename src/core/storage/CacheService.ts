@@ -248,6 +248,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			featherlessApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -439,6 +440,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			featherlessApiKey,
 		})
 	}
 
@@ -661,6 +663,7 @@ export class CacheService {
 			claudeCodePath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			featherlessApiKey,
 			requestTimeoutMs,
 			authNonce,
 			// Plan mode configurations
@@ -886,6 +889,7 @@ export class CacheService {
 			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			featherlessApiKey,
 		} satisfies Secrets
 
 		// Populate secrets cache directly
@@ -939,6 +943,7 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			featherlessApiKey: this.secretsCache["featherlessApiKey"],
 
 			// Global state
 			awsRegion: this.globalStateCache["awsRegion"],

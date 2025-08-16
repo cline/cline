@@ -133,6 +133,7 @@ enum ApiProvider {
   HUGGINGFACE = 28;
   HUAWEI_CLOUD_MAAS = 29;
   BASETEN = 30;
+  FEATHERLESS = 31;
 }
 
 // Model info for OpenAI-compatible models
@@ -237,6 +238,7 @@ message ModelsApiConfiguration {
   optional string huawei_cloud_maas_api_key = 62;
   optional string baseten_api_key = 63;
   optional string ollama_api_key = 64;
+  optional string featherless_api_key = 65;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
