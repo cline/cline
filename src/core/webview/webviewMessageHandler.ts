@@ -1343,7 +1343,7 @@ export const webviewMessageHandler = async (
 			await provider.postStateToWebview()
 			break
 		case "includeTaskHistoryInEnhance":
-			await updateGlobalState("includeTaskHistoryInEnhance", message.bool ?? false)
+			await updateGlobalState("includeTaskHistoryInEnhance", message.bool ?? true)
 			await provider.postStateToWebview()
 			break
 		case "condensingApiConfigId":
