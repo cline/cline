@@ -17,6 +17,11 @@ export function isGrok4ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	return modelId.includes("grok-4")
 }
 
+export function isGrokCodeModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
+	const modelId = apiHandlerModel.id.toLowerCase()
+	return modelId.includes("grok-code") || modelId.includes("grok-4-xcode")
+}
+
 export function isGPT5ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("gpt-5") || modelId.includes("gpt5") || modelId.includes("nectarine")
