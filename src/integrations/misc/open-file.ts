@@ -31,11 +31,12 @@ export async function openImage(dataUri: string) {
 	}
 }
 
-export async function openFile(absolutePath: string) {
+export async function openFile(absolutePath: string, preserveFocus: boolean = false) {
 	try {
 		const uri = vscode.Uri.file(absolutePath)
 
-		// Check if the document is already open in a tab group that's not in the active editor's column. If it is, then close it (if not dirty) so that we don't duplicate tabs
+		// Check if the document is already open in a tab group that's not in the active editor's column.
+		//  If it is, then close it (if not dirty) so that we don't duplicate tabs
 		try {
 			for (const group of vscode.window.tabGroups.all) {
 				const existingTab = group.tabs.find(
@@ -54,7 +55,7 @@ export async function openFile(absolutePath: string) {
 
 		await HostProvider.window.showTextDocument({
 			path: uri.fsPath,
-			options: { preview: false },
+			options: { preserveFocus, preview: false },
 		})
 	} catch (error) {
 		HostProvider.window.showMessage({

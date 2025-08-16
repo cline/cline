@@ -9,6 +9,7 @@ import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -261,13 +262,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await HostProvider.window.showTextDocument({
-			path: this.absolutePath,
-			options: {
-				preview: false,
-				preserveFocus: true,
-			},
-		})
+		openFile(this.absolutePath, true)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
@@ -338,13 +333,7 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
-				await HostProvider.window.showTextDocument({
-					path: this.absolutePath,
-					options: {
-						preview: false,
-						preserveFocus: true,
-					},
-				})
+				openFile(this.absolutePath, true)
 			}
 			await this.closeAllDiffViews()
 		}
