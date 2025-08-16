@@ -24,6 +24,14 @@ interface ClineHandlerOptions {
 	clineAccountId?: string
 }
 
+interface ClineStreamUsageChunk extends OpenAI.CompletionUsage {
+	cost?: number
+	cost_details?: {
+		upstream_inference_cost?: number
+		downstream_inference_cost?: number
+	}
+}
+
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
@@ -31,7 +39,6 @@ export class ClineHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
-	private counter = 0
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -55,8 +62,9 @@ export class ClineHandler implements ApiHandler {
 						"X-Cline-Version": extensionVersion,
 					},
 				})
-			} catch (error: any) {
-				throw new Error(`Error creating Cline client: ${error.message}`)
+			} catch (error) {
+				console.error(`Error creating Cline client: ${error.message}`)
+				throw error
 			}
 		}
 		// Ensure the client is always using the latest auth token
@@ -87,10 +95,10 @@ export class ClineHandler implements ApiHandler {
 				// openrouter returns an error object instead of the openai sdk throwing an error
 				if ("error" in chunk) {
 					const error = chunk.error as OpenRouterErrorResponse["error"]
-					console.error(`Cline API Error: ${error?.code} - ${error?.message}`)
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
+					console.error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
+					throw error
 				}
 				if (!this.lastGenerationId && chunk.id) {
 					this.lastGenerationId = chunk.id
@@ -99,12 +107,9 @@ export class ClineHandler implements ApiHandler {
 				// Check for mid-stream error via finish_reason
 				const choice = chunk.choices?.[0]
 				// OpenRouter may return finish_reason = "error" with error details
-				if ((choice?.finish_reason as string) === "error") {
-					const choiceWithError = choice as any
-					if (choiceWithError.error) {
-						const error = choiceWithError.error
-						console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
-						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+				if (choice?.finish_reason && String(choice?.finish_reason) === "error") {
+					if ("error" in choice && choice?.error) {
+						throw choice.error
 					} else {
 						throw new Error(
 							"Cline Mid-Stream Error: Stream terminated with error status but no error details provided",
@@ -130,24 +135,15 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
-				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
-					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-
-					// const provider = modelId.split("/")[0]
-					// // If provider is x-ai, set totalCost to 0 (we're doing a promo)
-					// if (provider === "x-ai") {
-					// 	totalCost = 0
-					// }
-
+				const streamUsage = chunk.usage as ClineStreamUsageChunk | undefined
+				if (!didOutputUsage && streamUsage) {
 					yield {
 						type: "usage",
 						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						totalCost: totalCost,
+						cacheReadTokens: streamUsage.prompt_tokens_details?.cached_tokens || 0,
+						inputTokens: (streamUsage.prompt_tokens || 0) - (streamUsage.prompt_tokens_details?.cached_tokens || 0),
+						outputTokens: streamUsage.completion_tokens || 0,
+						totalCost: (streamUsage.cost || 0) + (streamUsage.cost_details?.upstream_inference_cost || 0),
 					}
 					didOutputUsage = true
 				}
@@ -202,7 +198,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		let modelId = this.options.openRouterModelId
+		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
