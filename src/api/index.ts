@@ -13,7 +13,6 @@ import {
 	VertexHandler,
 	AnthropicVertexHandler,
 	OpenAiHandler,
-	OllamaHandler,
 	LmStudioHandler,
 	GeminiHandler,
 	OpenAiNativeHandler,
@@ -37,6 +36,7 @@ import {
 	ZAiHandler,
 	FireworksHandler,
 } from "./providers"
+import { NativeOllamaHandler } from "./providers/native-ollama"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
@@ -95,7 +95,7 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 		case "openai":
 			return new OpenAiHandler(options)
 		case "ollama":
-			return new OllamaHandler(options)
+			return new NativeOllamaHandler(options)
 		case "lmstudio":
 			return new LmStudioHandler(options)
 		case "gemini":

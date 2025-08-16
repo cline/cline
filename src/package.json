@@ -458,6 +458,7 @@
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"node-cache": "^5.1.2",
 		"node-ipc": "^12.0.0",
+		"ollama": "^0.5.17",
 		"openai": "^5.0.0",
 		"os-name": "^6.0.0",
 		"p-limit": "^6.2.0",
