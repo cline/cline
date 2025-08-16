@@ -36,8 +36,13 @@ import { BasetenHandler } from "./providers/baseten"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
-	getModel(): { id: string; info: ModelInfo }
+	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+}
+
+export interface ApiHandlerModel {
+	id: string
+	info: ModelInfo
 }
 
 export interface SingleCompletionHandler {
@@ -147,6 +152,7 @@ function createHandlerForProvider(
 			})
 		case "requesty":
 			return new RequestyHandler({
+				requestyBaseUrl: options.requestyBaseUrl,
 				requestyApiKey: options.requestyApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:

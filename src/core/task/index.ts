@@ -25,7 +25,7 @@ import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelin
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
@@ -61,7 +61,6 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -83,6 +82,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { FocusChainManager } from "./focus-chain"
 import { summarizeTask } from "@core/prompts/contextManagement"
+import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -729,9 +729,8 @@ export class Task {
 		let askTs: number
 		if (partial !== undefined) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastAskMessageIndex = findLastIndex(clineMessages, (m) => m.type === "ask")
-			const lastMessage = lastAskMessageIndex !== -1 ? clineMessages[lastAskMessageIndex] : undefined
-			const lastMessageIndex = lastAskMessageIndex
+			const lastMessage = clineMessages.at(-1)
+			const lastMessageIndex = clineMessages.length - 1
 
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
@@ -1653,14 +1652,13 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(
+		let systemPrompt = await buildSystemPrompt(
 			this.cwd,
 			supportsBrowserUse,
 			this.mcpHub,
 			this.browserSettings,
+			this.api.getModel(),
 			this.focusChainSettings,
-			isNextGenModel,
 		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -2195,6 +2193,7 @@ export class Task {
 			parsedUserContent = userContent
 			environmentDetails = ""
 			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
 		} else {
 			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 		}

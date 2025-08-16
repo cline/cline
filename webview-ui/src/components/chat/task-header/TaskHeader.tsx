@@ -6,6 +6,7 @@ import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/service
 import { formatLargeNumber, formatSize } from "@/utils/format"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import { mentionRegexGlobal } from "@shared/context-mentions"
+import { isFocusChainItem, isCompletedFocusChainItem, FOCUS_CHAIN_ITEM_REGEX } from "@shared/focus-chain-utils"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -28,8 +29,8 @@ const parseCurrentTodoInfo = (text: string) => {
 
 	lines.forEach((line, index) => {
 		const trimmedLine = line.trim()
-		if (trimmedLine.startsWith("- [ ]") || trimmedLine.startsWith("- [x]") || trimmedLine.startsWith("- [X]")) {
-			const completed = trimmedLine.startsWith("- [x]") || trimmedLine.startsWith("- [X]")
+		if (isFocusChainItem(trimmedLine)) {
+			const completed = isCompletedFocusChainItem(trimmedLine)
 			const text = trimmedLine.substring(5).trim() // Remove "- [ ] " or "- [x] "
 			todoItems.push({ text, completed, index })
 		}
@@ -693,39 +694,53 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									}}>
 									<ChecklistRenderer text={lastProgressMessageText} />
 									{/* Edit button for focus chain list */}
-									{parseCurrentTodoInfo(lastProgressMessageText)?.hasItems && (
-										<VSCodeButton
-											appearance="icon"
-											onClick={async () => {
-												try {
-													await FileServiceClient.openFocusChainFile(
-														StringRequest.create({ value: currentTaskItem?.id || "" }),
-													)
-												} catch (error) {
-													console.error("Error opening todo file:", error)
-												}
-											}}
-											style={{
-												position: "absolute",
-												top: "4px",
-												right: "4px",
-												width: "20px",
-												height: "20px",
-												minWidth: "20px",
-												padding: "0",
-												backgroundColor:
-													"color-mix(in srgb, var(--vscode-badge-foreground) 10%, transparent)",
-												border: "1px solid color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-											}}
-											title="Edit focus chain list in markdown file">
-											<span
-												className="codicon codicon-edit"
-												style={{
-													fontSize: "12px",
-													color: "var(--vscode-badge-foreground)",
-												}}></span>
-										</VSCodeButton>
-									)}
+									{parseCurrentTodoInfo(lastProgressMessageText)?.hasItems &&
+										(() => {
+											// Used to adjust the position of the focus chain edit button as needed
+											const lines = lastProgressMessageText.split("\n").filter((line) => line.trim())
+											const items = lines.filter((line) => {
+												const trimmedLine = line.trim()
+												return trimmedLine.match(FOCUS_CHAIN_ITEM_REGEX)
+											})
+											const hasScrollbar = items.length >= 10
+
+											return (
+												<VSCodeButton
+													appearance="icon"
+													onClick={async () => {
+														try {
+															await FileServiceClient.openFocusChainFile(
+																StringRequest.create({ value: currentTaskItem?.id || "" }),
+															)
+														} catch (error) {
+															console.error("Error opening todo file:", error)
+														}
+													}}
+													style={{
+														position: "absolute",
+														top: "3px",
+														right: hasScrollbar ? "22px" : "4px",
+														width: "20px",
+														height: "20px",
+														minWidth: "20px",
+														padding: "0",
+														backgroundColor:
+															"color-mix(in srgb, var(--vscode-badge-foreground) 10%, transparent)",
+														border: "1px solid color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
+													}}
+													title="Edit focus chain list in markdown file">
+													<span
+														className="codicon codicon-edit"
+														style={{
+															fontSize: "14px",
+															color: "var(--vscode-badge-foreground)",
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
+														}}></span>
+												</VSCodeButton>
+											)
+										})()}
 								</div>
 							)}
 
