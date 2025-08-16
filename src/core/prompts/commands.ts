@@ -30,9 +30,16 @@ export const gitNoteToolResponse = () =>
 	`<explicit_instructions type="git-note">
 Your task is to create or update a structured, detailed summary of the current task conversation and attach it as a git note to a specified git commit. The quality and structure of this note are critical for future developers and for automated documentation generation.
 
+## CRITICAL INSTRUCTION: Using Git Commands
+> To prevent the automated workflow from hanging, you MUST use the global \`--no-pager\` option for ANY Git command that reads and displays content. This is not optional.
+> - **Correct:** \`git --no-pager notes show <sha>\`
+> - **Correct:** \`git --no-pager log -1\`
+> - **Correct:** \`git --no-pager show <sha>\`
+> - **Incorrect:** \`git notes show <sha>\`
+
 ## STEP 1: Identify Target Commit and Check for Existing Notes
 - First, determine the target commit SHA. If the user provided one (e.g., "/gitnote a1b2c3d"), you MUST use it. Otherwise, you MUST find the latest commit SHA by executing the \`run_command\` tool with the command \`git rev-parse HEAD\`.
-- **CRITICAL:** You must then check if a git note from this specific Cline Task ID already exists in the repository. A reliable way to check is to search the git log for notes containing this task's unique ID. You can use a command like \`git log --notes --grep="Task ID: YOUR_TASK_ID_HERE"\` where YOUR_TASK_ID_HERE is the ULID of the current task.
+- **CRITICAL:** You must then check if a git note from this specific Cline Task ID already exists in the repository. A reliable way to check is to search the git log for notes containing this task's unique ID. You can use a command like \`git --no-pager log --notes --grep="Task ID: YOUR_TASK_ID_HERE"\` where YOUR_TASK_ID_HERE is the ULID of the current task.
 
 ## STEP 2A: If NO Existing Note is Found (First Run)
 - You must generate a complete "master note" using the full template below.
@@ -44,7 +51,7 @@ Your task is to create or update a structured, detailed summary of the current t
   3.  **Clean Up:** After the note is added, you MUST use the \`run_command\` tool to delete the temporary file with \`rm temp_gitnote.md\`.
 
 ## STEP 2B: If an Existing Note IS Found (Subsequent Run)
-- **To retrieve the full, unpaginated content of the existing master note, you MUST use the command \`git --no-pager notes show <sha_of_master_note>\`.** This is the most reliable way to prevent the command from hanging.
+- Retrieve the full content of the existing master note by using the \`git notes show\` command, ensuring you follow the critical \`--no-pager\` rule described above.
 - Analyze the conversation that has occurred *since the last commit delta was logged in the note*.
 - You MUST generate a new entry under the "Commit History & Deltas" section for the current target commit.
 - **To update the note, you MUST follow this three-step process:**
