@@ -35,7 +35,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import { modelDoesntSupportWebp, isNextGenModelFamily } from "@utils/model-utils"
+import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -149,12 +149,9 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel = isNextGenModelFamily(this.api)
-
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			// Non-Claude 4: Use traditional format with header
 			this.taskState.userMessageContent.push({
 				type: "text",
 				text: `${this.toolDescription(block)} Result:`,
@@ -1078,7 +1075,8 @@ export class ToolExecutor {
 							if (this.context) {
 								await this.browserSession.dispose()
 
-								const useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								const apiHandlerModel = this.api.getModel()
+								const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
 								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")
@@ -1729,6 +1727,23 @@ export class ToolExecutor {
 					}
 					await this.saveCheckpoint()
 					this.taskState.currentlySummarizing = true
+
+					// Capture telemetry after main business logic is complete
+					const telemetryData = this.contextManager.getContextTelemetryData(
+						this.messageStateHandler.getClineMessages(),
+						this.api,
+						this.taskState.lastAutoCompactTriggerIndex,
+					)
+
+					if (telemetryData) {
+						telemetryService.captureSummarizeTask(
+							this.ulid,
+							this.api.getModel().id,
+							telemetryData.tokensUsed,
+							telemetryData.maxContextWindow,
+						)
+					}
+
 					break
 				} catch (error) {
 					await this.handleError("summarizing context window", error, block)
