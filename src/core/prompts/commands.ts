@@ -38,13 +38,19 @@ Your task is to create or update a structured, detailed summary of the current t
 - You must generate a complete "master note" using the full template below.
 - Synthesize the overall Objective, Implementation Details, and Key Decisions from the entire conversation.
 - Create an initial entry under "Commit History & Deltas" for the current target commit.
-- Use the \`run_command\` tool with \`git notes add -m "THE_ENTIRE_MARKDOWN_STRING" <target_sha>\` to attach this new note.
+- **To attach the note, you MUST follow this three-step process:**
+  1.  **Write Content to File:** Use the \`write_file\` tool to save the complete markdown content to a temporary file named \`temp_gitnote.md\`.
+  2.  **Add Note from File:** Use the \`run_command\` tool with \`git notes add -F temp_gitnote.md <target_sha>\` to attach the note.
+  3.  **Clean Up:** After the note is added, you MUST use the \`run_command\` tool to delete the temporary file with \`rm temp_gitnote.md\`.
 
 ## STEP 2B: If an Existing Note IS Found (Subsequent Run)
 - You must retrieve the full content of the existing master note using \`git notes show <sha_of_master_note>\`.
 - Analyze the conversation that has occurred *since the last commit delta was logged in the note*.
-- You MUST generate a new entry under the "Commit History & Deltas" section for the current target commit. This new entry must include a "Rationale for this commit" and a list of "Key Changes".
-- You will then use the \`run_command\` tool with \`git notes add --force -m "THE_UPDATED_MARKDOWN_STRING" <sha_of_master_note>\` to REPLACE the old master note with the new, updated version. This keeps all context consolidated on the single master note.
+- You MUST generate a new entry under the "Commit History & Deltas" section for the current target commit.
+- **To update the note, you MUST follow this three-step process:**
+  1.  **Write Updated Content to File:** Use the \`write_file\` tool to save the *entire updated markdown content* to a temporary file named \`temp_gitnote.md\`.
+  2.  **Update Note from File:** Use the \`run_command\` tool with \`git notes add --force -F temp_gitnote.md <sha_of_master_note>\` to REPLACE the old note.
+  3.  **Clean Up:** After the note is updated, you MUST use the \`run_command\` tool to delete the temporary file with \`rm temp_gitnote.md\`.
 
 ## Git Note Template
 You MUST format the note using this exact markdown template:
