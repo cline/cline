@@ -400,6 +400,11 @@ export class ContextManager {
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
 	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
+		/*
+        const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		const userUpdated = this.applyFirstUserMessageReplacement(timestamp)
+		if (assistantUpdated || userUpdated)
+		*/
 		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
 		if (updated) {
 			await this.saveContextHistory(taskDirectory)
@@ -415,6 +420,20 @@ export class ContextManager {
 			const innerMap = new Map<number, ContextUpdate[]>()
 			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()], []]])
 			this.contextHistoryUpdates.set(1, [0, innerMap]) // EditType is undefined for first assistant message
+			return true
+		}
+		return false
+	}
+
+	/**
+	 * Replace the first user message when context window is compacted
+	 */
+	private applyFirstUserMessageReplacement(timestamp: number): boolean {
+		if (!this.contextHistoryUpdates.has(0)) {
+			// first user message always at index 0
+			const innerMap = new Map<number, ContextUpdate[]>()
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationFirstUserMessage()], []]])
+			this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
 			return true
 		}
 		return false
