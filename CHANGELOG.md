@@ -1,5 +1,19 @@
 # Roo Code Changelog
 
+## [3.25.16] - 2025-08-16
+
+- Add support for OpenAI gpt-5-chat-latest model (#7057 by @PeterDaveHello, PR by @app/roomote)
+- Fix: Use native Ollama API instead of OpenAI compatibility layer (#7070 by @LivioGama, PR by @daniel-lxs)
+- Fix: Prevent XML entity decoding in diff tools (#7107 by @indiesewell, PR by @app/roomote)
+- Fix: Add type check before calling .match() on diffItem.content (#6905 by @pwilkin, PR by @app/roomote)
+- Refactor task execution system: improve call stack management (thanks @catrielmuller!)
+- Fix: Enable save button for provider dropdown and checkbox changes (thanks @daniel-lxs!)
+- Add an API for resuming tasks by ID (thanks @mrubens!)
+- Emit event when a task ask requires interaction (thanks @cte!)
+- Make enhance with task history default to true (thanks @liwilliam2021!)
+- Fix: Use cline.cwd as primary source for workspace path in codebaseSearchTool (thanks @NaccOll!)
+- Hotfix multiple folder workspace checkpoint (thanks @NaccOll!)
+
 ## [3.25.15] - 2025-08-14
 
 - Fix: Remove 500-message limit to prevent scrollbar jumping in long conversations (#7052, #7063 by @daniel-lxs, PR by @app/roomote)
