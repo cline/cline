@@ -10,6 +10,7 @@ import { formatPrice } from "../utils/pricingUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { Mode } from "@shared/storage/types"
+import { BaseUrlField } from "../common/BaseUrlField"
 /**
  * Component to display OpenRouter balance information
  */
@@ -80,6 +81,12 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 						)}
 					</div>
 				</DebouncedTextField>
+				<BaseUrlField
+					initialValue={apiConfiguration?.openRouterBaseUrl}
+					onChange={(value) => handleFieldChange("openRouterBaseUrl", value)}
+					placeholder="Default: https://openrouter.ai/api/v1"
+					label="Use custom base URL"
+				/>
 				{!apiConfiguration?.openRouterApiKey && (
 					<VSCodeButton
 						onClick={async () => {

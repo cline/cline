@@ -43,6 +43,7 @@ export interface ApiHandlerOptions {
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
+	openRouterBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterProviderSorting?: string
 	awsAccessKey?: string
