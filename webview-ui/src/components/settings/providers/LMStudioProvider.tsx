@@ -6,6 +6,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -68,7 +69,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			})
 	}, [endpoint])
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: set up request on start up
 	useEffect(() => {
 		requestLmStudioModels()
 	}, [])
@@ -96,33 +96,35 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		<div className="flex flex-col gap-2">
 			<BaseUrlField
 				initialValue={apiConfiguration?.lmStudioBaseUrl}
+				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
-				label="Use custom base URL"
 			/>
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
-				<VSCodeDropdown
-					className="w-full mb-3"
-					value={lmStudioModelId}
-					onChange={(e: any) => {
-						const value = e?.target?.value
-						handleModeFieldChange(
-							{
-								plan: "planModeLmStudioModelId",
-								act: "actModeLmStudioModelId",
-							},
-							value,
-							currentMode,
-						)
-					}}>
-					{lmStudioModels.map((model) => (
-						<VSCodeOption key={model.id} value={model.id} className="w-full">
-							{model.id}
-						</VSCodeOption>
-					))}
-				</VSCodeDropdown>
+				<DropdownContainer className="dropdown-container" zIndex={10}>
+					<VSCodeDropdown
+						className="w-full mb-3"
+						onChange={(e: any) => {
+							const value = e?.target?.value
+							handleModeFieldChange(
+								{
+									plan: "planModeLmStudioModelId",
+									act: "actModeLmStudioModelId",
+								},
+								value,
+								currentMode,
+							)
+						}}
+						value={lmStudioModelId}>
+						{lmStudioModels.map((model) => (
+							<VSCodeOption className="w-full" key={model.id} value={model.id}>
+								{model.id}
+							</VSCodeOption>
+						))}
+					</VSCodeDropdown>
+				</DropdownContainer>
 			) : (
 				<DebouncedTextField
 					initialValue={lmStudioModelId || ""}
@@ -136,17 +138,17 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 							currentMode,
 						)
 					}
-					style={{ width: "100%" }}
 					placeholder={"e.g. meta-llama-3.1-8b-instruct"}
+					style={{ width: "100%" }}
 				/>
 			)}
 
 			<div className="font-semibold">Context Window</div>
 			<VSCodeTextField
-				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
+				className="w-full pointer-events-none"
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
-				className="w-full pointer-events-none"
+				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
 			/>
 
 			<div
@@ -160,7 +162,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 					quickstart guide.
 				</VSCodeLink>
 				You will also need to start LM Studio's{" "}
-				<VSCodeLink href="https://lmstudio.ai/docs/basics/server" className="inline">
+				<VSCodeLink className="inline" href="https://lmstudio.ai/docs/basics/server">
 					local server
 				</VSCodeLink>{" "}
 				feature with <code>lms server start</code> to use it with this extension.{" "}
