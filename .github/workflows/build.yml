@@ -7,13 +7,11 @@ on:
 
 jobs:
     test:
-        if: github.repository == 'cline/cline'
         uses: ./.github/workflows/test.yml
     build:
         needs: test
         name: Build Extension
-        if: github.repository == 'cline/cline'
-        runs-on: [high-capacity-runner]
+        runs-on: ${{ github.repository == 'cline/cline' && 'high-capacity-runner' || 'ubuntu-latest' }}
 
         steps:
             - uses: actions/checkout@v4
