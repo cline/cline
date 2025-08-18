@@ -143,6 +143,228 @@ describe("LMStudio Fetcher", () => {
 			expect(result).toEqual({ [mockRawModel.modelKey]: expectedParsedModel })
 		})
 
+		it("should deduplicate models when both downloaded and loaded", async () => {
+			const mockDownloadedModel: LLMInfo = {
+				type: "llm" as const,
+				modelKey: "mistralai/devstral-small-2505",
+				format: "safetensors",
+				displayName: "Devstral Small 2505",
+				path: "mistralai/devstral-small-2505",
+				sizeBytes: 13277565112,
+				architecture: "mistral",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 131072,
+			}
+
+			const mockLoadedModel: LLMInstanceInfo = {
+				type: "llm",
+				modelKey: "devstral-small-2505", // Different key but should match case-insensitively
+				format: "safetensors",
+				displayName: "Devstral Small 2505",
+				path: "mistralai/devstral-small-2505",
+				sizeBytes: 13277565112,
+				architecture: "mistral",
+				identifier: "mistralai/devstral-small-2505",
+				instanceReference: "RAP5qbeHVjJgBiGFQ6STCuTJ",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 131072,
+				contextLength: 7161, // Runtime context info
+			}
+
+			mockedAxios.get.mockResolvedValueOnce({ data: { status: "ok" } })
+			mockListDownloadedModels.mockResolvedValueOnce([mockDownloadedModel])
+			mockListLoaded.mockResolvedValueOnce([{ getModelInfo: vi.fn().mockResolvedValueOnce(mockLoadedModel) }])
+
+			const result = await getLMStudioModels(baseUrl)
+
+			// Should only have one model, with the loaded model replacing the downloaded one
+			expect(Object.keys(result)).toHaveLength(1)
+
+			// The loaded model's key should be used, with loaded model's data
+			const expectedParsedModel = parseLMStudioModel(mockLoadedModel)
+			expect(result[mockLoadedModel.modelKey]).toEqual(expectedParsedModel)
+
+			// The downloaded model should have been removed
+			expect(result[mockDownloadedModel.path]).toBeUndefined()
+		})
+
+		it("should handle deduplication with path-based matching", async () => {
+			const mockDownloadedModel: LLMInfo = {
+				type: "llm" as const,
+				modelKey: "Meta/Llama-3.1/8B-Instruct",
+				format: "gguf",
+				displayName: "Llama 3.1 8B Instruct",
+				path: "Meta/Llama-3.1/8B-Instruct",
+				sizeBytes: 8000000000,
+				architecture: "llama",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 8192,
+			}
+
+			const mockLoadedModel: LLMInstanceInfo = {
+				type: "llm",
+				modelKey: "Llama-3.1", // Should match the path segment
+				format: "gguf",
+				displayName: "Llama 3.1",
+				path: "Meta/Llama-3.1/8B-Instruct",
+				sizeBytes: 8000000000,
+				architecture: "llama",
+				identifier: "Meta/Llama-3.1/8B-Instruct",
+				instanceReference: "ABC123",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 8192,
+				contextLength: 4096,
+			}
+
+			mockedAxios.get.mockResolvedValueOnce({ data: { status: "ok" } })
+			mockListDownloadedModels.mockResolvedValueOnce([mockDownloadedModel])
+			mockListLoaded.mockResolvedValueOnce([{ getModelInfo: vi.fn().mockResolvedValueOnce(mockLoadedModel) }])
+
+			const result = await getLMStudioModels(baseUrl)
+
+			expect(Object.keys(result)).toHaveLength(1)
+			expect(result[mockLoadedModel.modelKey]).toBeDefined()
+			expect(result[mockDownloadedModel.path]).toBeUndefined()
+		})
+
+		it("should not deduplicate models with similar but distinct names", async () => {
+			const mockDownloadedModels: LLMInfo[] = [
+				{
+					type: "llm" as const,
+					modelKey: "mistral-7b",
+					format: "gguf",
+					displayName: "Mistral 7B",
+					path: "mistralai/mistral-7b-instruct",
+					sizeBytes: 7000000000,
+					architecture: "mistral",
+					vision: false,
+					trainedForToolUse: false,
+					maxContextLength: 4096,
+				},
+				{
+					type: "llm" as const,
+					modelKey: "codellama",
+					format: "gguf",
+					displayName: "Code Llama",
+					path: "meta/codellama/7b",
+					sizeBytes: 7000000000,
+					architecture: "llama",
+					vision: false,
+					trainedForToolUse: false,
+					maxContextLength: 4096,
+				},
+			]
+
+			const mockLoadedModel: LLMInstanceInfo = {
+				type: "llm",
+				modelKey: "llama", // Should not match "codellama" or "mistral-7b"
+				format: "gguf",
+				displayName: "Llama",
+				path: "meta/llama/7b",
+				sizeBytes: 7000000000,
+				architecture: "llama",
+				identifier: "meta/llama/7b",
+				instanceReference: "XYZ789",
+				vision: false,
+				trainedForToolUse: false,
+				maxContextLength: 4096,
+				contextLength: 2048,
+			}
+
+			mockedAxios.get.mockResolvedValueOnce({ data: { status: "ok" } })
+			mockListDownloadedModels.mockResolvedValueOnce(mockDownloadedModels)
+			mockListLoaded.mockResolvedValueOnce([{ getModelInfo: vi.fn().mockResolvedValueOnce(mockLoadedModel) }])
+
+			const result = await getLMStudioModels(baseUrl)
+
+			// Should have 3 models: mistral-7b (not deduped), codellama (not deduped), and llama (loaded)
+			expect(Object.keys(result)).toHaveLength(3)
+			expect(result["mistralai/mistral-7b-instruct"]).toBeDefined() // Should NOT be removed
+			expect(result["meta/codellama/7b"]).toBeDefined() // Should NOT be removed (codellama != llama)
+			expect(result[mockLoadedModel.modelKey]).toBeDefined()
+		})
+
+		it("should handle multiple loaded models with various duplicate scenarios", async () => {
+			const mockDownloadedModels: LLMInfo[] = [
+				{
+					type: "llm" as const,
+					modelKey: "mistral-7b",
+					format: "gguf",
+					displayName: "Mistral 7B",
+					path: "mistralai/mistral-7b/instruct",
+					sizeBytes: 7000000000,
+					architecture: "mistral",
+					vision: false,
+					trainedForToolUse: false,
+					maxContextLength: 8192,
+				},
+				{
+					type: "llm" as const,
+					modelKey: "llama-3.1",
+					format: "gguf",
+					displayName: "Llama 3.1",
+					path: "meta/llama-3.1/8b",
+					sizeBytes: 8000000000,
+					architecture: "llama",
+					vision: false,
+					trainedForToolUse: false,
+					maxContextLength: 8192,
+				},
+			]
+
+			const mockLoadedModels: LLMInstanceInfo[] = [
+				{
+					type: "llm",
+					modelKey: "mistral-7b", // Exact match with path segment
+					format: "gguf",
+					displayName: "Mistral 7B",
+					path: "mistralai/mistral-7b/instruct",
+					sizeBytes: 7000000000,
+					architecture: "mistral",
+					identifier: "mistralai/mistral-7b/instruct",
+					instanceReference: "REF1",
+					vision: false,
+					trainedForToolUse: false,
+					maxContextLength: 8192,
+					contextLength: 4096,
+				},
+				{
+					type: "llm",
+					modelKey: "gpt-4", // No match, new model
+					format: "gguf",
+					displayName: "GPT-4",
+					path: "openai/gpt-4",
+					sizeBytes: 10000000000,
+					architecture: "gpt",
+					identifier: "openai/gpt-4",
+					instanceReference: "REF2",
+					vision: true,
+					trainedForToolUse: true,
+					maxContextLength: 32768,
+					contextLength: 16384,
+				},
+			]
+
+			mockedAxios.get.mockResolvedValueOnce({ data: { status: "ok" } })
+			mockListDownloadedModels.mockResolvedValueOnce(mockDownloadedModels)
+			mockListLoaded.mockResolvedValueOnce(
+				mockLoadedModels.map((model) => ({ getModelInfo: vi.fn().mockResolvedValueOnce(model) })),
+			)
+
+			const result = await getLMStudioModels(baseUrl)
+
+			// Should have 3 models: llama-3.1 (downloaded), mistral-7b (loaded, replaced), gpt-4 (loaded, new)
+			expect(Object.keys(result)).toHaveLength(3)
+			expect(result["meta/llama-3.1/8b"]).toBeDefined() // Downloaded, not replaced
+			expect(result["mistralai/mistral-7b/instruct"]).toBeUndefined() // Downloaded, replaced
+			expect(result["mistral-7b"]).toBeDefined() // Loaded, replaced downloaded
+			expect(result["gpt-4"]).toBeDefined() // Loaded, new
+		})
+
 		it("should use default baseUrl if an empty string is provided", async () => {
 			const defaultBaseUrl = "http://localhost:1234"
 			const defaultLmsUrl = "ws://localhost:1234"
