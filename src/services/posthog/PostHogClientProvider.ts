@@ -42,6 +42,18 @@ export class PostHogClientProvider {
 		// Initialize PostHog client
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
+			// Only logs exception contains "saoudrizwan\.claude-dev[/\\\\]dist[/\\\\]extension\.js" substring in sources
+			before_send: (event) => {
+				if (event?.event === "$exception") {
+					const exceptionSources = event?.properties?.["$exception_sources"] || []
+					const extensionRegex = /saoudrizwan\.claude-dev[/\\]dist[/\\]extension\.js/
+					if (exceptionSources.some((source: string) => extensionRegex.test(source))) {
+						return event
+					}
+				}
+				return null
+			},
+			enableExceptionAutocapture: true,
 		})
 
 		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
