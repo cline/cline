@@ -37,8 +37,13 @@ import { ZAiHandler } from "./providers/zai"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
-	getModel(): { id: string; info: ModelInfo }
+	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+}
+
+export interface ApiHandlerModel {
+	id: string
+	info: ModelInfo
 }
 
 export interface SingleCompletionHandler {

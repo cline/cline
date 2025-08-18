@@ -668,6 +668,7 @@ export class CacheService {
 			huaweiCloudMaasApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
+			authNonce,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -755,6 +756,8 @@ export class CacheService {
 			defaultTerminalProfile: state.defaultTerminalProfile,
 			globalWorkflowToggles: state.globalWorkflowToggles,
 			taskHistory: state.taskHistory,
+			lastShownAnnouncementId: state.lastShownAnnouncementId,
+			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
 
 			// Plan mode configuration updates
 			planModeApiProvider,
@@ -824,6 +827,7 @@ export class CacheService {
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+			awsBedrockApiKey,
 			vertexProjectId,
 			vertexRegion,
 			requestyBaseUrl,
@@ -850,7 +854,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
-		}
+		} satisfies GlobalState
 
 		// Populate global state cache directly
 		Object.assign(this.globalStateCache, globalStateFields)
@@ -886,10 +890,11 @@ export class CacheService {
 			nebiusApiKey,
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
+			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			zaiApiKey,
-		}
+		} satisfies Secrets
 
 		// Populate secrets cache directly
 		Object.assign(this.secretsCache, secretsFields)

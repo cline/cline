@@ -519,6 +519,26 @@ export const bedrockModels = {
 		inputPrice: 1.35,
 		outputPrice: 5.4,
 	},
+	"openai.gpt-oss-120b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description:
+			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+	},
+	"openai.gpt-oss-20b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.07,
+		outputPrice: 0.3,
+		description:
+			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
@@ -1083,15 +1103,6 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
-	},
-	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
-		maxTokens: 8_192,
-		contextWindow: 256000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0,
-		outputPrice: 0,
-		cacheReadsPrice: 0,
 	},
 	o3: {
 		maxTokens: 100_000,

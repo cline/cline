@@ -1,0 +1,25 @@
+or {
+	`$fn($args)` where {
+		or {
+			$fn <: `vscode.workspace.fs.stat`,
+			$fn <: `vscode.workspace.fs.writeFile`,
+			$fn <: `vscode.workspace.asRelativePath`,
+			$fn <: `vscode.workspace.getWorkspaceFolder`,
+			$fn <: `vscode.window.showTextDocument`,
+			$fn <: `vscode.workspace.applyEdit`,
+			$fn <: `vscode.window.onDidChangeActiveTextEditor`,
+			$fn <: `vscode.env.openExternal`,
+			$fn <: `vscode.window.showWarningMessage`,
+			$fn <: `vscode.window.showOpenDialog`,
+			$fn <: `vscode.window.showErrorMessage`,
+			$fn <: `vscode.window.showInformationMessage`,
+			$fn <: `vscode.window.showInputBox`,
+			$fn <: `vscode.workspace.findFiles`
+		},
+		register_diagnostic(span=$fn, message="Replace this with methods from the host bridge provider or appropriate abstraction layer.")
+	},
+	`vscode.$method.$var` where {
+		$var <: `workspaceFolders`,
+		register_diagnostic(span=$var, message="Use HostProvider.workspace.getWorkspacePaths({}) instead.")
+	}
+}

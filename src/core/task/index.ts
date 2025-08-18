@@ -25,7 +25,7 @@ import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelin
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
@@ -61,7 +61,6 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -83,6 +82,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { FocusChainManager } from "./focus-chain"
 import { summarizeTask } from "@core/prompts/contextManagement"
+import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -1652,14 +1652,13 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(
+		let systemPrompt = await buildSystemPrompt(
 			this.cwd,
 			supportsBrowserUse,
 			this.mcpHub,
 			this.browserSettings,
+			this.api.getModel(),
 			this.focusChainSettings,
-			isNextGenModel,
 		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -2194,6 +2193,7 @@ export class Task {
 			parsedUserContent = userContent
 			environmentDetails = ""
 			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
 		} else {
 			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 		}
@@ -2667,23 +2667,6 @@ export class Task {
 			}).catch(() => {})
 		}
 
-		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
-		/*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		*/
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
 		// waiting for updated diagnostics lets terminal output be the most up-to-date possible

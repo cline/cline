@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.25.3]
+
+- Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload
+- Move the position of the focus chain edit button when a scrollbar is present. Make the pencil icon bigger and better centered.
+
+## [3.25.2]
+
+- Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
+- Fix OpenRouter showing cline credits error after 402 response
+
+## [3.25.1]
+
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
+
 ## [3.25.0]
 
 - **Focus Chain:** Automatically creates and maintains todo lists as you work with Cline, breaking down complex tasks into manageable steps with real-time progress tracking

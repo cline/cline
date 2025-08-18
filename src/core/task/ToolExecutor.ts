@@ -35,7 +35,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import { modelDoesntSupportWebp, isNextGenModelFamily } from "@utils/model-utils"
+import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -56,6 +56,7 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
+import { HostProvider } from "@/hosts/host-provider"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -149,12 +150,9 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel = isNextGenModelFamily(this.api)
-
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			// Non-Claude 4: Use traditional format with header
 			this.taskState.userMessageContent.push({
 				type: "text",
 				text: `${this.toolDescription(block)} Result:`,
@@ -1078,7 +1076,8 @@ export class ToolExecutor {
 							if (this.context) {
 								await this.browserSession.dispose()
 
-								const useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								const apiHandlerModel = this.api.getModel()
+								const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
 								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")
@@ -1729,6 +1728,23 @@ export class ToolExecutor {
 					}
 					await this.saveCheckpoint()
 					this.taskState.currentlySummarizing = true
+
+					// Capture telemetry after main business logic is complete
+					const telemetryData = this.contextManager.getContextTelemetryData(
+						this.messageStateHandler.getClineMessages(),
+						this.api,
+						this.taskState.lastAutoCompactTriggerIndex,
+					)
+
+					if (telemetryData) {
+						telemetryService.captureSummarizeTask(
+							this.ulid,
+							this.api.getModel().id,
+							telemetryData.tokensUsed,
+							telemetryData.maxContextWindow,
+						)
+					}
+
 					break
 				} catch (error) {
 					await this.handleError("summarizing context window", error, block)
@@ -1882,7 +1898,8 @@ export class ToolExecutor {
 						const operatingSystem = os.platform() + " " + os.release()
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+						const host = await HostProvider.env.getHostVersion({})
+						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
 						const apiConfig = this.cacheService.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
@@ -2229,25 +2246,27 @@ export class ToolExecutor {
 							// const secondLastMessage = this.clineMessages.at(-2)
 							// NOTE: we do not want to auto approve a command run as part of the attempt_completion tool
 							if (lastMessage && lastMessage.ask === "command") {
+								// we are not going to stream the attempt_completion's command anymore since we might also need to send out a task_progress message before waiting for the user to approve the command, so the tool call checks everything on the progress check list.
 								// update command
-								await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
-									() => {},
-								)
+								// await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
+								// 	() => {},
+								// )
 							} else {
-								// last message is completion_result
-								// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
-								await this.say(
-									"completion_result",
-									this.removeClosingTag(block, "result", result),
-									undefined,
-									undefined,
-									false,
-								)
-								await this.saveCheckpoint(true)
-								await addNewChangesFlagToLastCompletionResultMessage()
-								await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
-									() => {},
-								)
+								// Now that we don't stream a command, we shouldn't be completing the attempt_completion tool in the block.partial conditional, and instead do it when partial is false below
+								//
+								// last message is completion_result, we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
+								// await this.say(
+								// 	"completion_result",
+								// 	this.removeClosingTag(block, "result", result),
+								// 	undefined,
+								// 	undefined,
+								// 	false,
+								// )
+								// await this.saveCheckpoint(true)
+								// await addNewChangesFlagToLastCompletionResultMessage()
+								// await this.ask("command", this.removeClosingTag(block, "command", command), block.partial).catch(
+								// 	() => {},
+								// )
 							}
 						} else {
 							// no command, still outputting partial result
