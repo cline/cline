@@ -26,6 +26,9 @@ service WindowService {
   // Opens a file in the IDE.
   rpc openFile(OpenFileRequest) returns (OpenFileResponse);
 
+  // Opens the host settings UI, optionally focusing a specific query/section.
+  rpc openSettings(OpenSettingsRequest) returns (OpenSettingsResponse);
+
   // Returns the open tabs.
   rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
 
@@ -126,6 +129,13 @@ message OpenFileRequest {
 }
 
 message OpenFileResponse {}
+
+message OpenSettingsRequest {
+  // Optional query to focus a particular settings section/key.
+  optional string query = 1;
+}
+
+message OpenSettingsResponse {}
 
 message GetOpenTabsRequest {}
 
