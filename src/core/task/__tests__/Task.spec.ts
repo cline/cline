@@ -1614,4 +1614,103 @@ describe("Cline", () => {
 			})
 		})
 	})
+
+	describe("abortTask", () => {
+		it("should set abort flag and emit TaskAborted event", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			// Spy on emit method
+			const emitSpy = vi.spyOn(task, "emit")
+
+			// Mock the dispose method to avoid actual cleanup
+			vi.spyOn(task, "dispose").mockImplementation(() => {})
+
+			// Call abortTask
+			await task.abortTask()
+
+			// Verify abort flag is set
+			expect(task.abort).toBe(true)
+
+			// Verify TaskAborted event was emitted
+			expect(emitSpy).toHaveBeenCalledWith("taskAborted")
+		})
+
+		it("should be equivalent to clicking Cancel button functionality", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			// Mock the dispose method to track cleanup
+			const disposeSpy = vi.spyOn(task, "dispose").mockImplementation(() => {})
+
+			// Call abortTask
+			await task.abortTask()
+
+			// Verify the same behavior as Cancel button
+			expect(task.abort).toBe(true)
+			expect(disposeSpy).toHaveBeenCalled()
+		})
+
+		it("should work with TaskLike interface", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			// Cast to TaskLike to ensure interface compliance
+			const taskLike = task as any // TaskLike interface from types package
+
+			// Verify abortTask method exists and is callable
+			expect(typeof taskLike.abortTask).toBe("function")
+
+			// Mock the dispose method to avoid actual cleanup
+			vi.spyOn(task, "dispose").mockImplementation(() => {})
+
+			// Call abortTask through interface
+			await taskLike.abortTask()
+
+			// Verify it works
+			expect(task.abort).toBe(true)
+		})
+
+		it("should handle errors during disposal gracefully", async () => {
+			const task = new Task({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+				startTask: false,
+			})
+
+			// Mock dispose to throw an error
+			const mockError = new Error("Disposal failed")
+			vi.spyOn(task, "dispose").mockImplementation(() => {
+				throw mockError
+			})
+
+			// Spy on console.error to verify error is logged
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+			// abortTask should not throw even if dispose fails
+			await expect(task.abortTask()).resolves.not.toThrow()
+
+			// Verify error was logged
+			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during task"), mockError)
+
+			// Verify abort flag is still set
+			expect(task.abort).toBe(true)
+
+			// Restore console.error
+			consoleErrorSpy.mockRestore()
+		})
+	})
 })

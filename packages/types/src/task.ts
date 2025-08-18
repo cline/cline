@@ -92,6 +92,7 @@ export interface TaskLike {
 	approveAsk(options?: { text?: string; images?: string[] }): void
 	denyAsk(options?: { text?: string; images?: string[] }): void
 	submitUserMessage(text: string, images?: string[]): void
+	abortTask(): void
 }
 
 export type TaskEvents = {
