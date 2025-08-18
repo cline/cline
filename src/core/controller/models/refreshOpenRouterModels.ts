@@ -1,13 +1,13 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { CLAUDE_SONNET_4_1M_TIERS, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import axios from "axios"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
+import path from "path"
+import { CLAUDE_SONNET_4_1M_TIERS, clineMicrowaveAlphaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { Controller } from ".."
 
 /**
  * Refreshes the OpenRouter models and returns the updated model list
@@ -151,6 +151,22 @@ export async function refreshOpenRouterModels(
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
 				}
 			}
+
+			// Add hardcoded cline/microwave-alpha model
+			models["cline/microwave-alpha"] = OpenRouterModelInfo.create({
+				maxTokens: clineMicrowaveAlphaModelInfo.maxTokens ?? 0,
+				contextWindow: clineMicrowaveAlphaModelInfo.contextWindow ?? 0,
+				supportsImages: clineMicrowaveAlphaModelInfo.supportsImages ?? false,
+				supportsPromptCache: clineMicrowaveAlphaModelInfo.supportsPromptCache ?? false,
+				inputPrice: clineMicrowaveAlphaModelInfo.inputPrice ?? 0,
+				outputPrice: clineMicrowaveAlphaModelInfo.outputPrice ?? 0,
+				cacheWritesPrice: clineMicrowaveAlphaModelInfo.cacheWritesPrice ?? 0,
+				cacheReadsPrice: clineMicrowaveAlphaModelInfo.cacheReadsPrice ?? 0,
+				description: clineMicrowaveAlphaModelInfo.description ?? "",
+				thinkingConfig: clineMicrowaveAlphaModelInfo.thinkingConfig ?? undefined,
+				supportsGlobalEndpoint: clineMicrowaveAlphaModelInfo.supportsGlobalEndpoint ?? undefined,
+				tiers: clineMicrowaveAlphaModelInfo.tiers ?? [],
+			})
 		} else {
 			console.error("Invalid response from OpenRouter API")
 		}
