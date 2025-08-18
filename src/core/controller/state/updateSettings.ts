@@ -7,12 +7,11 @@ import {
 	McpDisplayMode as ProtoMcpDisplayMode,
 } from "@shared/proto/cline/state"
 import { buildApiHandler } from "../../../api"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
+import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 /**
  * Updates multiple extension settings in a single request
@@ -138,6 +137,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		if (request.dictationSettings !== undefined) {
+			controller.cacheService.setGlobalState("dictationSettings", request.dictationSettings)
 		}
 
 		// Update focus chain settings
