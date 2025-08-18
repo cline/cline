@@ -60,11 +60,6 @@ const featuredModels = [
 		description: "Large 1M context window for complex tasks",
 		label: "New",
 	},
-	{
-		id: "anthropic/claude-opus-4.1",
-		description: "Anthropic's newest model topping benchmarks",
-		label: "Trending",
-	},
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
