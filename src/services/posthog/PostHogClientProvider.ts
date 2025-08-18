@@ -50,8 +50,9 @@ export class PostHogClientProvider {
 					if (exceptionSources.some((source: string) => extensionRegex.test(source))) {
 						return event
 					}
+					return null
 				}
-				return null
+				return event
 			},
 			enableExceptionAutocapture: true,
 		})
