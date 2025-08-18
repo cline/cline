@@ -1,15 +1,15 @@
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
+import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 export type SecretKey =
 	| "apiKey"
@@ -44,6 +44,7 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "zaiApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -80,6 +81,7 @@ export type GlobalStateKey =
 	| "fireworksModelMaxTokens"
 	| "qwenApiLine"
 	| "moonshotApiLine"
+	| "zaiApiLine"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
 	| "asksageApiUrl"
@@ -203,6 +205,7 @@ export interface GlobalState {
 	fireworksModelMaxTokens: number | undefined
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
+	zaiApiLine: string | undefined
 	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
@@ -313,6 +316,7 @@ export interface Secrets {
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
 	moonshotApiKey: string | undefined
+	zaiApiKey: string | undefined
 	huggingFaceApiKey: string | undefined
 	nebiusApiKey: string | undefined
 	sambanovaApiKey: string | undefined
