@@ -35,7 +35,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
-import { modelDoesntSupportWebp, isNextGenModelFamily } from "@utils/model-utils"
+import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -56,6 +56,7 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
+import { HostProvider } from "@/hosts/host-provider"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -149,12 +150,9 @@ export class ToolExecutor {
 	}
 
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
-		const isNextGenModel = isNextGenModelFamily(this.api)
-
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
 
-			// Non-Claude 4: Use traditional format with header
 			this.taskState.userMessageContent.push({
 				type: "text",
 				text: `${this.toolDescription(block)} Result:`,
@@ -1078,7 +1076,8 @@ export class ToolExecutor {
 							if (this.context) {
 								await this.browserSession.dispose()
 
-								const useWebp = this.api ? !modelDoesntSupportWebp(this.api) : true
+								const apiHandlerModel = this.api.getModel()
+								const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
 								this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
 							} else {
 								console.warn("no controller context available for browserSession")
@@ -1899,7 +1898,8 @@ export class ToolExecutor {
 						const operatingSystem = os.platform() + " " + os.release()
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+						const host = await HostProvider.env.getHostVersion({})
+						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
 						const apiConfig = this.cacheService.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider

@@ -1103,15 +1103,6 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 	},
-	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
-		maxTokens: 8_192,
-		contextWindow: 256000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0,
-		outputPrice: 0,
-		cacheReadsPrice: 0,
-	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
