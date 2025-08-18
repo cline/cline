@@ -47,6 +47,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const userInfo = context.globalState.get("userInfo") as UserInfo | undefined
 	const qwenApiLine = context.globalState.get("qwenApiLine") as string | undefined
 	const moonshotApiLine = context.globalState.get("moonshotApiLine") as string | undefined
+	const zaiApiLine = context.globalState.get("zaiApiLine") as string | undefined
 	const telemetrySetting = context.globalState.get("telemetrySetting") as TelemetrySetting | undefined
 	const asksageApiUrl = context.globalState.get("asksageApiUrl") as string | undefined
 	const planActSeparateModelsSettingRaw = context.globalState.get("planActSeparateModelsSetting") as boolean | undefined
@@ -101,6 +102,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		sapAiCoreClientSecret,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
+		zaiApiKey,
 		ollamaApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
@@ -133,6 +135,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
+		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 	])
 
@@ -278,6 +281,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			qwenApiKey,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -306,6 +310,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			basetenApiKey,
+			zaiApiKey,
 			ollamaApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
@@ -438,6 +443,7 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"zaiApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.cacheService.reInitialize()

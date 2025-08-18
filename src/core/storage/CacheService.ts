@@ -226,6 +226,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -248,6 +249,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -395,6 +397,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -439,6 +442,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 		})
 	}
 
@@ -639,6 +643,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -661,6 +666,7 @@ export class CacheService {
 			claudeCodePath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			authNonce,
 			// Plan mode configurations
@@ -838,6 +844,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -886,6 +893,7 @@ export class CacheService {
 			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 		} satisfies Secrets
 
 		// Populate secrets cache directly
@@ -939,6 +947,7 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			zaiApiKey: this.secretsCache["zaiApiKey"],
 
 			// Global state
 			awsRegion: this.globalStateCache["awsRegion"],
@@ -964,6 +973,7 @@ export class CacheService {
 			liteLlmUsePromptCache: this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.globalStateCache["qwenApiLine"],
 			moonshotApiLine: this.globalStateCache["moonshotApiLine"],
+			zaiApiLine: this.globalStateCache["zaiApiLine"],
 			asksageApiUrl: this.globalStateCache["asksageApiUrl"],
 			favoritedModelIds: this.globalStateCache["favoritedModelIds"],
 			requestTimeoutMs: this.globalStateCache["requestTimeoutMs"],
