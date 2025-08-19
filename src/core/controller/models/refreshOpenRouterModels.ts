@@ -152,8 +152,8 @@ export async function refreshOpenRouterModels(
 				}
 			}
 
-			// Add hardcoded cline/microwave-alpha model
-			models["cline/microwave-alpha"] = OpenRouterModelInfo.create({
+			// Add hardcoded cline/sonic model
+			models["cline/sonic"] = OpenRouterModelInfo.create({
 				maxTokens: clineMicrowaveAlphaModelInfo.maxTokens ?? 0,
 				contextWindow: clineMicrowaveAlphaModelInfo.contextWindow ?? 0,
 				supportsImages: clineMicrowaveAlphaModelInfo.supportsImages ?? false,

@@ -51,7 +51,7 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "cline/microwave-alpha",
+		id: "cline/sonic",
 		description: "Advanced model with 262K context for complex coding",
 		label: "Alpha",
 	},
