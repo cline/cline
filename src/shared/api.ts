@@ -564,7 +564,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 export const clineMicrowaveAlphaModelInfo: ModelInfo = {
 	maxTokens: 16_000,
 	contextWindow: 262144,
-	supportsImages: true,
+	supportsImages: false,
 	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
