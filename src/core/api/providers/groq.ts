@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { GroqModelId, ModelInfo, groqDefaultModelId, groqModels } from "@shared/api"
+import { GroqModelId, groqDefaultModelId, groqModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
+import OpenAI from "openai"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 

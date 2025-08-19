@@ -1,9 +1,9 @@
-import { Controller } from ".."
-import { GitCommits } from "@shared/proto/cline/file"
 import { StringRequest } from "@shared/proto/cline/common"
+import { GitCommits } from "@shared/proto/cline/file"
+import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
-import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
+import { Controller } from ".."
 
 /**
  * Searches for git commits in the workspace repository

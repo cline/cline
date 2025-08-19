@@ -1,7 +1,7 @@
-import { HostProvider } from "@/hosts/host-provider"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:

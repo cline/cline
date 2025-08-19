@@ -1,8 +1,8 @@
+import { Anthropic } from "@anthropic-ai/sdk"
 import { CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo, openRouterClaudeSonnet41mModelId } from "@shared/api"
+import OpenAI from "openai"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
@@ -109,7 +109,7 @@ export async function createOpenRouterStream(
 	}
 
 	let temperature: number | undefined = 0
-	let topP: number | undefined = undefined
+	let topP: number | undefined
 	if (
 		model.id.startsWith("deepseek/deepseek-r1") ||
 		model.id === "perplexity/sonar-reasoning" ||
@@ -122,7 +122,7 @@ export async function createOpenRouterStream(
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
 
-	let reasoning: { max_tokens: number } | undefined = undefined
+	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
 		case "anthropic/claude-sonnet-4":
 		case "anthropic/claude-opus-4.1":
@@ -132,8 +132,8 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3.7-sonnet:thinking":
 		case "anthropic/claude-3-7-sonnet":
 		case "anthropic/claude-3-7-sonnet:beta":
-			let budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0 ? true : false
+			const budget_tokens = thinkingBudgetTokens || 0
+			const reasoningOn = budget_tokens !== 0
 			if (reasoningOn) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: budget_tokens }

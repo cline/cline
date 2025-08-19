@@ -174,11 +174,11 @@ export class ContextManager {
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		clineMessages: ClineMessage[],
-		api: ApiHandler,
+		_clineMessages: ClineMessage[],
+		_api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
-		previousApiReqIndex: number,
-		taskDirectory: string,
+		_previousApiReqIndex: number,
+		_taskDirectory: string,
 	) {
 		const updatedConversationHistoryDeletedRange = false
 
@@ -378,7 +378,7 @@ export class ContextManager {
 	/**
 	 * applies the context optimization steps and returns whether any changes were made
 	 */
-	private applyContextOptimizations(
+	public applyContextOptimizations(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
 		timestamp: number,

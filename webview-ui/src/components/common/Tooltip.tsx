@@ -3,9 +3,9 @@ import styled from "styled-components"
 import {
 	getAsVar,
 	VSC_DESCRIPTION_FOREGROUND,
-	VSC_SIDEBAR_BACKGROUND,
-	VSC_INPUT_PLACEHOLDER_FOREGROUND,
 	VSC_INPUT_BORDER,
+	VSC_INPUT_PLACEHOLDER_FOREGROUND,
+	VSC_SIDEBAR_BACKGROUND,
 } from "@/utils/vscStyles"
 
 interface TooltipProps {
@@ -48,9 +48,9 @@ const Tooltip: React.FC<TooltipProps> = ({ visible, tipText, hintText, children,
 
 	return (
 		<div
-			style={{ position: "relative", display: "inline-block" }}
 			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}>
+			onMouseLeave={() => setIsHovered(false)}
+			style={{ position: "relative", display: "inline-block" }}>
 			{children}
 			{shouldShow && (
 				<TooltipBody style={style}>

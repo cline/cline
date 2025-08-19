@@ -1,4 +1,4 @@
-import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
 import { GetHostVersionResponse } from "@/shared/proto/index.host"
 
