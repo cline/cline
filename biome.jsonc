@@ -30,17 +30,14 @@
 			"correctness": {
 				"useExhaustiveDependencies": "off",
 				"noUndeclaredVariables": "off",
-				"noUnusedVariables": "off",
 				"noEmptyPattern": "off",
 				"useJsxKeyInIterable": "off",
 				"noInnerDeclarations": "off",
 				"useHookAtTopLevel": "off",
 				"useYield": "off",
-				"noUnusedFunctionParameters": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off",
-				"noUnusedImports": "off"
+				"noSwitchDeclarations": "off"
 			},
 			"a11y": "off",
 			"style": {
@@ -57,7 +54,6 @@
 				"useEnumInitializers": "off",
 				"useSelfClosingElements": "off",
 				"useSingleVarDeclarator": "off",
-				"noUnusedTemplateLiteral": "off",
 				"useNumberNamespace": "off",
 				"noInferrableTypes": "off",
 				"useTemplate": "off",
@@ -130,7 +126,9 @@
 			"!**/playwright/**",
 			"!**/test-results/**",
 			"!**/node_modules/**",
-			"!**/webview-ui/build/**"
+			"!**/webview-ui/build/**",
+			"!**/generated/**",
+			"!**/proto/**"
 		]
 	},
 	"plugins": [
