@@ -1,3 +1,4 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
@@ -16,7 +17,8 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 		return undefined
 	}
 
-	const template = variant.componentOverrides?.user_instructions?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
+	const template =
+		variant.componentOverrides?.[SystemPromptSection.USER_INSTRUCTIONS]?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {

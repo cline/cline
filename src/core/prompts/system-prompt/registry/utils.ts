@@ -1,11 +1,11 @@
 import type { ApiHandlerModel } from "@/api"
+import { ModelFamily } from "@/shared/prompts"
 import {
 	isClaude4ModelFamily,
 	isGemini2dot5ModelFamily,
 	isGPT5ModelFamily,
 	isGrok4ModelFamily,
 } from "../../system-prompt-legacy/utils"
-import { ModelFamily } from "../types"
 
 /**
  * Check if a model ID represents a next-generation model

@@ -1,5 +1,7 @@
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import { SystemPromptSection } from "../../templates/placeholders"
 import type { PromptVariant } from "../../types"
-import { ModelFamily } from "../../types"
 import { baseTemplate, rules_template } from "./template"
 
 export const config: Omit<PromptVariant, "id"> = {
@@ -13,45 +15,47 @@ export const config: Omit<PromptVariant, "id"> = {
 	},
 	config: {},
 	componentOrder: [
-		"tool_use",
-		"mcp",
-		"editing_files",
-		"act_vs_plan_mode",
-		"todo",
-		"capabilities",
-		"feedback",
-		"rules",
-		"system_info",
-		"objective",
-		"user_instructions",
+		SystemPromptSection.AGENT_ROLE,
+		SystemPromptSection.TOOL_USE,
+		SystemPromptSection.MCP,
+		SystemPromptSection.EDITING_FILES,
+		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.TODO,
+		SystemPromptSection.CAPABILITIES,
+		SystemPromptSection.FEEDBACK,
+		SystemPromptSection.RULES,
+		SystemPromptSection.SYSTEM_INFO,
+		SystemPromptSection.OBJECTIVE,
+		SystemPromptSection.USER_INSTRUCTIONS,
 	],
 	componentOverrides: {
-		rules: {
+		[SystemPromptSection.RULES]: {
 			template: rules_template,
 		},
 	},
 	placeholders: {
-		MODEL_FAMILY: "next-gen",
+		MODEL_FAMILY: ModelFamily.NEXT_GEN,
 	},
 	baseTemplate,
 	// Tool configuration - specify which tools to include and their order
 	tools: [
-		"execute_command",
-		"read_file",
-		"write_to_file",
-		"replace_in_file",
-		"search_files",
-		"list_files",
-		"list_code_definition_names",
-		"browser_action",
-		"web_fetch", // Available for next-gen models
-		"use_mcp_tool",
-		"access_mcp_resource",
-		"ask_followup_question",
-		"attempt_completion",
-		"new_task",
-		"plan_mode_respond",
-		"load_mcp_documentation",
+		ClineDefaultTool.BASH,
+		ClineDefaultTool.FILE_READ,
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.SEARCH,
+		ClineDefaultTool.LIST_FILES,
+		ClineDefaultTool.LIST_CODE_DEF,
+		ClineDefaultTool.BROWSER,
+		ClineDefaultTool.WEB_FETCH,
+		ClineDefaultTool.MCP_USE,
+		ClineDefaultTool.MCP_ACCESS,
+		ClineDefaultTool.ASK,
+		ClineDefaultTool.ATTEMPT,
+		ClineDefaultTool.NEW_TASK,
+		ClineDefaultTool.PLAN_MODE,
+		ClineDefaultTool.MCP_DOCS,
+		ClineDefaultTool.TODO,
 	],
 
 	// Tool overrides - customize specific tools

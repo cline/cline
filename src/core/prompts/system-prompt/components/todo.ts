@@ -1,3 +1,4 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
@@ -6,7 +7,7 @@ export async function getTodoListSection(variant: PromptVariant, context: System
 		return undefined
 	}
 
-	const template = variant.componentOverrides?.todo?.template || TODO_LIST_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.TODO]?.template || TODO_LIST_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {

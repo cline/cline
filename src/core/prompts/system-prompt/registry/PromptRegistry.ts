@@ -1,7 +1,7 @@
-import fs from "node:fs/promises"
-import path from "node:path"
+import { ModelFamily } from "@/shared/prompts"
+import { getSystemPromptComponents } from "../components"
+import { registerAllToolVariants } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
-import { ModelFamily } from "../types"
 import { PromptBuilder } from "./PromptBuilder"
 import { extractModelFamily } from "./utils"
 
@@ -10,13 +10,9 @@ export class PromptRegistry {
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
 	private loaded: boolean = false
-	private readonly variantsDir: string
-	// private readonly componentsDir: string;
 
 	private constructor() {
-		const baseDir = path.dirname(__dirname)
-		this.variantsDir = path.join(baseDir, "variants")
-		// this.componentsDir = path.join(baseDir, "components");
+		registerAllToolVariants()
 	}
 
 	static getInstance(): PromptRegistry {
@@ -232,50 +228,8 @@ export class PromptRegistry {
 	 */
 	private async loadComponents(): Promise<void> {
 		try {
-			// Import all component files dynamically
-			const componentModules = await Promise.all([
-				import("../components/system_info"),
-				import("../components/mcp"),
-				import("../components/todo"),
-				import("../components/user_instructions"),
-				import("../components/tool_use"),
-				import("../components/editing_files"),
-				import("../components/capabilities"),
-				import("../components/rules"),
-				import("../components/objective"),
-				import("../components/act_vs_plan_mode"),
-				import("../components/feedback"),
-			])
-
 			// Register each component function
-			const componentMappings = [
-				{ id: "system_info", fn: componentModules[0].getSystemInfo },
-				{ id: "mcp", fn: componentModules[1].getMcp },
-				{ id: "todo", fn: componentModules[2].getTodoListSection },
-				{
-					id: "user_instructions",
-					fn: componentModules[3].getUserInstructions,
-				},
-				{ id: "tool_use", fn: componentModules[4].getToolUseSection },
-				{
-					id: "editing_files",
-					fn: componentModules[5].getEditingFilesSection,
-				},
-				{
-					id: "capabilities",
-					fn: componentModules[6].getCapabilitiesSection,
-				},
-				{ id: "rules", fn: componentModules[7].getRulesSection },
-				{ id: "objective", fn: componentModules[8].getObjectiveSection },
-				{
-					id: "act_vs_plan_mode",
-					fn: componentModules[9].getActVsPlanModeSection,
-				},
-				{
-					id: "feedback",
-					fn: componentModules[10].getFeedbackSection,
-				},
-			]
+			const componentMappings = getSystemPromptComponents()
 
 			for (const { id, fn } of componentMappings) {
 				if (fn) {
@@ -285,5 +239,9 @@ export class PromptRegistry {
 		} catch (error) {
 			console.warn("Warning: Could not load some components:", error)
 		}
+	}
+
+	public static dispose(): void {
+		PromptRegistry.instance = null as unknown as PromptRegistry
 	}
 }

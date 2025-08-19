@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { expect } from "chai"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { getPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
@@ -25,7 +26,7 @@ describe("Prompt System Integration Tests", () => {
 					resourceTemplates: [],
 				},
 			],
-		},
+		} as unknown as McpHub,
 		focusChainSettings: {
 			enabled: true,
 			remindClineInterval: 6,
@@ -110,7 +111,7 @@ describe("Prompt System Integration Tests", () => {
 								// Basic structure assertions
 								expect(prompt).to.be.a("string")
 								expect(prompt.length).to.be.greaterThan(100)
-								expect(prompt).to.not.include("{{TOOL_USE}}") // Tools placeholder should be removed
+								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
 								// Save snapshot
 								const snapshotName = `${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
@@ -236,7 +237,7 @@ describe("Prompt System Integration Tests", () => {
 			try {
 				const prompt = await getPrompt("generic", contextWithNulls)
 				expect(prompt).to.be.a("string")
-				expect(prompt).to.include("{{TOOL_USE}}")
+				expect(prompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)
@@ -282,7 +283,7 @@ describe("Prompt System Integration Tests", () => {
 			try {
 				const prompt = await getPrompt("generic", baseContext)
 
-				expect(prompt).to.not.include("{{TOOL_USE}}")
+				expect(prompt).to.not.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()

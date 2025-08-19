@@ -1,8 +1,9 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
 export async function getCapabilitiesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.capabilities?.template || CAPABILITIES_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || CAPABILITIES_TEMPLATE_TEXT
 
 	const browserSupport = context.supportsBrowserUse ? ", use the browser" : ""
 	const browserCapabilities = context.supportsBrowserUse

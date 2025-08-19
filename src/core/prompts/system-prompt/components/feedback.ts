@@ -1,3 +1,4 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
@@ -6,7 +7,7 @@ export async function getFeedbackSection(variant: PromptVariant, context: System
 		return undefined
 	}
 
-	const template = variant.componentOverrides?.feedback?.template || FEEDBACK_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.FEEDBACK]?.template || FEEDBACK_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {})

@@ -1,11 +1,11 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
 export async function getActVsPlanModeSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.act_vs_plan_mode?.template || ACT_VS_PLAN_MODE_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || ACT_VS_PLAN_MODE_TEMPLATE_TEXT
 
-	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {})
+	return new TemplateEngine().resolve(template, {})
 }
 
 const ACT_VS_PLAN_MODE_TEMPLATE_TEXT = `ACT MODE V.S. PLAN MODE

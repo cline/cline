@@ -10,10 +10,11 @@ export async function getToolUseSection(variant: PromptVariant, context: SystemP
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {
-		TOOL_USE_FORMATTING: await getToolUseFormattingSection(variant, context),
-		TOOLS: await getToolUseToolsSection(variant, context),
-		TOOL_USE_EXAMPLES: await getToolUseExamplesSection(variant, context),
-		TOOL_USE_GUIDELINES: await getToolUseGuidelinesSection(variant, context),
+		TOOL_USE_FORMATTING_SECTION: await getToolUseFormattingSection(variant, context),
+		TOOLS_SECTION: await getToolUseToolsSection(variant, context),
+		TOOL_USE_EXAMPLES_SECTION: await getToolUseExamplesSection(variant, context),
+		TOOL_USE_GUIDELINES_SECTION: await getToolUseGuidelinesSection(variant, context),
+		CWD: context.cwd,
 	})
 }
 
@@ -21,10 +22,10 @@ const TOOL_USE_TEMPLATE_TEXT = `TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
-{{TOOL_USE_FORMATTING}}
+{{TOOL_USE_FORMATTING_SECTION}}
 
-{{TOOLS}}
+{{TOOLS_SECTION}}
 
-{{TOOL_USE_EXAMPLES}}
+{{TOOL_USE_EXAMPLES_SECTION}}
 
-{{TOOL_USE_GUIDELINES}}`
+{{TOOL_USE_GUIDELINES_SECTION}}`

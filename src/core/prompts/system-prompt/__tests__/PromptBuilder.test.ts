@@ -1,7 +1,9 @@
 import { expect } from "chai"
+import type { McpHub } from "@/services/mcp/McpHub"
+import { ModelFamily } from "@/shared/prompts"
 import { PromptBuilder } from "../registry/PromptBuilder"
+import { SystemPromptSection } from "../templates/placeholders"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
-import { ModelFamily } from "../types"
 
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {
@@ -9,7 +11,11 @@ describe("PromptBuilder", () => {
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],
-		},
+			getMcpServersPath: () => "/test/mcp-servers",
+			getSettingsDirectoryPath: () => "/test/settings",
+			clientVersion: "1.0.0",
+			disposables: [],
+		} as unknown as McpHub,
 		focusChainSettings: {
 			enabled: true,
 			remindClineInterval: 6,
@@ -24,10 +30,10 @@ describe("PromptBuilder", () => {
 	}
 
 	const mockComponents: ComponentRegistry = {
-		system_info: async () => "SYSTEM INFORMATION\n\nOS: macOS\nShell: zsh",
-		tool_use: async () => "TOOL USE\n\n- {{TOOLS}}",
-		capabilities: async () => "CAPABILITIES\n\n- Code execution\n- File operations",
-		rules: async () => "RULES\n\n- Follow best practices\n- Be concise",
+		SYSTEM_INFO_SECTION: async () => "SYSTEM INFORMATION\n\nOS: macOS\nShell: zsh",
+		TOOL_USE_SECTION: async () => "TOOL USE\n\n- {{TOOLS}}",
+		CAPABILITIES_SECTION: async () => "CAPABILITIES\n\n- Code execution\n- File operations",
+		RULES_SECTION: async () => "RULES\n\n- Follow best practices\n- Be concise",
 	}
 
 	const baseVariant: PromptVariant = {
@@ -40,8 +46,14 @@ describe("PromptBuilder", () => {
 			modelName: "test-model",
 			temperature: 0.7,
 		},
-		baseTemplate: "You are Cline.\n\n{{TOOL_USE}}\n\n{{CAPABILITIES}}\n\n{{RULES}}\n\n{{SYSTEM_INFO}}",
-		componentOrder: ["tool_use", "capabilities", "rules", "system_info"],
+		baseTemplate:
+			"You are Cline.\n\n{{TOOL_USE_SECTION}}\n\n{{CAPABILITIES_SECTION}}\n\n{{RULES_SECTION}}\n\n{{SYSTEM_INFO_SECTION}}",
+		componentOrder: [
+			SystemPromptSection.TOOL_USE,
+			SystemPromptSection.CAPABILITIES,
+			SystemPromptSection.RULES,
+			SystemPromptSection.SYSTEM_INFO,
+		],
 		componentOverrides: {},
 		placeholders: {
 			MODEL_FAMILY: "test",
@@ -63,24 +75,44 @@ describe("PromptBuilder", () => {
 
 		it("should handle missing components gracefully", async () => {
 			const incompleteComponents: ComponentRegistry = {
-				tool_use: async () => "TOOL USE REPLACER",
-				system_info: async () => "SYSTEM INFO",
+				TOOL_USE_SECTION: async () => "TOOL USE REPLACER",
+				SYSTEM_INFO_SECTION: async () => "SYSTEM INFO",
 			}
 
-			const builder = new PromptBuilder(baseVariant, mockContext, incompleteComponents)
-			const result = await builder.build()
+			// Mock console.warn to capture and verify warnings
+			const originalWarn = console.warn
+			const warnSpy = {
+				calls: [] as any[],
+				warn: (...args: any[]) => {
+					warnSpy.calls.push(args)
+				},
+			}
+			console.warn = warnSpy.warn
 
-			expect(result).to.include("You are Cline.")
-			expect(result).to.include("TOOL USE REPLACER")
-			expect(result).to.include("SYSTEM INFO")
-			// Missing components should not break the build
+			try {
+				const builder = new PromptBuilder(baseVariant, mockContext, incompleteComponents)
+				const result = await builder.build()
+
+				expect(result).to.include("You are Cline.")
+				expect(result).to.include("TOOL USE REPLACER")
+				expect(result).to.include("SYSTEM INFO")
+				// Missing components should not break the build
+
+				// Verify that warnings were logged for missing components
+				expect(warnSpy.calls).to.have.length(2)
+				expect(warnSpy.calls[0][0]).to.include("Warning: Component 'CAPABILITIES_SECTION' not found")
+				expect(warnSpy.calls[1][0]).to.include("Warning: Component 'RULES_SECTION' not found")
+			} finally {
+				// Restore original console.warn
+				console.warn = originalWarn
+			}
 		})
 
 		it("should apply component overrides", async () => {
 			const variantWithOverrides: PromptVariant = {
 				...baseVariant,
 				componentOverrides: {
-					system_info: {
+					SYSTEM_INFO_SECTION: {
 						template: "CUSTOM SYSTEM INFO: {{os}} on {{shell}}",
 					},
 				},
@@ -88,8 +120,8 @@ describe("PromptBuilder", () => {
 
 			const customComponents: ComponentRegistry = {
 				...mockComponents,
-				system_info: async (variant) => {
-					const template = variant.componentOverrides?.system_info?.template || "DEFAULT"
+				SYSTEM_INFO_SECTION: async (variant) => {
+					const template = variant.componentOverrides?.SYSTEM_INFO_SECTION?.template || "DEFAULT"
 					return template.replace("{{os}}", "Linux").replace("{{shell}}", "bash")
 				},
 			}
@@ -134,12 +166,12 @@ describe("PromptBuilder", () => {
 
 			try {
 				const failingComponents: ComponentRegistry = {
-					tool_use: async () => "TOOL USE CONTENT",
-					system_info: async () => {
+					TOOL_USE_SECTION: async () => "TOOL USE CONTENT",
+					SYSTEM_INFO_SECTION: async () => {
 						throw new Error("Component failed")
 					},
-					capabilities: async () => "CAPABILITIES WORK",
-					rules: async () => "RULES WORK",
+					CAPABILITIES_SECTION: async () => "CAPABILITIES WORK",
+					RULES_SECTION: async () => "RULES WORK",
 				}
 
 				const builder = new PromptBuilder(baseVariant, mockContext, failingComponents)
@@ -152,7 +184,7 @@ describe("PromptBuilder", () => {
 
 				// Verify that the warning was logged for the failing component
 				expect(warnSpy.calls).to.have.length(1)
-				expect(warnSpy.calls[0][0]).to.include("Failed to build component 'system_info'")
+				expect(warnSpy.calls[0][0]).to.include("Failed to build component 'SYSTEM_INFO_SECTION'")
 			} finally {
 				// Restore original console.warn
 				console.warn = originalWarn
@@ -167,9 +199,14 @@ describe("PromptBuilder", () => {
 
 			expect(metadata.variantId).to.equal("test-model")
 			expect(metadata.version).to.equal(1)
-			expect(metadata.componentsUsed).to.deep.equal(["tool_use", "capabilities", "rules", "system_info"])
-			expect(metadata.placeholdersResolved).to.include("TOOL_USE")
-			expect(metadata.placeholdersResolved).to.include("CAPABILITIES")
+			expect(metadata.componentsUsed).to.deep.equal([
+				"TOOL_USE_SECTION",
+				"CAPABILITIES_SECTION",
+				"RULES_SECTION",
+				"SYSTEM_INFO_SECTION",
+			])
+			expect(metadata.placeholdersResolved).to.include("TOOL_USE_SECTION")
+			expect(metadata.placeholdersResolved).to.include("CAPABILITIES_SECTION")
 		})
 	})
 

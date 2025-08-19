@@ -1,8 +1,9 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
 export async function getObjectiveSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.objective?.template || OBJECTIVE_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.OBJECTIVE]?.template || OBJECTIVE_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {})

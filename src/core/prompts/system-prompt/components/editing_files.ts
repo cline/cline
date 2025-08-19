@@ -1,8 +1,9 @@
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
 export async function getEditingFilesSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.editing_files?.template || EDITING_FILES_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.EDITING_FILES]?.template || EDITING_FILES_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {})

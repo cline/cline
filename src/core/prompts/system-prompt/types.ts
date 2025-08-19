@@ -1,34 +1,10 @@
+import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
-
-// Define ModelFamily enum locally since it doesn't exist in shared
-export enum ModelFamily {
-	CLAUDE = "claude",
-	GPT = "gpt",
-	GEMINI = "gemini",
-	QWEN = "qwen",
-	NEXT_GEN = "next-gen",
-	GENERIC = "generic",
-}
-
-// Define available tool names
-export type ToolName =
-	| "execute_command"
-	| "read_file"
-	| "write_to_file"
-	| "replace_in_file"
-	| "search_files"
-	| "list_files"
-	| "list_code_definition_names"
-	| "browser_action"
-	| "web_fetch"
-	| "use_mcp_tool"
-	| "access_mcp_resource"
-	| "ask_followup_question"
-	| "attempt_completion"
-	| "new_task"
-	| "plan_mode_respond"
-	| "load_mcp_documentation"
+import type { ModelFamily } from "@/shared/prompts"
+import type { ClineDefaultTool } from "@/shared/tools"
+import type { SystemPromptSection } from "./templates/placeholders"
+import type { ClineToolSpec } from "./tools/spec"
 
 export interface ToolOverride {
 	template?: string // Custom template for the tool
@@ -46,28 +22,20 @@ export interface PromptVariant {
 	// Prompt configuration
 	config: PromptConfig // Model-specific config (temperature, etc.)
 	baseTemplate: string // Main prompt template with placeholders
-	componentOrder: string[] // Ordered list of components to include
+	componentOrder: SystemPromptSection[] // Ordered list of components to include
 	componentOverrides: ComponentOverrides // Component-specific customizations
-	placeholders: { [key: string]: any } // Default placeholder values
+	placeholders: { [key: string]: string } // Default placeholder values
 
 	// Tool configuration
-	tools?: ToolName[] // Ordered list of tools to include (if not specified, all tools are included)
-	toolOverrides?: { [K in ToolName]?: ToolOverride } // Tool-specific customizations
+	tools?: ClineDefaultTool[] // Ordered list of tools to include (if not specified, all tools are included)
+	toolOverrides?: { [K in ClineDefaultTool]?: ToolOverride } // Tool-specific customizations
 }
 
 export interface PromptConfig {
 	modelName?: string
 	temperature?: number
 	maxTokens?: number
-	tools?: ToolConfig[]
-	// Other arbitrary JSON config
-	[key: string]: any
-}
-
-export interface ToolConfig {
-	name: string
-	description: string
-	parameters?: any
+	tools?: ClineToolSpec[]
 }
 
 export interface ComponentOverrides {
@@ -92,9 +60,7 @@ export interface VersionMetadata {
 export interface SystemPromptContext {
 	cwd?: string
 	supportsBrowserUse?: boolean
-	mcpHub?: {
-		getServers(): any[]
-	}
+	mcpHub?: McpHub
 	focusChainSettings?: FocusChainSettings
 	globalClineRulesFileInstructions?: string
 	localClineRulesFileInstructions?: string

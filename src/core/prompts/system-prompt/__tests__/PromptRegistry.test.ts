@@ -1,4 +1,5 @@
 import { expect } from "chai"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { PromptRegistry } from "../registry/PromptRegistry"
 import { extractModelFamily } from "../registry/utils"
 import type { SystemPromptContext } from "../types"
@@ -10,7 +11,11 @@ describe("PromptRegistry", () => {
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],
-		},
+			getMcpServersPath: () => "/test/mcp-servers",
+			getSettingsDirectoryPath: () => "/test/settings",
+			clientVersion: "1.0.0",
+			disposables: [],
+		} as unknown as McpHub,
 		focusChainSettings: {
 			enabled: true,
 			remindClineInterval: 6,
@@ -26,7 +31,7 @@ describe("PromptRegistry", () => {
 
 	beforeEach(() => {
 		// Get a fresh instance for each test
-		;(PromptRegistry as any).instance = undefined
+		PromptRegistry.dispose()
 		registry = PromptRegistry.getInstance()
 	})
 

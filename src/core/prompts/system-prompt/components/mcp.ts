@@ -1,4 +1,5 @@
 import type { McpServer } from "@/shared/mcp"
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
@@ -13,7 +14,7 @@ export async function getMcp(variant: PromptVariant, context: SystemPromptContex
 }
 
 async function getMcpServers(servers: McpServer[], variant: PromptVariant): Promise<string> {
-	const template = variant.componentOverrides?.mcp?.template || MCP_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.MCP]?.template || MCP_TEMPLATE_TEXT
 
 	const serversList = servers.length > 0 ? formatMcpServersList(servers) : "(No MCP servers currently connected)"
 

@@ -1,6 +1,7 @@
 import osModule from "node:os"
 import { getShell } from "@utils/shell"
 import osName from "os-name"
+import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
@@ -17,7 +18,7 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 	const info = await getSystemEnv(context.isTesting)
 
 	// Support custom template from variant overrides
-	const template = variant.componentOverrides?.system_info?.template || SYSTEM_INFO_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {

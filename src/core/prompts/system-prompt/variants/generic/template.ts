@@ -1,6 +1,6 @@
 export const baseTemplate = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
-{{TOOL_USE}}
+{{TOOL_USE_SECTION}}
 
 ====
 
@@ -8,28 +8,28 @@ export const baseTemplate = `You are Cline, a highly skilled software engineer w
 
 ====
 
-{{EDITING_FILES}}
+{{EDITING_FILES_SECTION}}
 
 ====
 
-{{ACT_VS_PLAN_MODE}}
+{{ACT_VS_PLAN_SECTION}}
 
 {{TODO_SECTION}}
 
 ====
 
-{{CAPABILITIES}}
+{{CAPABILITIES_SECTION}}
 
 ====
 
-{{RULES}}
+{{RULES_SECTION}}
 
 ====
 
-{{SYSTEM_INFO}}
+{{SYSTEM_INFO_SECTION}}
 
 ====
 
-{{OBJECTIVE}}
+{{OBJECTIVE_SECTION}}
 
-{{USER_INSTRUCTIONS}}`
+{{USER_INSTRUCTIONS_SECTION}}`
