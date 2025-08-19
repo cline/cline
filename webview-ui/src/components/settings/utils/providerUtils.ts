@@ -52,12 +52,12 @@ import {
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
+	vercelAiGatewayDefaultModelId,
+	vercelAiGatewayDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
-	vercelAiGatewayDefaultModelInfo,
-	vercelAiGatewayDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -312,7 +312,6 @@ export function normalizeApiConfiguration(
 			const zaiDefaultId =
 				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
 			return getProviderData(zaiModels, zaiDefaultId)
-			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

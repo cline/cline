@@ -2714,7 +2714,7 @@ export const cerebrasModels = {
 // VERCEL AI GATEWAY MODELS
 export type VercelAIGatewayModelId = string
 
-export const vercelAiGatewayDefaultModelId = "anthropic/claude-4-sonnet"
+export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
 export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
 	contextWindow: 200_000,
