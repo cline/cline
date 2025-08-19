@@ -1,18 +1,17 @@
-import { Channel, createChannel } from "nice-grpc"
 import {
-	WatchServiceClientImpl,
-	WorkspaceServiceClientImpl,
-	EnvServiceClientImpl,
-	WindowServiceClientImpl,
-	DiffServiceClientImpl,
-} from "@generated/hosts/standalone/host-bridge-clients"
-import {
-	WatchServiceClientInterface,
-	WorkspaceServiceClientInterface,
-	EnvServiceClientInterface,
-	WindowServiceClientInterface,
 	DiffServiceClientInterface,
+	EnvServiceClientInterface,
+	WatchServiceClientInterface,
+	WindowServiceClientInterface,
+	WorkspaceServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
+import {
+	DiffServiceClientImpl,
+	EnvServiceClientImpl,
+	WatchServiceClientImpl,
+	WindowServiceClientImpl,
+	WorkspaceServiceClientImpl,
+} from "@generated/hosts/standalone/host-bridge-clients"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { HOSTBRIDGE_PORT } from "@/standalone/protobus-service"
 

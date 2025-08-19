@@ -265,10 +265,10 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	let searchEndIndex = -1
 
 	// Track all replacements to handle out-of-order edits
-	let replacements: Array<{ start: number; end: number; content: string }> = []
+	const replacements: Array<{ start: number; end: number; content: string }> = []
 	let pendingOutOfOrderReplacement = false
 
-	let lines = diffContent.split("\n")
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.
@@ -487,7 +487,6 @@ class NewFileContentConstructor {
 	private result: string
 	private lastProcessedIndex: number
 	private currentSearchContent: string
-	private currentReplaceContent: string
 	private searchMatchIndex: number
 	private searchEndIndex: number
 
@@ -626,7 +625,7 @@ class NewFileContentConstructor {
 			} else if (this.isSearchingActive()) {
 				this.currentSearchContent += line + "\n"
 			} else {
-				let appendToPendingNonStandardLines = canWritependingNonStandardLines
+				const appendToPendingNonStandardLines = canWritependingNonStandardLines
 				if (appendToPendingNonStandardLines) {
 					// 处理非标内容
 					this.pendingNonStandardLines.push(line)
@@ -712,10 +711,10 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error("Invalid SEARCH/REPLACE block structure - no lines available to process")
 		}
-		let searchTagRegexp = /^([-]{3,}|[<]{3,}) SEARCH$/
+		const searchTagRegexp = /^([-]{3,}|[<]{3,}) SEARCH$/
 		const searchTagIndex = this.findLastMatchingLineIndex(searchTagRegexp, lineLimit)
 		if (searchTagIndex !== -1) {
-			let fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
+			const fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
 			fixLines[0] = SEARCH_BLOCK_START
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, searchTagIndex)
@@ -736,14 +735,17 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error()
 		}
-		let replaceBeginTagRegexp = /^[=]{3,}$/
+		const replaceBeginTagRegexp = /^[=]{3,}$/
 		const replaceBeginTagIndex = this.findLastMatchingLineIndex(replaceBeginTagRegexp, lineLimit)
 		if (replaceBeginTagIndex !== -1) {
 			// // 校验非标内容
 			// if (!this.isSearchingActive()) {
 			// 	removeLineCount += this.tryFixSearchBlock(replaceBeginTagIndex)
 			// }
-			let fixLines = this.pendingNonStandardLines.slice(replaceBeginTagIndex - removeLineCount, lineLimit - removeLineCount)
+			const fixLines = this.pendingNonStandardLines.slice(
+				replaceBeginTagIndex - removeLineCount,
+				lineLimit - removeLineCount,
+			)
 			fixLines[0] = SEARCH_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceBeginTagIndex - removeLineCount)
@@ -763,7 +765,7 @@ class NewFileContentConstructor {
 			throw new Error()
 		}
 
-		let replaceEndTagRegexp = /^([+]{3,}|[>]{3,}) REPLACE$/
+		const replaceEndTagRegexp = /^([+]{3,}|[>]{3,}) REPLACE$/
 		const replaceEndTagIndex = this.findLastMatchingLineIndex(replaceEndTagRegexp, lineLimit)
 		const likeReplaceEndTag = replaceEndTagIndex === lineLimit - 1
 		if (likeReplaceEndTag) {
@@ -771,7 +773,7 @@ class NewFileContentConstructor {
 			// if (!this.isReplacingActive()) {
 			// 	removeLineCount += this.tryFixReplaceBlock(replaceEndTagIndex)
 			// }
-			let fixLines = this.pendingNonStandardLines.slice(replaceEndTagIndex - removeLineCount, lineLimit - removeLineCount)
+			const fixLines = this.pendingNonStandardLines.slice(replaceEndTagIndex - removeLineCount, lineLimit - removeLineCount)
 			fixLines[fixLines.length - 1] = REPLACE_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceEndTagIndex - removeLineCount)
@@ -803,9 +805,9 @@ class NewFileContentConstructor {
 }
 
 export async function constructNewFileContentV2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	let newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
+	const newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
 
-	let lines = diffContent.split("\n")
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.
@@ -828,6 +830,6 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 		newFileContentConstructor.processLine(line)
 	}
 
-	let result = newFileContentConstructor.getResult()
+	const result = newFileContentConstructor.getResult()
 	return result
 }

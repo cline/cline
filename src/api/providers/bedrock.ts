@@ -1,11 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { convertToR1Format } from "../transform/r1-format"
-import { bedrockDefaultModelId, BedrockModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+// Import proper AWS SDK types
+import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
 import {
 	BedrockRuntimeClient,
 	ConversationRole,
@@ -13,9 +8,13 @@ import {
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
-
-// Import proper AWS SDK types
-import type { Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { calculateApiCostOpenAI } from "../../utils/cost"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
+import { convertToR1Format } from "../transform/r1-format"
+import { ApiStream } from "../transform/stream"
 
 interface AwsBedrockHandlerOptions {
 	apiModelId?: string

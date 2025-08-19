@@ -4,6 +4,7 @@ import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -31,6 +32,7 @@ import {
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import { isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
@@ -43,8 +45,6 @@ import {
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
-import { Mode } from "@shared/storage/types"
-import { isSafari } from "@/utils/platformUtils"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -312,7 +312,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
-		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
@@ -412,7 +412,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							setSearchLoading(true)
 
 							// Map ContextMenuOptionType to FileSearchType enum
-							let searchType = undefined
+							let searchType 
 							if (type === ContextMenuOptionType.File) {
 								searchType = FileSearchType.FILE
 							} else if (type === ContextMenuOptionType.Folder) {
@@ -556,7 +556,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const options = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)
 							const optionsLength = options.length
 
-							if (optionsLength === 0) return prevIndex
+							if (optionsLength === 0) { return prevIndex }
 
 							// Find selectable options (non-URL types)
 							const selectableOptions = options.filter(
@@ -564,7 +564,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									option.type !== ContextMenuOptionType.URL && option.type !== ContextMenuOptionType.NoResults,
 							)
 
-							if (selectableOptions.length === 0) return -1 // No selectable options
+							if (selectableOptions.length === 0) { return -1 // No selectable options
+}
 
 							// Find the index of the next selectable option
 							const currentSelectableIndex = selectableOptions.findIndex((option) => option === options[prevIndex])
@@ -936,7 +937,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [])
 
 		const updateHighlights = useCallback(() => {
-			if (!textAreaRef.current || !highlightLayerRef.current) return
+			if (!textAreaRef.current || !highlightLayerRef.current) { return }
 
 			let processedText = textAreaRef.current.value
 
@@ -1122,7 +1123,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				requestyModelId,
 			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
-			if (!apiConfiguration) return unknownModel
+			if (!apiConfiguration) { return unknownModel }
 			switch (selectedProvider) {
 				case "cline":
 					return `${selectedProvider}:${selectedModelId}`
@@ -1407,6 +1408,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div>
 				<div
+					onDragEnter={handleDragEnter}
+					onDragLeave={handleDragLeave}
+					onDragOver={onDragOver}
+					onDrop={onDrop}
 					style={{
 						padding: "10px 15px",
 						opacity: 1,
@@ -1414,11 +1419,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						display: "flex",
 						// Drag-over styles moved to DynamicTextArea
 						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
-					}}
-					onDrop={onDrop}
-					onDragOver={onDragOver}
-					onDragEnter={handleDragEnter}
-					onDragLeave={handleDragLeave}>
+					}}>
 					{showDimensionError && (
 						<div
 							style={{
@@ -1471,13 +1472,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
+								globalWorkflowToggles={globalWorkflowToggles}
+								localWorkflowToggles={localWorkflowToggles}
+								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
+								query={slashCommandsQuery}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
-								onMouseDown={handleMenuMouseDown}
-								query={slashCommandsQuery}
-								localWorkflowToggles={localWorkflowToggles}
-								globalWorkflowToggles={globalWorkflowToggles}
 							/>
 						</div>
 					)}
@@ -1485,15 +1486,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
-								onSelect={handleMentionSelect}
-								searchQuery={searchQuery}
-								onMouseDown={handleMenuMouseDown}
-								selectedIndex={selectedMenuIndex}
-								setSelectedIndex={setSelectedMenuIndex}
-								selectedType={selectedType}
-								queryItems={queryItems}
 								dynamicSearchResults={fileSearchResults}
 								isLoading={searchLoading}
+								onMouseDown={handleMenuMouseDown}
+								onSelect={handleMentionSelect}
+								queryItems={queryItems}
+								searchQuery={searchQuery}
+								selectedIndex={selectedMenuIndex}
+								selectedType={selectedType}
+								setSelectedIndex={setSelectedMenuIndex}
 							/>
 						</div>
 					)}
@@ -1536,8 +1537,32 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 					/>
 					<DynamicTextArea
+						autoFocus={true}
 						data-testid="chat-input"
+						maxRows={10}
 						minRows={3}
+						onBlur={handleBlur}
+						onChange={(e) => {
+							handleInputChange(e)
+							updateHighlights()
+						}}
+						onFocus={() => {
+							setIsTextAreaFocused(true)
+							onFocusChange?.(true) // Call prop on focus
+						}}
+						onHeightChange={(height) => {
+							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
+								setTextAreaBaseHeight(height)
+							}
+							onHeightChange?.(height)
+						}}
+						onKeyDown={handleKeyDown}
+						onKeyUp={handleKeyUp}
+						onMouseUp={updateCursorPosition}
+						onPaste={handlePaste}
+						onScroll={() => updateHighlights()}
+						onSelect={updateCursorPosition}
+						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1546,30 +1571,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							textAreaRef.current = el
 						}}
-						value={inputValue}
-						onChange={(e) => {
-							handleInputChange(e)
-							updateHighlights()
-						}}
-						onKeyDown={handleKeyDown}
-						onKeyUp={handleKeyUp}
-						onFocus={() => {
-							setIsTextAreaFocused(true)
-							onFocusChange?.(true) // Call prop on focus
-						}}
-						onBlur={handleBlur}
-						onPaste={handlePaste}
-						onSelect={updateCursorPosition}
-						onMouseUp={updateCursorPosition}
-						onHeightChange={(height) => {
-							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
-								setTextAreaBaseHeight(height)
-							}
-							onHeightChange?.(height)
-						}}
-						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
-						maxRows={10}
-						autoFocus={true}
 						style={{
 							width: "100%",
 							boxSizing: "border-box",
@@ -1607,7 +1608,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										: "none",
 							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
-						onScroll={() => updateHighlights()}
+						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
@@ -1616,11 +1617,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
-							images={selectedImages}
 							files={selectedFiles}
-							setImages={setSelectedImages}
-							setFiles={setSelectedFiles}
+							images={selectedImages}
 							onHeightChange={handleThumbnailsHeightChange}
+							setFiles={setSelectedFiles}
+							setImages={setSelectedImages}
 							style={{
 								position: "absolute",
 								paddingTop: 4,
@@ -1661,8 +1662,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}}
 							/> */}
 							<div
-								data-testid="send-button"
 								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
+								data-testid="send-button"
 								onClick={() => {
 									if (!sendingDisabled) {
 										setIsTextAreaFocused(false)
@@ -1695,11 +1696,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								height: "100%",
 								zIndex: 6,
 							}}>
-							<Tooltip tipText="Add Context" style={{ left: 0 }}>
+							<Tooltip style={{ left: 0 }} tipText="Add Context">
 								<VSCodeButton
-									data-testid="context-button"
 									appearance="icon"
 									aria-label="Add Context"
+									data-testid="context-button"
 									onClick={handleContextButtonClick}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>
@@ -1712,9 +1713,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 							<Tooltip tipText="Add Files & Images">
 								<VSCodeButton
-									data-testid="files-button"
 									appearance="icon"
 									aria-label="Add Files & Images"
+									data-testid="files-button"
 									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
 										if (!shouldDisableFilesAndImages) {
@@ -1735,12 +1736,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<ModelContainer ref={modelSelectorRef}>
 								<ModelButtonWrapper ref={buttonRef}>
 									<ModelDisplayButton
-										role="button"
-										isActive={showModelSelector}
 										disabled={false}
-										title="Select Model / API Provider"
+										isActive={showModelSelector}
 										onClick={handleModelButtonClick}
-										tabIndex={0}>
+										role="button"
+										tabIndex={0}
+										title="Select Model / API Provider">
 										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
@@ -1752,11 +1753,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 										}}>
 										<ApiOptions
-											showModelOptions={true}
 											apiErrorMessage={undefined}
-											modelIdErrorMessage={undefined}
-											isPopup={true}
 											currentMode={mode}
+											isPopup={true}
+											modelIdErrorMessage={undefined}
+											showModelOptions={true}
 										/>
 									</ModelSelectorTooltip>
 								)}
@@ -1765,26 +1766,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
+						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}
 						style={{ zIndex: 1000 }}
-						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
+						visible={shownTooltipMode !== null}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 							<SwitchOption
-								isActive={mode === "plan"}
-								role="switch"
 								aria-checked={mode === "plan"}
+								isActive={mode === "plan"}
+								onMouseLeave={() => setShownTooltipMode(null)}
 								onMouseOver={() => setShownTooltipMode("plan")}
-								onMouseLeave={() => setShownTooltipMode(null)}>
+								role="switch">
 								Plan
 							</SwitchOption>
 							<SwitchOption
-								isActive={mode === "act"}
-								role="switch"
 								aria-checked={mode === "act"}
+								isActive={mode === "act"}
+								onMouseLeave={() => setShownTooltipMode(null)}
 								onMouseOver={() => setShownTooltipMode("act")}
-								onMouseLeave={() => setShownTooltipMode(null)}>
+								role="switch">
 								Act
 							</SwitchOption>
 						</SwitchContainer>

@@ -15,7 +15,7 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 export function withRetry(options: RetryOptions = {}) {
 	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
-	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
+	return (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => {
 		const originalMethod = descriptor.value
 
 		descriptor.value = async function* (...args: any[]) {
@@ -51,7 +51,7 @@ export function withRetry(options: RetryOptions = {}) {
 						}
 					} else {
 						// Use exponential backoff if no header
-						delay = Math.min(maxDelay, baseDelay * Math.pow(2, attempt))
+						delay = Math.min(maxDelay, baseDelay * 2 ** attempt)
 					}
 
 					const handlerInstance = this as any

@@ -1,26 +1,24 @@
+import * as ripgrep from "@services/ripgrep"
+import * as fileSearch from "@services/search/file-search"
+import * as childProcess from "child_process"
+import * as fs from "fs"
+import type { FzfResultItem } from "fzf"
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
-import type { FzfResultItem } from "fzf"
-import * as childProcess from "child_process"
 import * as vscode from "vscode"
-import * as fs from "fs"
-import * as fileSearch from "@services/search/file-search"
-import * as ripgrep from "@services/ripgrep"
 
-describe("File Search", function () {
+describe("File Search", () => {
 	let sandbox: sinon.SinonSandbox
 	let spawnStub: sinon.SinonStub
 
-	beforeEach(function () {
+	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 		spawnStub = sandbox.stub()
 
 		// Create a wrapper function that matches the signature of childProcess.spawn
-		const spawnWrapper: typeof childProcess.spawn = function (command, options) {
-			return spawnStub(command, options)
-		}
+		const spawnWrapper: typeof childProcess.spawn = (command, options) => spawnStub(command, options)
 
 		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
 		// Use replaceGetter instead of stub().value() for non-configurable properties
@@ -29,12 +27,12 @@ describe("File Search", function () {
 		sandbox.stub(ripgrep, "getBinPath").resolves("mock/ripgrep/path")
 	})
 
-	afterEach(function () {
+	afterEach(() => {
 		sandbox.restore()
 	})
 
-	describe("executeRipgrepForFiles", function () {
-		it("should correctly process and return file and folder results", async function () {
+	describe("executeRipgrepForFiles", () => {
+		it("should correctly process and return file and folder results", async () => {
 			const mockFiles = ["file1.txt", "folder1/file2.js", "folder1/subfolder/file3.py"]
 
 			// Create a proper mock for the child process
@@ -94,7 +92,7 @@ describe("File Search", function () {
 			])
 		})
 
-		it("should handle errors from ripgrep", async function () {
+		it("should handle errors from ripgrep", async () => {
 			const mockError = "Mock ripgrep error"
 
 			// Create proper mock streams for error case
@@ -128,8 +126,8 @@ describe("File Search", function () {
 		})
 	})
 
-	describe("searchWorkspaceFiles", function () {
-		it("should return top N results for empty query", async function () {
+	describe("searchWorkspaceFiles", () => {
+		it("should return top N results for empty query", async () => {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1", type: "folder", label: "folder1" },
@@ -148,7 +146,7 @@ describe("File Search", function () {
 			should(result).deepEqual(mockItems.slice(0, 2))
 		})
 
-		it("should apply fuzzy matching for non-empty query", async function () {
+		it("should apply fuzzy matching for non-empty query", async () => {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1/important.js", type: "file", label: "important.js" },
@@ -160,14 +158,14 @@ describe("File Search", function () {
 				find: sinon.stub().returns([{ item: mockItems[1], score: 0 }]),
 			}
 			// Create a mock for the fzf module
-			const fzfModuleStub = {
+			const _fzfModuleStub = {
 				Fzf: sinon.stub().returns(fzfStub),
 				byLengthAsc: sinon.stub(),
 			}
 
 			// Use a more reliable approach to mock dynamic imports
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, workspacePath, limit) => {
+			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, _workspacePath, limit) => {
 				if (!query.trim()) {
 					return mockItems.slice(0, limit)
 				}
@@ -188,8 +186,8 @@ describe("File Search", function () {
 		})
 	})
 
-	describe("OrderbyMatchScore", function () {
-		it("should prioritize results with fewer gaps between matched characters", function () {
+	describe("OrderbyMatchScore", () => {
+		it("should prioritize results with fewer gaps between matched characters", () => {
 			const mockItemA: FzfResultItem<any> = { item: {}, positions: new Set([0, 1, 2, 5]), start: 0, end: 5, score: 0 }
 			const mockItemB: FzfResultItem<any> = { item: {}, positions: new Set([0, 2, 4, 6]), start: 0, end: 6, score: 0 }
 

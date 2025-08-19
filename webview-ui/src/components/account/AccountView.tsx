@@ -44,9 +44,9 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 				<div className="h-full mb-[5px]">
 					{clineUser?.uid ? (
 						<ClineAccountView
+							activeOrganization={activeOrganization}
 							clineUser={clineUser}
 							userOrganizations={organizations}
-							activeOrganization={activeOrganization}
 						/>
 					) : (
 						<AccountWelcomeView />
@@ -123,7 +123,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	const fetchCreditBalance = useCallback(
 		async (id: string, skipCache = false) => {
 			try {
-				if (isLoading) return // Prevent multiple concurrent fetches
+				if (isLoading) {
+					return // Prevent multiple concurrent fetches
+				}
 
 				// Load cached data immediately if available (unless skipping cache)
 				if (!skipCache && loadCachedData(id)) {
@@ -161,7 +163,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const target = event.target as HTMLSelectElement
-			if (!target) return
+			if (!target) {
+				return
+			}
 
 			const newValue = target.value
 			if (newValue !== dropdownValue) {
@@ -272,11 +276,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 							<div className="flex gap-2 items-center mt-1">
 								<VSCodeDropdown
+									className="w-full"
 									currentValue={dropdownValue}
-									onChange={handleOrganizationChange}
 									disabled={isLoading}
-									className="w-full">
-									<VSCodeOption value={uid} key="personal">
+									onChange={handleOrganizationChange}>
+									<VSCodeOption key="personal" value={uid}>
 										Personal
 									</VSCodeOption>
 									{userOrganizations?.map((org: UserOrganization) => (
@@ -297,11 +301,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 					<div className="w-full min-[225px]:w-1/2">
-						<VSCodeButtonLink href={getClineUris(clineUrl, "dashboard").href} appearance="primary" className="w-full">
+						<VSCodeButtonLink appearance="primary" className="w-full" href={getClineUris(clineUrl, "dashboard").href}>
 							Dashboard
 						</VSCodeButtonLink>
 					</div>
-					<VSCodeButton appearance="secondary" onClick={() => handleSignOut()} className="w-full min-[225px]:w-1/2">
+					<VSCodeButton appearance="secondary" className="w-full min-[225px]:w-1/2" onClick={() => handleSignOut()}>
 						Log out
 					</VSCodeButton>
 				</div>
@@ -309,11 +313,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				<VSCodeDivider className="w-full my-6" />
 
 				<CreditBalance
-					isLoading={isLoading}
 					balance={balance}
-					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
-					lastFetchTime={lastFetchTime}
 					creditUrl={getClineUris(clineUrl, "credits", dropdownValue === uid ? "account" : "organization")}
+					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
+					isLoading={isLoading}
+					lastFetchTime={lastFetchTime}
 				/>
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
@@ -321,9 +325,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
-						usageData={usageData}
 						paymentsData={paymentsData}
 						showPayments={dropdownValue === uid}
+						usageData={usageData}
 					/>
 				</div>
 			</div>

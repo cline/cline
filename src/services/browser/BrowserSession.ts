@@ -1,22 +1,22 @@
-import * as vscode from "vscode"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { Controller } from "@core/controller"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { BrowserActionResult } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
+import { spawn } from "child_process"
+import * as chromeLauncher from "chrome-launcher"
 import * as fs from "fs/promises"
+import os from "os"
+import pWaitFor from "p-wait-for"
 import * as path from "path"
-import { exec, spawn } from "child_process"
-import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
-import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import pWaitFor from "p-wait-for"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import axios from "axios"
-import { fileExistsAtPath } from "@utils/fs"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
-import * as chromeLauncher from "chrome-launcher"
-import { Controller } from "@core/controller"
+import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
+import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
+import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import os from "os"
+import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -137,7 +137,7 @@ export class BrowserSession {
 		return stats
 	}
 
-	async relaunchChromeDebugMode(controller: Controller): Promise<string> {
+	async relaunchChromeDebugMode(_controller: Controller): Promise<string> {
 		try {
 			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
@@ -263,7 +263,7 @@ export class BrowserSession {
 	async launchRemoteBrowser() {
 		let remoteBrowserHost = this.browserSettings.remoteBrowserHost
 		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
-		let reconnectionAttempted = false
+		let _reconnectionAttempted = false
 
 		const getViewport = () => {
 			return this.browserSettings.viewport
@@ -315,7 +315,7 @@ export class BrowserSession {
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
 				if (remoteBrowserHost) {
-					reconnectionAttempted = true
+					_reconnectionAttempted = true
 				}
 			}
 		}
@@ -369,40 +369,6 @@ export class BrowserSession {
 		throw new Error(
 			"Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
 		)
-	}
-
-	/**
-	 * Kill all Chrome instances, including those not launched by chrome-launcher
-	 */
-	private async killAllChromeBrowsers(): Promise<void> {
-		// First try chrome-launcher's killAll to handle instances it launched
-		try {
-			await chromeLauncher.killAll()
-		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
-		}
-
-		// Then kill other Chrome instances using platform-specific commands
-		try {
-			if (process.platform === "win32") {
-				// Windows: Use taskkill to forcefully terminate Chrome processes
-				await new Promise<void>((resolve, reject) => {
-					exec("taskkill /F /IM chrome.exe /T", () => resolve())
-				})
-			} else if (process.platform === "darwin") {
-				// macOS: Use pkill to terminate Chrome processes
-				await new Promise<void>((resolve) => {
-					exec('pkill -x "Google Chrome"', () => resolve())
-				})
-			} else {
-				// Linux: Use pkill for Chrome and chromium
-				await new Promise<void>((resolve) => {
-					exec('pkill -f "chrome|chromium"', () => resolve())
-				})
-			}
-		} catch (error) {
-			console.error("Error killing Chrome processes:", error)
-		}
 	}
 
 	async closeBrowser(): Promise<BrowserActionResult> {

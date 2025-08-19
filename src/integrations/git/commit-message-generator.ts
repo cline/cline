@@ -1,8 +1,8 @@
 import * as vscode from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
 import { buildApiHandler } from "@/api"
 import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { getWorkingState } from "@/utils/git"
 import { getCwd } from "@/utils/path"
 
@@ -14,7 +14,7 @@ export const GitCommitGenerator = {
 	abort,
 }
 
-let commitGenerationAbortController: AbortController | undefined = undefined
+let commitGenerationAbortController: AbortController | undefined
 
 async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
 	const cwd = await getCwd()

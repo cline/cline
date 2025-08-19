@@ -1,5 +1,4 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -29,11 +28,12 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import * as vscode from "vscode"
 import { z } from "zod"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
@@ -104,7 +104,7 @@ export class McpHub {
 			// Parse JSON file content
 			try {
 				config = JSON.parse(content)
-			} catch (error) {
+			} catch (_error) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
@@ -176,7 +176,7 @@ export class McpHub {
 		}
 	}
 
-	private findConnection(name: string, source: "rpc" | "internal"): McpConnection | undefined {
+	private findConnection(name: string, _source: "rpc" | "internal"): McpConnection | undefined {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
@@ -285,7 +285,7 @@ export class McpHub {
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: config.headers?.["Authorization"] ? true : false,
+						withCredentials: !!config.headers?.["Authorization"],
 					}
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
@@ -481,7 +481,7 @@ export class McpHub {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
 			return response?.resources || []
-		} catch (error) {
+		} catch (_error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
 		}
@@ -505,7 +505,7 @@ export class McpHub {
 			)
 
 			return response?.resourceTemplates || []
-		} catch (error) {
+		} catch (_error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []
 		}

@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 import { Mode } from "@/shared/storage/types"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -52,7 +52,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		images?: string[],
 		fileString?: string,
 	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
-		let toolResultOutput = []
+		const toolResultOutput = []
 
 		if (!(images && images.length > 0) && !fileString) {
 			return text

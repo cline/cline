@@ -1,8 +1,8 @@
+import { String } from "@shared/proto/cline/common"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
 import type { UserResponse } from "@/shared/ClineAccount"
-import { String } from "@shared/proto/cline/common"
 import { AuthService } from "./AuthService"
 
 export class AuthServiceMock extends AuthService {

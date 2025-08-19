@@ -1,6 +1,6 @@
-import { AuthService } from "@/services/auth/AuthService"
-import { Empty } from "@shared/proto/cline/common"
 import type { EmptyRequest } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/cline/common"
+import { AuthService } from "@/services/auth/AuthService"
 import type { Controller } from "../index"
 
 /**

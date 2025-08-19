@@ -1,10 +1,10 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { claudeCodeDefaultModelId, ClaudeCodeModelId, claudeCodeModels } from "@/shared/api"
-import { type ApiHandler } from ".."
-import { ApiStreamUsageChunk, type ApiStream } from "../transform/stream"
-import { withRetry } from "../retry"
-import { runClaudeCode } from "@/integrations/claude-code/run"
 import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
+import { runClaudeCode } from "@/integrations/claude-code/run"
+import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
+import { type ApiHandler } from ".."
+import { withRetry } from "../retry"
+import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 
 interface ClaudeCodeHandlerOptions {
 	claudeCodePath?: string
@@ -38,7 +38,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 		// Usage is included with assistant messages,
 		// but cost is included in the result chunk
-		let usage: ApiStreamUsageChunk = {
+		const usage: ApiStreamUsageChunk = {
 			type: "usage",
 			inputTokens: 0,
 			outputTokens: 0,
@@ -137,7 +137,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 	private attemptParse(str: string) {
 		try {
 			return JSON.parse(str)
-		} catch (err) {
+		} catch (_err) {
 			return null
 		}
 	}

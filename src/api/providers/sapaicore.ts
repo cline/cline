@@ -1,15 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
-import OpenAI from "openai"
-import { ApiHandler } from "../"
-import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
 import {
-	type Message as BedrockMessage,
 	type ContentBlock as BedrockContentBlock,
 	ConversationRole as BedrockConversationRole,
+	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
+import axios from "axios"
+import OpenAI from "openai"
+import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "../../shared/api"
+import { ApiHandler } from "../"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 interface SapAiCoreHandlerOptions {
 	sapAiCoreClientId?: string
@@ -320,7 +320,7 @@ namespace Gemini {
 
 		// Add thinking config if the model supports it and budget is provided
 		const thinkingBudget = thinkingBudgetTokens ?? 0
-		const maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
+		const _maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
 
 		if (thinkingBudget > 0 && model.info.thinkingConfig) {
 			// Add thinking configuration to the payload
@@ -520,7 +520,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} else if (openAIModels.includes(model.id)) {
-			let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 				{ role: "system", content: systemPrompt },
 				...convertToOpenAiMessages(messages),
 			]
@@ -628,9 +628,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletion(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		let usage = { input_tokens: 0, output_tokens: 0 }
+		const usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
 			for await (const chunk of stream) {
@@ -680,7 +680,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionSonnet37(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
 		function toStrictJson(str: string): string {
 			// Wrap it in parentheses so JS will treat it as an expression
@@ -688,7 +688,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			return JSON.stringify(obj)
 		}
 
-		let usage = { input_tokens: 0, output_tokens: 0 }
+		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
 			// Iterate over the stream and process each chunk
@@ -761,9 +761,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionGPT(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		let currentContent = ""
+		let _currentContent = ""
 		let inputTokens = 0
 		let outputTokens = 0
 
@@ -793,7 +793,7 @@ export class SapAiCoreHandler implements ApiHandler {
 										type: "text",
 										text: choice.delta.content,
 									}
-									currentContent += choice.delta.content
+									_currentContent += choice.delta.content
 								}
 							}
 
@@ -832,7 +832,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionGemini(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
 		let promptTokens = 0
 		let outputTokens = 0
