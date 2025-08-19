@@ -1,5 +1,5 @@
+import { buildApiHandler } from "@core/api"
 import * as vscode from "vscode"
-import { buildApiHandler } from "@/api"
 import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"

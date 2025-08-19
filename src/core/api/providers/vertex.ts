@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { ApiStream } from "@api/transform/stream"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { ApiHandler } from "../"
 import { withRetry } from "../retry"
+import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
 interface VertexHandlerOptions {

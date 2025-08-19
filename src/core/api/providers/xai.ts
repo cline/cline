@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { convertToOpenAiMessages } from "@api/transform/openai-format"
-import { ApiStream } from "@api/transform/stream"
 import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { ApiHandler } from "../"
 import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 interface XAIHandlerOptions {
 	xaiApiKey?: string

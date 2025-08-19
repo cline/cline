@@ -1,3 +1,4 @@
+import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -5,12 +6,11 @@ import {
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
+import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { OpenaiReasoningEffort } from "@/shared/storage/types"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { buildApiHandler } from "../../../api"
 import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
 import { Controller } from ".."
 
 /**

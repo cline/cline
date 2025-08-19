@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"

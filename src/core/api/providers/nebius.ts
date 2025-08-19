@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "@shared/api"
 import OpenAI from "openai"
-import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"

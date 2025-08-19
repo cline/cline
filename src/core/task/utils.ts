@@ -1,4 +1,4 @@
-import { ApiHandler } from "@/api"
+import { ApiHandler } from "@core/api"
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
 import { calculateApiCostAnthropic } from "@/utils/cost"
