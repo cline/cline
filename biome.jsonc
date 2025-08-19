@@ -95,7 +95,7 @@
 		"indentWidth": 4,
 		"lineWidth": 130,
 		"lineEnding": "lf",
-		"formatWithErrors": false,
+		"formatWithErrors": true,
 		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
 		"includes": [
 			"**",
