@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import Anthropic from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -1348,7 +1348,7 @@ export class ToolExecutor {
 						if (mcp_arguments) {
 							try {
 								parsedArguments = JSON.parse(mcp_arguments)
-							} catch (error) {
+							} catch (_error) {
 								this.taskState.consecutiveMistakeCount++
 								await this.say(
 									"error",
@@ -1898,8 +1898,7 @@ export class ToolExecutor {
 
 						// Derive system information values algorithmically
 						const operatingSystem = os.platform() + " " + os.release()
-						const clineVersion =
-							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
+						const clineVersion = this.context.extension.packageJSON.version || "Unknown"
 						const host = await HostProvider.env.getHostVersion({})
 						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode

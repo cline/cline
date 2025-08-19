@@ -1,7 +1,7 @@
+import { Accordion, AccordionItem } from "@heroui/react"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
-import { Accordion, AccordionItem } from "@heroui/react"
 
 interface AnnouncementProps {
 	version: string
@@ -19,7 +19,7 @@ const containerStyle: CSSProperties = {
 const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
 const h3TitleStyle: CSSProperties = { margin: "0 0 8px" }
 const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px" }
-const accountIconStyle: CSSProperties = { fontSize: 11 }
+const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
 	height: "1px",
 	background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
@@ -38,7 +38,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton data-testid="close-button" appearance="icon" onClick={hideAnnouncement} style={closeIconStyle}>
+			<VSCodeButton appearance="icon" data-testid="close-button" onClick={hideAnnouncement} style={closeIconStyle}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={h3TitleStyle}>
@@ -49,14 +49,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
 					down complex tasks into manageable steps with real-time progress tracking and passive reminders. Steps are
 					displayed in a handy todo list, which can be edited mid-task.{" "}
-					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/focus-chain">
+					<VSCodeLink href="https://docs.cline.bot/features/focus-chain" style={linkStyle}>
 						Learn more
 					</VSCodeLink>
 				</li>
 				<li>
 					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model’s
 					context window limit. This significantly helps Cline stay on track for long task sessions!{" "}
-					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/auto-compact">
+					<VSCodeLink href="https://docs.cline.bot/features/auto-compact" style={linkStyle}>
 						Learn more
 					</VSCodeLink>
 				</li>
@@ -64,7 +64,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
 					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
 					code.{" "}
-					<VSCodeLink style={linkStyle} href="https://docs.cline.bot/features/slash-commands/deep-planning">
+					<VSCodeLink href="https://docs.cline.bot/features/slash-commands/deep-planning" style={linkStyle}>
 						Learn more
 					</VSCodeLink>
 				</li>
@@ -77,17 +77,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					model for 1M context, or use the original for 200K.
 				</li>
 			</ul>
-			<Accordion isCompact className="pl-0">
+			<Accordion className="pl-0" isCompact>
 				<AccordionItem
-					key="1"
 					aria-label="Previous Updates"
-					title="Previous Updates:"
 					classNames={{
 						trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
 						title: "font-bold text-[var(--vscode-foreground)]",
 						indicator:
 							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
-					}}>
+					}}
+					key="1"
+					title="Previous Updates:">
 					<ul style={ulStyle}>
 						<li>
 							<b>Optimized for Claude 4:</b> Cline is now optimized to work with the Claude 4 family of models,
@@ -138,14 +138,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
-				<VSCodeLink style={linkStyle} href="https://x.com/cline">
+				<VSCodeLink href="https://x.com/cline" style={linkStyle}>
 					X,
 				</VSCodeLink>{" "}
-				<VSCodeLink style={linkStyle} href="https://discord.gg/cline">
+				<VSCodeLink href="https://discord.gg/cline" style={linkStyle}>
 					discord,
 				</VSCodeLink>{" "}
 				or{" "}
-				<VSCodeLink style={linkStyle} href="https://www.reddit.com/r/cline/">
+				<VSCodeLink href="https://www.reddit.com/r/cline/" style={linkStyle}>
 					r/cline
 				</VSCodeLink>
 				for more updates!

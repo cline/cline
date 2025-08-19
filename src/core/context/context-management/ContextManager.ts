@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
@@ -174,14 +174,14 @@ export class ContextManager {
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		clineMessages: ClineMessage[],
-		api: ApiHandler,
+		_clineMessages: ClineMessage[],
+		_api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
 		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
 	) {
-		let updatedConversationHistoryDeletedRange = false
+		const updatedConversationHistoryDeletedRange = false
 
 		if (!useAutoCondense) {
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -438,7 +438,7 @@ export class ContextManager {
 	/**
 	 * applies the context optimization steps and returns whether any changes were made
 	 */
-	private applyContextOptimizations(
+	public applyContextOptimizations(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
 		timestamp: number,

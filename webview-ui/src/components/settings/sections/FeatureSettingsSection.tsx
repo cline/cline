@@ -153,7 +153,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								id="focus-chain-remind-interval"
 								onChange={(e: any) => {
 									const value = parseInt(e.target.value, 10)
-									if (!isNaN(value) && value >= 1 && value <= 100) {
+									if (!Number.isNaN(value) && value >= 1 && value <= 100) {
 										updateSetting("focusChainSettings", {
 											...focusChainSettings,
 											remindClineInterval: value,

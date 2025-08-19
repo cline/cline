@@ -1,16 +1,15 @@
-import axios from "axios"
-import * as vscode from "vscode"
-import { getNonce } from "./getNonce"
-
-import { WebviewProviderType } from "@/shared/webview/types"
+import path from "node:path"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
+import axios from "axios"
 import { readFile } from "fs/promises"
-import path from "node:path"
 import { v4 as uuidv4 } from "uuid"
+import * as vscode from "vscode"
 import { Uri } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { WebviewProviderType } from "@/shared/webview/types"
+import { getNonce } from "./getNonce"
 
 export abstract class WebviewProvider {
 	private static activeInstances: Set<WebviewProvider> = new Set()
@@ -221,7 +220,7 @@ export abstract class WebviewProvider {
 
 				return port
 			})
-			.catch((err) => {
+			.catch((_err) => {
 				console.warn(
 					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
 				)
@@ -243,7 +242,7 @@ export abstract class WebviewProvider {
 		// Check if local dev server is running.
 		try {
 			await axios.get(`http://${localServerUrl}`)
-		} catch (error) {
+		} catch (_error) {
 			// Only show the error message when in development mode.
 			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({

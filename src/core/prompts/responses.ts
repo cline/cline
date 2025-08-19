@@ -13,11 +13,11 @@ export const formatResponse = {
 
 	processFirstUserMessageForTruncation: (originalContent: string) => {
 		const MAX_CHARS = 400_000
-		
+
 		if (originalContent.length <= MAX_CHARS) {
 			return originalContent
 		}
-		
+
 		const truncated = originalContent.substring(0, MAX_CHARS)
 		return truncated + "\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
 	},

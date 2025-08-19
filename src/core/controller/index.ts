@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { buildApiHandler } from "@api/index"
+import { buildApiHandler } from "@core/api"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -142,7 +142,7 @@ export class Controller {
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
-		} catch (error) {
+		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",

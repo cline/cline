@@ -1,9 +1,9 @@
-import { describe, it, before, after, beforeEach } from "mocha"
 import { expect } from "chai"
-import * as vscode from "vscode"
-import * as path from "path"
 import * as fs from "fs/promises"
+import { after, before, beforeEach, describe, it } from "mocha"
 import * as os from "os"
+import * as path from "path"
+import * as vscode from "vscode"
 import { saveOpenDocumentIfDirty } from "@/hosts/vscode/hostbridge/workspace/saveOpenDocumentIfDirty"
 import { SaveOpenDocumentIfDirtyRequest } from "@/shared/proto/index.host"
 
@@ -26,7 +26,7 @@ describe("saveOpenDocumentIfDirty Integration Test", () => {
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 		try {
 			await fs.rm(testWorkspaceRoot, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Directory might not exist, ignore
 		}
 	})
