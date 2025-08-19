@@ -35,7 +35,7 @@ export async function openMention(mention?: string): Promise<void> {
 			openFile(absPath)
 		}
 	} else if (mention === "problems") {
-		vscode.commands.executeCommand("workbench.actions.view.problems")
+		await HostProvider.workspace.openProblemsPanel({})
 	} else if (mention === "terminal") {
 		vscode.commands.executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
