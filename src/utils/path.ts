@@ -115,7 +115,7 @@ export function getDesktopDir() {
 // Returns the workspace path of the file in the current editor.
 // If there is no open file, it returns the top level workspace directory.
 export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
-	const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath
+	const currentFilePath = (await HostProvider.window.getActiveEditor({})).filePath
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}
