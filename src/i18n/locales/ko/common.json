@@ -100,6 +100,9 @@
 			"genericError": "Cerebras API 오류 ({{status}}): {{message}}",
 			"noResponseBody": "Cerebras API 오류: 응답 본문 없음",
 			"completionError": "Cerebras 완료 오류: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Roo 제공업체는 클라우드 인증이 필요합니다. Roo Code Cloud에 로그인하세요."
 		}
 	},
 	"warnings": {

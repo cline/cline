@@ -377,6 +377,10 @@
 			"description": "不需要 API 密钥，但用户需要帮助将信息复制并粘贴到网页聊天 AI。",
 			"instructions": "使用期间，将弹出对话框并自动将当前消息复制到剪贴板。您需要将这些内容粘贴到 AI 的网页版本（如 ChatGPT 或 Claude），然后将 AI 的回复复制回对话框并点击确认按钮。"
 		},
+		"roo": {
+			"authenticatedMessage": "已通过 Roo Code Cloud 账户安全认证。",
+			"connectButton": "连接到 Roo Code Cloud"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter 提供商路由",

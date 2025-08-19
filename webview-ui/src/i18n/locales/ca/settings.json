@@ -377,6 +377,10 @@
 			"description": "No es requereix clau API, però l'usuari necessita ajuda per copiar i enganxar informació al xat d'IA web.",
 			"instructions": "Durant l'ús, apareixerà un diàleg i el missatge actual es copiarà automàticament al porta-retalls. Necessiteu enganxar-lo a les versions web d'IA (com ChatGPT o Claude), després copiar la resposta de l'IA de nou al diàleg i fer clic al botó de confirmació."
 		},
+		"roo": {
+			"authenticatedMessage": "Autenticat de forma segura a través del teu compte de Roo Code Cloud.",
+			"connectButton": "Connecta amb Roo Code Cloud"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "Encaminament de Proveïdors d'OpenRouter",

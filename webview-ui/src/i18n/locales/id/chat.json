@@ -355,9 +355,9 @@
 		"ariaLabel": "Versi {{version}} - Klik untuk melihat catatan rilis"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud segera hadir!",
+		"title": "Roo Code Cloud sedang berkembang!",
 		"description": "Jalankan agen jarak jauh di cloud, akses tugas Anda dari mana saja, berkolaborasi dengan orang lain, dan banyak lagi.",
-		"joinWaitlist": "Bergabunglah dengan daftar tunggu untuk mendapatkan akses awal."
+		"joinWaitlist": "Daftar untuk mendapatkan pembaruan terbaru."
 	},
 	"editMessage": {
 		"placeholder": "Edit pesan Anda..."

@@ -377,6 +377,10 @@
 			"description": "APIキーは不要ですが、ユーザーはウェブチャットAIに情報をコピー＆ペーストする必要があります。",
 			"instructions": "使用中にダイアログボックスが表示され、現在のメッセージが自動的にクリップボードにコピーされます。これらをウェブ版のAI（ChatGPTやClaudeなど）に貼り付け、AIの返答をダイアログボックスにコピーして確認ボタンをクリックする必要があります。"
 		},
+		"roo": {
+			"authenticatedMessage": "Roo Code Cloudアカウントを通じて安全に認証されています。",
+			"connectButton": "Roo Code Cloudに接続"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouterプロバイダールーティング",

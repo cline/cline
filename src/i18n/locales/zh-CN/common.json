@@ -105,6 +105,9 @@
 			"genericError": "Cerebras API 错误 ({{status}})：{{message}}",
 			"noResponseBody": "Cerebras API 错误：无响应主体",
 			"completionError": "Cerebras 完成错误：{{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Roo 提供商需要云认证。请登录 Roo Code Cloud。"
 		}
 	},
 	"warnings": {

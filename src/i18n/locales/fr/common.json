@@ -100,6 +100,9 @@
 			"genericError": "Erreur de l'API Cerebras ({{status}}) : {{message}}",
 			"noResponseBody": "Erreur de l'API Cerebras : Aucun corps de réponse",
 			"completionError": "Erreur d'achèvement de Cerebras : {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Le fournisseur Roo nécessite une authentification cloud. Veuillez vous connecter à Roo Code Cloud."
 		}
 	},
 	"warnings": {

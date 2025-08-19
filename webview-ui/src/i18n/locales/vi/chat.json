@@ -349,9 +349,9 @@
 		"ariaLabel": "Phiên bản {{version}} - Nhấp để xem ghi chú phát hành"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud sắp ra mắt!",
+		"title": "Roo Code Cloud đang phát triển!",
 		"description": "Chạy các agent từ xa trên cloud, truy cập các tác vụ của bạn từ mọi nơi, cộng tác với người khác và nhiều hơn nữa.",
-		"joinWaitlist": "Tham gia danh sách chờ để được truy cập sớm."
+		"joinWaitlist": "Đăng ký để nhận các cập nhật mới nhất."
 	},
 	"editMessage": {
 		"placeholder": "Chỉnh sửa tin nhắn của bạn..."

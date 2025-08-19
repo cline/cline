@@ -349,9 +349,9 @@
 		"ariaLabel": "バージョン {{version}} - クリックしてリリースノートを表示"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud が間もなく登場！",
+		"title": "Roo Code Cloud が進化中！",
 		"description": "クラウドでリモートエージェントを実行し、どこからでもタスクにアクセスし、他の人と協力し、その他多くの機能を利用できます。",
-		"joinWaitlist": "早期アクセスを取得するためにウェイトリストに参加してください。"
+		"joinWaitlist": "最新のアップデートを受け取るためにサインアップしてください。"
 	},
 	"editMessage": {
 		"placeholder": "メッセージを編集..."

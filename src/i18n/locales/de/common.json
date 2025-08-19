@@ -100,6 +100,9 @@
 			"genericError": "Cerebras API-Fehler ({{status}}): {{message}}",
 			"noResponseBody": "Cerebras API-Fehler: Kein Antworttext vorhanden",
 			"completionError": "Cerebras-Vervollständigungsfehler: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Roo-Anbieter erfordert Cloud-Authentifizierung. Bitte melde dich bei Roo Code Cloud an."
 		}
 	},
 	"warnings": {

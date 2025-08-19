@@ -349,9 +349,9 @@
 		"ariaLabel": "버전 {{version}} - 릴리스 노트를 보려면 클릭하세요"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud가 곧 출시됩니다!",
+		"title": "Roo Code Cloud가 진화하고 있습니다!",
 		"description": "클라우드에서 원격 에이전트를 실행하고, 어디서나 작업에 액세스하고, 다른 사람들과 협업하는 등 다양한 기능을 이용하세요.",
-		"joinWaitlist": "얼리 액세스를 받으려면 대기 목록에 가입하세요."
+		"joinWaitlist": "최신 업데이트를 받으려면 가입하세요."
 	},
 	"editMessage": {
 		"placeholder": "메시지 편집..."

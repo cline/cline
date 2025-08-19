@@ -349,9 +349,9 @@
 		"ariaLabel": "Versie {{version}} - Klik om release notes te bekijken"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud komt binnenkort!",
+		"title": "Roo Code Cloud evolueert!",
 		"description": "Voer externe agenten uit in de cloud, krijg overal toegang tot je taken, werk samen met anderen en nog veel meer.",
-		"joinWaitlist": "Sluit je aan bij de wachtlijst voor vroege toegang."
+		"joinWaitlist": "Meld je aan om de laatste updates te ontvangen."
 	},
 	"editMessage": {
 		"placeholder": "Bewerk je bericht..."

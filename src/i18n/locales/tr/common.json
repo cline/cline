@@ -100,6 +100,9 @@
 			"genericError": "Cerebras API Hatası ({{status}}): {{message}}",
 			"noResponseBody": "Cerebras API Hatası: Yanıt gövdesi yok",
 			"completionError": "Cerebras tamamlama hatası: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Roo sağlayıcısı bulut kimlik doğrulaması gerektirir. Lütfen Roo Code Cloud'a giriş yapın."
 		}
 	},
 	"warnings": {

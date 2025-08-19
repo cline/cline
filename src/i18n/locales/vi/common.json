@@ -100,6 +100,9 @@
 			"genericError": "Lỗi API Cerebras ({{status}}): {{message}}",
 			"noResponseBody": "Lỗi API Cerebras: Không có nội dung phản hồi",
 			"completionError": "Lỗi hoàn thành Cerebras: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Nhà cung cấp Roo yêu cầu xác thực đám mây. Vui lòng đăng nhập vào Roo Code Cloud."
 		}
 	},
 	"warnings": {

@@ -34,7 +34,7 @@ export const ModelDescriptionMarkdown = memo(
 
 		return (
 			<Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="relative">
-				<div ref={textContainerRef} className={cn({ "line-clamp-3": !isExpanded })}>
+				<div ref={textContainerRef} className={cn({ "line-clamp-4": !isExpanded })}>
 					<div ref={textRef}>
 						<StyledMarkdown key={key}>{content}</StyledMarkdown>
 					</div>

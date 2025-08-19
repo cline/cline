@@ -349,9 +349,9 @@
 		"ariaLabel": "Versió {{version}} - Feu clic per veure les notes de llançament"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud arribarà aviat!",
+		"title": "Roo Code Cloud està evolucionant!",
 		"description": "Executa agents remots al núvol, accedeix a les teves tasques des de qualsevol lloc, col·labora amb altres i molt més.",
-		"joinWaitlist": "Uneix-te a la llista d'espera per obtenir accés anticipat."
+		"joinWaitlist": "Registra't per rebre les últimes actualitzacions."
 	},
 	"editMessage": {
 		"placeholder": "Edita el teu missatge..."

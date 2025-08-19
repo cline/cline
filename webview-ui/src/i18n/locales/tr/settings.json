@@ -377,6 +377,10 @@
 			"description": "API anahtarı gerekmez, ancak kullanıcının bilgileri web sohbet yapay zekasına kopyalayıp yapıştırması gerekir.",
 			"instructions": "Kullanım sırasında bir iletişim kutusu açılacak ve mevcut mesaj otomatik olarak panoya kopyalanacaktır. Bunları web yapay zekalarına (ChatGPT veya Claude gibi) yapıştırmanız, ardından yapay zekanın yanıtını iletişim kutusuna kopyalayıp onay düğmesine tıklamanız gerekir."
 		},
+		"roo": {
+			"authenticatedMessage": "Roo Code Cloud hesabın üzerinden güvenli bir şekilde kimlik doğrulandı.",
+			"connectButton": "Roo Code Cloud'a Bağlan"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter Sağlayıcı Yönlendirmesi",

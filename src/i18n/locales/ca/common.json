@@ -104,6 +104,9 @@
 			"noResponseBody": "Error de l'API de Cerebras: No hi ha cos de resposta",
 			"completionError": "Error de finalització de Cerebras: {{error}}"
 		},
+		"roo": {
+			"authenticationRequired": "El proveïdor Roo requereix autenticació al núvol. Si us plau, inicieu sessió a Roo Code Cloud."
+		},
 		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},
 	"warnings": {

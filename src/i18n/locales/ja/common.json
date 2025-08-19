@@ -100,6 +100,9 @@
 			"genericError": "Cerebras APIエラー ({{status}}): {{message}}",
 			"noResponseBody": "Cerebras APIエラー: レスポンスボディなし",
 			"completionError": "Cerebras完了エラー: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Rooプロバイダーはクラウド認証が必要です。Roo Code Cloudにサインインしてください。"
 		}
 	},
 	"warnings": {

@@ -376,6 +376,10 @@
 			"description": "No API key is required, but the user needs to help copy and paste the information to the web chat AI.",
 			"instructions": "During use, a dialog box will pop up and the current message will be copied to the clipboard automatically. You need to paste these to web versions of AI (such as ChatGPT or Claude), then copy the AI's reply back to the dialog box and click the confirm button."
 		},
+		"roo": {
+			"authenticatedMessage": "Securely authenticated through your Roo Code Cloud account.",
+			"connectButton": "Connect to Roo Code Cloud"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter Provider Routing",

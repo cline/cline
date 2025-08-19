@@ -100,6 +100,9 @@
 			"noResponseBody": "Cerebras API 錯誤：無回應主體",
 			"completionError": "Cerebras 完成錯誤：{{error}}"
 		},
+		"roo": {
+			"authenticationRequired": "Roo 提供者需要雲端認證。請登入 Roo Code Cloud。"
+		},
 		"mode_import_failed": "匯入模式失敗：{{error}}"
 	},
 	"warnings": {

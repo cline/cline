@@ -100,6 +100,9 @@
 			"genericError": "Cerebras API त्रुटि ({{status}}): {{message}}",
 			"noResponseBody": "Cerebras API त्रुटि: कोई प्रतिक्रिया मुख्य भाग नहीं",
 			"completionError": "Cerebras पूर्णता त्रुटि: {{error}}"
+		},
+		"roo": {
+			"authenticationRequired": "Roo प्रदाता को क्लाउड प्रमाणीकरण की आवश्यकता है। कृपया Roo Code Cloud में साइन इन करें।"
 		}
 	},
 	"warnings": {

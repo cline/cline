@@ -377,6 +377,10 @@
 			"description": "Geen API-sleutel vereist, maar de gebruiker moet helpen met kopiëren en plakken naar de webchat-AI.",
 			"instructions": "Tijdens gebruik verschijnt een dialoogvenster en wordt het huidige bericht automatisch naar het klembord gekopieerd. Je moet deze plakken in webversies van AI (zoals ChatGPT of Claude), vervolgens het antwoord van de AI terugkopiëren naar het dialoogvenster en op bevestigen klikken."
 		},
+		"roo": {
+			"authenticatedMessage": "Veilig geauthenticeerd via je Roo Code Cloud-account.",
+			"connectButton": "Verbinden met Roo Code Cloud"
+		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter-providerroutering",

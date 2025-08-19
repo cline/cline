@@ -48,6 +48,8 @@ import {
 	fireworksDefaultModelId,
 	ioIntelligenceDefaultModelId,
 	ioIntelligenceModels,
+	rooDefaultModelId,
+	rooModels,
 	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
 } from "@roo-code/types"
 
@@ -294,6 +296,11 @@ function getSelectedModel({
 			const id = apiConfiguration.ioIntelligenceModelId ?? ioIntelligenceDefaultModelId
 			const info =
 				routerModels["io-intelligence"]?.[id] ?? ioIntelligenceModels[id as keyof typeof ioIntelligenceModels]
+			return { id, info }
+		}
+		case "roo": {
+			const id = apiConfiguration.apiModelId ?? rooDefaultModelId
+			const info = rooModels[id as keyof typeof rooModels]
 			return { id, info }
 		}
 		// case "anthropic":

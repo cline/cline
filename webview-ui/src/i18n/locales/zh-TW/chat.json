@@ -352,9 +352,9 @@
 		"ariaLabel": "版本 {{version}} - 點選查看發布說明"
 	},
 	"rooCloudCTA": {
-		"title": "Roo Code Cloud 即將推出！",
+		"title": "Roo Code Cloud 正在進化！",
 		"description": "在雲端執行 Roomote 遠端代理、隨時隨地存取您的工作、與他人協作等等。",
-		"joinWaitlist": "加入等候名單以獲得早期存取權限。"
+		"joinWaitlist": "註冊以獲得最新更新。"
 	},
 	"command": {
 		"triggerDescription": "觸發 {{name}} 命令"
