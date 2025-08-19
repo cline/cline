@@ -181,7 +181,7 @@ export class ContextManager {
 		taskDirectory: string,
 		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
 	) {
-		const updatedConversationHistoryDeletedRange = false
+		let updatedConversationHistoryDeletedRange = false
 
 		if (!useAutoCondense) {
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request

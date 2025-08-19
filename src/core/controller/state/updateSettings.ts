@@ -10,9 +10,6 @@ import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-co
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { OpenaiReasoningEffort } from "@/shared/storage/types"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { buildApiHandler } from "../../../api"
 import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
 import { Controller } from ".."
 
