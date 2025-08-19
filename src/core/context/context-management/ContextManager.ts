@@ -376,6 +376,26 @@ export class ContextManager {
 	}
 
 	/**
+	 * applies the context optimization steps and returns whether any changes were made
+	 */
+	public applyContextOptimizations(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+		timestamp: number,
+	): [boolean, Set<number>] {
+		const [fileReadUpdatesBool, uniqueFileReadIndices] = this.findAndPotentiallySaveFileReadContextHistoryUpdates(
+			apiMessages,
+			startFromIndex,
+			timestamp,
+		)
+
+		// true if any context optimization steps alter state
+		const contextHistoryUpdated = fileReadUpdatesBool
+
+		return [contextHistoryUpdated, uniqueFileReadIndices]
+	}
+
+	/**
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
