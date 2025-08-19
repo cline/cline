@@ -1,19 +1,19 @@
-import { ApiHandler } from ".."
-import {
-	ModelInfo,
-	mainlandZAiModels,
-	internationalZAiModels,
-	mainlandZAiDefaultModelId,
-	internationalZAiDefaultModelId,
-	mainlandZAiModelId,
-	internationalZAiModelId,
-} from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
+import {
+	internationalZAiDefaultModelId,
+	internationalZAiModelId,
+	internationalZAiModels,
+	ModelInfo,
+	mainlandZAiDefaultModelId,
+	mainlandZAiModelId,
+	mainlandZAiModels,
+} from "@shared/api"
 import OpenAI from "openai"
+import { version as extensionVersion } from "../../../package.json"
+import { ApiHandler } from ".."
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { withRetry } from "../retry"
-import { version as extensionVersion } from "../../../package.json"
 
 interface ZAiHandlerOptions {
 	zaiApiLine?: string
@@ -75,7 +75,7 @@ export class ZAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]

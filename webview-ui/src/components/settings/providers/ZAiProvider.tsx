@@ -1,13 +1,14 @@
-import { ApiConfiguration, mainlandZAiModels, internationalZAiModels } from "@shared/api"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { ApiConfiguration, internationalZAiModels, mainlandZAiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
 /**
  * Props for the ZAiProvider component
  */
@@ -41,12 +42,12 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				</label>
 				<VSCodeDropdown
 					id="zai-entrypoint"
-					value={apiConfiguration?.zaiApiLine || "international"}
 					onChange={(e) => handleFieldChange("zaiApiLine", (e.target as any).value)}
 					style={{
 						minWidth: 130,
 						position: "relative",
-					}}>
+					}}
+					value={apiConfiguration?.zaiApiLine || "international"}>
 					<VSCodeOption value="international">api.z.ai</VSCodeOption>
 					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
 				</VSCodeDropdown>
@@ -74,8 +75,8 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={zaiModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -83,10 +84,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

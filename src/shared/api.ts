@@ -66,6 +66,8 @@ export interface ApiHandlerOptions {
 	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
 	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioMaxTokens?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
@@ -875,7 +877,7 @@ export const vertexModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
-	Object.entries(vertexModels).filter(([_k, v]) => v.hasOwnProperty("supportsGlobalEndpoint")),
+	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
