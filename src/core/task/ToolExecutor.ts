@@ -56,6 +56,7 @@ import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
 import { Mode } from "@shared/storage/types"
 import { continuationPrompt } from "../prompts/contextManagement"
+import { HostProvider } from "@/hosts/host-provider"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -1897,7 +1898,8 @@ export class ToolExecutor {
 						const operatingSystem = os.platform() + " " + os.release()
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+						const host = await HostProvider.env.getHostVersion({})
+						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
 						const apiConfig = this.cacheService.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
