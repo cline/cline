@@ -1622,8 +1622,10 @@ export class Task {
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
+		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+
 		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-			this.messageStateHandler.getApiConversationHistory(),
+			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
@@ -1631,6 +1633,7 @@ export class Task {
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			apiConversationHistory,
 		)
 
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true

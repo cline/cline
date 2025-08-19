@@ -399,14 +399,14 @@ export class ContextManager {
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
-	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
-		/*
-        const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
-		const userUpdated = this.applyFirstUserMessageReplacement(timestamp)
-		if (assistantUpdated || userUpdated)
-		*/
-		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
-		if (updated) {
+	async triggerApplyStandardContextTruncationNoticeChange(
+		timestamp: number,
+		taskDirectory: string,
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+	) {
+		const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		const userUpdated = this.applyFirstUserMessageReplacement(timestamp, apiConversationHistory)
+		if (assistantUpdated || userUpdated) {
 			await this.saveContextHistory(taskDirectory)
 		}
 	}
@@ -428,13 +428,35 @@ export class ContextManager {
 	/**
 	 * Replace the first user message when context window is compacted
 	 */
-	private applyFirstUserMessageReplacement(timestamp: number): boolean {
+	private applyFirstUserMessageReplacement(
+		timestamp: number,
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+	): boolean {
 		if (!this.contextHistoryUpdates.has(0)) {
-			// first user message always at index 0
-			const innerMap = new Map<number, ContextUpdate[]>()
-			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationFirstUserMessage()], []]])
-			this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
-			return true
+			try {
+				// choosing to be extra careful here, but likely not required
+				let firstUserMessage = ""
+
+				const message = apiConversationHistory[0]
+				if (Array.isArray(message.content)) {
+					const block = message.content[0]
+					if (block && block.type === "text") {
+						firstUserMessage = block.text
+					}
+				}
+
+				if (firstUserMessage) {
+					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation(firstUserMessage)
+
+					const innerMap = new Map<number, ContextUpdate[]>()
+					innerMap.set(0, [[timestamp, "text", [processedFirstUserMessage], []]])
+					this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
+
+					return true
+				}
+			} catch (error) {
+				console.error("applyFirstUserMessageReplacement:", error)
+			}
 		}
 		return false
 	}

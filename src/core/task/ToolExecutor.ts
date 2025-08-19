@@ -1724,6 +1724,7 @@ export class ToolExecutor {
 						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 							Date.now(),
 							await ensureTaskDirectoryExists(this.context, this.taskId),
+							apiConversationHistory,
 						)
 					}
 					await this.saveCheckpoint()
@@ -1812,6 +1813,7 @@ export class ToolExecutor {
 							await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 								Date.now(),
 								await ensureTaskDirectoryExists(this.context, this.taskId),
+								apiConversationHistory,
 							)
 						}
 						await this.saveCheckpoint()
