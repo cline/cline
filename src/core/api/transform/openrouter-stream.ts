@@ -139,6 +139,10 @@ export async function createOpenRouterStream(
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
+		case "cline/sonic":
+			temperature = 0.7
+			topP = 0.95
+			break
 	}
 
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
