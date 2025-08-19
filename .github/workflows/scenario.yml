@@ -22,8 +22,20 @@ jobs:
               run: |
                   echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
 
+    validate-scenario:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Validate PR-specific scenario metadata
+              run: |
+                  if [ "${{ github.event_name }}" != "pull_request" ]; then
+                    echo "Not a pull_request event; skipping scenario validation."
+                    exit 0
+                  fi
+                  bash scripts/validate-scenario.sh "${{ github.event.number }}"
+
     scenarios:
-        needs: matrix_prep
+        needs: [matrix_prep, validate-scenario]
         strategy:
             fail-fast: false
             matrix:
