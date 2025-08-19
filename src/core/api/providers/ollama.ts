@@ -1,10 +1,10 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { Message, Ollama, Config } from "ollama"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
-import { convertToOllamaMessages } from "../transform/ollama-format"
-import { ApiStream } from "../transform/stream"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { type Config, type Message, Ollama } from "ollama"
+import type { ApiHandler } from "../"
 import { withRetry } from "../retry"
+import { convertToOllamaMessages } from "../transform/ollama-format"
+import type { ApiStream } from "../transform/stream"
 
 interface OllamaHandlerOptions {
 	ollamaBaseUrl?: string
@@ -14,12 +14,15 @@ interface OllamaHandlerOptions {
 	requestTimeoutMs?: number
 }
 
+const DEFAULT_CONTEXT_WINDOW = 32768
+
 export class OllamaHandler implements ApiHandler {
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
 
 	constructor(options: OllamaHandlerOptions) {
-		this.options = options
+		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
+		this.options = { ...options, ollamaApiOptionsCtxNum }
 	}
 
 	private ensureClient(): Ollama {
@@ -62,7 +65,7 @@ export class OllamaHandler implements ApiHandler {
 				messages: ollamaMessages,
 				stream: true,
 				options: {
-					num_ctx: Number(this.options.ollamaApiOptionsCtxNum) || 32768,
+					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},
 			})
 
@@ -91,9 +94,9 @@ export class OllamaHandler implements ApiHandler {
 				console.error("Error processing Ollama stream:", streamError)
 				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
 			}
-		} catch (error: any) {
+		} catch (error) {
 			// Check if it's a timeout error
-			if (error.message && error.message.includes("timed out")) {
+			if (error?.message?.includes("timed out")) {
 				const timeoutMs = this.options.requestTimeoutMs || 30000
 				throw new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)
 			}
@@ -110,9 +113,10 @@ export class OllamaHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.ollamaModelId || "",
-			info: this.options.ollamaApiOptionsCtxNum
-				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32768 }
-				: openAiModelInfoSaneDefaults,
+			info: {
+				...openAiModelInfoSaneDefaults,
+				contextWindow: Number(this.options.ollamaApiOptionsCtxNum),
+			},
 		}
 	}
 }

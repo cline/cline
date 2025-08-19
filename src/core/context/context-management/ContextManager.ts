@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
