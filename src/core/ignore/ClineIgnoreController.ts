@@ -21,15 +21,15 @@ export class ClineIgnoreController {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
 		this.clineIgnoreContent = undefined
-		// Set up file watcher for .clineignore
-		this.setupFileWatcher()
 	}
 
 	/**
-	 * Initialize the controller by loading custom patterns
+	 * Initialize the controller by loading custom patterns and setting up file watcher
 	 * Must be called after construction and before using the controller
 	 */
 	async initialize(): Promise<void> {
+		// Set up file watcher for .clineignore
+		this.setupFileWatcher()
 		await this.loadClineIgnore()
 	}
 
