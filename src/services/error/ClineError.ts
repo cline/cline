@@ -1,5 +1,5 @@
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 import { serializeError } from "serialize-error"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",

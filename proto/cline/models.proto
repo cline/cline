@@ -240,6 +240,7 @@ message ModelsApiConfiguration {
   optional string ollama_api_key = 64;
   optional string zai_api_key = 65;
   optional string zai_api_line = 66;
+  optional string lm_studio_max_tokens = 67;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

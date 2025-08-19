@@ -189,6 +189,7 @@ message ApiConfiguration {
   optional string ollama_api_key = 58;
   optional string zai_api_key = 59;
   optional string zai_api_line = 60;
+  optional string lm_studio_max_tokens = 61;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;

@@ -1,4 +1,4 @@
-import type { LanguageModelChatSelector } from "../api/providers/types"
+import type { LanguageModelChatSelector } from "../core/api/providers/types"
 
 export type ApiProvider =
 	| "anthropic"
@@ -66,6 +66,8 @@ export interface ApiHandlerOptions {
 	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
 	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioMaxTokens?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string

@@ -1,9 +1,9 @@
+import { ApiHandlerModel } from "@core/api"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { ApiHandlerModel } from "@/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { SYSTEM_PROMPT_GENERIC } from "./generic-system-prompt"
 import { SYSTEM_PROMPT_NEXT_GEN } from "./families/next-gen-models/next-gen-system-prompt"
+import { SYSTEM_PROMPT_GENERIC } from "./generic-system-prompt"
 import { isNextGenModelFamily } from "./utils"
 
 export const buildSystemPrompt = async (

@@ -1,9 +1,9 @@
-import { getShell } from "@utils/shell"
-import os from "os"
-import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { getShell } from "@utils/shell"
+import os from "os"
+import osName from "os-name"
 
 export const SYSTEM_PROMPT_GENERIC = async (
 	cwd: string,
