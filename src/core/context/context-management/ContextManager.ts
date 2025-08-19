@@ -174,8 +174,8 @@ export class ContextManager {
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		_clineMessages: ClineMessage[],
-		_api: ApiHandler,
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
