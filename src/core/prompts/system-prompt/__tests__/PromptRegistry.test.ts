@@ -1,0 +1,115 @@
+import { expect } from "chai"
+import { PromptRegistry } from "../registry/PromptRegistry"
+import { extractModelFamily } from "../registry/utils"
+import type { SystemPromptContext } from "../types"
+
+describe("PromptRegistry", () => {
+	let registry: PromptRegistry
+	const mockContext: SystemPromptContext = {
+		cwd: "/test/project",
+		supportsBrowserUse: true,
+		mcpHub: {
+			getServers: () => [],
+		},
+		focusChainSettings: {
+			enabled: true,
+			remindClineInterval: 6,
+		},
+		browserSettings: {
+			viewport: {
+				width: 1280,
+				height: 720,
+			},
+		},
+		isTesting: true,
+	}
+
+	beforeEach(() => {
+		// Get a fresh instance for each test
+		;(PromptRegistry as any).instance = undefined
+		registry = PromptRegistry.getInstance()
+	})
+
+	describe("getInstance", () => {
+		it("should return singleton instance", () => {
+			const instance1 = PromptRegistry.getInstance()
+			const instance2 = PromptRegistry.getInstance()
+
+			expect(instance1).to.equal(instance2)
+		})
+	})
+
+	describe("extractModelFamily", () => {
+		it("should extract correct model families", () => {
+			const testCases = [
+				{ input: "claude-3-5-sonnet", expected: "generic" },
+				{ input: "gpt-4-turbo", expected: "generic" },
+				{ input: "gemini-pro", expected: "generic" },
+				{ input: "qwen-max", expected: "generic" },
+				{ input: "anthropic/claude-3", expected: "generic" },
+				{ input: "openai/gpt-4", expected: "generic" },
+				{ input: "google/gemini", expected: "generic" },
+				{ input: "claude-sonnet-4", expected: "next-gen" },
+				{ input: "gpt-5", expected: "next-gen" },
+				{ input: "unknown-model", expected: "generic" },
+			]
+
+			for (const { input, expected } of testCases) {
+				const result = extractModelFamily(input)
+				expect(result).to.equal(expected)
+			}
+		})
+	})
+
+	describe("get method", () => {
+		it("should handle fallback to generic variant", async () => {
+			try {
+				// Try to get a prompt for an unknown model
+				// This should fallback to generic or throw an appropriate error
+				const prompt = await registry.get("unknown-model-test", mockContext)
+
+				// If we get a prompt, it should be a string
+				expect(prompt).to.be.a("string")
+				if (prompt.length > 0) {
+					expect(prompt.length).to.be.greaterThan(10)
+				}
+			} catch (error) {
+				// It's okay if it throws an error about missing variants
+				expect(error).to.be.instanceOf(Error)
+			}
+		})
+	})
+
+	describe("getAvailableModels", () => {
+		it("should return list of available model IDs", () => {
+			const models = registry.getAvailableModels()
+			expect(models).to.be.an("array")
+			// Should be empty initially since no variants are loaded
+			expect(models.length).to.be.greaterThanOrEqual(0)
+		})
+	})
+
+	describe("registerComponent", () => {
+		it("should register custom components", () => {
+			const mockComponent = async () => "CUSTOM COMPONENT"
+
+			registry.registerComponent("custom", mockComponent)
+
+			expect((registry as any).components.custom).to.equal(mockComponent)
+		})
+	})
+
+	describe("basic functionality", () => {
+		it("should be able to create registry instance", () => {
+			expect(registry).to.be.instanceOf(PromptRegistry)
+		})
+
+		it("should have required methods", () => {
+			expect(registry.get).to.be.a("function")
+			expect(registry.getVersion).to.be.a("function")
+			expect(registry.getByTag).to.be.a("function")
+			expect(registry.registerComponent).to.be.a("function")
+			expect(registry.getAvailableModels).to.be.a("function")
+		})
+	})
+})

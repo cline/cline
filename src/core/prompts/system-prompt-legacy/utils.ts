@@ -1,4 +1,4 @@
-import { ApiHandlerModel } from "@/api"
+import type { ApiHandlerModel } from "@/api"
 
 export function isClaude4ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()

@@ -1,0 +1,30 @@
+import { TemplateEngine } from "../../templates/TemplateEngine"
+import type { PromptVariant, SystemPromptContext } from "../../types"
+import { getToolUseExamplesSection } from "./examples"
+import { getToolUseFormattingSection } from "./formatting"
+import { getToolUseGuidelinesSection } from "./guidelines"
+import { getToolUseToolsSection } from "./tools"
+
+export async function getToolUseSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
+	const template = variant.componentOverrides?.tool_use?.template || TOOL_USE_TEMPLATE_TEXT
+
+	const templateEngine = new TemplateEngine()
+	return templateEngine.resolve(template, {
+		TOOL_USE_FORMATTING: await getToolUseFormattingSection(variant, context),
+		TOOLS: await getToolUseToolsSection(variant, context),
+		TOOL_USE_EXAMPLES: await getToolUseExamplesSection(variant, context),
+		TOOL_USE_GUIDELINES: await getToolUseGuidelinesSection(variant, context),
+	})
+}
+
+const TOOL_USE_TEMPLATE_TEXT = `TOOL USE
+
+You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
+
+{{TOOL_USE_FORMATTING}}
+
+{{TOOLS}}
+
+{{TOOL_USE_EXAMPLES}}
+
+{{TOOL_USE_GUIDELINES}}`

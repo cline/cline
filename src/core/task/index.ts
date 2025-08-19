@@ -25,7 +25,7 @@ import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelin
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { formatResponse } from "@core/prompts/responses"
-import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
+import { getPrompt } from "@/core/prompts/system-prompt"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
@@ -82,7 +82,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
 import { FocusChainManager } from "./focus-chain"
 import { summarizeTask } from "@core/prompts/contextManagement"
-import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
+import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -1652,15 +1652,6 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await buildSystemPrompt(
-			this.cwd,
-			supportsBrowserUse,
-			this.mcpHub,
-			this.browserSettings,
-			this.api.getModel(),
-			this.focusChainSettings,
-		)
-
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
@@ -1686,27 +1677,24 @@ export class Task {
 			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
 		}
 
-		if (
-			globalClineRulesFileInstructions ||
-			localClineRulesFileInstructions ||
-			localCursorRulesFileInstructions ||
-			localCursorRulesDirInstructions ||
-			localWindsurfRulesFileInstructions ||
-			clineIgnoreInstructions ||
-			preferredLanguageInstructions
-		) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			const userInstructions = addUserInstructions(
-				globalClineRulesFileInstructions,
-				localClineRulesFileInstructions,
-				localCursorRulesFileInstructions,
-				localCursorRulesDirInstructions,
-				localWindsurfRulesFileInstructions,
-				clineIgnoreInstructions,
-				preferredLanguageInstructions,
-			)
-			systemPrompt += userInstructions
+		// Create context for the new system prompt system
+		const context: SystemPromptContext = {
+			cwd: this.cwd,
+			supportsBrowserUse,
+			mcpHub: this.mcpHub,
+			focusChainSettings: this.focusChainSettings,
+			globalClineRulesFileInstructions,
+			localClineRulesFileInstructions,
+			localCursorRulesFileInstructions,
+			localCursorRulesDirInstructions,
+			localWindsurfRulesFileInstructions,
+			clineIgnoreInstructions,
+			preferredLanguageInstructions,
+			browserSettings: this.browserSettings,
 		}
+
+		// Use the new system prompt system
+		const systemPrompt = await getPrompt(this.api.getModel().id, context)
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
