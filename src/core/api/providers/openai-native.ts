@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { ModelInfo, openAiNativeDefaultModelId, OpenAiNativeModelId, openAiNativeModels } from "@shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import { ApiStream } from "../transform/stream"
+import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 interface OpenAiNativeHandlerOptions {
 	openAiNativeApiKey?: string
@@ -104,7 +104,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 				break
 			}
-			case "nectarine-alpha-new-reasoning-effort-2025-07-25":
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
 			case "gpt-5-nano-2025-08-07":

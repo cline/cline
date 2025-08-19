@@ -1,5 +1,4 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -29,11 +28,12 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import * as vscode from "vscode"
 import { z } from "zod"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
@@ -256,7 +256,7 @@ export class McpHub {
 					if (stderrStream) {
 						stderrStream.on("data", async (data: Buffer) => {
 							const output = data.toString()
-							const isInfoLog = /INFO/i.test(output)
+							const isInfoLog = !/\berror\b/i.test(output)
 
 							if (isInfoLog) {
 								console.log(`Server "${name}" info:`, output)

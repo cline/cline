@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
-import { Virtuoso } from "react-virtuoso"
-import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Virtuoso } from "react-virtuoso"
+import { COLOR_BEIGE, COLOR_BLUE, COLOR_DARK_GRAY, COLOR_GRAY, COLOR_GREEN, COLOR_PURPLE, COLOR_WHITE } from "../colors"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_PURPLE, COLOR_GREEN } from "../colors"
 
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "13px"
@@ -137,7 +137,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				style={{
 					position: "relative",
 					width: "100%",
-					marginTop: "4px",
 					marginBottom: "4px",
 					overflow: "hidden",
 				}}>
@@ -171,7 +170,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				position: "relative",
 				width: "100%",
 				height: TIMELINE_HEIGHT,
-				marginTop: "4px",
 				marginBottom: "4px",
 			}}>
 			<style>
@@ -188,18 +186,18 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 			</style>
 
 			<Virtuoso
-				ref={virtuosoRef}
 				className="timeline-virtuoso"
+				fixedItemHeight={itemWidth}
+				horizontalDirection={true}
+				increaseViewportBy={12}
+				itemContent={TimelineBlock}
+				ref={virtuosoRef}
 				style={{
 					height: TIMELINE_HEIGHT,
 					width: "100%",
 					//overflowY: "hidden",
 				}}
 				totalCount={Math.max(1, taskTimelinePropsMessages.length)}
-				itemContent={TimelineBlock}
-				horizontalDirection={true}
-				increaseViewportBy={12}
-				fixedItemHeight={itemWidth}
 			/>
 		</div>
 	)

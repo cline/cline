@@ -7,9 +7,7 @@ export class FeatureFlagsService {
 	public constructor(
 		private readonly getFeatureFlag: (flag: string) => Promise<boolean | string | undefined>,
 		private readonly getFeatureFlagPayload: (flag: string) => Promise<unknown>,
-	) {
-		console.log("[FeatureFlagsService] Initialized with distinctId:")
-	}
+	) {}
 
 	/**
 	 * Check if a feature flag is enabled
@@ -45,7 +43,7 @@ export class FeatureFlagsService {
 	 * Convenience: focus chain checklist remote gate
 	 */
 	public async getFocusChainEnabled(): Promise<boolean> {
-		return this.getBooleanFlagEnabled("focus_chain_checklist", false)
+		return this.getBooleanFlagEnabled("focus_chain_checklist", true)
 	}
 
 	/**

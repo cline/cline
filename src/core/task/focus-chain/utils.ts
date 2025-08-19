@@ -1,3 +1,5 @@
+import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
+
 export interface TodoListCounts {
 	totalItems: number
 	completedItems: number
@@ -15,9 +17,9 @@ export function parseFocusChainListCounts(todoList: string): TodoListCounts {
 
 	for (const line of lines) {
 		const trimmed = line.trim()
-		if (trimmed.startsWith("- [ ]") || trimmed.startsWith("- [x]") || trimmed.startsWith("- [X]")) {
+		if (isFocusChainItem(trimmed)) {
 			totalItems++
-			if (trimmed.startsWith("- [x]") || trimmed.startsWith("- [X]")) {
+			if (isCompletedFocusChainItem(trimmed)) {
 				completedItems++
 			}
 		}

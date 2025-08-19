@@ -1,13 +1,13 @@
-import { getContextWindowInfo } from "./context-window-utils"
+import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { fileExistsAtPath } from "@utils/fs"
-import * as path from "path"
-import fs from "fs/promises"
-import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { ApiHandler } from "@core/api"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { fileExistsAtPath } from "@utils/fs"
+import cloneDeep from "clone-deep"
+import fs from "fs/promises"
+import * as path from "path"
+import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -123,6 +123,53 @@ export class ContextManager {
 	}
 
 	/**
+	 * Get telemetry data for context management decisions
+	 * Returns the token counts and context window info that drove summarization
+	 */
+	getContextTelemetryData(
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
+		triggerIndex?: number,
+	): {
+		tokensUsed: number
+		maxContextWindow: number
+	} | null {
+		// Use provided triggerIndex or fallback to automatic detection
+		let targetIndex
+		if (triggerIndex !== undefined) {
+			targetIndex = triggerIndex
+		} else {
+			// Find all API request indices
+			const apiReqIndices = clineMessages
+				.map((msg, index) => (msg.say === "api_req_started" ? index : -1))
+				.filter((index) => index !== -1)
+
+			// We want the second-to-last API request (the one that caused summarization)
+			targetIndex = apiReqIndices.length >= 2 ? apiReqIndices[apiReqIndices.length - 2] : -1
+		}
+
+		if (targetIndex >= 0) {
+			const targetRequest = clineMessages[targetIndex]
+			if (targetRequest && targetRequest.text) {
+				try {
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(targetRequest.text)
+					const tokensUsed = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+
+					const { contextWindow } = getContextWindowInfo(api)
+
+					return {
+						tokensUsed,
+						maxContextWindow: contextWindow,
+					}
+				} catch (error) {
+					console.error("Error parsing API request info for context telemetry:", error)
+				}
+			}
+		}
+		return null
+	}
+
+	/**
 	 * primary entry point for getting up to date context
 	 */
 	async getNewContextMessagesAndMetadata(
@@ -133,7 +180,7 @@ export class ContextManager {
 		previousApiReqIndex: number,
 		taskDirectory: string,
 	) {
-		let updatedConversationHistoryDeletedRange = false
+		const updatedConversationHistoryDeletedRange = false
 
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
@@ -353,6 +400,11 @@ export class ContextManager {
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
 	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
+		/*
+        const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		const userUpdated = this.applyFirstUserMessageReplacement(timestamp)
+		if (assistantUpdated || userUpdated)
+		*/
 		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
 		if (updated) {
 			await this.saveContextHistory(taskDirectory)
@@ -368,6 +420,20 @@ export class ContextManager {
 			const innerMap = new Map<number, ContextUpdate[]>()
 			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()], []]])
 			this.contextHistoryUpdates.set(1, [0, innerMap]) // EditType is undefined for first assistant message
+			return true
+		}
+		return false
+	}
+
+	/**
+	 * Replace the first user message when context window is compacted
+	 */
+	private applyFirstUserMessageReplacement(timestamp: number): boolean {
+		if (!this.contextHistoryUpdates.has(0)) {
+			// first user message always at index 0
+			const innerMap = new Map<number, ContextUpdate[]>()
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationFirstUserMessage()], []]])
+			this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
 			return true
 		}
 		return false
@@ -500,7 +566,7 @@ export class ContextManager {
 		fileReadIndices: Map<string, [number, number, string, string][]>,
 		thisExistingFileReads: string[],
 	): [boolean, string[]] {
-		const pattern = new RegExp(`<file_content path="([^"]*)">([\\s\\S]*?)</file_content>`, "g")
+		const pattern = /<file_content path="([^"]*)">([\s\S]*?)<\/file_content>/g
 
 		let foundMatch = false
 		const filePaths: string[] = []
@@ -565,7 +631,7 @@ export class ContextManager {
 		secondBlockText: string,
 		fileReadIndices: Map<string, [number, number, string, string][]>,
 	) {
-		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
+		const pattern = /(<final_file_content path="[^"]*">)[\s\S]*?(<\/final_file_content>)/
 
 		// check if this exists in the text, it won't exist if the user rejects the file change for example
 		if (pattern.test(secondBlockText)) {
@@ -649,7 +715,7 @@ export class ContextManager {
 							}
 						}
 					} else {
-						let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+						const innerTuple = this.contextHistoryUpdates.get(messageIndex)
 						let innerMap: Map<number, ContextUpdate[]>
 
 						if (!innerTuple) {
@@ -676,7 +742,7 @@ export class ContextManager {
 		// apply file mention updates to contextHistoryUpdates
 		// in fileMentionUpdates, filePathsUpdated includes all the file paths which are updated in the latest version of this altered text
 		for (const [messageIndex, [updatedText, filePathsUpdated]] of fileMentionUpdates.entries()) {
-			let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+			const innerTuple = this.contextHistoryUpdates.get(messageIndex)
 			let innerMap: Map<number, ContextUpdate[]>
 
 			if (!innerTuple) {
