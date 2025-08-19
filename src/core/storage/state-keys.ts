@@ -1,15 +1,15 @@
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
+import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 export type SecretKey =
 	| "apiKey"
@@ -100,6 +100,7 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	| "strictPlanModeEnabled"
+	| "useAutoCondense"
 	| "focusChainSettings"
 	| "focusChainFeatureFlagEnabled"
 	// Settings around plan/act and ephemeral model configuration
@@ -222,6 +223,7 @@ export interface GlobalState {
 	sapAiResourceGroup: string | undefined
 	claudeCodePath: string | undefined
 	strictPlanModeEnabled: boolean
+	useAutoCondense: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode

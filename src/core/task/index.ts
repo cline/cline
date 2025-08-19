@@ -158,6 +158,7 @@ export class Task {
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
+		useAutoCondense: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -209,8 +210,7 @@ export class Task {
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
 		this.cacheService = cacheService
-
-		this.useAutoCondense = true
+		this.useAutoCondense = useAutoCondense
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
@@ -380,6 +380,10 @@ export class Task {
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
 		this.toolExecutor.updateStrictPlanModeEnabled(strictPlanModeEnabled)
+	}
+
+	public updateUseAutoCondense(useAutoCondense: boolean): void {
+		this.useAutoCondense = useAutoCondense
 	}
 
 	// While a task is ref'd by a controller, it will always have access to the extension context

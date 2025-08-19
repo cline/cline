@@ -124,6 +124,7 @@ message UpdateSettingsRequest {
   optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
+  optional bool use_auto_condense = 18;
 }
 
 // Complete API Configuration message

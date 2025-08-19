@@ -1,20 +1,20 @@
-import { ExtensionContext } from "vscode"
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
-import { LanguageModelChatSelector } from "vscode"
+import { ExtensionContext, LanguageModelChatSelector } from "vscode"
+import { Controller } from "@/core/controller"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { SecretKey } from "../state-keys"
-import { Controller } from "@/core/controller"
 
 export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
 	const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
+	const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 	const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 	const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined
 	const awsRegion = context.globalState.get("awsRegion") as string | undefined
@@ -229,7 +229,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 	// On win11 state sometimes initializes as empty string instead of undefined
-	let planActSeparateModelsSetting: boolean | undefined = undefined
+	let planActSeparateModelsSetting: boolean | undefined
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
@@ -367,6 +367,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeBasetenModelInfo,
 		},
 		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
+		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
 		lastShownAnnouncementId,
