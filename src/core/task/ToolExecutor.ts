@@ -1,23 +1,17 @@
-import { showSystemNotification } from "@/integrations/notifications"
-import { listFiles } from "@/services/glob/list-files"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { regexSearchFiles } from "@/services/ripgrep"
-import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
-import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
-import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
-import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import Anthropic from "@anthropic-ai/sdk"
-import { ApiHandler } from "@api/index"
+import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -31,31 +25,38 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { Mode } from "@shared/storage/types"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { fileExistsAtPath } from "@utils/fs"
 import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ToolResponse } from "."
+import { HostProvider } from "@/hosts/host-provider"
+import { showSystemNotification } from "@/integrations/notifications"
+import { listFiles } from "@/services/glob/list-files"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { regexSearchFiles } from "@/services/ripgrep"
+import { parseSourceCodeForDefinitionsTopLevel } from "@/services/tree-sitter"
+import { findLast, findLastIndex, parsePartialArrayString } from "@/shared/array"
+import { createAndOpenGitHubIssue } from "@/utils/github-url-utils"
+import { getReadablePath, isLocatedInWorkspace } from "@/utils/path"
 import { ToolParamName, ToolUse, ToolUseName } from "../assistant-message"
 import { constructNewFileContent } from "../assistant-message/diff"
 import { ContextManager } from "../context/context-management/ContextManager"
+import { continuationPrompt } from "../prompts/contextManagement"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
-import { ensureTaskDirectoryExists } from "../storage/disk"
 import { CacheService } from "../storage/CacheService"
-import { TaskState } from "./TaskState"
+import { ensureTaskDirectoryExists } from "../storage/disk"
+import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
+import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "./utils"
-import { Mode } from "@shared/storage/types"
-import { continuationPrompt } from "../prompts/contextManagement"
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -1723,6 +1724,7 @@ export class ToolExecutor {
 						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 							Date.now(),
 							await ensureTaskDirectoryExists(this.context, this.taskId),
+							apiConversationHistory,
 						)
 					}
 					await this.saveCheckpoint()
@@ -1811,6 +1813,7 @@ export class ToolExecutor {
 							await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 								Date.now(),
 								await ensureTaskDirectoryExists(this.context, this.taskId),
+								apiConversationHistory,
 							)
 						}
 						await this.saveCheckpoint()
@@ -1897,7 +1900,8 @@ export class ToolExecutor {
 						const operatingSystem = os.platform() + " " + os.release()
 						const clineVersion =
 							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-						const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+						const host = await HostProvider.env.getHostVersion({})
+						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
 						const apiConfig = this.cacheService.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
