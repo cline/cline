@@ -1,9 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { writeFile } from "@utils/fs"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { writeFile } from "@utils/fs"
+import { openFile } from "./open-file"
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -42,10 +43,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		try {
 			// Write content to the selected location
 			await writeFile(saveResponse.selectedPath, markdownContent)
-			await HostProvider.window.showTextDocument({
-				path: saveResponse.selectedPath,
-				options: { preview: true },
-			})
+			await openFile(saveResponse.selectedPath, false, true)
 		} catch (error) {
 			await HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,

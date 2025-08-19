@@ -1,8 +1,7 @@
-/* eslint-disable eslint-rules/no-direct-vscode-api */
-import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
-import * as vscode from "vscode"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import pWaitFor from "p-wait-for"
+import * as vscode from "vscode"
 import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
