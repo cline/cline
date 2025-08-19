@@ -135,7 +135,7 @@ export class ContextManager {
 		maxContextWindow: number
 	} | null {
 		// Use provided triggerIndex or fallback to automatic detection
-		let targetIndex
+		let targetIndex: number
 		if (triggerIndex !== undefined) {
 			targetIndex = triggerIndex
 		} else {
@@ -653,8 +653,7 @@ export class ContextManager {
 		let foundMatch = false
 		const filePaths: string[] = []
 
-		let match
-		while ((match = pattern.exec(secondBlockText)) !== null) {
+		for (const match of secondBlockText.matchAll(pattern)) {
 			foundMatch = true
 
 			const filePath = match[1]
@@ -895,7 +894,7 @@ export class ContextManager {
 
 								// if block was just altered, then calculate savings
 								if (hasNewAlterations) {
-									let originalTextLength
+									let originalTextLength: number
 									if (updates.length > 1) {
 										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
 									} else {
