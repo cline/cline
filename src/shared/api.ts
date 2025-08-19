@@ -564,9 +564,9 @@ export const clineMicrowaveAlphaModelInfo: ModelInfo = {
 	contextWindow: 262144,
 	supportsImages: true,
 	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheReadsPrice: 0.75,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
 	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
 	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
 }
