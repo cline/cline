@@ -31,6 +31,9 @@ service WindowService {
 
   // Returns the visible tabs.
   rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
+
+  // Returns information about the current editor
+  rpc getActiveEditor(GetActiveEditorRequest) returns (GetActiveEditorResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -137,4 +140,10 @@ message GetVisibleTabsRequest {}
 
 message GetVisibleTabsResponse {
   repeated string paths = 1;
+}
+
+message GetActiveEditorRequest {}
+
+message GetActiveEditorResponse {
+  optional string file_path = 1;
 }
