@@ -9,7 +9,7 @@ import {
 	mainlandZAiModels,
 } from "@shared/api"
 import OpenAI from "openai"
-import { version as extensionVersion } from "../../../package.json"
+import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
