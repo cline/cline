@@ -18,6 +18,7 @@ export interface TerminalInfo {
 // Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
+	private static nextTerminalId = 1
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
@@ -35,11 +36,12 @@ export class TerminalRegistry {
 		}
 
 		const terminal = vscode.window.createTerminal(terminalOptions)
+		TerminalRegistry.nextTerminalId++
 		const newInfo: TerminalInfo = {
 			terminal,
 			busy: false,
 			lastCommand: "",
-			id: TerminalRegistry.nextTerminalId++,
+			id: TerminalRegistry.nextTerminalId,
 			shellPath,
 			lastActive: Date.now(),
 		}
