@@ -133,7 +133,7 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-7-sonnet":
 		case "anthropic/claude-3-7-sonnet:beta":
 			const budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0 ? true : false
+			const reasoningOn = budget_tokens !== 0
 			if (reasoningOn) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: budget_tokens }

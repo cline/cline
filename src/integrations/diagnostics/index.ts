@@ -1,7 +1,7 @@
-import * as path from "path"
 import deepEqual from "fast-deep-equal"
-import { getCwd } from "@/utils/path"
+import * as path from "path"
 import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { getCwd } from "@/utils/path"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {
 	const oldMap = new Map<string, Diagnostic[]>()
@@ -29,7 +29,7 @@ export async function diagnosticsToProblemsString(
 	diagnostics: FileDiagnostics[],
 	severities?: DiagnosticSeverity[],
 ): Promise<string> {
-	let results = []
+	const results = []
 	for (const fileDiagnostics of diagnostics) {
 		const problems = fileDiagnostics.diagnostics.filter((d) => !severities || severities.includes(d.severity))
 		const problemString = await singleFileDiagnosticsToProblemsString(fileDiagnostics.filePath, problems)

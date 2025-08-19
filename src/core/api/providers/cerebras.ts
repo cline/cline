@@ -178,7 +178,7 @@ export class CerebrasHandler implements ApiHandler {
 			// Enhanced error handling for Cerebras API
 			if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
 				// Rate limit error - will be handled by retry decorator with patient backoff
-				const limits = this.getRateLimits()
+				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
 			} else if (error?.status === 401) {
 				throw new Error("Cerebras API authentication failed. Please check your API key.")

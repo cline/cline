@@ -15,7 +15,7 @@ describe("OllamaHandler", () => {
 		try {
 			await axios.get("http://localhost:11434/api/version", { timeout: 2000 })
 			ollamaAvailable = true
-		} catch (error) {
+		} catch (_error) {
 			console.log("Ollama server not available, skipping tests")
 			ollamaAvailable = false
 		}
@@ -94,7 +94,7 @@ describe("OllamaHandler", () => {
 			const testHandler = new OllamaHandler(options)
 
 			// Replace the createMessage method with one that has a shorter timeout
-			testHandler.createMessage = async function* (systemPrompt, messages) {
+			testHandler.createMessage = async function* (_systemPrompt, _messages) {
 				try {
 					// Create a promise that rejects after a short timeout
 					const timeoutPromise = new Promise<never>((_, reject) => {
@@ -192,7 +192,7 @@ describe("OllamaHandler", () => {
 			const testHandler = new OllamaHandler(options)
 
 			// Replace the createMessage method with one that simulates a stream error
-			testHandler.createMessage = async function* (systemPrompt, messages) {
+			testHandler.createMessage = async function* (_systemPrompt, _messages) {
 				// First yield a successful chunk
 				yield {
 					type: "text",

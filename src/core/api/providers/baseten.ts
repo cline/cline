@@ -158,7 +158,7 @@ export class BasetenHandler implements ApiHandler {
 	 * Checks if the current model supports tools
 	 */
 	supportsTools(): boolean {
-		const model = this.getModel()
+		const _model = this.getModel()
 		// Baseten models support tools via OpenAI-compatible API
 		return true
 	}

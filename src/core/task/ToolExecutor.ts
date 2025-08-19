@@ -1348,7 +1348,7 @@ export class ToolExecutor {
 						if (mcp_arguments) {
 							try {
 								parsedArguments = JSON.parse(mcp_arguments)
-							} catch (error) {
+							} catch (_error) {
 								this.taskState.consecutiveMistakeCount++
 								await this.say(
 									"error",

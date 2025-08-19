@@ -142,7 +142,7 @@ export class Controller {
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
-		} catch (error) {
+		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",

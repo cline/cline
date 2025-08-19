@@ -30,17 +30,14 @@
 			"correctness": {
 				"useExhaustiveDependencies": "off",
 				"noUndeclaredVariables": "off",
-				"noUnusedVariables": "off",
 				"noEmptyPattern": "off",
 				"useJsxKeyInIterable": "off",
 				"noInnerDeclarations": "off",
 				"useHookAtTopLevel": "off",
 				"useYield": "off",
-				"noUnusedFunctionParameters": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off",
-				"noUnusedImports": "off"
+				"noSwitchDeclarations": "off"
 			},
 			"a11y": "off",
 			"style": {
@@ -57,7 +54,6 @@
 				"useEnumInitializers": "off",
 				"useSelfClosingElements": "off",
 				"useSingleVarDeclarator": "off",
-				"noUnusedTemplateLiteral": "off",
 				"useNumberNamespace": "off",
 				"noInferrableTypes": "off",
 				"useTemplate": "off",
@@ -95,13 +91,7 @@
 		"indentWidth": 4,
 		"lineWidth": 130,
 		"lineEnding": "lf",
-		"formatWithErrors": true,
-		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
-		"includes": [
-			"**",
-			"!src/core/prompts/**",
-			"!webview-ui/src/components/chat/**"
-		]
+		"formatWithErrors": true
 	},
 	"javascript": {
 		"formatter": {
@@ -130,7 +120,9 @@
 			"!**/playwright/**",
 			"!**/test-results/**",
 			"!**/node_modules/**",
-			"!**/webview-ui/build/**"
+			"!**/webview-ui/build/**",
+			"!**/generated/**",
+			"!**/proto/**"
 		]
 	},
 	"plugins": [

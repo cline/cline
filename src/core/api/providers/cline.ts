@@ -31,7 +31,6 @@ export class ClineHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
-	private counter = 0
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options

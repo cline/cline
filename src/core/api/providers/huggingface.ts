@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions, HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
+import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
@@ -86,14 +86,14 @@ export class HuggingFaceHandler implements ApiHandler {
 
 			const stream = (await client.chat.completions.create(requestParams)) as any
 
-			let chunkCount = 0
-			let totalContent = ""
+			let _chunkCount = 0
+			let _totalContent = ""
 
 			for await (const chunk of stream) {
-				chunkCount++
+				_chunkCount++
 				const delta = chunk.choices[0]?.delta
 				if (delta?.content) {
-					totalContent += delta.content
+					_totalContent += delta.content
 
 					yield {
 						type: "text",
@@ -119,7 +119,7 @@ export class HuggingFaceHandler implements ApiHandler {
 		const modelId = this.options.huggingFaceModelId
 
 		// List all available models for debugging
-		const availableModels = Object.keys(huggingFaceModels)
+		const _availableModels = Object.keys(huggingFaceModels)
 		let result: { id: HuggingFaceModelId; info: ModelInfo }
 
 		if (modelId && modelId in huggingFaceModels) {

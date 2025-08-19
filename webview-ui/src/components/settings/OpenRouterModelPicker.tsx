@@ -1,4 +1,4 @@
-import { ApiConfiguration, openRouterDefaultModelId } from "@shared/api"
+import { openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -165,7 +165,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (!isDropdownVisible) return
+		if (!isDropdownVisible) {
+			return
+		}
 
 		switch (event.key) {
 			case "ArrowDown":
@@ -371,19 +373,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					<>
-						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
-							OpenRouter.
-						</VSCodeLink>
-						If you're unsure which model to choose, Cline works best with{" "}
-						<VSCodeLink
-							onClick={() => handleModelChange("anthropic/claude-sonnet-4")}
-							style={{ display: "inline", fontSize: "inherit" }}>
-							anthropic/claude-sonnet-4.
-						</VSCodeLink>
-						You can also try searching "free" for no-cost options currently available.
-					</>
+					The extension automatically fetches the latest list of models available on{" "}
+					<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
+						OpenRouter.
+					</VSCodeLink>
+					If you're unsure which model to choose, Cline works best with{" "}
+					<VSCodeLink
+						onClick={() => handleModelChange("anthropic/claude-sonnet-4")}
+						style={{ display: "inline", fontSize: "inherit" }}>
+						anthropic/claude-sonnet-4.
+					</VSCodeLink>
+					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
 		</div>

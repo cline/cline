@@ -1,5 +1,4 @@
 import { buildApiHandler } from "@core/api"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,

@@ -2,14 +2,14 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
 import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import { ApiHandlerOptions, GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../"
 import { withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
-const DEFAULT_CACHE_TTL_SECONDS = 900
+const _DEFAULT_CACHE_TTL_SECONDS = 900
 
 interface GeminiHandlerOptions {
 	isVertex?: boolean
@@ -107,7 +107,7 @@ export class GeminiHandler implements ApiHandler {
 
 		// Configure thinking budget if supported
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
-		const maxBudget = info.thinkingConfig?.maxBudget ?? 0
+		const _maxBudget = info.thinkingConfig?.maxBudget ?? 0
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {

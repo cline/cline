@@ -50,7 +50,7 @@ export class AnthropicHandler implements ApiHandler {
 		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0 ? true : false
+		const reasoningOn = !!((modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0)
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control

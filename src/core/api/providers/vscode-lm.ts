@@ -189,7 +189,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				family: "lm",
 				version: "1.0",
 				maxInputTokens: 8192,
-				sendRequest: async (messages, options, token) => {
+				sendRequest: async (_messages, _options, _token) => {
 					// Provide a minimal implementation
 					return {
 						stream: (async function* () {
@@ -245,10 +245,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				.join("")
 		}
 		return ""
-	}
-
-	private isClaudeModel(): boolean {
-		return this.client?.family?.startsWith("claude") || false
 	}
 
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {

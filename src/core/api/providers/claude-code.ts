@@ -137,7 +137,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 	private attemptParse(str: string) {
 		try {
 			return JSON.parse(str)
-		} catch (err) {
+		} catch (_err) {
 			return null
 		}
 	}
