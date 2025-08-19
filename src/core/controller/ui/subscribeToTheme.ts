@@ -14,7 +14,7 @@ const activeThemeSubscriptions = new Set<StreamingResponseHandler<String>>()
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToTheme(
-	_controller: Controller,
+	controller: Controller,
 	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler<String>,
 	requestId?: string,
@@ -33,7 +33,7 @@ export async function subscribeToTheme(
 	}
 
 	// Send the current theme immediately upon subscription
-	const theme = await getTheme()
+	const theme = await getTheme(controller.context)
 	if (theme) {
 		try {
 			const themeEvent = String.create({
