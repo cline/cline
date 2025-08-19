@@ -36,41 +36,42 @@ export class TerminalRegistry {
 		}
 
 		const terminal = vscode.window.createTerminal(terminalOptions)
+		TerminalRegistry.nextTerminalId++
 		const newInfo: TerminalInfo = {
 			terminal,
 			busy: false,
 			lastCommand: "",
-			id: this.nextTerminalId++,
+			id: TerminalRegistry.nextTerminalId,
 			shellPath,
 			lastActive: Date.now(),
 		}
-		this.terminals.push(newInfo)
+		TerminalRegistry.terminals.push(newInfo)
 		return newInfo
 	}
 
 	static getTerminal(id: number): TerminalInfo | undefined {
-		const terminalInfo = this.terminals.find((t) => t.id === id)
-		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
-			this.removeTerminal(id)
+		const terminalInfo = TerminalRegistry.terminals.find((t) => t.id === id)
+		if (terminalInfo && TerminalRegistry.isTerminalClosed(terminalInfo.terminal)) {
+			TerminalRegistry.removeTerminal(id)
 			return undefined
 		}
 		return terminalInfo
 	}
 
 	static updateTerminal(id: number, updates: Partial<TerminalInfo>) {
-		const terminal = this.getTerminal(id)
+		const terminal = TerminalRegistry.getTerminal(id)
 		if (terminal) {
 			Object.assign(terminal, updates)
 		}
 	}
 
 	static removeTerminal(id: number) {
-		this.terminals = this.terminals.filter((t) => t.id !== id)
+		TerminalRegistry.terminals = TerminalRegistry.terminals.filter((t) => t.id !== id)
 	}
 
 	static getAllTerminals(): TerminalInfo[] {
-		this.terminals = this.terminals.filter((t) => !this.isTerminalClosed(t.terminal))
-		return this.terminals
+		TerminalRegistry.terminals = TerminalRegistry.terminals.filter((t) => !TerminalRegistry.isTerminalClosed(t.terminal))
+		return TerminalRegistry.terminals
 	}
 
 	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)

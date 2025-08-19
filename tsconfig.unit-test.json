@@ -4,8 +4,14 @@
 		"module": "commonjs"
 	},
 	"ts-node": {
-		"require": ["tsconfig-paths/register"]
+		"require": [
+			"tsconfig-paths/register"
+		]
 	},
-	"include": ["test/**/*.ts"],
-	"exclude": ["node_modules"]
+	"include": [
+		"test/**/*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
 }

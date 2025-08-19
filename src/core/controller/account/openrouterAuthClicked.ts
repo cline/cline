@@ -1,8 +1,7 @@
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
 import { openExternal } from "@/utils/env"
-
 import { Controller } from ".."
-import { EmptyRequest, Empty } from "@shared/proto/cline/common"
 
 /**
  * Initiates OpenRouter auth

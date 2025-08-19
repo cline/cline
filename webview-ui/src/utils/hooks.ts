@@ -1,4 +1,4 @@
-import { useCallback, useRef, useLayoutEffect, useState, useEffect } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { detectMetaKeyChar, detectOS, unknown } from "./platformUtils"
 
 export const useMetaKeyDetection = (platform: string) => {

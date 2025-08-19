@@ -1,22 +1,22 @@
-import * as vscode from "vscode"
-import * as fs from "fs/promises"
-import * as path from "path"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { Controller } from "@core/controller"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { BrowserActionResult } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
 import { exec, spawn } from "child_process"
-import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
-import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
+import * as chromeLauncher from "chrome-launcher"
+import * as fs from "fs/promises"
+import os from "os"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import pWaitFor from "p-wait-for"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import axios from "axios"
-import { fileExistsAtPath } from "@utils/fs"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
-import * as chromeLauncher from "chrome-launcher"
-import { Controller } from "@core/controller"
+import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
+import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
+import * as vscode from "vscode"
 import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import os from "os"
+import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -137,7 +137,7 @@ export class BrowserSession {
 		return stats
 	}
 
-	async relaunchChromeDebugMode(controller: Controller): Promise<string> {
+	async relaunchChromeDebugMode(_controller: Controller): Promise<string> {
 		try {
 			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
@@ -263,7 +263,7 @@ export class BrowserSession {
 	async launchRemoteBrowser() {
 		let remoteBrowserHost = this.browserSettings.remoteBrowserHost
 		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
-		let reconnectionAttempted = false
+		let _reconnectionAttempted = false
 
 		const getViewport = () => {
 			return this.browserSettings.viewport
@@ -315,7 +315,7 @@ export class BrowserSession {
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
 				if (remoteBrowserHost) {
-					reconnectionAttempted = true
+					_reconnectionAttempted = true
 				}
 			}
 		}

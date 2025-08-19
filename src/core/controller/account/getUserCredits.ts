@@ -1,6 +1,6 @@
-import type { Controller } from "../index"
-import type { EmptyRequest } from "@shared/proto/cline/common"
 import { UserCreditsData } from "@shared/proto/cline/account"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { Controller } from "../index"
 
 /**
  * Handles fetching all user credits data (balance, usage, payments)
@@ -8,7 +8,7 @@ import { UserCreditsData } from "@shared/proto/cline/account"
  * @param request Empty request
  * @returns User credits data response
  */
-export async function getUserCredits(controller: Controller, request: EmptyRequest): Promise<UserCreditsData> {
+export async function getUserCredits(controller: Controller, _request: EmptyRequest): Promise<UserCreditsData> {
 	try {
 		if (!controller.accountService) {
 			throw new Error("Account service not available")

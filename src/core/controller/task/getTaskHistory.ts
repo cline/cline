@@ -1,7 +1,6 @@
-import { Controller } from ".."
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
-import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
-import { HistoryItem } from "@/shared/HistoryItem"
+import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
+import { Controller } from ".."
 
 /**
  * Gets filtered task history

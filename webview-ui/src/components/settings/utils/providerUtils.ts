@@ -1,17 +1,46 @@
 import {
 	ApiConfiguration,
 	ApiProvider,
-	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
+	askSageDefaultModelId,
+	askSageModels,
+	basetenDefaultModelId,
+	basetenModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	cerebrasDefaultModelId,
+	cerebrasModels,
+	claudeCodeDefaultModelId,
+	claudeCodeModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
+	doubaoDefaultModelId,
+	doubaoModels,
 	geminiDefaultModelId,
 	geminiModels,
+	groqDefaultModelId,
+	groqModels,
+	huaweiCloudMaasDefaultModelId,
+	huaweiCloudMaasModels,
+	huggingFaceDefaultModelId,
+	huggingFaceModels,
+	internationalQwenDefaultModelId,
+	internationalQwenModels,
+	internationalZAiDefaultModelId,
+	internationalZAiModels,
+	liteLlmModelInfoSaneDefaults,
+	ModelInfo,
+	mainlandQwenDefaultModelId,
+	mainlandQwenModels,
+	mainlandZAiDefaultModelId,
+	mainlandZAiModels,
 	mistralDefaultModelId,
 	mistralModels,
+	moonshotDefaultModelId,
+	moonshotModels,
+	nebiusDefaultModelId,
+	nebiusModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -19,39 +48,14 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
-	mainlandQwenModels,
-	internationalQwenModels,
-	mainlandQwenDefaultModelId,
-	internationalQwenDefaultModelId,
+	sambanovaDefaultModelId,
+	sambanovaModels,
+	sapAiCoreDefaultModelId,
+	sapAiCoreModels,
 	vertexDefaultModelId,
 	vertexModels,
-	askSageModels,
-	askSageDefaultModelId,
 	xaiDefaultModelId,
 	xaiModels,
-	sambanovaModels,
-	sambanovaDefaultModelId,
-	doubaoModels,
-	doubaoDefaultModelId,
-	liteLlmModelInfoSaneDefaults,
-	moonshotModels,
-	moonshotDefaultModelId,
-	huggingFaceModels,
-	huggingFaceDefaultModelId,
-	nebiusModels,
-	nebiusDefaultModelId,
-	cerebrasModels,
-	cerebrasDefaultModelId,
-	sapAiCoreModels,
-	sapAiCoreDefaultModelId,
-	claudeCodeDefaultModelId,
-	claudeCodeModels,
-	groqModels,
-	groqDefaultModelId,
-	huaweiCloudMaasModels,
-	huaweiCloudMaasDefaultModelId,
-	basetenModels,
-	basetenDefaultModelId,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
@@ -185,7 +189,10 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: ollamaModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					contextWindow: Number(apiConfiguration?.ollamaApiOptionsCtxNum ?? 32768),
+				},
 			}
 		case "lmstudio":
 			const lmStudioModelId =
@@ -193,7 +200,10 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					contextWindow: Number(apiConfiguration?.lmStudioMaxTokens ?? 32768),
+				},
 			}
 		case "vscode-lm":
 			const vsCodeLmModelSelector =
@@ -281,6 +291,11 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "zai":
+			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+			const zaiDefaultId =
+				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+			return getProviderData(zaiModels, zaiDefaultId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -404,12 +419,16 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) return
+	if (!apiConfiguration) {
+		return
+	}
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) return
+	if (!apiProvider) {
+		return
+	}
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {
@@ -530,6 +549,7 @@ export async function syncModeConfigurations(
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":
+		case "zai":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId
