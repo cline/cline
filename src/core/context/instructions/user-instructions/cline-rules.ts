@@ -1,10 +1,10 @@
-import path from "path"
-import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import { getRuleFilesTotalContent, synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
-import fs from "fs/promises"
+import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { synchronizeRuleToggles, getRuleFilesTotalContent } from "@core/context/instructions/user-instructions/rule-helpers"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import path from "path"
 import { Controller } from "@/core/controller"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
@@ -74,18 +74,18 @@ export async function refreshClineRulesToggles(
 	localToggles: ClineRulesToggles
 }> {
 	// Global toggles
-	const globalClineRulesToggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
+	const globalClineRulesToggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
 	const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 	const updatedGlobalToggles = await synchronizeRuleToggles(globalClineRulesFilePath, globalClineRulesToggles)
-	controller.cacheService.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
+	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
 
 	// Local toggles
-	const localClineRulesToggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+	const localClineRulesToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 	const localClineRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.clineRules)
 	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles, "", [
 		[".clinerules", "workflows"],
 	])
-	controller.cacheService.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
+	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
 
 	return {
 		globalToggles: updatedGlobalToggles,

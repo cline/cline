@@ -1,15 +1,15 @@
-import path from "path"
-import fs from "fs/promises"
-import { GlobalFileNames } from "@core/storage/disk"
-import { fileExistsAtPath, isDirectory } from "@utils/fs"
-import { formatResponse } from "@core/prompts/responses"
 import {
-	synchronizeRuleToggles,
 	combineRuleToggles,
 	getRuleFilesTotalContent,
 	readDirectoryRecursive,
+	synchronizeRuleToggles,
 } from "@core/context/instructions/user-instructions/rule-helpers"
+import { formatResponse } from "@core/prompts/responses"
+import { GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { fileExistsAtPath, isDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import path from "path"
 import { Controller } from "@/core/controller"
 
 /**
@@ -23,13 +23,13 @@ export async function refreshExternalRulesToggles(
 	cursorLocalToggles: ClineRulesToggles
 }> {
 	// local windsurf toggles
-	const localWindsurfRulesToggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
+	const localWindsurfRulesToggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 	const localWindsurfRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.windsurfRules)
 	const updatedLocalWindsurfToggles = await synchronizeRuleToggles(localWindsurfRulesFilePath, localWindsurfRulesToggles)
-	controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
+	controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
 
 	// local cursor toggles
-	const localCursorRulesToggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
+	const localCursorRulesToggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 
 	// cursor has two valid locations for rules files, so we need to check both and combine
 	// synchronizeRuleToggles will drop whichever rules files are not in each given path, but combining the results will result in no data loss
@@ -40,7 +40,7 @@ export async function refreshExternalRulesToggles(
 	const updatedLocalCursorToggles2 = await synchronizeRuleToggles(localCursorRulesFilePath, localCursorRulesToggles)
 
 	const updatedLocalCursorToggles = combineRuleToggles(updatedLocalCursorToggles1, updatedLocalCursorToggles2)
-	controller.cacheService.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
+	controller.stateManager.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
 
 	return {
 		windsurfLocalToggles: updatedLocalWindsurfToggles,

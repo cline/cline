@@ -1,8 +1,8 @@
-import { Controller } from ".."
 import { StringRequest } from "@shared/proto/cline/common"
 import { TaskResponse } from "@shared/proto/cline/task"
-import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 import { HistoryItem } from "@/shared/HistoryItem"
+import { Controller } from ".."
+import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Shows a task with the specified ID
@@ -15,7 +15,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		const id = request.value
 
 		// First check if task exists in global state for faster access
-		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
+		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const historyItem = taskHistory.find((item) => item.id === id)
 
 		// We need to initialize the task before returning data

@@ -1,8 +1,8 @@
+import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
+import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserConnection } from "@shared/proto/cline/browser"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 
 /**
  * Test connection to a browser instance
@@ -12,7 +12,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
  */
 export async function testBrowserConnection(controller: Controller, request: StringRequest): Promise<BrowserConnection> {
 	try {
-		const browserSettings = controller.cacheService.getGlobalStateKey("browserSettings")
+		const browserSettings = controller.stateManager.getGlobalStateKey("browserSettings")
 		const browserSession = new BrowserSession(controller.context, browserSettings)
 		const text = request.value || ""
 

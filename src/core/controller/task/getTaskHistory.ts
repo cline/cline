@@ -1,7 +1,7 @@
-import { Controller } from ".."
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
-import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 import { HistoryItem } from "@/shared/HistoryItem"
+import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
+import { Controller } from ".."
 
 /**
  * Gets filtered task history
@@ -14,7 +14,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 
 		// Get task history from global state
-		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
+		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const workspacePath = await getWorkspacePath()
 
 		// Apply filters

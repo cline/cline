@@ -50,8 +50,8 @@ import { ContextManager } from "../context/context-management/ContextManager"
 import { continuationPrompt } from "../prompts/contextManagement"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import { formatResponse } from "../prompts/responses"
-import { CacheService } from "../storage/CacheService"
 import { ensureTaskDirectoryExists } from "../storage/disk"
+import { StateManager } from "../storage/StateManager"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
@@ -86,7 +86,7 @@ export class ToolExecutor {
 		private fileContextTracker: FileContextTracker,
 		private clineIgnoreController: ClineIgnoreController,
 		private contextManager: ContextManager,
-		private cacheService: CacheService,
+		private stateManager: StateManager,
 
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
@@ -1901,7 +1901,7 @@ export class ToolExecutor {
 						const host = await HostProvider.env.getHostVersion({})
 						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode
-						const apiConfig = this.cacheService.getApiConfiguration()
+						const apiConfig = this.stateManager.getApiConfiguration()
 						const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 						const providerAndModel = `${apiProvider} / ${this.api.getModel().id}`
 

@@ -1,8 +1,8 @@
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import * as path from "path"
-import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
 import { Controller } from "@/core/controller"
 
 /**
@@ -15,7 +15,7 @@ export async function readDirectoryRecursive(
 ): Promise<string[]> {
 	try {
 		const entries = await readDirectory(directoryPath, excludedPaths)
-		let results: string[] = []
+		const results: string[] = []
 		for (const entry of entries) {
 			if (allowedFileExtension !== "") {
 				const fileExtension = path.extname(entry)
@@ -247,31 +247,31 @@ export async function deleteRuleFile(
 		// Update the appropriate toggles
 		if (isGlobal) {
 			if (type === "workflow") {
-				const toggles = controller.cacheService.getGlobalStateKey("globalWorkflowToggles")
+				const toggles = controller.stateManager.getGlobalStateKey("globalWorkflowToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setGlobalState("globalWorkflowToggles", toggles)
+				controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
+				const toggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setGlobalState("globalClineRulesToggles", toggles)
+				controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 			}
 		} else {
 			if (type === "workflow") {
-				const toggles = controller.cacheService.getWorkspaceStateKey("workflowToggles")
+				const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setWorkspaceState("workflowToggles", toggles)
+				controller.stateManager.setWorkspaceState("workflowToggles", toggles)
 			} else if (type === "cursor") {
-				const toggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
+				const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setWorkspaceState("localCursorRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)
 			} else if (type === "windsurf") {
-				const toggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
+				const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
 			} else {
-				const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]
-				controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
 			}
 		}
 

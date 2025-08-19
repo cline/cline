@@ -1,7 +1,7 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Boolean } from "@shared/proto/cline/common"
-import type { Controller } from "../index"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import type { Controller } from "../index"
 
 /**
  * Marks the current announcement as shown
@@ -14,7 +14,7 @@ export async function onDidShowAnnouncement(controller: Controller, _request: Em
 	try {
 		const latestAnnouncementId = getLatestAnnouncementId(controller.context)
 		// Update the lastShownAnnouncementId to the current latestAnnouncementId
-		controller.cacheService.setGlobalState("lastShownAnnouncementId", latestAnnouncementId)
+		controller.stateManager.setGlobalState("lastShownAnnouncementId", latestAnnouncementId)
 		return Boolean.create({ value: false })
 	} catch (error) {
 		console.error("Failed to acknowledge announcement:", error)

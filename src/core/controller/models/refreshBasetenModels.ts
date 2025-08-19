@@ -1,12 +1,12 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { basetenModels } from "../../../shared/api"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { basetenModels } from "../../../shared/api"
+import { Controller } from ".."
 
 /**
  * Refreshes the Baseten models and returns the updated model list
@@ -22,9 +22,9 @@ export async function refreshBasetenModels(
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
-	const basetenApiKey = controller.cacheService.getSecretKey("basetenApiKey")
+	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
-	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
+	const models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
 		if (!basetenApiKey) {
 			console.log("No Baseten API key found, using static models as fallback")

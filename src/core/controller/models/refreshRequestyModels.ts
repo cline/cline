@@ -1,7 +1,7 @@
-import { Controller } from ".."
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
+import { Controller } from ".."
 
 /**
  * Refreshes the Requesty models and returns the updated model list
@@ -17,9 +17,9 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 		return undefined
 	}
 
-	let models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
-		const apiKey = controller.cacheService.getSecretKey("requestyApiKey")
+		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
 		}

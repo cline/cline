@@ -1,18 +1,18 @@
-import { Controller } from ".."
+import { buildApiHandler } from "@core/api"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
-	UpdateSettingsRequest,
-	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	McpDisplayMode as ProtoMcpDisplayMode,
+	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
+	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
-import { buildApiHandler } from "@core/api"
 import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { Controller } from ".."
 
 /**
  * Updates multiple extension settings in a single request
@@ -25,7 +25,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update API configuration
 		if (request.apiConfiguration) {
 			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			controller.cacheService.setApiConfiguration(apiConfiguration)
+			controller.stateManager.setApiConfiguration(apiConfiguration)
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
@@ -40,22 +40,22 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update plan/act separate models setting
 		if (request.planActSeparateModelsSetting !== undefined) {
-			controller.cacheService.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
+			controller.stateManager.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
 		}
 
 		// Update checkpoints setting
 		if (request.enableCheckpointsSetting !== undefined) {
-			controller.cacheService.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
+			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
 		}
 
 		// Update MCP marketplace setting
 		if (request.mcpMarketplaceEnabled !== undefined) {
-			controller.cacheService.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
+			controller.stateManager.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
 		}
 
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
-			controller.cacheService.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
+			controller.stateManager.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
 		// Update MCP display mode setting
@@ -75,7 +75,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				default:
 					throw new Error(`Invalid MCP display mode value: ${request.mcpDisplayMode}`)
 			}
-			controller.cacheService.setGlobalState("mcpDisplayMode", displayMode)
+			controller.stateManager.setGlobalState("mcpDisplayMode", displayMode)
 		}
 
 		if (request.mode !== undefined) {
@@ -83,7 +83,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.updateMode(mode)
 			}
-			controller.cacheService.setGlobalState("mode", mode)
+			controller.stateManager.setGlobalState("mode", mode)
 		}
 
 		if (request.openaiReasoningEffort !== undefined) {
@@ -107,29 +107,29 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.openaiReasoningEffort = reasoningEffort
 			}
 
-			controller.cacheService.setGlobalState("openaiReasoningEffort", reasoningEffort)
+			controller.stateManager.setGlobalState("openaiReasoningEffort", reasoningEffort)
 		}
 
 		if (request.preferredLanguage !== undefined) {
 			if (controller.task) {
 				controller.task.preferredLanguage = request.preferredLanguage
 			}
-			controller.cacheService.setGlobalState("preferredLanguage", request.preferredLanguage)
+			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
-			controller.cacheService.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
+			controller.stateManager.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
 		}
 
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
-			controller.cacheService.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
+			controller.stateManager.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
 		}
 
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
-			controller.cacheService.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
 		}
 
 		// Update strict plan mode setting
@@ -137,16 +137,16 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
-			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = controller.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
+			const remoteEnabled = controller.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 			if (remoteEnabled === false) {
 				// No-op when feature flag disabled
 			} else {
-				const currentSettings = controller.cacheService.getGlobalStateKey("focusChainSettings")
+				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled
 
@@ -154,7 +154,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 					enabled: isEnabled,
 					remindClineInterval: request.focusChainSettings.remindClineInterval,
 				}
-				controller.cacheService.setGlobalState("focusChainSettings", focusChainSettings)
+				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
 
 				// Capture telemetry when setting changes
 				if (wasEnabled !== isEnabled) {
