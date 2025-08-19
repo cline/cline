@@ -331,7 +331,7 @@ describe("RooHandler", () => {
 			expect(modelInfo.info.maxTokens).toBe(8192)
 			expect(modelInfo.info.contextWindow).toBe(262_144)
 			expect(modelInfo.info.supportsImages).toBe(false)
-			expect(modelInfo.info.supportsPromptCache).toBe(false)
+			expect(modelInfo.info.supportsPromptCache).toBe(true)
 			expect(modelInfo.info.inputPrice).toBe(0)
 			expect(modelInfo.info.outputPrice).toBe(0)
 		})

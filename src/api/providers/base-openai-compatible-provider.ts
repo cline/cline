@@ -62,11 +62,11 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		})
 	}
 
-	override async *createMessage(
+	protected createStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
-	): ApiStream {
+	) {
 		const {
 			id: model,
 			info: { maxTokens: max_tokens },
@@ -83,7 +83,15 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 			stream_options: { include_usage: true },
 		}
 
-		const stream = await this.client.chat.completions.create(params)
+		return this.client.chat.completions.create(params)
+	}
+
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
+		const stream = await this.createStream(systemPrompt, messages, metadata)
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
