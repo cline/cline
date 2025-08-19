@@ -7,7 +7,7 @@ export const rooDefaultModelId: RooModelId = "roo/sonic"
 
 export const rooModels = {
 	"roo/sonic": {
-		maxTokens: 8192,
+		maxTokens: 16_384,
 		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: true,

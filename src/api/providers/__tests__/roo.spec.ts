@@ -328,7 +328,7 @@ describe("RooHandler", () => {
 			expect(modelInfo.id).toBe("unknown-model-id")
 			expect(modelInfo.info).toBeDefined()
 			// Should return fallback info for unknown models
-			expect(modelInfo.info.maxTokens).toBe(8192)
+			expect(modelInfo.info.maxTokens).toBe(16_384)
 			expect(modelInfo.info.contextWindow).toBe(262_144)
 			expect(modelInfo.info.supportsImages).toBe(false)
 			expect(modelInfo.info.supportsPromptCache).toBe(true)
