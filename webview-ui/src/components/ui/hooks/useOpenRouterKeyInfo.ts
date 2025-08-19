@@ -20,9 +20,10 @@ const openRouterKeyInfoSchema = z.object({
 })
 export type OpenRouterKeyInfo = z.infer<typeof openRouterKeyInfoSchema>["data"]
 
-// Module-level cache variables
+// Module-level cache variables with API key association
 let moduleCachedData: OpenRouterKeyInfo | null = null
 let moduleLastFetchTime: number | null = null
+let moduleCachedApiKey: string | null = null
 
 async function getOpenRouterKeyInfo(apiKey: string, signal: AbortSignal): Promise<OpenRouterKeyInfo | null> {
 	try {
@@ -59,6 +60,16 @@ async function getOpenRouterKeyInfo(apiKey: string, signal: AbortSignal): Promis
 }
 
 /**
+ * Manually clear the OpenRouter key info cache.
+ * This can be useful to force a refresh of the credit balance.
+ */
+export const clearOpenRouterKeyInfoCache = () => {
+	moduleCachedData = null
+	moduleLastFetchTime = null
+	moduleCachedApiKey = null
+}
+
+/**
  * Custom hook to fetch OpenRouter API key information.
  * Implements stale-while-revalidate caching using module-level variables.
  * @param apiKey The OpenRouter API key.
@@ -70,6 +81,13 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 	// Loading is true only if there's no initial cache and a key is provided
 	const [isLoading, setIsLoading] = useState<boolean>(!moduleCachedData && !!apiKey)
 	const [error, setError] = useState<Error | null>(null)
+	const [refreshKey, setRefreshKey] = useState<number>(0)
+
+	// Refresh function that can be called to force update
+	const refresh = () => {
+		clearOpenRouterKeyInfoCache()
+		setRefreshKey(prev => prev + 1)
+	}
 
 	useEffect(() => {
 		const controller = new AbortController()
@@ -80,18 +98,27 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 			setData(null)
 			moduleCachedData = null
 			moduleLastFetchTime = null
+			moduleCachedApiKey = null
 			setIsLoading(false)
 			setError(null)
 			return () => controller.abort()
 		}
 
+		// Clear cache if API key changed
+		const apiKeyChanged = moduleCachedApiKey && moduleCachedApiKey !== apiKey
+		if (apiKeyChanged) {
+			moduleCachedData = null
+			moduleLastFetchTime = null
+			moduleCachedApiKey = null
+		}
+
 		const now = Date.now()
 		const cacheAge = moduleLastFetchTime ? now - moduleLastFetchTime : Infinity
 		const isCacheStale = cacheAge >= CACHE_DURATION_MS
-		const hasCache = !!moduleCachedData
+		const hasCache = !!moduleCachedData && moduleCachedApiKey === apiKey
 
-		// Use cached data immediately if available
-		if (hasCache) {
+		// Use cached data immediately if available and matches current API key
+		if (hasCache && !apiKeyChanged) {
 			// Ensure local state matches module cache if it hasn't updated yet
 			// This handles cases where the hook re-renders before the effect runs
 			if (data !== moduleCachedData) {
@@ -103,9 +130,9 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 			setError(null)
 		}
 
-		// Fetch if cache is stale or doesn't exist
-		if (isCacheStale || !hasCache) {
-			const isBackgroundFetch = hasCache && isCacheStale // Fetching while showing stale data
+		// Fetch if cache is stale, doesn't exist, or API key changed
+		if (isCacheStale || !hasCache || apiKeyChanged) {
+			const isBackgroundFetch = hasCache && isCacheStale && !apiKeyChanged // Fetching while showing stale data
 
 			// Don't set loading true for background fetches
 			if (!isBackgroundFetch) {
@@ -117,6 +144,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 					if (!signal.aborted) {
 						moduleCachedData = result // Update module cache
 						moduleLastFetchTime = Date.now() // Update module fetch time
+						moduleCachedApiKey = apiKey // Update module cached API key
 						setData(result) // Update state
 						setError(null) // Clear error on success
 					}
@@ -129,6 +157,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 							setData(null)
 							moduleCachedData = null
 							moduleLastFetchTime = null
+							moduleCachedApiKey = null
 						}
 					}
 				})
@@ -142,7 +171,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 		return () => {
 			controller.abort()
 		}
-	}, [apiKey]) // Re-run effect only when apiKey changes
+	}, [apiKey, refreshKey]) // Re-run effect when apiKey or refreshKey changes
 
-	return { data, isLoading, error }
+	return { data, isLoading, error, refresh }
 }

@@ -15,7 +15,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
  * Component to display OpenRouter balance information
  */
 const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
-	const { data: keyInfo, isLoading, error } = useOpenRouterKeyInfo(apiKey)
+	const { data: keyInfo, isLoading, error, refresh } = useOpenRouterKeyInfo(apiKey)
 
 	if (isLoading) {
 		return <span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
@@ -31,19 +31,33 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	const formattedBalance = formatPrice(remainingBalance)
 
 	return (
-		<VSCodeLink
-			href="https://openrouter.ai/settings/keys"
-			style={{
-				fontSize: "12px",
-				color: "var(--vscode-foreground)",
-				textDecoration: "none",
-				fontWeight: 500,
-				paddingLeft: 4,
-				cursor: "pointer",
-			}}
-			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}>
-			Balance: {formattedBalance}
-		</VSCodeLink>
+		<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+			<VSCodeLink
+				href="https://openrouter.ai/settings/keys"
+				style={{
+					fontSize: "12px",
+					color: "var(--vscode-foreground)",
+					textDecoration: "none",
+					fontWeight: 500,
+					cursor: "pointer",
+				}}
+				title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}\n\nClick to view on OpenRouter`}>
+				Balance: {formattedBalance}
+			</VSCodeLink>
+			<VSCodeButton
+				appearance="icon"
+				aria-label="Refresh balance"
+				title="Refresh credit balance"
+				onClick={refresh}
+				style={{ 
+					minWidth: "auto",
+					padding: "2px 4px",
+					fontSize: "10px",
+					height: "16px"
+				}}>
+				<span className="codicon codicon-refresh" style={{ fontSize: "12px" }} />
+			</VSCodeButton>
+		</div>
 	)
 }
 
