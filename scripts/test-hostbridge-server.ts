@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 import * as grpc from "@grpc/grpc-js"
-import * as health from "grpc-health-check"
 import { ReflectionService } from "@grpc/reflection"
+import * as health from "grpc-health-check"
 import * as os from "os"
 import { host } from "src/generated/grpc-js/index"
 import { getPackageDefinition } from "./proto-utils.mjs"

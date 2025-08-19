@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"

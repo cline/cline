@@ -1,37 +1,37 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
 import { ApiHandler } from "../index"
-import { convertToOpenAiMessages } from "@api/transform/openai-format"
-import { ApiStream } from "@api/transform/stream"
-import { convertToR1Format } from "@api/transform/r1-format"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
-interface TogetherHandlerOptions {
-	togetherApiKey?: string
-	togetherModelId?: string
+interface SambanovaHandlerOptions {
+	sambanovaApiKey?: string
+	apiModelId?: string
 }
 
-export class TogetherHandler implements ApiHandler {
-	private options: TogetherHandlerOptions
+export class SambanovaHandler implements ApiHandler {
+	private options: SambanovaHandlerOptions
 	private client: OpenAI | undefined
 
-	constructor(options: TogetherHandlerOptions) {
+	constructor(options: SambanovaHandlerOptions) {
 		this.options = options
 	}
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
-			if (!this.options.togetherApiKey) {
-				throw new Error("Together API key is required")
+			if (!this.options.sambanovaApiKey) {
+				throw new Error("SambaNova API key is required")
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.together.xyz/v1",
-					apiKey: this.options.togetherApiKey,
+					baseURL: "https://api.sambanova.ai/v1",
+					apiKey: this.options.sambanovaApiKey,
 				})
 			} catch (error: any) {
-				throw new Error(`Error creating Together client: ${error.message}`)
+				throw new Error(`Error creating SambaNova client: ${error.message}`)
 			}
 		}
 		return this.client
@@ -40,38 +40,33 @@ export class TogetherHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
-		const modelId = this.options.togetherModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const model = this.getModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
-		if (isDeepseekReasoner) {
+		const modelId = model.id.toLowerCase()
+
+		if (modelId.includes("deepseek") || modelId.includes("qwen") || modelId.includes("qwq")) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
 		const stream = await client.chat.completions.create({
-			model: modelId,
+			model: this.getModel().id,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
 		})
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
 					text: delta.content,
-				}
-			}
-
-			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta.reasoning_content as string | undefined) || "",
 				}
 			}
 
@@ -86,9 +81,14 @@ export class TogetherHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in sambanovaModels) {
+			const id = modelId as SambanovaModelId
+			return { id, info: sambanovaModels[id] }
+		}
 		return {
-			id: this.options.togetherModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			id: sambanovaDefaultModelId,
+			info: sambanovaModels[sambanovaDefaultModelId],
 		}
 	}
 }

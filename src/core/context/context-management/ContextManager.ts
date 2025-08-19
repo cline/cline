@@ -1,13 +1,13 @@
-import { getContextWindowInfo } from "./context-window-utils"
+import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { fileExistsAtPath } from "@utils/fs"
-import * as path from "path"
-import fs from "fs/promises"
-import cloneDeep from "clone-deep"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { ApiHandler } from "@api/index"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { fileExistsAtPath } from "@utils/fs"
+import cloneDeep from "clone-deep"
+import fs from "fs/promises"
+import * as path from "path"
+import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -180,7 +180,7 @@ export class ContextManager {
 		previousApiReqIndex: number,
 		taskDirectory: string,
 	) {
-		let updatedConversationHistoryDeletedRange = false
+		const updatedConversationHistoryDeletedRange = false
 
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
@@ -566,7 +566,7 @@ export class ContextManager {
 		fileReadIndices: Map<string, [number, number, string, string][]>,
 		thisExistingFileReads: string[],
 	): [boolean, string[]] {
-		const pattern = new RegExp(`<file_content path="([^"]*)">([\\s\\S]*?)</file_content>`, "g")
+		const pattern = /<file_content path="([^"]*)">([\s\S]*?)<\/file_content>/g
 
 		let foundMatch = false
 		const filePaths: string[] = []
@@ -631,7 +631,7 @@ export class ContextManager {
 		secondBlockText: string,
 		fileReadIndices: Map<string, [number, number, string, string][]>,
 	) {
-		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
+		const pattern = /(<final_file_content path="[^"]*">)[\s\S]*?(<\/final_file_content>)/
 
 		// check if this exists in the text, it won't exist if the user rejects the file change for example
 		if (pattern.test(secondBlockText)) {
@@ -715,7 +715,7 @@ export class ContextManager {
 							}
 						}
 					} else {
-						let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+						const innerTuple = this.contextHistoryUpdates.get(messageIndex)
 						let innerMap: Map<number, ContextUpdate[]>
 
 						if (!innerTuple) {
@@ -742,7 +742,7 @@ export class ContextManager {
 		// apply file mention updates to contextHistoryUpdates
 		// in fileMentionUpdates, filePathsUpdated includes all the file paths which are updated in the latest version of this altered text
 		for (const [messageIndex, [updatedText, filePathsUpdated]] of fileMentionUpdates.entries()) {
-			let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+			const innerTuple = this.contextHistoryUpdates.get(messageIndex)
 			let innerMap: Map<number, ContextUpdate[]>
 
 			if (!innerTuple) {
