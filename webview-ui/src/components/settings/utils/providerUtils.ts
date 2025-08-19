@@ -56,8 +56,6 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
-	doubaoModels,
-	doubaoDefaultModelId,
 	vercelAiGatewayDefaultModelInfo,
 	vercelAiGatewayDefaultModelId,
 } from "@shared/api"
