@@ -1,7 +1,7 @@
-import { Controller } from "../index"
-import { EmptyRequest, String } from "@shared/proto/cline/common"
-import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 import { getTheme } from "@integrations/theme/getTheme"
+import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active theme subscriptions
 const activeThemeSubscriptions = new Set<StreamingResponseHandler<String>>()

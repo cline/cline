@@ -1,7 +1,6 @@
-import { ToggleClineRules } from "@shared/proto/cline/file"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
+import { ToggleClineRules } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Cline rule (enable or disable)

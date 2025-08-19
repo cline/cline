@@ -1,8 +1,8 @@
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
-import ApiOptions from "../ApiOptions"
-import { ExtensionStateContextProvider, useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiConfiguration } from "@shared/api"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
+import { ExtensionStateContextProvider, useExtensionState } from "@/context/ExtensionStateContext"
+import ApiOptions from "../ApiOptions"
 
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
@@ -51,7 +51,7 @@ describe("ApiOptions Component", () => {
 	it("renders Requesty API Key input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
@@ -61,7 +61,7 @@ describe("ApiOptions Component", () => {
 	it("renders Requesty Model ID input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const modelIdInput = screen.getByPlaceholderText("Search and select a model...")
@@ -85,7 +85,7 @@ describe("ApiOptions Component", () => {
 	it("renders Together API Key input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
@@ -95,7 +95,7 @@ describe("ApiOptions Component", () => {
 	it("renders Together Model ID input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
@@ -125,7 +125,7 @@ describe("ApiOptions Component", () => {
 	it("renders Fireworks API Key input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
@@ -135,7 +135,7 @@ describe("ApiOptions Component", () => {
 	it("renders Fireworks Model ID input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
@@ -145,7 +145,7 @@ describe("ApiOptions Component", () => {
 	it("renders Fireworks Max Completion Tokens input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const maxCompletionTokensInput = screen.getByPlaceholderText("2000")
@@ -155,7 +155,7 @@ describe("ApiOptions Component", () => {
 	it("renders Fireworks Max Tokens input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const maxTokensInput = screen.getByPlaceholderText("4000")
@@ -179,7 +179,7 @@ describe("OpenApiInfoOptions", () => {
 	it("renders OpenAI Supports Images input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		fireEvent.click(screen.getByText("Model Configuration"))
@@ -190,7 +190,7 @@ describe("OpenApiInfoOptions", () => {
 	it("renders OpenAI Context Window Size input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		fireEvent.click(screen.getByText("Model Configuration"))
@@ -201,7 +201,7 @@ describe("OpenApiInfoOptions", () => {
 	it("renders OpenAI Max Output Tokens input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		fireEvent.click(screen.getByText("Model Configuration"))
@@ -228,7 +228,7 @@ describe("ApiOptions Component", () => {
 	it("renders Nebius API Key input", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
@@ -238,7 +238,7 @@ describe("ApiOptions Component", () => {
 	it("renders Nebius Model ID select with a default model", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions showModelOptions={true} currentMode="plan" />
+				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
 		const modelIdSelect = screen.getByLabelText("Model")

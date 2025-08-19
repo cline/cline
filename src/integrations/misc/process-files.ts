@@ -1,6 +1,6 @@
 import fs from "fs/promises"
-import * as path from "path"
 import sizeOf from "image-size"
+import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 

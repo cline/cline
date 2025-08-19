@@ -1,4 +1,4 @@
-import { isFocusChainItem, isCompletedFocusChainItem } from "@shared/focus-chain-utils"
+import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 
 export interface TodoListCounts {
 	totalItems: number

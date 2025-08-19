@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react"
-import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
 
 interface CodeAccordianProps {
 	code?: string
@@ -55,6 +55,7 @@ const CodeAccordian = ({
 			}}>
 			{(path || isFeedback || isConsoleLogs) && (
 				<div
+					onClick={isLoading ? undefined : onToggleExpand}
 					style={{
 						color: "var(--vscode-descriptionForeground)",
 						display: "flex",
@@ -67,8 +68,7 @@ const CodeAccordian = ({
 						WebkitUserSelect: "none",
 						MozUserSelect: "none",
 						msUserSelect: "none",
-					}}
-					onClick={isLoading ? undefined : onToggleExpand}>
+					}}>
 					{isFeedback || isConsoleLogs ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<span
@@ -127,9 +127,7 @@ const CodeAccordian = ({
 					}}>
 					<CodeBlock
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
-							code ??
-							diff ??
-							""
+							code ?? diff ?? ""
 						).trim()}\n${"```"}`}
 					/>
 				</div>
