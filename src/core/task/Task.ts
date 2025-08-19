@@ -2226,6 +2226,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
 					useAgentRules: vscode.workspace.getConfiguration("roo-cline").get<boolean>("useAgentRules") ?? true,
 				},
+				undefined, // todoList
+				this.api.getModel().id,
 			)
 		})()
 	}
