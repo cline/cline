@@ -412,7 +412,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							setSearchLoading(true)
 
 							// Map ContextMenuOptionType to FileSearchType enum
-							let searchType 
+							let searchType
 							if (type === ContextMenuOptionType.File) {
 								searchType = FileSearchType.FILE
 							} else if (type === ContextMenuOptionType.Folder) {
@@ -556,7 +556,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const options = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)
 							const optionsLength = options.length
 
-							if (optionsLength === 0) { return prevIndex }
+							if (optionsLength === 0) {
+								return prevIndex
+							}
 
 							// Find selectable options (non-URL types)
 							const selectableOptions = options.filter(
@@ -564,8 +566,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									option.type !== ContextMenuOptionType.URL && option.type !== ContextMenuOptionType.NoResults,
 							)
 
-							if (selectableOptions.length === 0) { return -1 // No selectable options
-}
+							if (selectableOptions.length === 0) {
+								return -1 // No selectable options
+							}
 
 							// Find the index of the next selectable option
 							const currentSelectableIndex = selectableOptions.findIndex((option) => option === options[prevIndex])
@@ -937,7 +940,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [])
 
 		const updateHighlights = useCallback(() => {
-			if (!textAreaRef.current || !highlightLayerRef.current) { return }
+			if (!textAreaRef.current || !highlightLayerRef.current) {
+				return
+			}
 
 			let processedText = textAreaRef.current.value
 
@@ -1123,7 +1128,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				requestyModelId,
 			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
-			if (!apiConfiguration) { return unknownModel }
+			if (!apiConfiguration) {
+				return unknownModel
+			}
 			switch (selectedProvider) {
 				case "cline":
 					return `${selectedProvider}:${selectedModelId}`

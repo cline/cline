@@ -22,7 +22,9 @@ const IS_DEV = process.env.IS_DEV
 
 // Utility function to parse checklist and extract current todo info
 const parseCurrentTodoInfo = (text: string) => {
-	if (!text) { return null }
+	if (!text) {
+		return null
+	}
 
 	const lines = text.split("\n")
 	const todoItems: { text: string; completed: boolean; index: number }[] = []
@@ -36,7 +38,9 @@ const parseCurrentTodoInfo = (text: string) => {
 		}
 	})
 
-	if (todoItems.length === 0) { return null }
+	if (todoItems.length === 0) {
+		return null
+	}
 
 	const currentTodoIndex = todoItems.findIndex((item) => !item.completed)
 	const currentTodo = currentTodoIndex >= 0 ? todoItems[currentTodoIndex] : null
@@ -531,7 +535,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							{(() => {
 								const todoInfo = parseCurrentTodoInfo(lastProgressMessageText || "")
 
-								if (!todoInfo?.hasItems) { return null }
+								if (!todoInfo?.hasItems) {
+									return null
+								}
 
 								if (todoInfo.completedCount === todoInfo.totalCount) {
 									return (
@@ -758,24 +764,24 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
 											<button
-													className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
-													onClick={() => {
-														// First open the settings panel using direct navigation
-														navigateToSettings()
+												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+												onClick={() => {
+													// First open the settings panel using direct navigation
+													navigateToSettings()
 
-														// After a short delay, send a message to scroll to settings
-														setTimeout(async () => {
-															try {
-																await UiServiceClient.scrollToSettings(
-																	StringRequest.create({ value: "features" }),
-																)
-															} catch (error) {
-																console.error("Error scrolling to checkpoint settings:", error)
-															}
-														}, 300)
-													}}>
-													disabling checkpoints.
-												</button>
+													// After a short delay, send a message to scroll to settings
+													setTimeout(async () => {
+														try {
+															await UiServiceClient.scrollToSettings(
+																StringRequest.create({ value: "features" }),
+															)
+														} catch (error) {
+															console.error("Error scrolling to checkpoint settings:", error)
+														}
+													}, 300)
+												}}>
+												disabling checkpoints.
+											</button>
 										)}
 										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>

@@ -34,7 +34,9 @@ export const OptionsButtons = ({
 	isActive?: boolean
 	inputValue?: string
 }) => {
-	if (!options?.length) { return null }
+	if (!options?.length) {
+		return null
+	}
 
 	const hasSelected = selected !== undefined && options.includes(selected)
 

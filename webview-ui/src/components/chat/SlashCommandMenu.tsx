@@ -52,7 +52,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 
 	// Create a reusable function for rendering a command section
 	const renderCommandSection = (commands: SlashCommand[], title: string, indexOffset: number, showDescriptions: boolean) => {
-		if (commands.length === 0) { return null }
+		if (commands.length === 0) {
+			return null
+		}
 
 		return (
 			<>

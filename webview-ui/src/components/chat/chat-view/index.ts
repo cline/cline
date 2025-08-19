@@ -2,7 +2,6 @@
  * Barrel export for chat-view utilities, hooks, components, and types
  */
 
-
 // Export layout components
 export * from "./components/layout"
 // Export message components

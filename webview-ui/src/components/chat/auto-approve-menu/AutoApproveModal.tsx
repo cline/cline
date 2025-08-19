@@ -58,7 +58,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 	// Track container width for responsive layout
 	useEffect(() => {
-		if (!isVisible) { return }
+		if (!isVisible) {
+			return
+		}
 
 		const updateWidth = () => {
 			if (itemsContainerRef.current) {
@@ -81,7 +83,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 		}
 	}, [isVisible])
 
-	if (!isVisible) { return null }
+	if (!isVisible) {
+		return null
+	}
 
 	return (
 		<div ref={modalRef}>

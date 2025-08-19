@@ -24,7 +24,9 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const renderFavoritedItem = (favId: string) => {
 		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING]
 		const action = actions.find((a) => a?.id === favId)
-		if (!action) { return null }
+		if (!action) {
+			return null
+		}
 
 		return (
 			<AutoApproveMenuItem

@@ -43,8 +43,9 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 	}
 
 	const handleFeedback = async (type: TaskFeedbackType) => {
-		if (feedback !== null) { return // Already provided feedback
-}
+		if (feedback !== null) {
+			return // Already provided feedback
+		}
 
 		setFeedback(type)
 

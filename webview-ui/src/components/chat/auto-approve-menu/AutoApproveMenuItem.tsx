@@ -100,7 +100,9 @@ const AutoApproveMenuItem = ({
 										className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
 										onClick={async (e) => {
 											e.stopPropagation()
-											if (action.id === "enableAll") { return }
+											if (action.id === "enableAll") {
+												return
+											}
 											await onToggleFavorite?.(action.id)
 										}}
 										style={{

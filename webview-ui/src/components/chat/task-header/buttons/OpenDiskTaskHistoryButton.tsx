@@ -7,7 +7,9 @@ const OpenDiskTaskHistoryButton: React.FC<{
 	taskId?: string
 }> = ({ taskId }) => {
 	const handleOpenDiskTaskHistory = () => {
-		if (!taskId) { return }
+		if (!taskId) {
+			return
+		}
 
 		FileServiceClient.openTaskHistory(StringRequest.create({ value: taskId })).catch((err) => {
 			console.error(err)

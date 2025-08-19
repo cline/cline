@@ -64,15 +64,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const lastApiReqTotalTokens = useMemo(() => {
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
-			if (!msg.text) { return 0 }
+			if (!msg.text) {
+				return 0
+			}
 			const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(msg.text)
 			return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 		}
 		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-			if (msg.say !== "api_req_started") { return false }
+			if (msg.say !== "api_req_started") {
+				return false
+			}
 			return getTotalTokensFromApiReqMessage(msg) > 0
 		})
-		if (!lastApiReqMessage) { return undefined }
+		if (!lastApiReqMessage) {
+			return undefined
+		}
 		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
 	}, [modifiedMessages])
 

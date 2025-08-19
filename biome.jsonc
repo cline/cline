@@ -94,9 +94,7 @@
 		"formatWithErrors": false,
 		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
 		"includes": [
-			"**",
-			"!src/core/prompts/**",
-			"!webview-ui/src/components/chat/**"
+			"**"
 		]
 	},
 	"javascript": {

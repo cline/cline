@@ -8,7 +8,9 @@ const CopyTaskButton: React.FC<{
 	const [copied, setCopied] = useState(false)
 
 	const handleCopy = () => {
-		if (!taskText) { return }
+		if (!taskText) {
+			return
+		}
 
 		navigator.clipboard.writeText(taskText).then(() => {
 			setCopied(true)

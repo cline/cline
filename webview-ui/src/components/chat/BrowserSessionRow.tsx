@@ -320,7 +320,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	// Track latest click coordinate
 	const latestClickPosition = useMemo(() => {
-		if (!isBrowsing) { return undefined }
+		if (!isBrowsing) {
+			return undefined
+		}
 
 		// Look through current page's next actions for the latest browser_action
 		const actions = currentPage?.nextAction?.messages || []

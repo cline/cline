@@ -1,9 +1,9 @@
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import React, { useCallback, useEffect, useMemo, useRef, } from "react"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
-import { COLOR_GRAY, } from "../colors"
+import { COLOR_GRAY } from "../colors"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
 
@@ -23,7 +23,9 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
 	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
-		if (messages.length <= 1) { return { taskTimelinePropsMessages: [], messageIndexMap: [] } }
+		if (messages.length <= 1) {
+			return { taskTimelinePropsMessages: [], messageIndexMap: [] }
+		}
 
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
 		const indexMap: number[] = []

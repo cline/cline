@@ -690,11 +690,9 @@ export const ChatRowContent = memo(
 								onClick={() => {
 									// Open the URL in the default browser using gRPC
 									if (tool.path) {
-										UiServiceClient.openUrl(StringRequest.create({ value: tool.path }))
-
-											.catch((err) => {
-												console.error("Failed to open URL:", err)
-											})
+										UiServiceClient.openUrl(StringRequest.create({ value: tool.path })).catch((err) => {
+											console.error("Failed to open URL:", err)
+										})
 									}
 								}}
 								style={{
@@ -1097,12 +1095,7 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return (
-							<CheckmarkControl
-									isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-									messageTs={message.ts}
-								/>
-						)
+						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
 							<div
@@ -1188,50 +1181,50 @@ export const ChatRowContent = memo(
 					case "shell_integration_warning":
 						return (
 							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: "var(--vscode-textBlockQuote-background)",
+									padding: 8,
+									borderRadius: 3,
+									fontSize: 12,
+								}}>
+								<div
 									style={{
 										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "var(--vscode-textBlockQuote-background)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
+										alignItems: "center",
+										marginBottom: 4,
 									}}>
-									<div
+									<i
+										className="codicon codicon-warning"
 										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
+											marginRight: 8,
+											fontSize: 14,
+											color: "var(--vscode-descriptionForeground)",
+										}}></i>
+									<span
+										style={{
+											fontWeight: 500,
+											color: "var(--vscode-foreground)",
 										}}>
-										<i
-											className="codicon codicon-warning"
-											style={{
-												marginRight: 8,
-												fontSize: 14,
-												color: "var(--vscode-descriptionForeground)",
-											}}></i>
-										<span
-											style={{
-												fontWeight: 500,
-												color: "var(--vscode-foreground)",
-											}}>
-											Shell Integration Unavailable
-										</span>
-									</div>
-									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
-										Cline may have trouble viewing the command's output. Please update VSCode (
-										<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
-										shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal:
-										Select Default Profile").{" "}
-										<a
-											href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
-											style={{
-												color: "inherit",
-												textDecoration: "underline",
-											}}>
-											Still having trouble?
-										</a>
-									</div>
+										Shell Integration Unavailable
+									</span>
 								</div>
+								<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+									Cline may have trouble viewing the command's output. Please update VSCode (
+									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
+									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
+									Profile").{" "}
+									<a
+										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										style={{
+											color: "inherit",
+											textDecoration: "underline",
+										}}>
+										Still having trouble?
+									</a>
+								</div>
+							</div>
 						)
 					case "task_progress":
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
