@@ -91,11 +91,7 @@
 		"indentWidth": 4,
 		"lineWidth": 130,
 		"lineEnding": "lf",
-		"formatWithErrors": true,
-		// TODO: Enable formatter for all files - currently off to keep PR changes minimal
-		"includes": [
-			"**"
-		]
+		"formatWithErrors": true
 	},
 	"javascript": {
 		"formatter": {
