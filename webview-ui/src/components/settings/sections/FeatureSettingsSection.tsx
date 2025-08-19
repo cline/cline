@@ -178,7 +178,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enable auto condense
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enables context management system which uses LLM based condensing, instead of rule-based truncation.
+							Enables advanced context management system which uses LLM based condensing, instead of rule-based
+							truncation.
 						</p>
 					</div>
 				</div>
