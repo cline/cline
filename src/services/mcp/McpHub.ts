@@ -34,7 +34,6 @@ import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
@@ -44,7 +43,7 @@ export class McpHub {
 	private clientVersion: string
 
 	private disposables: vscode.Disposable[] = []
-	private settingsWatcher?: vscode.FileSystemWatcher
+	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
@@ -132,41 +131,31 @@ export class McpHub {
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
 
-		// Subscribe to file changes using the gRPC WatchService
-		//console.log("[DEBUG] subscribing to mcp file changes")
-		const cancelSubscription = HostProvider.watch.subscribeToFile(
-			SubscribeToFileRequest.create({
-				path: settingsPath,
-			}),
-			{
-				onResponse: async (response) => {
-					// console.log(
-					// 	`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
-					// )
-
-					// Only process the file if it was changed (not created or deleted)
-					if (response.type === FileChangeEvent_ChangeType.CHANGED) {
-						const settings = await this.readAndValidateMcpSettingsFile()
-						if (settings) {
-							try {
-								await this.updateServerConnections(settings.mcpServers)
-							} catch (error) {
-								console.error("Failed to process MCP settings change:", error)
-							}
-						}
-					}
-				},
-				onError: (error) => {
-					console.error("Error watching MCP settings file:", error)
-				},
-				onComplete: () => {
-					//console.log("[DEBUG] MCP settings file watch completed")
-				},
+		this.settingsWatcher = chokidar.watch(settingsPath, {
+			persistent: true, // Keep the process running as long as files are being watched
+			ignoreInitial: true, // Don't fire 'add' events when discovering the file initially
+			awaitWriteFinish: {
+				// Wait for writes to finish before emitting events (handles chunked writes)
+				stabilityThreshold: 100, // Wait 100ms for file size to remain constant (matches the debounce from subscribeToFile.ts)
+				pollInterval: 100, // Check file size every 100ms while waiting for stability
 			},
-		)
+			atomic: true, // Handle atomic writes where editors write to a temp file then rename (prevents duplicate events)
+		})
 
-		// Add the cancellation function to disposables
-		this.disposables.push({ dispose: cancelSubscription })
+		this.settingsWatcher.on("change", async () => {
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (settings) {
+				try {
+					await this.updateServerConnections(settings.mcpServers)
+				} catch (error) {
+					console.error("Failed to process MCP settings change:", error)
+				}
+			}
+		})
+
+		this.settingsWatcher.on("error", (error) => {
+			console.error("Error watching MCP settings file:", error)
+		})
 	}
 
 	private async initializeMcpServers(): Promise<void> {
@@ -1123,7 +1112,7 @@ export class McpHub {
 		}
 		this.connections = []
 		if (this.settingsWatcher) {
-			this.settingsWatcher.dispose()
+			await this.settingsWatcher.close()
 		}
 		this.disposables.forEach((d) => d.dispose())
 	}
