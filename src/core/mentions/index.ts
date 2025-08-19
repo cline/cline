@@ -1,21 +1,20 @@
-import * as vscode from "vscode"
-import * as path from "path"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
+import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import fs from "fs/promises"
-import { extractTextFromFile } from "@integrations/misc/extract-text"
-import { isBinaryFile } from "isbinaryfile"
-import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
-import { getCommitInfo } from "@utils/git"
-import { getWorkingState } from "@utils/git"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
+import { getCommitInfo, getWorkingState } from "@utils/git"
+import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
+import * as path from "path"
+import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { getCwd } from "@/utils/path"
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -220,7 +219,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 								}
 								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
-							} catch (error) {
+							} catch (_error) {
 								return undefined
 							}
 						})(),

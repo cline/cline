@@ -100,14 +100,19 @@
 		},
 		{
 			"name": "Constants and enums",
-			"scope": ["variable.other.constant", "variable.other.enummember"],
+			"scope": [
+				"variable.other.constant",
+				"variable.other.enummember"
+			],
 			"settings": {
 				"foreground": "#0070C1"
 			}
 		},
 		{
 			"name": "Object keys, TS grammar specific",
-			"scope": ["meta.object-literal.key"],
+			"scope": [
+				"meta.object-literal.key"
+			],
 			"settings": {
 				"foreground": "#001080"
 			}
@@ -160,13 +165,19 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.or.regexp", "keyword.control.anchor.regexp"],
+			"scope": [
+				"keyword.operator.or.regexp",
+				"keyword.control.anchor.regexp"
+			],
 			"settings": {
 				"foreground": "#EE0000"
 			}
 		},
 		{
-			"scope": ["constant.character", "constant.other.option"],
+			"scope": [
+				"constant.character",
+				"constant.other.option"
+			],
 			"settings": {
 				"foreground": "#0000ff"
 			}

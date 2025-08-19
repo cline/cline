@@ -1,14 +1,15 @@
-import { useState, useCallback, useEffect } from "react"
+import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
-import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
+
 /**
  * Props for the SapAiCoreProvider component
  */
@@ -101,9 +102,9 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientId || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientId", value)}
+				placeholder="Enter AI Core Client Id..."
 				style={{ width: "100%" }}
-				type="password"
-				placeholder="Enter AI Core Client Id...">
+				type="password">
 				<span className="font-medium">AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
@@ -115,9 +116,9 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreClientSecret || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreClientSecret", value)}
+				placeholder="Enter AI Core Client Secret..."
 				style={{ width: "100%" }}
-				type="password"
-				placeholder="Enter AI Core Client Secret...">
+				type="password">
 				<span className="font-medium">AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
@@ -129,32 +130,32 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreBaseUrl || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreBaseUrl", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Base URL...">
+				placeholder="Enter AI Core Base URL..."
+				style={{ width: "100%" }}>
 				<span className="font-medium">AI Core Base URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiCoreTokenUrl || ""}
 				onChange={(value) => handleFieldChange("sapAiCoreTokenUrl", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Auth URL...">
+				placeholder="Enter AI Core Auth URL..."
+				style={{ width: "100%" }}>
 				<span className="font-medium">AI Core Auth URL</span>
 			</DebouncedTextField>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.sapAiResourceGroup || ""}
 				onChange={(value) => handleFieldChange("sapAiResourceGroup", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter AI Core Resource Group...">
+				placeholder="Enter AI Core Resource Group..."
+				style={{ width: "100%" }}>
 				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
 			<p className="text-xs mt-1.5 text-[var(--vscode-descriptionForeground)]">
 				These credentials are stored locally and only used to make API requests from this extension.
 				<VSCodeLink
-					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api"
-					className="inline">
+					className="inline"
+					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api">
 					You can find more information about SAP AI Core API access here.
 				</VSCodeLink>
 			</p>
@@ -168,8 +169,8 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 							<div className="text-xs text-[var(--vscode-errorForeground)]">
 								{modelError}
 								<button
-									onClick={fetchSapAiCoreModels}
-									className="ml-2 text-[11px] px-1.5 py-0.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border-none rounded-sm cursor-pointer">
+									className="ml-2 text-[11px] px-1.5 py-0.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border-none rounded-sm cursor-pointer"
+									onClick={fetchSapAiCoreModels}>
 									Retry
 								</button>
 							</div>
@@ -182,10 +183,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 									</div>
 								)}
 								<SapAiCoreModelPicker
-									sapAiCoreDeployedModels={deployedModelsArray}
-									selectedModelId={selectedModelId || ""}
 									onModelChange={handleModelChange}
 									placeholder="Select a model..."
+									sapAiCoreDeployedModels={deployedModelsArray}
+									selectedModelId={selectedModelId || ""}
 								/>
 							</>
 						) : (
@@ -195,7 +196,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 						)}
 					</div>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

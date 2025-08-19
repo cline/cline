@@ -2,9 +2,9 @@
 import "../providers/vscode-lm"
 import { describe, it } from "mocha"
 import "should"
-import * as vscode from "vscode"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { asObjectSafe, convertToAnthropicRole, convertToVsCodeLmMessages, convertToAnthropicMessage } from "./vscode-lm-format"
+import * as vscode from "vscode"
+import { asObjectSafe, convertToAnthropicMessage, convertToAnthropicRole, convertToVsCodeLmMessages } from "./vscode-lm-format"
 
 describe("asObjectSafe", () => {
 	it("should handle falsy values", () => {

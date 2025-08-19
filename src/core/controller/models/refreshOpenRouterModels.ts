@@ -1,13 +1,13 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { CLAUDE_SONNET_4_1M_TIERS, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import axios from "axios"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
+import path from "path"
+import { CLAUDE_SONNET_4_1M_TIERS, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { Controller } from ".."
 
 /**
  * Refreshes the OpenRouter models and returns the updated model list

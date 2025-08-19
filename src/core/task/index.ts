@@ -208,7 +208,7 @@ export class Task {
 		this.cacheService = cacheService
 
 		// Set up MCP notification callback for real-time notifications
-		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
 			// Display notification in chat immediately
 			await this.say("mcp_notification", `[${serverName}] ${message}`)
 		})
@@ -1038,7 +1038,7 @@ export class Task {
 
 		// load the context history state
 
-		const taskDir = await ensureTaskDirectoryExists(context, this.taskId)
+		const _taskDir = await ensureTaskDirectoryExists(context, this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
 
 		const lastClineMessage = this.messageStateHandler
@@ -1408,7 +1408,7 @@ export class Task {
 			})
 
 			// Race between command completion and timeout
-			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((_error) => {
 				// If we get here due to timeout, return a partial result with timeout flag
 				Logger.info(`Command timed out after 30s: ${command}`)
 				return {
@@ -2530,7 +2530,7 @@ export class Task {
 			}
 
 			return didEndLoop // will always be false for now
-		} catch (error) {
+		} catch (_error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}
@@ -2780,7 +2780,7 @@ export class Task {
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-			} catch (e) {
+			} catch (_e) {
 				return 0
 			}
 		}

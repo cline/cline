@@ -1,7 +1,6 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
-import { openExternal } from "@/utils/env"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
@@ -182,10 +181,6 @@ export class AuthHandler {
 	private sendResponse(res: ServerResponse, status: number, type: string, content: string): void {
 		res.writeHead(status, { "Content-Type": type })
 		res.end(content)
-	}
-
-	private async openBrowser(callbackUrl: URL): Promise<void> {
-		await openExternal(callbackUrl.toString())
 	}
 
 	public stop(): void {
