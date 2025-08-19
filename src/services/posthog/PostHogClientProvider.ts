@@ -45,10 +45,15 @@ export class PostHogClientProvider {
 			// Only logs exception contains "saoudrizwan\.claude-dev[/\\\\]dist[/\\\\]extension\.js" substring in sources
 			before_send: (event) => {
 				if (event?.event === "$exception") {
-					const exceptionSources = event?.properties?.["$exception_sources"] || []
 					const extensionRegex = /saoudrizwan\.claude-dev[/\\]dist[/\\]extension\.js/
-					if (exceptionSources.some((source: string) => extensionRegex.test(source))) {
-						return event
+					const exceptionList = event?.properties?.["$exception_list"] || []
+					for (const exception of exceptionList) {
+						const trace = exception.stacktrace
+						if (trace) {
+							if (trace.frames.some((frame: { filename: string }) => extensionRegex.test(frame.filename))) {
+								return event
+							}
+						}
 					}
 					return null
 				}
