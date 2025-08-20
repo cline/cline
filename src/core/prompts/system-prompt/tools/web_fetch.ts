@@ -2,8 +2,8 @@ import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "./spec"
 
-const generic: ClineToolSpec = {
-	variant: ModelFamily.GENERIC,
+const nextGen: ClineToolSpec = {
+	variant: ModelFamily.NEXT_GEN,
 	id: ClineDefaultTool.WEB_FETCH,
 	name: "web_fetch",
 	description: `Fetches content from a specified URL and processes into markdown
@@ -24,8 +24,7 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gpt = { ...generic, variant: ModelFamily.GPT }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
+const gpt = { ...nextGen, variant: ModelFamily.GPT }
+const gemini = { ...nextGen, variant: ModelFamily.GEMINI }
 
-export const web_fetch_variants = [generic, nextGen, gpt, gemini]
+export const web_fetch_variants = [nextGen, gpt, gemini]

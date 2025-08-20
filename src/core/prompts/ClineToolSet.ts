@@ -27,7 +27,8 @@ export class ClineToolSet {
 	public static getTools(variant: ModelFamily): ClineToolSet[] {
 		const toolsSet = ClineToolSet.variants.get(variant) || new Set()
 		const defaultSet = ClineToolSet.variants.get(ModelFamily.GENERIC) || new Set()
-		return Array.from(defaultSet).concat(Array.from(toolsSet))
+
+		return toolsSet ? Array.from(toolsSet) : Array.from(defaultSet)
 	}
 
 	public static getRegisteredModelIds(): string[] {
