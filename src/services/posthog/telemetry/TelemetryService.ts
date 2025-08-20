@@ -373,12 +373,17 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records when an MCP tool is called
-	 * @param ulid Unique identifier for the task
-	 * @param serverName The name of the MCP server
-	 * @param toolName The name of the tool being called
-	 * @param status The status of the tool call
-	 * @param errorMessage Optional error message if the call failed
+	 * Records when an MCP tool is called.
+	 * This telemetry event is designed to monitor the usage and performance of MCP tools
+	 * without compromising user privacy. It captures the tool's metadata (server, name, and arguments)
+	 * but explicitly avoids logging the values of the arguments.
+	 *
+	 * @param ulid Unique identifier for the task.
+	 * @param serverName The name of the MCP server.
+	 * @param toolName The name of the tool being called.
+	 * @param status The status of the tool call.
+	 * @param errorMessage Optional error message if the call failed.
+	 * @param argumentKeys Optional array of argument keys for the tool.
 	 */
 	public captureMcpToolCall(
 		ulid: string,
@@ -386,6 +391,7 @@ export class TelemetryService {
 		toolName: string,
 		status: "started" | "success" | "error",
 		errorMessage?: string,
+		argumentKeys?: string[],
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
@@ -395,6 +401,7 @@ export class TelemetryService {
 				toolName,
 				status,
 				errorMessage,
+				argumentKeys,
 			},
 		})
 	}

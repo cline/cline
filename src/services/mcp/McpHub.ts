@@ -815,8 +815,8 @@ export class McpHub {
 	async callTool(
 		serverName: string,
 		toolName: string,
-		toolArguments?: Record<string, unknown>,
-		ulid?: string,
+		toolArguments: Record<string, unknown> | undefined,
+		ulid: string,
 	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
@@ -839,9 +839,14 @@ export class McpHub {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
-		if (ulid) {
-			this.telemetryService.captureMcpToolCall(ulid, serverName, toolName, "started")
-		}
+		this.telemetryService.captureMcpToolCall(
+			ulid,
+			serverName,
+			toolName,
+			"started",
+			undefined,
+			toolArguments ? Object.keys(toolArguments) : undefined,
+		)
 
 		try {
 			const result = await connection.client.request(
@@ -858,24 +863,28 @@ export class McpHub {
 				},
 			)
 
-			if (ulid) {
-				this.telemetryService.captureMcpToolCall(ulid, serverName, toolName, "success")
-			}
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"success",
+				undefined,
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
 
 			return {
 				...result,
 				content: result.content ?? [],
 			}
 		} catch (error) {
-			if (ulid) {
-				this.telemetryService.captureMcpToolCall(
-					ulid,
-					serverName,
-					toolName,
-					"error",
-					error instanceof Error ? error.message : String(error),
-				)
-			}
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"error",
+				error instanceof Error ? error.message : String(error),
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
 			throw error
 		}
 	}
