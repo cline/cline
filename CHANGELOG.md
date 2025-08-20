@@ -1,13 +1,13 @@
 # Changelog
 
-## 3.27.0
+## [3.26.1]
 
-- aea979f: sap provider show deployed and not deployed models in ai core service instance
-- 6dc44b9: Added Vercel AI Gateway provider option
-- 7e7280d: Fix the fireworks provider
-- 89ec9c4: Added MCP telemetry around when a MCP tool is used
-- e125540: Better understanding of rules and workflow usage
-- 8806bed: Set default plan mode to strict as the default
+- Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
+- Improve SAP AI Core provider to show deployed and undeployed models in the UI (Thanks @yuvalman!)
+- Fix Fireworks provider configuration and functionality (Thanks @ershang-fireworks!)
+- Add telemetry tracking for MCP tool usage to help improve the extension
+- Improve telemetry tracking for rules and workflow usage analytics
+- Set Plan mode to use strict mode by default for better planning results
 
 ## [3.26.0]
 
