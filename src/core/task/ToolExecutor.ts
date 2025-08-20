@@ -1401,7 +1401,7 @@ export class ToolExecutor {
 							await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
 						}
 
-						const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+						const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments, this.ulid)
 
 						// Check for any pending notifications after the tool call
 						const notificationsAfter = this.mcpHub.getPendingNotifications()
@@ -1744,6 +1744,10 @@ export class ToolExecutor {
 							telemetryData.tokensUsed,
 							telemetryData.maxContextWindow,
 						)
+					}
+
+					if (!block.partial && this.focusChainSettings.enabled) {
+						await this.updateFCListFromToolResponse(block.params.task_progress)
 					}
 
 					break

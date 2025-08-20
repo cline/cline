@@ -91,6 +91,7 @@ export class Controller {
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			telemetryService,
 		)
 
 		// Clean up legacy checkpoints

@@ -559,6 +559,19 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	description:
 		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
+
+// Cline custom model - sonic (same config as grok-4)
+export const clineMicrowaveAlphaModelInfo: ModelInfo = {
+	maxTokens: 16_000,
+	contextWindow: 262144,
+	supportsImages: false,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
+	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
+	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
+}
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
@@ -2806,9 +2819,10 @@ export const groqModels = {
 		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description:
 			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
 	},

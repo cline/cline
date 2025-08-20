@@ -2232,7 +2232,7 @@ export class Task {
 			}
 
 			if (shouldCompact) {
-				userContent.push({ type: "text", text: summarizeTask() })
+				userContent.push({ type: "text", text: summarizeTask(this.focusChainSettings.enabled) })
 			}
 		} else {
 			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
@@ -2600,6 +2600,7 @@ export class Task {
 								parsedText,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								this.ulid,
 							)
 
 							if (needsCheck) {
