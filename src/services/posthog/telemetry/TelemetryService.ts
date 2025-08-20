@@ -96,7 +96,7 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
-			// Tracks the context window is auto-condensed with the summarize_task tool call
+			// Tracks when the context window is auto-condensed with the summarize_task tool call
 			AUTO_COMPACT: "task.summarize_task",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
