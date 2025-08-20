@@ -2,12 +2,7 @@
 
 ## 3.26.0
 
-### Minor Changes
-
 - a45278b: Add support for Z AI GLM-4.5 and GLM-4.5 air
-
-### Patch Changes
-
 - 5709f34: Support LM Studio local models from v0 api endpoint, fix Ollama context window configuration not working issue.
 
 ## [3.25.3]
