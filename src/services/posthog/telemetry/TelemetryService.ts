@@ -101,7 +101,7 @@ export class TelemetryService {
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
 			// Tracks when individual Cline rules are toggled on/off
-			RULE_TOGGLED: "rules.rule_toggled",
+			RULE_TOGGLED: "task.rule_toggled",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
