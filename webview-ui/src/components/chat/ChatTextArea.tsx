@@ -1,6 +1,6 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/cline/file"
+import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -411,10 +411,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
 							setSearchLoading(true)
 
+							// Map ContextMenuOptionType to FileSearchType enum
+							let searchType
+							if (type === ContextMenuOptionType.File) {
+								searchType = FileSearchType.FILE
+							} else if (type === ContextMenuOptionType.Folder) {
+								searchType = FileSearchType.FOLDER
+							}
+
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
 									query: "",
 									mentionsRequestId: "",
+									selectedType: searchType,
 								}),
 							)
 								.then((results) => {
@@ -768,6 +777,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								FileSearchRequest.create({
 									query: query,
 									mentionsRequestId: query,
+									selectedType: undefined, // No type filter for general search
 								}),
 							)
 								.then((results) => {
@@ -1108,8 +1118,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
 			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
-			const { vsCodeLmModelSelector, togetherModelId, lmStudioModelId, ollamaModelId, liteLlmModelId, requestyModelId } =
-				getModeSpecificFields(apiConfiguration, mode)
+			const {
+				vsCodeLmModelSelector,
+				togetherModelId,
+				fireworksModelId,
+				lmStudioModelId,
+				ollamaModelId,
+				liteLlmModelId,
+				requestyModelId,
+			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) {
 				return unknownModel
