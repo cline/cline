@@ -1,5 +1,5 @@
 // Import all tool variants
-import { ClineToolSet } from "../../ClineToolSet"
+import { ClineToolSet } from "../ClineToolSet"
 import { access_mcp_resource_variants } from "./access_mcp_resource"
 import { ask_followup_question_variants } from "./ask_followup_question"
 import { attempt_completion_variants } from "./attempt_completion"
