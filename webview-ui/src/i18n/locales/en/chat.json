@@ -274,13 +274,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",
-		"description": "Roo Code {{version}} brings powerful new features and significant improvements to enhance your development workflow.",
-		"whatsNew": "What's New",
-		"feature1": "<bold>Message Queueing</bold>: Queue multiple messages while Roo is working, allowing you to continue planning your workflow without interruption.",
-		"feature2": "<bold>Custom Slash Commands</bold>: Create personalized slash commands for quick access to frequently used prompts and workflows, with full UI management.",
-		"feature3": "<bold>Enhanced Gemini Tools</bold>: New URL context and Google Search grounding capabilities provide Gemini models with real-time web information and enhanced research abilities.",
-		"hideButton": "Hide announcement",
-		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
+		"stealthModel": {
+			"feature": "<bold>Limited-time FREE stealth model</bold> - A blazing fast reasoning model that excels at agentic coding with a 262k context window, available through Roo Code Cloud.",
+			"note": "(Note: prompts and completions are logged by the model creator to improve the model)",
+			"connectButton": "Connect to Roo Code Cloud",
+			"selectModel": "Select <code>roo/sonic</code> from the Roo Code Cloud provider in<br/><settingsLink>Settings</settingsLink> to get started"
+		}
 	},
 	"reasoning": {
 		"thinking": "Thinking",

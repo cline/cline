@@ -265,6 +265,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Llançat",
+		"stealthModel": {
+			"feature": "<bold>Model stealth GRATUÏT per temps limitat</bold> - Un model de raonament ultraràpid que destaca en codificació agèntica amb una finestra de context de 262k, disponible a través de Roo Code Cloud.",
+			"note": "(Nota: els prompts i completacions són registrats pel creador del model i utilitzats per millorar-lo)",
+			"connectButton": "Connectar a Roo Code Cloud",
+			"selectModel": "Selecciona <code>roo/sonic</code> del proveïdor Roo Code Cloud a<br/><settingsLink>Configuració</settingsLink> per començar"
+		},
 		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",
 		"feature1": "<bold>Cua de Missatges</bold>: Posa en cua múltiples missatges mentre Roo està treballant, permetent-te continuar planificant el teu flux de treball sense interrupcions.",

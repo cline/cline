@@ -265,6 +265,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
+		"stealthModel": {
+			"feature": "<bold>Sınırlı süre ÜCRETSİZ gizli model</bold> - 262k bağlam penceresi ile ajantik kodlamada mükemmel olan çok hızlı akıl yürütme modeli, Roo Code Cloud üzerinden kullanılabilir.",
+			"note": "(Not: istemler ve tamamlamalar model yaratıcısı tarafından kaydedilir ve modeli geliştirmek için kullanılır)",
+			"connectButton": "Roo Code Cloud'a bağlan",
+			"selectModel": "<br/><settingsLink>Ayarlar</settingsLink>'da Roo Code Cloud sağlayıcısından <code>roo/sonic</code>'i seç ve başla"
+		},
 		"description": "Roo Code {{version}}, geliştirme iş akışınızı geliştirmek için güçlü yeni özellikler ve önemli iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
 		"feature1": "<bold>Mesaj Kuyruğu</bold>: Roo çalışırken birden fazla mesajı kuyruğa alın, iş akışınızı kesintisiz olarak planlamaya devam etmenizi sağlar.",

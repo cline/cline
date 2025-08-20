@@ -265,6 +265,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 출시",
+		"stealthModel": {
+			"feature": "<bold>기간 한정 무료 스텔스 모델</bold> - 262k 컨텍스트 윈도우를 가진 에이전틱 코딩에 뛰어난 초고속 추론 모델, Roo Code Cloud를 통해 이용 가능.",
+			"note": "(참고: 프롬프트와 완성은 모델 제작자에 의해 기록되고 모델 개선에 사용됩니다)",
+			"connectButton": "Roo Code Cloud에 연결",
+			"selectModel": "<br/><settingsLink>설정</settingsLink>에서 Roo Code Cloud 제공업체의 <code>roo/sonic</code>을 선택하여 시작"
+		},
 		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
 		"feature1": "<bold>메시지 대기열</bold>: Roo가 작업하는 동안 여러 메시지를 대기열에 넣어 워크플로우 계획을 중단 없이 계속할 수 있습니다.",

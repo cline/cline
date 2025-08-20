@@ -265,6 +265,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已发布",
+		"stealthModel": {
+			"feature": "<bold>限时免费隐形模型</bold> - 一个在代理编程方面表现出色的超快推理模型，拥有 262k 上下文窗口，通过 Roo Code Cloud 提供。",
+			"note": "(注意：提示词和补全内容会被模型创建者记录并用于改进模型)",
+			"connectButton": "连接到 Roo Code Cloud",
+			"selectModel": "在<br/><settingsLink>设置</settingsLink>中从 Roo Code Cloud 提供商选择 <code>roo/sonic</code> 开始使用"
+		},
 		"description": "Roo Code {{version}} 带来强大的新功能和重大改进，提升您的开发工作流程。",
 		"whatsNew": "新特性",
 		"feature1": "<bold>消息队列</bold>: 在 Roo 工作时将多个消息排队，让你可以不间断地继续规划工作流程。",

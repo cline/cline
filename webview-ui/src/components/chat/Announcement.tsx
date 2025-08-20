@@ -3,9 +3,11 @@ import { Trans } from "react-i18next"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import { Package } from "@roo/package"
-
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@src/components/ui"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { vscode } from "@src/utils/vscode"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@src/components/ui"
+import { Button } from "@src/components/ui"
 
 interface AnnouncementProps {
 	hideAnnouncement: () => void
@@ -23,6 +25,7 @@ interface AnnouncementProps {
 const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 	const { t } = useAppTranslation()
 	const [open, setOpen] = useState(true)
+	const { cloudIsAuthenticated } = useExtensionState()
 
 	return (
 		<Dialog
@@ -37,98 +40,64 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			<DialogContent className="max-w-96">
 				<DialogHeader>
 					<DialogTitle>{t("chat:announcement.title", { version: Package.version })}</DialogTitle>
-					<DialogDescription>
-						{t("chat:announcement.description", { version: Package.version })}
-					</DialogDescription>
 				</DialogHeader>
 				<div>
-					<h3>{t("chat:announcement.whatsNew")}</h3>
 					<ul className="space-y-2">
 						<li>
 							•{" "}
 							<Trans
-								i18nKey="chat:announcement.feature1"
+								i18nKey="chat:announcement.stealthModel.feature"
 								components={{
 									bold: <b />,
-									code: <code />,
-									settingsLink: (
-										<VSCodeLink
-											href="#"
-											onClick={(e) => {
-												e.preventDefault()
-												setOpen(false)
-												hideAnnouncement()
-												window.postMessage(
-													{
-														type: "action",
-														action: "settingsButtonClicked",
-														values: { section: "codebaseIndexing" },
-													},
-													"*",
-												)
-											}}
-										/>
-									),
-								}}
-							/>
-						</li>
-						<li>
-							•{" "}
-							<Trans
-								i18nKey="chat:announcement.feature2"
-								components={{
-									bold: <b />,
-									code: <code />,
-								}}
-							/>
-						</li>
-						<li>
-							•{" "}
-							<Trans
-								i18nKey="chat:announcement.feature3"
-								components={{
-									bold: <b />,
-									code: <code />,
 								}}
 							/>
 						</li>
 					</ul>
-					<Trans
-						i18nKey="chat:announcement.detailsDiscussLinks"
-						components={{ discordLink: <DiscordLink />, redditLink: <RedditLink /> }}
-					/>
+
+					<p className="text-xs text-muted-foreground mt-2">{t("chat:announcement.stealthModel.note")}</p>
+
+					<div className="mt-4">
+						{!cloudIsAuthenticated ? (
+							<Button
+								onClick={() => {
+									vscode.postMessage({ type: "rooCloudSignIn" })
+								}}
+								className="w-full">
+								{t("chat:announcement.stealthModel.connectButton")}
+							</Button>
+						) : (
+							<div className="text-sm w-full">
+								<Trans
+									i18nKey="chat:announcement.stealthModel.selectModel"
+									components={{
+										code: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded" />,
+										settingsLink: (
+											<VSCodeLink
+												href="#"
+												onClick={(e) => {
+													e.preventDefault()
+													setOpen(false)
+													hideAnnouncement()
+													window.postMessage(
+														{
+															type: "action",
+															action: "settingsButtonClicked",
+															values: { section: "provider" },
+														},
+														"*",
+													)
+												}}
+											/>
+										),
+									}}
+								/>
+							</div>
+						)}
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>
 	)
 }
-
-const DiscordLink = () => (
-	<VSCodeLink
-		href="https://discord.gg/roocode"
-		onClick={(e) => {
-			e.preventDefault()
-			window.postMessage(
-				{ type: "action", action: "openExternal", data: { url: "https://discord.gg/roocode" } },
-				"*",
-			)
-		}}>
-		Discord
-	</VSCodeLink>
-)
-
-const RedditLink = () => (
-	<VSCodeLink
-		href="https://reddit.com/r/RooCode"
-		onClick={(e) => {
-			e.preventDefault()
-			window.postMessage(
-				{ type: "action", action: "openExternal", data: { url: "https://reddit.com/r/RooCode" } },
-				"*",
-			)
-		}}>
-		Reddit
-	</VSCodeLink>
-)
 
 export default memo(Announcement)

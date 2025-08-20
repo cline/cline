@@ -277,6 +277,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",
+		"stealthModel": {
+			"feature": "<bold>Model stealth GRATIS waktu terbatas</bold> - Model penalaran super cepat yang unggul dalam coding agentik dengan jendela konteks 262k, tersedia melalui Roo Code Cloud.",
+			"note": "(Catatan: prompt dan completion dicatat oleh pembuat model dan digunakan untuk meningkatkan model)",
+			"connectButton": "Hubungkan ke Roo Code Cloud",
+			"selectModel": "Pilih <code>roo/sonic</code> dari penyedia Roo Code Cloud di<br/><settingsLink>Pengaturan</settingsLink> untuk memulai"
+		},
 		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
 		"whatsNew": "Yang Baru",
 		"feature1": "<bold>Antrian Pesan</bold>: Antrikan beberapa pesan saat Roo sedang bekerja, memungkinkan Anda melanjutkan perencanaan alur kerja tanpa gangguan.",

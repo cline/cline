@@ -265,6 +265,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} est sortie",
+		"stealthModel": {
+			"feature": "<bold>Modèle stealth GRATUIT pour une durée limitée</bold> - Un modèle de raisonnement ultra-rapide qui excelle dans le codage agentique avec une fenêtre de contexte de 262k, disponible via Roo Code Cloud.",
+			"note": "(Note : les prompts et complétions sont enregistrés par le créateur du modèle et utilisés pour l'améliorer)",
+			"connectButton": "Se connecter à Roo Code Cloud",
+			"selectModel": "Sélectionne <code>roo/sonic</code> du fournisseur Roo Code Cloud dans<br/><settingsLink>Paramètres</settingsLink> pour commencer"
+		},
 		"description": "Roo Code {{version}} apporte de puissantes nouvelles fonctionnalités et des améliorations significatives pour améliorer ton flux de travail de développement.",
 		"whatsNew": "Quoi de neuf",
 		"feature1": "<bold>File d'Attente de Messages</bold> : Mettez en file d'attente plusieurs messages pendant que Roo travaille, vous permettant de continuer à planifier votre flux de travail sans interruption.",
