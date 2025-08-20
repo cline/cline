@@ -15,17 +15,23 @@ export function insertMention(text: string, position: number, value: string): { 
 	// Find the position of the last '@' symbol before the cursor
 	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
+
 	let newValue: string
 	let mentionIndex: number
 
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
 		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		newValue = beforeMention + "@" + formattedValue + " " + afterCursor.replace(/^[^\s]*/, "")
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
-		newValue = beforeCursor + "@" + value + " " + afterCursor
+		newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
 		mentionIndex = position
 	}
 
@@ -35,7 +41,14 @@ export function insertMention(text: string, position: number, value: string): { 
 export function insertMentionDirectly(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
-	const newValue = beforeCursor + "@" + value + " " + afterCursor
+
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
+
+	const newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
 	const mentionIndex = position
 	return { newValue, mentionIndex }
 }
@@ -101,23 +114,38 @@ export function getContextMenuOptions(
 		description: "Current uncommitted changes",
 	}
 
+	const searchResultItems: ContextMenuQueryItem[] = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const item = {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+		return item
+	})
+
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
-			const files = queryItems
+			const files = searchResultItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
 				.map((item) => ({
 					type: item.type,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
-			const folders = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.Folder)
+			const folders = searchResultItems
+				.filter((item) => item.type !== ContextMenuOptionType.File)
 				.map((item) => ({
 					type: ContextMenuOptionType.Folder,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
@@ -193,17 +221,6 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)
-
-	const searchResultItems = dynamicSearchResults.map((result) => {
-		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
-		const item = {
-			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-			value: formattedPath,
-			label: result.label || path.basename(result.path),
-			description: formattedPath,
-		}
-		return item
-	})
 
 	// If we have dynamic search results, prioritize those
 	if (dynamicSearchResults.length > 0) {

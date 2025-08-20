@@ -1,8 +1,7 @@
-import { ChromePath } from "../../../shared/proto/browser"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { Controller } from "../index"
-import { getAllExtensionState } from "../../storage/state"
+import { ChromePath } from "@shared/proto/cline/browser"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
+import { Controller } from "../index"
 
 /**
  * Get the detected Chrome executable path
@@ -12,7 +11,7 @@ import { BrowserSession } from "../../../services/browser/BrowserSession"
  */
 export async function getDetectedChromePath(controller: Controller, _: EmptyRequest): Promise<ChromePath> {
 	try {
-		const { browserSettings } = await getAllExtensionState(controller.context)
+		const browserSettings = controller.cacheService.getGlobalStateKey("browserSettings")
 		const browserSession = new BrowserSession(controller.context, browserSettings)
 		const result = await browserSession.getDetectedChromePath()
 

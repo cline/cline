@@ -1,16 +1,17 @@
+import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { WebviewProvider } from "@/core/webview"
 import type { Controller } from "../index"
-import { EmptyRequest, Empty, String } from "@shared/proto/common"
-import * as hostProviders from "@hosts/host-providers"
-import { WebviewProviderType } from "@/shared/webview/types"
 
 /**
- * Initialize webview when it launches
- * @param controller The controller instance
- * @param request The empty request
- * @returns Empty response
+ * Returns the HTML content of the webview.
+ *
+ * This is only used by the standalone service. The Vscode extension gets the HTML directly from the webview when it
+ * resolved through `resolveWebviewView()`.
  */
 export async function getWebviewHtml(_controller: Controller, _: EmptyRequest): Promise<String> {
-	const webviewProvider = hostProviders.createWebviewProvider(WebviewProviderType.SIDEBAR)
-
+	const webviewProvider = WebviewProvider.getLastActiveInstance()
+	if (!webviewProvider) {
+		throw new Error("No active webview")
+	}
 	return Promise.resolve(String.create({ value: webviewProvider.getHtmlContent() }))
 }

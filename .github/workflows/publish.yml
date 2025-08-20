@@ -94,6 +94,7 @@ jobs:
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  CLINE_ENVIRONMENT: production
               run: |
                   # Required to generate the .vsix
                   vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"

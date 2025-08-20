@@ -1,4 +1,3 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import type {
 	BalanceResponse,
 	OrganizationBalanceResponse,
@@ -7,15 +6,14 @@ import type {
 	UsageTransaction,
 	UserResponse,
 } from "@shared/ClineAccount"
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import { clineEnvConfig } from "@/config"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	// TODO: replace this with a global API Host
-	private readonly _baseUrl = "https://api.cline.bot"
-	// private readonly _baseUrl = "https://core-api.staging.int.cline.bot"
-	// private readonly _baseUrl = "http://localhost:7777"
+	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
@@ -225,7 +223,7 @@ export class ClineAccountService {
 		// Call API to switch account
 		try {
 			// make XHR request to switch account
-			const response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+			const _response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",

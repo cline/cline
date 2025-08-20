@@ -1,9 +1,8 @@
-import { Controller } from "../index"
-import * as proto from "@/shared/proto"
-import { updateGlobalState } from "../../storage/state"
+import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import * as proto from "@/shared/proto"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { Controller } from "../index"
 
 export async function updateDefaultTerminalProfile(
 	controller: Controller,
@@ -12,7 +11,7 @@ export async function updateDefaultTerminalProfile(
 	const profileId = request.value
 
 	// Update the terminal profile in the state
-	await updateGlobalState(controller.context, "defaultTerminalProfile", profileId)
+	controller.cacheService.setGlobalState("defaultTerminalProfile", profileId)
 
 	let closedCount = 0
 	let busyTerminals: TerminalInfo[] = []
@@ -27,12 +26,10 @@ export async function updateDefaultTerminalProfile(
 		// Show information message if terminals were closed
 		if (closedCount > 0) {
 			const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message,
-				}),
-			)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message,
+			})
 		}
 
 		// Show warning if there are busy terminals that couldn't be closed
@@ -40,12 +37,10 @@ export async function updateDefaultTerminalProfile(
 			const message =
 				`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
 				`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.WARNING,
-					message,
-				}),
-			)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.WARNING,
+				message,
+			})
 		}
 	}
 

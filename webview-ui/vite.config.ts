@@ -1,10 +1,10 @@
 /// <reference types="vitest/config" />
 
-import { defineConfig, ViteDevServer, type Plugin } from "vite"
+import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
-import { writeFileSync } from "node:fs"
+import { defineConfig, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -26,6 +26,8 @@ const writePortToFile = (): Plugin => {
 	}
 }
 
+const isDevBuild = process.argv.includes("--dev-build")
+
 export default defineConfig({
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
@@ -40,12 +42,26 @@ export default defineConfig({
 	build: {
 		outDir: "build",
 		reportCompressedSize: false,
+		// Only minify in production build
+		minify: !isDevBuild,
+		// Enable inline source maps for dev build
+		sourcemap: isDevBuild ? "inline" : false,
 		rollupOptions: {
 			output: {
 				inlineDynamicImports: true,
 				entryFileNames: `assets/[name].js`,
 				chunkFileNames: `assets/[name].js`,
 				assetFileNames: `assets/[name].[ext]`,
+				// Disable compact output for dev build
+				compact: !isDevBuild,
+				// Add generous formatting for dev build
+				...(isDevBuild && {
+					generatedCode: {
+						constBindings: false,
+						objectShorthand: false,
+						arrowFunctions: false,
+					},
+				}),
 			},
 		},
 		chunkSizeWarningLimit: 100000,

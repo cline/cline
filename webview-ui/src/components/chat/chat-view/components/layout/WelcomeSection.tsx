@@ -1,10 +1,9 @@
 import React from "react"
-import TelemetryBanner from "@/components/common/TelemetryBanner"
 import Announcement from "@/components/chat/Announcement"
-import HomeHeader from "@/components/welcome/HomeHeader"
+import TelemetryBanner from "@/components/common/TelemetryBanner"
 import HistoryPreview from "@/components/history/HistoryPreview"
+import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
-import AutoApproveBar from "@/components/chat/auto-approve-menu/AutoApproveBar"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -21,23 +20,14 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	shouldShowQuickWins,
 }) => {
 	return (
-		<>
-			<div
-				style={{
-					flex: "1 1 0",
-					minHeight: 0,
-					overflowY: "auto",
-					display: "flex",
-					flexDirection: "column",
-					paddingBottom: "10px",
-				}}>
+		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
+			<div className="overflow-y-auto flex flex-col pb-2.5">
 				{telemetrySetting === "unset" && <TelemetryBanner />}
-				{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-				<HomeHeader />
+				{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} version={version} />}
+				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
-			<AutoApproveBar />
-		</>
+		</div>
 	)
 }

@@ -1,25 +1,25 @@
-import { combineApiRequests } from "@/shared/combineApiRequests"
-import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import Anthropic from "@anthropic-ai/sdk"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import getFolderSize from "get-folder-size"
 import * as vscode from "vscode"
+import { findLastIndex } from "@/shared/array"
+import { combineApiRequests } from "@/shared/combineApiRequests"
+import { combineCommandSequences } from "@/shared/combineCommandSequences"
 import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
-import { combineCommandSequences } from "@/shared/combineCommandSequences"
-import { findLastIndex } from "@/shared/array"
-import getFolderSize from "get-folder-size"
-import os from "os"
-import * as path from "path"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
-import Anthropic from "@anthropic-ai/sdk"
-import { TaskState } from "./TaskState"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
 	taskId: string
+	ulid: string
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
+	checkpointTrackerErrorMessage?: string
 }
 
 export class MessageStateHandler {
@@ -27,17 +27,21 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
+	private checkpointTrackerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
+	private ulid: string
 	private taskState: TaskState
 
 	constructor(params: MessageStateHandlerParams) {
 		this.context = params.context
 		this.taskId = params.taskId
+		this.ulid = params.ulid
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
+		this.checkpointTrackerErrorMessage = this.taskState.checkpointTrackerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -86,6 +90,7 @@ export class MessageStateHandler {
 			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
 				id: this.taskId,
+				ulid: this.ulid,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
 				tokensIn: apiMetrics.totalTokensIn,
@@ -98,6 +103,7 @@ export class MessageStateHandler {
 				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
+				checkpointTrackerErrorMessage: this.taskState.checkpointTrackerErrorMessage,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

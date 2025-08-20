@@ -1,9 +1,8 @@
-import type { Controller } from "../index"
-import { Empty } from "@shared/proto/common"
-import { UpdateApiConfigurationRequest } from "@shared/proto/models"
-import { updateApiConfiguration } from "../../storage/state"
-import { buildApiHandler } from "@api/index"
+import { buildApiHandler } from "@core/api"
+import { Empty } from "@shared/proto/cline/common"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
+import type { Controller } from "../index"
 
 /**
  * Updates API configuration
@@ -25,11 +24,12 @@ export async function updateApiConfigurationProto(
 		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
 
 		// Update the API configuration in storage
-		await updateApiConfiguration(controller.context, appApiConfiguration)
+		controller.cacheService.setApiConfiguration(appApiConfiguration)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			controller.task.api = buildApiHandler(appApiConfiguration)
+			const currentMode = await controller.getCurrentMode()
+			controller.task.api = buildApiHandler({ ...appApiConfiguration, ulid: controller.task.ulid }, currentMode)
 		}
 
 		// Post updated state to webview

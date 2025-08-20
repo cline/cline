@@ -1,170 +1,130 @@
+import { buildApiHandler } from "@core/api"
 import * as vscode from "vscode"
-import { writeTextToClipboard } from "@utils/env"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageType, ShowTextDocumentRequest, ShowMessageRequest } from "@/shared/proto/host/window"
-/**
- * Formats the git diff into a prompt for the AI
- * @param gitDiff The git diff to format
- * @returns A formatted prompt for the AI
- */
-function formatGitDiffPrompt(gitDiff: string): string {
-	// Limit the diff size to avoid token limits
-	const maxDiffLength = 5000
-	let truncatedDiff = gitDiff
+import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { getWorkingState } from "@/utils/git"
+import { getCwd } from "@/utils/path"
 
-	if (gitDiff.length > maxDiffLength) {
-		truncatedDiff = gitDiff.substring(0, maxDiffLength) + "\n\n[Diff truncated due to size]"
+/**
+ * Git commit message generator module
+ */
+export const GitCommitGenerator = {
+	generate,
+	abort,
+}
+
+let commitGenerationAbortController: AbortController | undefined
+
+async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
+	const cwd = await getCwd()
+	if (!context || !cwd) {
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "No workspace folder open",
+		})
+		return
 	}
 
-	return `Based on the following git diff, generate a concise and descriptive commit message:
+	const gitDiff = await getWorkingState(cwd)
+	if (gitDiff === "No changes in working directory") {
+		HostProvider.window.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "No changes in workspace for commit message",
+		})
+		return
+	}
 
+	const inputBox = scm?.inputBox
+	if (!inputBox) {
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "Git extension not found or no repositories available",
+		})
+		return
+	}
+
+	await vscode.window.withProgress(
+		{
+			location: vscode.ProgressLocation.SourceControl,
+			title: "Generating commit message...",
+			cancellable: true,
+		},
+		() => performCommitGeneration(context, gitDiff, inputBox),
+	)
+}
+
+async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
+	try {
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+
+		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+
+		const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
 ${truncatedDiff}
-
 The commit message should:
 1. Start with a short summary (50-72 characters)
 2. Use the imperative mood (e.g., "Add feature" not "Added feature")
 3. Describe what was changed and why
 4. Be clear and descriptive
-
 Commit message:`
+
+		// Get the current API configuration
+		const { apiConfiguration } = await readStateFromDisk(context)
+		// Set to use Act mode for now by default
+		// TODO: A new mode for commit generation
+		const currentMode = "act"
+
+		// Build the API handler
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+
+		// Create a system prompt
+		const systemPrompt =
+			"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+		// Create a message for the API
+		const messages = [{ role: "user" as const, content: prompt }]
+
+		commitGenerationAbortController = new AbortController()
+		const stream = apiHandler.createMessage(systemPrompt, messages)
+
+		let response = ""
+		for await (const chunk of stream) {
+			commitGenerationAbortController.signal.throwIfAborted()
+			if (chunk.type === "text") {
+				response += chunk.text
+				inputBox.value = extractCommitMessage(response)
+			}
+		}
+
+		if (!inputBox.value) {
+			throw new Error("empty API response")
+		}
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to generate commit message: ${errorMessage}`,
+		})
+	} finally {
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	}
+}
+
+function abort() {
+	commitGenerationAbortController?.abort()
+	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 }
 
 /**
  * Extracts the commit message from the AI response
- * @param aiResponse The response from the AI
+ * @param str String containing the AI response
  * @returns The extracted commit message
  */
-export function extractCommitMessage(aiResponse: string): string {
+export function extractCommitMessage(str: string): string {
 	// Remove any markdown formatting or extra text
-	let message = aiResponse.trim()
-
-	// Remove markdown code blocks if present
-	if (message.startsWith("```") && message.endsWith("```")) {
-		message = message.substring(3, message.length - 3).trim()
-
-		// Remove language identifier if present (e.g., ```git)
-		const firstLineBreak = message.indexOf("\n")
-		if (firstLineBreak > 0 && firstLineBreak < 20) {
-			// Reasonable length for a language identifier
-			message = message.substring(firstLineBreak).trim()
-		}
-	}
-
-	return message
-}
-
-/**
- * Copies the generated commit message to the clipboard
- * @param message The commit message to copy
- */
-export async function copyCommitMessageToClipboard(message: string): Promise<void> {
-	await writeTextToClipboard(message)
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message: "Commit message copied to clipboard",
-		}),
-	)
-}
-
-/**
- * Shows a dialog with options to apply the generated commit message
- * @param message The generated commit message
- */
-export async function showCommitMessageOptions(message: string): Promise<void> {
-	const copyAction = "Copy to Clipboard"
-	const applyAction = "Apply to Git Input"
-	const editAction = "Edit Message"
-
-	const selectedAction = (
-		await getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.INFORMATION,
-				message: "Commit message generated",
-				options: {
-					modal: false,
-					detail: message,
-					items: [copyAction, applyAction, editAction],
-				},
-			}),
-		)
-	)?.selectedOption
-
-	// Handle user dismissing the dialog (selectedAction is undefined)
-	if (!selectedAction) {
-		return
-	}
-
-	switch (selectedAction) {
-		case copyAction:
-			await copyCommitMessageToClipboard(message)
-			break
-		case applyAction:
-			await applyCommitMessageToGitInput(message)
-			break
-		case editAction:
-			await editCommitMessage(message)
-			break
-	}
-}
-
-/**
- * Applies the commit message to the Git input box in the Source Control view
- * @param message The commit message to apply
- */
-async function applyCommitMessageToGitInput(message: string): Promise<void> {
-	// Set the SCM input box value
-	const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
-	if (gitExtension) {
-		const api = gitExtension.getAPI(1)
-		if (api && api.repositories.length > 0) {
-			const repo = api.repositories[0]
-			repo.inputBox.value = message
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Commit message applied to Git input",
-				}),
-			)
-		} else {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: "No Git repositories found",
-				}),
-			)
-			await copyCommitMessageToClipboard(message)
-		}
-	} else {
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: "Git extension not found",
-			}),
-		)
-		await copyCommitMessageToClipboard(message)
-	}
-}
-
-/**
- * Opens the commit message in an editor for further editing
- * @param message The commit message to edit
- */
-async function editCommitMessage(message: string): Promise<void> {
-	const document = await vscode.workspace.openTextDocument({
-		content: message,
-		language: "markdown",
-	})
-
-	await getHostBridgeProvider().windowClient.showTextDocument(
-		ShowTextDocumentRequest.create({
-			path: document.uri.fsPath,
-		}),
-	)
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message: "Edit the commit message and copy when ready",
-		}),
-	)
+	return str
+		.trim()
+		.replace(/^```[^\n]*\n?|```$/g, "")
+		.trim()
 }

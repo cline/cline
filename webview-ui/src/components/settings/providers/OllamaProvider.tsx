@@ -1,12 +1,15 @@
+import { StringRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useState, useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { StringRequest } from "@shared/proto/common"
-import OllamaModelPicker from "../OllamaModelPicker"
-import { BaseUrlField } from "../common/BaseUrlField"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { BaseUrlField } from "../common/BaseUrlField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import OllamaModelPicker from "../OllamaModelPicker"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -15,14 +18,17 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface OllamaProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Ollama provider configuration component
  */
-export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProps) => {
+export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -53,10 +59,20 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 		<div>
 			<BaseUrlField
 				initialValue={apiConfiguration?.ollamaBaseUrl}
+				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("ollamaBaseUrl", value)}
 				placeholder="Default: http://localhost:11434"
-				label="Use custom base URL"
 			/>
+
+			{apiConfiguration?.ollamaBaseUrl && (
+				<ApiKeyField
+					helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
+					initialValue={apiConfiguration?.ollamaApiKey || ""}
+					onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+					placeholder="Enter API Key (optional)..."
+					providerName="Ollama"
+				/>
+			)}
 
 			{/* Model selection - use filterable picker */}
 			<label htmlFor="ollama-model-selection">
@@ -64,11 +80,11 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
-				selectedModelId={apiConfiguration?.ollamaModelId || ""}
 				onModelChange={(modelId) => {
-					handleFieldChange("ollamaModelId", modelId)
+					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
+				selectedModelId={ollamaModelId || ""}
 			/>
 
 			{/* Show status message based on model availability */}
@@ -87,9 +103,9 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
-				onChange={(value) => handleFieldChange("ollamaApiOptionsCtxNum", value)}
-				style={{ width: "100%" }}
-				placeholder={"e.g. 32768"}>
+				onChange={(v) => handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)}
+				placeholder={"e.g. 32768"}
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Model Context Window</span>
 			</DebouncedTextField>
 
@@ -100,12 +116,12 @@ export const OllamaProvider = ({ showModelOptions, isPopup }: OllamaProviderProp
 						onChange={(value) => {
 							// Convert to number, with validation
 							const numValue = parseInt(value, 10)
-							if (!isNaN(numValue) && numValue > 0) {
+							if (!Number.isNaN(numValue) && numValue > 0) {
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}
-						style={{ width: "100%" }}
-						placeholder="Default: 30000 (30 seconds)">
+						placeholder="Default: 30000 (30 seconds)"
+						style={{ width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
 					</DebouncedTextField>
 					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>

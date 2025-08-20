@@ -1,13 +1,14 @@
 import { xaiModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { DROPDOWN_Z_INDEX } from "../ApiOptions"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the XaiProvider component
@@ -15,17 +16,20 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 interface XaiProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
-export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => {
+export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Local state for reasoning effort toggle
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
 
 	return (
 		<div>
@@ -52,24 +56,34 @@ export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={xaiModels}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={xaiModels}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 					/>
 
 					{selectedModelId && selectedModelId.includes("3-mini") && (
 						<>
 							<VSCodeCheckbox
-								style={{ marginTop: 0 }}
 								checked={reasoningEffortSelected}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									setReasoningEffortSelected(isChecked)
 									if (!isChecked) {
-										handleFieldChange("reasoningEffort", "")
+										handleModeFieldChange(
+											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+											"",
+											currentMode,
+										)
 									}
-								}}>
+								}}
+								style={{ marginTop: 0 }}>
 								Modify reasoning effort
 							</VSCodeCheckbox>
 
@@ -81,11 +95,15 @@ export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => 
 									<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
 										<VSCodeDropdown
 											id="reasoning-effort-dropdown"
-											style={{ width: "100%", marginTop: 3 }}
-											value={apiConfiguration?.reasoningEffort || "high"}
 											onChange={(e: any) => {
-												handleFieldChange("reasoningEffort", e.target.value)
-											}}>
+												handleModeFieldChange(
+													{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+													e.target.value,
+													currentMode,
+												)
+											}}
+											style={{ width: "100%", marginTop: 3 }}
+											value={modeFields.reasoningEffort || "high"}>
 											<VSCodeOption value="low">low</VSCodeOption>
 											<VSCodeOption value="high">high</VSCodeOption>
 										</VSCodeDropdown>
@@ -104,7 +122,7 @@ export const XaiProvider = ({ showModelOptions, isPopup }: XaiProviderProps) => 
 						</>
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

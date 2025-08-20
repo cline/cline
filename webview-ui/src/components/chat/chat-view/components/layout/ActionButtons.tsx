@@ -1,12 +1,17 @@
-import React from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
-import { ChatState, MessageHandlers } from "../../types/chatTypes"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
+import { BUTTON_CONFIGS, getButtonConfig } from "../../shared/buttonConfig"
+import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
+	task?: ClineMessage
+	messages: ClineMessage[]
 	chatState: ChatState
 	messageHandlers: MessageHandlers
-	isStreaming: boolean
+	mode: Mode
 	scrollBehavior: {
 		scrollToBottomSmooth: () => void
 		disableAutoScrollRef: React.MutableRefObject<boolean>
@@ -17,84 +22,118 @@ interface ActionButtonsProps {
 /**
  * Action buttons area including scroll-to-bottom and approve/reject buttons
  */
-export const ActionButtons: React.FC<ActionButtonsProps> = ({ chatState, messageHandlers, isStreaming, scrollBehavior }) => {
-	const { primaryButtonText, secondaryButtonText, enableButtons, didClickCancel, inputValue, selectedImages, selectedFiles } =
-		chatState
+export const ActionButtons: React.FC<ActionButtonsProps> = ({
+	task,
+	messages,
+	chatState,
+	mode,
+	messageHandlers,
+	scrollBehavior,
+}) => {
+	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
+
+	const isStreaming = useMemo(() => task?.partial === true, [task])
+
+	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
+	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+
+	const [enableButtons, setEnableButtons] = useState<boolean>(false)
+
+	const [lastMessage, secondLastMessage] = useMemo(() => {
+		return [messages.at(-1), messages.at(-2)]
+	}, [messages])
+
+	// Clear input when transitioning from command_output to api_req
+	// This happens when user provides feedback during command execution
+	useEffect(() => {
+		if (lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
+			chatState.setInputValue("")
+			chatState.setSelectedImages([])
+			chatState.setSelectedFiles([])
+		}
+	}, [chatState, lastMessage, secondLastMessage])
+
+	// Apply button configuration with a single batched update
+	useEffect(() => {
+		const buttonConfig = getButtonConfig(lastMessage, mode)
+		setEnableButtons(buttonConfig.enableButtons)
+		setSendingDisabled(buttonConfig.sendingDisabled)
+		setPrimaryButtonText(buttonConfig.primaryText)
+		setSecondaryButtonText(buttonConfig.secondaryText)
+	}, [lastMessage, mode, setSendingDisabled])
+
+	useEffect(() => {
+		if (!messages?.length) {
+			const buttonConfig = BUTTON_CONFIGS.default
+			setEnableButtons(buttonConfig.enableButtons)
+			setSendingDisabled(buttonConfig.sendingDisabled)
+			setPrimaryButtonText(buttonConfig.primaryText)
+			setSecondaryButtonText(buttonConfig.secondaryText)
+		}
+	}, [messages, setSendingDisabled])
+
+	if (!task) {
+		return null
+	}
 
 	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
 
 	if (showScrollToBottom) {
+		const handleScrollToBottom = () => {
+			scrollToBottomSmooth()
+			disableAutoScrollRef.current = false
+		}
+
 		return (
-			<div
-				style={{
-					display: "flex",
-					padding: "10px 15px 0px 15px",
-				}}>
-				<ScrollToBottomButton
-					onClick={() => {
-						scrollToBottomSmooth()
-						disableAutoScrollRef.current = false
+			<div className="flex px-[15px] pt-[10px]">
+				<VSCodeButton
+					appearance="icon"
+					aria-label="Scroll to bottom"
+					className="text-lg text-[var(--vscode-primaryButton-foreground)] bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
+					onClick={handleScrollToBottom}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault()
+							handleScrollToBottom()
+						}
 					}}>
-					<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
-				</ScrollToBottomButton>
+					<span className="codicon codicon-chevron-down" />
+				</VSCodeButton>
 			</div>
 		)
 	}
 
-	const shouldShowButtons = primaryButtonText || secondaryButtonText || isStreaming
-	const opacity = shouldShowButtons ? (enableButtons || (isStreaming && !didClickCancel) ? 1 : 0.5) : 0
+	const shouldShowButtons = primaryButtonText || secondaryButtonText
+	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
 
 	return (
-		<div
-			style={{
-				opacity,
-				display: "flex",
-				padding: `${shouldShowButtons ? "10" : "0"}px 15px 0px 15px`,
-			}}>
-			{primaryButtonText && !isStreaming && (
+		<div className={`flex px-[15px] ${shouldShowButtons ? "pt-[10px]" : "pt-0"}`} style={{ opacity }}>
+			{primaryButtonText && (
 				<VSCodeButton
 					appearance="primary"
+					className={`${secondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
 					disabled={!enableButtons}
-					style={{
-						flex: secondaryButtonText ? 1 : 2,
-						marginRight: secondaryButtonText ? "6px" : "0",
-					}}
-					onClick={() => messageHandlers.handlePrimaryButtonClick(inputValue, selectedImages, selectedFiles)}>
+					onClick={() => {
+						if (primaryButtonText === "Start New Task") {
+							messageHandlers.startNewTask()
+						} else {
+							messageHandlers.handleButtonClick(primaryButtonText, inputValue, selectedImages, selectedFiles)
+						}
+					}}>
 					{primaryButtonText}
 				</VSCodeButton>
 			)}
-			{(secondaryButtonText || isStreaming) && (
+			{secondaryButtonText && (
 				<VSCodeButton
 					appearance="secondary"
-					disabled={!enableButtons && !(isStreaming && !didClickCancel)}
-					style={{
-						flex: isStreaming ? 2 : 1,
-						marginLeft: isStreaming ? 0 : "6px",
-					}}
-					onClick={() => messageHandlers.handleSecondaryButtonClick(inputValue, selectedImages, selectedFiles)}>
-					{isStreaming ? "Cancel" : secondaryButtonText}
+					className={`${primaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
+					disabled={!enableButtons}
+					onClick={() => {
+						messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
+					}}>
+					{secondaryButtonText}
 				</VSCodeButton>
 			)}
 		</div>
 	)
 }
-
-const ScrollToBottomButton = styled.div`
-	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);
-	border-radius: 3px;
-	overflow: hidden;
-	cursor: pointer;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	flex: 1;
-	height: 25px;
-
-	&:hover {
-		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);
-	}
-
-	&:active {
-		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 70%, transparent);
-	}
-`

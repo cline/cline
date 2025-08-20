@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+service TaskService {
+  // Cancels the currently running task
+  rpc cancelTask(EmptyRequest) returns (Empty);
+  // Clears the current task
+  rpc clearTask(EmptyRequest) returns (Empty);
+  // Gets the total size of all tasks
+  rpc getTotalTasksSize(EmptyRequest) returns (Int64);
+  // Deletes multiple tasks with the given IDs
+  rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
+  // Creates a new task with the given text and optional images
+  rpc newTask(NewTaskRequest) returns (Empty);
+  // Shows a task with the specified ID
+  rpc showTaskWithId(StringRequest) returns (TaskResponse);
+  // Exports a task with the given ID to markdown
+  rpc exportTaskWithId(StringRequest) returns (Empty);
+  // Toggles the favorite status of a task
+  rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
+  // Gets filtered task history
+  rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
+  // Sends a response to a previous ask operation
+  rpc askResponse(AskResponseRequest) returns (Empty);
+  // Records task feedback (thumbs up/down)
+  rpc taskFeedback(StringRequest) returns (Empty);
+  // Shows task completion changes diff in a view
+  rpc taskCompletionViewChanges(Int64Request) returns (Empty);
+  // Executes a quick win task with command and title
+  rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
+  // Deletes all task history
+  rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
+}
+
+// Request message for creating a new task
+message NewTaskRequest {
+  Metadata metadata = 1;
+  string text = 2;
+  repeated string images = 3;
+  repeated string files = 4;
+}
+
+// Request message for toggling task favorite status
+message TaskFavoriteRequest {
+  Metadata metadata = 1;
+  string task_id = 2;
+  bool is_favorited = 3;
+}
+
+// Response for task details
+message TaskResponse {
+  string id = 1;
+  string task = 2;
+  int64 ts = 3;
+  bool is_favorited = 4;
+  int64 size = 5;
+  double total_cost = 6;
+  int32 tokens_in = 7;
+  int32 tokens_out = 8;
+  int32 cache_writes = 9;
+  int32 cache_reads = 10;
+}
+
+// Request for getting task history with filtering
+message GetTaskHistoryRequest {
+  Metadata metadata = 1;
+  bool favorites_only = 2;
+  string search_query = 3;
+  string sort_by = 4;
+  bool current_workspace_only = 5;
+}
+
+// Response for task history
+message TaskHistoryArray {
+  repeated TaskItem tasks = 1;
+  int32 total_count = 2;
+}
+
+// Task item details for history list
+message TaskItem {
+  string id = 1;
+  string task = 2;
+  int64 ts = 3;
+  bool is_favorited = 4;
+  int64 size = 5;
+  double total_cost = 6;
+  int32 tokens_in = 7;
+  int32 tokens_out = 8;
+  int32 cache_writes = 9;
+  int32 cache_reads = 10;
+}
+
+// Request for ask response operation
+message AskResponseRequest {
+  Metadata metadata = 1;
+  string response_type = 2; 
+  string text = 3;
+  repeated string images = 4;
+  repeated string files = 5;
+}
+
+// Request for executing a quick win task
+message ExecuteQuickWinRequest {
+  Metadata metadata = 1;
+  string command = 2;
+  string title = 3;
+}
+
+// Results returned when deleting all task history
+message DeleteAllTaskHistoryCount {
+  int32 tasks_deleted = 1;
+}

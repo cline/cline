@@ -1,10 +1,9 @@
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
-import * as path from "path"
-import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import * as vscode from "vscode"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
+import { Controller } from "@/core/controller"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -16,7 +15,7 @@ export async function readDirectoryRecursive(
 ): Promise<string[]> {
 	try {
 		const entries = await readDirectory(directoryPath, excludedPaths)
-		let results: string[] = []
+		const results: string[] = []
 		for (const entry of entries) {
 			if (allowedFileExtension !== "") {
 				const fileExtension = path.extname(entry)
@@ -149,18 +148,18 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 				await fs.unlink(tempPath).catch(() => {}) // delete backup
 
 				return false // conversion successful with no errors
-			} catch (conversionError) {
+			} catch (_conversionError) {
 				// attempt to restore backup on conversion failure
 				try {
 					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
 					await fs.rename(tempPath, clinerulePath) // restore backup
-				} catch (restoreError) {}
+				} catch (_restoreError) {}
 				return true // in either case here we consider this an error
 			}
 		}
 		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
 		return false
-	} catch (error) {
+	} catch (_error) {
 		return true
 	}
 }
@@ -215,7 +214,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 		await fs.writeFile(filePath, "", "utf8")
 
 		return { filePath, fileExists: false }
-	} catch (error) {
+	} catch (_error) {
 		return { filePath: null, fileExists: false }
 	}
 }
@@ -224,7 +223,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
  * Delete a rule file or workflow file
  */
 export async function deleteRuleFile(
-	context: vscode.ExtensionContext,
+	controller: Controller,
 	rulePath: string,
 	isGlobal: boolean,
 	type: string,
@@ -240,7 +239,7 @@ export async function deleteRuleFile(
 		}
 
 		// Delete the file from disk
-		await fs.unlink(rulePath)
+		await fs.rm(rulePath, { force: true })
 
 		// Get the filename for messages
 		const fileName = path.basename(rulePath)
@@ -248,31 +247,31 @@ export async function deleteRuleFile(
 		// Update the appropriate toggles
 		if (isGlobal) {
 			if (type === "workflow") {
-				const toggles = ((await getGlobalState(context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getGlobalStateKey("globalWorkflowToggles")
 				delete toggles[rulePath]
-				await updateGlobalState(context, "globalWorkflowToggles", toggles)
+				controller.cacheService.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
 				delete toggles[rulePath]
-				await updateGlobalState(context, "globalClineRulesToggles", toggles)
+				controller.cacheService.setGlobalState("globalClineRulesToggles", toggles)
 			}
 		} else {
 			if (type === "workflow") {
-				const toggles = ((await getWorkspaceState(context, "workflowToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("workflowToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "workflowToggles", toggles)
+				controller.cacheService.setWorkspaceState("workflowToggles", toggles)
 			} else if (type === "cursor") {
-				const toggles = ((await getWorkspaceState(context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localCursorRulesToggles", toggles)
+				controller.cacheService.setWorkspaceState("localCursorRulesToggles", toggles)
 			} else if (type === "windsurf") {
-				const toggles = ((await getWorkspaceState(context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localWindsurfRulesToggles", toggles)
+				controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", toggles)
 			} else {
-				const toggles = ((await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localClineRulesToggles", toggles)
+				controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
 			}
 		}
 

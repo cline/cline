@@ -1,71 +1,40 @@
 #!/usr/bin/env node
 
-import * as fs from "fs/promises"
-import * as path from "path"
-import * as grpc from "@grpc/grpc-js"
-import * as protoLoader from "@grpc/proto-loader"
 import chalk from "chalk"
+import * as path from "path"
+import { writeFileWithMkdirs } from "./file-utils.mjs"
+import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
-const IMPL_FILE = path.resolve("src/generated/standalone/host-bridge-clients.ts")
-const INTERFACE_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")
-const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
+// Contains the interface definitions for the host bridge clients.
+const TYPES_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")
+// Contains the ExternalHostBridgeClientManager for the external host bridge clients (using nice-grpc).
+const EXTERNAL_CLIENT_FILE = path.resolve("src/generated/hosts/standalone/host-bridge-clients.ts")
+// Contains the handler map for the external host bridge clients (using the custom service registry).
+const VSCODE_CLIENT_FILE = path.resolve("src/generated/hosts/vscode/hostbridge-grpc-service-config.ts")
 
-const typeNameToFQN = new Map()
-
-function addTypeNameToFqn(name, fqn) {
-	if (typeNameToFQN.has(name)) {
-		throw new Error(`Proto type ${name} redefined (${fqn}).`)
-	}
-	typeNameToFQN.set(name, fqn)
-}
-function getFqn(name) {
-	if (!typeNameToFQN.has(name)) {
-		throw Error(`No FQN for ${name}`)
-	}
-	return typeNameToFQN.get(name)
-}
 /**
  * Main function to generate the host bridge client
  */
-async function main() {
-	// Load service definitions from descriptor set
-	const descriptorBuffer = await fs.readFile(DESCRIPTOR_SET)
-	const packageDefinition = protoLoader.loadFileDescriptorSetFromBuffer(descriptorBuffer)
-	const proto = grpc.loadPackageDefinition(packageDefinition)
+export async function main() {
+	const { hostServices } = await loadServicesFromProtoDescriptor()
 
-	// Extract host services and proto messages from the proto definition
-	const hostServices = {}
-	for (const [name, def] of Object.entries(proto.host)) {
-		if (def && "service" in def) {
-			hostServices[name] = def
-		} else {
-			addTypeNameToFqn(name, `proto.host.${name}`)
-		}
-	}
-	for (const [name, def] of Object.entries(proto.cline)) {
-		if (def && !("service" in def)) {
-			addTypeNameToFqn(name, `proto.cline.${name}`)
-		}
-	}
+	await generateTypesFile(hostServices)
+	await generateExternalClientFile(hostServices)
+	await generateVscodeClientFile(hostServices)
 
-	// Generate interfaces file
-	await generateInterfacesFile(hostServices)
-
-	// // Generate implementation file
-	await generateImplementationFile(hostServices)
-
-	console.log(`Generated host bridge client files at:`)
-	console.log(`- ${INTERFACE_FILE}`)
-	console.log(`- ${IMPL_FILE}`)
+	console.log(`Generated Host Bridge client files at:`)
+	console.log(`- ${TYPES_FILE}`)
+	console.log(`- ${EXTERNAL_CLIENT_FILE}`)
+	console.log(`- ${VSCODE_CLIENT_FILE}`)
 }
 
 /**
  * Generate the client interfaces file.
  */
-async function generateInterfacesFile(hostServices) {
+async function generateTypesFile(hostServices) {
 	const clientInterfaces = []
 	for (const [name, def] of Object.entries(hostServices)) {
-		const clientInterface = generateClientInterface(name, def)
+		const clientInterface = generateClientInterfaceType(name, def)
 		clientInterfaces.push(clientInterface)
 	}
 	const content = `// GENERATED CODE -- DO NOT EDIT!
@@ -76,14 +45,13 @@ import { StreamingCallbacks } from "@hosts/host-provider-types"
 ${clientInterfaces.join("\n\n")}
 `
 	// Write output file
-	await fs.mkdir(path.dirname(INTERFACE_FILE), { recursive: true })
-	await fs.writeFile(INTERFACE_FILE, content)
+	await writeFileWithMkdirs(TYPES_FILE, content)
 }
 
 /**
  * Generate a client interface for a service.
  */
-function generateClientInterface(serviceName, serviceDefinition) {
+function generateClientInterfaceType(serviceName, serviceDefinition) {
 	// Get the methods from the service definition
 	const methods = Object.entries(serviceDefinition.service)
 		.map(([methodName, methodDef]) => {
@@ -110,9 +78,9 @@ ${methods}
 }
 
 /**
- * Generate the client implementations file.
+ * Generate the external client implementations file.
  */
-async function generateImplementationFile(hostServices) {
+async function generateExternalClientFile(hostServices) {
 	// Generate imports
 	const imports = []
 	// Add imports for the interfaces
@@ -121,7 +89,7 @@ async function generateImplementationFile(hostServices) {
 	}
 	const clientImplementations = []
 	for (const [name, def] of Object.entries(hostServices)) {
-		clientImplementations.push(generateClientImplementation(name, def))
+		clientImplementations.push(generateExternalClientSetup(name, def))
 	}
 
 	const content = `// GENERATED CODE -- DO NOT EDIT!
@@ -131,21 +99,20 @@ import * as niceGrpc from "@generated/nice-grpc/index"
 import { StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
 import { Channel, createClient } from "nice-grpc"
+import { BaseGrpcClient } from "@/hosts/external/grpc-types"
 
 ${imports.join("\n")}
 
 ${clientImplementations.join("\n\n")}
 `
-
 	// Write output file
-	await fs.mkdir(path.dirname(IMPL_FILE), { recursive: true })
-	await fs.writeFile(IMPL_FILE, content)
+	await writeFileWithMkdirs(EXTERNAL_CLIENT_FILE, content)
 }
 
 /**
  * Generate a client implementation class for a service
  */
-function generateClientImplementation(serviceName, serviceDefinition) {
+function generateExternalClientSetup(serviceName, serviceDefinition) {
 	// Get the methods from the service definition
 	const methods = Object.entries(serviceDefinition.service)
 		.map(([methodName, methodDef]) => {
@@ -155,38 +122,122 @@ function generateClientImplementation(serviceName, serviceDefinition) {
 			const isStreamingResponse = methodDef.responseStream
 
 			if (!isStreamingResponse) {
-				return `  ${methodName}(request: ${requestType}): Promise<${responseType}> {
-    return this.client.${methodName}(request)
-  }`
+				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
+      return this.makeRequest((client) => client.${methodName}(request))
+    }`
 			} else {
 				// Generate streaming method
-				return `  ${methodName}(request: ${requestType}, callbacks: StreamingCallbacks<${responseType}>): () => void {
-	const abortController = new AbortController()
-	const stream: AsyncIterable<${responseType}> = this.client.${methodName}(request, {signal: abortController.signal})
-    asyncIteratorToCallbacks(stream, callbacks)
-	return () => {abortController.abort()}
-  }`
+				return `  ${methodName}(
+		request: ${requestType},
+		callbacks: StreamingCallbacks<${responseType}>,
+	): () => void {
+		const client = this.getClient()
+		const abortController = new AbortController()
+		const stream: AsyncIterable<${responseType}> = client.${methodName}(request, {
+			signal: abortController.signal,
+		})
+		const wrappedCallbacks: StreamingCallbacks<${responseType}> = {
+			...callbacks,
+			onError: (error: any) => {
+				if (error?.code === "UNAVAILABLE") {
+					this.destroyClient()
+				}
+				callbacks.onError?.(error)
+			},
+		}
+		asyncIteratorToCallbacks(stream, wrappedCallbacks)
+		return () => {
+			abortController.abort()
+		}
+	}\n`
 			}
 		})
-		.join("\n\n")
+		.join("\n")
 
 	// Generate the class
 	return `/**
  * Type-safe client implementation for ${serviceName}.
  */
-export class ${serviceName}ClientImpl implements ${serviceName}ClientInterface {
-  private client: niceGrpc.host.${serviceName}Client 
+export class ${serviceName}ClientImpl 
+	extends BaseGrpcClient<niceGrpc.host.${serviceName}Client> 
+	implements ${serviceName}ClientInterface {
 
-  constructor(channel: Channel) {
-    this.client = createClient(niceGrpc.host.${serviceName}Definition, channel)
-  }
+	protected createClient(channel: Channel): niceGrpc.host.${serviceName}Client {
+		return createClient(niceGrpc.host.${serviceName}Definition, channel)
+	}
 
 ${methods}
 }`
 }
 
-// Run the main function
-main().catch((error) => {
-	console.error(chalk.red("Error:"), error)
-	process.exit(1)
-})
+/**
+ * Generate the Vscode client setup file.
+ */
+async function generateVscodeClientFile(hostServices) {
+	const imports = []
+	const clientImplementations = []
+	const handlerMap = []
+	for (const [serviceName, serviceDefinition] of Object.entries(hostServices)) {
+		const name = serviceName.replace(/Service$/, "").toLowerCase()
+		for (const [methodName, _methodDef] of Object.entries(serviceDefinition.service)) {
+			imports.push(`import { ${methodName} } from "@/hosts/vscode/hostbridge/${name}/${methodName}"`)
+		}
+		imports.push("")
+
+		clientImplementations.push(generateVscodeClientImplementation(name, serviceDefinition))
+
+		handlerMap.push(`	"host.${serviceName}": {
+		requestHandler: ${name}ServiceRegistry.handleRequest,
+		streamingHandler: ${name}ServiceRegistry.handleStreamingRequest,
+	},`)
+	}
+
+	const content = `// GENERATED CODE -- DO NOT EDIT!
+// Generated by scripts/generate-host-bridge-client.mjs
+import { createServiceRegistry } from "@hosts/vscode/hostbridge-grpc-service"
+import { HostServiceHandlerConfig } from "@hosts/vscode/hostbridge-grpc-handler"
+
+${imports.join("\n")}
+${clientImplementations.join("\n\n")}
+
+/**
+ * Map of host service names to their handler configurations
+ */
+export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {
+${handlerMap.join("\n")}
+}
+`
+
+	// Write output file
+	await writeFileWithMkdirs(VSCODE_CLIENT_FILE, content)
+}
+
+function generateVscodeClientImplementation(serviceName, serviceDefinition) {
+	// Get the methods from the service definition
+	const name = serviceName.replace(/Service$/, "").toLowerCase()
+
+	const methods = Object.entries(serviceDefinition.service)
+		.map(([methodName, methodDef]) => {
+			// Get fully qualified type names
+			const isStreamingResponse = methodDef.responseStream
+			if (!isStreamingResponse) {
+				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName})`
+			} else {
+				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
+			}
+		})
+		.join("\n")
+
+	// Generate the class
+	return `// Setup ${name} service registry
+const ${name}ServiceRegistry = createServiceRegistry("${name}")
+${methods}`
+}
+
+// Only run main if this script is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+	main().catch((error) => {
+		console.error(chalk.red("Error:"), error)
+		process.exit(1)
+	})
+}

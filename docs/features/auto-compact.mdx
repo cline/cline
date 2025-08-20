@@ -1,0 +1,55 @@
+---
+title: "Automatic Context Summarization"
+sidebarTitle: "Auto Compact"
+---
+
+When your conversation approaches the model's context window limit, Cline automatically summarizes it to free up space and keep working. 
+
+## How It Works
+
+Cline monitors token usage during your conversation. When you're getting close to the limit, he:
+
+1. Creates a comprehensive summary of everything that's happened
+2. Preserves all the technical details, code changes, and decisions
+3. Replaces the conversation history with the summary
+4. Continues exactly where he left off
+
+You'll see a summarization tool call when this happens, showing the total cost like any other api call in the chat view.
+
+## Why This Matters
+
+Previously, Cline would truncate older messages when hitting context limits. This meant losing important context from earlier in the conversation.
+
+Now with summarization:
+- All technical decisions and code patterns are preserved
+- File changes and project context remain intact
+- Cline remembers everything he's done
+- You can work on much larger projects without interruption
+
+<Tip>
+Context Summarization synergizes beautifully with [Focus Chain](/features/focus-chain). When Focus Chain is enabled, todo lists persist across summarizations. This means Cline can work on long-horizon tasks that span multiple context windows while staying on track with the todo list guiding him through each reset.
+</Tip>
+
+## Technical Details
+
+The summarization happens through your configured API provider using the same model you're already using. It leverages prompt caching to minimize costs.
+
+1. Cline uses a [summarization prompt](https://github.com/cline/cline/blob/main/src/core/prompts/contextManagement.ts) to request a summary of the conversation.
+
+2. Once the summary is generated, Cline replaces the conversation history with a [continuation prompt](https://github.com/cline/cline/blob/main/src/core/prompts/contextManagement.ts#L69) that asks Cline to keep working and provides the summary as context.
+
+Different models have different context window thresholds for when auto-summarization kicks in. You can see how thresholds are determined in [context-window-utils.ts](https://github.com/cline/cline/blob/main/src/core/context/context-management/context-window-utils.ts). 
+
+## Cost Considerations
+
+Summarization leverages your existing prompt cache from the conversation, so it costs about the same as any other tool call.
+
+Since most input tokens are already cached, you're primarily paying for the summary generation (output tokens), making it very cost-effective.
+
+## Restoring Context with Checkpoints
+
+You can use [checkpoints](/features/checkpoints) to restore your task state from before a summarization occurred. This means you never truly lose context - you can always roll back to previous versions of your conversation. 
+
+<Note>
+  Editing a message before a summarization tool call will work similarly to a checkpoint, allowing you to restore the conversation to that point.
+</Note>

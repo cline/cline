@@ -2,7 +2,7 @@
  * Shared types and interfaces for the chat view components
  */
 
-import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
+import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { VirtuosoHandle } from "react-virtuoso"
 
 /**
@@ -38,8 +38,6 @@ export interface ChatState {
 	setPrimaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	secondaryButtonText: string | undefined
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
-	didClickCancel: boolean
-	setDidClickCancel: React.Dispatch<React.SetStateAction<boolean>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 
@@ -68,8 +66,7 @@ export interface ChatState {
  */
 export interface MessageHandlers {
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
-	handlePrimaryButtonClick: (text?: string, images?: string[], files?: string[]) => Promise<void>
-	handleSecondaryButtonClick: (text?: string, images?: string[], files?: string[]) => Promise<void>
+	handleButtonClick: (action: string, text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
 }

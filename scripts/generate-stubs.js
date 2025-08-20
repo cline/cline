@@ -37,7 +37,7 @@ function traverse(container, output, prefix = "") {
 				const name = decl.getName()
 				output.push(`${prefix}.${name} = createStub("${prefix}.${name}");`)
 			}
-		} else if (kind == SyntaxKind.ClassDeclaration) {
+		} else if (kind === SyntaxKind.ClassDeclaration) {
 			const name = node.getName()
 			output.push(
 				`${prefix}.${name} = class { constructor(...args) {
@@ -55,13 +55,27 @@ function traverse(container, output, prefix = "") {
 }
 
 function mapReturn(typeStr) {
-	if (!typeStr) return ""
-	if (typeStr.includes("void")) return ""
-	if (typeStr.includes("string")) return `return '';`
-	if (typeStr.includes("number")) return `return 0;`
-	if (typeStr.includes("boolean")) return `return false;`
-	if (typeStr.includes("[]")) return `return [];`
-	if (typeStr.includes("Thenable")) return `return Promise.resolve(null);`
+	if (!typeStr) {
+		return ""
+	}
+	if (typeStr.includes("void")) {
+		return ""
+	}
+	if (typeStr.includes("string")) {
+		return `return '';`
+	}
+	if (typeStr.includes("number")) {
+		return `return 0;`
+	}
+	if (typeStr.includes("boolean")) {
+		return `return false;`
+	}
+	if (typeStr.includes("[]")) {
+		return `return [];`
+	}
+	if (typeStr.includes("Thenable")) {
+		return `return Promise.resolve(null);`
+	}
 	return `return createStub("unknown");`
 }
 

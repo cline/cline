@@ -1,10 +1,11 @@
-import * as vscode from "vscode"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { State } from "@shared/proto/cline/state"
+import { ExtensionState } from "@/shared/ExtensionMessage"
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
-import { EmptyRequest } from "../../../shared/proto/common"
-import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active state subscriptions by controller ID
-const activeStateSubscriptions = new Map<string, StreamingResponseHandler>()
+const activeStateSubscriptions = new Map<string, StreamingResponseHandler<State>>()
 
 /**
  * Subscribe to state updates
@@ -15,8 +16,8 @@ const activeStateSubscriptions = new Map<string, StreamingResponseHandler>()
  */
 export async function subscribeToState(
 	controller: Controller,
-	request: EmptyRequest,
-	responseStream: StreamingResponseHandler,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<State>,
 	requestId?: string,
 ): Promise<void> {
 	const controllerId = controller.id
@@ -25,7 +26,7 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
-	console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)
+	//console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)
 
 	await responseStream({
 		stateJson: initialStateJson,
@@ -37,7 +38,7 @@ export async function subscribeToState(
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeStateSubscriptions.delete(controllerId)
-		console.log(`[DEBUG] Cleaned up state subscription for controller ${controllerId}`)
+		//console.log(`[DEBUG] Cleaned up state subscription for controller ${controllerId}`)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -51,7 +52,7 @@ export async function subscribeToState(
  * @param controllerId The ID of the controller to send the state to
  * @param state The state to send
  */
-export async function sendStateUpdate(controllerId: string, state: any): Promise<void> {
+export async function sendStateUpdate(controllerId: string, state: ExtensionState): Promise<void> {
 	// Get the subscription for this specific controller
 	const responseStream = activeStateSubscriptions.get(controllerId)
 
@@ -68,7 +69,7 @@ export async function sendStateUpdate(controllerId: string, state: any): Promise
 			},
 			false, // Not the last message
 		)
-		console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
+		//console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
 	} catch (error) {
 		console.error(`Error sending state update to controller ${controllerId}:`, error)
 		// Remove the subscription if there was an error

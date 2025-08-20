@@ -1,9 +1,9 @@
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { listFiles } from "@services/glob/list-files"
+import { fileExistsAtPath } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { listFiles } from "@services/glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
-import { fileExistsAtPath } from "@utils/fs"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
@@ -129,6 +129,9 @@ async function parseFile(
 	try {
 		// Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
 		const tree = parser.parse(fileContent)
+		if (!tree || !tree.rootNode) {
+			return null
+		}
 
 		// Apply the query to the AST and get the captures
 		// Captures are specific parts of the AST that match our query patterns, each capture represents a node in the AST that we're interested in.

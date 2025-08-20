@@ -61,7 +61,6 @@
 					"getting-started/installing-cline",
 					"getting-started/installing-dev-essentials",
 					"getting-started/model-selection-guide",
-					"getting-started/our-favorite-tech-stack",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
 					"getting-started/what-is-cline"
@@ -69,7 +68,10 @@
 			},
 			{
 				"group": "Improving Your Prompting Skills",
-				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+				"pages": [
+					"prompting/prompt-engineering-guide",
+					"prompting/cline-memory-bank"
+				]
 			},
 			{
 				"group": "Features",
@@ -80,6 +82,8 @@
 					"features/drag-and-drop",
 					"features/plan-and-act",
 					"features/slash-commands/workflows",
+					"features/focus-chain",
+					"features/auto-compact",
 					"features/editing-messages",
 					{
 						"group": "@ Mentions",
@@ -98,7 +102,8 @@
 							"features/slash-commands/new-task",
 							"features/slash-commands/new-rule",
 							"features/slash-commands/smol",
-							"features/slash-commands/report-bug"
+							"features/slash-commands/report-bug",
+							"features/slash-commands/deep-planning"
 						]
 					},
 					{
@@ -147,19 +152,27 @@
 				"pages": [
 					"provider-config/anthropic",
 					"provider-config/claude-code",
-					"provider-config/aws-bedrock-with-apikey-authentication",
-					"provider-config/aws-bedrock-with-credentials-authentication",
-					"provider-config/aws-bedrock-with-profile-authentication",
+					{
+						"group": "AWS Bedrock",
+						"pages": [
+							"provider-config/aws-bedrock/api-key",
+							"provider-config/aws-bedrock/iam-credentials",
+							"provider-config/aws-bedrock/cli-profile"
+						]
+					},
 					"provider-config/gcp-vertex-ai",
 					"provider-config/litellm-and-cline-using-codestral",
 					"provider-config/vscode-language-model-api",
 					"provider-config/xai-grok",
 					"provider-config/mistral-ai",
 					"provider-config/deepseek",
+					"provider-config/fireworks-ai",
 					"provider-config/ollama",
 					"provider-config/openai",
 					"provider-config/openai-compatible",
 					"provider-config/openrouter",
+					"provider-config/sap-aicore",
+					"provider-config/vercel-ai-gateway",
 					"provider-config/requesty"
 				]
 			},
@@ -173,11 +186,16 @@
 			},
 			{
 				"group": "Troubleshooting",
-				"pages": ["troubleshooting/terminal-quick-fixes", "troubleshooting/terminal-integration-guide"]
+				"pages": [
+					"troubleshooting/terminal-quick-fixes",
+					"troubleshooting/terminal-integration-guide"
+				]
 			},
 			{
 				"group": "More Info",
-				"pages": ["more-info/telemetry"]
+				"pages": [
+					"more-info/telemetry"
+				]
 			}
 		]
 	},
@@ -192,6 +210,8 @@
 		"prompt": "Search Cline documentation..."
 	},
 	"contextual": {
-		"options": ["copy"]
+		"options": [
+			"copy"
+		]
 	}
 }

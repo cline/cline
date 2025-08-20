@@ -1,9 +1,9 @@
-import { TaskServiceClient } from "@/services/grpc-client"
+import { StringRequest } from "@shared/proto/cline/common"
 import { TaskFeedbackType } from "@shared/WebviewMessage"
-import { StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import styled from "styled-components"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
@@ -43,7 +43,9 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 	}
 
 	const handleFeedback = async (type: TaskFeedbackType) => {
-		if (feedback !== null) return // Already provided feedback
+		if (feedback !== null) {
+			return // Already provided feedback
+		}
 
 		setFeedback(type)
 
@@ -74,10 +76,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						onClick={() => handleFeedback("thumbs_up")}
+						aria-label="This was helpful"
 						disabled={feedback !== null}
-						title="This was helpful"
-						aria-label="This was helpful">
+						onClick={() => handleFeedback("thumbs_up")}
+						title="This was helpful">
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_up" ? "codicon-thumbsup-filled" : "codicon-thumbsup"}`}
@@ -88,10 +90,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						onClick={() => handleFeedback("thumbs_down")}
+						aria-label="This wasn't helpful"
 						disabled={feedback !== null && feedback !== "thumbs_down"}
-						title="This wasn't helpful"
-						aria-label="This wasn't helpful">
+						onClick={() => handleFeedback("thumbs_down")}
+						title="This wasn't helpful">
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_down" ? "codicon-thumbsdown-filled" : "codicon-thumbsdown"}`}

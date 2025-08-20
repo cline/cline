@@ -1,7 +1,7 @@
-import { getHostBridgeProvider } from "@/hosts/host-providers"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -104,7 +104,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
 export async function getCwd(defaultCwd = ""): Promise<string> {
-	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	return workspacePaths.paths.shift() || defaultCwd
 }
 
@@ -115,12 +115,12 @@ export function getDesktopDir() {
 // Returns the workspace path of the file in the current editor.
 // If there is no open file, it returns the top level workspace directory.
 export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
-	const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath
+	const currentFilePath = (await HostProvider.window.getActiveEditor({})).filePath
 	if (!currentFilePath) {
 		return await getCwd(defaultCwd)
 	}
 
-	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
 		if (isLocatedInPath(workspacePath, currentFilePath)) {
 			return workspacePath
@@ -130,7 +130,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 }
 
 export async function isLocatedInWorkspace(pathToCheck: string = ""): Promise<boolean> {
-	const workspacePaths = (await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})).paths
+	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
 		const resolvedPath = path.resolve(workspacePath, pathToCheck)
 		if (isLocatedInPath(workspacePath, resolvedPath)) {
@@ -162,7 +162,7 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 }
 
 export async function asRelativePath(filePath: string): Promise<string> {
-	const workspacePaths = await getHostBridgeProvider().workspaceClient.getWorkspacePaths({})
+	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	for (const workspacePath of workspacePaths.paths) {
 		if (isLocatedInPath(workspacePath, filePath)) {
 			return path.relative(workspacePath, filePath)

@@ -1,11 +1,11 @@
-import { getSecret, storeSecret } from "@/core/storage/state"
-import { ErrorService } from "@/services/error/ErrorService"
+import { errorService } from "@services/posthog/PostHogClientProvider"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
-import { GithubAuthProvider, GoogleAuthProvider, User, getAuth, signInWithCredential } from "firebase/auth"
-import { ExtensionContext } from "vscode"
-import { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
+import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
+import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 export class FirebaseAuthProvider {
 	private _config: any
@@ -40,8 +40,8 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
-	async retrieveClineAuthInfo(context: ExtensionContext): Promise<ClineAuthInfo | null> {
-		const userRefreshToken = await getSecret(context, "clineAccountId")
+	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
+		const userRefreshToken = controller.cacheService.getSecretKey("clineAccountId")
 		if (!userRefreshToken) {
 			console.error("No stored authentication credential found.")
 			return null
@@ -69,7 +69,7 @@ export class FirebaseAuthProvider {
 			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
 			// TODO: consolidate with fetchMe() instead of making the call directly here
-			const userResponse = await axios.get("https://api.cline.bot/api/v1/users/me", {
+			const userResponse = await axios.get(`${clineEnvConfig.apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer ${idToken}`,
 				},
@@ -88,8 +88,8 @@ export class FirebaseAuthProvider {
 			// return userCredential.user
 		} catch (error) {
 			console.error("Firebase restore token error", error)
-			ErrorService.logMessage("Firebase restore token error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase restore token error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}
@@ -99,9 +99,9 @@ export class FirebaseAuthProvider {
 	 * @returns {Promise<User>} A promise that resolves with the authenticated user.
 	 * @throws {Error} Throws an error if the sign-in fails.
 	 */
-	async signIn(context: ExtensionContext, token: string, provider: string): Promise<ClineAuthInfo | null> {
+	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
-			let credential
+			let credential: OAuthCredential
 			switch (provider) {
 				case "google":
 					credential = GoogleAuthProvider.credential(token)
@@ -122,18 +122,18 @@ export class FirebaseAuthProvider {
 
 			// store the long-lived refresh token in secret storage
 			try {
-				await storeSecret(context, "clineAccountId", userCredential.refreshToken)
+				controller.cacheService.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
-				ErrorService.logMessage("Firebase store token error", "error")
-				ErrorService.logException(error)
+				errorService.logMessage("Firebase store token error", "error")
+				errorService.logException(error)
 				throw error
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
-			return await this.retrieveClineAuthInfo(context)
+			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
-			ErrorService.logMessage("Firebase sign-in error", "error")
-			ErrorService.logException(error)
+			errorService.logMessage("Firebase sign-in error", "error")
+			errorService.logException(error)
 			throw error
 		}
 	}

@@ -1,9 +1,9 @@
+import { McpTool } from "@shared/mcp"
+import { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
-import { McpTool } from "@shared/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { ToggleToolAutoApproveRequest } from "@shared/proto/mcp"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -16,7 +16,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { setMcpServers } = useExtensionState()
 
 	// Accept the event object
-	const handleAutoApproveChange = (event: any) => {
+	const handleAutoApproveChange = (_event: any) => {
 		if (!serverName) {
 			return
 		}
@@ -44,14 +44,14 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 			}}>
 			<div
 				data-testid="tool-row-container"
-				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-				onClick={(e) => e.stopPropagation()}>
+				onClick={(e) => e.stopPropagation()}
+				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 				<div style={{ display: "flex", alignItems: "center" }}>
 					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
-					<VSCodeCheckbox checked={tool.autoApprove ?? false} onChange={handleAutoApproveChange} data-tool={tool.name}>
+					<VSCodeCheckbox checked={tool.autoApprove ?? false} data-tool={tool.name} onChange={handleAutoApproveChange}>
 						Auto-approve
 					</VSCodeCheckbox>
 				)}
