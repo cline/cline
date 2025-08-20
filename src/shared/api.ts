@@ -2819,9 +2819,10 @@ export const groqModels = {
 		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description:
 			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
 	},
