@@ -210,7 +210,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
-			strictPlanModeEnabled ?? false,
+			strictPlanModeEnabled ?? true,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,

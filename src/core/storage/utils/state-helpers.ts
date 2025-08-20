@@ -372,7 +372,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
 		},
-		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
+		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
 		lastShownAnnouncementId,
