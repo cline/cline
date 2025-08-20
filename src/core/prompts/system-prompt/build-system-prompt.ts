@@ -16,7 +16,8 @@ export const buildSystemPrompt = async (
 	focusChainSettings: FocusChainSettings,
 	providerInfo: ApiProviderInfo,
 ) => {
-	if (isLocalModelFamily(providerInfo.providerId)) {
+	// Compact prompt is only available for local models with custom prompt set to compact
+	if (providerInfo.customPrompt === "compact" && isLocalModelFamily(providerInfo.providerId)) {
 		return SYSTEM_PROMPT_COMPACT(cwd, supportsBrowserUse, mcpHub, browserSettings, focusChainSettings)
 	}
 	// New prompts per family can be added as granularly as we like by adding a folder in the "families" folder

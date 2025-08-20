@@ -49,6 +49,7 @@ export interface ApiHandlerModel {
 export interface ApiProviderInfo {
 	modelId: string
 	providerId: string
+	customPrompt?: string
 }
 
 export interface SingleCompletionHandler {

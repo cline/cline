@@ -69,6 +69,7 @@ export interface ExtensionState {
 	strictPlanModeEnabled?: boolean
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
+	customPrompt?: string
 }
 
 export interface ClineMessage {

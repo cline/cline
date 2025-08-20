@@ -1,13 +1,14 @@
 import type { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
+import { useEffectOnce, useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { updateSetting } from "../utils/settingsHandlers"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -36,12 +37,13 @@ interface LMStudioApiModel {
  * The LM Studio provider configuration component
  */
 export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, customPrompt } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
+	const [isCompactPromptEnabled, setIsCompactPromptEnabled] = useState<boolean>(customPrompt === "compact")
 
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === lmStudioModelId),
@@ -52,6 +54,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[apiConfiguration?.lmStudioBaseUrl],
 	)
 
+	const toggleCompactPrompt = useCallback(
+		(isChecked: boolean) => {
+			setIsCompactPromptEnabled(isChecked)
+			updateSetting("customPrompt", isChecked ? "compact" : "")
+		},
+		[handleFieldChange],
+	)
+
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
@@ -59,7 +69,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		})
 			.then((response) => {
 				if (response?.values) {
-					console.log("Fetched LM Studio models:", response.values)
 					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
 					setLmStudioModels(models)
 				}
@@ -151,6 +160,9 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
 			/>
 
+			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
+				Use Compact Prompt
+			</VSCodeCheckbox>
 			<div
 				style={{
 					fontSize: "12px",

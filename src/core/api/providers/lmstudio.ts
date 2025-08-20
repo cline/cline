@@ -24,7 +24,7 @@ export class LmStudioHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				this.client = new OpenAI({
-					baseURL: new URL("v1", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
+					baseURL: new URL("api/v0", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
 					apiKey: "noop",
 				})
 			} catch (error) {
@@ -50,7 +50,8 @@ export class LmStudioHandler implements ApiHandler {
 				max_completion_tokens: this.options.lmStudioMaxTokens ? Number(this.options.lmStudioMaxTokens) : undefined,
 			})
 			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta
+				const choice = chunk.choices[0]
+				const delta = choice?.delta
 				if (delta?.content) {
 					yield {
 						type: "text",
@@ -61,6 +62,14 @@ export class LmStudioHandler implements ApiHandler {
 					yield {
 						type: "reasoning",
 						reasoning: (delta.reasoning_content as string | undefined) || "",
+					}
+				}
+				if (chunk.usage) {
+					yield {
+						type: "usage",
+						inputTokens: chunk.usage.prompt_tokens || 0,
+						outputTokens: chunk.usage.completion_tokens || 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					}
 				}
 			}

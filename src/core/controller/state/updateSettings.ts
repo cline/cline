@@ -162,6 +162,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		// Update custom prompt choice
+		if (request.customPrompt !== undefined) {
+			const value = request.customPrompt === "compact" ? "compact" : undefined
+			controller.cacheService.setGlobalState("customPrompt", value)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

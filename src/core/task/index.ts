@@ -76,7 +76,6 @@ import { ensureLocalClineDirExists } from "../context/instructions/user-instruct
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
-import { isLocalModelFamily } from "../prompts/system-prompt/utils"
 import { CacheService } from "../storage/CacheService"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -1616,7 +1615,8 @@ export class Task {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return { modelId, providerId }
+		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
+		return { modelId, providerId, customPrompt }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -1950,7 +1950,7 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId } = this.getCurrentProviderInfo()
+		const { modelId, providerId, customPrompt } = this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
@@ -2190,9 +2190,7 @@ export class Task {
 		let parsedUserContent: UserContent
 		let environmentDetails: string
 		let clinerulesError: boolean
-
-		const useCompactPrompt = isLocalModelFamily(providerId)
-
+		const useCompactPrompt = customPrompt === "compact"
 		// when summarizing the context window, we do not want to inject updated to the context
 		if (shouldCompact) {
 			parsedUserContent = userContent
