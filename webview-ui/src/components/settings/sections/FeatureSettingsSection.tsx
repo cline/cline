@@ -175,11 +175,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("useAutoCondense", checked)
 							}}>
-							Enable auto condense
+							Enable Auto Compact
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enables advanced context management system which uses LLM based condensing, instead of rule-based
-							truncation.
+							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
+							<a
+								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								href="https://docs.cline.bot/features/auto-compact"
+								rel="noopener noreferrer"
+								target="_blank">
+								Learn more
+							</a>
 						</p>
 					</div>
 				</div>
