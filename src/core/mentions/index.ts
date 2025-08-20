@@ -13,6 +13,7 @@ import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
@@ -29,8 +30,8 @@ export async function openMention(mention?: string): Promise<void> {
 	if (isFileMention(mention)) {
 		const relPath = getFilePathFromMention(mention)
 		const absPath = path.resolve(cwd, relPath)
-		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
+		if (await isDirectory(absPath)) {
+			await HostProvider.workspace.openInFileExplorerPanel({ path: absPath })
 		} else {
 			openFile(absPath)
 		}

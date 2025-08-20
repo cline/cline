@@ -21,6 +21,9 @@ service WorkspaceService {
 
   // Makes the problems panel/pane visible in the IDE and focuses it.
   rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);
+
+  // Opens the IDE file explorer panel and selects a file or directory.
+  rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
 }
 
 message GetWorkspacePathsRequest {
@@ -54,3 +57,8 @@ message GetDiagnosticsResponse {
 
 message OpenProblemsPanelRequest {}
 message OpenProblemsPanelResponse {}
+
+message OpenInFileExplorerPanelRequest {
+  string path = 1;
+}
+message OpenInFileExplorerPanelResponse {}
