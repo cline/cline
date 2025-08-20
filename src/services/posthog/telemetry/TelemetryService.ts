@@ -66,6 +66,8 @@ export class TelemetryService {
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
+			// Tracks when MCP tools are used
+			MCP_TOOL_CALLED: "task.mcp_tool_called",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -366,6 +368,33 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+			},
+		})
+	}
+
+	/**
+	 * Records when an MCP tool is called
+	 * @param ulid Unique identifier for the task
+	 * @param serverName The name of the MCP server
+	 * @param toolName The name of the tool being called
+	 * @param status The status of the tool call
+	 * @param errorMessage Optional error message if the call failed
+	 */
+	public captureMcpToolCall(
+		ulid: string,
+		serverName: string,
+		toolName: string,
+		status: "started" | "success" | "error",
+		errorMessage?: string,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
+			properties: {
+				ulid,
+				serverName,
+				toolName,
+				status,
+				errorMessage,
 			},
 		})
 	}

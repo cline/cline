@@ -33,6 +33,7 @@ import ReconnectingEventSource from "reconnecting-eventsource"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
+import { TelemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
@@ -41,6 +42,7 @@ export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
 	private clientVersion: string
+	private telemetryService: TelemetryService
 
 	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: FSWatcher
@@ -63,10 +65,12 @@ export class McpHub {
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
 		clientVersion: string,
+		telemetryService: TelemetryService,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
 		this.clientVersion = clientVersion
+		this.telemetryService = telemetryService
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -808,7 +812,12 @@ export class McpHub {
 		)
 	}
 
-	async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<McpToolCallResponse> {
+	async callTool(
+		serverName: string,
+		toolName: string,
+		toolArguments?: Record<string, unknown>,
+		ulid?: string,
+	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(
@@ -830,23 +839,44 @@ export class McpHub {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
-		const result = await connection.client.request(
-			{
-				method: "tools/call",
-				params: {
-					name: toolName,
-					arguments: toolArguments,
-				},
-			},
-			CallToolResultSchema,
-			{
-				timeout,
-			},
-		)
+		if (ulid) {
+			this.telemetryService.captureMcpToolCall(ulid, serverName, toolName, "started")
+		}
 
-		return {
-			...result,
-			content: result.content ?? [],
+		try {
+			const result = await connection.client.request(
+				{
+					method: "tools/call",
+					params: {
+						name: toolName,
+						arguments: toolArguments,
+					},
+				},
+				CallToolResultSchema,
+				{
+					timeout,
+				},
+			)
+
+			if (ulid) {
+				this.telemetryService.captureMcpToolCall(ulid, serverName, toolName, "success")
+			}
+
+			return {
+				...result,
+				content: result.content ?? [],
+			}
+		} catch (error) {
+			if (ulid) {
+				this.telemetryService.captureMcpToolCall(
+					ulid,
+					serverName,
+					toolName,
+					"error",
+					error instanceof Error ? error.message : String(error),
+				)
+			}
+			throw error
 		}
 	}
 
