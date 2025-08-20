@@ -1,3 +1,4 @@
+import path from "node:path"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { ToggleClineRules } from "@shared/proto/cline/file"
@@ -35,7 +36,6 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	// Track rule toggle telemetry with current task context
 	if (controller.task?.ulid) {
 		// Extract just the filename for privacy (no full paths)
-import path from "node:path"
 		const ruleFileName = path.basename(rulePath)
 		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
