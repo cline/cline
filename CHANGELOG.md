@@ -1,9 +1,11 @@
 # Changelog
 
-## 3.26.0
+## [3.26.0]
 
-- a45278b: Add support for Z AI GLM-4.5 and GLM-4.5 air
-- 5709f34: Support LM Studio local models from v0 api endpoint, fix Ollama context window configuration not working issue.
+- Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
+- Add Cline Sonic Alpha model - experimental advanced model with 262K context window for complex coding tasks
+- Add support for LM Studio local models from v0 API endpoint with configurable max tokens
+- Fix Ollama context window configuration not being used in requests
 
 ## [3.25.3]
 
