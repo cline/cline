@@ -1,7 +1,7 @@
-import { ModelInfo } from "@shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { convertToOpenAiMessages } from "../transform/openai-format"
 
 export async function createVercelAIGatewayStream(
 	client: OpenAI,
@@ -10,7 +10,7 @@ export async function createVercelAIGatewayStream(
 	model: { id: string; info: ModelInfo },
 ) {
 	// Convert Anthropic messages to OpenAI format
-	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
 		...convertToOpenAiMessages(messages),
 	]
@@ -33,7 +33,7 @@ export async function createVercelAIGatewayStream(
 			}
 			if (Array.isArray(msg.content)) {
 				// Find the last text part in the message content
-				let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+				const lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
 				if (lastTextPart && lastTextPart.text && lastTextPart.text.length > 0) {
 					// @ts-ignore-next-line

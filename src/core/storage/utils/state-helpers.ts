@@ -384,7 +384,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
 		},
-		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
+		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,

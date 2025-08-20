@@ -35,8 +35,8 @@ import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { TogetherProvider } from "./providers/TogetherProvider"
+import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
@@ -224,7 +224,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
-				<VercelAIGatewayProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "sambanova" && (

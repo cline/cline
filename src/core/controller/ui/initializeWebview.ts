@@ -7,8 +7,8 @@ import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplace
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 import { refreshVercelAiGatewayModels } from "../models/refreshVercelAiGatewayModels"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
  * Initialize webview when it launches
@@ -187,7 +187,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeVercelAiGatewayModelId
 					const actModelId = apiConfiguration.actModeVercelAiGatewayModelId
-					let updatedConfig = { ...apiConfiguration }
+					const updatedConfig = { ...apiConfiguration }
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {

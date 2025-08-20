@@ -211,7 +211,7 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
-			strictPlanModeEnabled ?? false,
+			strictPlanModeEnabled ?? true,
 			useAutoCondense ?? true,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,

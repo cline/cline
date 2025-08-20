@@ -1,5 +1,6 @@
 import { geminiModels, ModelInfo } from "@shared/api"
 import { Fragment, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 import {
 	formatPrice,
@@ -10,7 +11,6 @@ import {
 	supportsImages,
 	supportsPromptCache,
 } from "../utils/pricingUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 
 /**

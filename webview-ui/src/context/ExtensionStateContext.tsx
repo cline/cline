@@ -200,7 +200,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		isNewUser: false,
 		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		strictPlanModeEnabled: false,
+		strictPlanModeEnabled: true,
 		useAutoCondense: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -534,7 +534,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
 			onResponse: () => {
 				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => callback())
+				relinquishControlCallbacks.current.forEach((callback) => {
+					callback()
+				})
 			},
 			onError: (error) => {
 				console.error("Error in relinquishControl subscription:", error)
