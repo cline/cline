@@ -51,14 +51,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
+		id: "cline/sonic",
+		description: "Advanced model with 262K context for complex coding",
+		label: "Alpha",
+	},
+	{
 		id: "anthropic/claude-sonnet-4:1m",
 		description: "Large 1M context window for complex tasks",
 		label: "New",
-	},
-	{
-		id: "anthropic/claude-opus-4.1",
-		description: "Anthropic's newest model topping benchmarks",
-		label: "Trending",
 	},
 ]
 
@@ -119,7 +119,13 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
 
-		return modeFields.apiProvider === "cline" ? unfilteredModelIds.filter((id) => !id.includes(":free")) : unfilteredModelIds
+		if (modeFields.apiProvider === "cline") {
+			// For Cline provider: exclude :free models
+			return unfilteredModelIds.filter((id) => !id.includes(":free"))
+		} else {
+			// For OpenRouter provider: exclude Cline-specific models
+			return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
+		}
 	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
