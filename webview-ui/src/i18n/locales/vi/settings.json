@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Lấy khóa API Chutes",
 		"fireworksApiKey": "Khóa API Fireworks",
 		"getFireworksApiKey": "Lấy khóa API Fireworks",
+		"featherlessApiKey": "Khóa API Featherless",
+		"getFeatherlessApiKey": "Lấy khóa API Featherless",
 		"ioIntelligenceApiKey": "Khóa API IO Intelligence",
 		"ioIntelligenceApiKeyPlaceholder": "Nhập khóa API IO Intelligence của bạn",
 		"getIoIntelligenceApiKey": "Lấy khóa API IO Intelligence",

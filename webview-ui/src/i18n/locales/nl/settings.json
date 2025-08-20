@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Chutes API-sleutel ophalen",
 		"fireworksApiKey": "Fireworks API-sleutel",
 		"getFireworksApiKey": "Fireworks API-sleutel ophalen",
+		"featherlessApiKey": "Featherless API-sleutel",
+		"getFeatherlessApiKey": "Featherless API-sleutel ophalen",
 		"ioIntelligenceApiKey": "IO Intelligence API-sleutel",
 		"ioIntelligenceApiKeyPlaceholder": "Voer je IO Intelligence API-sleutel in",
 		"getIoIntelligenceApiKey": "IO Intelligence API-sleutel ophalen",

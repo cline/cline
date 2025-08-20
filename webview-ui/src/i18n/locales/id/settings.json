@@ -273,6 +273,8 @@
 		"getChutesApiKey": "Dapatkan Chutes API Key",
 		"fireworksApiKey": "Fireworks API Key",
 		"getFireworksApiKey": "Dapatkan Fireworks API Key",
+		"featherlessApiKey": "Featherless API Key",
+		"getFeatherlessApiKey": "Dapatkan Featherless API Key",
 		"ioIntelligenceApiKey": "IO Intelligence API Key",
 		"ioIntelligenceApiKeyPlaceholder": "Masukkan kunci API IO Intelligence Anda",
 		"getIoIntelligenceApiKey": "Dapatkan IO Intelligence API Key",

@@ -584,8 +584,8 @@ importers:
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
       '@roo-code/cloud':
-        specifier: ^0.18.0
-        version: 0.18.0
+        specifier: ^0.19.0
+        version: 0.19.0
       '@roo-code/ipc':
         specifier: workspace:^
         version: link:../packages/ipc
@@ -3106,11 +3106,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@roo-code/cloud@0.18.0':
-    resolution: {integrity: sha512-Y2jbcUVB9RCQFAxHDPrfjWQU1o7yRvWaPAdA3eZjsUf+zfDL59Rwfghg6loqDfE/8HCkcJmHfLCKovNX5ju5qA==}
+  '@roo-code/cloud@0.19.0':
+    resolution: {integrity: sha512-alZ3X4+TPqRr0xSs9v/UDo3eTlcHaI8ZW8AbWPDtgqf86P8govnyM2hVUMhGXete3AlbYIPRE/9w3/7MrcIjsA==}
 
-  '@roo-code/types@1.54.0':
-    resolution: {integrity: sha512-Xj3Zn2FhXbG2bpwXuhrjKnkeuWypQCIPKljOLXnOCUqaMUhP1zkWwNZ+I3gIBUpDng/iWN3KHon1if0UaoXYQw==}
+  '@roo-code/types@1.55.0':
+    resolution: {integrity: sha512-+T5MP8IQcDp7htnGDnk3M4n7S5eYk6jNkw3VBSUBZRhS4EE2GuPDI+CcdmhnDiMb6NMV6yseL+CT4G4QV5ktUw==}
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -12314,9 +12314,9 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.40.2':
     optional: true
 
-  '@roo-code/cloud@0.18.0':
+  '@roo-code/cloud@0.19.0':
     dependencies:
-      '@roo-code/types': 1.54.0
+      '@roo-code/types': 1.55.0
       ioredis: 5.6.1
       p-wait-for: 5.0.2
       socket.io-client: 4.8.1
@@ -12326,7 +12326,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@roo-code/types@1.54.0':
+  '@roo-code/types@1.55.0':
     dependencies:
       zod: 3.25.76
 

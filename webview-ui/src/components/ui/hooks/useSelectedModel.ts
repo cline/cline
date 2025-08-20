@@ -46,6 +46,8 @@ import {
 	mainlandZAiModels,
 	fireworksModels,
 	fireworksDefaultModelId,
+	featherlessModels,
+	featherlessDefaultModelId,
 	ioIntelligenceDefaultModelId,
 	ioIntelligenceModels,
 	rooDefaultModelId,
@@ -290,6 +292,11 @@ function getSelectedModel({
 		case "fireworks": {
 			const id = apiConfiguration.apiModelId ?? fireworksDefaultModelId
 			const info = fireworksModels[id as keyof typeof fireworksModels]
+			return { id, info }
+		}
+		case "featherless": {
+			const id = apiConfiguration.apiModelId ?? featherlessDefaultModelId
+			const info = featherlessModels[id as keyof typeof featherlessModels]
 			return { id, info }
 		}
 		case "io-intelligence": {

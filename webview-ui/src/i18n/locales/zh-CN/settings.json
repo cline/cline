@@ -269,6 +269,8 @@
 		"getChutesApiKey": "获取 Chutes API 密钥",
 		"fireworksApiKey": "Fireworks API 密钥",
 		"getFireworksApiKey": "获取 Fireworks API 密钥",
+		"featherlessApiKey": "Featherless API 密钥",
+		"getFeatherlessApiKey": "获取 Featherless API 密钥",
 		"ioIntelligenceApiKey": "IO Intelligence API 密钥",
 		"ioIntelligenceApiKeyPlaceholder": "输入您的 IO Intelligence API 密钥",
 		"getIoIntelligenceApiKey": "获取 IO Intelligence API 密钥",

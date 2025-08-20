@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Chutes API 키 받기",
 		"fireworksApiKey": "Fireworks API 키",
 		"getFireworksApiKey": "Fireworks API 키 받기",
+		"featherlessApiKey": "Featherless API 키",
+		"getFeatherlessApiKey": "Featherless API 키 받기",
 		"ioIntelligenceApiKey": "IO Intelligence API 키",
 		"ioIntelligenceApiKeyPlaceholder": "IO Intelligence API 키를 입력하세요",
 		"getIoIntelligenceApiKey": "IO Intelligence API 키 받기",

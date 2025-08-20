@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Получить Chutes API-ключ",
 		"fireworksApiKey": "Fireworks API-ключ",
 		"getFireworksApiKey": "Получить Fireworks API-ключ",
+		"featherlessApiKey": "Featherless API-ключ",
+		"getFeatherlessApiKey": "Получить Featherless API-ключ",
 		"ioIntelligenceApiKey": "IO Intelligence API-ключ",
 		"ioIntelligenceApiKeyPlaceholder": "Введите свой ключ API IO Intelligence",
 		"getIoIntelligenceApiKey": "Получить IO Intelligence API-ключ",

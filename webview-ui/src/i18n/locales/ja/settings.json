@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Chutes APIキーを取得",
 		"fireworksApiKey": "Fireworks APIキー",
 		"getFireworksApiKey": "Fireworks APIキーを取得",
+		"featherlessApiKey": "Featherless APIキー",
+		"getFeatherlessApiKey": "Featherless APIキーを取得",
 		"ioIntelligenceApiKey": "IO Intelligence APIキー",
 		"ioIntelligenceApiKeyPlaceholder": "IO Intelligence APIキーを入力してください",
 		"getIoIntelligenceApiKey": "IO Intelligence APIキーを取得",

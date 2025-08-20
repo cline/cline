@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Obtener clave API de Chutes",
 		"fireworksApiKey": "Clave API de Fireworks",
 		"getFireworksApiKey": "Obtener clave API de Fireworks",
+		"featherlessApiKey": "Clave API de Featherless",
+		"getFeatherlessApiKey": "Obtener clave API de Featherless",
 		"ioIntelligenceApiKey": "Clave API de IO Intelligence",
 		"ioIntelligenceApiKeyPlaceholder": "Introduce tu clave de API de IO Intelligence",
 		"getIoIntelligenceApiKey": "Obtener clave API de IO Intelligence",

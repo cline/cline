@@ -271,6 +271,8 @@
 		"getChutesApiKey": "Chutes API-Schlüssel erhalten",
 		"fireworksApiKey": "Fireworks API-Schlüssel",
 		"getFireworksApiKey": "Fireworks API-Schlüssel erhalten",
+		"featherlessApiKey": "Featherless API-Schlüssel",
+		"getFeatherlessApiKey": "Featherless API-Schlüssel erhalten",
 		"ioIntelligenceApiKey": "IO Intelligence API-Schlüssel",
 		"ioIntelligenceApiKeyPlaceholder": "Gib deinen IO Intelligence API-Schlüssel ein",
 		"getIoIntelligenceApiKey": "IO Intelligence API-Schlüssel erhalten",
