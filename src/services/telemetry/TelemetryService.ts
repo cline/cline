@@ -9,12 +9,6 @@ import { version as extensionVersion } from "../../../package.json"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 
 /**
- * TelemetryService handles telemetry event tracking for the Cline extension
- * Uses an abstracted telemetry provider to support multiple analytics backends
- * Respects user privacy settings and VSCode's global telemetry configuration
- */
-
-/**
  * Represents telemetry event categories that can be individually enabled or disabled
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
@@ -26,7 +20,11 @@ type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
  */
 const MAX_ERROR_MESSAGE_LENGTH = 500
 
-export class TelemetryService {
+/**
+ * TelemetryService handles telemetry event tracking for the Cline extension
+ * Uses an abstracted telemetry provider to support multiple analytics backends
+ * Respects user privacy settings and VSCode's global telemetry configuration
+ */ export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
@@ -98,8 +96,6 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
 			// Tracks when the context window is auto-condensed with the summarize_task tool call
 			AUTO_COMPACT: "task.summarize_task",
-			// Tracks when task request errors occur
-			REQUEST_ERROR: "task.request_error",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -118,8 +114,8 @@ export class TelemetryService {
 	private readonly isDev = process.env.IS_DEV
 
 	/**
-	 * Constructor that accepts an ITelemetryProvider instance
-	 * @param provider ITelemetryProvider instance for sending analytics events
+	 * Constructor that accepts a PostHogClientProvider instance
+	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
 	public constructor(private provider: ITelemetryProvider) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
@@ -197,7 +193,7 @@ export class TelemetryService {
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
 		const propertiesWithVersion = this.addProperties({})
 
-		// Use the provider's identifyUser method
+		// Use the provider's log method instead of direct client capture
 		this.provider.identifyUser(userInfo, propertiesWithVersion)
 	}
 
@@ -749,17 +745,6 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
 			properties: {
 				ulid,
-			},
-		})
-	}
-
-	public captureRequestError(args: { ulid: string; errorMessage: string }) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.REQUEST_ERROR,
-			properties: {
-				...args,
-				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
-				timestamp: new Date().toISOString(),
 			},
 		})
 	}

@@ -68,8 +68,8 @@ message ModelTier {
 
 // For OpenRouterCompatibleModelInfo structure in OpenRouterModels
 message OpenRouterModelInfo {
-  optional int32 max_tokens = 1;
-  optional int32 context_window = 2;
+  optional int64 max_tokens = 1;
+  optional int64 context_window = 2;
   optional bool supports_images = 3;
   bool supports_prompt_cache = 4;
   optional double input_price = 5;
