@@ -180,8 +180,9 @@
 					"provider-config/openai",
 					"provider-config/openai-compatible",
 					"provider-config/openrouter",
-					"provider-config/requesty",
-					"provider-config/sap-aicore"
+					"provider-config/sap-aicore",
+					"provider-config/vercel-ai-gateway",
+					"provider-config/requesty"
 				]
 			},
 			{
