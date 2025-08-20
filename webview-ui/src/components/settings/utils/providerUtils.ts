@@ -301,7 +301,16 @@ export function normalizeApiConfiguration(
 				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
 			return getProviderData(zaiModels, zaiDefaultId)
 		case "fireworks":
-			return getProviderData(fireworksModels, fireworksDefaultModelId)
+			const fireworksModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeFireworksModelId : apiConfiguration?.actModeFireworksModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: fireworksModelId || fireworksDefaultModelId,
+				selectedModelInfo:
+					fireworksModelId && fireworksModelId in fireworksModels
+						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
+						: fireworksModels[fireworksDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
