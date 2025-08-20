@@ -1,6 +1,6 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import fs from "fs/promises"
+import { telemetryService } from "@/services/telemetry"
 import {
 	condenseToolResponse,
 	deepPlanningToolResponse,
