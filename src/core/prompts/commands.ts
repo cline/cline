@@ -211,7 +211,7 @@ grep -r "import\|from\|require\|#include" --include="*.py" --include="*.js" --in
 find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" -o -name "go.mod" | xargs cat
 
 # Identify technical debt and TODOs
-grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | cat
+grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 
 
 ## STEP 2: Discussion and Questions
