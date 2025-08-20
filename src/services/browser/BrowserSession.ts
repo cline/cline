@@ -15,7 +15,7 @@ import PCR from "puppeteer-chromium-resolver"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
 import * as vscode from "vscode"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { telemetryService } from "@/services/telemetry"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
 interface PCRStats {

@@ -1,12 +1,13 @@
-import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
+import { telemetryService } from "@/services/telemetry"
 import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
 import { openExternal } from "@/utils/env"
+import { featureFlagsService } from "../feature-flags"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`

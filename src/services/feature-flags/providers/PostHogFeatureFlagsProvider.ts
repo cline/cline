@@ -1,0 +1,97 @@
+import { PostHog } from "posthog-node"
+import { v4 as uuidv4 } from "uuid"
+import * as vscode from "vscode"
+import { posthogConfig } from "../../../shared/services/config/posthog-config"
+import type { FeatureFlagsSettings, IFeatureFlagsProvider } from "../IFeatureFlagsProvider"
+
+// Prefer host-provided UUID when running via HostBridge; fall back to VS Code's machineId, then a random UUID
+const ENV_ID = process?.env?.UUID ?? vscode?.env?.machineId ?? uuidv4()
+
+/**
+ * PostHog implementation of the feature flags provider interface
+ * Handles PostHog-specific feature flag retrieval
+ */
+export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
+	private client: PostHog
+	private distinctId: string
+	private settings: FeatureFlagsSettings
+	private isSharedClient: boolean
+
+	constructor(distinctId: string = ENV_ID, sharedClient?: PostHog) {
+		this.distinctId = distinctId
+		this.isSharedClient = !!sharedClient
+
+		// Use shared PostHog client if provided, otherwise create a new one
+		this.client =
+			sharedClient ||
+			new PostHog(posthogConfig.apiKey, {
+				host: posthogConfig.host,
+			})
+
+		// Initialize feature flags settings
+		this.settings = {
+			enabled: true,
+			timeout: 5000, // 5 second timeout for feature flag requests
+		}
+	}
+
+	public async getFeatureFlag(flagName: string): Promise<boolean | string | undefined> {
+		if (!this.isEnabled()) {
+			return undefined
+		}
+
+		try {
+			return await this.client.getFeatureFlag(flagName, this.distinctId)
+		} catch (error) {
+			console.error(`Error getting feature flag ${flagName}:`, error)
+			return undefined
+		}
+	}
+
+	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
+		if (!this.isEnabled()) {
+			return null
+		}
+
+		try {
+			return await this.client.getFeatureFlagPayload(flagName, this.distinctId)
+		} catch (error) {
+			console.error(`Error getting feature flag payload for ${flagName}:`, error)
+			return null
+		}
+	}
+
+	public isEnabled(): boolean {
+		return this.settings.enabled
+	}
+
+	public getSettings(): FeatureFlagsSettings {
+		return { ...this.settings }
+	}
+
+	public async dispose(): Promise<void> {
+		// Only shut down the client if it's not shared (we own it)
+		if (!this.isSharedClient) {
+			try {
+				await this.client.shutdown()
+			} catch (error) {
+				console.error("Error shutting down PostHog client:", error)
+			}
+		}
+	}
+
+	/**
+	 * Get the distinct ID for this provider instance
+	 */
+	public getDistinctId(): string {
+		return this.distinctId
+	}
+
+	/**
+	 * Update the distinct ID
+	 * @param newDistinctId New distinct ID to use
+	 */
+	public setDistinctId(newDistinctId: string): void {
+		this.distinctId = newDistinctId
+	}
+}

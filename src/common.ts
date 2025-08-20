@@ -6,14 +6,15 @@ import {
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { getTelemetryService } from "./services/telemetry"
 import { EmptyRequest } from "./shared/proto/cline/common"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { telemetryService } from "./services/posthog/PostHogClientProvider"
+import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/telemetry"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
@@ -95,7 +96,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
-	PostHogClientProvider.getInstance().dispose()
+	telemetryService.dispose()
 
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
