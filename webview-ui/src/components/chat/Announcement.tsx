@@ -46,21 +46,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
+					<b>Cline Sonic:</b> Advanced stealth model with 262K context window designed for complex coding tasks.
+					Available in the Cline provider for free.
+				</li>
+				<li>
 					<b>Z AI Provider:</b> New API provider with GLM-4.5 and GLM-4.5 Air models offering competitive performance
 					with cost-effective pricing, especially optimized for Chinese language tasks and general programming
 					assistance.
 				</li>
 				<li>
-					<b>Cline Sonic Alpha:</b> Experimental advanced model with 262K context window designed for complex coding
-					tasks. Available in the Cline provider with the "Alpha" label for early access testing.
-				</li>
-				<li>
 					<b>Enhanced LM Studio Support:</b> Improved support for LM Studio local models with v0 API endpoint
 					compatibility and configurable max tokens for better customization.
-				</li>
-				<li>
-					<b>Ollama Context Window Fix:</b> Fixed issue where Ollama context window configuration wasn't being used in
-					requests, improving performance for local model users.
 				</li>
 			</ul>
 			<Accordion className="pl-0" isCompact>
