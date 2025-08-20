@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.26.1]
+
+- Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
+- Improve SAP AI Core provider to show deployed and undeployed models in the UI (Thanks @yuvalman!)
+- Fix Fireworks provider configuration and functionality (Thanks @ershang-fireworks!)
+- Add telemetry tracking for MCP tool usage to help improve the extension
+- Improve telemetry tracking for rules and workflow usage analytics
+- Set Plan mode to use strict mode by default for better planning results
+
 ## [3.26.0]
 
 - Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
