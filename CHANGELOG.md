@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.27.0
+
+### Minor Changes
+
+- aea979f: sap provider show deployed and not deployed models in ai core service instance
+- 6dc44b9: Added Vercel AI Gateway provider option
+
+### Patch Changes
+
+- 7e7280d: Fix the fireworks provider
+- 89ec9c4: Added MCP telemetry around when a MCP tool is used
+- e125540: Better understanding of rules and workflow usage
+- 8806bed: Set default plan mode to strict as the default
+
 ## [3.26.0]
 
 - Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
