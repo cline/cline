@@ -166,6 +166,7 @@
 					"provider-config/xai-grok",
 					"provider-config/mistral-ai",
 					"provider-config/deepseek",
+					"provider-config/fireworks-ai",
 					"provider-config/ollama",
 					"provider-config/openai",
 					"provider-config/openai-compatible",
