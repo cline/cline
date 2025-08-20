@@ -155,7 +155,7 @@ export class TelemetryService {
 						})
 						.then((response) => {
 							if (response.selectedOption === "Open Settings") {
-								void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+								void HostProvider.window.openSettings({ query: "telemetry.telemetryLevel" })
 							}
 						})
 				} else {
