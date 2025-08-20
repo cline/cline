@@ -138,8 +138,9 @@ describe("ApiOptions Component", () => {
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Select a model...")
-		expect(modelIdInput).toBeInTheDocument()
+		const modelIdSelect = screen.getByLabelText("Model")
+		expect(modelIdSelect).toBeInTheDocument()
+		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2-instruct")
 	})
 })
 
