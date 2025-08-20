@@ -17,6 +17,8 @@ import {
 	deepSeekModels,
 	doubaoDefaultModelId,
 	doubaoModels,
+	fireworksDefaultModelId,
+	fireworksModels,
 	geminiDefaultModelId,
 	geminiModels,
 	groqDefaultModelId,
@@ -273,7 +275,9 @@ export function normalizeApiConfiguration(
 				selectedModelId: finalBasetenModelId,
 				selectedModelInfo: basetenModelInfo ||
 					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
-					basetenModels[basetenDefaultModelId] || { description: "Baseten model" },
+					basetenModels[basetenDefaultModelId] || {
+						description: "Baseten model",
+					},
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
@@ -296,6 +300,17 @@ export function normalizeApiConfiguration(
 			const zaiDefaultId =
 				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
 			return getProviderData(zaiModels, zaiDefaultId)
+		case "fireworks":
+			const fireworksModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeFireworksModelId : apiConfiguration?.actModeFireworksModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: fireworksModelId || fireworksDefaultModelId,
+				selectedModelInfo:
+					fireworksModelId && fireworksModelId in fireworksModels
+						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
+						: fireworksModels[fireworksDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -419,16 +434,12 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) {
-		return
-	}
+	if (!apiConfiguration) return
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) {
-		return
-	}
+	if (!apiProvider) return
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {

@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import type { ExtensionContext } from "vscode"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -1008,7 +1008,7 @@ export class CacheService {
 			planModeRequestyModelId: this.globalStateCache["planModeRequestyModelId"],
 			planModeRequestyModelInfo: this.globalStateCache["planModeRequestyModelInfo"],
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
-			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"],
+			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
@@ -1038,7 +1038,7 @@ export class CacheService {
 			actModeRequestyModelId: this.globalStateCache["actModeRequestyModelId"],
 			actModeRequestyModelInfo: this.globalStateCache["actModeRequestyModelInfo"],
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
-			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"],
+			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
