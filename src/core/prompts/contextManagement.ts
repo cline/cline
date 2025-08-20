@@ -25,7 +25,7 @@ Your summary should include the following sections:
 ${
 	focusChainEnabled
 		? `Updating task progress:
-There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. Otherwise if there currently isn't a checklist, you should NOT create a new one, but instead not return anything.`
+There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. If no task_progress list was included in the previous context, you should NOT create a new task_progress list - do not return a new task_progress list if one does not already exist.`
 		: ""
 }
 
