@@ -32,6 +32,7 @@ import { TogetherHandler } from "./providers/together"
 import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
+import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
@@ -297,6 +298,14 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+			})
+		case "vercel-ai-gateway":
+			return new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
+				vercelAiGatewayModelId:
+					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
+				vercelAiGatewayModelInfo:
+					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
 			})
 		case "zai":
 			return new ZAiHandler({

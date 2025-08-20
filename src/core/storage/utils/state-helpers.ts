@@ -104,6 +104,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		basetenApiKey,
 		zaiApiKey,
 		ollamaApiKey,
+		vercelAiGatewayApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -137,6 +138,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
 		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
+		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -180,6 +182,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const planModeHuaweiCloudMaasModelInfo = context.globalState.get("planModeHuaweiCloudMaasModelInfo") as ModelInfo | undefined
 	const planModeBasetenModelId = context.globalState.get("planModeBasetenModelId") as string | undefined
 	const planModeBasetenModelInfo = context.globalState.get("planModeBasetenModelInfo") as ModelInfo | undefined
+	const planModeVercelAiGatewayModelId = context.globalState.get("planModeVercelAiGatewayModelId") as string | undefined
+	const planModeVercelAiGatewayModelInfo = context.globalState.get("planModeVercelAiGatewayModelInfo") as ModelInfo | undefined
 	// Act mode configurations
 	const actModeApiProvider = context.globalState.get("actModeApiProvider") as ApiProvider | undefined
 	const actModeApiModelId = context.globalState.get("actModeApiModelId") as string | undefined
@@ -213,6 +217,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const actModeHuaweiCloudMaasModelInfo = context.globalState.get("actModeHuaweiCloudMaasModelInfo") as ModelInfo | undefined
 	const actModeBasetenModelId = context.globalState.get("actModeBasetenModelId") as string | undefined
 	const actModeBasetenModelInfo = context.globalState.get("actModeBasetenModelInfo") as ModelInfo | undefined
+	const actModeVercelAiGatewayModelId = context.globalState.get("actModeVercelAiGatewayModelId") as string | undefined
+	const actModeVercelAiGatewayModelInfo = context.globalState.get("actModeVercelAiGatewayModelInfo") as ModelInfo | undefined
 
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
@@ -313,6 +319,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			basetenApiKey,
 			zaiApiKey,
 			ollamaApiKey,
+			vercelAiGatewayApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -342,6 +349,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeBasetenModelId,
 			planModeBasetenModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -371,6 +380,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		},
 		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
 		isNewUser: isNewUser ?? true,
@@ -444,6 +455,7 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"vercelAiGatewayApiKey",
 		"zaiApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
