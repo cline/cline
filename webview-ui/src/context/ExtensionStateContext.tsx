@@ -267,6 +267,12 @@ export const ExtensionStateContextProvider: React.FC<{
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
+							// HACK: Preserve clineMessages if currentTaskItem is the same
+							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
+								stateData.clineMessages = stateData.clineMessages?.length
+									? stateData.clineMessages
+									: prevState.clineMessages
+							}
 
 							const newState = {
 								...stateData,
