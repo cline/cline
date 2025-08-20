@@ -1,4 +1,4 @@
-export type { ITelemetryProvider, TelemetrySettings } from "./ITelemetryProvider"
+export type { ITelemetryProvider, TelemetrySettings } from "./providers/ITelemetryProvider"
 export { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 export { type TelemetryProviderConfig, TelemetryProviderFactory, type TelemetryProviderType } from "./TelemetryProviderFactory"
 export { TelemetryService } from "./TelemetryService"
@@ -15,11 +15,10 @@ let _telemetryServiceInstance: TelemetryService | null = null
  * @param distinctId Optional distinct ID for the telemetry provider
  * @returns TelemetryService instance
  */
-export function getTelemetryService(distinctId?: string): TelemetryService {
+export function getTelemetryService(): TelemetryService {
 	if (!_telemetryServiceInstance) {
 		const provider = TelemetryProviderFactory.createProvider({
 			type: "posthog",
-			distinctId,
 		})
 		_telemetryServiceInstance = new TelemetryService(provider)
 	}

@@ -3,7 +3,7 @@
  * Allows switching between different error tracking providers (PostHog, Sentry, etc.)
  */
 
-import type { ClineError } from "./ClineError"
+import type { ClineError } from "../ClineError"
 
 /**
  * Error settings that control when and how errors are logged

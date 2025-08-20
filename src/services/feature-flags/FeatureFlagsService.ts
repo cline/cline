@@ -1,4 +1,4 @@
-import type { IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
+import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 /**
  * FeatureFlagsService provides feature flag functionality that works independently

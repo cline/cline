@@ -4,7 +4,7 @@ export {
 	type FeatureFlagsProviderType,
 } from "./FeatureFlagsProviderFactory"
 export { FeatureFlagsService } from "./FeatureFlagsService"
-export type { FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
+export type { FeatureFlagsSettings, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 export { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 import { FeatureFlagsProviderFactory } from "./FeatureFlagsProviderFactory"
@@ -17,11 +17,10 @@ let _featureFlagsServiceInstance: FeatureFlagsService | null = null
  * @param distinctId Optional distinct ID for the feature flags provider
  * @returns FeatureFlagsService instance
  */
-export function getFeatureFlagsService(distinctId?: string): FeatureFlagsService {
+export function getFeatureFlagsService(): FeatureFlagsService {
 	if (!_featureFlagsServiceInstance) {
 		const provider = FeatureFlagsProviderFactory.createProvider({
 			type: "posthog",
-			distinctId,
 		})
 		_featureFlagsServiceInstance = new FeatureFlagsService(provider)
 	}

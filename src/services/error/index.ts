@@ -1,7 +1,7 @@
 export { ClineError, ClineErrorType } from "./ClineError"
 export { type ErrorProviderConfig, ErrorProviderFactory, type ErrorProviderType } from "./ErrorProviderFactory"
 export { ErrorService } from "./ErrorService"
-export type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
+export type { ErrorSettings, IErrorProvider } from "./providers/IErrorProvider"
 export { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 import { ErrorProviderFactory } from "./ErrorProviderFactory"
@@ -14,11 +14,10 @@ let _errorServiceInstance: ErrorService | null = null
  * @param distinctId Optional distinct ID for the error provider
  * @returns ErrorService instance
  */
-export function getErrorService(distinctId?: string): ErrorService {
+export function getErrorService(): ErrorService {
 	if (!_errorServiceInstance) {
 		const provider = ErrorProviderFactory.createProvider({
 			type: "posthog",
-			distinctId,
 		})
 		_errorServiceInstance = new ErrorService(provider)
 	}

@@ -1,4 +1,4 @@
-import type { IErrorProvider } from "./IErrorProvider"
+import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 /**
@@ -11,7 +11,6 @@ export type ErrorProviderType = "posthog" | "none"
  */
 export interface ErrorProviderConfig {
 	type: ErrorProviderType
-	distinctId?: string
 }
 
 /**
@@ -27,7 +26,7 @@ export class ErrorProviderFactory {
 	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
 		switch (config.type) {
 			case "posthog":
-				return new PostHogErrorProvider(config.distinctId)
+				return new PostHogErrorProvider()
 			case "none":
 				return new NoOpErrorProvider()
 			default:

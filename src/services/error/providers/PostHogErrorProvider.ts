@@ -1,13 +1,10 @@
 import { PostHog } from "posthog-node"
-import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
+import { getDistinctId } from "@/services/logging/distinctId"
 import * as pkg from "../../../../package.json"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
 import { ClineError } from "../ClineError"
-import type { ErrorSettings, IErrorProvider } from "../IErrorProvider"
-
-// Prefer host-provided UUID when running via HostBridge; fall back to VS Code's machineId, then a random UUID
-const ENV_ID = process?.env?.UUID ?? vscode?.env?.machineId ?? uuidv4()
+import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 
 const isDev = process.env.IS_DEV === "true"
 
@@ -17,12 +14,11 @@ const isDev = process.env.IS_DEV === "true"
  */
 export class PostHogErrorProvider implements IErrorProvider {
 	private client: PostHog
-	private distinctId: string
 	private errorSettings: ErrorSettings
 	private isSharedClient: boolean
+	private disposables: vscode.Disposable[] = []
 
-	constructor(distinctId: string = ENV_ID, sharedClient?: PostHog) {
-		this.distinctId = distinctId
+	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
 
 		// Use shared PostHog client if provided, otherwise create a new one
@@ -40,9 +36,11 @@ export class PostHogErrorProvider implements IErrorProvider {
 		}
 
 		// Listen for VS Code telemetry changes
-		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-			this.errorSettings.hostEnabled = isTelemetryEnabled
-		})
+		this.disposables.push(
+			vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
+				this.errorSettings.hostEnabled = isTelemetryEnabled
+			}),
+		)
 
 		if (vscode?.env?.isTelemetryEnabled === false) {
 			this.errorSettings.hostEnabled = false
@@ -128,20 +126,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 		return { ...this.errorSettings }
 	}
 
-	public async dispose(): Promise<void> {
-		// Only shut down the client if it's not shared (we own it)
-		if (!this.isSharedClient) {
-			try {
-				await this.client.shutdown()
-			} catch (error) {
-				console.error("Error shutting down PostHog client:", error)
-			}
-		}
-	}
-
-	/**
-	 * Get the current error logging level from VS Code settings
-	 */
 	private getErrorLevel(): ErrorSettings["level"] {
 		if (!vscode?.env?.isTelemetryEnabled) {
 			return "off"
@@ -150,18 +134,16 @@ export class PostHogErrorProvider implements IErrorProvider {
 		return config?.get<ErrorSettings["level"]>("telemetryLevel") || "all"
 	}
 
-	/**
-	 * Get the distinct ID for this provider instance
-	 */
-	public getDistinctId(): string {
-		return this.distinctId
+	private get distinctId(): string {
+		return getDistinctId()
 	}
 
-	/**
-	 * Update the distinct ID
-	 * @param newDistinctId New distinct ID to use
-	 */
-	public setDistinctId(newDistinctId: string): void {
-		this.distinctId = newDistinctId
+	public async dispose(): Promise<void> {
+		// Dispose of all disposables
+		this.disposables.forEach((disposable) => disposable.dispose())
+		// Only shut down the client if it's not shared (we own it)
+		if (!this.isSharedClient) {
+			await this.client.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
+		}
 	}
 }

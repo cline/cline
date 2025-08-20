@@ -1,5 +1,5 @@
 import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
-import type { ITelemetryProvider } from "./ITelemetryProvider"
+import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 
 /**
@@ -7,12 +7,11 @@ import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
  */
 export type TelemetryProviderType = "posthog" | "none"
 
-/**f
+/**
  * Configuration for telemetry providers
  */
 export interface TelemetryProviderConfig {
 	type: TelemetryProviderType
-	distinctId?: string
 }
 
 /**
@@ -29,8 +28,7 @@ export class TelemetryProviderFactory {
 		switch (config.type) {
 			case "posthog":
 				// Get the shared PostHog client from PostHogClientProvider
-				const postHogProvider = PostHogClientProvider.getInstance(config.distinctId)
-				return new PostHogTelemetryProvider(config.distinctId, postHogProvider.getClient())
+				return new PostHogTelemetryProvider(PostHogClientProvider.getClient())
 			case "none":
 				return new NoOpTelemetryProvider()
 			default:

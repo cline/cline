@@ -1,25 +1,19 @@
 import { PostHog } from "posthog-node"
-import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
+import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
 import type { ClineAccountUserInfo } from "../../auth/AuthService"
-import type { ITelemetryProvider, TelemetrySettings } from "../ITelemetryProvider"
-
-// Prefer host-provided UUID when running via HostBridge; fall back to VS Code's machineId, then a random UUID
-const ENV_ID = process?.env?.UUID ?? vscode?.env?.machineId ?? uuidv4()
-
+import type { ITelemetryProvider, TelemetrySettings } from "./ITelemetryProvider"
 /**
  * PostHog implementation of the telemetry provider interface
  * Handles PostHog-specific analytics tracking
  */
 export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
-	private distinctId: string
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
 
-	constructor(distinctId: string = ENV_ID, sharedClient?: PostHog) {
-		this.distinctId = distinctId
+	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
 
 		// Use shared PostHog client if provided, otherwise create a new one
@@ -67,7 +61,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 
 		this.client.capture({
-			distinctId: this.distinctId,
+			distinctId: getDistinctId(),
 			event,
 			properties,
 		})
@@ -77,8 +71,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		if (!this.isEnabled()) {
 			return
 		}
-
-		if (userInfo && userInfo?.id !== this.distinctId) {
+		const distinctId = getDistinctId()
+		if (userInfo && userInfo?.id !== distinctId) {
 			this.client.identify({
 				distinctId: userInfo.id,
 				properties: {
@@ -86,10 +80,10 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 					email: userInfo.email,
 					name: userInfo.displayName,
 					...properties,
-					alias: this.distinctId,
+					alias: distinctId,
 				},
 			})
-			this.distinctId = userInfo.id
+			setDistinctId(userInfo.id)
 		}
 	}
 
@@ -131,12 +125,5 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 		const config = vscode.workspace.getConfiguration("telemetry")
 		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
-	}
-
-	/**
-	 * Get the distinct ID for this provider instance
-	 */
-	public getDistinctId(): string {
-		return this.distinctId
 	}
 }

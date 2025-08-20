@@ -3,7 +3,7 @@
  * Allows switching between different analytics providers (PostHog, etc.)
  */
 
-import type { ClineAccountUserInfo } from "../auth/AuthService"
+import type { ClineAccountUserInfo } from "../../auth/AuthService"
 
 /**
  * Telemetry settings that control when and how telemetry is collected

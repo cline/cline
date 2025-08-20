@@ -6,7 +6,7 @@ import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import type { ITelemetryProvider } from "./ITelemetryProvider"
+import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension

@@ -1,5 +1,5 @@
 import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
-import type { IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
+import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 /**
@@ -12,7 +12,6 @@ export type FeatureFlagsProviderType = "posthog" | "none"
  */
 export interface FeatureFlagsProviderConfig {
 	type: FeatureFlagsProviderType
-	distinctId?: string
 }
 
 /**
@@ -29,8 +28,8 @@ export class FeatureFlagsProviderFactory {
 		switch (config.type) {
 			case "posthog":
 				// Get the shared PostHog client from PostHogClientProvider
-				const postHogProvider = PostHogClientProvider.getInstance(config.distinctId)
-				return new PostHogFeatureFlagsProvider(config.distinctId, postHogProvider.getClient())
+				const client = PostHogClientProvider.getClient()
+				return new PostHogFeatureFlagsProvider(client)
 			case "none":
 				return new NoOpFeatureFlagsProvider()
 			default:

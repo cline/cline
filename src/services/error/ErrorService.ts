@@ -1,5 +1,5 @@
 import { ClineError } from "./ClineError"
-import type { IErrorProvider } from "./IErrorProvider"
+import { IErrorProvider } from "./providers/IErrorProvider"
 
 /**
  * ErrorService handles error logging and tracking for the Cline extension
