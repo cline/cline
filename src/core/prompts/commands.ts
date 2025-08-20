@@ -177,8 +177,11 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 </explicit_instructions>\n
 `
 
-export const deepPlanningToolResponse = () =>
-	`<explicit_instructions type="deep-planning">
+export const deepPlanningToolResponse = () => {
+	const detectedShell = require("@utils/shell").getShell()
+	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
+
+	return `<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
 
 Your behavior should be methodical and thorough - take time to understand the codebase completely before making any recommendations. The quality of your investigation directly impacts the success of the implementation.
@@ -197,7 +200,25 @@ You must use the read_file tool to examine relevant source files, configuration 
 ### Essential Terminal Commands
 Execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. These are only examples, the exact commands will differ depending on the codebase.
 
+${
+	isPowerShell
+		? `
+# Discover project structure and file types
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-Object -First 30 | Select-Object FullName
 
+# Find all class and function definitions
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "class|function|def|interface|struct"
+
+# Analyze import patterns and dependencies
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "import|from|require|#include" | Sort-Object | Get-Unique
+
+# Find dependency manifests
+Get-ChildItem -Recurse -Include "requirements*.txt","package.json","Cargo.toml","pom.xml","Gemfile" | Get-Content
+
+# Identify technical debt and TODOs
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "TODO|FIXME|XXX|HACK|NOTE"
+`
+		: `
 # Discover project structure and file types
 find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" -o -name "*.go" | head -30 | cat
 
@@ -212,6 +233,8 @@ find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -
 
 # Identify technical debt and TODOs
 grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+`
+}
 
 
 ## STEP 2: Discussion and Questions
@@ -299,7 +322,34 @@ Your new task should be self-contained and reference the plan document rather th
 **Plan Document Navigation Commands:**
 The implementation agent should use these commands to read specific sections of the implementation plan. You should adapt these examples to conform to the structure of the .md file you createdm, and explicitly provide them when creating the new task:
 
+${
+	isPowerShell
+		? `
+# Read Overview section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Overview\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $content[($start-1)..($end-2)]
 
+# Read Types section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Files section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Functions section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Classes section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Dependencies section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Testing section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Implementation Order section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($content.Length-1)]
+`
+		: `
 # Read Overview section
 sed -n '/\[Overview\]/,/\[Types\]/p' implementation_plan.md | head -n 1 | cat
 
@@ -323,6 +373,8 @@ sed -n '/\[Testing\]/,/\[Implementation Order\]/p' implementation_plan.md | head
 
 # Read Implementation Order section
 sed -n '/\[Implementation Order\]/,$p' implementation_plan.md | cat
+`
+}
 
 
 **Task Progress Format:**
@@ -361,3 +413,4 @@ Your implementation plan should be detailed enough that another developer could 
 Below is the user's input when they indicated that they wanted to create a comprehensive implementation plan.
 </explicit_instructions>\n
 `
+}
