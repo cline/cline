@@ -138,7 +138,7 @@ describe("ApiOptions Component", () => {
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
+		const modelIdInput = screen.getByPlaceholderText("Select a model...")
 		expect(modelIdInput).toBeInTheDocument()
 	})
 })
