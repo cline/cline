@@ -47,6 +47,7 @@ export class LmStudioHandler implements ApiHandler {
 				model: this.getModel().id,
 				messages: openAiMessages,
 				stream: true,
+				stream_options: { include_usage: true },
 				max_completion_tokens: this.options.lmStudioMaxTokens ? Number(this.options.lmStudioMaxTokens) : undefined,
 			})
 			for await (const chunk of stream) {
