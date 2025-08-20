@@ -7,7 +7,17 @@
 		"src/generated/hosts/vscode/protobus-services.ts",
 		"src/generated/hosts/vscode/hostbridge-grpc-service-config.ts"
 	],
-	"project": ["src/**/*.ts"],
-	"ignore": ["out/**", "node_modules/**", "*.d.ts", "**/*.test.ts", "**/__tests__", "src/test/**", "src/shared/**"],
+	"project": [
+		"src/**/*.ts"
+	],
+	"ignore": [
+		"out/**",
+		"node_modules/**",
+		"*.d.ts",
+		"**/*.test.ts",
+		"**/__tests__",
+		"src/test/**",
+		"src/shared/**"
+	],
 	"vite": true
 }
