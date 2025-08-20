@@ -14,6 +14,7 @@ import { SecretKey } from "../state-keys"
 export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
 	const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
+	const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 	const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 	const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined
 	const awsRegion = context.globalState.get("awsRegion") as string | undefined
@@ -384,6 +385,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeVercelAiGatewayModelInfo,
 		},
 		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
+		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
 		lastShownAnnouncementId,

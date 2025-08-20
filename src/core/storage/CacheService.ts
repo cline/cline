@@ -751,6 +751,7 @@ export class CacheService {
 		const globalStateFields = {
 			// Extension state fields
 			strictPlanModeEnabled: state.strictPlanModeEnabled,
+			useAutoCondense: state.useAutoCondense,
 			isNewUser: state.isNewUser,
 			welcomeViewCompleted: state.welcomeViewCompleted,
 			autoApprovalSettings: state.autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS,

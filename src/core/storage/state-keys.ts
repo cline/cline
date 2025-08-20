@@ -104,6 +104,7 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	| "strictPlanModeEnabled"
+	| "useAutoCondense"
 	| "focusChainSettings"
 	| "focusChainFeatureFlagEnabled"
 	// Settings around plan/act and ephemeral model configuration
@@ -232,6 +233,7 @@ export interface GlobalState {
 	sapAiResourceGroup: string | undefined
 	claudeCodePath: string | undefined
 	strictPlanModeEnabled: boolean
+	useAutoCondense: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
