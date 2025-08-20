@@ -1,6 +1,6 @@
+import { sapAiCoreModels } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useMemo } from "react"
-import { sapAiCoreModels } from "@shared/api"
 import { DropdownContainer } from "./common/ModelSelector"
 
 export const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000
@@ -71,7 +71,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 		if (categorizedModels.deployed.length > 0) {
 			// Add section separator (disabled option)
 			options.push(
-				<VSCodeOption key="deployed-header" value="" disabled>
+				<VSCodeOption disabled key="deployed-header" value="">
 					── Deployed Models ──
 				</VSCodeOption>,
 			)
@@ -89,14 +89,14 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 		if (categorizedModels.supported.length > 0) {
 			// Add section separator (disabled option)
 			options.push(
-				<VSCodeOption key="supported-header" value="" disabled>
+				<VSCodeOption disabled key="supported-header" value="">
 					── Not Deployed Models ──
 				</VSCodeOption>,
 			)
 
 			categorizedModels.supported.forEach((model) => {
 				options.push(
-					<VSCodeOption key={model.id} value={model.id} style={{ opacity: 0.6 }}>
+					<VSCodeOption key={model.id} style={{ opacity: 0.6 }} value={model.id}>
 						{model.id}
 					</VSCodeOption>,
 				)
@@ -113,9 +113,9 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			</label>
 			<VSCodeDropdown
 				id="sap-ai-core-model-dropdown"
-				value={selectedModelId}
 				onChange={handleModelChange}
-				style={{ width: "100%" }}>
+				style={{ width: "100%" }}
+				value={selectedModelId}>
 				{renderOptions()}
 			</VSCodeDropdown>
 		</DropdownContainer>
