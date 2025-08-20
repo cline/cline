@@ -35,7 +35,8 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	// Track rule toggle telemetry with current task context
 	if (controller.task?.ulid) {
 		// Extract just the filename for privacy (no full paths)
-		const ruleFileName = rulePath.split("/").pop() || rulePath.split("\\").pop() || rulePath
+import path from "node:path"
+		const ruleFileName = path.basename(rulePath)
 		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
 
