@@ -1,14 +1,14 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ModelSelector } from "../common/ModelSelector"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 
 /**
  * Props for the VercelAIGatewayProvider component
@@ -106,9 +106,9 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				<DebouncedTextField
 					initialValue={apiConfiguration?.vercelAiGatewayApiKey || ""}
 					onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
+					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
-					type="password"
-					placeholder="Enter API Key...">
+					type="password">
 					<span style={{ fontWeight: 500 }}>Vercel AI Gateway API Key</span>
 				</DebouncedTextField>
 				<p
@@ -138,10 +138,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				<>
 					{hasModels ? (
 						<ModelSelector
-							models={vercelAiGatewayModels}
-							selectedModelId={selectedModelId || ""}
-							onChange={(e) => handleModelChange(e.target.value)}
 							label="Model"
+							models={vercelAiGatewayModels}
+							onChange={(e) => handleModelChange(e.target.value)}
+							selectedModelId={selectedModelId || ""}
 						/>
 					) : (
 						<>
@@ -166,8 +166,8 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 										currentMode,
 									)
 								}
-								style={{ width: "100%", marginBottom: 10 }}
-								placeholder={"Enter Model ID (e.g., openai/gpt-4o)..."}>
+								placeholder={"Enter Model ID (e.g., openai/gpt-4o)..."}
+								style={{ width: "100%", marginBottom: 10 }}>
 								<span style={{ fontWeight: 500 }}>Model ID</span>
 							</DebouncedTextField>
 
@@ -187,10 +187,20 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					)}
 
 					{displayModelInfo && (
-						<ModelInfoView selectedModelId={selectedModelId} modelInfo={displayModelInfo} isPopup={isPopup} />
+						<ModelInfoView isPopup={isPopup} modelInfo={displayModelInfo} selectedModelId={selectedModelId} />
 					)}
 				</>
 			)}
+
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: "15px",
+					color: "var(--vscode-descriptionForeground)",
+					fontStyle: "italic",
+				}}>
+				Note: Free tier users will see $0 costs as these requests are provided at no charge by Vercel AI Gateway.
+			</p>
 		</div>
 	)
 }
