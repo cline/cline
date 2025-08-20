@@ -1,7 +1,6 @@
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ToolUseName } from "@core/assistant-message"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import * as path from "path"
-import os from "os"
 import { getCwd, getDesktopDir } from "@/utils/path"
 
 export class AutoApprove {

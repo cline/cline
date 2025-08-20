@@ -10,14 +10,22 @@ import "cline/common.proto";
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+
   // Saves an open document if it's open in the editor and has unsaved changes. 
   // Returns true if the document was saved, returns false if the document was not found, or did not
   // need to be saved.
   rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
+
   // Get diagnostics from the workspace.
   rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
   // Returns workspace items (files/folders) matching a query for mention autocomplete
   rpc searchWorkspaceItems(SearchWorkspaceItemsRequest) returns (SearchWorkspaceItemsResponse);
+
+  // Makes the problems panel/pane visible in the IDE and focuses it.
+  rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);
+
+  // Opens the IDE file explorer panel and selects a file or directory.
+  rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
 }
 
 message GetWorkspacePathsRequest {
@@ -70,3 +78,11 @@ message SearchWorkspaceItemsResponse {
   }
   repeated SearchItem items = 1;
 }
+
+message OpenProblemsPanelRequest {}
+message OpenProblemsPanelResponse {}
+
+message OpenInFileExplorerPanelRequest {
+  string path = 1;
+}
+message OpenInFileExplorerPanelResponse {}

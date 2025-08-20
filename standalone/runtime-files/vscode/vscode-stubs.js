@@ -485,15 +485,15 @@ vscode.Task = class {
 	}
 }
 vscode.tasks = {}
-vscode.tasks.registerTaskProvider = function (type, provider) {
+vscode.tasks.registerTaskProvider = (_type, _provider) => {
 	console.log("Called stubbed function: vscode.tasks.registerTaskProvider")
 	return createStub("unknown")
 }
-vscode.tasks.fetchTasks = function (filter) {
+vscode.tasks.fetchTasks = (_filter) => {
 	console.log("Called stubbed function: vscode.tasks.fetchTasks")
 	return []
 }
-vscode.tasks.executeTask = function (task) {
+vscode.tasks.executeTask = (_task) => {
 	console.log("Called stubbed function: vscode.tasks.executeTask")
 	return Promise.resolve(null)
 }
@@ -526,37 +526,37 @@ vscode.env.isNewAppInstall = createStub("vscode.env.isNewAppInstall")
 vscode.env.isTelemetryEnabled = createStub("vscode.env.isTelemetryEnabled")
 vscode.env.onDidChangeTelemetryEnabled = createStub("vscode.env.onDidChangeTelemetryEnabled")
 vscode.env.onDidChangeShell = createStub("vscode.env.onDidChangeShell")
-vscode.env.createTelemetryLogger = function (sender, options) {
+vscode.env.createTelemetryLogger = (_sender, _options) => {
 	console.log("Called stubbed function: vscode.env.createTelemetryLogger")
 	return createStub("unknown")
 }
 vscode.env.remoteName = createStub("vscode.env.remoteName")
 vscode.env.shell = createStub("vscode.env.shell")
 vscode.env.uiKind = createStub("vscode.env.uiKind")
-vscode.env.openExternal = function (target) {
+vscode.env.openExternal = (_target) => {
 	console.log("Called stubbed function: vscode.env.openExternal")
 	return false
 }
-vscode.env.asExternalUri = function (target) {
+vscode.env.asExternalUri = (_target) => {
 	console.log("Called stubbed function: vscode.env.asExternalUri")
 	return Promise.resolve(null)
 }
 vscode.env.logLevel = createStub("vscode.env.logLevel")
 vscode.env.onDidChangeLogLevel = createStub("vscode.env.onDidChangeLogLevel")
 vscode.commands = {}
-vscode.commands.registerCommand = function (command, callback, thisArg) {
+vscode.commands.registerCommand = (_command, _callback, _thisArg) => {
 	console.log("Called stubbed function: vscode.commands.registerCommand")
 	return createStub("unknown")
 }
-vscode.commands.registerTextEditorCommand = function (command, callback, thisArg) {
+vscode.commands.registerTextEditorCommand = (_command, _callback, _thisArg) => {
 	console.log("Called stubbed function: vscode.commands.registerTextEditorCommand")
 	return createStub("unknown")
 }
-vscode.commands.executeCommand = function (command, rest) {
+vscode.commands.executeCommand = (_command, _rest) => {
 	console.log("Called stubbed function: vscode.commands.executeCommand")
 	return Promise.resolve(null)
 }
-vscode.commands.getCommands = function (filterInternal) {
+vscode.commands.getCommands = (_filterInternal) => {
 	console.log("Called stubbed function: vscode.commands.getCommands")
 	return ""
 }
@@ -584,195 +584,195 @@ vscode.window.onDidCloseTerminal = createStub("vscode.window.onDidCloseTerminal"
 vscode.window.onDidChangeTerminalState = createStub("vscode.window.onDidChangeTerminalState")
 vscode.window.state = createStub("vscode.window.state")
 vscode.window.onDidChangeWindowState = createStub("vscode.window.onDidChangeWindowState")
-vscode.window.showTextDocument = function (document, column, preserveFocus) {
+vscode.window.showTextDocument = (_document, _column, _preserveFocus) => {
 	console.log("Called stubbed function: vscode.window.showTextDocument")
 	return Promise.resolve(null)
 }
-vscode.window.showTextDocument = function (document, options) {
+vscode.window.showTextDocument = (_document, _options) => {
 	console.log("Called stubbed function: vscode.window.showTextDocument")
 	return Promise.resolve(null)
 }
-vscode.window.showTextDocument = function (uri, options) {
+vscode.window.showTextDocument = (_uri, _options) => {
 	console.log("Called stubbed function: vscode.window.showTextDocument")
 	return Promise.resolve(null)
 }
-vscode.window.showNotebookDocument = function (document, options) {
+vscode.window.showNotebookDocument = (_document, _options) => {
 	console.log("Called stubbed function: vscode.window.showNotebookDocument")
 	return Promise.resolve(null)
 }
-vscode.window.createTextEditorDecorationType = function (options) {
+vscode.window.createTextEditorDecorationType = (_options) => {
 	console.log("Called stubbed function: vscode.window.createTextEditorDecorationType")
 	return createStub("unknown")
 }
-vscode.window.showInformationMessage = function (message, items) {
+vscode.window.showInformationMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showInformationMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showInformationMessage = function (message, options, items) {
+vscode.window.showInformationMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showInformationMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showInformationMessage = function (message, items) {
+vscode.window.showInformationMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showInformationMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showInformationMessage = function (message, options, items) {
+vscode.window.showInformationMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showInformationMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showWarningMessage = function (message, items) {
+vscode.window.showWarningMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showWarningMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showWarningMessage = function (message, options, items) {
+vscode.window.showWarningMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showWarningMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showWarningMessage = function (message, items) {
+vscode.window.showWarningMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showWarningMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showWarningMessage = function (message, options, items) {
+vscode.window.showWarningMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showWarningMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showErrorMessage = function (message, items) {
+vscode.window.showErrorMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showErrorMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showErrorMessage = function (message, options, items) {
+vscode.window.showErrorMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showErrorMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showErrorMessage = function (message, items) {
+vscode.window.showErrorMessage = (_message, _items) => {
 	console.log("Called stubbed function: vscode.window.showErrorMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showErrorMessage = function (message, options, items) {
+vscode.window.showErrorMessage = (_message, _options, _items) => {
 	console.log("Called stubbed function: vscode.window.showErrorMessage")
 	return Promise.resolve(null)
 }
-vscode.window.showQuickPick = function (items, options, token) {
+vscode.window.showQuickPick = (_items, _options, _token) => {
 	console.log("Called stubbed function: vscode.window.showQuickPick")
 	return ""
 }
-vscode.window.showQuickPick = function (items, options, token) {
+vscode.window.showQuickPick = (_items, _options, _token) => {
 	console.log("Called stubbed function: vscode.window.showQuickPick")
 	return ""
 }
-vscode.window.showQuickPick = function (items, options, token) {
+vscode.window.showQuickPick = (_items, _options, _token) => {
 	console.log("Called stubbed function: vscode.window.showQuickPick")
 	return []
 }
-vscode.window.showQuickPick = function (items, options, token) {
+vscode.window.showQuickPick = (_items, _options, _token) => {
 	console.log("Called stubbed function: vscode.window.showQuickPick")
 	return Promise.resolve(null)
 }
-vscode.window.showWorkspaceFolderPick = function (options) {
+vscode.window.showWorkspaceFolderPick = (_options) => {
 	console.log("Called stubbed function: vscode.window.showWorkspaceFolderPick")
 	return Promise.resolve(null)
 }
-vscode.window.showSaveDialog = function (options) {
+vscode.window.showSaveDialog = (_options) => {
 	console.log("Called stubbed function: vscode.window.showSaveDialog")
 	return Promise.resolve(null)
 }
-vscode.window.showInputBox = function (options, token) {
+vscode.window.showInputBox = (_options, _token) => {
 	console.log("Called stubbed function: vscode.window.showInputBox")
 	return ""
 }
-vscode.window.createQuickPick = function () {
+vscode.window.createQuickPick = () => {
 	console.log("Called stubbed function: vscode.window.createQuickPick")
 	return createStub("unknown")
 }
-vscode.window.createInputBox = function () {
+vscode.window.createInputBox = () => {
 	console.log("Called stubbed function: vscode.window.createInputBox")
 	return createStub("unknown")
 }
-vscode.window.createOutputChannel = function (name, languageId) {
+vscode.window.createOutputChannel = (_name, _languageId) => {
 	console.log("Called stubbed function: vscode.window.createOutputChannel")
 	return createStub("unknown")
 }
-vscode.window.createOutputChannel = function (name, options) {
+vscode.window.createOutputChannel = (_name, _options) => {
 	console.log("Called stubbed function: vscode.window.createOutputChannel")
 	return createStub("unknown")
 }
-vscode.window.createWebviewPanel = function (viewType, title, showOptions, options) {
+vscode.window.createWebviewPanel = (_viewType, _title, _showOptions, _options) => {
 	console.log("Called stubbed function: vscode.window.createWebviewPanel")
 	return createStub("unknown")
 }
-vscode.window.setStatusBarMessage = function (text, hideAfterTimeout) {
+vscode.window.setStatusBarMessage = (_text, _hideAfterTimeout) => {
 	console.log("Called stubbed function: vscode.window.setStatusBarMessage")
 	return createStub("unknown")
 }
-vscode.window.setStatusBarMessage = function (text, hideWhenDone) {
+vscode.window.setStatusBarMessage = (_text, _hideWhenDone) => {
 	console.log("Called stubbed function: vscode.window.setStatusBarMessage")
 	return createStub("unknown")
 }
-vscode.window.setStatusBarMessage = function (text) {
+vscode.window.setStatusBarMessage = (_text) => {
 	console.log("Called stubbed function: vscode.window.setStatusBarMessage")
 	return createStub("unknown")
 }
-vscode.window.withScmProgress = function (task) {
+vscode.window.withScmProgress = (_task) => {
 	console.log("Called stubbed function: vscode.window.withScmProgress")
 	return Promise.resolve(null)
 }
-vscode.window.withProgress = function (options, task) {
+vscode.window.withProgress = (_options, _task) => {
 	console.log("Called stubbed function: vscode.window.withProgress")
 	return Promise.resolve(null)
 }
-vscode.window.createStatusBarItem = function (id, alignment, priority) {
+vscode.window.createStatusBarItem = (_id, _alignment, _priority) => {
 	console.log("Called stubbed function: vscode.window.createStatusBarItem")
 	return createStub("unknown")
 }
-vscode.window.createStatusBarItem = function (alignment, priority) {
+vscode.window.createStatusBarItem = (_alignment, _priority) => {
 	console.log("Called stubbed function: vscode.window.createStatusBarItem")
 	return createStub("unknown")
 }
-vscode.window.createTerminal = function (name, shellPath, shellArgs) {
+vscode.window.createTerminal = (_name, _shellPath, _shellArgs) => {
 	console.log("Called stubbed function: vscode.window.createTerminal")
 	return createStub("unknown")
 }
-vscode.window.createTerminal = function (options) {
+vscode.window.createTerminal = (_options) => {
 	console.log("Called stubbed function: vscode.window.createTerminal")
 	return createStub("unknown")
 }
-vscode.window.createTerminal = function (options) {
+vscode.window.createTerminal = (_options) => {
 	console.log("Called stubbed function: vscode.window.createTerminal")
 	return createStub("unknown")
 }
-vscode.window.registerTreeDataProvider = function (viewId, treeDataProvider) {
+vscode.window.registerTreeDataProvider = (_viewId, _treeDataProvider) => {
 	console.log("Called stubbed function: vscode.window.registerTreeDataProvider")
 	return createStub("unknown")
 }
-vscode.window.createTreeView = function (viewId, options) {
+vscode.window.createTreeView = (_viewId, _options) => {
 	console.log("Called stubbed function: vscode.window.createTreeView")
 	return createStub("unknown")
 }
-vscode.window.registerUriHandler = function (handler) {
+vscode.window.registerUriHandler = (_handler) => {
 	console.log("Called stubbed function: vscode.window.registerUriHandler")
 	return createStub("unknown")
 }
-vscode.window.registerWebviewPanelSerializer = function (viewType, serializer) {
+vscode.window.registerWebviewPanelSerializer = (_viewType, _serializer) => {
 	console.log("Called stubbed function: vscode.window.registerWebviewPanelSerializer")
 	return createStub("unknown")
 }
-vscode.window.registerWebviewViewProvider = function (viewId, provider, options) {
+vscode.window.registerWebviewViewProvider = (_viewId, _provider, _options) => {
 	console.log("Called stubbed function: vscode.window.registerWebviewViewProvider")
 	return createStub("unknown")
 }
-vscode.window.registerCustomEditorProvider = function (viewType, provider, options) {
+vscode.window.registerCustomEditorProvider = (_viewType, _provider, _options) => {
 	console.log("Called stubbed function: vscode.window.registerCustomEditorProvider")
 	return createStub("unknown")
 }
-vscode.window.registerTerminalLinkProvider = function (provider) {
+vscode.window.registerTerminalLinkProvider = (_provider) => {
 	console.log("Called stubbed function: vscode.window.registerTerminalLinkProvider")
 	return createStub("unknown")
 }
-vscode.window.registerTerminalProfileProvider = function (id, provider) {
+vscode.window.registerTerminalProfileProvider = (_id, _provider) => {
 	console.log("Called stubbed function: vscode.window.registerTerminalProfileProvider")
 	return createStub("unknown")
 }
-vscode.window.registerFileDecorationProvider = function (provider) {
+vscode.window.registerFileDecorationProvider = (_provider) => {
 	console.log("Called stubbed function: vscode.window.registerFileDecorationProvider")
 	return createStub("unknown")
 }
@@ -814,40 +814,40 @@ vscode.workspace.fs = createStub("vscode.workspace.fs")
 vscode.workspace.rootPath = createStub("vscode.workspace.rootPath")
 vscode.workspace.name = createStub("vscode.workspace.name")
 vscode.workspace.workspaceFile = createStub("vscode.workspace.workspaceFile")
-vscode.workspace.asRelativePath = function (pathOrUri, includeWorkspaceFolder) {
+vscode.workspace.asRelativePath = (_pathOrUri, _includeWorkspaceFolder) => {
 	console.log("Called stubbed function: vscode.workspace.asRelativePath")
 	return ""
 }
-vscode.workspace.createFileSystemWatcher = function (globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents) {
+vscode.workspace.createFileSystemWatcher = (_globPattern, _ignoreCreateEvents, _ignoreChangeEvents, _ignoreDeleteEvents) => {
 	console.log("Called stubbed function: vscode.workspace.createFileSystemWatcher")
 	return createStub("unknown")
 }
-vscode.workspace.findFiles = function (include, exclude, maxResults, token) {
+vscode.workspace.findFiles = (_include, _exclude, _maxResults, _token) => {
 	console.log("Called stubbed function: vscode.workspace.findFiles")
 	return []
 }
-vscode.workspace.saveAll = function (includeUntitled) {
+vscode.workspace.saveAll = (_includeUntitled) => {
 	console.log("Called stubbed function: vscode.workspace.saveAll")
 	return false
 }
-vscode.workspace.applyEdit = function (edit, metadata) {
+vscode.workspace.applyEdit = (_edit, _metadata) => {
 	console.log("Called stubbed function: vscode.workspace.applyEdit")
 	return false
 }
 vscode.workspace.textDocuments = []
-vscode.workspace.openTextDocument = function (uri) {
+vscode.workspace.openTextDocument = (_uri) => {
 	console.log("Called stubbed function: vscode.workspace.openTextDocument")
 	return Promise.resolve(null)
 }
-vscode.workspace.openTextDocument = function (fileName) {
+vscode.workspace.openTextDocument = (_fileName) => {
 	console.log("Called stubbed function: vscode.workspace.openTextDocument")
 	return Promise.resolve(null)
 }
-vscode.workspace.openTextDocument = function (options) {
+vscode.workspace.openTextDocument = (_options) => {
 	console.log("Called stubbed function: vscode.workspace.openTextDocument")
 	return Promise.resolve(null)
 }
-vscode.workspace.registerTextDocumentContentProvider = function (scheme, provider) {
+vscode.workspace.registerTextDocumentContentProvider = (_scheme, _provider) => {
 	console.log("Called stubbed function: vscode.workspace.registerTextDocumentContentProvider")
 	return createStub("unknown")
 }
@@ -857,18 +857,18 @@ vscode.workspace.onDidChangeTextDocument = createStub("vscode.workspace.onDidCha
 vscode.workspace.onWillSaveTextDocument = createStub("vscode.workspace.onWillSaveTextDocument")
 vscode.workspace.onDidSaveTextDocument = createStub("vscode.workspace.onDidSaveTextDocument")
 vscode.workspace.notebookDocuments = createStub("vscode.workspace.notebookDocuments")
-vscode.workspace.openNotebookDocument = function (uri) {
+vscode.workspace.openNotebookDocument = (_uri) => {
 	console.log("Called stubbed function: vscode.workspace.openNotebookDocument")
 	return Promise.resolve(null)
 }
-vscode.workspace.openNotebookDocument = function (notebookType, content) {
+vscode.workspace.openNotebookDocument = (_notebookType, _content) => {
 	console.log("Called stubbed function: vscode.workspace.openNotebookDocument")
 	return Promise.resolve(null)
 }
 vscode.workspace.onDidChangeNotebookDocument = createStub("vscode.workspace.onDidChangeNotebookDocument")
 vscode.workspace.onWillSaveNotebookDocument = createStub("vscode.workspace.onWillSaveNotebookDocument")
 vscode.workspace.onDidSaveNotebookDocument = createStub("vscode.workspace.onDidSaveNotebookDocument")
-vscode.workspace.registerNotebookSerializer = function (notebookType, serializer, options) {
+vscode.workspace.registerNotebookSerializer = (_notebookType, _serializer, _options) => {
 	console.log("Called stubbed function: vscode.workspace.registerNotebookSerializer")
 	return createStub("unknown")
 }
@@ -882,195 +882,188 @@ vscode.workspace.onWillRenameFiles = createStub("vscode.workspace.onWillRenameFi
 vscode.workspace.onDidRenameFiles = createStub("vscode.workspace.onDidRenameFiles")
 
 const workspaceConfigStore = {}
-vscode.workspace.getConfiguration = function (section) {
-	return {
-		get: (key, defaultValue) => {
-			return workspaceConfigStore[`${section}.${key}`] ?? defaultValue
-		},
-		update: (key, value, global) => {
-			workspaceConfigStore[`${section}.${key}`] = value
-		},
-		has: (key) => {
-			return `${section}.${key}` in workspaceConfigStore
-		},
-	}
-}
+vscode.workspace.getConfiguration = (section) => ({
+	get: (key, defaultValue) => {
+		return workspaceConfigStore[`${section}.${key}`] ?? defaultValue
+	},
+	update: (key, value, _global) => {
+		workspaceConfigStore[`${section}.${key}`] = value
+	},
+	has: (key) => {
+		return `${section}.${key}` in workspaceConfigStore
+	},
+})
 
 vscode.workspace.onDidChangeConfiguration = createStub("vscode.workspace.onDidChangeConfiguration")
-vscode.workspace.registerTaskProvider = function (type, provider) {
+vscode.workspace.registerTaskProvider = (_type, _provider) => {
 	console.log("Called stubbed function: vscode.workspace.registerTaskProvider")
 	return createStub("unknown")
 }
-vscode.workspace.registerFileSystemProvider = function (scheme, provider, options) {
+vscode.workspace.registerFileSystemProvider = (_scheme, _provider, _options) => {
 	console.log("Called stubbed function: vscode.workspace.registerFileSystemProvider")
 	return createStub("unknown")
 }
 vscode.workspace.isTrusted = createStub("vscode.workspace.isTrusted")
 vscode.workspace.onDidGrantWorkspaceTrust = createStub("vscode.workspace.onDidGrantWorkspaceTrust")
 vscode.languages = {}
-vscode.languages.getLanguages = function () {
+vscode.languages.getLanguages = () => {
 	console.log("Called stubbed function: vscode.languages.getLanguages")
 	return ""
 }
-vscode.languages.setTextDocumentLanguage = function (document, languageId) {
+vscode.languages.setTextDocumentLanguage = (_document, _languageId) => {
 	console.log("Called stubbed function: vscode.languages.setTextDocumentLanguage")
 	return Promise.resolve(null)
 }
-vscode.languages.match = function (selector, document) {
+vscode.languages.match = (_selector, _document) => {
 	console.log("Called stubbed function: vscode.languages.match")
 	return 0
 }
 vscode.languages.onDidChangeDiagnostics = createStub("vscode.languages.onDidChangeDiagnostics")
-vscode.languages.getDiagnostics = function (resource) {
+vscode.languages.getDiagnostics = (_resource) => {
 	console.log("Called stubbed function: vscode.languages.getDiagnostics")
 	return []
 }
-vscode.languages.getDiagnostics = function () {
+vscode.languages.getDiagnostics = () => {
 	console.log("Called stubbed function: vscode.languages.getDiagnostics")
 	return []
 }
-vscode.languages.createDiagnosticCollection = function (name) {
+vscode.languages.createDiagnosticCollection = (_name) => {
 	console.log("Called stubbed function: vscode.languages.createDiagnosticCollection")
 	return createStub("unknown")
 }
-vscode.languages.createLanguageStatusItem = function (id, selector) {
+vscode.languages.createLanguageStatusItem = (_id, _selector) => {
 	console.log("Called stubbed function: vscode.languages.createLanguageStatusItem")
 	return createStub("unknown")
 }
-vscode.languages.registerCompletionItemProvider = function (selector, provider, triggerCharacters) {
+vscode.languages.registerCompletionItemProvider = (_selector, _provider, _triggerCharacters) => {
 	console.log("Called stubbed function: vscode.languages.registerCompletionItemProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerInlineCompletionItemProvider = function (selector, provider) {
+vscode.languages.registerInlineCompletionItemProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerInlineCompletionItemProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerCodeActionsProvider = function (selector, provider, metadata) {
+vscode.languages.registerCodeActionsProvider = (_selector, _provider, _metadata) => {
 	console.log("Called stubbed function: vscode.languages.registerCodeActionsProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerCodeLensProvider = function (selector, provider) {
+vscode.languages.registerCodeLensProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerCodeLensProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDefinitionProvider = function (selector, provider) {
+vscode.languages.registerDefinitionProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDefinitionProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerImplementationProvider = function (selector, provider) {
+vscode.languages.registerImplementationProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerImplementationProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerTypeDefinitionProvider = function (selector, provider) {
+vscode.languages.registerTypeDefinitionProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerTypeDefinitionProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDeclarationProvider = function (selector, provider) {
+vscode.languages.registerDeclarationProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDeclarationProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerHoverProvider = function (selector, provider) {
+vscode.languages.registerHoverProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerHoverProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerEvaluatableExpressionProvider = function (selector, provider) {
+vscode.languages.registerEvaluatableExpressionProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerEvaluatableExpressionProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerInlineValuesProvider = function (selector, provider) {
+vscode.languages.registerInlineValuesProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerInlineValuesProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentHighlightProvider = function (selector, provider) {
+vscode.languages.registerDocumentHighlightProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentHighlightProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentSymbolProvider = function (selector, provider, metaData) {
+vscode.languages.registerDocumentSymbolProvider = (_selector, _provider, _metaData) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentSymbolProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerWorkspaceSymbolProvider = function (provider) {
+vscode.languages.registerWorkspaceSymbolProvider = (_provider) => {
 	console.log("Called stubbed function: vscode.languages.registerWorkspaceSymbolProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerReferenceProvider = function (selector, provider) {
+vscode.languages.registerReferenceProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerReferenceProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerRenameProvider = function (selector, provider) {
+vscode.languages.registerRenameProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerRenameProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentSemanticTokensProvider = function (selector, provider, legend) {
+vscode.languages.registerDocumentSemanticTokensProvider = (_selector, _provider, _legend) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentSemanticTokensProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentRangeSemanticTokensProvider = function (selector, provider, legend) {
+vscode.languages.registerDocumentRangeSemanticTokensProvider = (_selector, _provider, _legend) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentRangeSemanticTokensProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentFormattingEditProvider = function (selector, provider) {
+vscode.languages.registerDocumentFormattingEditProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentFormattingEditProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentRangeFormattingEditProvider = function (selector, provider) {
+vscode.languages.registerDocumentRangeFormattingEditProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentRangeFormattingEditProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerOnTypeFormattingEditProvider = function (
-	selector,
-	provider,
-	firstTriggerCharacter,
-	moreTriggerCharacter,
-) {
+vscode.languages.registerOnTypeFormattingEditProvider = (_selector, _provider, _firstTriggerCharacter, _moreTriggerCharacter) => {
 	console.log("Called stubbed function: vscode.languages.registerOnTypeFormattingEditProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerSignatureHelpProvider = function (selector, provider, triggerCharacters) {
+vscode.languages.registerSignatureHelpProvider = (_selector, _provider, _triggerCharacters) => {
 	console.log("Called stubbed function: vscode.languages.registerSignatureHelpProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerSignatureHelpProvider = function (selector, provider, metadata) {
+vscode.languages.registerSignatureHelpProvider = (_selector, _provider, _metadata) => {
 	console.log("Called stubbed function: vscode.languages.registerSignatureHelpProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentLinkProvider = function (selector, provider) {
+vscode.languages.registerDocumentLinkProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentLinkProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerColorProvider = function (selector, provider) {
+vscode.languages.registerColorProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerColorProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerInlayHintsProvider = function (selector, provider) {
+vscode.languages.registerInlayHintsProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerInlayHintsProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerFoldingRangeProvider = function (selector, provider) {
+vscode.languages.registerFoldingRangeProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerFoldingRangeProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerSelectionRangeProvider = function (selector, provider) {
+vscode.languages.registerSelectionRangeProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerSelectionRangeProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerCallHierarchyProvider = function (selector, provider) {
+vscode.languages.registerCallHierarchyProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerCallHierarchyProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerTypeHierarchyProvider = function (selector, provider) {
+vscode.languages.registerTypeHierarchyProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerTypeHierarchyProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerLinkedEditingRangeProvider = function (selector, provider) {
+vscode.languages.registerLinkedEditingRangeProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerLinkedEditingRangeProvider")
 	return createStub("unknown")
 }
-vscode.languages.registerDocumentDropEditProvider = function (selector, provider) {
+vscode.languages.registerDocumentDropEditProvider = (_selector, _provider) => {
 	console.log("Called stubbed function: vscode.languages.registerDocumentDropEditProvider")
 	return createStub("unknown")
 }
-vscode.languages.setLanguageConfiguration = function (language, configuration) {
+vscode.languages.setLanguageConfiguration = (_language, _configuration) => {
 	console.log("Called stubbed function: vscode.languages.setLanguageConfiguration")
 	return createStub("unknown")
 }
@@ -1115,21 +1108,21 @@ vscode.NotebookCellStatusBarItem = class {
 	}
 }
 vscode.notebooks = {}
-vscode.notebooks.createNotebookController = function (id, notebookType, label, handler) {
+vscode.notebooks.createNotebookController = (_id, _notebookType, _label, _handler) => {
 	console.log("Called stubbed function: vscode.notebooks.createNotebookController")
 	return createStub("unknown")
 }
-vscode.notebooks.registerNotebookCellStatusBarItemProvider = function (notebookType, provider) {
+vscode.notebooks.registerNotebookCellStatusBarItemProvider = (_notebookType, _provider) => {
 	console.log("Called stubbed function: vscode.notebooks.registerNotebookCellStatusBarItemProvider")
 	return createStub("unknown")
 }
-vscode.notebooks.createRendererMessaging = function (rendererId) {
+vscode.notebooks.createRendererMessaging = (_rendererId) => {
 	console.log("Called stubbed function: vscode.notebooks.createRendererMessaging")
 	return createStub("unknown")
 }
 vscode.scm = {}
 vscode.scm.inputBox = createStub("vscode.scm.inputBox")
-vscode.scm.createSourceControl = function (id, label, rootUri) {
+vscode.scm.createSourceControl = (_id, _label, _rootUri) => {
 	console.log("Called stubbed function: vscode.scm.createSourceControl")
 	return createStub("unknown")
 }
@@ -1186,37 +1179,37 @@ vscode.debug.onDidStartDebugSession = createStub("vscode.debug.onDidStartDebugSe
 vscode.debug.onDidReceiveDebugSessionCustomEvent = createStub("vscode.debug.onDidReceiveDebugSessionCustomEvent")
 vscode.debug.onDidTerminateDebugSession = createStub("vscode.debug.onDidTerminateDebugSession")
 vscode.debug.onDidChangeBreakpoints = createStub("vscode.debug.onDidChangeBreakpoints")
-vscode.debug.registerDebugConfigurationProvider = function (debugType, provider, triggerKind) {
+vscode.debug.registerDebugConfigurationProvider = (_debugType, _provider, _triggerKind) => {
 	console.log("Called stubbed function: vscode.debug.registerDebugConfigurationProvider")
 	return createStub("unknown")
 }
-vscode.debug.registerDebugAdapterDescriptorFactory = function (debugType, factory) {
+vscode.debug.registerDebugAdapterDescriptorFactory = (_debugType, _factory) => {
 	console.log("Called stubbed function: vscode.debug.registerDebugAdapterDescriptorFactory")
 	return createStub("unknown")
 }
-vscode.debug.registerDebugAdapterTrackerFactory = function (debugType, factory) {
+vscode.debug.registerDebugAdapterTrackerFactory = (_debugType, _factory) => {
 	console.log("Called stubbed function: vscode.debug.registerDebugAdapterTrackerFactory")
 	return createStub("unknown")
 }
-vscode.debug.startDebugging = function (folder, nameOrConfiguration, parentSessionOrOptions) {
+vscode.debug.startDebugging = (_folder, _nameOrConfiguration, _parentSessionOrOptions) => {
 	console.log("Called stubbed function: vscode.debug.startDebugging")
 	return false
 }
-vscode.debug.stopDebugging = function (session) {
+vscode.debug.stopDebugging = (_session) => {
 	console.log("Called stubbed function: vscode.debug.stopDebugging")
 }
-vscode.debug.addBreakpoints = function (breakpoints) {
+vscode.debug.addBreakpoints = (_breakpoints) => {
 	console.log("Called stubbed function: vscode.debug.addBreakpoints")
 }
-vscode.debug.removeBreakpoints = function (breakpoints) {
+vscode.debug.removeBreakpoints = (_breakpoints) => {
 	console.log("Called stubbed function: vscode.debug.removeBreakpoints")
 }
-vscode.debug.asDebugSourceUri = function (source, session) {
+vscode.debug.asDebugSourceUri = (_source, _session) => {
 	console.log("Called stubbed function: vscode.debug.asDebugSourceUri")
 	return createStub("unknown")
 }
 vscode.extensions = {}
-vscode.extensions.getExtension = function (extensionId) {
+vscode.extensions.getExtension = (_extensionId) => {
 	console.log("Called stubbed function: vscode.extensions.getExtension")
 	return createStub("unknown")
 }
@@ -1226,45 +1219,45 @@ vscode.CommentThreadCollapsibleState = { Collapsed: 0, Expanded: 0 }
 vscode.CommentMode = { Editing: 0, Preview: 0 }
 vscode.CommentThreadState = { Unresolved: 0, Resolved: 0 }
 vscode.comments = {}
-vscode.comments.createCommentController = function (id, label) {
+vscode.comments.createCommentController = (_id, _label) => {
 	console.log("Called stubbed function: vscode.comments.createCommentController")
 	return createStub("unknown")
 }
 vscode.authentication = {}
-vscode.authentication.getSession = function (providerId, scopes, options) {
+vscode.authentication.getSession = (_providerId, _scopes, _options) => {
 	console.log("Called stubbed function: vscode.authentication.getSession")
 	return Promise.resolve(null)
 }
-vscode.authentication.getSession = function (providerId, scopes, options) {
+vscode.authentication.getSession = (_providerId, _scopes, _options) => {
 	console.log("Called stubbed function: vscode.authentication.getSession")
 	return Promise.resolve(null)
 }
-vscode.authentication.getSession = function (providerId, scopes, options) {
+vscode.authentication.getSession = (_providerId, _scopes, _options) => {
 	console.log("Called stubbed function: vscode.authentication.getSession")
 	return Promise.resolve(null)
 }
 vscode.authentication.onDidChangeSessions = createStub("vscode.authentication.onDidChangeSessions")
-vscode.authentication.registerAuthenticationProvider = function (id, label, provider, options) {
+vscode.authentication.registerAuthenticationProvider = (_id, _label, _provider, _options) => {
 	console.log("Called stubbed function: vscode.authentication.registerAuthenticationProvider")
 	return createStub("unknown")
 }
 vscode.l10n = {}
-vscode.l10n.t = function (message, args) {
+vscode.l10n.t = (_message, _args) => {
 	console.log("Called stubbed function: vscode.l10n.t")
 	return ""
 }
-vscode.l10n.t = function (message, args) {
+vscode.l10n.t = (_message, _args) => {
 	console.log("Called stubbed function: vscode.l10n.t")
 	return ""
 }
-vscode.l10n.t = function (options) {
+vscode.l10n.t = (_options) => {
 	console.log("Called stubbed function: vscode.l10n.t")
 	return ""
 }
 vscode.l10n.bundle = createStub("vscode.l10n.bundle")
 vscode.l10n.uri = createStub("vscode.l10n.uri")
 vscode.tests = {}
-vscode.tests.createTestController = function (id, label) {
+vscode.tests.createTestController = (_id, _label) => {
 	console.log("Called stubbed function: vscode.tests.createTestController")
 	return createStub("unknown")
 }

@@ -1,13 +1,12 @@
-import * as vscode from "vscode"
-import { version as extensionVersion } from "../../../../package.json"
 import { HostProvider } from "@hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
-
-import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { PostHogClientProvider } from "../PostHogClientProvider"
-import { Mode } from "@/shared/storage/types"
+import { ShowMessageType } from "@shared/proto/host/window"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Mode } from "@/shared/storage/types"
+import { version as extensionVersion } from "../../../../package.json"
+import type { PostHogClientProvider } from "../PostHogClientProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -150,7 +149,7 @@ export class TelemetryService {
 						})
 						.then((response) => {
 							if (response.selectedOption === "Open Settings") {
-								void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
+								void HostProvider.window.openSettings({ query: "telemetry.telemetryLevel" })
 							}
 						})
 				} else {
