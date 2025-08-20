@@ -46,7 +46,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Cline Sonic:</b> Advanced stealth model with 262K context window designed for complex coding tasks.
+					<b>Free Stealth Model</b> Advanced stealth model with 262K context window designed for complex coding tasks.
 					Available in the Cline provider for free.
 				</li>
 				<li>
