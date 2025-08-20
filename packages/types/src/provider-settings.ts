@@ -1,15 +1,30 @@
 import { z } from "zod"
 
-import { reasoningEffortsSchema, verbosityLevelsSchema, modelInfoSchema } from "./model.js"
+import { modelInfoSchema, reasoningEffortWithMinimalSchema, verbosityLevelsSchema } from "./model.js"
 import { codebaseIndexProviderSchema } from "./codebase-index.js"
-
-// Bedrock Claude Sonnet 4 model ID that supports 1M context
-export const BEDROCK_CLAUDE_SONNET_4_MODEL_ID = "anthropic.claude-sonnet-4-20250514-v1:0"
-
-// Extended schema that includes "minimal" for GPT-5 models
-export const extendedReasoningEffortsSchema = z.union([reasoningEffortsSchema, z.literal("minimal")])
-
-export type ReasoningEffortWithMinimal = z.infer<typeof extendedReasoningEffortsSchema>
+import {
+	anthropicModels,
+	bedrockModels,
+	cerebrasModels,
+	chutesModels,
+	claudeCodeModels,
+	deepSeekModels,
+	doubaoModels,
+	featherlessModels,
+	fireworksModels,
+	geminiModels,
+	groqModels,
+	ioIntelligenceModels,
+	mistralModels,
+	moonshotModels,
+	openAiNativeModels,
+	rooModels,
+	sambaNovaModels,
+	vertexModels,
+	vscodeLlmModels,
+	xaiModels,
+	internationalZAiModels,
+} from "./providers/index.js"
 
 /**
  * ProviderName
@@ -87,7 +102,7 @@ const baseProviderSettingsSchema = z.object({
 
 	// Model reasoning.
 	enableReasoningEffort: z.boolean().optional(),
-	reasoningEffort: extendedReasoningEffortsSchema.optional(),
+	reasoningEffort: reasoningEffortWithMinimalSchema.optional(),
 	modelMaxTokens: z.number().optional(),
 	modelMaxThinkingTokens: z.number().optional(),
 
@@ -407,21 +422,126 @@ export const getModelId = (settings: ProviderSettings): string | undefined => {
 	return modelIdKey ? (settings[modelIdKey] as string) : undefined
 }
 
-// Providers that use Anthropic-style API protocol
+// Providers that use Anthropic-style API protocol.
 export const ANTHROPIC_STYLE_PROVIDERS: ProviderName[] = ["anthropic", "claude-code", "bedrock"]
 
-// Helper function to determine API protocol for a provider and model
 export const getApiProtocol = (provider: ProviderName | undefined, modelId?: string): "anthropic" | "openai" => {
-	// First check if the provider is an Anthropic-style provider
 	if (provider && ANTHROPIC_STYLE_PROVIDERS.includes(provider)) {
 		return "anthropic"
 	}
 
-	// For vertex provider, check if the model ID contains "claude" (case-insensitive)
 	if (provider && provider === "vertex" && modelId && modelId.toLowerCase().includes("claude")) {
 		return "anthropic"
 	}
 
-	// Default to OpenAI protocol
 	return "openai"
 }
+
+export const MODELS_BY_PROVIDER: Record<
+	Exclude<ProviderName, "fake-ai" | "human-relay" | "gemini-cli" | "lmstudio" | "openai" | "ollama">,
+	{ id: ProviderName; label: string; models: string[] }
+> = {
+	anthropic: {
+		id: "anthropic",
+		label: "Anthropic",
+		models: Object.keys(anthropicModels),
+	},
+	bedrock: {
+		id: "bedrock",
+		label: "Amazon Bedrock",
+		models: Object.keys(bedrockModels),
+	},
+	cerebras: {
+		id: "cerebras",
+		label: "Cerebras",
+		models: Object.keys(cerebrasModels),
+	},
+	chutes: {
+		id: "chutes",
+		label: "Chutes AI",
+		models: Object.keys(chutesModels),
+	},
+	"claude-code": { id: "claude-code", label: "Claude Code", models: Object.keys(claudeCodeModels) },
+	deepseek: {
+		id: "deepseek",
+		label: "DeepSeek",
+		models: Object.keys(deepSeekModels),
+	},
+	doubao: { id: "doubao", label: "Doubao", models: Object.keys(doubaoModels) },
+	featherless: {
+		id: "featherless",
+		label: "Featherless",
+		models: Object.keys(featherlessModels),
+	},
+	fireworks: {
+		id: "fireworks",
+		label: "Fireworks",
+		models: Object.keys(fireworksModels),
+	},
+	gemini: {
+		id: "gemini",
+		label: "Google Gemini",
+		models: Object.keys(geminiModels),
+	},
+	groq: { id: "groq", label: "Groq", models: Object.keys(groqModels) },
+	"io-intelligence": {
+		id: "io-intelligence",
+		label: "IO Intelligence",
+		models: Object.keys(ioIntelligenceModels),
+	},
+	mistral: {
+		id: "mistral",
+		label: "Mistral",
+		models: Object.keys(mistralModels),
+	},
+	moonshot: {
+		id: "moonshot",
+		label: "Moonshot",
+		models: Object.keys(moonshotModels),
+	},
+	"openai-native": {
+		id: "openai-native",
+		label: "OpenAI",
+		models: Object.keys(openAiNativeModels),
+	},
+	roo: { id: "roo", label: "Roo", models: Object.keys(rooModels) },
+	sambanova: {
+		id: "sambanova",
+		label: "SambaNova",
+		models: Object.keys(sambaNovaModels),
+	},
+	vertex: {
+		id: "vertex",
+		label: "GCP Vertex AI",
+		models: Object.keys(vertexModels),
+	},
+	"vscode-lm": {
+		id: "vscode-lm",
+		label: "VS Code LM API",
+		models: Object.keys(vscodeLlmModels),
+	},
+	xai: { id: "xai", label: "xAI (Grok)", models: Object.keys(xaiModels) },
+	zai: { id: "zai", label: "Zai", models: Object.keys(internationalZAiModels) },
+
+	// Dynamic providers; models pulled from the respective APIs.
+	glama: { id: "glama", label: "Glama", models: [] },
+	huggingface: { id: "huggingface", label: "Hugging Face", models: [] },
+	litellm: { id: "litellm", label: "LiteLLM", models: [] },
+	openrouter: { id: "openrouter", label: "OpenRouter", models: [] },
+	requesty: { id: "requesty", label: "Requesty", models: [] },
+	unbound: { id: "unbound", label: "Unbound", models: [] },
+}
+
+export const dynamicProviders = [
+	"glama",
+	"huggingface",
+	"litellm",
+	"openrouter",
+	"requesty",
+	"unbound",
+] as const satisfies readonly ProviderName[]
+
+export type DynamicProvider = (typeof dynamicProviders)[number]
+
+export const isDynamicProvider = (key: string): key is DynamicProvider =>
+	dynamicProviders.includes(key as DynamicProvider)

@@ -4,6 +4,7 @@ export type VscodeLlmModelId = keyof typeof vscodeLlmModels
 
 export const vscodeLlmDefaultModelId: VscodeLlmModelId = "claude-3.5-sonnet"
 
+// https://docs.cline.bot/provider-config/vscode-language-model-api
 export const vscodeLlmModels = {
 	"gpt-3.5-turbo": {
 		contextWindow: 12114,
