@@ -76,6 +76,7 @@ import { ensureLocalClineDirExists } from "../context/instructions/user-instruct
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
+import { isLocalModelFamily } from "../prompts/system-prompt/utils"
 import { CacheService } from "../storage/CacheService"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -2190,7 +2191,7 @@ export class Task {
 		let environmentDetails: string
 		let clinerulesError: boolean
 
-		const useCompactPrompt = this.cacheService.getGlobalStateKey("promptType") === "compact"
+		const useCompactPrompt = isLocalModelFamily(providerId)
 
 		// when summarizing the context window, we do not want to inject updated to the context
 		if (shouldCompact) {
