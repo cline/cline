@@ -96,8 +96,12 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
-			// Tracks when the context window is auto-condensed with the summarize_task tool call
+			// Tracks the context window is auto-condensed with the summarize_task tool call
 			AUTO_COMPACT: "task.summarize_task",
+			// Tracks when slash commands or workflows are activated
+			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when individual Cline rules are toggled on/off
+			RULE_TOGGLED: "rules.rule_toggled",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -107,6 +111,8 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
+			// Tracks when the rules menu button is clicked
+			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
 	}
 
@@ -748,6 +754,55 @@ export class TelemetryService {
 			properties: {
 				ulid,
 			},
+		})
+	}
+
+	/**
+	 * Records when slash commands or workflows are activated
+	 * @param ulid Unique identifier for the task
+	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
+	 * @param commandType Whether it's a built-in command or custom workflow
+	 */
+	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
+			properties: {
+				ulid,
+				commandName,
+				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records when individual Cline rules are toggled on/off
+	 * @param ulid Unique identifier for the task (to track rule changes within task context)
+	 * @param ruleFileName The filename of the rule (sanitized to exclude full path)
+	 * @param enabled Whether the rule is being enabled (true) or disabled (false)
+	 * @param isGlobal Whether this is a global rule or workspace-specific rule
+	 */
+	public captureClineRuleToggled(ulid: string, ruleFileName: string, enabled: boolean, isGlobal: boolean) {
+		// Sanitize filename to remove any path information for privacy
+		const sanitizedFileName = ruleFileName.split("/").pop() || ruleFileName.split("\\").pop() || ruleFileName
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.RULE_TOGGLED,
+			properties: {
+				ulid,
+				ruleFileName: sanitizedFileName,
+				enabled,
+				isGlobal,
+			},
+		})
+	}
+
+	/**
+	 * Records when the rules menu button is clicked to open the rules/workflows modal
+	 */
+	public captureRulesMenuOpened() {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
+			properties: {},
 		})
 	}
 
