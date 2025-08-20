@@ -140,6 +140,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
+	const localAgentsRulesToggles = context.workspaceState.get("localAgentsRulesToggles") as ClineRulesToggles | undefined
 	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
 	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
@@ -396,6 +397,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
+		localAgentsRulesToggles: localAgentsRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localWorkflowToggles: localWorkflowToggles || {},

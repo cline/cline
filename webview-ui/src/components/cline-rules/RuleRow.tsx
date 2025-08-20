@@ -17,6 +17,21 @@ const RuleRow: React.FC<{
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
+			case "agents":
+				return (
+					<svg
+						height="16"
+						style={{ verticalAlign: "middle" }}
+						viewBox="0 0 24 24"
+						width="16"
+						xmlns="http://www.w3.org/2000/svg">
+						<g fill="none" stroke="currentColor" stroke-width="1.5">
+							<ellipse cx="12" cy="12" rx="9" ry="9" />
+							<path d="M 8,9 10,12 8,15" />
+							<path d="M 12,15 H 16" />
+						</g>
+					</svg>
+				)
 			case "cursor":
 				return (
 					<svg

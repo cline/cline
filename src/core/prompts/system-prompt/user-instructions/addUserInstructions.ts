@@ -1,6 +1,7 @@
 export function addUserInstructions(
 	globalClineRulesFileInstructions?: string,
 	localClineRulesFileInstructions?: string,
+	localAgentsRulesFileInstructions?: string,
 	localCursorRulesFileInstructions?: string,
 	localCursorRulesDirInstructions?: string,
 	localWindsurfRulesFileInstructions?: string,
@@ -16,6 +17,9 @@ export function addUserInstructions(
 	}
 	if (localClineRulesFileInstructions) {
 		customInstructions += localClineRulesFileInstructions + "\n\n"
+	}
+	if (localAgentsRulesFileInstructions) {
+		customInstructions += localAgentsRulesFileInstructions + "\n\n"
 	}
 	if (localCursorRulesFileInstructions) {
 		customInstructions += localCursorRulesFileInstructions + "\n\n"

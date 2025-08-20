@@ -906,6 +906,7 @@ export class CacheService {
 		// Populate workspace state cache directly
 		const workspaceStateFields = {
 			localClineRulesToggles: state.localClineRulesToggles,
+			localAgentsRulesToggles: state.localAgentsRulesToggles,
 			localWindsurfRulesToggles: state.localWindsurfRulesToggles,
 			localCursorRulesToggles: state.localCursorRulesToggles,
 			workflowToggles: state.localWorkflowToggles, // Note: key name is "workflowToggles" in LocalStateKey
