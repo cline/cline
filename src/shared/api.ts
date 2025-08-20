@@ -1,4 +1,4 @@
-import type { LanguageModelChatSelector } from "../api/providers/types"
+import type { LanguageModelChatSelector } from "../core/api/providers/types"
 
 export type ApiProvider =
 	| "anthropic"
@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "baseten"
+	| "zai"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -65,6 +66,8 @@ export interface ApiHandlerOptions {
 	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
 	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioMaxTokens?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
@@ -98,6 +101,8 @@ export interface ApiHandlerOptions {
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
 	huaweiCloudMaasApiKey?: string
+	zaiApiKey?: string
+	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -554,6 +559,19 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	description:
 		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
+
+// Cline custom model - sonic (same config as grok-4)
+export const clineMicrowaveAlphaModelInfo: ModelInfo = {
+	maxTokens: 16_000,
+	contextWindow: 262144,
+	supportsImages: false,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
+	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
+	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
+}
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
@@ -872,7 +890,7 @@ export const vertexModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
-	Object.entries(vertexModels).filter(([_k, v]) => v.hasOwnProperty("supportsGlobalEndpoint")),
+	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
@@ -1100,15 +1118,6 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
-	},
-	"nectarine-alpha-new-reasoning-effort-2025-07-25": {
-		maxTokens: 8_192,
-		contextWindow: 256000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0,
-		outputPrice: 0,
-		cacheReadsPrice: 0,
 	},
 	o3: {
 		maxTokens: 100_000,
@@ -2810,9 +2819,10 @@ export const groqModels = {
 		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description:
 			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
 	},
@@ -3192,3 +3202,158 @@ export const basetenModels = {
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies BasetenModelId
+
+// Z AI
+// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/overview/pricing
+export type internationalZAiModelId = keyof typeof internationalZAiModels
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+	},
+	"glm-4.5-air": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.03,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type mainlandZAiModelId = keyof typeof mainlandZAiModels
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.29,
+		outputPrice: 1.14,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.057,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.21,
+				outputPrice: 1.0,
+				cacheReadsPrice: 0.043,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+		],
+	},
+	"glm-4.5-air": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.086,
+		outputPrice: 0.57,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.017,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.057,
+				outputPrice: 0.43,
+				cacheReadsPrice: 0.011,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+		],
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Fireworks AI
+export type FireworksModelId = keyof typeof fireworksModels
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		description:
+			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
+	},
+	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.88,
+		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
+	},
+	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.45,
+		outputPrice: 1.8,
+		description: "Qwen3's most agentic code model to date.",
+	},
+	"accounts/fireworks/models/deepseek-r1-0528": {
+		maxTokens: 20480,
+		contextWindow: 160000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 8,
+		description:
+			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+	"accounts/fireworks/models/deepseek-v3": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.9,
+		outputPrice: 0.9,
+		description:
+			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+} as const satisfies Record<string, ModelInfo>

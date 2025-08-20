@@ -1,10 +1,10 @@
-import { ApiConfiguration } from "@shared/api"
-import { SecretKey, GlobalStateKey, LocalStateKey, GlobalState, Secrets, LocalState } from "./state-keys"
-import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
-import type { ExtensionContext } from "vscode"
-import { readStateFromDisk } from "./utils/state-helpers"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import type { ExtensionContext } from "vscode"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
+import { readStateFromDisk } from "./utils/state-helpers"
 
 /**
  * Interface for persistence error event data
@@ -208,6 +208,7 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -226,6 +227,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -248,6 +250,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -387,6 +390,7 @@ export class CacheService {
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
@@ -395,6 +399,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -439,6 +444,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 		})
 	}
 
@@ -621,6 +627,7 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -639,6 +646,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -661,6 +669,7 @@ export class CacheService {
 			claudeCodePath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			authNonce,
 			// Plan mode configurations
@@ -830,6 +839,7 @@ export class CacheService {
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
@@ -838,6 +848,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -886,6 +897,7 @@ export class CacheService {
 			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			zaiApiKey,
 		} satisfies Secrets
 
 		// Populate secrets cache directly
@@ -939,6 +951,7 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			zaiApiKey: this.secretsCache["zaiApiKey"],
 
 			// Global state
 			awsRegion: this.globalStateCache["awsRegion"],
@@ -956,6 +969,7 @@ export class CacheService {
 			ollamaBaseUrl: this.globalStateCache["ollamaBaseUrl"],
 			ollamaApiOptionsCtxNum: this.globalStateCache["ollamaApiOptionsCtxNum"],
 			lmStudioBaseUrl: this.globalStateCache["lmStudioBaseUrl"],
+			lmStudioMaxTokens: this.globalStateCache["lmStudioMaxTokens"],
 			anthropicBaseUrl: this.globalStateCache["anthropicBaseUrl"],
 			geminiBaseUrl: this.globalStateCache["geminiBaseUrl"],
 			azureApiVersion: this.globalStateCache["azureApiVersion"],
@@ -964,6 +978,7 @@ export class CacheService {
 			liteLlmUsePromptCache: this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.globalStateCache["qwenApiLine"],
 			moonshotApiLine: this.globalStateCache["moonshotApiLine"],
+			zaiApiLine: this.globalStateCache["zaiApiLine"],
 			asksageApiUrl: this.globalStateCache["asksageApiUrl"],
 			favoritedModelIds: this.globalStateCache["favoritedModelIds"],
 			requestTimeoutMs: this.globalStateCache["requestTimeoutMs"],
@@ -993,7 +1008,7 @@ export class CacheService {
 			planModeRequestyModelId: this.globalStateCache["planModeRequestyModelId"],
 			planModeRequestyModelInfo: this.globalStateCache["planModeRequestyModelInfo"],
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
-			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"],
+			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
@@ -1023,7 +1038,7 @@ export class CacheService {
 			actModeRequestyModelId: this.globalStateCache["actModeRequestyModelId"],
 			actModeRequestyModelInfo: this.globalStateCache["actModeRequestyModelInfo"],
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
-			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"],
+			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],

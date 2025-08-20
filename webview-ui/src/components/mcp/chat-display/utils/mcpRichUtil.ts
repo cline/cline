@@ -1,5 +1,5 @@
-import { WebServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
+import { WebServiceClient } from "@/services/grpc-client"
 
 // Represents a URL found in the text with its position and metadata
 export interface UrlMatch {
@@ -27,12 +27,12 @@ export const safeCreateUrl = (url: string): URL | null => {
 		}
 
 		return new URL(url)
-	} catch (e) {
+	} catch (_e) {
 		// If the URL doesn't have a protocol, add https://
 		if (!url.startsWith("https://")) {
 			try {
 				return new URL(`https://${url}`)
-			} catch (e) {
+			} catch (_e) {
 				console.log(`Invalid URL: ${url}`)
 				return null
 			}
@@ -52,7 +52,7 @@ export const getSafeHostname = (url: string): string => {
 	try {
 		const urlObj = safeCreateUrl(url)
 		return urlObj ? urlObj.hostname : "unknown-host"
-	} catch (e) {
+	} catch (_e) {
 		return "unknown-host"
 	}
 }
@@ -69,7 +69,7 @@ export const isLocalhostUrl = (url: string): boolean => {
 			hostname.startsWith("10.") ||
 			hostname.endsWith(".local")
 		)
-	} catch (e) {
+	} catch (_e) {
 		// If we can't parse the URL, assume it's not localhost
 		return false
 	}
@@ -172,7 +172,7 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 
 			// Race between the service call and the timeout
 			return Promise.race([servicePromise, timeoutPromise])
-		} catch (error) {
+		} catch (_error) {
 			console.log("Error checking if URL is an image:", url)
 			// Return false to indicate it's not an image
 			return false
@@ -245,7 +245,9 @@ export const processUrlTypes = async (
 
 	for (let i = 0; i < matches.length; i++) {
 		// Skip already processed URLs
-		if (matches[i].isProcessed) continue
+		if (matches[i].isProcessed) {
+			continue
+		}
 
 		// Check if processing has been canceled
 		if (cancellationToken.cancelled) {
@@ -261,7 +263,9 @@ export const processUrlTypes = async (
 			const isImage = await checkIfImageUrl(match.url)
 
 			// Skip if processing has been canceled
-			if (cancellationToken.cancelled) return
+			if (cancellationToken.cancelled) {
+				return
+			}
 
 			// Update the match
 			match.isImage = isImage
@@ -316,7 +320,7 @@ export const processResponseUrls = (
 
 			// Process URLs in the background
 			await processUrlTypes(matches, onMatchesUpdated, cancellationToken)
-		} catch (error) {
+		} catch (_error) {
 			onError("Failed to process response content. Switch to plain text mode to view safely.")
 		}
 	}

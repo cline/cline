@@ -1,13 +1,11 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "@/services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "@/shared/proto/index.host"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, buildApiHandler } from "@api/index"
-import { ApiStream } from "@api/transform/stream"
+import { ApiHandler, buildApiHandler } from "@core/api"
+import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
-import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -24,15 +22,15 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
+	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
-	GlobalFileNames,
 } from "@core/storage/disk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -46,14 +44,14 @@ import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
@@ -61,28 +59,30 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
+import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
+import { HostProvider } from "@/hosts/host-provider"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
+import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 import { CacheService } from "../storage/CacheService"
+import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { FocusChainManager } from "./focus-chain"
-import { summarizeTask } from "@core/prompts/contextManagement"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -208,7 +208,7 @@ export class Task {
 		this.cacheService = cacheService
 
 		// Set up MCP notification callback for real-time notifications
-		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
 			// Display notification in chat immediately
 			await this.say("mcp_notification", `[${serverName}] ${message}`)
 		})
@@ -1038,7 +1038,7 @@ export class Task {
 
 		// load the context history state
 
-		const taskDir = await ensureTaskDirectoryExists(context, this.taskId)
+		const _taskDir = await ensureTaskDirectoryExists(context, this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
 
 		const lastClineMessage = this.messageStateHandler
@@ -1408,7 +1408,7 @@ export class Task {
 			})
 
 			// Race between command completion and timeout
-			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((_error) => {
 				// If we get here due to timeout, return a partial result with timeout flag
 				Logger.info(`Command timed out after 30s: ${command}`)
 				return {
@@ -1622,8 +1622,10 @@ export class Task {
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
+		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+
 		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-			this.messageStateHandler.getApiConversationHistory(),
+			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
@@ -1631,6 +1633,7 @@ export class Task {
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			apiConversationHistory,
 		)
 
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
@@ -1652,14 +1655,13 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(
+		let systemPrompt = await buildSystemPrompt(
 			this.cwd,
 			supportsBrowserUse,
 			this.mcpHub,
 			this.browserSettings,
+			this.api.getModel(),
 			this.focusChainSettings,
-			isNextGenModel,
 		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -2194,6 +2196,7 @@ export class Task {
 			parsedUserContent = userContent
 			environmentDetails = ""
 			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
 		} else {
 			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 		}
@@ -2214,7 +2217,7 @@ export class Task {
 		}
 
 		if (shouldCompact) {
-			userContent.push({ type: "text", text: summarizeTask() })
+			userContent.push({ type: "text", text: summarizeTask(this.focusChainSettings.enabled) })
 		}
 
 		await this.messageStateHandler.addToApiConversationHistory({
@@ -2527,7 +2530,7 @@ export class Task {
 			}
 
 			return didEndLoop // will always be false for now
-		} catch (error) {
+		} catch (_error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}
@@ -2565,6 +2568,7 @@ export class Task {
 								parsedText,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								this.ulid,
 							)
 
 							if (needsCheck) {
@@ -2667,23 +2671,6 @@ export class Task {
 			}).catch(() => {})
 		}
 
-		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
-		/*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		*/
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
 		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
@@ -2794,7 +2781,7 @@ export class Task {
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-			} catch (e) {
+			} catch (_e) {
 				return 0
 			}
 		}

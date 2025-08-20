@@ -71,13 +71,7 @@ jobs:
             - name: Install xvfb on Linux
               if: runner.os == 'Linux'
               run: sudo apt-get update && sudo apt-get install -y xvfb
-
-            - name: Install local modules on windows
-              if: runner.os == 'Windows' && steps.root-cache.outputs.cache-hit == 'true'
-              run: |
-                  npm install eslint-plugin-eslint-rules 
-                  cd webview-ui/ && npm install eslint-plugin-eslint-rules
-
+              
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
               run: |
@@ -86,10 +80,10 @@ jobs:
             - name: Type Check
               run: npm run check-types
 
-            - name: ESLint Check
+            - name: Lint Check
               run: npm run lint
 
-            - name: Prettier / Format Check
+            - name: Format Check
               run: npm run format
 
             # Build the extension before running tests

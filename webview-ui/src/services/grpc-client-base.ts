@@ -1,5 +1,7 @@
-import { vscode } from "../utils/vscode"
+/** biome-ignore-all lint/complexity/noThisInStatic: In static methods, this refers to the constructor (the subclass that invoked the method) when we want to refer to the subclass serviceName.
+ */
 import { v4 as uuidv4 } from "uuid"
+import { vscode } from "../utils/vscode"
 
 export interface Callbacks<TResponse> {
 	onResponse: (response: TResponse) => void

@@ -1,11 +1,11 @@
 import { huaweiCloudMaasModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface HuaweiCloudMaasProviderProps {
 	showModelOptions: boolean
@@ -30,8 +30,8 @@ export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={huaweiCloudMaasModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) => {
 							const modelId = e.target.value
 							const modelInfo = huaweiCloudMaasModels[modelId as keyof typeof huaweiCloudMaasModels]
@@ -55,9 +55,9 @@ export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode
 								currentMode,
 							)
 						}}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>
