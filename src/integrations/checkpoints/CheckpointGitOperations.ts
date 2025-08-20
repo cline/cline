@@ -202,10 +202,10 @@ export class GitOperations {
 				const durationMs = Math.round(performance.now() - startTime)
 				console.debug(`Checkpoint add operation completed in ${durationMs}ms`)
 				return { success: true }
-			} catch (error) {
+			} catch (_error) {
 				return { success: false }
 			}
-		} catch (error) {
+		} catch (_error) {
 			return { success: false }
 		} finally {
 			await this.renameNestedGitRepos(false)

@@ -1,7 +1,7 @@
-import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
-import OllamaModelPicker from "../OllamaModelPicker"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import OllamaModelPicker from "../OllamaModelPicker"
 
 // Mock the ExtensionStateContext
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
@@ -34,8 +34,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -49,9 +49,9 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
 					placeholder="Select an Ollama model..."
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -64,8 +64,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -83,8 +83,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -94,7 +94,7 @@ describe("OllamaModelPicker Component", () => {
 		fireEvent.input(modelSearchInput, { target: { value: "code" } })
 
 		// Find the element containing "codellama" text - using getAllByText since there might be multiple matches
-		const codeItems = screen.getAllByText((content, element) => {
+		const codeItems = screen.getAllByText((_content, element) => {
 			return element?.textContent?.includes("codellama") || false
 		})
 
@@ -108,8 +108,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -134,8 +134,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -153,8 +153,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -168,8 +168,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="mistral"
 					onModelChange={mockOnModelChange}
+					selectedModelId="mistral"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -187,8 +187,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -210,8 +210,8 @@ describe("OllamaModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<OllamaModelPicker
 					ollamaModels={["llama2", "mistral", "codellama"]}
-					selectedModelId="llama2"
 					onModelChange={mockOnModelChange}
+					selectedModelId="llama2"
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -233,7 +233,7 @@ describe("OllamaModelPicker Component", () => {
 	it("handles empty models array", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<OllamaModelPicker ollamaModels={[]} selectedModelId="" onModelChange={mockOnModelChange} />
+				<OllamaModelPicker ollamaModels={[]} onModelChange={mockOnModelChange} selectedModelId="" />
 			</ExtensionStateContextProvider>,
 		)
 

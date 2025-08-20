@@ -83,7 +83,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {

@@ -1,6 +1,5 @@
+import { ClineRulesToggles, ToggleWorkflowRequest } from "@shared/proto/cline/file"
 import { Controller } from ".."
-import { ToggleWorkflowRequest, ClineRulesToggles } from "@shared/proto/cline/file"
-import { ClineRulesToggles as AppClineRulesToggles } from "../../../shared/cline-rules"
 
 /**
  * Toggles a workflow on or off

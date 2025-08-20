@@ -1,8 +1,8 @@
+import { ApiHandler } from "@core/api"
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
-import { MessageStateHandler } from "./message-state"
 import { calculateApiCostAnthropic } from "@/utils/cost"
-import { ApiHandler } from "@/api"
+import { MessageStateHandler } from "./message-state"
 
 export const showNotificationForApprovalIfAutoApprovalEnabled = (
 	message: string,

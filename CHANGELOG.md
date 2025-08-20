@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.26.0]
+
+- Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
+- Add Cline Sonic Alpha model - experimental advanced model with 262K context window for complex coding tasks
+- Add support for LM Studio local models from v0 API endpoint with configurable max tokens
+- Fix Ollama context window configuration not being used in requests
+
 ## [3.25.3]
 
 - Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload

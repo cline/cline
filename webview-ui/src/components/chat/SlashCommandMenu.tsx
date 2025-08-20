@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useEffect } from "react"
-import { SlashCommand, getMatchingSlashCommands } from "@/utils/slash-commands"
+import React, { useCallback, useEffect, useRef } from "react"
+import { getMatchingSlashCommands, SlashCommand } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
 	onSelect: (command: SlashCommand) => void
@@ -52,7 +52,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 
 	// Create a reusable function for rendering a command section
 	const renderCommandSection = (commands: SlashCommand[], title: string, indexOffset: number, showDescriptions: boolean) => {
-		if (commands.length === 0) return null
+		if (commands.length === 0) {
+			return null
+		}
 
 		return (
 			<>
@@ -63,13 +65,13 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 					const itemIndex = index + indexOffset
 					return (
 						<div
-							key={command.name}
-							id={`slash-command-menu-item-${itemIndex}`}
 							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
 								itemIndex === selectedIndex
 									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
 									: ""
 							} hover:bg-[var(--vscode-list-hoverBackground)]`}
+							id={`slash-command-menu-item-${itemIndex}`}
+							key={command.name}
 							onClick={() => handleClick(command)}
 							onMouseEnter={() => setSelectedIndex(itemIndex)}>
 							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
@@ -92,8 +94,8 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 			className="absolute bottom-[calc(100%-10px)] left-[15px] right-[15px] overflow-x-hidden z-[1000]"
 			onMouseDown={onMouseDown}>
 			<div
-				ref={menuRef}
 				className="bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-editorGroup-border)] rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto"
+				ref={menuRef}
 				style={{ maxHeight: "min(200px, calc(50vh))", overscrollBehavior: "contain" }}>
 				{filteredCommands.length > 0 ? (
 					<>

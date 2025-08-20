@@ -1,11 +1,11 @@
 import { Mode } from "@shared/storage/types"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import RequestyModelPicker from "../RequestyModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useState } from "react"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
 
 /**
  * Props for the RequestyProvider component
@@ -51,12 +51,12 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					onChange={(value) => {
 						handleFieldChange("requestyBaseUrl", value)
 					}}
+					placeholder="Custom base URL"
 					style={{ width: "100%", marginBottom: 5 }}
 					type="url"
-					placeholder="Custom base URL"
 				/>
 			)}
-			{showModelOptions && <RequestyModelPicker isPopup={isPopup} currentMode={currentMode} />}
+			{showModelOptions && <RequestyModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>
 	)
 }

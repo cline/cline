@@ -1,4 +1,4 @@
-import { ApiConfiguration, internationalZAiModels, mainlandZAiModels } from "@shared/api"
+import { internationalZAiModels, mainlandZAiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
