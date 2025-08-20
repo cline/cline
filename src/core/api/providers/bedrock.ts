@@ -4,7 +4,6 @@ import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
 import {
 	BedrockRuntimeClient,
 	ConversationRole,
-	ConverseCommand,
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
@@ -877,8 +876,15 @@ export class AwsBedrockHandler implements ApiHandler {
 				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
 			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+				// Handle Buffer or Uint8Array data
+				if (item.source.data instanceof Buffer) {
+					imageData = new Uint8Array(item.source.data)
+				} else if (item.source.data instanceof Uint8Array) {
+					imageData = item.source.data
+				} else {
+					// Try to convert other object types to Buffer first
+					imageData = new Uint8Array(Buffer.from(item.source.data as any))
+				}
 			} else {
 				throw new Error("Unsupported image data format")
 			}
@@ -977,7 +983,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Creates a message using OpenAI models through AWS Bedrock
-	 * Uses non-streaming Converse API and simulates streaming for models that don't support it
+	 * Uses ConverseStream API for real streaming instead of simulated streaming
 	 */
 	private async *createOpenAIMessage(
 		systemPrompt: string,
@@ -985,17 +991,14 @@ export class AwsBedrockHandler implements ApiHandler {
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
-		// Get Bedrock client with proper credentials
-		const client = await this.getBedrockClient()
-
 		// Format messages for Converse API
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
 
 		// Prepare system message
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
 
-		// Prepare the non-streaming Converse command
-		const command = new ConverseCommand({
+		// Prepare the streaming Converse command
+		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: formattedMessages,
 			system: systemMessages,
@@ -1005,108 +1008,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			},
 		})
 
-		try {
-			// Track token usage
-			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
-			let outputTokens = 0
-
-			// Execute the non-streaming request
-			const response = await client.send(command)
-
-			// Extract the complete response text and reasoning content
-			let fullText = ""
-			let reasoningText = ""
-
-			if (response.output?.message?.content) {
-				for (const contentBlock of response.output.message.content) {
-					// Check for reasoning content first
-					if ("reasoningContent" in contentBlock && contentBlock.reasoningContent) {
-						// Handle nested reasoning structure
-						const reasoning = contentBlock.reasoningContent
-						if ("reasoningText" in reasoning && reasoning.reasoningText && "text" in reasoning.reasoningText) {
-							reasoningText += reasoning.reasoningText.text
-						}
-					}
-					// Handle regular text content
-					else if ("text" in contentBlock && contentBlock.text) {
-						fullText += contentBlock.text
-					}
-				}
-			}
-
-			// If we have actual usage data from the response, use it
-			if (response.usage) {
-				const actualInputTokens = response.usage.inputTokens || inputTokenEstimate
-				const actualOutputTokens = response.usage.outputTokens || this.estimateTokenCount(fullText + reasoningText)
-				outputTokens = actualOutputTokens
-
-				// Report actual usage after processing content
-				const actualCost = calculateApiCostOpenAI(model.info, actualInputTokens, actualOutputTokens, 0, 0)
-				yield {
-					type: "usage",
-					inputTokens: actualInputTokens,
-					outputTokens: actualOutputTokens,
-					totalCost: actualCost,
-				}
-			} else {
-				// Estimate output tokens if not provided (includes both regular text and reasoning)
-				outputTokens = this.estimateTokenCount(fullText + reasoningText)
-			}
-
-			// Yield reasoning content first if present
-			if (reasoningText) {
-				const reasoningChunkSize = 1000 // Characters per chunk
-				for (let i = 0; i < reasoningText.length; i += reasoningChunkSize) {
-					const chunk = reasoningText.slice(i, Math.min(i + reasoningChunkSize, reasoningText.length))
-
-					yield {
-						type: "reasoning",
-						reasoning: chunk,
-					}
-				}
-			}
-
-			// Simulate streaming by chunking the response text
-			if (fullText) {
-				const chunkSize = 1000 // Characters per chunk
-
-				for (let i = 0; i < fullText.length; i += chunkSize) {
-					const chunk = fullText.slice(i, Math.min(i + chunkSize, fullText.length))
-
-					yield {
-						type: "text",
-						text: chunk,
-					}
-				}
-			}
-
-			// Report final usage if we didn't have actual usage data earlier
-			if (!response.usage) {
-				const finalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, outputTokens, 0, 0)
-				yield {
-					type: "usage",
-					inputTokens: inputTokenEstimate,
-					outputTokens: outputTokens,
-					totalCost: finalCost,
-				}
-			}
-		} catch (error) {
-			console.error("Error with OpenAI model via Converse API:", error)
-
-			// Try to extract more detailed error information
-			let errorMessage = "Failed to process OpenAI model request"
-			if (error instanceof Error) {
-				errorMessage = error.message
-				// Check for specific AWS SDK errors
-				if ("name" in error) {
-					errorMessage = `${error.name}: ${error.message}`
-				}
-			}
-
-			yield {
-				type: "text",
-				text: `[ERROR] ${errorMessage}`,
-			}
-		}
+		// Execute the streaming request using unified handler
+		yield* this.executeConverseStream(command, model.info)
 	}
 }
