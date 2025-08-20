@@ -43,7 +43,7 @@ export class FeatureFlagsService {
 	 * Convenience: focus chain checklist remote gate
 	 */
 	public async getFocusChainEnabled(): Promise<boolean> {
-		return this.getBooleanFlagEnabled("focus_chain_checklist", false)
+		return this.getBooleanFlagEnabled("focus_chain_checklist", true)
 	}
 
 	/**

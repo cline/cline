@@ -1,8 +1,8 @@
+import { isFocusChainItem } from "@shared/focus-chain-utils"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
-import { isFocusChainItem } from "@shared/focus-chain-utils"
 
 /**
  * Generate the standard file path for a task's focusChain markdown file

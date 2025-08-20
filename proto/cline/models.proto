@@ -68,8 +68,8 @@ message ModelTier {
 
 // For OpenRouterCompatibleModelInfo structure in OpenRouterModels
 message OpenRouterModelInfo {
-  optional int32 max_tokens = 1;
-  optional int32 context_window = 2;
+  optional int64 max_tokens = 1;
+  optional int64 context_window = 2;
   optional bool supports_images = 3;
   bool supports_prompt_cache = 4;
   optional double input_price = 5;
@@ -134,6 +134,7 @@ enum ApiProvider {
   HUGGINGFACE = 29;
   HUAWEI_CLOUD_MAAS = 30;
   BASETEN = 31;
+  ZAI = 32;
 }
 
 // Model info for OpenAI-compatible models
@@ -238,8 +239,11 @@ message ModelsApiConfiguration {
   optional string huawei_cloud_maas_api_key = 62;
   optional string baseten_api_key = 63;
   optional string ollama_api_key = 64;
-  optional string gemini_cli_oauth_path = 65;
-  optional string gemini_cli_project_id = 66;
+  optional string zai_api_key = 65;
+  optional string zai_api_line = 66;
+  optional string lm_studio_max_tokens = 67;
+  optional string gemini_cli_oauth_path = 68;
+  optional string gemini_cli_project_id = 69;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

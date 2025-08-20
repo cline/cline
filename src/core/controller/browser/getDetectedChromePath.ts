@@ -1,7 +1,7 @@
 import { ChromePath } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { Controller } from "../index"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
+import { Controller } from "../index"
 
 /**
  * Get the detected Chrome executable path

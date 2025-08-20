@@ -1,9 +1,9 @@
 import {
-	WatchServiceClientInterface,
-	WorkspaceServiceClientInterface,
-	EnvServiceClientInterface,
-	WindowServiceClientInterface,
 	DiffServiceClientInterface,
+	EnvServiceClientInterface,
+	WatchServiceClientInterface,
+	WindowServiceClientInterface,
+	WorkspaceServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 
 /**

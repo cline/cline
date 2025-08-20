@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler } from "@core/api"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { ApiHandler } from "@api/index"
 import { getContextWindowInfo } from "./context-window-utils"
 
-class ContextManager {
+class _ContextManager {
 	getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
 		clineMessages: ClineMessage[],

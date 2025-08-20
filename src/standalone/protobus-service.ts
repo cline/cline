@@ -2,11 +2,11 @@ import { Controller } from "@core/controller"
 import { StreamingResponseHandler } from "@core/controller/grpc-handler"
 import { addProtobusServices } from "@generated/hosts/standalone/protobus-server-setup"
 import * as grpc from "@grpc/grpc-js"
+import * as protoLoader from "@grpc/proto-loader"
 import { ReflectionService } from "@grpc/reflection"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-types"
 import * as health from "grpc-health-check"
 import { getPackageDefinition, log } from "./utils"
-import * as protoLoader from "@grpc/proto-loader"
 
 export const PROTOBUS_PORT = 26040
 export const HOSTBRIDGE_PORT = 26041
@@ -87,7 +87,7 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 			const requestId = call.metadata.get("request-id").pop()?.toString()
 			log(`ProtoBus gRPC streaming request: ${call.getPath()}`)
 
-			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, sequenceNumber) => {
+			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, _sequenceNumber) => {
 				try {
 					call.write(response) // Use a bound version of call.write to maintain proper 'this' context
 

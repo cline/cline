@@ -12,12 +12,12 @@
  */
 
 import { ApiConfiguration, geminiCliModels } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import type { Mode } from "@shared/storage/types"
 
 interface GeminiCliProviderProps {
 	apiConfiguration: ApiConfiguration
@@ -39,11 +39,11 @@ const GeminiCliProvider = ({
 	return (
 		<div>
 			<VSCodeTextField
-				value={apiConfiguration?.geminiCliOAuthPath || ""}
+				onInput={handleInputChange("geminiCliOAuthPath")}
+				placeholder="Default: ~/.gemini/oauth_creds.json"
 				style={{ width: "100%", marginTop: 3 }}
 				type="text"
-				onInput={handleInputChange("geminiCliOAuthPath")}
-				placeholder="Default: ~/.gemini/oauth_creds.json">
+				value={apiConfiguration?.geminiCliOAuthPath || ""}>
 				<span style={{ fontWeight: 500 }}>OAuth Credentials Path (optional)</span>
 			</VSCodeTextField>
 			<p
@@ -58,10 +58,10 @@ const GeminiCliProvider = ({
 			{apiConfiguration?.geminiCliProjectId && (
 				<>
 					<VSCodeTextField
-						value={apiConfiguration.geminiCliProjectId}
+						disabled
 						style={{ width: "100%", marginTop: 3 }}
 						type="text"
-						disabled>
+						value={apiConfiguration.geminiCliProjectId}>
 						<span style={{ fontWeight: 500 }}>Discovered Project ID</span>
 					</VSCodeTextField>
 					<p
@@ -103,15 +103,15 @@ const GeminiCliProvider = ({
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={geminiCliModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleInputChange(currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId")(e.target.value)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 
@@ -157,8 +157,7 @@ const GeminiCliProvider = ({
 					<br />• Then, run <strong>gemini</strong> in your terminal and make sure you{" "}
 					<strong>Log in with Google</strong>
 					<br />• Only works with <strong>personal Google accounts</strong> (not Google Workspace accounts)
-					<br />
-					• Does not use API keys - authentication is handled via OAuth
+					<br />• Does not use API keys - authentication is handled via OAuth
 					<br />• Requires the Gemini CLI tool to be installed and authenticated first
 				</p>
 			</div>

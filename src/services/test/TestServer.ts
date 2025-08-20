@@ -1,16 +1,16 @@
-import { getCwd } from "@/utils/path"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
 import { WebviewProvider } from "@core/webview"
 import { Logger } from "@services/logging/Logger"
-import { ApiProvider } from "@shared/api"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { ApiProvider } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { execa } from "execa"
 import * as http from "http"
 import * as path from "path"
 import * as vscode from "vscode"
-import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 import { Controller } from "@/core/controller"
+import { getCwd } from "@/utils/path"
+import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -28,13 +28,13 @@ function createToolCallTracker(): {
 }
 
 // Task completion tracking
-let taskCompletionResolver: (() => void) | null = null
+let _taskCompletionResolver: (() => void) | null = null
 
 // Function to create a new task completion promise
 function createTaskCompletionTracker(): Promise<void> {
 	// Create a new promise that will resolve when the task is completed
 	return new Promise<void>((resolve) => {
-		taskCompletionResolver = resolve
+		_taskCompletionResolver = resolve
 	})
 }
 
@@ -46,7 +46,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
 		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
 
@@ -322,7 +322,7 @@ export function createTestServer(controller: Controller): http.Server {
 						}
 
 						// Get file changes
-						let fileChanges
+						let fileChanges: { created: string[]; modified: string[]; deleted: string[] }
 						try {
 							// Get the workspace path using our helper function
 							const workspacePath = await getCwd()
@@ -401,7 +401,7 @@ export function createTestServer(controller: Controller): http.Server {
 								files: fileChanges,
 							}),
 						)
-					} catch (timeoutError) {
+					} catch (_timeoutError) {
 						// Task didn't complete within the timeout period
 						res.writeHead(200, { "Content-Type": "application/json" })
 						res.end(

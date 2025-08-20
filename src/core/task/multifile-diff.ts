@@ -1,8 +1,8 @@
-import { findLast } from "@/shared/array"
-import { MessageStateHandler } from "./message-state"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/index.host"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
+import { findLast } from "@/shared/array"
+import { ShowMessageType } from "@/shared/proto/index.host"
+import { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(
 	messageStateHandler: MessageStateHandler,
@@ -58,7 +58,7 @@ async function getChangedFiles(
 	lastCheckpointHash: string,
 ): Promise<ChangedFile[]> {
 	try {
-		let changedFiles
+		let changedFiles: ChangedFile[]
 		if (changesSinceLastTaskCompletion) {
 			changedFiles = await getChangesSinceLastTaskCompletion(
 				messageStateHandler,
