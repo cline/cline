@@ -1,4 +1,4 @@
-export const summarizeTask = () =>
+export const summarizeTask = (focusChainEnabled: boolean) =>
 	`<explicit_instructions type="summarize_task">
 The current conversation is rapidly running out of context. Now, your urgent task is to create a comprehensive detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context. You MUST ONLY respond to this message by using the summarize_task tool call.
@@ -22,10 +22,24 @@ Your summary should include the following sections:
                        If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no drift in task interpretation.
 8. You should pay special attention to the most recent user message, as it indicates the user's most recent intent, if applicable.
 
+${
+	focusChainEnabled
+		? `Updating task progress:
+There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. Otherwise if there currently isn't a checklist, you should NOT create a new one, but instead not return anything.`
+		: ""
+}
+
 Usage:
 <summarize_task>
 <context>Your detailed summary</context>
 </summarize_task>
+${
+	focusChainEnabled
+		? `<task_progress>
+Checklist here (optional)
+</task_progress>`
+		: ""
+}
 
 Here's an example of how your output should be structured:
 
@@ -61,6 +75,16 @@ Here's an example of how your output should be structured:
    [Optional Next step to take]
 </context>
 </summarize_task>
+${
+	focusChainEnabled
+		? `<task_progress>
+- [x] Completed task example
+- [x] Completed task example
+- [ ] Remaining task example
+- [ ] Remaining task example
+</task_progress>`
+		: ""
+}
 </example>
 
 </explicit_instructions>\n

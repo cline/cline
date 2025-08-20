@@ -1746,6 +1746,11 @@ export class ToolExecutor {
 						)
 					}
 
+					if (!block.partial && this.focusChainSettings.enabled) {
+						console.log("@@@ returned a task_progress:", block.params.task_progress)
+						await this.updateFCListFromToolResponse(block.params.task_progress)
+					}
+
 					break
 				} catch (error) {
 					await this.handleError("summarizing context window", error, block)
