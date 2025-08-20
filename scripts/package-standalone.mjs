@@ -142,7 +142,13 @@ function createIsIgnored(standaloneIgnores) {
 
 	// Combine with default ignore list
 	// Also ignore the dist directory- the build directory for the extension.
-	const allIgnore = [...defaultIgnore, ...expandedIgnore, ...standaloneIgnores]
+	let allIgnore = [...defaultIgnore, ...expandedIgnore, ...standaloneIgnores]
+
+	// Map files need to be included in the debug build. Remove .map ignores when IS_DEBUG_BUILD is set
+	if (process.env.IS_DEBUG_BUILD) {
+		allIgnore = allIgnore.filter((pattern) => !pattern.endsWith(".map"))
+		console.log("Debug build: Including .map files in package")
+	}
 
 	// Split into ignore and negate list
 	const [ignore, negate] = allIgnore.reduce(
