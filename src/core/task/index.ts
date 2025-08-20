@@ -2568,6 +2568,7 @@ export class Task {
 								parsedText,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								this.ulid,
 							)
 
 							if (needsCheck) {

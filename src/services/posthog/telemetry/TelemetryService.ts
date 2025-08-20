@@ -66,6 +66,8 @@ export class TelemetryService {
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
+			// Tracks when MCP tools are used
+			MCP_TOOL_CALLED: "task.mcp_tool_called",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -98,6 +100,10 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
 			// Tracks when the context window is auto-condensed with the summarize_task tool call
 			AUTO_COMPACT: "task.summarize_task",
+			// Tracks when slash commands or workflows are activated
+			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when individual Cline rules are toggled on/off
+			RULE_TOGGLED: "task.rule_toggled",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -107,6 +113,8 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
+			// Tracks when the rules menu button is clicked
+			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
 	}
 
@@ -366,6 +374,40 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+			},
+		})
+	}
+
+	/**
+	 * Records when an MCP tool is called.
+	 * This telemetry event is designed to monitor the usage and performance of MCP tools
+	 * without compromising user privacy. It captures the tool's metadata (server, name, and arguments)
+	 * but explicitly avoids logging the values of the arguments.
+	 *
+	 * @param ulid Unique identifier for the task.
+	 * @param serverName The name of the MCP server.
+	 * @param toolName The name of the tool being called.
+	 * @param status The status of the tool call.
+	 * @param errorMessage Optional error message if the call failed.
+	 * @param argumentKeys Optional array of argument keys for the tool.
+	 */
+	public captureMcpToolCall(
+		ulid: string,
+		serverName: string,
+		toolName: string,
+		status: "started" | "success" | "error",
+		errorMessage?: string,
+		argumentKeys?: string[],
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
+			properties: {
+				ulid,
+				serverName,
+				toolName,
+				status,
+				errorMessage,
+				argumentKeys,
 			},
 		})
 	}
@@ -748,6 +790,55 @@ export class TelemetryService {
 			properties: {
 				ulid,
 			},
+		})
+	}
+
+	/**
+	 * Records when slash commands or workflows are activated
+	 * @param ulid Unique identifier for the task
+	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
+	 * @param commandType Whether it's a built-in command or custom workflow
+	 */
+	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
+			properties: {
+				ulid,
+				commandName,
+				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records when individual Cline rules are toggled on/off
+	 * @param ulid Unique identifier for the task (to track rule changes within task context)
+	 * @param ruleFileName The filename of the rule (sanitized to exclude full path)
+	 * @param enabled Whether the rule is being enabled (true) or disabled (false)
+	 * @param isGlobal Whether this is a global rule or workspace-specific rule
+	 */
+	public captureClineRuleToggled(ulid: string, ruleFileName: string, enabled: boolean, isGlobal: boolean) {
+		// Sanitize filename to remove any path information for privacy
+		const sanitizedFileName = ruleFileName.split("/").pop() || ruleFileName.split("\\").pop() || ruleFileName
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.RULE_TOGGLED,
+			properties: {
+				ulid,
+				ruleFileName: sanitizedFileName,
+				enabled,
+				isGlobal,
+			},
+		})
+	}
+
+	/**
+	 * Records when the rules menu button is clicked to open the rules/workflows modal
+	 */
+	public captureRulesMenuOpened() {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
+			properties: {},
 		})
 	}
 
