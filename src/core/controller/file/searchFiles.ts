@@ -1,8 +1,8 @@
-import { Controller } from ".."
-import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { searchWorkspaceFiles } from "@services/search/file-search"
-import { getWorkspacePath } from "@utils/path"
+import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { getWorkspacePath } from "@utils/path"
+import { Controller } from ".."
 
 /**
  * Searches for files in the workspace with fuzzy matching
@@ -24,7 +24,7 @@ export async function searchFiles(_controller: Controller, request: FileSearchRe
 
 	try {
 		// Map enum to string for the search service
-		let selectedTypeString: "file" | "folder" | undefined = undefined
+		let selectedTypeString: "file" | "folder" | undefined
 		if (request.selectedType === FileSearchType.FILE) {
 			selectedTypeString = "file"
 		} else if (request.selectedType === FileSearchType.FOLDER) {

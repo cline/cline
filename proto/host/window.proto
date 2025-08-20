@@ -26,11 +26,17 @@ service WindowService {
   // Opens a file in the IDE.
   rpc openFile(OpenFileRequest) returns (OpenFileResponse);
 
+  // Opens the host settings UI, optionally focusing a specific query/section.
+  rpc openSettings(OpenSettingsRequest) returns (OpenSettingsResponse);
+
   // Returns the open tabs.
   rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
 
   // Returns the visible tabs.
   rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
+
+  // Returns information about the current editor
+  rpc getActiveEditor(GetActiveEditorRequest) returns (GetActiveEditorResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -127,6 +133,21 @@ message OpenFileRequest {
 
 message OpenFileResponse {}
 
+message OpenSettingsRequest {
+  // Optional query to focus a particular settings section/key.
+  // This value is host-specific. In VS Code, it is passed directly as the
+  // Settings search query to the "workbench.action.openSettings" command.
+  // Examples (VS Code, see - https://code.visualstudio.com/docs/getstarted/settings#settings-editor-filters.):
+  // - "telemetry.telemetryLevel" → focuses the Telemetry Level setting
+  // - "@id:telemetry.telemetryLevel" → navigates by exact setting id
+  // - "@modified", "@ext:publisher.extension"
+  // - Plain keywords/categories
+  // If not provided the host opens the settings UI without specific focus.
+  optional string query = 1;
+}
+
+message OpenSettingsResponse {}
+
 message GetOpenTabsRequest {}
 
 message GetOpenTabsResponse {
@@ -137,4 +158,10 @@ message GetVisibleTabsRequest {}
 
 message GetVisibleTabsResponse {
   repeated string paths = 1;
+}
+
+message GetActiveEditorRequest {}
+
+message GetActiveEditorResponse {
+  optional string file_path = 1;
 }

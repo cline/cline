@@ -1,15 +1,13 @@
-import type { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/cline/common"
-
-import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
-import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { McpMarketplaceCatalog } from "@shared/mcp"
-import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
-import { refreshGroqModels } from "../models/refreshGroqModels"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { featureFlagsService, telemetryService } from "@/services/posthog/PostHogClientProvider"
+import type { Controller } from "../index"
+import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
-import { featureFlagsService } from "@/services/posthog/PostHogClientProvider"
+import { refreshGroqModels } from "../models/refreshGroqModels"
+import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
  * Initialize webview when it launches
@@ -17,7 +15,7 @@ import { featureFlagsService } from "@/services/posthog/PostHogClientProvider"
  * @param request The empty request
  * @returns Empty response
  */
-export async function initializeWebview(controller: Controller, request: EmptyRequest): Promise<Empty> {
+export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
 		// Post last cached models in case the call to endpoint fails
 		controller.readOpenRouterModels().then((openRouterModels) => {

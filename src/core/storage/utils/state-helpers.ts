@@ -1,16 +1,15 @@
-import { ExtensionContext } from "vscode"
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
-import { LanguageModelChatSelector } from "vscode"
+import { ExtensionContext, LanguageModelChatSelector } from "vscode"
+import { Controller } from "@/core/controller"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { SecretKey } from "../state-keys"
-import { Controller } from "@/core/controller"
 
 export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
@@ -32,6 +31,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const ollamaBaseUrl = context.globalState.get("ollamaBaseUrl") as string | undefined
 	const ollamaApiOptionsCtxNum = context.globalState.get("ollamaApiOptionsCtxNum") as string | undefined
 	const lmStudioBaseUrl = context.globalState.get("lmStudioBaseUrl") as string | undefined
+	const lmStudioMaxTokens = context.globalState.get("lmStudioMaxTokens") as string | undefined
 	const anthropicBaseUrl = context.globalState.get("anthropicBaseUrl") as string | undefined
 	const geminiBaseUrl = context.globalState.get("geminiBaseUrl") as string | undefined
 	const azureApiVersion = context.globalState.get("azureApiVersion") as string | undefined
@@ -47,6 +47,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const userInfo = context.globalState.get("userInfo") as UserInfo | undefined
 	const qwenApiLine = context.globalState.get("qwenApiLine") as string | undefined
 	const moonshotApiLine = context.globalState.get("moonshotApiLine") as string | undefined
+	const zaiApiLine = context.globalState.get("zaiApiLine") as string | undefined
 	const telemetrySetting = context.globalState.get("telemetrySetting") as TelemetrySetting | undefined
 	const asksageApiUrl = context.globalState.get("asksageApiUrl") as string | undefined
 	const planActSeparateModelsSettingRaw = context.globalState.get("planActSeparateModelsSetting") as boolean | undefined
@@ -101,6 +102,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		sapAiCoreClientSecret,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
+		zaiApiKey,
 		ollamaApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
@@ -133,6 +135,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
+		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 	])
 
@@ -229,7 +232,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 	// On win11 state sometimes initializes as empty string instead of undefined
-	let planActSeparateModelsSetting: boolean | undefined = undefined
+	let planActSeparateModelsSetting: boolean | undefined
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
@@ -268,6 +271,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -278,6 +282,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			qwenApiKey,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -306,6 +311,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			basetenApiKey,
+			zaiApiKey,
 			ollamaApiKey,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
@@ -438,6 +444,7 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"zaiApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.cacheService.reInitialize()

@@ -1,7 +1,6 @@
+import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
-import { fileExistsAtPath } from "@utils/fs"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -54,7 +53,7 @@ export async function cleanupLegacyCheckpoints(globalStoragePath: string): Promi
 						HostProvider.get().logToChannel(`Deleting legacy checkpoints in ${folder.folder}`)
 						try {
 							await fs.rm(folderCheckpointsDir, { recursive: true, force: true })
-						} catch (error) {
+						} catch (_error) {
 							// Ignore error if directory removal fails
 							HostProvider.get().logToChannel(
 								`Warning: Failed to delete checkpoints in ${folder.folder}, continuing...`,

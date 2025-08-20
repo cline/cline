@@ -1,4 +1,4 @@
-import { ApiHandlerModel } from "@/api"
+import { ApiHandlerModel } from "@core/api"
 
 export function isClaude4ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
@@ -19,7 +19,7 @@ export function isGrok4ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 
 export function isGPT5ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
-	return modelId.includes("gpt-5") || modelId.includes("gpt5") || modelId.includes("nectarine")
+	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
 export function isNextGenModelFamily(apiHandlerModel: ApiHandlerModel): boolean {

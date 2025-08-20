@@ -1,7 +1,7 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
@@ -149,8 +149,8 @@ export const BrowserSettingsMenu = () => {
 				appearance="icon"
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
-				title="Browser connection info"
-				style={{ marginRight: "4px" }}>
+				style={{ marginRight: "4px" }}
+				title="Browser connection info">
 				<i
 					className={`codicon ${getIconClass()}`}
 					style={{
@@ -163,8 +163,8 @@ export const BrowserSettingsMenu = () => {
 			{showInfoPopover && (
 				// InfoPopover - Dropdown container with connection details
 				<div
-					ref={popoverRef}
 					className="absolute top-[30px] right-0 z-[100] w-[60dvw] max-w-[250px] rounded p-2.5 shadow-lg"
+					ref={popoverRef}
 					style={{
 						backgroundColor: "var(--vscode-editorWidget-background)",
 						border: "1px solid var(--vscode-widget-border)",

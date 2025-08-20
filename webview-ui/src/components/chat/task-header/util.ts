@@ -1,5 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_PURPLE, COLOR_GREEN } from "../colors"
+import { COLOR_BEIGE, COLOR_BLUE, COLOR_DARK_GRAY, COLOR_GRAY, COLOR_GREEN, COLOR_PURPLE, COLOR_WHITE } from "../colors"
 
 /**
  *
@@ -34,7 +34,7 @@ export const getColor = (message: ClineMessage): string => {
 						} else if (toolData.tool === "webFetch") {
 							return COLOR_PURPLE // Purple for web fetch operations
 						}
-					} catch (e) {
+					} catch (_e) {
 						// JSON parse error here
 					}
 				}
@@ -74,7 +74,7 @@ export const getColor = (message: ClineMessage): string => {
 						} else if (toolData.tool === "webFetch") {
 							return COLOR_PURPLE // Purple for web fetch operations
 						}
-					} catch (e) {
+					} catch (_e) {
 						// JSON parse error here
 					}
 				}

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from "react"
 import { parseFocusChainItem } from "@shared/focus-chain-utils"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 
 interface ChecklistRendererProps {
 	text: string
@@ -90,8 +90,8 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 
 	return (
 		<div
-			ref={containerRef}
 			onScroll={handleScroll}
+			ref={containerRef}
 			style={{
 				display: "flex",
 				flexDirection: "column",

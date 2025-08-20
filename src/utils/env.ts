@@ -1,6 +1,6 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { StringRequest, EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import open from "open"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Writes text to the system clipboard
