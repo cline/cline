@@ -132,6 +132,14 @@ message OpenFileResponse {}
 
 message OpenSettingsRequest {
   // Optional query to focus a particular settings section/key.
+  // This value is host-specific. In VS Code, it is passed directly as the
+  // Settings search query to the "workbench.action.openSettings" command.
+  // Examples (VS Code, see - https://code.visualstudio.com/docs/getstarted/settings#settings-editor-filters.):
+  // - "telemetry.telemetryLevel" → focuses the Telemetry Level setting
+  // - "@id:telemetry.telemetryLevel" → navigates by exact setting id
+  // - "@modified", "@ext:publisher.extension"
+  // - Plain keywords/categories
+  // If not provided the host opens the settings UI without specific focus.
   optional string query = 1;
 }
 
