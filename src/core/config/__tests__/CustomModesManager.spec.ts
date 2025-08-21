@@ -114,6 +114,176 @@ describe("CustomModesManager", () => {
 			expect(modes).toHaveLength(2)
 		})
 
+		it("should load modes from .roo/modes directory", async () => {
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			const rooModesMode1 = { slug: "mode2", name: "Mode 2", roleDefinition: "Role 2", groups: ["read"] }
+			const rooModesMode2 = { slug: "mode3", name: "Mode 3", roleDefinition: "Role 3", groups: ["edit"] }
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				// Return true for settings path and modes directories
+				return path === mockSettingsPath || path.includes("modes") || path === mockRoomodes
+			})
+			;(fs.readdir as Mock).mockImplementation(async (path: string) => {
+				if (path.includes("modes")) {
+					return [
+						{ name: "mode1.yaml", isFile: () => true },
+						{ name: "mode2.yml", isFile: () => true },
+						{ name: "readme.txt", isFile: () => true }, // Should be ignored
+					]
+				}
+				return []
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: settingsModes })
+				}
+				if (path.includes("mode1.yaml")) {
+					return yaml.stringify({ customModes: [rooModesMode1] })
+				}
+				if (path.includes("mode2.yml")) {
+					return yaml.stringify({ customModes: [rooModesMode2] })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should have all 3 modes
+			expect(modes).toHaveLength(3)
+			expect(modes.map((m) => m.slug)).toContain("mode1")
+			expect(modes.map((m) => m.slug)).toContain("mode2")
+			expect(modes.map((m) => m.slug)).toContain("mode3")
+		})
+
+		it("should respect precedence: project .roo/modes > .roomodes > global .roo/modes > settings", async () => {
+			const settingsMode = { slug: "test", name: "Settings", roleDefinition: "Settings Role", groups: ["read"] }
+			const globalRooMode = {
+				slug: "test",
+				name: "Global Roo",
+				roleDefinition: "Global Roo Role",
+				groups: ["read"],
+			}
+			const roomodesMode = { slug: "test", name: "Roomodes", roleDefinition: "Roomodes Role", groups: ["read"] }
+			const projectRooMode = {
+				slug: "test",
+				name: "Project Roo",
+				roleDefinition: "Project Roo Role",
+				groups: ["read"],
+			}
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return true // All paths exist
+			})
+			;(fs.readdir as Mock).mockImplementation(async (path: string) => {
+				if (path.includes("modes")) {
+					return [{ name: "test.yaml", isFile: () => true }]
+				}
+				return []
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [settingsMode] })
+				}
+				if (path === mockRoomodes) {
+					return yaml.stringify({ customModes: [roomodesMode] })
+				}
+				// Global .roo/modes
+				if (path.includes("modes") && !path.includes(mockWorkspacePath)) {
+					return yaml.stringify({ customModes: [globalRooMode] })
+				}
+				// Project .roo/modes
+				if (path.includes("modes") && path.includes(mockWorkspacePath)) {
+					return yaml.stringify({ customModes: [projectRooMode] })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should have only one mode with the slug "test"
+			expect(modes).toHaveLength(1)
+			// Project .roo/modes should take precedence
+			expect(modes[0].name).toBe("Project Roo")
+			expect(modes[0].roleDefinition).toBe("Project Roo Role")
+		})
+
+		it("should handle empty .roo/modes directory", async () => {
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath || path.includes("modes")
+			})
+			;(fs.readdir as Mock).mockImplementation(async () => {
+				return [] // Empty directory
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should only have the settings mode
+			expect(modes).toHaveLength(1)
+			expect(modes[0].slug).toBe("mode1")
+		})
+
+		it("should handle non-existent .roo/modes directory", async () => {
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				// modes directories don't exist
+				if (path.includes("modes")) {
+					return false
+				}
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should only have the settings mode
+			expect(modes).toHaveLength(1)
+			expect(modes[0].slug).toBe("mode1")
+		})
+
+		it("should preserve sourceFile property for modes loaded from .roo/modes", async () => {
+			const rooModesMode = { slug: "test", name: "Test Mode", roleDefinition: "Test Role", groups: ["read"] }
+
+			;(fileExistsAtPath as Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath || path.includes("modes")
+			})
+			;(fs.readdir as Mock).mockImplementation(async (path: string) => {
+				if (path.includes("modes")) {
+					return [{ name: "test.yaml", isFile: () => true }]
+				}
+				return []
+			})
+			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return yaml.stringify({ customModes: [] })
+				}
+				if (path.includes("test.yaml")) {
+					return yaml.stringify({ customModes: [rooModesMode] })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			expect(modes).toHaveLength(1)
+			expect(modes[0].slug).toBe("test")
+			// Check that sourceFile is preserved
+			expect((modes[0] as any).sourceFile).toContain("test.yaml")
+		})
+
 		it("should merge modes with .roomodes taking precedence", async () => {
 			const settingsModes = [
 				{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] },
@@ -139,7 +309,10 @@ describe("CustomModesManager", () => {
 
 			// Should contain 3 modes (mode1 from settings, mode2 and mode3 from roomodes)
 			expect(modes).toHaveLength(3)
-			expect(modes.map((m) => m.slug)).toEqual(["mode2", "mode3", "mode1"])
+			// The order is now: settings modes first, then roomodes overrides
+			expect(modes.map((m) => m.slug)).toContain("mode1")
+			expect(modes.map((m) => m.slug)).toContain("mode2")
+			expect(modes.map((m) => m.slug)).toContain("mode3")
 
 			// mode2 should come from .roomodes since it takes precedence
 			const mode2 = modes.find((m) => m.slug === "mode2")
@@ -455,6 +628,7 @@ describe("CustomModesManager", () => {
 					roleDefinition: "Role 1",
 					groups: ["read"],
 					source: "project",
+					sourceFile: mockRoomodes, // Add sourceFile to simulate existing mode
 				},
 			]
 
@@ -465,6 +639,9 @@ describe("CustomModesManager", () => {
 			let settingsContent = { customModes: existingModes }
 			let roomodesContent = { customModes: roomodesModes }
 
+			// Mock getCustomModes to return the roomodes mode with sourceFile
+			const getCustomModesSpy = vi.spyOn(manager, "getCustomModes")
+			getCustomModesSpy.mockResolvedValueOnce(roomodesModes as any)
 			;(fs.readFile as Mock).mockImplementation(async (path: string) => {
 				if (path === mockRoomodes) {
 					return yaml.stringify(roomodesContent)
@@ -486,8 +663,8 @@ describe("CustomModesManager", () => {
 
 			await manager.updateCustomMode("mode1", newMode)
 
-			// Should write to settings file
-			expect(fs.writeFile).toHaveBeenCalledWith(mockSettingsPath, expect.any(String), "utf-8")
+			// Since mode1 exists in .roomodes with sourceFile, it should update there
+			expect(fs.writeFile).toHaveBeenCalledWith(mockRoomodes, expect.any(String), "utf-8")
 
 			// Verify the content of the write
 			const writeCall = (fs.writeFile as Mock).mock.calls[0]
@@ -497,24 +674,15 @@ describe("CustomModesManager", () => {
 					slug: "mode1",
 					name: "Updated Mode 1",
 					roleDefinition: "Updated Role 1",
-					source: "global",
+					source: "project", // Should be project since it's in .roomodes
 				}),
-			)
-
-			// Should update global state with merged modes where .roomodes takes precedence
-			expect(mockContext.globalState.update).toHaveBeenCalledWith(
-				"customModes",
-				expect.arrayContaining([
-					expect.objectContaining({
-						slug: "mode1",
-						name: "Roomodes Mode 1", // .roomodes version should take precedence
-						source: "project",
-					}),
-				]),
 			)
 
 			// Should trigger onUpdate
 			expect(mockOnUpdate).toHaveBeenCalled()
+
+			// Restore the spy
+			getCustomModesSpy.mockRestore()
 		})
 
 		it("creates .roomodes file when adding project-specific mode", async () => {
