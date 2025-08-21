@@ -105,8 +105,11 @@ const App = () => {
 
 	const switchTab = useCallback(
 		(newTab: Tab) => {
-			// Check MDM compliance before allowing tab switching
+			// Only check MDM compliance if mdmCompliant is explicitly false (meaning there's an MDM policy and user is non-compliant)
+			// If mdmCompliant is undefined or true, allow tab switching
 			if (mdmCompliant === false && newTab !== "account") {
+				// Notify the user that authentication is required by their organization
+				vscode.postMessage({ type: "showMdmAuthRequiredNotification" })
 				return
 			}
 

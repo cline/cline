@@ -191,6 +191,9 @@
 			"cloud_auth_required": "Deine Organisation erfordert eine Roo Code Cloud-Authentifizierung. Bitte melde dich an, um fortzufahren.",
 			"organization_mismatch": "Du musst mit dem Roo Code Cloud-Konto deiner Organisation authentifiziert sein.",
 			"verification_failed": "Die Organisationsauthentifizierung konnte nicht verifiziert werden."
+		},
+		"info": {
+			"organization_requires_auth": "Deine Organisation erfordert eine Authentifizierung."
 		}
 	},
 	"prompts": {

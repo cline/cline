@@ -180,6 +180,9 @@
 			"cloud_auth_required": "Your organization requires Roo Code Cloud authentication. Please sign in to continue.",
 			"organization_mismatch": "You must be authenticated with your organization's Roo Code Cloud account.",
 			"verification_failed": "Unable to verify organization authentication."
+		},
+		"info": {
+			"organization_requires_auth": "Your organization requires authentication."
 		}
 	},
 	"prompts": {

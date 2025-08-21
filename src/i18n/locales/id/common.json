@@ -191,6 +191,9 @@
 			"cloud_auth_required": "Organisasi kamu memerlukan autentikasi Roo Code Cloud. Silakan masuk untuk melanjutkan.",
 			"organization_mismatch": "Kamu harus diautentikasi dengan akun Roo Code Cloud organisasi kamu.",
 			"verification_failed": "Tidak dapat memverifikasi autentikasi organisasi."
+		},
+		"info": {
+			"organization_requires_auth": "Organisasi kamu memerlukan autentikasi."
 		}
 	},
 	"prompts": {

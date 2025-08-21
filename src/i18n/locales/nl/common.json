@@ -191,6 +191,9 @@
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",
 			"organization_mismatch": "Je moet geauthenticeerd zijn met het Roo Code Cloud-account van je organisatie.",
 			"verification_failed": "Kan organisatie-authenticatie niet verifiëren."
+		},
+		"info": {
+			"organization_requires_auth": "Je organisatie vereist authenticatie."
 		}
 	},
 	"prompts": {
