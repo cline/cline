@@ -143,6 +143,12 @@ export async function createOpenRouterStream(
 			temperature = 0.7
 			topP = 0.95
 			break
+		default:
+			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
+				temperature = undefined // extended thinking does not support non-1 temperature
+				reasoning = { max_tokens: thinkingBudgetTokens }
+				break
+			}
 	}
 
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
