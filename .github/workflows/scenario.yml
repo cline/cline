@@ -24,6 +24,8 @@ jobs:
 
     validate-scenario:
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@v4
             - name: Validate PR-specific scenario metadata
@@ -122,6 +124,7 @@ jobs:
 
     scenario-summary:
         needs: scenarios
+        permissions: {}
         runs-on: ubuntu-latest
         if: always()
         steps:
