@@ -114,7 +114,11 @@ describe("GroqHandler", () => {
 	it("createMessage should pass correct parameters to Groq client", async () => {
 		const modelId: GroqModelId = "llama-3.1-8b-instant"
 		const modelInfo = groqModels[modelId]
-		const handlerWithModel = new GroqHandler({ apiModelId: modelId, groqApiKey: "test-groq-api-key" })
+		const handlerWithModel = new GroqHandler({
+			apiModelId: modelId,
+			groqApiKey: "test-groq-api-key",
+			modelTemperature: 0.5, // Explicitly set temperature for this test
+		})
 
 		mockCreate.mockImplementationOnce(() => {
 			return {
@@ -140,6 +144,77 @@ describe("GroqHandler", () => {
 				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
 				stream: true,
 				stream_options: { include_usage: true },
+			}),
+		)
+	})
+
+	it("should omit temperature when modelTemperature is undefined", async () => {
+		const modelId: GroqModelId = "llama-3.1-8b-instant"
+		const handlerWithoutTemp = new GroqHandler({
+			apiModelId: modelId,
+			groqApiKey: "test-groq-api-key",
+			// modelTemperature is not set
+		})
+
+		mockCreate.mockImplementationOnce(() => {
+			return {
+				[Symbol.asyncIterator]: () => ({
+					async next() {
+						return { done: true }
+					},
+				}),
+			}
+		})
+
+		const systemPrompt = "Test system prompt"
+		const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Test message" }]
+
+		const messageGenerator = handlerWithoutTemp.createMessage(systemPrompt, messages)
+		await messageGenerator.next()
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: modelId,
+				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
+				stream: true,
+			}),
+		)
+
+		// Verify temperature is NOT included
+		const callArgs = mockCreate.mock.calls[0][0]
+		expect(callArgs).not.toHaveProperty("temperature")
+	})
+
+	it("should include temperature when modelTemperature is explicitly set", async () => {
+		const modelId: GroqModelId = "llama-3.1-8b-instant"
+		const handlerWithTemp = new GroqHandler({
+			apiModelId: modelId,
+			groqApiKey: "test-groq-api-key",
+			modelTemperature: 0.7,
+		})
+
+		mockCreate.mockImplementationOnce(() => {
+			return {
+				[Symbol.asyncIterator]: () => ({
+					async next() {
+						return { done: true }
+					},
+				}),
+			}
+		})
+
+		const systemPrompt = "Test system prompt"
+		const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Test message" }]
+
+		const messageGenerator = handlerWithTemp.createMessage(systemPrompt, messages)
+		await messageGenerator.next()
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: modelId,
+				temperature: 0.7,
+				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
+				stream: true,
 			}),
 		)
 	})
