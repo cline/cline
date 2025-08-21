@@ -1,4 +1,4 @@
-import { McpHub } from "@services/mcp/McpHub"
+import type { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { getShell } from "@utils/shell"

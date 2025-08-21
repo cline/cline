@@ -1,7 +1,7 @@
 import type { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useEffectOnce, useInterval } from "react-use"
+import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -54,13 +54,10 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[apiConfiguration?.lmStudioBaseUrl],
 	)
 
-	const toggleCompactPrompt = useCallback(
-		(isChecked: boolean) => {
-			setIsCompactPromptEnabled(isChecked)
-			updateSetting("customPrompt", isChecked ? "compact" : "")
-		},
-		[handleFieldChange],
-	)
+	const toggleCompactPrompt = useCallback((isChecked: boolean) => {
+		setIsCompactPromptEnabled(isChecked)
+		updateSetting("customPrompt", isChecked ? "compact" : "")
+	}, [])
 
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {

@@ -24,6 +24,7 @@ export class LmStudioHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				this.client = new OpenAI({
+					// Docs on the new v0 api endpoint: https://lmstudio.ai/docs/app/api/endpoints/rest
 					baseURL: new URL("api/v0", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
 					apiKey: "noop",
 				})
