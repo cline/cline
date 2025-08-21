@@ -87,6 +87,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const {
 		clineMessages: messages,
 		currentTaskItem,
+		currentTaskTodos,
 		taskHistory,
 		apiConfiguration,
 		organizationAllowList,
@@ -144,8 +145,20 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const task = useMemo(() => messages.at(0), [messages])
 
 	const latestTodos = useMemo(() => {
+		// First check if we have initial todos from the state (for new subtasks)
+		if (currentTaskTodos && currentTaskTodos.length > 0) {
+			// Check if there are any todo updates in messages
+			const messageBasedTodos = getLatestTodo(messages)
+			// If there are message-based todos, they take precedence (user has updated them)
+			if (messageBasedTodos && messageBasedTodos.length > 0) {
+				return messageBasedTodos
+			}
+			// Otherwise use the initial todos from state
+			return currentTaskTodos
+		}
+		// Fall back to extracting from messages
 		return getLatestTodo(messages)
-	}, [messages])
+	}, [messages, currentTaskTodos])
 
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
 

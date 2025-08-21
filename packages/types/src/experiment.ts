@@ -6,7 +6,12 @@ import type { Keys, Equals, AssertEqual } from "./type-fu.js"
  * ExperimentId
  */
 
-export const experimentIds = ["powerSteering", "multiFileApplyDiff", "preventFocusDisruption", "assistantMessageParser"] as const
+export const experimentIds = [
+	"powerSteering",
+	"multiFileApplyDiff",
+	"preventFocusDisruption",
+	"assistantMessageParser",
+] as const
 
 export const experimentIdsSchema = z.enum(experimentIds)
 

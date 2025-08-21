@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "새 메시지 파서 사용",
 			"description": "실험적 스트리밍 메시지 파서를 활성화합니다. 긴 응답을 더 효율적으로 처리해 지연을 줄입니다."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "새 작업에 'todos' 목록 필요",
+			"description": "활성화하면 new_task 도구에 todos 매개변수를 제공해야 합니다. 이렇게 하면 모든 새 작업이 명확한 목표 목록으로 시작됩니다. 비활성화하면(기본값) 이전 버전과의 호환성을 위해 todos 매개변수는 선택 사항으로 유지됩니다."
 		}
 	},
 	"promptCaching": {

@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Yeni mesaj ayrıştırıcıyı kullan",
 			"description": "Uzun yanıtları daha verimli işleyerek hızlandıran deneysel akış mesaj ayrıştırıcısını etkinleştir."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Yeni görevler için 'todos' listesi gerektir",
+			"description": "Etkinleştirildiğinde, new_task aracı bir todos parametresi sağlanmasını gerektirir. Bu, tüm yeni görevlerin net bir hedef listesiyle başlamasını sağlar. Devre dışı bırakıldığında (varsayılan), todos parametresi geriye dönük uyumluluk için isteğe bağlı kalır."
 		}
 	},
 	"promptCaching": {

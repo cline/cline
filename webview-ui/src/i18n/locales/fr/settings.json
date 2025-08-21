@@ -719,6 +719,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Utiliser le nouveau parseur de messages",
 			"description": "Active le parseur de messages en streaming expérimental qui accélère nettement les longues réponses en traitant les messages plus efficacement."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Exiger la liste 'todos' pour les nouvelles tâches",
+			"description": "Lorsqu'il est activé, l'outil new_task exigera qu'un paramètre todos soit fourni. Cela garantit que toutes les nouvelles tâches commencent avec une liste claire d'objectifs. Lorsqu'il est désactivé (par défaut), le paramètre todos reste facultatif pour la compatibilité descendante."
 		}
 	},
 	"promptCaching": {

@@ -757,7 +757,12 @@ export class ClineProvider
 		options: Partial<
 			Pick<
 				TaskOptions,
-				"enableDiff" | "enableCheckpoints" | "fuzzyMatchThreshold" | "consecutiveMistakeLimit" | "experiments"
+				| "enableDiff"
+				| "enableCheckpoints"
+				| "fuzzyMatchThreshold"
+				| "consecutiveMistakeLimit"
+				| "experiments"
+				| "initialTodos"
 			>
 		> = {},
 	) {
@@ -791,6 +796,7 @@ export class ClineProvider
 			taskNumber: this.clineStack.length + 1,
 			onCreated: this.taskCreationCallback,
 			enableTaskBridge: isRemoteControlEnabled(cloudUserInfo, remoteControlEnabled),
+			initialTodos: options.initialTodos,
 			...options,
 		})
 
@@ -1791,6 +1797,7 @@ export class ClineProvider
 				? (taskHistory || []).find((item: HistoryItem) => item.id === this.getCurrentTask()?.taskId)
 				: undefined,
 			clineMessages: this.getCurrentTask()?.clineMessages || [],
+			currentTaskTodos: this.getCurrentTask()?.todoList || [],
 			taskHistory: (taskHistory || [])
 				.filter((item: HistoryItem) => item.ts && item.task)
 				.sort((a: HistoryItem, b: HistoryItem) => b.ts - a.ts),

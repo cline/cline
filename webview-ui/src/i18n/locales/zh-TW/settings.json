@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "使用全新訊息解析器",
 			"description": "啟用實驗性的串流訊息解析器。透過更有效率地處理訊息，能顯著提升長回覆的效能。"
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "要求新工作提供 'todos' 列表",
+			"description": "啟用後，new_task 工具將需要提供 todos 參數。這可以確保所有新工作都以明確的目標列表開始。停用時（預設），todos 參數保持可選，以實現向後相容。"
 		}
 	},
 	"promptCaching": {

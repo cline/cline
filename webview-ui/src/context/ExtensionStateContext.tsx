@@ -6,6 +6,7 @@ import {
 	type CustomModePrompts,
 	type ModeConfig,
 	type ExperimentId,
+	type TodoItem,
 } from "@roo-code/types"
 
 import { type OrganizationAllowList, ORGANIZATION_ALLOW_ALL } from "@roo/cloud"
@@ -31,6 +32,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	hasSystemPromptOverride?: boolean
 	currentCheckpoint?: string
+	currentTaskTodos?: TodoItem[] // Initial todos for the current task
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
 	commands: Command[]

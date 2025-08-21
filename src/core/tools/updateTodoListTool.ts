@@ -100,7 +100,7 @@ function normalizeStatus(status: string | undefined): TodoStatus {
 	return "pending"
 }
 
-function parseMarkdownChecklist(md: string): TodoItem[] {
+export function parseMarkdownChecklist(md: string): TodoItem[] {
 	if (typeof md !== "string") return []
 	const lines = md
 		.split(/\r?\n/)

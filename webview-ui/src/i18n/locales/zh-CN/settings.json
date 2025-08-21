@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "使用新的消息解析器",
 			"description": "启用实验性的流式消息解析器。通过更高效地处理消息，可显著提升长回复的性能。"
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "要求新任务提供 'todos' 列表",
+			"description": "启用后，new_task 工具将需要提供 todos 参数。这可以确保所有新任务都以明确的目标列表开始。禁用时（默认），todos 参数保持可选，以实现向后兼容。"
 		}
 	},
 	"promptCaching": {

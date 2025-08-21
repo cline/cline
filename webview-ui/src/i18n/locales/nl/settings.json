@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Nieuwe berichtparser gebruiken",
 			"description": "Schakel de experimentele streaming-berichtparser in die lange antwoorden sneller maakt door berichten efficiënter te verwerken."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "'todos'-lijst vereisen voor nieuwe taken",
+			"description": "Wanneer ingeschakeld, vereist de new_task-tool dat een todos-parameter wordt opgegeven. Dit zorgt ervoor dat alle nieuwe taken beginnen met een duidelijke lijst met doelstellingen. Wanneer uitgeschakeld (standaard), blijft de todos-parameter optioneel voor achterwaartse compatibiliteit."
 		}
 	},
 	"promptCaching": {

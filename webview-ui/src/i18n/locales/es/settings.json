@@ -719,6 +719,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Usar el nuevo analizador de mensajes",
 			"description": "Activa el analizador de mensajes en streaming experimental que mejora el rendimiento en respuestas largas procesando los mensajes de forma más eficiente."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Requerir lista de 'todos' para nuevas tareas",
+			"description": "Cuando está habilitado, la herramienta new_task requerirá que se proporcione un parámetro todos. Esto asegura que todas las nuevas tareas comiencen con una lista clara de objetivos. Cuando está deshabilitado (predeterminado), el parámetro todos permanece opcional por compatibilidad con versiones anteriores."
 		}
 	},
 	"promptCaching": {

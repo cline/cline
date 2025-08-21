@@ -720,6 +720,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Dùng bộ phân tích tin nhắn mới",
 			"description": "Bật bộ phân tích tin nhắn streaming thử nghiệm. Tính năng này tăng tốc phản hồi dài bằng cách xử lý tin nhắn hiệu quả hơn."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Yêu cầu danh sách 'todos' cho các nhiệm vụ mới",
+			"description": "Khi được bật, công cụ new_task sẽ yêu cầu cung cấp tham số todos. Điều này đảm bảo tất cả các nhiệm vụ mới bắt đầu với một danh sách mục tiêu rõ ràng. Khi bị tắt (mặc định), tham số todos vẫn là tùy chọn để tương thích ngược."
 		}
 	},
 	"promptCaching": {

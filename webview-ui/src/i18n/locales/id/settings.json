@@ -749,6 +749,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Gunakan parser pesan baru",
 			"description": "Aktifkan parser pesan streaming eksperimental yang meningkatkan kinerja untuk respons panjang dengan memproses pesan lebih efisien."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Membutuhkan daftar 'todos' untuk tugas baru",
+			"description": "Ketika diaktifkan, alat new_task akan membutuhkan parameter todos untuk disediakan. Ini memastikan semua tugas baru dimulai dengan daftar tujuan yang jelas. Ketika dinonaktifkan (default), parameter todos tetap opsional untuk kompatibilitas mundur."
 		}
 	},
 	"promptCaching": {

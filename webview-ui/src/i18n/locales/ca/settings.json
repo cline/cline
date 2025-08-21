@@ -719,6 +719,10 @@
 		"ASSISTANT_MESSAGE_PARSER": {
 			"name": "Utilitza el nou analitzador de missatges",
 			"description": "Activa l'analitzador de missatges en streaming experimental que millora el rendiment en respostes llargues processant els missatges de manera més eficient."
+		},
+		"NEW_TASK_REQUIRE_TODOS": {
+			"name": "Requerir la llista 'todos' per a noves tasques",
+			"description": "Quan estigui activat, l'eina new_task requerirà que es proporcioni un paràmetre 'todos'. Això garanteix que totes les noves tasques comencin amb una llista clara d'objectius. Quan estigui desactivat (per defecte), el paràmetre 'todos' continua sent opcional per a la compatibilitat amb versions anteriors."
 		}
 	},
 	"promptCaching": {
