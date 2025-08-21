@@ -1,9 +1,13 @@
 # Changelog
 
-## 3.26.2
+## [3.26.2]
 
-- 96198c8: Reasoning budget is now configurable for all supported models from OpenRouter.
-- d594368: add \*.go files to deep-planning prompt
+- Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
+- Fix OpenRouter context window error handling to properly extract error codes from error messages, resolving "Unexpected API Response" errors with GPT-5 on Cline provider
+- Fix GPT-5 context window configuration for OpenAI/OpenRouter/Cline providers to use correct 272K limit
+- Remove max tokens configuration from Sonic Alpha model
+- Add Go language support to deep-planning feature (Thanks @yuvalman!)
+- Fix typo in Focus Chain settings page (Thanks @joyceerhl!)
 
 ## [3.26.1]
 
