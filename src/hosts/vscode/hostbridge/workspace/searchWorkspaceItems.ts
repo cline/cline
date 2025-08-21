@@ -1,11 +1,11 @@
-import { basename } from "path"
 import * as vscode from "vscode"
-import { searchWorkspaceFiles } from "@/services/search/file-search"
+import { basename } from "path"
 import {
 	SearchWorkspaceItemsRequest,
-	SearchWorkspaceItemsRequest_SearchItemType,
 	SearchWorkspaceItemsResponse,
+	SearchWorkspaceItemsRequest_SearchItemType,
 } from "@/shared/proto/index.host"
+import { searchWorkspaceFiles } from "@/services/search/file-search"
 
 export async function searchWorkspaceItems(request: SearchWorkspaceItemsRequest): Promise<SearchWorkspaceItemsResponse> {
 	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -13,7 +13,7 @@ export async function searchWorkspaceItems(request: SearchWorkspaceItemsRequest)
 		return SearchWorkspaceItemsResponse.create({ items: [] })
 	}
 
-	let selectedTypeString: "file" | "folder" | undefined
+	let selectedTypeString: "file" | "folder" | undefined = undefined
 	if (request.selectedType === SearchWorkspaceItemsRequest_SearchItemType.FILE) {
 		selectedTypeString = "file"
 	} else if (request.selectedType === SearchWorkspaceItemsRequest_SearchItemType.FOLDER) {
