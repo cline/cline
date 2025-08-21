@@ -1,8 +1,8 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from "react"
-import { useEvent } from "react-use"
-import debounce from "debounce"
-import { VirtuosoHandle } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import debounce from "debounce"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEvent } from "react-use"
+import { VirtuosoHandle } from "react-virtuoso"
 import { ScrollBehavior } from "../types/chatTypes"
 
 /**

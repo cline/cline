@@ -1,7 +1,7 @@
-import * as vscode from "vscode"
-import * as path from "path"
 import * as fs from "fs/promises"
 import { convertTheme } from "monaco-vscode-textmate-theme-converter/lib/cjs"
+import * as path from "path"
+import * as vscode from "vscode"
 
 const defaultThemes: Record<string, string> = {
 	"Default Dark Modern": "dark_modern",
@@ -30,8 +30,8 @@ function parseThemeString(themeString: string | undefined): any {
 	return JSON.parse(themeString ?? "{}")
 }
 
-export async function getTheme() {
-	let currentTheme = undefined
+export async function getTheme(context: vscode.ExtensionContext) {
+	let currentTheme: string | undefined
 	const colorTheme = vscode.workspace.getConfiguration("workbench").get<string>("colorTheme") || "Default Dark Modern"
 
 	try {
@@ -54,7 +54,7 @@ export async function getTheme() {
 		if (currentTheme === undefined && defaultThemes[colorTheme]) {
 			const filename = `${defaultThemes[colorTheme]}.json`
 			currentTheme = await fs.readFile(
-				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", filename),
+				path.join(context.extensionUri.fsPath, "src", "integrations", "theme", "default-themes", filename),
 				"utf-8",
 			)
 		}
@@ -64,7 +64,7 @@ export async function getTheme() {
 
 		if (parsed.include) {
 			const includeThemeString = await fs.readFile(
-				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", parsed.include),
+				path.join(context.extensionUri.fsPath, "src", "integrations", "theme", "default-themes", parsed.include),
 				"utf-8",
 			)
 			const includeTheme = parseThemeString(includeThemeString)
@@ -134,8 +134,4 @@ export function mergeJson(
 			...second,
 		}
 	}
-}
-
-function getExtensionUri(): vscode.Uri {
-	return vscode.extensions.getExtension("saoudrizwan.claude-dev")!.extensionUri
 }

@@ -1,12 +1,12 @@
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { Int64Request } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckpointOverlayProps {
 	messageTs?: number
@@ -121,10 +121,8 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	return (
 		<CheckpointControls onMouseLeave={handleControlsMouseLeave}>
 			<VSCodeButton
-				title="Compare"
 				appearance="secondary"
 				disabled={compareDisabled}
-				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
 				onClick={async () => {
 					setCompareDisabled(true)
 					try {
@@ -138,23 +136,25 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 					} finally {
 						setCompareDisabled(false)
 					}
-				}}>
+				}}
+				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
+				title="Compare">
 				<i className="codicon codicon-diff-multiple" style={{ position: "absolute" }} />
 			</VSCodeButton>
-			<div style={{ position: "relative" }} ref={containerRef}>
+			<div ref={containerRef} style={{ position: "relative" }}>
 				<VSCodeButton
-					title="Restore"
 					appearance="secondary"
+					onClick={() => setShowRestoreConfirm(true)}
 					style={{ cursor: "pointer" }}
-					onClick={() => setShowRestoreConfirm(true)}>
+					title="Restore">
 					<i className="codicon codicon-discard" style={{ position: "absolute" }} />
 				</VSCodeButton>
 				{showRestoreConfirm && (
-					<RestoreConfirmTooltip ref={tooltipRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+					<RestoreConfirmTooltip onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} ref={tooltipRef}>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreBoth}
 								disabled={restoreBothDisabled}
+								onClick={handleRestoreBoth}
 								style={{
 									cursor: restoreBothDisabled ? "wait" : "pointer",
 								}}>
@@ -164,8 +164,8 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreTask}
 								disabled={restoreTaskDisabled}
+								onClick={handleRestoreTask}
 								style={{
 									cursor: restoreTaskDisabled ? "wait" : "pointer",
 								}}>
@@ -175,8 +175,8 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreWorkspace}
 								disabled={restoreWorkspaceDisabled}
+								onClick={handleRestoreWorkspace}
 								style={{
 									cursor: restoreWorkspaceDisabled ? "wait" : "pointer",
 								}}>

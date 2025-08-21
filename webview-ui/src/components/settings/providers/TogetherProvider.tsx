@@ -1,9 +1,10 @@
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
 /**
  * Props for the TogetherProvider component
  */
@@ -34,8 +35,8 @@ export const TogetherProvider = ({ showModelOptions, isPopup, currentMode }: Tog
 				onChange={(value) =>
 					handleModeFieldChange({ plan: "planModeTogetherModelId", act: "actModeTogetherModelId" }, value, currentMode)
 				}
-				style={{ width: "100%" }}
-				placeholder={"Enter Model ID..."}>
+				placeholder={"Enter Model ID..."}
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</DebouncedTextField>
 			<p

@@ -1,18 +1,17 @@
-import { Controller } from ".."
+import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
-	UpdateSettingsRequest,
-	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	McpDisplayMode as ProtoMcpDisplayMode,
+	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
+	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
-import { buildApiHandler } from "../../../api"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { OpenaiReasoningEffort } from "@/shared/storage/types"
+import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { Controller } from ".."
 
 /**
  * Updates multiple extension settings in a single request
@@ -138,6 +137,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		// Update auto-condense setting
+		if (request.useAutoCondense !== undefined) {
+			if (controller.task) {
+				controller.task.updateUseAutoCondense(request.useAutoCondense)
+			}
+			controller.cacheService.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
 
 		// Update focus chain settings

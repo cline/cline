@@ -1,11 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useMemo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 import { getModeSpecificFields } from "./utils/providerUtils"
-import { Mode } from "@shared/storage/types"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
@@ -151,23 +151,23 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 						</Label>
 					</LabelContainer>
 					<RangeInput
+						$max={maxSliderValue}
+						$min={DEFAULT_MIN_VALID_TOKENS}
+						$value={localValue}
+						aria-describedby="thinking-budget-description"
+						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-valuemax={maxSliderValue}
+						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
+						aria-valuenow={localValue}
 						id="thinking-budget-slider"
-						type="range"
-						min={DEFAULT_MIN_VALID_TOKENS}
 						max={maxSliderValue}
-						step={1}
-						value={localValue}
+						min={DEFAULT_MIN_VALID_TOKENS}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
-						$value={localValue}
-						$min={DEFAULT_MIN_VALID_TOKENS}
-						$max={maxSliderValue}
-						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
-						aria-valuemax={maxSliderValue}
-						aria-valuenow={localValue}
-						aria-describedby="thinking-budget-description"
+						step={1}
+						type="range"
+						value={localValue}
 					/>
 
 					<Description id="thinking-budget-description">

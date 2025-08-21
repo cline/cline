@@ -1,13 +1,13 @@
-import * as vscode from "vscode"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
+import { fileExistsAtPath } from "@utils/fs"
+import * as cheerio from "cheerio"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, launch } from "puppeteer-core"
-import * as cheerio from "cheerio"
-import TurndownService from "turndown"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import { fileExistsAtPath } from "@utils/fs"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
+import { Browser, launch, Page } from "puppeteer-core"
+import TurndownService from "turndown"
+import * as vscode from "vscode"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }

@@ -36,77 +36,70 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 					</div>
 				) : (
 					<>
-						{activeTab === "usage" && (
-							<>
-								{usageData.length > 0 ? (
-									<VSCodeDataGrid>
-										<VSCodeDataGridRow row-type="header">
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
-												Date
-											</VSCodeDataGridCell>
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
-												Model
-											</VSCodeDataGridCell>
-											{/* <VSCodeDataGridCell cell-type="columnheader" grid-column="3">
+						{activeTab === "usage" &&
+							(usageData.length > 0 ? (
+								<VSCodeDataGrid>
+									<VSCodeDataGridRow row-type="header">
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
+											Date
+										</VSCodeDataGridCell>
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
+											Model
+										</VSCodeDataGridCell>
+										{/* <VSCodeDataGridCell cell-type="columnheader" grid-column="3">
 												Tokens Used
 											</VSCodeDataGridCell> */}
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
-												Credits Used
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
+											Credits Used
+										</VSCodeDataGridCell>
+									</VSCodeDataGridRow>
+
+									{usageData.map((row, index) => (
+										<VSCodeDataGridRow key={index}>
+											<VSCodeDataGridCell grid-column="1">
+												{formatTimestamp(row.createdAt)}
 											</VSCodeDataGridCell>
+											<VSCodeDataGridCell grid-column="2">{`${row.aiModelName}`}</VSCodeDataGridCell>
+											{/* <VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell> */}
+											<VSCodeDataGridCell grid-column="3">{`$${Number(row.creditsUsed / 1000000).toFixed(4)}`}</VSCodeDataGridCell>
 										</VSCodeDataGridRow>
+									))}
+								</VSCodeDataGrid>
+							) : (
+								<div className="flex justify-center items-center p-4">
+									<div className="text-[var(--vscode-descriptionForeground)]">No usage history</div>
+								</div>
+							))}
 
-										{usageData.map((row, index) => (
-											<VSCodeDataGridRow key={index}>
-												<VSCodeDataGridCell grid-column="1">
-													{formatTimestamp(row.createdAt)}
-												</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{`${row.aiModelName}`}</VSCodeDataGridCell>
-												{/* <VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell> */}
-												<VSCodeDataGridCell grid-column="3">{`$${Number(row.creditsUsed / 1000000).toFixed(4)}`}</VSCodeDataGridCell>
-											</VSCodeDataGridRow>
-										))}
-									</VSCodeDataGrid>
-								) : (
-									<div className="flex justify-center items-center p-4">
-										<div className="text-[var(--vscode-descriptionForeground)]">No usage history</div>
-									</div>
-								)}
-							</>
-						)}
+						{showPayments &&
+							activeTab === "payments" &&
+							(paymentsData.length > 0 ? (
+								<VSCodeDataGrid>
+									<VSCodeDataGridRow row-type="header">
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
+											Date
+										</VSCodeDataGridCell>
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
+											Total Cost
+										</VSCodeDataGridCell>
+										<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
+											Credits
+										</VSCodeDataGridCell>
+									</VSCodeDataGridRow>
 
-						{showPayments && activeTab === "payments" && (
-							<>
-								{paymentsData.length > 0 ? (
-									<VSCodeDataGrid>
-										<VSCodeDataGridRow row-type="header">
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
-												Date
-											</VSCodeDataGridCell>
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
-												Total Cost
-											</VSCodeDataGridCell>
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
-												Credits
-											</VSCodeDataGridCell>
+									{paymentsData.map((row, index) => (
+										<VSCodeDataGridRow key={index}>
+											<VSCodeDataGridCell grid-column="1">{formatTimestamp(row.paidAt)}</VSCodeDataGridCell>
+											<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
+											<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>
 										</VSCodeDataGridRow>
-
-										{paymentsData.map((row, index) => (
-											<VSCodeDataGridRow key={index}>
-												<VSCodeDataGridCell grid-column="1">
-													{formatTimestamp(row.paidAt)}
-												</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>
-											</VSCodeDataGridRow>
-										))}
-									</VSCodeDataGrid>
-								) : (
-									<div className="flex justify-center items-center p-4">
-										<div className="text-[var(--vscode-descriptionForeground)]">No payment history</div>
-									</div>
-								)}
-							</>
-						)}
+									))}
+								</VSCodeDataGrid>
+							) : (
+								<div className="flex justify-center items-center p-4">
+									<div className="text-[var(--vscode-descriptionForeground)]">No payment history</div>
+								</div>
+							))}
 					</>
 				)}
 			</div>

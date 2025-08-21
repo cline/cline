@@ -100,7 +100,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 
 	${(props) =>
 		Object.keys(props.theme)
-			.map((key, index) => {
+			.map((key, _index) => {
 				return `
       & ${key} {
         color: ${props.theme[key]};

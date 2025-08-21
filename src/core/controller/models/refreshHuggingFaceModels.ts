@@ -1,12 +1,11 @@
-import { Controller } from ".."
+import { huggingFaceModels } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { huggingFaceModels } from "@shared/api"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { Controller } from ".."
 
 /**
  * Ensures the cache directory exists and returns its path
@@ -15,7 +14,7 @@ async function ensureCacheDirectoryExists(controller: Controller): Promise<strin
 	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
 	try {
 		await fs.mkdir(cacheDir, { recursive: true })
-	} catch (error) {
+	} catch (_error) {
 		// Directory might already exist
 	}
 	return cacheDir

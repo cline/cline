@@ -1,8 +1,8 @@
-import { Controller } from "../index"
-import { CommandContext, Empty } from "@/shared/proto/index.cline"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { getFileMentionFromPath } from "@/core/mentions"
 import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { CommandContext, Empty } from "@/shared/proto/index.cline"
+import { Controller } from "../index"
 
 export async function fixWithCline(controller: Controller, request: CommandContext): Promise<Empty> {
 	const filePath = request.filePath || ""

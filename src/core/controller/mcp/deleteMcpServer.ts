@@ -1,7 +1,7 @@
-import type { Controller } from "../index"
+import { StringRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
-import { StringRequest } from "@shared/proto/cline/common"
+import type { Controller } from "../index"
 
 /**
  * Deletes an MCP server
