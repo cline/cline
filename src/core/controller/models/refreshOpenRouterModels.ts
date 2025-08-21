@@ -122,6 +122,7 @@ export async function refreshOpenRouterModels(
 					case "openai/gpt-5-mini":
 					case "openai/gpt-5-nano":
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
+						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
