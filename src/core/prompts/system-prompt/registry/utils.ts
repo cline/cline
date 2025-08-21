@@ -23,12 +23,11 @@ function isNextGenModel(modelId: string): boolean {
 /**
  * Extract model family from model ID (e.g., "claude-4" -> "claude")
  */
-export function extractModelFamily(modelId: string): ModelFamily {
+export function getModelFamily(modelId: string): ModelFamily {
 	// Check for next-gen models first
 	if (isNextGenModel(modelId)) {
 		return ModelFamily.NEXT_GEN
 	}
-
 	// // Handle common patterns
 	// if (modelId.startsWith("claude")) {
 	// 	return ModelFamily.CLAUDE;
@@ -39,9 +38,9 @@ export function extractModelFamily(modelId: string): ModelFamily {
 	// if (modelId.startsWith("gemini")) {
 	// 	return ModelFamily.GEMINI;
 	// }
-	// if (modelId.startsWith("qwen")) {
-	// 	return ModelFamily.QWEN;
-	// }
+	if (modelId.includes("qwen")) {
+		return ModelFamily.XS
+	}
 	// if (modelId.includes("anthropic")) {
 	// 	return ModelFamily.CLAUDE;
 	// }

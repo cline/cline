@@ -6,7 +6,7 @@ import type { ClineDefaultTool } from "@/shared/tools"
 import type { SystemPromptSection } from "./templates/placeholders"
 import type { ClineToolSpec } from "./tools/spec"
 
-export interface ToolOverride {
+export interface ConfigOverride {
 	template?: string // Custom template for the tool
 	enabled?: boolean // Whether the tool is enabled
 	order?: number // Override the order of the tool
@@ -18,17 +18,18 @@ export interface PromptVariant {
 	tags: string[] // ["production", "beta", "experimental"]
 	labels: { [key: string]: number } // {"staging": 2, "prod": 1}
 	family: ModelFamily
+	description: string // Brief description of the prompt variant
 
 	// Prompt configuration
 	config: PromptConfig // Model-specific config (temperature, etc.)
 	baseTemplate: string // Main prompt template with placeholders
 	componentOrder: SystemPromptSection[] // Ordered list of components to include
-	componentOverrides: ComponentOverrides // Component-specific customizations
+	componentOverrides: { [K in SystemPromptSection]?: ConfigOverride } // Component-specific customizations
 	placeholders: { [key: string]: string } // Default placeholder values
 
 	// Tool configuration
 	tools?: ClineDefaultTool[] // Ordered list of tools to include (if not specified, all tools are included)
-	toolOverrides?: { [K in ClineDefaultTool]?: ToolOverride } // Tool-specific customizations
+	toolOverrides?: { [K in ClineDefaultTool]?: ConfigOverride } // Tool-specific customizations
 }
 
 export interface PromptConfig {
@@ -36,15 +37,6 @@ export interface PromptConfig {
 	temperature?: number
 	maxTokens?: number
 	tools?: ClineToolSpec[]
-}
-
-export interface ComponentOverrides {
-	[componentId: string]: {
-		template?: string
-		enabled?: boolean
-		order?: number
-		config?: any
-	}
 }
 
 export interface VersionMetadata {
@@ -78,6 +70,3 @@ export type ComponentFunction = (variant: PromptVariant, context: SystemPromptCo
 export interface ComponentRegistry {
 	[componentId: string]: ComponentFunction
 }
-
-// Legacy type alias for backward compatibility
-export type ClinePromptVariant = PromptVariant

@@ -367,8 +367,6 @@ By waiting for and carefully considering the user's response after each tool use
 
 ====
 
-====
-
 EDITING FILES
 
 You have access to two tools for working with files: **write_to_file** and **replace_in_file**. Understanding their roles and selecting the right one for the job will help ensure efficient and accurate modifications.

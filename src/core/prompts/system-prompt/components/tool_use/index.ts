@@ -1,3 +1,4 @@
+import { SystemPromptSection } from "../../templates/placeholders"
 import { TemplateEngine } from "../../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../../types"
 import { getToolUseExamplesSection } from "./examples"
@@ -6,7 +7,7 @@ import { getToolUseGuidelinesSection } from "./guidelines"
 import { getToolUseToolsSection } from "./tools"
 
 export async function getToolUseSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.tool_use?.template || TOOL_USE_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.TOOL_USE]?.template || TOOL_USE_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {

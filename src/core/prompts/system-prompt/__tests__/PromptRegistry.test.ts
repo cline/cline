@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { PromptRegistry } from "../registry/PromptRegistry"
-import { extractModelFamily } from "../registry/utils"
+import { getModelFamily } from "../registry/utils"
 import type { SystemPromptContext } from "../types"
 
 describe("PromptRegistry", () => {
@@ -44,13 +44,13 @@ describe("PromptRegistry", () => {
 		})
 	})
 
-	describe("extractModelFamily", () => {
+	describe("getModelFamily", () => {
 		it("should extract correct model families", () => {
 			const testCases = [
 				{ input: "claude-3-5-sonnet", expected: "generic" },
 				{ input: "gpt-4-turbo", expected: "generic" },
 				{ input: "gemini-pro", expected: "generic" },
-				{ input: "qwen-max", expected: "generic" },
+				{ input: "qwen-max", expected: "xs" },
 				{ input: "anthropic/claude-3", expected: "generic" },
 				{ input: "openai/gpt-4", expected: "generic" },
 				{ input: "google/gemini", expected: "generic" },
@@ -60,7 +60,7 @@ describe("PromptRegistry", () => {
 			]
 
 			for (const { input, expected } of testCases) {
-				const result = extractModelFamily(input)
+				const result = getModelFamily(input)
 				expect(result).to.equal(expected)
 			}
 		})

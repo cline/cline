@@ -30,10 +30,7 @@ export function addUserInstructions(
 		customInstructions += clineIgnoreInstructions
 	}
 
-	return `
-====
-
-USER'S CUSTOM INSTRUCTIONS
+	return `USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 

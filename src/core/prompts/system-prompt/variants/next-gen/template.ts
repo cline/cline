@@ -36,6 +36,8 @@ export const baseTemplate = `You are Cline, a highly skilled software engineer w
 
 {{OBJECTIVE_SECTION}}
 
+====
+
 {{USER_INSTRUCTIONS_SECTION}}`
 
 export const rules_template = `RULES

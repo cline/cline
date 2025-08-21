@@ -4,7 +4,7 @@ import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ClineToolSpec } from "../tools/spec"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
-import { extractModelFamily } from "./utils"
+import { getModelFamily } from "./utils"
 
 // Pre-defined mapping of standard placeholders to avoid runtime object creation
 const STANDARD_PLACEHOLDER_KEYS = Object.values(STANDARD_PLACEHOLDERS)
@@ -62,7 +62,7 @@ export class PromptBuilder {
 		// Add standard system placeholders
 		placeholders[STANDARD_PLACEHOLDERS.CWD] = this.context.cwd || process.cwd()
 		placeholders[STANDARD_PLACEHOLDERS.SUPPORTS_BROWSER] = this.context.supportsBrowserUse || false
-		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = extractModelFamily(this.variant.id)
+		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.variant.id)
 		placeholders[STANDARD_PLACEHOLDERS.CURRENT_DATE] = new Date().toISOString().split("T")[0]
 
 		// Add all component sections
@@ -92,6 +92,8 @@ export class PromptBuilder {
 		return prompt
 			.replace(/\n\s*\n\s*\n/g, "\n\n") // Remove multiple consecutive empty lines
 			.trim() // Remove leading/trailing whitespace
+			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
+			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
 			.replace(/====\n([^\n])/g, "====\n\n$1") // Ensure proper section separation
 			.replace(/([^\n])\n====/g, "$1\n\n====")
 	}

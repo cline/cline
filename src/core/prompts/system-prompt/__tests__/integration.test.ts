@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { ModelFamily } from "@/shared/prompts"
 import { getPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
@@ -43,45 +44,38 @@ describe("Prompt System Integration Tests", () => {
 		isTesting: true,
 	}
 
+	const contextVariations = [
+		{ name: "basic", context: baseContext },
+		{
+			name: "no-browser",
+			context: { ...baseContext, supportsBrowserUse: false },
+		},
+		{
+			name: "no-mcp",
+			context: { ...baseContext, mcpHub: { getServers: () => [] } },
+		},
+		{
+			name: "no-focus-chain",
+			context: { ...baseContext, focusChainSettings: { enabled: false } },
+		},
+	]
+
 	// Table-driven test cases for different model families
 	const modelTestCases = [
 		{
-			modelGroup: "generic",
+			modelGroup: ModelFamily.GENERIC,
 			modelIds: ["gpt-3"],
-			contextVariations: [
-				{ name: "basic", context: baseContext },
-				{
-					name: "no-browser",
-					context: { ...baseContext, supportsBrowserUse: false },
-				},
-				{
-					name: "no-mcp",
-					context: { ...baseContext, mcpHub: { getServers: () => [] } },
-				},
-				{
-					name: "no-focus-chain",
-					context: { ...baseContext, focusChainSettings: { enabled: false } },
-				},
-			],
+			contextVariations,
 		},
 		{
-			modelGroup: "next-gen",
+			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
-			contextVariations: [
-				{ name: "basic", context: baseContext },
-				{
-					name: "no-browser",
-					context: { ...baseContext, supportsBrowserUse: false },
-				},
-				{
-					name: "no-mcp",
-					context: { ...baseContext, mcpHub: { getServers: () => [] } },
-				},
-				{
-					name: "no-focus-chain",
-					context: { ...baseContext, focusChainSettings: { enabled: false } },
-				},
-			],
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.XS,
+			modelIds: ["qwen3-coder"],
+			contextVariations,
 		},
 	]
 

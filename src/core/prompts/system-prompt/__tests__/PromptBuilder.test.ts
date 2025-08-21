@@ -40,6 +40,7 @@ describe("PromptBuilder", () => {
 		id: "test-model",
 		family: ModelFamily.GENERIC,
 		version: 1,
+		description: "A test model",
 		tags: ["test"],
 		labels: { test: 1 },
 		config: {

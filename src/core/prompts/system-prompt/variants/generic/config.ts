@@ -8,6 +8,7 @@ export const config: Omit<PromptVariant, "id"> = {
 	version: 1,
 	family: ModelFamily.GENERIC,
 	tags: ["fallback", "stable"],
+	description: "The fallback prompt for generic use cases and models.",
 	labels: {
 		stable: 1,
 		fallback: 1,

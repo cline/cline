@@ -3,7 +3,7 @@ import { getSystemPromptComponents } from "../components"
 import { registerAllToolVariants } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
 import { PromptBuilder } from "./PromptBuilder"
-import { extractModelFamily } from "./utils"
+import { getModelFamily } from "./utils"
 
 export class PromptRegistry {
 	private static instance: PromptRegistry
@@ -42,7 +42,7 @@ export class PromptRegistry {
 		await this.load()
 
 		// Try model family fallback (e.g., "claude-4" -> "claude")
-		const modelFamily = extractModelFamily(modelId)
+		const modelFamily = getModelFamily(modelId)
 		const variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC)
 
 		if (!variant) {

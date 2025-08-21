@@ -38,13 +38,13 @@ console.log(summary);
 
 ```typescript
 import { ClineToolSet } from "../ClineToolSet";
-import { ClinePromptVariant } from "@/shared/tools";
+import { PromptVariant } from "@/shared/tools";
 
 // Get all tools for a specific variant
-const claudeTools = ClineToolSet.getTools(ClinePromptVariant.CLAUDE);
+const claudeTools = ClineToolSet.getTools(PromptVariant.CLAUDE);
 
 // Get a specific tool by name
-const writeToFileTool = ClineToolSet.getToolByName("write_to_file", ClinePromptVariant.CLAUDE);
+const writeToFileTool = ClineToolSet.getToolByName("write_to_file", PromptVariant.CLAUDE);
 ```
 
 ## Tool Structure
@@ -52,10 +52,10 @@ const writeToFileTool = ClineToolSet.getToolByName("write_to_file", ClinePromptV
 Each tool file follows this pattern:
 
 ```typescript
-import { ClineDefaultTool, ClinePromptVariant, type ClineToolSpec } from "@/shared/tools";
+import { ClineDefaultTool, PromptVariant, type ClineToolSpec } from "@/shared/tools";
 
 const claude: ClineToolSpec = {
-    variant: ClinePromptVariant.CLAUDE,
+    variant: PromptVariant.CLAUDE,
     id: "tool_name",
     description: "Tool description",
     parameters: [
@@ -64,7 +64,7 @@ const claude: ClineToolSpec = {
 };
 
 const gpt: ClineToolSpec = {
-    variant: ClinePromptVariant.GPT,
+    variant: PromptVariant.GPT,
     id: "tool_name_gpt",
     description: "Tool description for GPT",
     parameters: [

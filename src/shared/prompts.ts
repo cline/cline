@@ -5,4 +5,5 @@ export enum ModelFamily {
 	QWEN = "qwen",
 	NEXT_GEN = "next-gen",
 	GENERIC = "generic",
+	XS = "xs",
 }

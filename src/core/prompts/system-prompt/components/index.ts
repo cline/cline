@@ -1,5 +1,6 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { getActVsPlanModeSection } from "./act_vs_plan_mode"
+import { getAgentRoleSection } from "./agent_role"
 import { getCapabilitiesSection } from "./capabilities"
 import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
@@ -18,7 +19,7 @@ import { getUserInstructions } from "./user_instructions"
  */
 export function getSystemPromptComponents() {
 	return [
-		{ id: SystemPromptSection.AGENT_ROLE, fn: getSystemInfo },
+		{ id: SystemPromptSection.AGENT_ROLE, fn: getAgentRoleSection },
 		{ id: SystemPromptSection.SYSTEM_INFO, fn: getSystemInfo },
 		{ id: SystemPromptSection.MCP, fn: getMcp },
 		{ id: SystemPromptSection.TODO, fn: getTodoListSection },
