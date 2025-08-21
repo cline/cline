@@ -154,10 +154,24 @@ describe("DeepSeekHandler", () => {
 			const model = handler.getModel()
 			expect(model.id).toBe(mockOptions.apiModelId)
 			expect(model.info).toBeDefined()
-			expect(model.info.maxTokens).toBe(8192)
-			expect(model.info.contextWindow).toBe(64_000)
+			expect(model.info.maxTokens).toBe(8192) // deepseek-chat has 8K max
+			expect(model.info.contextWindow).toBe(128_000)
 			expect(model.info.supportsImages).toBe(false)
 			expect(model.info.supportsPromptCache).toBe(true) // Should be true now
+		})
+
+		it("should return correct model info for deepseek-reasoner", () => {
+			const handlerWithReasoner = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-reasoner",
+			})
+			const model = handlerWithReasoner.getModel()
+			expect(model.id).toBe("deepseek-reasoner")
+			expect(model.info).toBeDefined()
+			expect(model.info.maxTokens).toBe(65536) // deepseek-reasoner has 64K max
+			expect(model.info.contextWindow).toBe(128_000)
+			expect(model.info.supportsImages).toBe(false)
+			expect(model.info.supportsPromptCache).toBe(true)
 		})
 
 		it("should return provided model ID with default model info if model does not exist", () => {
