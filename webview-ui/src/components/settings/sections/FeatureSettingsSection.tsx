@@ -19,6 +19,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
+		useAutoCondense,
 		focusChainSettings,
 		focusChainFeatureFlagEnabled,
 	} = useExtensionState()
@@ -167,6 +168,26 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={useAutoCondense}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("useAutoCondense", checked)
+							}}>
+							Enable Auto Compact
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
+							<a
+								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								href="https://docs.cline.bot/features/auto-compact"
+								rel="noopener noreferrer"
+								target="_blank">
+								Learn more
+							</a>
+						</p>
+					</div>
 				</div>
 			</Section>
 		</div>

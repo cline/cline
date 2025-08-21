@@ -14,6 +14,13 @@ interface GroqHandlerOptions {
 	apiModelId?: string // For backward compatibility
 }
 
+// Enhanced usage interface to support Groq's cached token fields
+interface GroqUsage extends OpenAI.CompletionUsage {
+	prompt_tokens_details?: {
+		cached_tokens?: number
+	}
+}
+
 // Model family definitions for enhanced behavior
 interface GroqModelFamily {
 	name: string
@@ -101,16 +108,27 @@ export class GroqHandler implements ApiHandler {
 		return this.client
 	}
 
-	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
+	private async *yieldUsage(info: ModelInfo, usage: GroqUsage | undefined): ApiStream {
 		const inputTokens = usage?.prompt_tokens || 0
 		const outputTokens = usage?.completion_tokens || 0
-		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens)
+
+		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens || 0
+
+		// Groq does not track cache writes
+		const cacheWriteTokens = 0
+
+		// Calculate cost using OpenAI-compatible cost calculation
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+
+		// Calculate non-cached input tokens for proper reporting
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
+
 		yield {
 			type: "usage",
-			inputTokens,
+			inputTokens: nonCachedInputTokens,
 			outputTokens,
-			cacheWriteTokens: 0,
-			cacheReadTokens: 0,
+			cacheWriteTokens,
+			cacheReadTokens,
 			totalCost,
 		}
 	}
