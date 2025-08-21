@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.26.2
+
+### Patch Changes
+
+- 96198c8: Reasoning budget is now configurable for all supported models from OpenRouter.
+- d594368: add \*.go files to deep-planning prompt
+
 ## [3.26.1]
 
 - Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
