@@ -1,9 +1,9 @@
-import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
-import { SearchWorkspaceItemsRequest_SearchItemType } from "@shared/proto/host/workspace"
-import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
-import { getWorkspacePath } from "@utils/path"
-import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
+import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
+import { getWorkspacePath } from "@utils/path"
+import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { HostProvider } from "@/hosts/host-provider"
+import { SearchWorkspaceItemsRequest_SearchItemType } from "@shared/proto/host/workspace"
 
 /**
  * Searches for files in the workspace with fuzzy matching
