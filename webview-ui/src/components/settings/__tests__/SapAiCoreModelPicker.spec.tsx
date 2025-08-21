@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
-import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
+import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 
 // Mock the shared API models
 vi.mock("@shared/api", async (importOriginal) => {
@@ -64,9 +64,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -82,7 +82,7 @@ describe("SapAiCoreModelPicker Component", () => {
 	it("renders with default placeholder", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<SapAiCoreModelPicker sapAiCoreDeployedModels={[]} selectedModelId="" onModelChange={mockOnModelChange} />
+				<SapAiCoreModelPicker onModelChange={mockOnModelChange} sapAiCoreDeployedModels={[]} selectedModelId="" />
 			</ExtensionStateContextProvider>,
 		)
 
@@ -94,10 +94,10 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
-					sapAiCoreDeployedModels={[]}
-					selectedModelId=""
 					onModelChange={mockOnModelChange}
 					placeholder="Choose SAP AI Core model..."
+					sapAiCoreDeployedModels={[]}
+					selectedModelId=""
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -110,9 +110,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -132,9 +132,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -154,9 +154,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -174,9 +174,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -196,9 +196,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -217,9 +217,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		const { rerender } = render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -231,9 +231,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		rerender(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "gpt-4o"]}
 					selectedModelId="gpt-4o"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -244,7 +244,7 @@ describe("SapAiCoreModelPicker Component", () => {
 	it("handles empty deployed models array", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<SapAiCoreModelPicker sapAiCoreDeployedModels={[]} selectedModelId="" onModelChange={mockOnModelChange} />
+				<SapAiCoreModelPicker onModelChange={mockOnModelChange} sapAiCoreDeployedModels={[]} selectedModelId="" />
 			</ExtensionStateContextProvider>,
 		)
 
@@ -268,9 +268,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={allSupportedModels}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -294,9 +294,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet", "unsupported-model"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -313,9 +313,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet"]}
 					selectedModelId="anthropic--claude-3.5-sonnet"
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -335,9 +335,9 @@ describe("SapAiCoreModelPicker Component", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
 					sapAiCoreDeployedModels={["anthropic--claude-3.5-sonnet"]}
 					selectedModelId=""
-					onModelChange={mockOnModelChange}
 				/>
 			</ExtensionStateContextProvider>,
 		)
