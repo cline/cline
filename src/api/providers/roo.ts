@@ -4,29 +4,27 @@ import { CloudService } from "@roo-code/cloud"
 
 import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
-import { t } from "../../i18n"
 
 import type { ApiHandlerCreateMessageMetadata } from "../index"
 import { BaseOpenAiCompatibleProvider } from "./base-openai-compatible-provider"
 
 export class RooHandler extends BaseOpenAiCompatibleProvider<RooModelId> {
 	constructor(options: ApiHandlerOptions) {
-		// Check if CloudService is available and get the session token.
-		if (!CloudService.hasInstance()) {
-			throw new Error(t("common:errors.roo.authenticationRequired"))
+		// Get the session token if available, but don't throw if not.
+		// The server will handle authentication errors and return appropriate status codes.
+		let sessionToken = ""
+
+		if (CloudService.hasInstance()) {
+			sessionToken = CloudService.instance.authService?.getSessionToken() || ""
 		}
 
-		const sessionToken = CloudService.instance.authService?.getSessionToken()
-
-		if (!sessionToken) {
-			throw new Error(t("common:errors.roo.authenticationRequired"))
-		}
-
+		// Always construct the handler, even without a valid token.
+		// The provider-proxy server will return 401 if authentication fails.
 		super({
 			...options,
 			providerName: "Roo Code Cloud",
 			baseURL: process.env.ROO_CODE_PROVIDER_URL ?? "https://api.roocode.com/proxy/v1",
-			apiKey: sessionToken,
+			apiKey: sessionToken || "unauthenticated", // Use a placeholder if no token
 			defaultProviderModelId: rooDefaultModelId,
 			providerModels: rooModels,
 			defaultTemperature: 0.7,
