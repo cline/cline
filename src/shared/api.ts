@@ -2384,6 +2384,94 @@ export const nebiusModels = {
 		inputPrice: 0.2,
 		outputPrice: 0.6,
 	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 16384, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.5,
+		outputPrice: 2.4,
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 163800, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 1.8,
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+	},
+	"zai-org/GLM-4.5": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
+	"zai-org/GLM-4.5-Air": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.2,
+	},
+	"deepseek-ai/DeepSeek-R1-0528-fast": {
+		maxTokens: 128000, // Quantization: fp4
+		contextWindow: 164_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 64000, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+	"Qwen/Qwen3-30B-A3B": {
+		maxTokens: 32000, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B-fast": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
 } as const satisfies Record<string, ModelInfo>
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
@@ -3244,12 +3332,12 @@ export const internationalZAiModels = {
 			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
 	},
 	"glm-4.5-air": {
-		maxTokens: 98_304,
-		contextWindow: 131_072,
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.2,
-		outputPrice: 1.1,
+		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.03,
 		description:
@@ -3293,8 +3381,8 @@ export const mainlandZAiModels = {
 		],
 	},
 	"glm-4.5-air": {
-		maxTokens: 98_304,
-		contextWindow: 131_072,
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.086,
