@@ -199,19 +199,19 @@ Execute these commands to build your understanding. You must tailor them to the 
 
 
 # Discover project structure and file types
-find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" | head -30 | cat
+find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" -o -name "*.go" | head -30 | cat
 
 # Find all class and function definitions
-grep -r "class\|function\|def\|interface\|struct" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | cat
+grep -r "class\|function\|def\|interface\|struct\|func\|type.*struct\|type.*interface" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 
 # Analyze import patterns and dependencies
 grep -r "import\|from\|require\|#include" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | sort | uniq | cat
 
 # Find dependency manifests
-find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" | xargs cat
+find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" -o -name "go.mod" | xargs cat
 
 # Identify technical debt and TODOs
-grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | cat
+grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 
 
 ## STEP 2: Discussion and Questions

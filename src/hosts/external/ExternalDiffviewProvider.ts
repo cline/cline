@@ -74,7 +74,12 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return undefined
 		}
-		return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
+		try {
+			return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
+		} catch (err) {
+			console.log("Error getting contents of diff editor", err)
+			return undefined
+		}
 	}
 
 	protected override async closeAllDiffViews(): Promise<void> {

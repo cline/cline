@@ -19,6 +19,8 @@ service ModelsService {
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
+  // Refreshes and returns Vercel AI Gateway models
+  rpc refreshVercelAiGatewayModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
@@ -70,8 +72,8 @@ message ModelTier {
 
 // For OpenRouterCompatibleModelInfo structure in OpenRouterModels
 message OpenRouterModelInfo {
-  optional int32 max_tokens = 1;
-  optional int32 context_window = 2;
+  optional int64 max_tokens = 1;
+  optional int64 context_window = 2;
   optional bool supports_images = 3;
   bool supports_prompt_cache = 4;
   optional double input_price = 5;
@@ -152,6 +154,7 @@ enum ApiProvider {
   HUAWEI_CLOUD_MAAS = 29;
   BASETEN = 30;
   ZAI = 31;
+  VERCEL_AI_GATEWAY = 32;
 }
 
 // Model info for OpenAI-compatible models
@@ -260,6 +263,7 @@ message ModelsApiConfiguration {
   optional string zai_api_key = 66;
   optional string zai_api_line = 67;
   optional string lm_studio_max_tokens = 68;
+  optional string vercel_ai_gateway_api_key = 69;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -290,6 +294,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
   optional string plan_mode_baseten_model_id = 126;
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
+  optional string plan_mode_vercel_ai_gateway_model_id = 128;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 129;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -320,6 +326,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
   optional string act_mode_baseten_model_id = 226;
   optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
+  optional string act_mode_vercel_ai_gateway_model_id = 228;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 229;
 
   repeated string favorited_model_ids = 300;
 }

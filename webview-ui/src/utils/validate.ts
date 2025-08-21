@@ -4,16 +4,8 @@ import { getModeSpecificFields } from "@/components/settings/utils/providerUtils
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
-		const {
-			apiProvider,
-			openAiModelId,
-			requestyModelId,
-			fireworksModelId,
-			togetherModelId,
-			ollamaModelId,
-			lmStudioModelId,
-			vsCodeLmModelSelector,
-		} = getModeSpecificFields(apiConfiguration, currentMode)
+		const { apiProvider, openAiModelId, togetherModelId, ollamaModelId, lmStudioModelId, vsCodeLmModelSelector } =
+			getModeSpecificFields(apiConfiguration, currentMode)
 
 		switch (apiProvider) {
 			case "anthropic":
@@ -87,7 +79,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !fireworksModelId) {
+				if (!apiConfiguration.fireworksApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break

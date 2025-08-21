@@ -46,35 +46,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
-					down complex tasks into manageable steps with real-time progress tracking and passive reminders. Steps are
-					displayed in a handy todo list, which can be edited mid-task.{" "}
-					<VSCodeLink href="https://docs.cline.bot/features/focus-chain" style={linkStyle}>
-						Learn more
-					</VSCodeLink>
+					<b>Free Stealth Model</b> Advanced stealth model with 262K context window designed for complex coding tasks.
+					Available in the Cline provider for free.
 				</li>
 				<li>
-					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model’s
-					context window limit. This significantly helps Cline stay on track for long task sessions!{" "}
-					<VSCodeLink href="https://docs.cline.bot/features/auto-compact" style={linkStyle}>
-						Learn more
-					</VSCodeLink>
+					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
+					down complex tasks into manageable steps with real-time progress tracking and passive reminders.
+				</li>
+				<li>
+					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model's
+					context window limit. This significantly helps Cline stay on track for long task sessions!
 				</li>
 				<li>
 					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
 					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
-					code.{" "}
-					<VSCodeLink href="https://docs.cline.bot/features/slash-commands/deep-planning" style={linkStyle}>
-						Learn more
-					</VSCodeLink>
-				</li>
-				<li>
-					<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need Tier 4,
-					and Bedrock users must be on a supported region. Select the{" "}
-					<code>
-						claude-sonnet-4<b>:1m</b>
-					</code>{" "}
-					model for 1M context, or use the original for 200K.
+					code.
 				</li>
 			</ul>
 			<Accordion className="pl-0" isCompact>
@@ -90,47 +76,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					title="Previous Updates:">
 					<ul style={ulStyle}>
 						<li>
+							<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need
+							Tier 4, and Bedrock users must be on a supported region.
+						</li>
+						<li>
 							<b>Optimized for Claude 4:</b> Cline is now optimized to work with the Claude 4 family of models,
 							resulting in improved performance, reliability, and new capabilities.
 						</li>
 						<li>
-							<b>Gemini CLI Provider:</b> Added a new Gemini CLI provider that allows you to use your local Gemini
-							CLI authentication to access Gemini models for free.
-						</li>
-						<li>
-							<b>WebFetch Tool:</b> Gemini 2.5 Pro and Claude 4 models now support the WebFetch tool, allowing Cline
-							to retrieve and summarize web content directly in conversations.
-						</li>
-						<li>
-							<b>Self Knowledge:</b> When using frontier models, Cline is self-aware about his capabilities and
-							featureset.
-						</li>
-						<li>
-							<b>Improved Diff Editing:</b> Improved diff editing to achieve record lows in diff edit failures for
-							frontier models.
-						</li>
-						<li>
-							<b>Claude 4 Models:</b> Now with support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both
-							Anthropic and Vertex providers.
-						</li>
-						<li>
-							<b>New Settings Page:</b> Redesigned settings, now split into tabs for easier navigation and a cleaner
-							experience.
-						</li>
-						<li>
-							<b>Nebius AI Studio:</b> Added Nebius AI Studio as a new provider. (Thanks @Aktsvigun!)
-						</li>
-						<li>
 							<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash
 							commands, making it easy to automate repetitive tasks.
-						</li>
-						<li>
-							<b>Collapsible Task List:</b> Hide your recent tasks when sharing your screen to keep your prompts
-							private.
-						</li>
-						<li>
-							<b>Global Endpoint for Vertex AI:</b> Improved availability and reduced rate limiting errors for
-							Vertex AI users.
 						</li>
 					</ul>
 				</AccordionItem>

@@ -31,8 +31,11 @@ const formatTiers = (
 				return null
 			}
 
+			// Create a stable key based on tier properties instead of array index
+			const tierKey = `${priceType}-${tier.contextWindow}-${price}`
+
 			return (
-				<span key={index} style={{ paddingLeft: "15px" }}>
+				<span key={tierKey} style={{ paddingLeft: "15px" }}>
 					{formatPrice(price)}/million tokens (
 					{tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER ? (
 						<span>
