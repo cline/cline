@@ -38,6 +38,12 @@
 			"noResults": "未找到标签。",
 			"selected": "显示包含任一选中标签的项目"
 		},
+		"installed": {
+			"label": "按状态筛选",
+			"all": "所有项目",
+			"installed": "已安装",
+			"notInstalled": "未安装"
+		},
 		"title": "Marketplace"
 	},
 	"done": "完成",

@@ -13,6 +13,12 @@
 			"placeholderMcp": "MCP खोजें...",
 			"placeholderMode": "मोड खोजें..."
 		},
+		"installed": {
+			"label": "स्थिति के अनुसार फ़िल्टर करें",
+			"all": "सभी आइटम",
+			"installed": "स्थापित",
+			"notInstalled": "स्थापित नहीं"
+		},
 		"type": {
 			"label": "प्रकार के अनुसार फ़िल्टर करें:",
 			"all": "सभी प्रकार",

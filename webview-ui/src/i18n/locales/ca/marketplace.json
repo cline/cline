@@ -13,6 +13,12 @@
 			"placeholderMcp": "Cercar MCPs...",
 			"placeholderMode": "Cercar modes..."
 		},
+		"installed": {
+			"label": "Filtra per estat",
+			"all": "Tots els articles",
+			"installed": "Instal·lats",
+			"notInstalled": "No instal·lats"
+		},
 		"type": {
 			"label": "Filtrar per tipus:",
 			"all": "Tots els tipus",

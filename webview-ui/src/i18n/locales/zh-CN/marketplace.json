@@ -13,6 +13,12 @@
 			"placeholderMcp": "搜索 MCP...",
 			"placeholderMode": "搜索模式..."
 		},
+		"installed": {
+			"label": "按状态筛选",
+			"all": "所有项目",
+			"installed": "已安装",
+			"notInstalled": "未安装"
+		},
 		"type": {
 			"label": "按类型筛选：",
 			"all": "所有类型",

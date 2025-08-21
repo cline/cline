@@ -38,6 +38,12 @@
 			"noResults": "No s'han trobat etiquetes.",
 			"selected": "Mostrant elements amb qualsevol de les etiquetes seleccionades"
 		},
+		"installed": {
+			"label": "Filtra per estat",
+			"all": "Tots els articles",
+			"installed": "Instal·lats",
+			"notInstalled": "No instal·lats"
+		},
 		"title": "Marketplace"
 	},
 	"done": "Fet",

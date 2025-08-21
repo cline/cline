@@ -38,6 +38,12 @@
 			"noResults": "태그를 찾을 수 없습니다.",
 			"selected": "선택된 태그 중 하나를 가진 항목 표시"
 		},
+		"installed": {
+			"label": "상태별로 필터링",
+			"all": "모든 항목",
+			"installed": "설치됨",
+			"notInstalled": "설치되지 않음"
+		},
 		"title": "마켓플레이스"
 	},
 	"done": "완료",

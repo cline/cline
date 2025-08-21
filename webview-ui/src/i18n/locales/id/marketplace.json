@@ -13,6 +13,12 @@
 			"placeholderMcp": "Cari MCP...",
 			"placeholderMode": "Cari Mode..."
 		},
+		"installed": {
+			"label": "Filter berdasarkan status",
+			"all": "Semua Item",
+			"installed": "Terpasang",
+			"notInstalled": "Tidak Terpasang"
+		},
 		"type": {
 			"label": "Filter berdasarkan tipe:",
 			"all": "Semua tipe",

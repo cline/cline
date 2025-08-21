@@ -38,6 +38,12 @@
 			"noResults": "Tidak ada tag ditemukan.",
 			"selected": "Menampilkan item dengan salah satu tag yang dipilih"
 		},
+		"installed": {
+			"label": "Filter berdasarkan status",
+			"all": "Semua Item",
+			"installed": "Terpasang",
+			"notInstalled": "Tidak Terpasang"
+		},
 		"title": "Marketplace"
 	},
 	"done": "Selesai",

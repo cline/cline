@@ -38,6 +38,12 @@
 			"noResults": "Nenhuma tag encontrada.",
 			"selected": "Mostrando itens com qualquer uma das tags selecionadas"
 		},
+		"installed": {
+			"label": "Filtrar por status",
+			"all": "Todos os itens",
+			"installed": "Instalados",
+			"notInstalled": "Não instalados"
+		},
 		"title": "Marketplace"
 	},
 	"done": "Concluído",

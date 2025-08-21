@@ -13,6 +13,12 @@
 			"placeholderMcp": "搜尋 MCP...",
 			"placeholderMode": "搜尋模式..."
 		},
+		"installed": {
+			"label": "按狀態篩選",
+			"all": "所有項目",
+			"installed": "已安裝",
+			"notInstalled": "未安裝"
+		},
 		"type": {
 			"label": "依類型篩選：",
 			"all": "所有類型",

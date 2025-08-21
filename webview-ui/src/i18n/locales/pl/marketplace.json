@@ -13,6 +13,12 @@
 			"placeholderMcp": "Szukaj MCPs...",
 			"placeholderMode": "Szukaj trybów..."
 		},
+		"installed": {
+			"label": "Filtruj według statusu",
+			"all": "Wszystkie elementy",
+			"installed": "Zainstalowane",
+			"notInstalled": "Niezainstalowane"
+		},
 		"type": {
 			"label": "Filtruj według typu:",
 			"all": "Wszystkie typy",

@@ -38,6 +38,12 @@
 			"noResults": "Geen tags gevonden.",
 			"selected": "Items tonen met een van de geselecteerde tags"
 		},
+		"installed": {
+			"label": "Filteren op status",
+			"all": "Alle items",
+			"installed": "Geïnstalleerd",
+			"notInstalled": "Niet geïnstalleerd"
+		},
 		"title": "Marketplace"
 	},
 	"done": "Klaar",

@@ -38,6 +38,12 @@
 			"noResults": "No se encontraron etiquetas.",
 			"selected": "Mostrando elementos con cualquiera de las etiquetas seleccionadas"
 		},
+		"installed": {
+			"label": "Filtrar por estado",
+			"all": "Todos los artículos",
+			"installed": "Instalados",
+			"notInstalled": "No instalados"
+		},
 		"title": "Marketplace"
 	},
 	"done": "Hecho",

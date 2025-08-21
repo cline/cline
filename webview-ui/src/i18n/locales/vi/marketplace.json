@@ -13,6 +13,12 @@
 			"placeholderMcp": "Tìm kiếm MCP...",
 			"placeholderMode": "Tìm kiếm Chế độ..."
 		},
+		"installed": {
+			"label": "Lọc theo trạng thái",
+			"all": "Tất cả các mục",
+			"installed": "Đã cài đặt",
+			"notInstalled": "Chưa cài đặt"
+		},
 		"type": {
 			"label": "Lọc theo loại:",
 			"all": "Tất cả loại",
