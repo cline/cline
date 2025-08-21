@@ -64,7 +64,7 @@ interface OpenRouterRawModelInfo {
 	thinking_config: any | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
-	supported_parameters?: Partial<OpenRouterSupportedParams[]> | null
+	supported_parameters?: OpenRouterSupportedParams[] | null
 }
 
 /**
