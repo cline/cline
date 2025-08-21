@@ -6,6 +6,11 @@ src/assets/docs/demo.gif filter=lfs diff=lfs merge=lfs -text
 *.snap linguist-generated=true
 
 # Non-English translation files - mark as linguist-generated to exclude from GitHub language statistics
+# Package NLS files - mark non-English ones as generated
+src/package.nls.*.json linguist-generated=true
+# Exclude the base English file from being marked as generated
+src/package.nls.json linguist-generated=false
+
 # Root locales directory (contains only non-English translations)
 locales/** linguist-generated=true
 
