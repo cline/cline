@@ -2807,7 +2807,7 @@ export class Task {
 		}
 
 		// Add context window usage information
-		const { contextWindow } = getContextWindowInfo(this.api)
+		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {

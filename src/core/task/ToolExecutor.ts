@@ -1423,7 +1423,7 @@ export class ToolExecutor {
 											return item.text
 										}
 										if (item.type === "resource") {
-											const { blob: _blob, ...rest } = item.resource
+											const { blob, ...rest } = item.resource
 											return JSON.stringify(rest, null, 2)
 										}
 										return ""

@@ -39,7 +39,7 @@ export async function parseSlashCommands(
 	]
 
 	// if we find a valid match, we will return inside that block
-	for (const { regex } of tagPatterns) {
+	for (const { tag, regex } of tagPatterns) {
 		const regexObj = new RegExp(regex.source, regex.flags)
 		const match = regexObj.exec(text)
 
