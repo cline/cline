@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
+import { constants as fsConstants } from "fs"
 
 import { Package } from "../shared/package"
 import { t } from "../i18n"
@@ -32,10 +33,8 @@ export async function getStorageBasePath(defaultPath: string): Promise<string> {
 		// Ensure custom path exists
 		await fs.mkdir(customStoragePath, { recursive: true })
 
-		// Test if path is writable
-		const testFile = path.join(customStoragePath, ".write_test")
-		await fs.writeFile(testFile, "test")
-		await fs.rm(testFile)
+		// Check directory write permission without creating temp files
+		await fs.access(customStoragePath, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK)
 
 		return customStoragePath
 	} catch (error) {
@@ -132,6 +131,7 @@ export async function promptForCustomStoragePath(): Promise<void> {
 				try {
 					// Test if path is accessible
 					await fs.mkdir(result, { recursive: true })
+					await fs.access(result, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK)
 					vscode.window.showInformationMessage(t("common:info.custom_storage_path_set", { path: result }))
 				} catch (error) {
 					vscode.window.showErrorMessage(
