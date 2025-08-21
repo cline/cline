@@ -53,7 +53,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	await showVersionUpdateAnnouncement(context)
 
 	telemetryService.captureExtensionActivated()
-	vscode.env.shell
+
 	return sidebarWebview
 }
 
