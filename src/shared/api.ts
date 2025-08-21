@@ -568,7 +568,6 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 
 // Cline custom model - sonic (same config as grok-4)
 export const clineMicrowaveAlphaModelInfo: ModelInfo = {
-	maxTokens: 16_000,
 	contextWindow: 262144,
 	supportsImages: false,
 	supportsPromptCache: true,
