@@ -2,8 +2,6 @@
 
 ## 3.26.2
 
-### Patch Changes
-
 - 96198c8: Reasoning budget is now configurable for all supported models from OpenRouter.
 - d594368: add \*.go files to deep-planning prompt
 
