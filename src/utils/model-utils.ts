@@ -1,4 +1,4 @@
-import { ApiHandlerModel } from "@api/index"
+import { ApiHandlerModel } from "@core/api"
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()

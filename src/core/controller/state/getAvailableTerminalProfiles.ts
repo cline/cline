@@ -1,10 +1,10 @@
-import { Controller } from "../index"
 import * as proto from "@/shared/proto"
 import { getAvailableTerminalProfiles as getTerminalProfilesFromShell } from "../../../utils/shell"
+import { Controller } from "../index"
 
 export async function getAvailableTerminalProfiles(
-	controller: Controller,
-	request: proto.cline.EmptyRequest,
+	_controller: Controller,
+	_request: proto.cline.EmptyRequest,
 ): Promise<proto.cline.TerminalProfiles> {
 	const profiles = getTerminalProfilesFromShell()
 

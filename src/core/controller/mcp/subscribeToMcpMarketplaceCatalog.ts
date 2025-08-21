@@ -1,7 +1,7 @@
-import { Controller } from "../index"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
-import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Keep track of active subscriptions
 const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler<McpMarketplaceCatalog>>()

@@ -1,9 +1,9 @@
-import { describe, it, beforeEach } from "mocha"
-import { expect } from "chai"
-import { getNewDiagnostics, diagnosticsToProblemsString } from "../"
 import { DiagnosticSeverity, FileDiagnostics } from "@shared/proto/index.cline"
+import { expect } from "chai"
+import { beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import * as pathUtils from "@/utils/path"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "../"
 
 describe("Diagnostics Tests", () => {
 	describe("getNewDiagnostics", () => {
@@ -171,10 +171,10 @@ describe("Diagnostics Tests", () => {
 	})
 
 	describe("diagnosticsToProblemsString", () => {
-		let getCwdStub: sinon.SinonStub
+		let _getCwdStub: sinon.SinonStub
 
 		beforeEach(() => {
-			getCwdStub = sinon.stub(pathUtils, "getCwd").resolves("/workspace")
+			_getCwdStub = sinon.stub(pathUtils, "getCwd").resolves("/workspace")
 		})
 
 		afterEach(() => {

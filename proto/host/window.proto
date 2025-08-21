@@ -8,15 +8,35 @@ import "cline/common.proto";
 
 // Provides methods for working with IDE windows and editors.
 service WindowService {
-  // Opens a text document in the editor and returns editor information.
+  // Opens a text document in the IDE editor and returns editor information.
   rpc showTextDocument(ShowTextDocumentRequest) returns (TextEditorInfo);
+
+  // Shows the open file dialogue / file picker.
   rpc showOpenDialogue(ShowOpenDialogueRequest) returns (SelectedResources);
+
+  // Shows a notification.
   rpc showMessage(ShowMessageRequest) returns (SelectedResponse);
+
+  // Prompts the user for input and returns the response.
   rpc showInputBox(ShowInputBoxRequest) returns (ShowInputBoxResponse);
+
+  // Shows the file save dialogue / file picker.
   rpc showSaveDialog(ShowSaveDialogRequest) returns (ShowSaveDialogResponse);
+
+  // Opens a file in the IDE.
   rpc openFile(OpenFileRequest) returns (OpenFileResponse);
+
+  // Opens the host settings UI, optionally focusing a specific query/section.
+  rpc openSettings(OpenSettingsRequest) returns (OpenSettingsResponse);
+
+  // Returns the open tabs.
   rpc getOpenTabs(GetOpenTabsRequest) returns (GetOpenTabsResponse);
+
+  // Returns the visible tabs.
   rpc getVisibleTabs(GetVisibleTabsRequest) returns (GetVisibleTabsResponse);
+
+  // Returns information about the current editor
+  rpc getActiveEditor(GetActiveEditorRequest) returns (GetActiveEditorResponse);
 }
 
 message ShowTextDocumentRequest {
@@ -60,10 +80,9 @@ enum ShowMessageType {
 }
 
 message ShowMessageRequest {
-  cline.Metadata metadata = 1;
-  ShowMessageType type = 2;
-  string message = 3;
-  optional ShowMessageRequestOptions options = 4;
+  ShowMessageType type = 1;
+  string message = 2;
+  optional ShowMessageRequestOptions options = 3;
 }
 
 message ShowMessageRequestOptions {
@@ -78,8 +97,7 @@ message SelectedResponse {
 }
 
 message ShowSaveDialogRequest {
-  cline.Metadata metadata = 1;
-  optional ShowSaveDialogOptions options = 2;
+  optional ShowSaveDialogOptions options = 1;
 }
 
 message ShowSaveDialogOptions {
@@ -90,6 +108,7 @@ message ShowSaveDialogOptions {
 }
 
 message FileExtensionList {
+  // A list of file extension (without the dot).
   repeated string extensions = 1;
 }
 
@@ -99,10 +118,9 @@ message ShowSaveDialogResponse {
 }
 
 message ShowInputBoxRequest {
-  cline.Metadata metadata = 1;
-  string title = 2;
-  optional string prompt = 3;
-  optional string value = 4;
+  string title = 1;
+  optional string prompt = 2;
+  optional string value = 3;
 }
 
 message ShowInputBoxResponse {
@@ -110,26 +128,40 @@ message ShowInputBoxResponse {
 }
 
 message OpenFileRequest {
-  cline.Metadata metadata = 1;
-  string file_path = 2;
+  string file_path = 1;
 }
 
-message OpenFileResponse {
-  // empty
+message OpenFileResponse {}
+
+message OpenSettingsRequest {
+  // Optional query to focus a particular settings section/key.
+  // This value is host-specific. In VS Code, it is passed directly as the
+  // Settings search query to the "workbench.action.openSettings" command.
+  // Examples (VS Code, see - https://code.visualstudio.com/docs/getstarted/settings#settings-editor-filters.):
+  // - "telemetry.telemetryLevel" → focuses the Telemetry Level setting
+  // - "@id:telemetry.telemetryLevel" → navigates by exact setting id
+  // - "@modified", "@ext:publisher.extension"
+  // - Plain keywords/categories
+  // If not provided the host opens the settings UI without specific focus.
+  optional string query = 1;
 }
 
-message GetOpenTabsRequest {
-  // empty
-}
+message OpenSettingsResponse {}
+
+message GetOpenTabsRequest {}
 
 message GetOpenTabsResponse {
   repeated string paths = 1;
 }
 
-message GetVisibleTabsRequest {
-  // empty
-}
+message GetVisibleTabsRequest {}
 
 message GetVisibleTabsResponse {
   repeated string paths = 1;
+}
+
+message GetActiveEditorRequest {}
+
+message GetActiveEditorResponse {
+  optional string file_path = 1;
 }

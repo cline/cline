@@ -1,9 +1,9 @@
-import { Controller } from "../index"
-import { CommandContext, Empty } from "@/shared/proto/index.cline"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { getFileMentionFromPath } from "@/core/mentions"
-import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
 import { WebviewProvider } from "@/core/webview"
+import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { CommandContext, Empty } from "@/shared/proto/index.cline"
+import { Controller } from "../index"
 import { sendAddToInputEventToClient } from "../ui/subscribeToAddToInput"
 
 // 'Add to Cline' context menu in editor and code action

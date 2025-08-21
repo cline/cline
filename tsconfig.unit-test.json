@@ -5,8 +5,15 @@
 		"moduleResolution": "node"
 	},
 	"ts-node": {
-		"require": ["tsconfig-paths/register"]
+		"require": [
+			"tsconfig-paths/register"
+		]
 	},
-	"include": ["src/**/*.ts", "test/**/*.ts"],
-	"exclude": ["node_modules"]
+	"include": [
+		"src/**/*.ts",
+		"test/**/*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
 }

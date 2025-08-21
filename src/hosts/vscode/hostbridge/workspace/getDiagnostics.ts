@@ -1,6 +1,6 @@
-import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
-import { Diagnostic, DiagnosticPosition, DiagnosticRange, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import * as vscode from "vscode"
+import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import "@/utils/path" // for String.prototype.toPosix
 
 export async function getDiagnostics(_request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {

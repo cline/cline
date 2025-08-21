@@ -148,6 +148,10 @@ export class PromptBuilder {
 	}
 
 	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[]): string {
+		// Skip tools without parameters or description - those are placeholder tools
+		if (!config.parameters?.length && !config.description?.length) {
+			return ""
+		}
 		const title = `## ${config.id}`
 		const description = [`Description: ${config.description}`]
 

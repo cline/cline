@@ -194,15 +194,6 @@ Usage:
 ## load_mcp_documentation
 Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with `use_mcp_tool` and `access_mcp_resource`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
 
-## focus_chain
-Description: If you were using task_progress to update the task progress, you must include the completed list in the result as well.
-Parameters:
-- task_progress: (required) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
-Usage:
-<focus_chain>
-<task_progress>Checklist here (optional)</task_progress>
-</focus_chain>
-
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

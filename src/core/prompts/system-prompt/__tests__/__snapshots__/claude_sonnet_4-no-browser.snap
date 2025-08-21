@@ -115,15 +115,6 @@ Usage:
 <options>Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]</options>
 </ask_followup_question>
 
-## focus_chain
-Description: If you were using task_progress to update the task progress, you must include the completed list in the result as well.
-Parameters:
-- task_progress: (required) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
-Usage:
-<focus_chain>
-<task_progress>Checklist here (optional)</task_progress>
-</focus_chain>
-
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

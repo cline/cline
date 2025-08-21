@@ -1,6 +1,6 @@
-import { Controller } from ".."
-import { BooleanRequest, StringArrays } from "@shared/proto/cline/common"
 import { selectFiles as selectFilesIntegration } from "@integrations/misc/process-files"
+import { BooleanRequest, StringArrays } from "@shared/proto/cline/common"
+import { Controller } from ".."
 
 /**
  * Prompts the user to select images from the file system and returns them as data URLs

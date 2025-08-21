@@ -1,4 +1,4 @@
-import type { ApiHandlerModel } from "@/api"
+import { ApiHandlerModel } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import {
 	isClaude4ModelFamily,

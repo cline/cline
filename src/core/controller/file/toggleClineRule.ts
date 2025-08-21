@@ -1,7 +1,8 @@
-import { ToggleClineRules } from "@shared/proto/cline/file"
+import path from "node:path"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
+import { ToggleClineRules } from "@shared/proto/cline/file"
 import type { Controller } from "../index"
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Cline rule (enable or disable)
@@ -30,6 +31,13 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 		const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
 		toggles[rulePath] = enabled
 		controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
+	}
+
+	// Track rule toggle telemetry with current task context
+	if (controller.task?.ulid) {
+		// Extract just the filename for privacy (no full paths)
+		const ruleFileName = path.basename(rulePath)
+		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
 
 	// Get the current state to return in the response
