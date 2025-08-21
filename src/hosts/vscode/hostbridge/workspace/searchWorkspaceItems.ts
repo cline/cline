@@ -13,7 +13,6 @@ export async function searchWorkspaceItems(request: SearchWorkspaceItemsRequest)
 		return SearchWorkspaceItemsResponse.create({ items: [] })
 	}
 
-
 	let selectedTypeString: "file" | "folder" | undefined = undefined
 	if (request.selectedType === SearchWorkspaceItemsRequest_SearchItemType.FILE) {
 		selectedTypeString = "file"
