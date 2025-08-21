@@ -5,6 +5,13 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
+const SYSTEM_INFO_TEMPLATE_TEXT = `SYSTEM INFORMATION
+
+Operating System: {{os}}
+Default Shell: {{shell}}
+Home Directory: {{homeDir}}
+Current Working Directory: {{workingDir}}`
+
 async function getSystemEnv(isTesting = false) {
 	return {
 		os: isTesting ? "macOS" : osName(),
@@ -17,21 +24,12 @@ async function getSystemEnv(isTesting = false) {
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const info = await getSystemEnv(context.isTesting)
 
-	// Support custom template from variant overrides
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
-	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return new TemplateEngine().resolve(template, {
 		os: info.os,
 		shell: info.shell,
 		homeDir: info.homeDir,
 		workingDir: info.workingDir,
 	})
 }
-
-const SYSTEM_INFO_TEMPLATE_TEXT = `SYSTEM INFORMATION
-
-Operating System: {{os}}
-Default Shell: {{shell}}
-Home Directory: {{homeDir}}
-Current Working Directory: {{workingDir}}`

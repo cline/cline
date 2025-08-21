@@ -3,7 +3,7 @@ import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
 const AGENT_ROLE = [
-	"Your are Cline,",
+	"You are Cline,",
 	"a highly skilled software engineer",
 	"with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.",
 ]

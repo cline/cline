@@ -1,20 +1,21 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
-import type { PromptVariant } from "../../types"
+import { createVariant } from "../VariantBuilder"
+import { validateVariant } from "../VariantValidator"
 import { baseTemplate } from "./template"
 
-export const config: Omit<PromptVariant, "id"> = {
-	version: 1,
-	family: ModelFamily.GENERIC,
-	tags: ["fallback", "stable"],
-	description: "The fallback prompt for generic use cases and models.",
-	labels: {
+// Type-safe variant configuration using the builder pattern
+export const config = createVariant(ModelFamily.GENERIC)
+	.description("The fallback prompt for generic use cases and models.")
+	.version(1)
+	.tags("fallback", "stable")
+	.labels({
 		stable: 1,
 		fallback: 1,
-	},
-	config: {},
-	componentOrder: [
+	})
+	.template(baseTemplate)
+	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.MCP,
@@ -26,13 +27,8 @@ export const config: Omit<PromptVariant, "id"> = {
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
-	],
-	componentOverrides: {},
-	placeholders: {
-		MODEL_FAMILY: "generic",
-	},
-	baseTemplate,
-	tools: [
+	)
+	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		ClineDefaultTool.FILE_NEW,
@@ -49,5 +45,23 @@ export const config: Omit<PromptVariant, "id"> = {
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
-	],
+	)
+	.placeholders({
+		MODEL_FAMILY: "generic",
+	})
+	.config({})
+	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "generic" }, { strict: true })
+if (!validationResult.isValid) {
+	console.error("Generic variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid generic variant configuration: ${validationResult.errors.join(", ")}`)
 }
+
+if (validationResult.warnings.length > 0) {
+	console.warn("Generic variant configuration warnings:", validationResult.warnings)
+}
+
+// Export type information for better IDE support
+export type GenericVariantConfig = typeof config

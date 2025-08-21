@@ -1,0 +1,181 @@
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import { SystemPromptSection } from "../templates/placeholders"
+import type { ConfigOverride, PromptVariant } from "../types"
+
+/**
+ * Type-safe builder for creating prompt variants
+ * Provides compile-time validation and IntelliSense support
+ */
+export class VariantBuilder {
+	private variant: Partial<PromptVariant> = {}
+
+	constructor(family: ModelFamily) {
+		// Initialize with clean state
+		this.variant = {
+			...this.variant,
+			family: family,
+			version: 1,
+			tags: [],
+			labels: {},
+			config: {},
+			componentOverrides: {},
+			placeholders: {},
+			toolOverrides: {},
+		}
+	}
+
+	/**
+	 * Set the variant description
+	 */
+	description(desc: string): this {
+		this.variant = {
+			...this.variant,
+			description: desc,
+		}
+		return this
+	}
+
+	/**
+	 * Set the version number
+	 */
+	version(version: number): this {
+		this.variant = {
+			...this.variant,
+			version: version,
+		}
+		return this
+	}
+
+	/**
+	 * Add tags to the variant
+	 */
+	tags(...tags: string[]): this {
+		this.variant = {
+			...this.variant,
+			tags: [...(this.variant.tags || []), ...tags],
+		}
+		return this
+	}
+
+	/**
+	 * Set labels with version mapping
+	 */
+	labels(labels: Record<string, number>): this {
+		this.variant = {
+			...this.variant,
+			labels: { ...this.variant.labels, ...labels },
+		}
+		return this
+	}
+
+	/**
+	 * Set the base template
+	 */
+	template(baseTemplate: string): this {
+		this.variant = {
+			...this.variant,
+			baseTemplate: baseTemplate,
+		}
+		return this
+	}
+
+	/**
+	 * Configure component order with type safety
+	 */
+	components(...sections: SystemPromptSection[]): this {
+		this.variant = {
+			...this.variant,
+			componentOrder: sections,
+		}
+		return this
+	}
+
+	/**
+	 * Override specific components with type safety
+	 */
+	overrideComponent(section: SystemPromptSection, override: ConfigOverride): this {
+		const current = this.variant.componentOverrides || {}
+		this.variant = {
+			...this.variant,
+			componentOverrides: { ...current, [section]: override },
+		}
+		return this
+	}
+
+	/**
+	 * Configure tools with type safety
+	 */
+	tools(...tools: ClineDefaultTool[]): this {
+		this.variant = {
+			...this.variant,
+			tools: tools,
+		}
+		return this
+	}
+
+	/**
+	 * Override specific tools with type safety
+	 */
+	overrideTool(tool: ClineDefaultTool, override: ConfigOverride): this {
+		const current = this.variant.toolOverrides || {}
+		this.variant = {
+			...this.variant,
+			toolOverrides: { ...current, [tool]: override },
+		}
+		return this
+	}
+
+	/**
+	 * Set placeholder values
+	 */
+	placeholders(placeholders: Record<string, string>): this {
+		this.variant = {
+			...this.variant,
+			placeholders: { ...this.variant.placeholders, ...placeholders },
+		}
+		return this
+	}
+
+	/**
+	 * Set model-specific configuration
+	 */
+	config(config: Record<string, any>): this {
+		this.variant = {
+			...this.variant,
+			config: { ...this.variant.config, ...config },
+		}
+		return this
+	}
+
+	/**
+	 * Build the final variant configuration
+	 * Returns Omit<PromptVariant, "id"> for use in variant config files
+	 */
+	build(): Omit<PromptVariant, "id"> {
+		// Validate required fields
+		if (!this.variant.baseTemplate) {
+			throw new Error("Base template is required")
+		}
+		if (!this.variant.componentOrder?.length) {
+			throw new Error("Component order is required")
+		}
+		if (!this.variant.description) {
+			throw new Error("Description is required")
+		}
+
+		return this.variant as Omit<PromptVariant, "id">
+	}
+}
+
+/**
+ * Factory functions for creating builders for specific model families
+ */
+export const createGenericVariant = () => new VariantBuilder(ModelFamily.GENERIC)
+export const createNextGenVariant = () => new VariantBuilder(ModelFamily.NEXT_GEN)
+export const createXsVariant = () => new VariantBuilder(ModelFamily.XS)
+
+/**
+ * Helper function to create a variant builder for any model family
+ */
+export const createVariant = (family: ModelFamily) => new VariantBuilder(family)

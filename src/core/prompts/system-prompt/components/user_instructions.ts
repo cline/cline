@@ -26,8 +26,7 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 	const template =
 		variant.componentOverrides?.[SystemPromptSection.USER_INSTRUCTIONS]?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
 
-	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return new TemplateEngine().resolve(template, {
 		CUSTOM_INSTRUCTIONS: customInstructions,
 	})
 }
@@ -63,10 +62,8 @@ function buildUserInstructions(
 	if (clineIgnoreInstructions) {
 		customInstructions.push(clineIgnoreInstructions)
 	}
-
 	if (customInstructions.length === 0) {
 		return undefined
 	}
-
 	return customInstructions.join("\n\n")
 }

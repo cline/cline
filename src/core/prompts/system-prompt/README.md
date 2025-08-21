@@ -4,6 +4,14 @@
 
 The system prompt architecture provides a modular, composable system for building AI assistant prompts. It supports multiple model variants, dynamic component composition, flexible tool configuration, and template-based prompt generation.
 
+## Developer
+
+To generate snapshots for each variants added to the unit test in [src/core/prompts/system-prompt/__tests__/integration.test.ts](./__tests__/integration.test.ts):
+
+```sh
+npm run test:unit
+```
+
 ## Directory Structure
 
 ```
@@ -393,27 +401,28 @@ public static async getToolsPrompts(variant: PromptVariant, context: SystemPromp
 
 ## Configuration Examples
 
-### Basic Variant Configuration
+### Basic Variant Configuration (Using Builder Pattern)
 
 ```typescript
 // variants/generic/config.ts
 import { ModelFamily } from "@/shared/prompts";
 import { ClineDefaultTool } from "@/shared/tools";
 import { SystemPromptSection } from "../../templates/placeholders";
-import type { PromptVariant } from "../../types";
+import { validateVariant } from "../../validation/VariantValidator";
+import { createVariant } from "../VariantBuilder";
 import { baseTemplate } from "./template";
 
-export const config: Omit<PromptVariant, "id"> = {
-  version: 1,
-  family: ModelFamily.GENERIC,
-  tags: ["fallback", "stable"],
-  description: "The fallback prompt for generic use cases and models.",
-  labels: {
+// Type-safe variant configuration using the builder pattern
+export const config = createVariant(ModelFamily.GENERIC)
+  .description("The fallback prompt for generic use cases and models.")
+  .version(1)
+  .tags("fallback", "stable")
+  .labels({
     stable: 1,
     fallback: 1,
-  },
-  config: {},
-  componentOrder: [
+  })
+  .template(baseTemplate)
+  .components(
     SystemPromptSection.AGENT_ROLE,
     SystemPromptSection.TOOL_USE,
     SystemPromptSection.MCP,
@@ -425,13 +434,8 @@ export const config: Omit<PromptVariant, "id"> = {
     SystemPromptSection.SYSTEM_INFO,
     SystemPromptSection.OBJECTIVE,
     SystemPromptSection.USER_INSTRUCTIONS,
-  ],
-  componentOverrides: {},
-  placeholders: {
-    MODEL_FAMILY: "generic",
-  },
-  baseTemplate,
-  tools: [
+  )
+  .tools(
     ClineDefaultTool.BASH,
     ClineDefaultTool.FILE_READ,
     ClineDefaultTool.FILE_NEW,
@@ -448,26 +452,47 @@ export const config: Omit<PromptVariant, "id"> = {
     ClineDefaultTool.PLAN_MODE,
     ClineDefaultTool.MCP_DOCS,
     ClineDefaultTool.TODO,
-  ],
-};
+  )
+  .placeholders({
+    MODEL_FAMILY: "generic",
+  })
+  .config({})
+  .build();
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "generic" }, { strict: true });
+if (!validationResult.isValid) {
+  console.error("Generic variant configuration validation failed:", validationResult.errors);
+  throw new Error(`Invalid generic variant configuration: ${validationResult.errors.join(", ")}`);
+}
+
+// Export type information for better IDE support
+export type GenericVariantConfig = typeof config;
 ```
 
-### Advanced Variant with Overrides
+### Advanced Variant with Overrides (Using Builder Pattern)
 
 ```typescript
 // variants/next-gen/config.ts
-export const config: Omit<PromptVariant, "id"> = {
-  version: 1,
-  family: ModelFamily.NEXT_GEN,
-  tags: ["next-gen", "advanced", "production"],
-  description: "Prompt tailored to newer frontier models with smarter agentic capabilities.",
-  labels: {
+import { ModelFamily } from "@/shared/prompts";
+import { ClineDefaultTool } from "@/shared/tools";
+import { SystemPromptSection } from "../../templates/placeholders";
+import { validateVariant } from "../../validation/VariantValidator";
+import { createVariant } from "../VariantBuilder";
+import { baseTemplate, rules_template } from "./template";
+
+// Type-safe variant configuration using the builder pattern
+export const config = createVariant(ModelFamily.NEXT_GEN)
+  .description("Prompt tailored to newer frontier models with smarter agentic capabilities.")
+  .version(1)
+  .tags("next-gen", "advanced", "production")
+  .labels({
     stable: 1,
     production: 1,
     advanced: 1,
-  },
-  config: {},
-  componentOrder: [
+  })
+  .template(baseTemplate)
+  .components(
     SystemPromptSection.AGENT_ROLE,
     SystemPromptSection.TOOL_USE,
     SystemPromptSection.MCP,
@@ -480,18 +505,8 @@ export const config: Omit<PromptVariant, "id"> = {
     SystemPromptSection.SYSTEM_INFO,
     SystemPromptSection.OBJECTIVE,
     SystemPromptSection.USER_INSTRUCTIONS,
-  ],
-  componentOverrides: {
-    // Custom rules template for next-gen models
-    [SystemPromptSection.RULES]: {
-      template: rules_template,
-    },
-  },
-  placeholders: {
-    MODEL_FAMILY: ModelFamily.NEXT_GEN,
-  },
-  baseTemplate,
-  tools: [
+  )
+  .tools(
     ClineDefaultTool.BASH,
     ClineDefaultTool.FILE_READ,
     ClineDefaultTool.FILE_NEW,
@@ -509,15 +524,135 @@ export const config: Omit<PromptVariant, "id"> = {
     ClineDefaultTool.PLAN_MODE,
     ClineDefaultTool.MCP_DOCS,
     ClineDefaultTool.TODO,
-  ],
-  toolOverrides: {
-    // Example tool customizations (commented out)
-    // execute_command: {
-    //   template: "## execute_command\nCustom template...",
-    //   enabled: true,
-    // },
-  },
-};
+  )
+  .placeholders({
+    MODEL_FAMILY: ModelFamily.NEXT_GEN,
+  })
+  .config({})
+  // Override the RULES component with custom template
+  .overrideComponent(SystemPromptSection.RULES, {
+    template: rules_template,
+  })
+  .build();
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "next-gen" }, { strict: true });
+if (!validationResult.isValid) {
+  console.error("Next-gen variant configuration validation failed:", validationResult.errors);
+  throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`);
+}
+
+// Export type information for better IDE support
+export type NextGenVariantConfig = typeof config;
+```
+
+### Compact Variant with Component Overrides
+
+```typescript
+// variants/xs/config.ts
+import { ModelFamily } from "@/shared/prompts";
+import { ClineDefaultTool } from "@/shared/tools";
+import { SystemPromptSection } from "../../templates/placeholders";
+import { validateVariant } from "../../validation/VariantValidator";
+import { createVariant } from "../VariantBuilder";
+import { xsComponentOverrides } from "./overrides";
+import { baseTemplate } from "./template";
+
+// Type-safe variant configuration using the builder pattern
+export const config = createVariant(ModelFamily.XS)
+  .description("Prompt for models with a small context window.")
+  .version(1)
+  .tags("local", "xs", "compact")
+  .labels({
+    stable: 1,
+    production: 1,
+    advanced: 1,
+  })
+  .template(baseTemplate)
+  .components(
+    SystemPromptSection.AGENT_ROLE,
+    SystemPromptSection.RULES,
+    SystemPromptSection.ACT_VS_PLAN,
+    SystemPromptSection.CAPABILITIES,
+    SystemPromptSection.EDITING_FILES,
+    SystemPromptSection.OBJECTIVE,
+    SystemPromptSection.SYSTEM_INFO,
+    SystemPromptSection.USER_INSTRUCTIONS,
+  )
+  .tools(
+    ClineDefaultTool.BASH,
+    ClineDefaultTool.FILE_READ,
+    ClineDefaultTool.FILE_NEW,
+    ClineDefaultTool.FILE_EDIT,
+    ClineDefaultTool.SEARCH,
+    ClineDefaultTool.LIST_FILES,
+    ClineDefaultTool.ASK,
+    ClineDefaultTool.ATTEMPT,
+    ClineDefaultTool.NEW_TASK,
+    ClineDefaultTool.PLAN_MODE,
+    ClineDefaultTool.MCP_USE,
+    ClineDefaultTool.MCP_ACCESS,
+    ClineDefaultTool.MCP_DOCS,
+  )
+  .placeholders({
+    MODEL_FAMILY: ModelFamily.XS,
+  })
+  .config({})
+  .build();
+
+// Apply component overrides after building the base configuration
+// This is necessary because the builder pattern doesn't support bulk overrides
+Object.assign(config.componentOverrides, xsComponentOverrides);
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "xs" }, { strict: true });
+if (!validationResult.isValid) {
+  console.error("XS variant configuration validation failed:", validationResult.errors);
+  throw new Error(`Invalid XS variant configuration: ${validationResult.errors.join(", ")}`);
+}
+
+// Export type information for better IDE support
+export type XsVariantConfig = typeof config;
+```
+
+### VariantBuilder API Reference
+
+The `VariantBuilder` class provides a fluent, type-safe API for creating variant configurations:
+
+```typescript
+import { createVariant } from "../VariantBuilder";
+
+const config = createVariant(ModelFamily.GENERIC)
+  .description("Brief description of this variant")  // Required
+  .version(1)                                        // Required, defaults to 1
+  .tags("tag1", "tag2", "tag3")                     // Optional, can be chained
+  .labels({ stable: 1, production: 1 })             // Optional
+  .template(baseTemplate)                           // Required
+  .components(                                      // Required, type-safe component selection
+    SystemPromptSection.AGENT_ROLE,
+    SystemPromptSection.TOOL_USE,
+    // ... more components
+  )
+  .tools(                                          // Optional, type-safe tool selection
+    ClineDefaultTool.BASH,
+    ClineDefaultTool.FILE_READ,
+    // ... more tools
+  )
+  .placeholders({                                  // Optional
+    MODEL_FAMILY: "generic",
+    CUSTOM_PLACEHOLDER: "value",
+  })
+  .config({                                        // Optional, model-specific config
+    temperature: 0.7,
+    maxTokens: 4096,
+  })
+  .overrideComponent(SystemPromptSection.RULES, {  // Optional, component overrides
+    template: customRulesTemplate,
+  })
+  .overrideTool(ClineDefaultTool.BASH, {          // Optional, tool overrides
+    enabled: false,
+  })
+  .build();                                       // Returns Omit<PromptVariant, "id">
 ```
 
 ## Usage Examples
@@ -632,13 +767,13 @@ The system supports the following tools (mapped to `ClineDefaultTool` enum):
 
 ## Key Features
 
-✅ **Modular Components**: Reusable across different model variants  
-✅ **Template System**: `{{placeholder}}` support with runtime resolution  
-✅ **Versioning**: Full version control with tags and labels  
-✅ **Model Family Detection**: Automatic model family detection and fallback  
-✅ **Flexible Tool Configuration**: Per-variant tool selection and customization  
-✅ **Component Overrides**: Custom templates for specific components  
-✅ **Runtime Placeholders**: Dynamic value injection at build time  
-✅ **Performance Optimized**: Efficient component building and template resolution  
-✅ **Error Handling**: Graceful degradation when components fail  
-✅ **Conditional Logic**: Context-aware tool and component inclusion
+- **Modular Components**: Reusable across different model variants  
+- **Template System**: `{{placeholder}}` support with runtime resolution  
+- **Versioning**: Full version control with tags and labels  
+- **Model Family Detection**: Automatic model family detection and fallback  
+- **Flexible Tool Configuration**: Per-variant tool selection and customization  
+- **Component Overrides**: Custom templates for specific components  
+- **Runtime Placeholders**: Dynamic value injection at build time  
+- **Performance Optimized**: Efficient component building and template resolution  
+- **Error Handling**: Graceful degradation when components fail  
+- **Conditional Logic**: Context-aware tool and component inclusion

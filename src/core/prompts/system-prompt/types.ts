@@ -1,72 +1,239 @@
+/**
+ * Enhanced type definitions for better type safety and developer experience
+ */
+
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
-import type { ModelFamily } from "@/shared/prompts"
-import type { ClineDefaultTool } from "@/shared/tools"
-import type { SystemPromptSection } from "./templates/placeholders"
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import { SystemPromptSection } from "./templates/placeholders"
 import type { ClineToolSpec } from "./tools/spec"
 
+/**
+ * Strongly typed configuration override with validation
+ */
 export interface ConfigOverride {
-	template?: string // Custom template for the tool
-	enabled?: boolean // Whether the tool is enabled
-	order?: number // Override the order of the tool
+	template?: string // Custom template for the component/tool
+	enabled?: boolean // Whether the component/tool is enabled
+	order?: number // Override the order of the component/tool
 }
 
+/**
+ * Enhanced prompt variant with strict typing and validation
+ */
 export interface PromptVariant {
-	id: string // Model ID (e.g., "claude-4", "gpt-4", "gemini-pro")
-	version: number // Version number
-	tags: string[] // ["production", "beta", "experimental"]
-	labels: { [key: string]: number } // {"staging": 2, "prod": 1}
-	family: ModelFamily
-	description: string // Brief description of the prompt variant
+	readonly id: string // Model family ID (e.g., "next-gen", "generic")
+	readonly version: number // Version number (must be >= 1)
+	readonly tags: readonly string[] // Immutable tags array
+	readonly labels: Readonly<Record<string, number>> // Immutable labels mapping
+	readonly family: ModelFamily // Model family enum
+	readonly description: string // Brief description of the variant
 
 	// Prompt configuration
-	config: PromptConfig // Model-specific config (temperature, etc.)
-	baseTemplate: string // Main prompt template with placeholders
-	componentOrder: SystemPromptSection[] // Ordered list of components to include
-	componentOverrides: { [K in SystemPromptSection]?: ConfigOverride } // Component-specific customizations
-	placeholders: { [key: string]: string } // Default placeholder values
+	readonly config: PromptConfig // Model-specific config
+	readonly baseTemplate: string // Main prompt template with placeholders
+	readonly componentOrder: readonly SystemPromptSection[] // Ordered list of components
+	readonly componentOverrides: Readonly<Partial<Record<SystemPromptSection, ConfigOverride>>> // Component customizations
+	readonly placeholders: Readonly<Record<string, string>> // Default placeholder values
 
 	// Tool configuration
-	tools?: ClineDefaultTool[] // Ordered list of tools to include (if not specified, all tools are included)
-	toolOverrides?: { [K in ClineDefaultTool]?: ConfigOverride } // Tool-specific customizations
+	readonly tools?: readonly ClineDefaultTool[] // Ordered list of tools to include
+	readonly toolOverrides?: Readonly<Partial<Record<ClineDefaultTool, ConfigOverride>>> // Tool customizations
 }
 
-export interface PromptConfig {
-	modelName?: string
-	temperature?: number
-	maxTokens?: number
-	tools?: ClineToolSpec[]
-}
-
-export interface VersionMetadata {
+/**
+ * Mutable version of PromptVariant for building
+ */
+export interface MutablePromptVariant {
+	id?: string
 	version: number
 	tags: string[]
-	labels: { [label: string]: number } // label -> version mapping
-	changelog?: string
-	deprecated?: boolean
-	createdAt: Date
+	labels: Record<string, number>
+	family: ModelFamily
+	description?: string
+	config: PromptConfig
+	baseTemplate?: string
+	componentOrder: SystemPromptSection[]
+	componentOverrides: Partial<Record<SystemPromptSection, ConfigOverride>>
+	placeholders: Record<string, string>
+	tools?: ClineDefaultTool[]
+	toolOverrides?: Partial<Record<ClineDefaultTool, ConfigOverride>>
 }
 
-// Define SystemPromptContext here since we can't import from shared
+/**
+ * Type-safe prompt configuration
+ */
+export interface PromptConfig {
+	readonly modelName?: string
+	readonly temperature?: number
+	readonly maxTokens?: number
+	readonly tools?: readonly ClineToolSpec[]
+	readonly [key: string]: unknown // Additional arbitrary config
+}
+
+/**
+ * Version metadata with strict typing
+ */
+export interface VersionMetadata {
+	readonly version: number
+	readonly tags: readonly string[]
+	readonly labels: Readonly<Record<string, number>> // label -> version mapping
+	readonly changelog?: string
+	readonly deprecated?: boolean
+	readonly createdAt: Date
+}
+
+/**
+ * Enhanced system prompt context with better typing
+ */
 export interface SystemPromptContext {
-	cwd?: string
-	supportsBrowserUse?: boolean
-	mcpHub?: McpHub
-	focusChainSettings?: FocusChainSettings
-	globalClineRulesFileInstructions?: string
-	localClineRulesFileInstructions?: string
-	localCursorRulesFileInstructions?: string
-	localCursorRulesDirInstructions?: string
-	localWindsurfRulesFileInstructions?: string
-	clineIgnoreInstructions?: string
-	preferredLanguageInstructions?: string
-	browserSettings?: BrowserSettings
-	isTesting?: boolean
+	readonly cwd?: string
+	readonly supportsBrowserUse?: boolean
+	readonly mcpHub?: McpHub
+	readonly focusChainSettings?: FocusChainSettings
+	readonly globalClineRulesFileInstructions?: string
+	readonly localClineRulesFileInstructions?: string
+	readonly localCursorRulesFileInstructions?: string
+	readonly localCursorRulesDirInstructions?: string
+	readonly localWindsurfRulesFileInstructions?: string
+	readonly clineIgnoreInstructions?: string
+	readonly preferredLanguageInstructions?: string
+	readonly browserSettings?: BrowserSettings
+	readonly isTesting?: boolean
+	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
 }
 
+/**
+ * Component function with enhanced typing
+ */
 export type ComponentFunction = (variant: PromptVariant, context: SystemPromptContext) => Promise<string | undefined>
 
+/**
+ * Component registry with strict typing
+ */
 export interface ComponentRegistry {
 	[componentId: string]: ComponentFunction
+}
+
+/**
+ * Type-safe variant configuration for export
+ */
+export type VariantConfig = Omit<PromptVariant, "id">
+
+/**
+ * Utility types for better type inference
+ */
+
+// Extract component keys as literal types
+export type ComponentKey = keyof typeof SystemPromptSection
+export type ComponentValue = (typeof SystemPromptSection)[ComponentKey]
+
+// Extract tool keys as literal types
+export type ToolKey = keyof typeof ClineDefaultTool
+export type ToolValue = (typeof ClineDefaultTool)[ToolKey]
+
+// Type for variant builder methods
+export type VariantBuilderMethod<T> = (this: T, ...args: any[]) => T
+
+// Type guards
+export function isValidModelFamily(family: string): family is ModelFamily {
+	return Object.values(ModelFamily).includes(family as ModelFamily)
+}
+
+export function isValidSystemPromptSection(section: string): section is SystemPromptSection {
+	return Object.values(SystemPromptSection).includes(section as SystemPromptSection)
+}
+
+export function isValidClineDefaultTool(tool: string): tool is ClineDefaultTool {
+	return Object.values(ClineDefaultTool).includes(tool as ClineDefaultTool)
+}
+
+/**
+ * Template literal types for better string validation
+ */
+export type VariantName = string & { __brand: "VariantName" }
+export type PlaceholderName = string & { __brand: "PlaceholderName" }
+export type TemplateLiteral = string & { __brand: "TemplateLiteral" }
+
+/**
+ * Factory type for creating variants
+ */
+export interface VariantFactory {
+	create(family: ModelFamily): VariantBuilder
+	createGeneric(): VariantBuilder
+	createNextGen(): VariantBuilder
+	createXs(): VariantBuilder
+}
+
+/**
+ * Builder interface for type-safe variant construction
+ */
+export interface VariantBuilder {
+	description(desc: string): this
+	version(version: number): this
+	tags(...tags: string[]): this
+	labels(labels: Record<string, number>): this
+	template(baseTemplate: string): this
+	components(...sections: SystemPromptSection[]): this
+	overrideComponent(section: SystemPromptSection, override: ConfigOverride): this
+	tools(...tools: ClineDefaultTool[]): this
+	overrideTool(tool: ClineDefaultTool, override: ConfigOverride): this
+	placeholders(placeholders: Record<string, string>): this
+	config(config: Record<string, any>): this
+	build(): VariantConfig
+}
+
+/**
+ * Validation result types
+ */
+export interface ValidationError {
+	readonly field: string
+	readonly message: string
+	readonly severity: "error" | "warning"
+}
+
+export interface ValidationResult {
+	readonly isValid: boolean
+	readonly errors: readonly ValidationError[]
+	readonly warnings: readonly ValidationError[]
+}
+
+/**
+ * Registry types
+ */
+export interface VariantRegistryEntry {
+	readonly id: string
+	readonly variant: PromptVariant
+	readonly metadata: VersionMetadata
+}
+
+export interface VariantRegistry {
+	register(id: string, variant: PromptVariant): void
+	get(id: string): PromptVariant | undefined
+	getAll(): readonly VariantRegistryEntry[]
+	getByFamily(family: ModelFamily): readonly PromptVariant[]
+	getByTag(tag: string): readonly PromptVariant[]
+	getByLabel(label: string): readonly PromptVariant[]
+}
+
+/**
+ * Event types for variant lifecycle
+ */
+export interface VariantEvent {
+	readonly type: "created" | "updated" | "deleted" | "validated"
+	readonly variantId: string
+	readonly timestamp: Date
+	readonly metadata?: Record<string, unknown>
+}
+
+export type VariantEventHandler = (event: VariantEvent) => void
+
+/**
+ * Configuration schema types for runtime validation
+ */
+export interface VariantSchema {
+	readonly required: readonly string[]
+	readonly optional: readonly string[]
+	readonly validation: Record<string, (value: unknown) => boolean>
 }

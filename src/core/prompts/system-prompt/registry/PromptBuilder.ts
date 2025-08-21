@@ -107,7 +107,7 @@ export class PromptBuilder {
 		return {
 			variantId: this.variant.id,
 			version: this.variant.version,
-			componentsUsed: this.variant.componentOrder,
+			componentsUsed: [...this.variant.componentOrder],
 			placeholdersResolved: this.templateEngine.extractPlaceholders(this.variant.baseTemplate),
 		}
 	}

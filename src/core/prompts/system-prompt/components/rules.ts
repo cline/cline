@@ -2,19 +2,6 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-export async function getRulesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.RULES]?.template || RULES_TEMPLATE_TEXT
-
-	const browserRules = context.supportsBrowserUse ? BROWSER_RULES : ""
-
-	const browserWaitRules = context.supportsBrowserUse ? BROWSER_WAIT_RULES : ""
-	return new TemplateEngine().resolve(template, {
-		CWD: context.cwd || process.cwd(),
-		BROWSER_RULES: browserRules,
-		BROWSER_WAIT_RULES: browserWaitRules,
-	})
-}
-
 const BROWSER_RULES = `- The user may ask generic non-development tasks, such as "what\\'s the latest news" or "look up the weather in San Diego", in which case you might use the browser_action tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question. However, if an available MCP server tool or resource can be used instead, you should prefer to use it over browser_action.\n`
 
 const BROWSER_WAIT_RULES = ` Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser.`
@@ -45,3 +32,16 @@ const RULES_TEMPLATE_TEXT = `RULES
 - When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+
+export async function getRulesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
+	const template = variant.componentOverrides?.[SystemPromptSection.RULES]?.template || RULES_TEMPLATE_TEXT
+
+	const browserRules = context.supportsBrowserUse ? BROWSER_RULES : ""
+	const browserWaitRules = context.supportsBrowserUse ? BROWSER_WAIT_RULES : ""
+
+	return new TemplateEngine().resolve(template, {
+		CWD: context.cwd || process.cwd(),
+		BROWSER_RULES: browserRules,
+		BROWSER_WAIT_RULES: browserWaitRules,
+	})
+}

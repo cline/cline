@@ -2,12 +2,6 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-export async function getActVsPlanModeSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || ACT_VS_PLAN_MODE_TEMPLATE_TEXT
-
-	return new TemplateEngine().resolve(template, {})
-}
-
 const ACT_VS_PLAN_MODE_TEMPLATE_TEXT = `ACT MODE V.S. PLAN MODE
 
 In each user message, the environment_details will specify the current mode. There are two modes:
@@ -25,3 +19,9 @@ In each user message, the environment_details will specify the current mode. The
 - Once you've gained more context about the user's request, you should architect a detailed plan for how you will accomplish the task. Present the plan to the user using the plan_mode_respond tool.
 - Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
 - Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.`
+
+export async function getActVsPlanModeSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
+	const template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || ACT_VS_PLAN_MODE_TEMPLATE_TEXT
+
+	return new TemplateEngine().resolve(template, {})
+}

@@ -1,21 +1,22 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
-import type { PromptVariant } from "../../types"
+import { createVariant } from "../VariantBuilder"
+import { validateVariant } from "../VariantValidator"
 import { baseTemplate, rules_template } from "./template"
 
-export const config: Omit<PromptVariant, "id"> = {
-	version: 1,
-	family: ModelFamily.NEXT_GEN,
-	tags: ["next-gen", "advanced", "production"],
-	description: "Prompt tailored to newer frontier models with smarter agentic capabilities.",
-	labels: {
+// Type-safe variant configuration using the builder pattern
+export const config = createVariant(ModelFamily.NEXT_GEN)
+	.description("Prompt tailored to newer frontier models with smarter agentic capabilities.")
+	.version(1)
+	.tags("next-gen", "advanced", "production")
+	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
-	},
-	config: {},
-	componentOrder: [
+	})
+	.template(baseTemplate)
+	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.MCP,
@@ -28,18 +29,8 @@ export const config: Omit<PromptVariant, "id"> = {
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
-	],
-	componentOverrides: {
-		[SystemPromptSection.RULES]: {
-			template: rules_template,
-		},
-	},
-	placeholders: {
-		MODEL_FAMILY: ModelFamily.NEXT_GEN,
-	},
-	baseTemplate,
-	// Tool configuration - specify which tools to include and their order
-	tools: [
+	)
+	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		ClineDefaultTool.FILE_NEW,
@@ -57,18 +48,27 @@ export const config: Omit<PromptVariant, "id"> = {
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
-	],
+	)
+	.placeholders({
+		MODEL_FAMILY: ModelFamily.NEXT_GEN,
+	})
+	.config({})
+	// Override the RULES component with custom template
+	.overrideComponent(SystemPromptSection.RULES, {
+		template: rules_template,
+	})
+	.build()
 
-	// Tool overrides - customize specific tools
-	toolOverrides: {
-		// Example: Customize the execute_command tool
-		// execute_command: {
-		// 	template: "## execute_command\nCustom template for execute_command...",
-		// 	enabled: true,
-		// },
-		// Example: Disable a specific tool
-		// browser_action: {
-		// 	enabled: false,
-		// },
-	},
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "next-gen" }, { strict: true })
+if (!validationResult.isValid) {
+	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
 }
+
+if (validationResult.warnings.length > 0) {
+	console.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+}
+
+// Export type information for better IDE support
+export type NextGenVariantConfig = typeof config

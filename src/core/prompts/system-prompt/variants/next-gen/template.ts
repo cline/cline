@@ -1,4 +1,6 @@
-export const baseTemplate = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+import { SystemPromptSection } from "../.."
+
+export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{TOOL_USE_SECTION}}
 

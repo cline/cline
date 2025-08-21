@@ -60,11 +60,7 @@ export type StandardPlaceholder = (typeof STANDARD_PLACEHOLDERS)[keyof typeof ST
 /**
  * Required placeholders that must be provided for basic prompt functionality
  */
-export const REQUIRED_PLACEHOLDERS: StandardPlaceholder[] = [
-	STANDARD_PLACEHOLDERS.AGENT_ROLE,
-	STANDARD_PLACEHOLDERS.TOOL_USE,
-	STANDARD_PLACEHOLDERS.CWD,
-]
+export const REQUIRED_PLACEHOLDERS: StandardPlaceholder[] = [STANDARD_PLACEHOLDERS.AGENT_ROLE, STANDARD_PLACEHOLDERS.SYSTEM_INFO]
 
 /**
  * Optional placeholders that enhance prompt functionality when available

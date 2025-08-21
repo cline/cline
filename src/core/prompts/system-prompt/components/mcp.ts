@@ -3,23 +3,29 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
+const MCP_TEMPLATE_TEXT = `MCP SERVERS
+
+The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
+
+# Connected MCP Servers
+
+When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
+
+{{MCP_SERVERS_LIST}}`
+
 export async function getMcp(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
 	const servers = context.mcpHub?.getServers() || []
-
+	// Skip the section if there are no servers connected / available
 	if (servers.length === 0) {
 		return undefined
 	}
-
 	return await getMcpServers(servers, variant)
 }
 
 async function getMcpServers(servers: McpServer[], variant: PromptVariant): Promise<string> {
 	const template = variant.componentOverrides?.[SystemPromptSection.MCP]?.template || MCP_TEMPLATE_TEXT
-
 	const serversList = servers.length > 0 ? formatMcpServersList(servers) : "(No MCP servers currently connected)"
-
-	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return new TemplateEngine().resolve(template, {
 		MCP_SERVERS_LIST: serversList,
 	})
 }
@@ -61,13 +67,3 @@ function formatMcpServersList(servers: McpServer[]): string {
 		})
 		.join("\n\n")
 }
-
-const MCP_TEMPLATE_TEXT = `MCP SERVERS
-
-The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
-
-# Connected MCP Servers
-
-When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
-
-{{MCP_SERVERS_LIST}}`
