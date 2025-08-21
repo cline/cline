@@ -1,0 +1,80 @@
+---
+title: "Groq"
+description: "Learn how to configure and use Groq's lightning-fast inference with Cline. Access models from OpenAI, Meta, DeepSeek, and more on Groq's purpose-built LPU architecture."
+---
+
+Groq provides ultra-fast AI inference through their custom LPU™ (Language Processing Unit) architecture, purpose-built for inference rather than adapted from training hardware. Groq hosts open-source models from various providers including OpenAI, Meta, DeepSeek, Moonshot AI, and others.
+
+**Website:** [https://groq.com/](https://groq.com/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [Groq](https://groq.com/) and create an account or sign in.
+2.  **Navigate to Console:** Go to the [Groq Console](https://console.groq.com/) to access your dashboard.
+3.  **Create a Key:** Navigate to the API Keys section and create a new API key. Give your key a descriptive name (e.g., "Cline").
+4.  **Copy the Key:** Copy the API key immediately. You will not be able to see it again. Store it securely.
+
+### Supported Models
+
+Cline supports the following Groq models:
+
+-   `llama-3.3-70b-versatile` (Meta) - Balanced performance with 131K context
+-   `llama-3.1-8b-instant` (Meta) - Fast inference with 131K context  
+-   `openai/gpt-oss-120b` (OpenAI) - Featured flagship model with 131K context
+-   `openai/gpt-oss-20b` (OpenAI) - Featured compact model with 131K context
+-   `moonshotai/kimi-k2-instruct` (Moonshot AI) - 1 trillion parameter model with prompt caching
+-   `deepseek-r1-distill-llama-70b` (DeepSeek/Meta) - Reasoning-optimized model
+-   `qwen/qwen3-32b` (Alibaba Cloud) - Enhanced for Q&A tasks
+-   `meta-llama/llama-4-maverick-17b-128e-instruct` (Meta) - Latest Llama 4 variant
+-   `meta-llama/llama-4-scout-17b-16e-instruct` (Meta) - Latest Llama 4 variant
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Groq" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Groq API key into the "Groq API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Groq's Speed Revolution
+
+Groq's LPU architecture delivers several key advantages over traditional GPU-based inference:
+
+#### LPU Architecture
+Unlike GPUs that are adapted from training workloads, Groq's LPU is purpose-built for inference. This eliminates architectural bottlenecks that create latency in traditional systems.
+
+#### Unmatched Speed
+- **Sub-millisecond latency** that stays consistent across traffic, regions, and workloads
+- **Static scheduling** with pre-computed execution graphs eliminates runtime coordination delays
+- **Tensor parallelism** optimized for low-latency single responses rather than high-throughput batching
+
+#### Quality Without Tradeoffs
+- **TruePoint numerics** reduce precision only in areas that don't affect accuracy
+- **100-bit intermediate accumulation** ensures lossless computation
+- **Strategic precision control** maintains quality while achieving 2-4× speedup over BF16
+
+#### Memory Architecture
+- **SRAM as primary storage** (not cache) with hundreds of megabytes on-chip
+- **Eliminates DRAM/HBM latency** that plagues traditional accelerators
+- **Enables true tensor parallelism** by splitting layers across multiple chips
+
+Learn more about Groq's technology in their [LPU architecture blog post](https://groq.com/blog/inside-the-lpu-deconstructing-groq-speed).
+
+### Special Features
+
+#### Prompt Caching
+The Kimi K2 model supports prompt caching, which can significantly reduce costs and latency for repeated prompts.
+
+#### Vision Support
+Select models support image inputs and vision capabilities. Check the model details in the Groq Console for specific capabilities.
+
+#### Reasoning Models
+Some models like DeepSeek variants offer enhanced reasoning capabilities with step-by-step thought processes.
+
+### Tips and Notes
+
+-   **Model Selection:** Choose models based on your specific use case and performance requirements.
+-   **Speed Advantage:** Groq excels at single-request latency rather than high-throughput batch processing.
+-   **OSS Model Provider:** Groq hosts open-source models from multiple providers (OpenAI, Meta, DeepSeek, etc.) on their fast infrastructure.
+-   **Context Windows:** Most models offer large context windows (up to 131K tokens) for including substantial code and context.
+-   **Pricing:** Groq offers competitive pricing with their speed advantages. Check the [Groq Pricing](https://groq.com/pricing) page for current rates.
+-   **Rate Limits:** Groq has generous rate limits, but check their documentation for current limits based on your usage tier.

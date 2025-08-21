@@ -91,6 +91,7 @@ export class Controller {
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
@@ -173,6 +174,7 @@ export class Controller {
 		const isNewUser = this.cacheService.getGlobalStateKey("isNewUser")
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.cacheService.getGlobalStateKey("strictPlanModeEnabled")
+		const useAutoCondense = this.cacheService.getGlobalStateKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -209,7 +211,8 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
-			strictPlanModeEnabled ?? false,
+			strictPlanModeEnabled ?? true,
+			useAutoCondense ?? true,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -509,6 +512,20 @@ export class Controller {
 		return undefined
 	}
 
+	// Read Vercel AI Gateway models from disk cache
+	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const vercelAiGatewayModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.vercelAiGatewayModels,
+		)
+		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -583,6 +600,7 @@ export class Controller {
 		const openaiReasoningEffort = this.cacheService.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.cacheService.getGlobalStateKey("mode")
 		const strictPlanModeEnabled = this.cacheService.getGlobalStateKey("strictPlanModeEnabled")
+		const useAutoCondense = this.cacheService.getGlobalStateKey("useAutoCondense")
 		const userInfo = this.cacheService.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.cacheService.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.cacheService.getGlobalStateKey("mcpDisplayMode")
@@ -641,6 +659,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
+			useAutoCondense,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,

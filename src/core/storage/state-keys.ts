@@ -44,6 +44,7 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "vercelAiGatewayApiKey"
 	| "zaiApiKey"
 
 export type GlobalStateKey =
@@ -103,6 +104,7 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
 	| "strictPlanModeEnabled"
+	| "useAutoCondense"
 	| "focusChainSettings"
 	| "focusChainFeatureFlagEnabled"
 	// Settings around plan/act and ephemeral model configuration
@@ -139,6 +141,8 @@ export type GlobalStateKey =
 	| "planModeHuggingFaceModelInfo"
 	| "planModeHuaweiCloudMaasModelId"
 	| "planModeHuaweiCloudMaasModelInfo"
+	| "planModeVercelAiGatewayModelId"
+	| "planModeVercelAiGatewayModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -168,6 +172,8 @@ export type GlobalStateKey =
 	| "actModeHuggingFaceModelInfo"
 	| "actModeHuaweiCloudMaasModelId"
 	| "actModeHuaweiCloudMaasModelInfo"
+	| "actModeVercelAiGatewayModelId"
+	| "actModeVercelAiGatewayModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
 
@@ -228,6 +234,7 @@ export interface GlobalState {
 	sapAiResourceGroup: string | undefined
 	claudeCodePath: string | undefined
 	strictPlanModeEnabled: boolean
+	useAutoCondense: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -293,6 +300,10 @@ export interface GlobalState {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeVercelAiGatewayModelId: string | undefined
+	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeVercelAiGatewayModelId: string | undefined
+	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 }
 
 export interface Secrets {
@@ -329,6 +340,7 @@ export interface Secrets {
 	groqApiKey: string | undefined
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
+	vercelAiGatewayApiKey: string | undefined
 }
 
 export interface LocalState {
