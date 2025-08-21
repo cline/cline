@@ -104,6 +104,8 @@ export class TelemetryService {
 			SLASH_COMMAND_USED: "task.slash_command_used",
 			// Tracks when individual Cline rules are toggled on/off
 			RULE_TOGGLED: "task.rule_toggled",
+			// Tracks when auto condense setting is toggled on/off
+			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -828,6 +830,23 @@ export class TelemetryService {
 				ruleFileName: sanitizedFileName,
 				enabled,
 				isGlobal,
+			},
+		})
+	}
+
+	/**
+	 * Records when auto condense is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether auto condense was enabled (true) or disabled (false)
+	 * @param modelId The model ID being used when the toggle occurred
+	 */
+	public captureAutoCondenseToggle(ulid: string, enabled: boolean, modelId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_CONDENSE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+				modelId,
 			},
 		})
 	}

@@ -384,6 +384,9 @@ export class Task {
 	}
 
 	public updateUseAutoCondense(useAutoCondense: boolean): void {
+		// Track the setting change with current task and model context
+		telemetryService.captureAutoCondenseToggle(this.ulid, useAutoCondense, this.api.getModel().id)
+
 		this.useAutoCondense = useAutoCondense
 	}
 
