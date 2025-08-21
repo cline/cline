@@ -15,6 +15,9 @@ concurrency:
 jobs:
     matrix_prep:
         runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+            contents: read
         outputs:
             matrix: ${{ steps.set-matrix.outputs.matrix }}
         steps:
