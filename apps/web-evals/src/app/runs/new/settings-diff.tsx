@@ -52,13 +52,13 @@ type SettingDiffProps = HTMLAttributes<HTMLDivElement> & {
 export function SettingDiff({ name, defaultValue, customValue, ...props }: SettingDiffProps) {
 	return (
 		<Fragment {...props}>
-			<div className="overflow-hidden font-mono" title={name}>
+			<div className="font-mono" title={name}>
 				{name}
 			</div>
-			<pre className="overflow-hidden inline text-rose-500 line-through" title={defaultValue}>
+			<pre className="inline text-rose-500 line-through" title={defaultValue}>
 				{defaultValue}
 			</pre>
-			<pre className="overflow-hidden inline text-teal-500" title={customValue}>
+			<pre className="inline text-teal-500" title={customValue}>
 				{customValue}
 			</pre>
 		</Fragment>
