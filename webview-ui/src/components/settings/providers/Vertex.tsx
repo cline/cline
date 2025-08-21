@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { Checkbox } from "vscrui"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import { type ProviderSettings, VERTEX_REGIONS } from "@roo-code/types"
@@ -11,9 +12,10 @@ import { inputEventTransform } from "../transforms"
 type VertexProps = {
 	apiConfiguration: ProviderSettings
 	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+	fromWelcomeView?: boolean
 }
 
-export const Vertex = ({ apiConfiguration, setApiConfigurationField }: VertexProps) => {
+export const Vertex = ({ apiConfiguration, setApiConfigurationField, fromWelcomeView }: VertexProps) => {
 	const { t } = useAppTranslation()
 
 	const handleInputChange = useCallback(
@@ -91,6 +93,30 @@ export const Vertex = ({ apiConfiguration, setApiConfigurationField }: VertexPro
 					</SelectContent>
 				</Select>
 			</div>
+
+			{!fromWelcomeView && apiConfiguration.apiModelId?.startsWith("gemini") && (
+				<div className="mt-6">
+					<Checkbox
+						data-testid="checkbox-url-context"
+						checked={!!apiConfiguration.enableUrlContext}
+						onChange={(checked: boolean) => setApiConfigurationField("enableUrlContext", checked)}>
+						{t("settings:providers.geminiParameters.urlContext.title")}
+					</Checkbox>
+					<div className="text-sm text-vscode-descriptionForeground mb-3 mt-1.5">
+						{t("settings:providers.geminiParameters.urlContext.description")}
+					</div>
+
+					<Checkbox
+						data-testid="checkbox-grounding-search"
+						checked={!!apiConfiguration.enableGrounding}
+						onChange={(checked: boolean) => setApiConfigurationField("enableGrounding", checked)}>
+						{t("settings:providers.geminiParameters.groundingSearch.title")}
+					</Checkbox>
+					<div className="text-sm text-vscode-descriptionForeground mb-3 mt-1.5">
+						{t("settings:providers.geminiParameters.groundingSearch.description")}
+					</div>
+				</div>
+			)}
 		</>
 	)
 }
