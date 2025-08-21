@@ -80,7 +80,7 @@ import { ToolRepetitionDetector } from "../tools/ToolRepetitionDetector"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { RooProtectedController } from "../protect/RooProtectedController"
-import { type AssistantMessageContent, presentAssistantMessage, parseAssistantMessage } from "../assistant-message"
+import { type AssistantMessageContent, presentAssistantMessage } from "../assistant-message"
 import { AssistantMessageParser } from "../assistant-message/AssistantMessageParser"
 import { truncateConversationIfNeeded } from "../sliding-window"
 import { ClineProvider } from "../webview/ClineProvider"
@@ -270,8 +270,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	didRejectTool = false
 	didAlreadyUseTool = false
 	didCompleteReadingStream = false
-	assistantMessageParser?: AssistantMessageParser
-	isAssistantMessageParserEnabled = false
+	assistantMessageParser: AssistantMessageParser
 	private lastUsedInstructions?: string
 	private skipPrevResponseIdOnce: boolean = false
 
@@ -354,6 +353,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.taskModeReady = this.initializeTaskMode(provider)
 			TelemetryService.instance.captureTaskCreated(this.taskId)
 		}
+
+		// Initialize the assistant message parser
+		this.assistantMessageParser = new AssistantMessageParser()
 
 		// Only set up diff strategy if diff is enabled.
 		if (this.diffEnabled) {
@@ -1751,9 +1753,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.didAlreadyUseTool = false
 				this.presentAssistantMessageLocked = false
 				this.presentAssistantMessageHasPendingUpdates = false
-				if (this.assistantMessageParser) {
-					this.assistantMessageParser.reset()
-				}
+				this.assistantMessageParser.reset()
 
 				await this.diffViewProvider.reset()
 
@@ -1794,12 +1794,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 								// Parse raw assistant message chunk into content blocks.
 								const prevLength = this.assistantMessageContent.length
-								if (this.isAssistantMessageParserEnabled && this.assistantMessageParser) {
-									this.assistantMessageContent = this.assistantMessageParser.processChunk(chunk.text)
-								} else {
-									// Use the old parsing method when experiment is disabled
-									this.assistantMessageContent = parseAssistantMessage(assistantMessage)
-								}
+								this.assistantMessageContent = this.assistantMessageParser.processChunk(chunk.text)
 
 								if (this.assistantMessageContent.length > prevLength) {
 									// New content we need to present, reset to
@@ -2058,11 +2053,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				// this.assistantMessageContent.forEach((e) => (e.partial = false))
 
 				// Now that the stream is complete, finalize any remaining partial content blocks
-				if (this.isAssistantMessageParserEnabled && this.assistantMessageParser) {
-					this.assistantMessageParser.finalizeContentBlocks()
-					this.assistantMessageContent = this.assistantMessageParser.getContentBlocks()
-				}
-				// When using old parser, no finalization needed - parsing already happened during streaming
+				this.assistantMessageParser.finalizeContentBlocks()
+				this.assistantMessageContent = this.assistantMessageParser.getContentBlocks()
 
 				if (partialBlocks.length > 0) {
 					// If there is content to update then it will complete and
@@ -2081,9 +2073,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				await this.providerRef.deref()?.postStateToWebview()
 
 				// Reset parser after each complete conversation round
-				if (this.assistantMessageParser) {
-					this.assistantMessageParser.reset()
-				}
+				this.assistantMessageParser.reset()
 
 				// Now add to apiConversationHistory.
 				// Need to save assistant responses to file before proceeding to
