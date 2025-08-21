@@ -88,6 +88,7 @@ import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-
 import { MultiFileSearchReplaceDiffStrategy } from "../diff/strategies/multi-file-search-replace"
 import { readApiMessages, saveApiMessages, readTaskMessages, saveTaskMessages, taskMetadata } from "../task-persistence"
 import { getEnvironmentDetails } from "../environment/getEnvironmentDetails"
+import { checkContextWindowExceededError } from "../context/context-management/context-error-handling"
 import {
 	type CheckpointDiffOptions,
 	type CheckpointRestoreOptions,
@@ -105,6 +106,8 @@ import { AutoApprovalHandler } from "./AutoApprovalHandler"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
+const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
+const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
 
 export type TaskOptions = {
 	provider: ClineProvider
@@ -1387,7 +1390,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (this.bridgeService) {
 			this.bridgeService
 				.unsubscribeFromTask(this.taskId)
-				.catch((error) => console.error("Error unsubscribing from task bridge:", error))
+				.catch((error: unknown) => console.error("Error unsubscribing from task bridge:", error))
 			this.bridgeService = null
 		}
 
@@ -2232,6 +2235,71 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		})()
 	}
 
+	private getCurrentProfileId(state: any): string {
+		return (
+			state?.listApiConfigMeta?.find((profile: any) => profile.name === state?.currentApiConfigName)?.id ??
+			"default"
+		)
+	}
+
+	private async handleContextWindowExceededError(): Promise<void> {
+		const state = await this.providerRef.deref()?.getState()
+		const { profileThresholds = {} } = state ?? {}
+
+		const { contextTokens } = this.getTokenUsage()
+		const modelInfo = this.api.getModel().info
+		const maxTokens = getModelMaxOutputTokens({
+			modelId: this.api.getModel().id,
+			model: modelInfo,
+			settings: this.apiConfiguration,
+		})
+		const contextWindow = modelInfo.contextWindow
+
+		// Get the current profile ID using the helper method
+		const currentProfileId = this.getCurrentProfileId(state)
+
+		// Log the context window error for debugging
+		console.warn(
+			`[Task#${this.taskId}] Context window exceeded for model ${this.api.getModel().id}. ` +
+				`Current tokens: ${contextTokens}, Context window: ${contextWindow}. ` +
+				`Forcing truncation to ${FORCED_CONTEXT_REDUCTION_PERCENT}% of current context.`,
+		)
+
+		// Force aggressive truncation by keeping only 75% of the conversation history
+		const truncateResult = await truncateConversationIfNeeded({
+			messages: this.apiConversationHistory,
+			totalTokens: contextTokens || 0,
+			maxTokens,
+			contextWindow,
+			apiHandler: this.api,
+			autoCondenseContext: true,
+			autoCondenseContextPercent: FORCED_CONTEXT_REDUCTION_PERCENT,
+			systemPrompt: await this.getSystemPrompt(),
+			taskId: this.taskId,
+			profileThresholds,
+			currentProfileId,
+		})
+
+		if (truncateResult.messages !== this.apiConversationHistory) {
+			await this.overwriteApiConversationHistory(truncateResult.messages)
+		}
+
+		if (truncateResult.summary) {
+			const { summary, cost, prevContextTokens, newContextTokens = 0 } = truncateResult
+			const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens }
+			await this.say(
+				"condense_context",
+				undefined /* text */,
+				undefined /* images */,
+				false /* partial */,
+				undefined /* checkpoint */,
+				undefined /* progressStatus */,
+				{ isNonInteractive: true } /* options */,
+				contextCondense,
+			)
+		}
+	}
+
 	public async *attemptApiRequest(retryAttempt: number = 0): ApiStream {
 		const state = await this.providerRef.deref()?.getState()
 
@@ -2310,9 +2378,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			const contextWindow = modelInfo.contextWindow
 
-			const currentProfileId =
-				state?.listApiConfigMeta.find((profile) => profile.name === state?.currentApiConfigName)?.id ??
-				"default"
+			// Get the current profile ID using the helper method
+			const currentProfileId = this.getCurrentProfileId(state)
 
 			const truncateResult = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
@@ -2419,6 +2486,21 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			this.isWaitingForFirstChunk = false
+			const isContextWindowExceededError = checkContextWindowExceededError(error)
+
+			// If it's a context window error and we haven't exceeded max retries for this error type
+			if (isContextWindowExceededError && retryAttempt < MAX_CONTEXT_WINDOW_RETRIES) {
+				console.warn(
+					`[Task#${this.taskId}] Context window exceeded for model ${this.api.getModel().id}. ` +
+						`Retry attempt ${retryAttempt + 1}/${MAX_CONTEXT_WINDOW_RETRIES}. ` +
+						`Attempting automatic truncation...`,
+				)
+				await this.handleContextWindowExceededError()
+				// Retry the request after handling the context window error
+				yield* this.attemptApiRequest(retryAttempt + 1)
+				return
+			}
+
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			if (autoApprovalEnabled && alwaysApproveResubmit) {
 				let errorMsg
