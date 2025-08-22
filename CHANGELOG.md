@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.25.22] - 2025-08-22
+
+- Add prompt caching support for Kimi K2 on Groq (thanks @daniel-lxs and @benank!)
+- Add documentation links for global custom instructions in UI (thanks @app/roomote!)
+
 ## [3.25.21] - 2025-08-21
 
 - Ensure subtask results are provided to GPT-5 in OpenAI Responses API
