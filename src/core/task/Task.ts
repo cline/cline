@@ -1123,6 +1123,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				role: "user",
 				content: [{ type: "text", text: `[new_task completed] Result: ${lastMessage}` }],
 			})
+
+			// Set skipPrevResponseIdOnce to ensure the next API call sends the full conversation
+			// including the subtask result, not just from before the subtask was created
+			this.skipPrevResponseIdOnce = true
 		} catch (error) {
 			this.providerRef
 				.deref()
