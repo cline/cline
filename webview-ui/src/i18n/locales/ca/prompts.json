@@ -50,7 +50,7 @@
 		"title": "Instruccions personalitzades específiques del mode (opcional)",
 		"resetToDefault": "Restablir a valors predeterminats",
 		"description": "Afegiu directrius de comportament específiques per al mode {{modeName}}.",
-		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de la carpeta <span>.roo/rules-{{slug}}/</span> al vostre espai de treball (.roorules-{{slug}} i .clinerules-{{slug}} estan obsolets i deixaran de funcionar aviat)."
+		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de la carpeta <span>.roo/rules-{{slug}}/</span> al vostre espai de treball o des del global <0>.roo/rules-{{slug}}/</0> (.roorules-{{slug}} i .clinerules-{{slug}} estan obsolets i deixaran de funcionar aviat)."
 	},
 	"exportMode": {
 		"title": "Exportar mode",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "Instruccions personalitzades per a tots els modes",
 		"description": "Aquestes instruccions s'apliquen a tots els modes. Proporcionen un conjunt bàsic de comportaments que es poden millorar amb instruccions específiques de cada mode a continuació. <0>Més informació</0>",
-		"loadFromFile": "Les instruccions també es poden carregar des de la carpeta <span>.roo/rules/</span> al vostre espai de treball (.roorules i .clinerules estan obsolets i deixaran de funcionar aviat)."
+		"loadFromFile": "Les instruccions també es poden carregar des de la carpeta <span>.roo/rules/</span> al vostre espai de treball o des del global <0>.roo/rules/</0> (.roorules i .clinerules estan obsolets i deixaran de funcionar aviat)."
 	},
 	"systemPrompt": {
 		"preview": "Previsualització del prompt del sistema",

@@ -50,7 +50,7 @@
 		"title": "模式专属规则（可选）",
 		"resetToDefault": "重置为默认值",
 		"description": "{{modeName}}模式的专属规则",
-		"loadFromFile": "支持从<span>.roo/rules-{{slug}}/</span>目录读取配置（.roorules-{{slug}}和.clinerules-{{slug}}已弃用并将很快停止工作）。"
+		"loadFromFile": "{{mode}}模式的特定自定义指令也可以从工作区中的<span>.roo/rules-{{slug}}/</span>文件夹或全局<0>.roo/rules-{{slug}}/</0>加载（.roorules-{{slug}}和.clinerules-{{slug}}已弃用，即将停止工作）。"
 	},
 	"exportMode": {
 		"title": "导出模式",
@@ -74,7 +74,7 @@
 	"globalCustomInstructions": {
 		"title": "所有模式的自定义指令",
 		"description": "这些指令适用于所有模式。它们提供了一套基础行为，可以通过下面的模式特定指令进行增强。<0>了解更多</0>",
-		"loadFromFile": "支持从<span>.roo/rules/</span>目录读取全局配置（.roorules和.clinerules已弃用并将很快停止工作）。"
+		"loadFromFile": "指令也可以从工作区中的<span>.roo/rules/</span>文件夹或全局<0>.roo/rules/</0>加载（.roorules和.clinerules已弃用，即将停止工作）。"
 	},
 	"systemPrompt": {
 		"preview": "预览系统提示词",

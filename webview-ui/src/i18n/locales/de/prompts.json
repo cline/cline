@@ -50,7 +50,7 @@
 		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
-		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus dem Ordner <span>.roo/rules-{{slug}}/</span> in deinem Arbeitsbereich geladen werden (.roorules-{{slug}} und .clinerules-{{slug}} sind veraltet und werden bald nicht mehr funktionieren)."
+		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus dem Ordner <span>.roo/rules-{{slug}}/</span> in deinem Arbeitsbereich oder aus dem globalen <0>.roo/rules-{{slug}}/</0> geladen werden (.roorules-{{slug}} und .clinerules-{{slug}} sind veraltet und werden bald nicht mehr funktionieren)."
 	},
 	"exportMode": {
 		"title": "Modus exportieren",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",
 		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können. <0>Mehr erfahren</0>",
-		"loadFromFile": "Anweisungen können auch aus dem Ordner <span>.roo/rules/</span> in deinem Arbeitsbereich geladen werden (.roorules und .clinerules sind veraltet und werden bald nicht mehr funktionieren)."
+		"loadFromFile": "Anweisungen können auch aus dem Ordner <span>.roo/rules/</span> in deinem Arbeitsbereich oder aus dem globalen <0>.roo/rules/</0> geladen werden (.roorules und .clinerules sind veraltet und werden bald nicht mehr funktionieren)."
 	},
 	"systemPrompt": {
 		"preview": "System-Prompt Vorschau",

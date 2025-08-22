@@ -50,7 +50,7 @@
 		"title": "모드별 사용자 지정 지침 (선택 사항)",
 		"resetToDefault": "기본값으로 재설정",
 		"description": "{{modeName}} 모드에 대한 특정 행동 지침을 추가하세요.",
-		"loadFromFile": "{{mode}} 모드에 대한 사용자 지정 지침은 작업 공간의 <span>.roo/rules-{{slug}}/</span> 폴더에서도 로드할 수 있습니다(.roorules-{{slug}}와 .clinerules-{{slug}}는 더 이상 사용되지 않으며 곧 작동을 중단합니다)."
+		"loadFromFile": "{{mode}} 모드에 특정한 사용자 지정 지침은 작업 공간의 <span>.roo/rules-{{slug}}/</span> 폴더 또는 전역 <0>.roo/rules-{{slug}}/</0>에서도 로드할 수 있습니다 (.roorules-{{slug}} 및 .clinerules-{{slug}}는 더 이상 사용되지 않으며 곧 작동을 중지합니다)."
 	},
 	"exportMode": {
 		"title": "모드 내보내기",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "모든 모드에 대한 사용자 지정 지침",
 		"description": "이 지침은 모든 모드에 적용됩니다. 아래의 모드별 지침으로 향상될 수 있는 기본 동작 세트를 제공합니다. <0>더 알아보기</0>",
-		"loadFromFile": "지침은 작업 공간의 <span>.roo/rules/</span> 폴더에서도 로드할 수 있습니다(.roorules와 .clinerules는 더 이상 사용되지 않으며 곧 작동을 중단합니다)."
+		"loadFromFile": "지침은 작업 공간의 <span>.roo/rules/</span> 폴더 또는 전역 <0>.roo/rules/</0>에서도 로드할 수 있습니다 (.roorules 및 .clinerules는 더 이상 사용되지 않으며 곧 작동을 중지합니다)."
 	},
 	"systemPrompt": {
 		"preview": "시스템 프롬프트 미리보기",

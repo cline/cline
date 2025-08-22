@@ -50,7 +50,7 @@
 		"title": "Hướng dẫn tùy chỉnh dành riêng cho chế độ (tùy chọn)",
 		"resetToDefault": "Đặt lại về mặc định",
 		"description": "Thêm hướng dẫn hành vi dành riêng cho chế độ {{modeName}}.",
-		"loadFromFile": "Hướng dẫn tùy chỉnh dành riêng cho chế độ {{mode}} cũng có thể được tải từ thư mục <span>.roo/rules-{{slug}}/</span> trong không gian làm việc của bạn (.roorules-{{slug}} và .clinerules-{{slug}} đã lỗi thời và sẽ sớm ngừng hoạt động)."
+		"loadFromFile": "Hướng dẫn tùy chỉnh cụ thể cho chế độ {{mode}} cũng có thể được tải từ thư mục <span>.roo/rules-{{slug}}/</span> trong không gian làm việc của bạn hoặc từ toàn cục <0>.roo/rules-{{slug}}/</0> (.roorules-{{slug}} và .clinerules-{{slug}} đã lỗi thời và sẽ ngừng hoạt động sớm)."
 	},
 	"exportMode": {
 		"title": "Xuất chế độ",
@@ -61,7 +61,7 @@
 	"globalCustomInstructions": {
 		"title": "Hướng dẫn tùy chỉnh cho tất cả các chế độ",
 		"description": "Những hướng dẫn này áp dụng cho tất cả các chế độ. Chúng cung cấp một bộ hành vi cơ bản có thể được nâng cao bởi hướng dẫn dành riêng cho chế độ bên dưới. <0>Tìm hiểu thêm</0>",
-		"loadFromFile": "Hướng dẫn cũng có thể được tải từ thư mục <span>.roo/rules/</span> trong không gian làm việc của bạn (.roorules và .clinerules đã lỗi thời và sẽ sớm ngừng hoạt động)."
+		"loadFromFile": "Hướng dẫn cũng có thể được tải từ thư mục <span>.roo/rules/</span> trong không gian làm việc của bạn hoặc từ toàn cục <0>.roo/rules/</0> (.roorules và .clinerules đã lỗi thời và sẽ ngừng hoạt động sớm)."
 	},
 	"importMode": {
 		"selectLevel": "Chọn nơi để nhập chế độ này:",

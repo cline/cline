@@ -50,7 +50,7 @@
 		"title": "Moda özgü özel talimatlar (isteğe bağlı)",
 		"resetToDefault": "Varsayılana sıfırla",
 		"description": "{{modeName}} modu için özel davranış yönergeleri ekleyin.",
-		"loadFromFile": "{{mode}} moduna özgü özel talimatlar ayrıca çalışma alanınızdaki <span>.roo/rules-{{slug}}/</span> klasöründen yüklenebilir (.roorules-{{slug}} ve .clinerules-{{slug}} kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaklardır)."
+		"loadFromFile": "{{mode}} moduna özgü özel talimatlar, çalışma alanınızdaki <span>.roo/rules-{{slug}}/</span> klasöründen veya global <0>.roo/rules-{{slug}}/</0> klasöründen de yüklenebilir (.roorules-{{slug}} ve .clinerules-{{slug}} kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaktır)."
 	},
 	"exportMode": {
 		"title": "Modu Dışa Aktar",
@@ -61,7 +61,7 @@
 	"globalCustomInstructions": {
 		"title": "Tüm Modlar için Özel Talimatlar",
 		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar. <0>Daha fazla bilgi edinin</0>",
-		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.roo/rules/</span> klasöründen de yüklenebilir (.roorules ve .clinerules kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaklardır)."
+		"loadFromFile": "Talimatlar, çalışma alanınızdaki <span>.roo/rules/</span> klasöründen veya global <0>.roo/rules/</0> klasöründen de yüklenebilir (.roorules ve .clinerules kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaktır)."
 	},
 	"importMode": {
 		"selectLevel": "Bu modu nereye içe aktaracağınızı seçin:",

@@ -50,7 +50,7 @@
 		"title": "Istruzioni personalizzate specifiche per la modalità (opzionale)",
 		"resetToDefault": "Ripristina predefiniti",
 		"description": "Aggiungi linee guida comportamentali specifiche per la modalità {{modeName}}.",
-		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono essere caricate anche dalla cartella <span>.roo/rules-{{slug}}/</span> nel tuo spazio di lavoro (.roorules-{{slug}} e .clinerules-{{slug}} sono obsoleti e smetteranno di funzionare presto)."
+		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono anche essere caricate dalla cartella <span>.roo/rules-{{slug}}/</span> nel tuo spazio di lavoro o dal globale <0>.roo/rules-{{slug}}/</0> (.roorules-{{slug}} e .clinerules-{{slug}} sono deprecati e smetteranno di funzionare presto)."
 	},
 	"exportMode": {
 		"title": "Esporta modalità",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "Istruzioni personalizzate per tutte le modalità",
 		"description": "Queste istruzioni si applicano a tutte le modalità. Forniscono un insieme base di comportamenti che possono essere migliorati dalle istruzioni specifiche per modalità qui sotto. <0>Scopri di più</0>",
-		"loadFromFile": "Le istruzioni possono essere caricate anche dalla cartella <span>.roo/rules/</span> nel tuo spazio di lavoro (.roorules e .clinerules sono obsoleti e smetteranno di funzionare presto)."
+		"loadFromFile": "Le istruzioni possono anche essere caricate dalla cartella <span>.roo/rules/</span> nel tuo spazio di lavoro o dal globale <0>.roo/rules/</0> (.roorules e .clinerules sono deprecati e smetteranno di funzionare presto)."
 	},
 	"systemPrompt": {
 		"preview": "Anteprima prompt di sistema",

@@ -50,7 +50,7 @@
 		"title": "モード固有のカスタム指示（オプション）",
 		"resetToDefault": "デフォルトにリセット",
 		"description": "{{modeName}}モードに特化した行動ガイドラインを追加します。",
-		"loadFromFile": "{{mode}}モード固有のカスタム指示は、ワークスペースの<span>.roo/rules-{{slug}}/</span>フォルダからも読み込めます（.roorules-{{slug}}と.clinerules-{{slug}}は非推奨であり、まもなく機能しなくなります）。"
+		"loadFromFile": "{{mode}}モード固有のカスタム指示は、ワークスペースの<span>.roo/rules-{{slug}}/</span>フォルダまたはグローバル<0>.roo/rules-{{slug}}/</0>からも読み込むことができます（.roorules-{{slug}}と.clinerules-{{slug}}は非推奨で、まもなく動作しなくなります）。"
 	},
 	"exportMode": {
 		"title": "モードをエクスポート",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "すべてのモードのカスタム指示",
 		"description": "これらの指示はすべてのモードに適用されます。モード固有の指示で強化できる基本的な動作セットを提供します。<0>詳細はこちら</0>",
-		"loadFromFile": "指示はワークスペースの<span>.roo/rules/</span>フォルダからも読み込めます（.roorules と .clinerules は非推奨であり、まもなく機能しなくなります）。"
+		"loadFromFile": "指示は、ワークスペースの<span>.roo/rules/</span>フォルダまたはグローバル<0>.roo/rules/</0>からも読み込むことができます（.roorulesと.clinerulesは非推奨で、まもなく動作しなくなります）。"
 	},
 	"systemPrompt": {
 		"preview": "システムプロンプトのプレビュー",

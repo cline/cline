@@ -50,7 +50,7 @@
 		"title": "Instructions personnalisées spécifiques au mode (optionnel)",
 		"resetToDefault": "Réinitialiser aux valeurs par défaut",
 		"description": "Ajoutez des directives comportementales spécifiques au mode {{modeName}}.",
-		"loadFromFile": "Les instructions personnalisées spécifiques au mode {{mode}} peuvent également être chargées depuis le dossier <span>.roo/rules-{{slug}}/</span> dans votre espace de travail (.roorules-{{slug}} et .clinerules-{{slug}} sont obsolètes et cesseront de fonctionner bientôt)."
+		"loadFromFile": "Les instructions personnalisées spécifiques au mode {{mode}} peuvent également être chargées depuis le dossier <span>.roo/rules-{{slug}}/</span> dans votre espace de travail ou depuis le global <0>.roo/rules-{{slug}}/</0> (.roorules-{{slug}} et .clinerules-{{slug}} sont obsolètes et cesseront de fonctionner bientôt)."
 	},
 	"exportMode": {
 		"title": "Exporter le mode",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "Instructions personnalisées pour tous les modes",
 		"description": "Ces instructions s'appliquent à tous les modes. Elles fournissent un ensemble de comportements de base qui peuvent être améliorés par des instructions spécifiques au mode ci-dessous. <0>En savoir plus</0>",
-		"loadFromFile": "Les instructions peuvent également être chargées depuis le dossier <span>.roo/rules/</span> dans votre espace de travail (.roorules et .clinerules sont obsolètes et cesseront de fonctionner bientôt)."
+		"loadFromFile": "Les instructions peuvent également être chargées depuis le dossier <span>.roo/rules/</span> dans votre espace de travail ou depuis le global <0>.roo/rules/</0> (.roorules et .clinerules sont obsolètes et cesseront de fonctionner bientôt)."
 	},
 	"systemPrompt": {
 		"preview": "Aperçu du prompt système",

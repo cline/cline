@@ -50,7 +50,7 @@
 		"title": "模式專屬自訂指令（選用）",
 		"resetToDefault": "重設為預設值",
 		"description": "為 {{modeName}} 模式新增專屬的行為指南。",
-		"loadFromFile": "{{mode}} 模式的自訂指令也可以從工作區的 <span>.roo/rules-{{slug}}/</span> 資料夾載入（.roorules-{{slug}} 和 .clinerules-{{slug}} 已被棄用，很快將停止運作）。"
+		"loadFromFile": "{{mode}}模式的特定自訂指令也可以從工作區中的<span>.roo/rules-{{slug}}/</span>資料夾或全域<0>.roo/rules-{{slug}}/</0>載入（.roorules-{{slug}}和.clinerules-{{slug}}已棄用，即將停止運作）。"
 	},
 	"exportMode": {
 		"title": "匯出模式",
@@ -76,7 +76,7 @@
 	"globalCustomInstructions": {
 		"title": "所有模式的自訂指令",
 		"description": "這些指令適用於所有模式。它們提供了一套可透過下方特定模式指令強化的基本行為。<0>了解更多</0>",
-		"loadFromFile": "指令也可以從工作區的 <span>.roo/rules/</span> 資料夾載入（.roorules 和 .clinerules 已被棄用，很快將停止運作）。"
+		"loadFromFile": "指令也可以從工作區中的<span>.roo/rules/</span>資料夾或全域<0>.roo/rules/</0>載入（.roorules和.clinerules已棄用，即將停止運作）。"
 	},
 	"systemPrompt": {
 		"preview": "預覽系統提示詞",

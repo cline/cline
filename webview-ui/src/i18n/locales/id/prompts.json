@@ -50,7 +50,7 @@
 		"title": "Instruksi Kustom Khusus Mode (opsional)",
 		"resetToDefault": "Reset ke default",
 		"description": "Tambahkan panduan perilaku khusus untuk mode {{modeName}}.",
-		"loadFromFile": "Instruksi kustom khusus untuk mode {{mode}} juga dapat dimuat dari folder <span>.roo/rules-{{slug}}/</span> di workspace Anda (.roomodes-{{slug}} dan .clinerules-{{slug}} sudah deprecated dan akan segera berhenti bekerja)."
+		"loadFromFile": "Instruksi khusus untuk mode {{mode}} juga dapat dimuat dari folder <span>.roo/rules-{{slug}}/</span> di ruang kerja Anda atau dari global <0>.roo/rules-{{slug}}/</0> (.roorules-{{slug}} dan .clinerules-{{slug}} sudah usang dan akan segera berhenti berfungsi)."
 	},
 	"exportMode": {
 		"title": "Ekspor Mode",
@@ -77,7 +77,7 @@
 	"globalCustomInstructions": {
 		"title": "Instruksi Kustom untuk Semua Mode",
 		"description": "Instruksi ini berlaku untuk semua mode. Mereka menyediakan set dasar perilaku yang dapat ditingkatkan oleh instruksi khusus mode di bawah. <0>Pelajari lebih lanjut</0>",
-		"loadFromFile": "Instruksi juga dapat dimuat dari folder <span>.roo/rules/</span> di workspace Anda (.roorules dan .clinerules sudah deprecated dan akan segera berhenti bekerja)."
+		"loadFromFile": "Instruksi juga dapat dimuat dari folder <span>.roo/rules/</span> di ruang kerja Anda atau dari global <0>.roo/rules/</0> (.roorules dan .clinerules sudah usang dan akan segera berhenti berfungsi)."
 	},
 	"systemPrompt": {
 		"preview": "Pratinjau System Prompt",
