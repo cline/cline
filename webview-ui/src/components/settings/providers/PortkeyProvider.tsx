@@ -26,6 +26,8 @@ export const PortkeyProvider = ({ showModelOptions, isPopup, currentMode }: Port
 
 	const [availableModels, setAvailableModels] = useState<string[]>([])
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const baseUrlRef = useRef<string>(apiConfiguration?.openAiBaseUrl || PORTKEY_DEFAULT_BASE_URL)
+	const apiKeyRef = useRef<string>(apiConfiguration?.openAiApiKey || "")
 
 	useEffect(() => {
 		return () => {
@@ -40,12 +42,15 @@ export const PortkeyProvider = ({ showModelOptions, isPopup, currentMode }: Port
 			clearTimeout(debounceTimerRef.current)
 		}
 
-		if (baseUrl && apiKey) {
+		const effectiveBaseUrl = baseUrl || baseUrlRef.current
+		const effectiveApiKey = apiKey || apiKeyRef.current
+
+		if (effectiveBaseUrl && effectiveApiKey) {
 			debounceTimerRef.current = setTimeout(() => {
 				ModelsServiceClient.refreshOpenAiModels(
 					OpenAiModelsRequest.create({
-						baseUrl,
-						apiKey,
+						baseUrl: effectiveBaseUrl,
+						apiKey: effectiveApiKey,
 					}),
 				)
 					.then((resp) => {
@@ -65,8 +70,9 @@ export const PortkeyProvider = ({ showModelOptions, isPopup, currentMode }: Port
 			<DebouncedTextField
 				initialValue={apiConfiguration?.openAiBaseUrl || PORTKEY_DEFAULT_BASE_URL}
 				onChange={(value) => {
+					baseUrlRef.current = value || PORTKEY_DEFAULT_BASE_URL
 					handleFieldChange("openAiBaseUrl", value)
-					debouncedRefreshModels(value || PORTKEY_DEFAULT_BASE_URL, apiConfiguration?.openAiApiKey)
+					debouncedRefreshModels(baseUrlRef.current, apiKeyRef.current)
 				}}
 				placeholder={`Default: ${PORTKEY_DEFAULT_BASE_URL}`}
 				style={{ width: "100%", marginBottom: 10 }}
@@ -77,8 +83,9 @@ export const PortkeyProvider = ({ showModelOptions, isPopup, currentMode }: Port
 			<ApiKeyField
 				initialValue={apiConfiguration?.openAiApiKey || ""}
 				onChange={(value) => {
+					apiKeyRef.current = value
 					handleFieldChange("openAiApiKey", value)
-					debouncedRefreshModels(apiConfiguration?.openAiBaseUrl || PORTKEY_DEFAULT_BASE_URL, value)
+					debouncedRefreshModels(baseUrlRef.current, apiKeyRef.current)
 				}}
 				providerName="Portkey"
 			/>
