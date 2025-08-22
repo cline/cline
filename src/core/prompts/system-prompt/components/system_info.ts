@@ -12,17 +12,18 @@ Default Shell: {{shell}}
 Home Directory: {{homeDir}}
 Current Working Directory: {{workingDir}}`
 
-async function getSystemEnv(isTesting = false) {
+async function getSystemEnv(cwd?: string, isTesting = false) {
 	return {
 		os: isTesting ? "macOS" : osName(),
 		shell: isTesting ? "/bin/zsh" : getShell(),
 		homeDir: isTesting ? "/Users/tester" : osModule.homedir(),
-		workingDir: isTesting ? "/Users/tester/dev/project" : process.cwd(),
+		workingDir: isTesting ? "/Users/tester/dev/project" : cwd || process.cwd(),
 	}
 }
 
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const info = await getSystemEnv(context.isTesting)
+	const testMode = !!process?.env?.CI || !!process?.env?.IS_DEV || context.isTesting || false
+	const info = await getSystemEnv(context.cwd, testMode)
 
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 

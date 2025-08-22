@@ -49,7 +49,6 @@ export interface ApiHandlerModel {
 
 export interface ApiProviderInfo {
 	providerId: string
-	modelId: string
 	model: ApiHandlerModel
 	customPrompt?: string // "compact"
 }

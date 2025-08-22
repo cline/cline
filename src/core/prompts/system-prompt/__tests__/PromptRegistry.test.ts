@@ -63,7 +63,8 @@ describe("PromptRegistry", () => {
 
 			for (const { id, expected, provider } of testCases) {
 				const providerId = provider ?? "random"
-				const providerInfo = { ...mockProviderInfo, providerId, modelId: id, model: { ...mockProviderInfo.model, id } }
+				const customPrompt = provider === "lmstudio" ? "compact" : undefined
+				const providerInfo = { ...mockProviderInfo, providerId, model: { ...mockProviderInfo.model, id }, customPrompt }
 				const result = getModelFamily(providerInfo)
 				expect(result).to.equal(expected)
 			}

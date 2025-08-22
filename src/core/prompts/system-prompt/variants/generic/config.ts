@@ -5,7 +5,6 @@ import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
 import { baseTemplate } from "./template"
 
-// Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.GENERIC)
 	.description("The fallback prompt for generic use cases and models.")
 	.version(1)

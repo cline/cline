@@ -1626,11 +1626,10 @@ export class Task {
 
 	private getCurrentProviderInfo(): ApiProviderInfo {
 		const model = this.api.getModel()
-		const modelId = model?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
-		return { modelId, model, providerId, customPrompt }
+		return { model, providerId, customPrompt }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -1738,8 +1737,8 @@ export class Task {
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
-			const { modelId, providerId } = this.getCurrentProviderInfo()
-			const clineError = errorService.toClineError(error, modelId, providerId)
+			const { model, providerId } = this.getCurrentProviderInfo()
+			const clineError = errorService.toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
 			// TODO: Move into errorService
@@ -1951,10 +1950,10 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId, customPrompt } = this.getCurrentProviderInfo()
-		if (providerId && modelId) {
+		const { model, providerId, customPrompt } = this.getCurrentProviderInfo()
+		if (providerId && model.id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, model.id, this.mode)
 			} catch {}
 		}
 
@@ -2252,7 +2251,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2488,7 +2487,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,

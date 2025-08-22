@@ -8,7 +8,6 @@ import type { SystemPromptContext } from "../types"
 
 export const mockProviderInfo = {
 	providerId: "test",
-	modelId: "fast",
 	model: {
 		id: "fast",
 		info: {
@@ -19,7 +18,6 @@ export const mockProviderInfo = {
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
 	providerId,
-	modelId,
 	model: {
 		...mockProviderInfo.model,
 		id: modelId,
@@ -70,8 +68,11 @@ const makeMockContext = (modelId: string, providerId: string = "test"): SystemPr
 })
 
 describe("Prompt System Integration Tests", () => {
+	beforeEach(() => {
+		// Reset any necessary state before each test
+	})
 	const contextVariations = [
-		{ name: "basic", context: baseContext },
+		{ name: "basic", baseContext: { ...baseContext } },
 		{
 			name: "no-browser",
 			baseContext: { ...baseContext, supportsBrowserUse: false },
@@ -122,13 +123,16 @@ describe("Prompt System Integration Tests", () => {
 			describe(`${modelGroup} Model Group`, () => {
 				for (const modelId of modelIds) {
 					for (const { name: contextName, baseContext } of contextVariations) {
-						const context = { ...baseContext, providerInfo: makeMockProviderInfo(modelId, modelId) }
+						const context = { ...baseContext, providerInfo: makeMockProviderInfo(modelId, modelId), isTesting: true }
 						it(`should generate consistent prompt for ${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const _context = { ...context, providerInfo: makeMockProviderInfo(modelId) }
-								const prompt = await getSystemPrompt(_context as SystemPromptContext)
+								const _context = {
+									...context,
+									providerInfo: makeMockProviderInfo(modelId),
+								} as SystemPromptContext
+								const prompt = await getSystemPrompt(_context)
 
 								// Basic structure assertions
 								expect(prompt).to.be.a("string")

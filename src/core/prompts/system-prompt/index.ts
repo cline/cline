@@ -21,7 +21,7 @@ export function getModelFamily(providerInfo: ApiProviderInfo): ModelFamily {
 	if (isNextGenModelFamily(providerInfo.model)) {
 		return ModelFamily.NEXT_GEN
 	}
-	if (isLocalModel(providerInfo)) {
+	if (providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) {
 		return ModelFamily.XS
 	}
 	// Default fallback

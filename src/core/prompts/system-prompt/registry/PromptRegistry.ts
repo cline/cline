@@ -47,7 +47,7 @@ export class PromptRegistry {
 
 		if (!variant) {
 			throw new Error(
-				`No prompt variant found for model '${context.providerInfo.modelId}' and no generic fallback available`,
+				`No prompt variant found for model '${context.providerInfo.model.id}' and no generic fallback available`,
 			)
 		}
 
