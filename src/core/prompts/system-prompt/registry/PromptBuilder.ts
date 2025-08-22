@@ -113,40 +113,31 @@ export class PromptBuilder {
 	}
 
 	public static async getToolsPrompts(variant: PromptVariant, context: SystemPromptContext) {
-		const tools = ClineToolSet.getTools(variant.family)
+		let resolvedTools: ReturnType<typeof ClineToolSet.getTools> = []
 
-		// Filter and sort tools in a single pass
-		const enabledTools = tools.filter((tool) => !tool.config.contextRequirements || tool.config.contextRequirements(context))
-
-		let sortedEnabledTools = enabledTools
+		// If the variant explicitly lists tools, resolve each by id with fallback to GENERIC
 		if (variant?.tools?.length) {
-			const toolOrderMap = new Map(variant.tools.map((id, index) => [id, index]))
+			const requestedIds = [...variant.tools]
+			resolvedTools = ClineToolSet.getToolsForVariantWithFallback(variant.family, requestedIds)
 
-			sortedEnabledTools = enabledTools.sort((a, b) => {
-				const orderA = toolOrderMap.get(a.config.id)
-				const orderB = toolOrderMap.get(b.config.id)
-
-				// Sort by order if both have defined order
-				if (orderA !== undefined && orderB !== undefined) {
-					return orderA - orderB
-				}
-				// Prioritize tools that have defined order
-				if (orderA !== undefined) {
-					return -1
-				}
-				if (orderB !== undefined) {
-					return 1
-				}
-				// Fallback to id comparison for consistency
-				return a.config.id.localeCompare(b.config.id)
-			})
+			// Preserve requested order
+			resolvedTools = requestedIds
+				.map((id) => resolvedTools.find((t) => t.config.id === id))
+				.filter((t): t is NonNullable<typeof t> => Boolean(t))
 		} else {
-			// Simple fallback sort by id
-			sortedEnabledTools = enabledTools.sort((a, b) => a.config.id.localeCompare(b.config.id))
+			// Otherwise, use all tools registered for the variant, or generic if none
+			resolvedTools = ClineToolSet.getTools(variant.family)
+			// Sort by id for stable ordering
+			resolvedTools = resolvedTools.sort((a, b) => a.config.id.localeCompare(b.config.id))
 		}
 
-		const ids = sortedEnabledTools.map((tool) => tool.config.id)
-		return Promise.all(sortedEnabledTools.map((tool) => PromptBuilder.tool(tool.config, ids)))
+		// Filter by context requirements
+		const enabledTools = resolvedTools.filter(
+			(tool) => !tool.config.contextRequirements || tool.config.contextRequirements(context),
+		)
+
+		const ids = enabledTools.map((tool) => tool.config.id)
+		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids)))
 	}
 
 	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[]): string {

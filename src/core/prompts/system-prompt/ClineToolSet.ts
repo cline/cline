@@ -39,4 +39,38 @@ export class ClineToolSet {
 		const tools = ClineToolSet.getTools(variant)
 		return tools.find((tool) => tool.config.id === toolName)
 	}
+
+	// Return a tool by name with fallback to GENERIC and then any other variant where it exists
+	public static getToolByNameWithFallback(toolName: string, variant: ModelFamily): ClineToolSet | undefined {
+		// Try exact variant first
+		const exact = ClineToolSet.getToolByName(toolName, variant)
+		if (exact) return exact
+
+		// Fallback to GENERIC
+		const generic = ClineToolSet.getToolByName(toolName, ModelFamily.GENERIC)
+		if (generic) return generic
+
+		// Final fallback: search across all registered variants
+		for (const [, tools] of ClineToolSet.variants) {
+			const found = Array.from(tools).find((t) => t.config.id === toolName)
+			if (found) return found
+		}
+
+		return undefined
+	}
+
+	// Build a list of tools for a variant using requested ids, falling back to GENERIC when missing
+	public static getToolsForVariantWithFallback(variant: ModelFamily, requestedIds: string[]): ClineToolSet[] {
+		const resolved: ClineToolSet[] = []
+		for (const id of requestedIds) {
+			const tool = ClineToolSet.getToolByNameWithFallback(id, variant)
+			if (tool) {
+				// Avoid duplicates by id
+				if (!resolved.some((t) => t.config.id === tool.config.id)) {
+					resolved.push(tool)
+				}
+			}
+		}
+		return resolved
+	}
 }
