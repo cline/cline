@@ -194,7 +194,7 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 	private async copyDirectory(source: string, destination: string): Promise<void> {
 		try {
 			// Use cp -r to copy the entire directory structure
-			await execa("cp", ["-r", source + "/.", destination], {
+			await execa("cp", ["-r", path.join(source, "."), destination], {
 				timeout: 60000 // 1 minute timeout for copy
 			})
 		} catch (error: any) {
