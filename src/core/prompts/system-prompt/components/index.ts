@@ -1,6 +1,7 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { getActVsPlanModeSection } from "./act_vs_plan_mode"
 import { getAgentRoleSection } from "./agent_role"
+import { getTodoListSection } from "./auto_todo"
 import { getCapabilitiesSection } from "./capabilities"
 import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
@@ -8,7 +9,7 @@ import { getMcp } from "./mcp"
 import { getObjectiveSection } from "./objective"
 import { getRulesSection } from "./rules"
 import { getSystemInfo } from "./system_info"
-import { getTodoListSection } from "./todo"
+import { getUpdatingTaskProgress } from "./task_progress"
 import { getToolUseSection } from "./tool_use"
 import { getUserInstructions } from "./user_instructions"
 
@@ -46,5 +47,6 @@ export function getSystemPromptComponents() {
 			id: SystemPromptSection.FEEDBACK,
 			fn: getFeedbackSection,
 		},
+		{ id: SystemPromptSection.TASK_PROGRESS, fn: getUpdatingTaskProgress },
 	]
 }

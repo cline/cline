@@ -2,9 +2,7 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-const TODO_LIST_TEMPLATE_TEXT = `====
-
-AUTOMATIC TODO LIST MANAGEMENT
+const TODO_LIST_TEMPLATE_TEXT = `AUTOMATIC TODO LIST MANAGEMENT
 
 The system automatically manages todo lists to help track task progress:
 

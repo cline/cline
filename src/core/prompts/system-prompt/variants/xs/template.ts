@@ -65,18 +65,6 @@ Key: Never include an option to toggle modes.
 **plan_mode_respond** — PLAN-only reply. Params: response, needs_more_exploration (optional).  
 Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.
 
-**use_mcp_tool** — Call MCP tool. Params: server_name, tool_name, arguments (JSON).  
-*Example:*
-<use_mcp_tool>
-<server_name>weather</server_name>
-<tool_name>get_forecast</tool_name>
-<arguments>{"city":"SF","days":5}</arguments>
-</use_mcp_tool>
-
-**access_mcp_resource** — Fetch MCP resource. Params: server_name, uri.
-
-**load_mcp_documentation** — Load MCP docs. No params.
-
 ## {{${SystemPromptSection.OBJECTIVE}}}
 
 ## {{${SystemPromptSection.SYSTEM_INFO}}}

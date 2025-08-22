@@ -6,6 +6,10 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
+{{TASK_PROGRESS_SECTION}}
+
+====
+
 {{MCP_SECTION}}
 
 ====
@@ -15,6 +19,8 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 ====
 
 {{ACT_VS_PLAN_SECTION}}
+
+====
 
 {{TODO_SECTION}}
 
