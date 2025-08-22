@@ -125,6 +125,7 @@ message UpdateSettingsRequest {
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
+  optional string custom_prompt = 19;
 }
 
 // Complete API Configuration message
