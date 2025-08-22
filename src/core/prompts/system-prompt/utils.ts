@@ -30,3 +30,8 @@ export function isNextGenModelFamily(apiHandlerModel: ApiHandlerModel): boolean 
 		isGPT5ModelFamily(apiHandlerModel)
 	)
 }
+
+export function isLocalModelFamily(providerId: string): boolean {
+	const localModels = ["lmstudio", "ollama"]
+	return localModels.includes(providerId)
+}

@@ -200,7 +200,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		isNewUser: false,
 		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		strictPlanModeEnabled: true,
+		strictPlanModeEnabled: false,
+		customPrompt: undefined,
 		useAutoCondense: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
