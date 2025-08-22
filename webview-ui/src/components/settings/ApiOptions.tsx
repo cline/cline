@@ -86,10 +86,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
-	// Portkey UI mode when using OpenAI Compatible with Portkey base URL
-	const [portkeyMode, setPortkeyMode] = useState<boolean>(
-		(apiConfiguration?.openAiBaseUrl || "").toLowerCase().includes("portkey.ai"),
-	)
+	// Derived: treat OpenAI-compatible with Portkey base URL as Portkey selection
+	const isPortkey = selectedProvider === "openai" && (apiConfiguration?.openAiBaseUrl || "").toLowerCase().includes("portkey.ai")
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -136,7 +134,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					onChange={async (e: any) => {
 						const value = e.target.value
 						if (value === "portkey") {
-							setPortkeyMode(true)
 							await handleModeFieldChange(
 								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
 								"openai",
@@ -146,7 +143,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								await handleFieldChange("openAiBaseUrl", "https://api.portkey.ai/v1")
 							}
 						} else {
-							setPortkeyMode((apiConfiguration?.openAiBaseUrl || "").toLowerCase().includes("portkey.ai"))
 							await handleModeFieldChange(
 								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
 								value,
@@ -158,7 +154,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={selectedProvider === "openai" && portkeyMode ? "portkey" : selectedProvider}>
+					value={isPortkey ? "portkey" : selectedProvider}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
@@ -240,11 +236,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && !portkeyMode && (
+			{apiConfiguration && selectedProvider === "openai" && !isPortkey && (
 				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && portkeyMode && (
+			{apiConfiguration && selectedProvider === "openai" && isPortkey && (
 				<PortkeyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
