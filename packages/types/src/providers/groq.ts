@@ -94,9 +94,10 @@ export const groqModels = {
 		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description: "Moonshot AI Kimi K2 Instruct 1T model, 128K context.",
 	},
 	"openai/gpt-oss-120b": {
