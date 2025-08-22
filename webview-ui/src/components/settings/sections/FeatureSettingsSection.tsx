@@ -163,7 +163,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								value={String(focusChainSettings?.remindClineInterval || 6)}
 							/>
 							<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-								Interval (in messages) to remind Cline about it's focus chain checklist (1-100). Lower values
+								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
 								provide more frequent reminders.
 							</p>
 						</div>
