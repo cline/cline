@@ -1,5 +1,5 @@
 import type { ClineDefaultTool } from "@/shared/tools"
-import { ClineToolSet } from "../ClineToolSet"
+import { ClineToolSet } from "../registry/ClineToolSet"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ClineToolSpec } from "../tools/spec"

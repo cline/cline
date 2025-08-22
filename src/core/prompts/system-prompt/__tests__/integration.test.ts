@@ -478,22 +478,21 @@ describe("Prompt System Integration Tests", () => {
 			const comparisonPath = path.join(snapshotsDir, "section-title-comparison.json")
 
 			const comparison = {
-				timestamp: new Date().toISOString(),
 				oldNextGenTitles,
-				oldGenericTitles,
 				newNextGenTitles,
+				oldGenericTitles,
 				newGenericTitles,
 				keySections,
 				summary: {
 					oldNextGenCount: oldNextGenTitles.length,
-					oldGenericCount: oldGenericTitles.length,
 					newNextGenCount: newNextGenTitles.length,
+					oldGenericCount: oldGenericTitles.length,
 					newGenericCount: newGenericTitles.length,
 				},
 			}
 
 			await fs.writeFile(comparisonPath, JSON.stringify(comparison, null, 2), "utf-8")
-			console.log(`Saved section title comparison to: ${comparisonPath}`)
+			// console.log(`Saved section title comparison to: ${comparisonPath}`)
 		})
 	})
 })

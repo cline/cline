@@ -14,9 +14,9 @@ import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { PromptVariant } from ".."
 import { SystemPromptSection } from "../templates/placeholders"
+import { createVariant } from "./builder"
 import { baseTemplate } from "./generic/template"
-import { createVariant } from "./VariantBuilder"
-import { validateVariant } from "./VariantValidator"
+import { validateVariant } from "./validator"
 
 // Type-safe variant configuration using the builder pattern
 export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENERIC) // Change to your target model family
@@ -43,7 +43,8 @@ export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENER
 		SystemPromptSection.USER_INSTRUCTIONS,
 	)
 	.tools(
-		// Define tool order - this is type-safe and will show available options
+		// Define tool order - this is type-safe and will show available options.
+		// If a tool is listed here but no variant was registered, it will fall back to the generic variant.
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		ClineDefaultTool.FILE_NEW,

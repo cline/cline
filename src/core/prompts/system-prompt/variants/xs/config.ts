@@ -1,8 +1,8 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
-import { createVariant } from "../VariantBuilder"
-import { validateVariant } from "../VariantValidator"
+import { createVariant } from "../builder"
+import { validateVariant } from "../validator"
 import { xsComponentOverrides } from "./overrides"
 import { baseTemplate } from "./template"
 

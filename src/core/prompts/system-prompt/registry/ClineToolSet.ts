@@ -1,5 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
-import type { ClineToolSpec } from "./tools/spec"
+import type { ClineToolSpec } from "../tools/spec"
 
 export class ClineToolSet {
 	// A list of tools mapped by model group

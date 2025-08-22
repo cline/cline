@@ -105,6 +105,7 @@ export class VariantBuilder {
 
 	/**
 	 * Configure tools with type safety
+	 * If a tool is listed here but no variant was registered, it will fall back to the generic variant.
 	 */
 	tools(...tools: ClineDefaultTool[]): this {
 		this.variant = {
@@ -167,13 +168,6 @@ export class VariantBuilder {
 		return this.variant as Omit<PromptVariant, "id">
 	}
 }
-
-/**
- * Factory functions for creating builders for specific model families
- */
-export const createGenericVariant = () => new VariantBuilder(ModelFamily.GENERIC)
-export const createNextGenVariant = () => new VariantBuilder(ModelFamily.NEXT_GEN)
-export const createXsVariant = () => new VariantBuilder(ModelFamily.XS)
 
 /**
  * Helper function to create a variant builder for any model family

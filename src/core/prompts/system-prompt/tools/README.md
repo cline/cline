@@ -37,7 +37,7 @@ console.log(summary);
 ### Using Registered Tools
 
 ```typescript
-import { ClineToolSet } from "../ClineToolSet";
+import { ClineToolSet } from "../registry/ClineToolSet";
 import { PromptVariant } from "@/shared/tools";
 
 // Get all tools for a specific variant

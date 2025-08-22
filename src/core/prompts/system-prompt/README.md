@@ -17,6 +17,7 @@ npm run test:unit
 ```
 src/core/prompts/system-prompt/
 ├── registry/
+│   ├── ClineToolSet.ts            # Tool set management & registry
 │   ├── PromptRegistry.ts          # Singleton registry for loading/managing prompts
 │   ├── PromptBuilder.ts           # Builds final prompts with template resolution
 │   └── utils.ts                   # Model family detection utilities
@@ -53,7 +54,6 @@ src/core/prompts/system-prompt/
 │   │   ├── config.ts             # Small model configuration
 │   │   └── template.ts           # Optimized template
 │   └── index.ts                  # Variant registry exports
-├── ClineToolSet.ts               # Tool set management
 ├── types.ts                      # Core type definitions
 └── README.md                     # This documentation
 ```
@@ -409,7 +409,7 @@ import { ModelFamily } from "@/shared/prompts";
 import { ClineDefaultTool } from "@/shared/tools";
 import { SystemPromptSection } from "../../templates/placeholders";
 import { validateVariant } from "../../validation/VariantValidator";
-import { createVariant } from "../VariantBuilder";
+import { createVariant } from "../builder";
 import { baseTemplate } from "./template";
 
 // Type-safe variant configuration using the builder pattern
@@ -478,7 +478,7 @@ import { ModelFamily } from "@/shared/prompts";
 import { ClineDefaultTool } from "@/shared/tools";
 import { SystemPromptSection } from "../../templates/placeholders";
 import { validateVariant } from "../../validation/VariantValidator";
-import { createVariant } from "../VariantBuilder";
+import { createVariant } from "../builder";
 import { baseTemplate, rules_template } from "./template";
 
 // Type-safe variant configuration using the builder pattern
@@ -554,7 +554,7 @@ import { ModelFamily } from "@/shared/prompts";
 import { ClineDefaultTool } from "@/shared/tools";
 import { SystemPromptSection } from "../../templates/placeholders";
 import { validateVariant } from "../../validation/VariantValidator";
-import { createVariant } from "../VariantBuilder";
+import { createVariant } from "../builder";
 import { xsComponentOverrides } from "./overrides";
 import { baseTemplate } from "./template";
 
