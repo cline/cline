@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.25.23] - 2025-08-22
+
+- feat: add custom base URL support for Requesty provider (thanks @requesty-JohnCosta27!)
+- feat: add DeepSeek V3.1 model to Chutes AI provider (#7294 by @dmarkey, PR by @app/roomote)
+- Revert "feat: enable loading Roo modes from multiple files in .roo/modes directory" temporarily to fix a bug with mode installation
+
 ## [3.25.22] - 2025-08-22
 
 - Add prompt caching support for Kimi K2 on Groq (thanks @daniel-lxs and @benank!)
