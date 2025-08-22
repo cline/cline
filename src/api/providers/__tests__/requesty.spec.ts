@@ -66,11 +66,11 @@ describe("RequestyHandler", () => {
 	})
 
 	it("can use a base URL instead of the default", () => {
-		const handler = new RequestyHandler({ ...mockOptions, requestyBaseUrl: "some-base-url" })
+		const handler = new RequestyHandler({ ...mockOptions, requestyBaseUrl: "https://custom.requesty.ai/v1" })
 		expect(handler).toBeInstanceOf(RequestyHandler)
 
 		expect(OpenAI).toHaveBeenCalledWith({
-			baseURL: "some-base-url",
+			baseURL: "https://custom.requesty.ai/v1",
 			apiKey: mockOptions.requestyApiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",

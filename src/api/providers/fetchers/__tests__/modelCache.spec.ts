@@ -103,7 +103,7 @@ describe("getModels with new GetModelsOptions", () => {
 
 		const result = await getModels({ provider: "requesty", apiKey: DUMMY_REQUESTY_KEY })
 
-		expect(mockGetRequestyModels).toHaveBeenCalledWith(DUMMY_REQUESTY_KEY)
+		expect(mockGetRequestyModels).toHaveBeenCalledWith(undefined, DUMMY_REQUESTY_KEY)
 		expect(result).toEqual(mockModels)
 	})
 

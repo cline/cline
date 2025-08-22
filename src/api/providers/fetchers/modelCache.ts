@@ -59,7 +59,7 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 				break
 			case "requesty":
 				// Requesty models endpoint requires an API key for per-user custom policies
-				models = await getRequestyModels(options.apiKey)
+				models = await getRequestyModels(options.baseUrl, options.apiKey)
 				break
 			case "glama":
 				models = await getGlamaModels()
