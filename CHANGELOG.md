@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.26.3
+
+### Patch Changes
+
+- a50200a: Support compact system prompt for LM studio models and token usage tracking
+
 ## [3.26.2]
 
 - Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
