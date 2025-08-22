@@ -12,7 +12,7 @@
 - Improved context window error handling for OpenAI and other providers
 - Add "installed" filter to Roo Marketplace (thanks @semidark)
 - Improve filesystem access checks (thanks @elianiva)
-- Support for loading Roo modes from multiple YAML files in the `.roo/roo_modes` directory (thanks @farazoman)
+- Support for loading Roo modes from multiple YAML files in the `.roo/modes/` directory (thanks @farazoman)
 - Add Featherless provider (thanks @DarinVerheijke)
 
 ## [3.25.20] - 2025-08-19
