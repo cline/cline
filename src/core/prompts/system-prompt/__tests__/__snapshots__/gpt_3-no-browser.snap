@@ -42,12 +42,25 @@ Usage:
 Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory /test/project)
-- task_progress: (required) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <read_file>
 <path>File path here</path>
 <task_progress>Checklist here (optional)</task_progress>
 </read_file>
+
+## write_to_file
+Description: Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to write to (relative to the current working directory /test/project)
+- content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+Usage:
+<write_to_file>
+<path>File path here</path>
+<content>Your file content here</content>
+<task_progress>Checklist here (optional)</task_progress>
+</write_to_file>
 
 ## replace_in_file
 Description: Request to replace sections of content in an existing file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool should be used when you need to make targeted changes to specific parts of a file.
@@ -86,6 +99,19 @@ Usage:
 <task_progress>Checklist here (optional)</task_progress>
 </replace_in_file>
 
+## search_files
+Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
+Parameters:
+- path: (required) The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched.
+- regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
+- file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
+Usage:
+<search_files>
+<path>Directory path here</path>
+<regex>Your regex pattern here</regex>
+<file_pattern>file pattern here (optional)</file_pattern>
+</search_files>
+
 ## list_files
 Description: Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.
 Parameters:
@@ -105,6 +131,24 @@ Usage:
 <list_code_definition_names>
 <path>Directory path here</path>
 </list_code_definition_names>
+
+## use_mcp_tool
+Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
+If you were using task_progress to update the task progress, you must include the completed list in the result as well.
+If you were using task_progress to update the task progress, you must include the completed list in the result as well.
+Parameters:
+- server_name: (required) The name of the MCP server providing the tool
+- arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
+- task_progress: (optional)  A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+Usage:
+<use_mcp_tool>
+<server_name>server name here</server_name>
+<arguments>{
+  "param1": "value1",
+  "param2": "value2"
+}</arguments>
+<task_progress>Checklist here (optional)</task_progress>
+</use_mcp_tool>
 
 ## access_mcp_resource
 Description: The name of the MCP server providing the resource.

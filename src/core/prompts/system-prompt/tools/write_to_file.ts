@@ -21,7 +21,7 @@ Checklist here (optional)
 </write_to_file>
  */
 
-const id = ClineDefaultTool.FILE_EDIT
+const id = ClineDefaultTool.FILE_NEW
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
@@ -45,7 +45,7 @@ const generic: ClineToolSpec = {
 		},
 		{
 			name: "task_progress",
-			required: true,
+			required: false,
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (optional)",

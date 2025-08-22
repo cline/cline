@@ -28,7 +28,7 @@ Checklist here (optional)
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
-	id: ClineDefaultTool.MCP_ACCESS,
+	id: ClineDefaultTool.MCP_USE,
 	name: "use_mcp_tool",
 	description:
 		"Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.",

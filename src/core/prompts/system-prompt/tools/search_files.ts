@@ -17,7 +17,7 @@ Usage:
 </search_files>
  */
 
-const id = ClineDefaultTool.FILE_EDIT
+const id = ClineDefaultTool.SEARCH
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
