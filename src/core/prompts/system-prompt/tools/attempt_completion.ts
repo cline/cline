@@ -26,7 +26,7 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 		},
 		{
 			name: "task_progress",
-			required: true,
+			required: false,
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (required if you used task_progress in previous tool uses)",

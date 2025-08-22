@@ -3,13 +3,13 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "./spec"
 
 /**
- * ## use_mcp_tool
+## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
 - server_name: (required) The name of the MCP server providing the tool
 - tool_name: (required) The name of the tool to execute
 - arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-${focusChainSettings.enabled ? `- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)` : "" }
+${focusChainSettings.enabled ? `- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)` : ""}
 Usage:
 <use_mcp_tool>
 <server_name>server name here</server_name>
@@ -20,9 +20,13 @@ Usage:
   "param2": "value2"
 }
 </arguments>
-${focusChainSettings.enabled ? `<task_progress>
+${
+	focusChainSettings.enabled
+		? `<task_progress>
 Checklist here (optional)
-</task_progress>` : "" }
+</task_progress>`
+		: ""
+}
 </use_mcp_tool>
  */
 
@@ -41,6 +45,12 @@ const generic: ClineToolSpec = {
 			usage: "server name here",
 		},
 		{
+			name: "tool_name",
+			required: true,
+			instruction: "The name of the tool to execute",
+			usage: "tool name here",
+		},
+		{
 			name: "arguments",
 			required: true,
 			instruction: "A JSON object containing the tool's input parameters, following the tool's input schema",
@@ -49,8 +59,6 @@ const generic: ClineToolSpec = {
   "param2": "value2"
 }`,
 			dependencies: [ClineDefaultTool.MCP_USE],
-			description:
-				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 		{
 			name: "task_progress",
@@ -59,8 +67,6 @@ const generic: ClineToolSpec = {
 				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (optional)",
 			dependencies: [ClineDefaultTool.TODO],
-			description:
-				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 	],
 }

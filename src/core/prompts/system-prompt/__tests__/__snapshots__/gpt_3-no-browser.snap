@@ -134,15 +134,15 @@ Usage:
 
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
-If you were using task_progress to update the task progress, you must include the completed list in the result as well.
-If you were using task_progress to update the task progress, you must include the completed list in the result as well.
 Parameters:
 - server_name: (required) The name of the MCP server providing the tool
+- tool_name: (required) The name of the tool to execute
 - arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
 - task_progress: (optional)  A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <use_mcp_tool>
 <server_name>server name here</server_name>
+<tool_name>tool name here</tool_name>
 <arguments>{
   "param1": "value1",
   "param2": "value2"
@@ -181,7 +181,7 @@ If you were using task_progress to update the task progress, you must include th
 Parameters:
 - result: (required) The result of the tool use. This should be a clear, specific description of the result.
 - command: (optional) A CLI command to execute to show a live demo of the result to the user. For example, use `open index.html` to display a created html website, or `open localhost:3000` to display a locally running development server. But DO NOT use commands like `echo` or `cat` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions
-- task_progress: (required) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <attempt_completion>
 <result>Your final result description here</result>
