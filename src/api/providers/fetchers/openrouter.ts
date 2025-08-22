@@ -58,6 +58,7 @@ export type OpenRouterModel = z.infer<typeof openRouterModelSchema>
 
 export const openRouterModelEndpointSchema = modelRouterBaseModelSchema.extend({
 	provider_name: z.string(),
+	tag: z.string().optional(),
 })
 
 export type OpenRouterModelEndpoint = z.infer<typeof openRouterModelEndpointSchema>
@@ -149,7 +150,7 @@ export async function getOpenRouterModelEndpoints(
 		const { id, architecture, endpoints } = data
 
 		for (const endpoint of endpoints) {
-			models[endpoint.provider_name] = parseOpenRouterModel({
+			models[endpoint.tag ?? endpoint.provider_name] = parseOpenRouterModel({
 				id,
 				model: endpoint,
 				modality: architecture?.modality,
@@ -188,7 +189,7 @@ export const parseOpenRouterModel = ({
 
 	const cacheReadsPrice = model.pricing?.input_cache_read ? parseApiPrice(model.pricing?.input_cache_read) : undefined
 
-	const supportsPromptCache = typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
+	const supportsPromptCache = typeof cacheReadsPrice !== "undefined" // some models support caching but don't charge a cacheWritesPrice, e.g. GPT-5
 
 	const modelInfo: ModelInfo = {
 		maxTokens: maxTokens || Math.ceil(model.context_length * 0.2),

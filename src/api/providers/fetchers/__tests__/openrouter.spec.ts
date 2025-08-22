@@ -24,6 +24,7 @@ describe("OpenRouter API", () => {
 			const models = await getOpenRouterModels()
 
 			const openRouterSupportedCaching = Object.entries(models)
+				.filter(([id, _]) => id.startsWith("anthropic/claude") || id.startsWith("google/gemini")) // only these support cache_control breakpoints (https://openrouter.ai/docs/features/prompt-caching)
 				.filter(([_, model]) => model.supportsPromptCache)
 				.map(([id, _]) => id)
 
@@ -229,7 +230,7 @@ describe("OpenRouter API", () => {
 			const endpoints = await getOpenRouterModelEndpoints("google/gemini-2.5-pro-preview")
 
 			expect(endpoints).toEqual({
-				Google: {
+				"google-vertex": {
 					maxTokens: 65535,
 					contextWindow: 1048576,
 					supportsImages: true,
@@ -243,7 +244,7 @@ describe("OpenRouter API", () => {
 					supportsReasoningEffort: undefined,
 					supportedParameters: undefined,
 				},
-				"Google AI Studio": {
+				"google-ai-studio": {
 					maxTokens: 65536,
 					contextWindow: 1048576,
 					supportsImages: true,
