@@ -5,6 +5,13 @@ sidebarTitle: "Auto Compact"
 
 When your conversation approaches the model's context window limit, Cline automatically summarizes it to free up space and keep working. 
 
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/condensing.png"
+		alt="Auto-compact feature condensing conversation context"
+	/>
+</Frame>
+
 ## How It Works
 
 Cline monitors token usage during your conversation. When you're getting close to the limit, he:
@@ -52,4 +59,17 @@ You can use [checkpoints](/features/checkpoints) to restore your task state from
 
 <Note>
   Editing a message before a summarization tool call will work similarly to a checkpoint, allowing you to restore the conversation to that point.
+</Note>
+
+## Next Generation Model Support
+
+Auto Compact uses advanced LLM-based summarization which we've found works significantly better for next-generation models. We currently support this feature for the following models:
+
+- **Claude 4 series**
+- **Gemini 2.5 series**
+- **GPT-5**
+- **Grok 4**
+
+<Note>
+When using other models, Cline automatically falls back to the standard rule-based context truncation method, even if Auto Compact is enabled in settings.
 </Note>

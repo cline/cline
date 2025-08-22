@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.26.2]
+
+- Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
+- Fix OpenRouter context window error handling to properly extract error codes from error messages, resolving "Unexpected API Response" errors with GPT-5 on Cline provider
+- Fix GPT-5 context window configuration for OpenAI/OpenRouter/Cline providers to use correct 272K limit
+- Remove max tokens configuration from Sonic Alpha model
+- Add Go language support to deep-planning feature (Thanks @yuvalman!)
+- Fix typo in Focus Chain settings page (Thanks @joyceerhl!)
+
+## [3.26.1]
+
+- Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
+- Improve SAP AI Core provider to show deployed and undeployed models in the UI (Thanks @yuvalman!)
+- Fix Fireworks provider configuration and functionality (Thanks @ershang-fireworks!)
+- Add telemetry tracking for MCP tool usage to help improve the extension
+- Improve telemetry tracking for rules and workflow usage analytics
+- Set Plan mode to use strict mode by default for better planning results
+
 ## [3.26.0]
 
 - Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
