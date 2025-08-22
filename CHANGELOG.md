@@ -2,8 +2,6 @@
 
 ## 3.26.3
 
-### Patch Changes
-
 - a50200a: Support compact system prompt for LM studio models and token usage tracking
 
 ## [3.26.2]
