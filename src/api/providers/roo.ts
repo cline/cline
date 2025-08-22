@@ -36,7 +36,12 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<RooModelId> {
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		const stream = await this.createStream(systemPrompt, messages, metadata)
+		const stream = await this.createStream(
+			systemPrompt,
+			messages,
+			metadata,
+			metadata?.taskId ? { headers: { "X-Roo-Task-ID": metadata.taskId } } : undefined,
+		)
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta

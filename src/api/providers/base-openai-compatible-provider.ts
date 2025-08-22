@@ -66,6 +66,7 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
+		requestOptions?: OpenAI.RequestOptions,
 	) {
 		const {
 			id: model,
@@ -85,7 +86,7 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 			params.temperature = this.options.modelTemperature
 		}
 
-		return this.client.chat.completions.create(params)
+		return this.client.chat.completions.create(params, requestOptions)
 	}
 
 	override async *createMessage(

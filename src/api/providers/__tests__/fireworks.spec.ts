@@ -356,6 +356,7 @@ describe("FireworksHandler", () => {
 				stream: true,
 				stream_options: { include_usage: true },
 			}),
+			undefined,
 		)
 	})
 

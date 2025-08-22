@@ -145,6 +145,7 @@ describe("GroqHandler", () => {
 				stream: true,
 				stream_options: { include_usage: true },
 			}),
+			undefined,
 		)
 	})
 
@@ -178,6 +179,7 @@ describe("GroqHandler", () => {
 				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
 				stream: true,
 			}),
+			undefined,
 		)
 
 		// Verify temperature is NOT included
@@ -216,6 +218,7 @@ describe("GroqHandler", () => {
 				messages: expect.arrayContaining([{ role: "system", content: systemPrompt }]),
 				stream: true,
 			}),
+			undefined,
 		)
 	})
 })
