@@ -20,10 +20,10 @@ import { write_to_file_variants } from "./write_to_file"
 
 /**
  * Registers all tool variants with the ClineToolSet provider.
- * This function should be called once during application initialization
- * to make all tools available for use.
+ * This function must be called at prompt registry
+ * to allow all tool sets be available at build time.
  */
-export function registerAllToolVariants(): void {
+export function registerClineToolSets(): void {
 	// Collect all variants from all tools
 	const allToolVariants = [
 		...access_mcp_resource_variants,

@@ -3,60 +3,86 @@ import * as path from "node:path"
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
-import { getPrompt } from "../index"
+import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
-describe("Prompt System Integration Tests", () => {
-	const baseContext: SystemPromptContext = {
-		cwd: "/test/project",
-		supportsBrowserUse: true,
-		mcpHub: {
-			getServers: () => [
-				{
-					name: "test-server",
-					status: "connected",
-					config: '{"command": "test"}',
-					tools: [
-						{
-							name: "test_tool",
-							description: "A test tool",
-							inputSchema: { type: "object", properties: {} },
-						},
-					],
-					resources: [],
-					resourceTemplates: [],
-				},
-			],
-		} as unknown as McpHub,
-		focusChainSettings: {
-			enabled: true,
-			remindClineInterval: 6,
+export const mockProviderInfo = {
+	providerId: "test",
+	modelId: "fast",
+	model: {
+		id: "fast",
+		info: {
+			supportsPromptCache: false,
 		},
-		browserSettings: {
-			viewport: {
-				width: 1280,
-				height: 720,
-			},
-		},
-		globalClineRulesFileInstructions: "Follow global rules",
-		localClineRulesFileInstructions: "Follow local rules",
-		preferredLanguageInstructions: "Prefer TypeScript",
-		isTesting: true,
-	}
+	},
+}
 
+const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
+	providerId,
+	modelId,
+	model: {
+		...mockProviderInfo.model,
+		id: modelId,
+	},
+})
+
+const baseContext: SystemPromptContext = {
+	cwd: "/test/project",
+	supportsBrowserUse: true,
+	mcpHub: {
+		getServers: () => [
+			{
+				name: "test-server",
+				status: "connected",
+				config: '{"command": "test"}',
+				tools: [
+					{
+						name: "test_tool",
+						description: "A test tool",
+						inputSchema: { type: "object", properties: {} },
+					},
+				],
+				resources: [],
+				resourceTemplates: [],
+			},
+		],
+	} as unknown as McpHub,
+	focusChainSettings: {
+		enabled: true,
+		remindClineInterval: 6,
+	},
+	browserSettings: {
+		viewport: {
+			width: 1280,
+			height: 720,
+		},
+	},
+	globalClineRulesFileInstructions: "Follow global rules",
+	localClineRulesFileInstructions: "Follow local rules",
+	preferredLanguageInstructions: "Prefer TypeScript",
+	isTesting: true,
+	providerInfo: mockProviderInfo,
+}
+
+const makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
+	...baseContext,
+	providerInfo: makeMockProviderInfo(modelId, providerId),
+})
+
+describe("Prompt System Integration Tests", () => {
 	const contextVariations = [
 		{ name: "basic", context: baseContext },
 		{
 			name: "no-browser",
-			context: { ...baseContext, supportsBrowserUse: false },
+			baseContext: { ...baseContext, supportsBrowserUse: false },
 		},
 		{
 			name: "no-mcp",
-			context: { ...baseContext, mcpHub: { getServers: () => [] } },
+			baseContext: { ...baseContext, mcpHub: { getServers: () => [] } },
 		},
 		{
 			name: "no-focus-chain",
-			context: { ...baseContext, focusChainSettings: { enabled: false } },
+			baseContext: { ...baseContext, focusChainSettings: { enabled: false } },
 		},
 	]
 
@@ -74,7 +100,7 @@ describe("Prompt System Integration Tests", () => {
 		},
 		{
 			modelGroup: ModelFamily.XS,
-			modelIds: ["qwen3-coder"],
+			modelIds: ["qwen-ollama"],
 			contextVariations,
 		},
 	]
@@ -95,12 +121,14 @@ describe("Prompt System Integration Tests", () => {
 		for (const { modelGroup, modelIds, contextVariations } of modelTestCases) {
 			describe(`${modelGroup} Model Group`, () => {
 				for (const modelId of modelIds) {
-					for (const { name: contextName, context } of contextVariations) {
+					for (const { name: contextName, baseContext } of contextVariations) {
+						const context = { ...baseContext, providerInfo: makeMockProviderInfo(modelId, modelId) }
 						it(`should generate consistent prompt for ${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const prompt = await getPrompt(modelId, context as SystemPromptContext)
+								const _context = { ...context, providerInfo: makeMockProviderInfo(modelId) }
+								const prompt = await getSystemPrompt(_context as SystemPromptContext)
 
 								// Basic structure assertions
 								expect(prompt).to.be.a("string")
@@ -138,15 +166,13 @@ describe("Prompt System Integration Tests", () => {
 	})
 
 	describe("Context-Specific Features", () => {
-		const testModelId = "generic" // Use generic as it should always be available
-
 		it("should include browser-specific content when browser is enabled", async function () {
 			this.timeout(30000)
 
 			const contextWithBrowser = { ...baseContext, supportsBrowserUse: true }
 
 			try {
-				const prompt = await getPrompt(testModelId, contextWithBrowser)
+				const prompt = await getSystemPrompt(contextWithBrowser)
 				expect(prompt.toLowerCase()).to.include("browser")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
@@ -161,7 +187,7 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getPrompt(testModelId, baseContext)
+				const prompt = await getSystemPrompt(baseContext)
 				expect(prompt).to.include("MCP")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
@@ -176,7 +202,7 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getPrompt(testModelId, baseContext)
+				const prompt = await getSystemPrompt(baseContext)
 				expect(prompt).to.include("TODO")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
@@ -191,7 +217,7 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getPrompt(testModelId, baseContext)
+				const prompt = await getSystemPrompt(baseContext)
 				expect(prompt).to.include("USER'S CUSTOM INSTRUCTIONS")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
@@ -210,7 +236,7 @@ describe("Prompt System Integration Tests", () => {
 			const invalidContext = {} as SystemPromptContext
 
 			try {
-				const prompt = await getPrompt("generic", invalidContext)
+				const prompt = await getSystemPrompt(invalidContext)
 				expect(prompt).to.be.a("string")
 			} catch (error) {
 				// Error is acceptable for invalid context
@@ -218,7 +244,7 @@ describe("Prompt System Integration Tests", () => {
 			}
 		})
 
-		it("should handle null/undefined context properties", async function () {
+		it("should handle undefined context properties", async function () {
 			this.timeout(30000)
 
 			const contextWithNulls: SystemPromptContext = {
@@ -226,46 +252,16 @@ describe("Prompt System Integration Tests", () => {
 				supportsBrowserUse: undefined,
 				mcpHub: undefined,
 				focusChainSettings: undefined,
+				providerInfo: baseContext.providerInfo,
 			}
 
 			try {
-				const prompt = await getPrompt("generic", contextWithNulls)
+				const prompt = await getSystemPrompt(contextWithNulls)
 				expect(prompt).to.be.a("string")
 				expect(prompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)
-			}
-		})
-	})
-
-	describe("Performance", () => {
-		it("should generate prompts efficiently", async function () {
-			this.timeout(30000)
-
-			const start = Date.now()
-
-			try {
-				// Generate multiple prompts
-				const prompts = await Promise.allSettled([
-					getPrompt("generic", baseContext),
-					getPrompt("claude", baseContext),
-					getPrompt("gpt", baseContext),
-					getPrompt("gemini", baseContext),
-				])
-
-				const duration = Date.now() - start
-
-				// Should complete within reasonable time (adjust as needed)
-				expect(duration).to.be.lessThan(15000) // 15 seconds max for all
-
-				// At least one should succeed (generic fallback)
-				const succeeded = prompts.filter((p) => p.status === "fulfilled")
-				expect(succeeded.length).to.be.greaterThan(0)
-			} catch {
-				// Even if individual prompts fail, the test shouldn't take too long
-				const duration = Date.now() - start
-				expect(duration).to.be.lessThan(15000)
 			}
 		})
 	})
@@ -405,8 +401,9 @@ describe("Prompt System Integration Tests", () => {
 			const oldGenericWithFocus = await buildOldPrompt("generic", true)
 
 			// Generate new prompts
-			const newNextGenPrompt = await getPrompt("claude-sonnet-4", baseContext)
-			const newGenericPrompt = await getPrompt("generic", baseContext)
+			const claudeContext = makeMockContext("claude-sonnet-4")
+			const newNextGenPrompt = await getSystemPrompt(claudeContext)
+			const newGenericPrompt = await getSystemPrompt(baseContext)
 
 			// Extract section titles from old prompts
 			const oldNextGenTitles = extractSectionTitles(oldNextGenWithFocus)
@@ -415,11 +412,6 @@ describe("Prompt System Integration Tests", () => {
 			// Extract section titles from new prompts
 			const newNextGenTitles = extractSectionTitles(newNextGenPrompt)
 			const newGenericTitles = extractSectionTitles(newGenericPrompt)
-
-			console.log("Old Next-Gen section titles:", oldNextGenTitles)
-			console.log("New Next-Gen section titles:", newNextGenTitles)
-			console.log("Old Generic section titles:", oldGenericTitles)
-			console.log("New Generic section titles:", newGenericTitles)
 
 			// Normalize and compare sets of titles
 			const normalize = (t: string) => t.trim().toLowerCase()

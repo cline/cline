@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, buildApiHandler } from "@core/api"
+import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -68,7 +68,7 @@ import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
-import { getPrompt } from "@/core/prompts/system-prompt"
+import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -76,7 +76,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
-import { isNextGenModelFamily } from "../prompts/system-prompt-legacy/utils"
+import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { CacheService } from "../storage/CacheService"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -1621,14 +1621,12 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{
-		modelId: string
-		providerId: string
-	}> {
-		const modelId = this.api.getModel()?.id
+	private getCurrentProviderInfo(): ApiProviderInfo {
+		const model = this.api.getModel()
+		const modelId = model.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return { modelId, providerId }
+		return { modelId, providerId, model }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -1657,11 +1655,11 @@ export class Task {
 			console.error("MCP servers failed to connect in time")
 		})
 
+		const providerInfo = this.getCurrentProviderInfo()
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
-		const modelInfo = this.api.getModel()
 		// cline browser tool uses image recognition for navigation (requires model image support).
-		const modelSupportsBrowserUse = modelInfo.info.supportsImages ?? false
+		const modelSupportsBrowserUse = providerInfo.model.info.supportsImages ?? false
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
@@ -1693,6 +1691,7 @@ export class Task {
 		// Create context for the new system prompt system
 		const context: SystemPromptContext = {
 			cwd: this.cwd,
+			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
 			focusChainSettings: this.focusChainSettings,
@@ -1707,7 +1706,7 @@ export class Task {
 		}
 
 		// Use the new system prompt system
-		const systemPrompt = await getPrompt(this.api.getModel().id, context)
+		const systemPrompt = await getSystemPrompt(context)
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
@@ -1736,7 +1735,7 @@ export class Task {
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
-			const { modelId, providerId } = await this.getCurrentProviderInfo()
+			const { modelId, providerId } = this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
@@ -1949,7 +1948,7 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId } = await this.getCurrentProviderInfo()
+		const { modelId, providerId } = this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)

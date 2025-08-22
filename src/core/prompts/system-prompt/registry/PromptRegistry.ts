@@ -1,9 +1,9 @@
 import { ModelFamily } from "@/shared/prompts"
+import { getModelFamily } from ".."
 import { getSystemPromptComponents } from "../components"
-import { registerAllToolVariants } from "../tools"
+import { registerClineToolSets } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
 import { PromptBuilder } from "./PromptBuilder"
-import { getModelFamily } from "./utils"
 
 export class PromptRegistry {
 	private static instance: PromptRegistry
@@ -12,7 +12,7 @@ export class PromptRegistry {
 	private loaded: boolean = false
 
 	private constructor() {
-		registerAllToolVariants()
+		registerClineToolSets()
 	}
 
 	static getInstance(): PromptRegistry {
@@ -38,15 +38,17 @@ export class PromptRegistry {
 	/**
 	 * Get prompt by model ID with fallback to generic
 	 */
-	async get(modelId: string, context: SystemPromptContext): Promise<string> {
+	async get(context: SystemPromptContext): Promise<string> {
 		await this.load()
 
 		// Try model family fallback (e.g., "claude-4" -> "claude")
-		const modelFamily = getModelFamily(modelId)
+		const modelFamily = getModelFamily(context.providerInfo)
 		const variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC)
 
 		if (!variant) {
-			throw new Error(`No prompt variant found for model '${modelId}' and no generic fallback available`)
+			throw new Error(
+				`No prompt variant found for model '${context.providerInfo.modelId}' and no generic fallback available`,
+			)
 		}
 
 		const builder = new PromptBuilder(variant, context, this.components)

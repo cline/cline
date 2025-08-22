@@ -1,4 +1,4 @@
-import { ApiHandlerModel } from "@core/api"
+import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 
 export function isClaude4ModelFamily(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
@@ -29,4 +29,13 @@ export function isNextGenModelFamily(apiHandlerModel: ApiHandlerModel): boolean 
 		isGrok4ModelFamily(apiHandlerModel) ||
 		isGPT5ModelFamily(apiHandlerModel)
 	)
+}
+
+export function isLocalModel(providerInfo: ApiProviderInfo): boolean {
+	const localProviders = ["lmstudio", "ollama"]
+	return localProviders.includes(normalize(providerInfo.providerId))
+}
+
+function normalize(text: string): string {
+	return text.trim().toLowerCase()
 }

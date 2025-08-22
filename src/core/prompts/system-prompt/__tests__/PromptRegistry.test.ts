@@ -1,8 +1,9 @@
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { getModelFamily } from ".."
 import { PromptRegistry } from "../registry/PromptRegistry"
-import { getModelFamily } from "../registry/utils"
 import type { SystemPromptContext } from "../types"
+import { mockProviderInfo } from "./integration.test"
 
 describe("PromptRegistry", () => {
 	let registry: PromptRegistry
@@ -27,6 +28,7 @@ describe("PromptRegistry", () => {
 			},
 		},
 		isTesting: true,
+		providerInfo: mockProviderInfo,
 	}
 
 	beforeEach(() => {
@@ -47,20 +49,22 @@ describe("PromptRegistry", () => {
 	describe("getModelFamily", () => {
 		it("should extract correct model families", () => {
 			const testCases = [
-				{ input: "claude-3-5-sonnet", expected: "generic" },
-				{ input: "gpt-4-turbo", expected: "generic" },
-				{ input: "gemini-pro", expected: "generic" },
-				{ input: "qwen-max", expected: "xs" },
-				{ input: "anthropic/claude-3", expected: "generic" },
-				{ input: "openai/gpt-4", expected: "generic" },
-				{ input: "google/gemini", expected: "generic" },
-				{ input: "claude-sonnet-4", expected: "next-gen" },
-				{ input: "gpt-5", expected: "next-gen" },
-				{ input: "unknown-model", expected: "generic" },
+				{ id: "claude-3-5-sonnet", expected: "generic" },
+				{ id: "gpt-4-turbo", expected: "generic" },
+				{ id: "gemini-pro", expected: "generic" },
+				{ id: "qwen-max", provider: "lmstudio", expected: "xs" },
+				{ id: "anthropic/claude-3", expected: "generic" },
+				{ id: "openai/gpt-4", expected: "generic" },
+				{ id: "google/gemini", expected: "generic" },
+				{ id: "claude-sonnet-4", expected: "next-gen" },
+				{ id: "gpt-5", expected: "next-gen" },
+				{ id: "unknown-model", expected: "generic" },
 			]
 
-			for (const { input, expected } of testCases) {
-				const result = getModelFamily(input)
+			for (const { id, expected, provider } of testCases) {
+				const providerId = provider ?? "random"
+				const providerInfo = { ...mockProviderInfo, providerId, modelId: id, model: { ...mockProviderInfo.model, id } }
+				const result = getModelFamily(providerInfo)
 				expect(result).to.equal(expected)
 			}
 		})
@@ -71,7 +75,7 @@ describe("PromptRegistry", () => {
 			try {
 				// Try to get a prompt for an unknown model
 				// This should fallback to generic or throw an appropriate error
-				const prompt = await registry.get("unknown-model-test", mockContext)
+				const prompt = await registry.get(mockContext)
 
 				// If we get a prompt, it should be a string
 				expect(prompt).to.be.a("string")

@@ -6,7 +6,6 @@
  * and use cases.
  */
 
-// Direct exports for static imports
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"

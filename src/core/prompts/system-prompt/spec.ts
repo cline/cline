@@ -1,6 +1,6 @@
 import type { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
-import type { SystemPromptContext } from "../types"
+import type { SystemPromptContext } from "./types"
 
 export interface ClineToolSpec {
 	variant: ModelFamily

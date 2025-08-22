@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "./spec"
+import type { ClineToolSpec } from "../spec"
 
 const nextGen: ClineToolSpec = {
 	variant: ModelFamily.NEXT_GEN,
@@ -25,6 +25,5 @@ const nextGen: ClineToolSpec = {
 }
 
 const gpt = { ...nextGen, variant: ModelFamily.GPT }
-const gemini = { ...nextGen, variant: ModelFamily.GEMINI }
 
-export const web_fetch_variants = [nextGen, gpt, gemini]
+export const web_fetch_variants = [nextGen, gpt]

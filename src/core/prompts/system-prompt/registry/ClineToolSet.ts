@@ -1,5 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
-import type { ClineToolSpec } from "../tools/spec"
+import type { ClineToolSpec } from "../spec"
 
 export class ClineToolSet {
 	// A list of tools mapped by model group
@@ -44,16 +44,22 @@ export class ClineToolSet {
 	public static getToolByNameWithFallback(toolName: string, variant: ModelFamily): ClineToolSet | undefined {
 		// Try exact variant first
 		const exact = ClineToolSet.getToolByName(toolName, variant)
-		if (exact) return exact
+		if (exact) {
+			return exact
+		}
 
 		// Fallback to GENERIC
 		const generic = ClineToolSet.getToolByName(toolName, ModelFamily.GENERIC)
-		if (generic) return generic
+		if (generic) {
+			return generic
+		}
 
 		// Final fallback: search across all registered variants
 		for (const [, tools] of ClineToolSet.variants) {
 			const found = Array.from(tools).find((t) => t.config.id === toolName)
-			if (found) return found
+			if (found) {
+				return found
+			}
 		}
 
 		return undefined

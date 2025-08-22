@@ -4,6 +4,8 @@ import { ModelFamily } from "@/shared/prompts"
 import { PromptBuilder } from "../registry/PromptBuilder"
 import { SystemPromptSection } from "../templates/placeholders"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
+import { createVariant } from "../variants/variant-builder"
+import { mockProviderInfo } from "./integration.test"
 
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {
@@ -27,6 +29,7 @@ describe("PromptBuilder", () => {
 			},
 		},
 		isTesting: true,
+		providerInfo: mockProviderInfo,
 	}
 
 	const mockComponents: ComponentRegistry = {
@@ -235,6 +238,71 @@ describe("PromptBuilder", () => {
 			const result = await builder.build()
 
 			expect(result).to.include("====\n\nSection 2")
+		})
+	})
+
+	describe("VariantBuilder auto-generation", () => {
+		it("should auto-generate baseTemplate from componentOrder when not provided", () => {
+			const config = createVariant(ModelFamily.GENERIC)
+				.description("Test variant without explicit template")
+				.version(1)
+				.components(
+					SystemPromptSection.AGENT_ROLE,
+					SystemPromptSection.TOOL_USE,
+					SystemPromptSection.CAPABILITIES,
+					SystemPromptSection.RULES,
+				)
+				.build()
+
+			// Should have auto-generated a baseTemplate
+			expect(config.baseTemplate).to.exist
+			expect(config.baseTemplate).to.include("{{AGENT_ROLE_SECTION}}")
+			expect(config.baseTemplate).to.include("{{TOOL_USE_SECTION}}")
+			expect(config.baseTemplate).to.include("{{CAPABILITIES_SECTION}}")
+			expect(config.baseTemplate).to.include("{{RULES_SECTION}}")
+
+			// Should have separators between components
+			expect(config.baseTemplate).to.include("====")
+
+			// Should match the expected format
+			const expectedTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
+
+====
+
+{{${SystemPromptSection.TOOL_USE}}}
+
+====
+
+{{${SystemPromptSection.CAPABILITIES}}}
+
+====
+
+{{${SystemPromptSection.RULES}}}`
+			expect(config.baseTemplate).to.equal(expectedTemplate)
+		})
+
+		it("should use explicit baseTemplate when provided", () => {
+			const customTemplate = "Custom template with {{AGENT_ROLE_SECTION}}"
+
+			const config = createVariant(ModelFamily.GENERIC)
+				.description("Test variant with explicit template")
+				.version(1)
+				.template(customTemplate)
+				.components(SystemPromptSection.AGENT_ROLE, SystemPromptSection.TOOL_USE)
+				.build()
+
+			// Should use the explicitly provided template
+			expect(config.baseTemplate).to.equal(customTemplate)
+		})
+
+		it("should throw error when componentOrder is empty", () => {
+			expect(() => {
+				createVariant(ModelFamily.GENERIC)
+					.description("Test variant with empty components")
+					.version(1)
+					.components() // Empty components
+					.build()
+			}).to.throw("Component order is required")
 		})
 	})
 })

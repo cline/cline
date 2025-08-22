@@ -1,10 +1,10 @@
 import type { ClineDefaultTool } from "@/shared/tools"
+import { getModelFamily } from "../"
 import { ClineToolSet } from "../registry/ClineToolSet"
+import type { ClineToolSpec } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
-import type { ClineToolSpec } from "../tools/spec"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
-import { getModelFamily } from "./utils"
 
 // Pre-defined mapping of standard placeholders to avoid runtime object creation
 const STANDARD_PLACEHOLDER_KEYS = Object.values(STANDARD_PLACEHOLDERS)
@@ -62,7 +62,7 @@ export class PromptBuilder {
 		// Add standard system placeholders
 		placeholders[STANDARD_PLACEHOLDERS.CWD] = this.context.cwd || process.cwd()
 		placeholders[STANDARD_PLACEHOLDERS.SUPPORTS_BROWSER] = this.context.supportsBrowserUse || false
-		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.variant.id)
+		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.context.providerInfo)
 		placeholders[STANDARD_PLACEHOLDERS.CURRENT_DATE] = new Date().toISOString().split("T")[0]
 
 		// Add all component sections

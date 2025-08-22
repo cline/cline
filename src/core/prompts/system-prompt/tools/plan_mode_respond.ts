@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "./spec"
+import type { ClineToolSpec } from "../spec"
 
 /**
  * ## plan_mode_respond
@@ -41,6 +41,13 @@ However, if while writing your response you realize you actually need to do more
 			instruction:
 				"Set to true if while formulating your response that you found you need to do more exploration with tools, for example reading files. (Remember, you can explore the project with tools like read_file in PLAN MODE without the user having to toggle to ACT MODE.) Defaults to false if not specified.",
 			usage: "true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
+		},
+		{
+			name: "task_progress",
+			required: false,
+			instruction:
+				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
+			usage: "Checklist here (optional)",
 			dependencies: [ClineDefaultTool.TODO],
 		},
 	],

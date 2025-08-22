@@ -70,7 +70,8 @@ export class VariantBuilder {
 	}
 
 	/**
-	 * Set the base template
+	 * Set the base template (optional)
+	 * If not provided, will be auto-generated from componentOrder
 	 */
 	template(baseTemplate: string): this {
 		this.variant = {
@@ -155,9 +156,6 @@ export class VariantBuilder {
 	 */
 	build(): Omit<PromptVariant, "id"> {
 		// Validate required fields
-		if (!this.variant.baseTemplate) {
-			throw new Error("Base template is required")
-		}
 		if (!this.variant.componentOrder?.length) {
 			throw new Error("Component order is required")
 		}
@@ -165,7 +163,34 @@ export class VariantBuilder {
 			throw new Error("Description is required")
 		}
 
-		return this.variant as Omit<PromptVariant, "id">
+		// Auto-generate baseTemplate from componentOrder if not provided
+		const baseTemplate = this.variant.baseTemplate || this.generateTemplateFromComponents(this.variant.componentOrder || [])
+
+		return {
+			...this.variant,
+			baseTemplate,
+		} as Omit<PromptVariant, "id">
+	}
+
+	/**
+	 * Generate a base template from component order
+	 * Creates a template with placeholders for each component separated by "===="
+	 */
+	private generateTemplateFromComponents(components: readonly SystemPromptSection[]): string {
+		if (!components.length) {
+			throw new Error("Cannot generate template from empty component order")
+		}
+
+		return components
+			.map((component, index) => {
+				// Convert enum value to placeholder format
+				// e.g., SystemPromptSection.AGENT_ROLE -> "{{AGENT_ROLE_SECTION}}"
+				const placeholder = `{{${component}}}`
+
+				// Add separator between components (except for the last one)
+				return index < components.length - 1 ? `${placeholder}\n\n====\n\n` : placeholder
+			})
+			.join("")
 	}
 }
 

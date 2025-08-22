@@ -2,13 +2,14 @@
  * Enhanced type definitions for better type safety and developer experience
  */
 
+import { ApiHandlerModel, ApiProviderInfo } from "@/core/api"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
+import type { ClineToolSpec } from "./spec"
 import { SystemPromptSection } from "./templates/placeholders"
-import type { ClineToolSpec } from "./tools/spec"
 
 /**
  * Strongly typed configuration override with validation
@@ -88,6 +89,7 @@ export interface VersionMetadata {
  * Enhanced system prompt context with better typing
  */
 export interface SystemPromptContext {
+	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
 	readonly supportsBrowserUse?: boolean
 	readonly mcpHub?: McpHub

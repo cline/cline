@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "./spec"
+import type { ClineToolSpec } from "../spec"
 
 const id = ClineDefaultTool.LIST_FILES
 
