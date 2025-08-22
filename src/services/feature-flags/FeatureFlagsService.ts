@@ -1,4 +1,8 @@
+import { FEATURE_FLAGS, FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
+
+// Default cache time-to-live (TTL) for feature flags - an hour
+const DEFAULT_CACHE_TTL = 60 * 60 * 1000
 
 /**
  * FeatureFlagsService provides feature flag functionality that works independently
@@ -13,15 +17,26 @@ export class FeatureFlagsService {
 	 */
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
+	private cache: Map<FeatureFlag, boolean> = new Map()
+	private lastCacheUpdateTime: number = 0
+
 	/**
-	 * Check if a feature flag is enabled
-	 * This method works regardless of telemetry settings to ensure feature flags
-	 * can control extension behavior independently of user privacy preferences.
-	 *
-	 * @param flagName The feature flag key
-	 * @returns Boolean indicating if the feature is enabled
+	 * Poll all known feature flags to update their cached values
 	 */
-	public async isFeatureFlagEnabled(flagName: string): Promise<boolean> {
+	public async cacheFeatureFlags(): Promise<void> {
+		// Do not update cache if last update was less than an hour ago
+		const timesNow = Date.now()
+		if (timesNow - this.lastCacheUpdateTime < DEFAULT_CACHE_TTL) {
+			return
+		}
+		this.lastCacheUpdateTime = timesNow
+		for (const flag of FEATURE_FLAGS) {
+			const flagEnabled = await this.getFeatureFlag(flag).catch(() => false)
+			this.cache.set(flag, flagEnabled === true)
+		}
+	}
+
+	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
 		try {
 			const flagEnabled = await this.provider.getFeatureFlag(flagName)
 			return flagEnabled === true
@@ -32,11 +47,26 @@ export class FeatureFlagsService {
 	}
 
 	/**
+	 * Check if a feature flag is enabled
+	 * This method works regardless of telemetry settings to ensure feature flags
+	 * can control extension behavior independently of user privacy preferences.
+	 *
+	 * @param flagName The feature flag key
+	 * @returns Boolean indicating if the feature is enabled
+	 */
+	public async isFeatureFlagEnabled(flagName: FeatureFlag): Promise<boolean> {
+		if (this.cache.has(flagName)) {
+			return this.cache.get(flagName)!
+		}
+		return this.getFeatureFlag(flagName)
+	}
+
+	/**
 	 * Wrapper: safely get boolean flag with default fallback
 	 */
-	public async getBooleanFlagEnabled(flagName: string, defaultValue = false): Promise<boolean> {
+	public async getBooleanFlagEnabled(flagName: FeatureFlag, defaultValue = false): Promise<boolean> {
 		try {
-			return await this.isFeatureFlagEnabled(flagName)
+			return this.isFeatureFlagEnabled(flagName) ?? defaultValue
 		} catch (error) {
 			console.error(`Error getting boolean flag ${flagName}:`, error)
 			return defaultValue
@@ -47,7 +77,7 @@ export class FeatureFlagsService {
 	 * Convenience: focus chain checklist remote gate
 	 */
 	public async getFocusChainEnabled(): Promise<boolean> {
-		return this.getBooleanFlagEnabled("focus_chain_checklist", true)
+		return this.getBooleanFlagEnabled(FeatureFlag.FOCUS_CHAIN_CHECKLIST, true)
 	}
 
 	/**

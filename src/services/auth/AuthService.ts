@@ -325,9 +325,7 @@ export class AuthService {
 				// Fetch the feature flags for the user
 				if (this._clineAuthInfo?.userInfo?.id) {
 					telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
-					for (const flag of Object.values(FEATURE_FLAGS)) {
-						await featureFlagsService?.isFeatureFlagEnabled(flag)
-					}
+					await featureFlagsService.cacheFeatureFlags()
 				}
 
 				// Update the state in the webview

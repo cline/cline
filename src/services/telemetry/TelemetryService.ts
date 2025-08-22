@@ -6,6 +6,7 @@ import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
+import { getDistinctId, setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 
 /**
@@ -203,9 +204,11 @@ export class TelemetryService {
 	 */
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
 		const propertiesWithVersion = this.addProperties({})
-
 		// Use the provider's log method instead of direct client capture
 		this.provider.identifyUser(userInfo, propertiesWithVersion)
+		if (userInfo.id) {
+			setDistinctId(userInfo.id)
+		}
 	}
 
 	// Task events
