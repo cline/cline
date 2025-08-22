@@ -1,7 +1,7 @@
-import { WebviewProviderType } from "@/shared/webview/types"
-import { WebviewProvider } from "@/core/webview"
 import * as vscode from "vscode"
 import { URI } from "vscode-uri"
+import { WebviewProvider } from "@/core/webview"
+import { WebviewProviderType } from "@/shared/webview/types"
 
 export class ExternalWebviewProvider extends WebviewProvider {
 	// This hostname cannot be changed without updating the external webview handler.
@@ -23,11 +23,7 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	override isVisible() {
 		return true
 	}
-	override getWebview() {
-		return {}
-	}
-
-	override resolveWebviewView(_: any): Promise<void> {
-		return Promise.resolve()
+	protected override isActive(): boolean {
+		return true
 	}
 }

@@ -10,17 +10,28 @@ import "cline/common.proto";
 service DiffService {
   // Open the diff view/editor.
   rpc openDiff(OpenDiffRequest) returns (OpenDiffResponse);
+
   // Get the contents of the diff view.
   rpc getDocumentText(GetDocumentTextRequest) returns (GetDocumentTextResponse);
+
   // Replace a text selection in the diff.
   rpc replaceText(ReplaceTextRequest) returns (ReplaceTextResponse);
+
   rpc scrollDiff(ScrollDiffRequest) returns (ScrollDiffResponse);
+
   // Truncate the diff document.
   rpc truncateDocument(TruncateDocumentRequest) returns (TruncateDocumentResponse);
+
   // Save the diff document.
   rpc saveDocument(SaveDocumentRequest) returns (SaveDocumentResponse);
-  // Close the diff editor UI.
-  rpc closeDiff(CloseDiffRequest) returns (CloseDiffResponse);
+
+  // Close all the diff editor windows/tabs.
+  // Any diff editors with unsaved content should not be closed.
+  rpc closeAllDiffs(CloseAllDiffsRequest) returns (CloseAllDiffsResponse);
+
+  // Display a diff view comparing before/after states for multiple files.
+  // Content is passed as in-memory data, not read from the file system.
+  rpc openMultiFileDiff(OpenMultiFileDiffRequest) returns (OpenMultiFileDiffResponse);
 }
 
 message OpenDiffRequest {
@@ -70,12 +81,9 @@ message TruncateDocumentRequest {
 
 message TruncateDocumentResponse {}
 
-message CloseDiffRequest {
-  optional cline.Metadata metadata = 1;
-  optional string diff_id = 2;
-}
+message CloseAllDiffsRequest {}
 
-message CloseDiffResponse {}
+message CloseAllDiffsResponse {}
 
 message SaveDocumentRequest {
   optional cline.Metadata metadata = 1;
@@ -83,3 +91,17 @@ message SaveDocumentRequest {
 }
 
 message SaveDocumentResponse {}
+
+message OpenMultiFileDiffRequest {
+  optional string title = 1;
+  repeated ContentDiff diffs = 2;
+}
+
+message ContentDiff {
+  // The absolute file path.
+  optional string file_path = 1;
+  optional string left_content = 2;
+  optional string right_content = 3;
+}
+
+message OpenMultiFileDiffResponse {}

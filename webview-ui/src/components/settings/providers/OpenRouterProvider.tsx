@@ -1,15 +1,16 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
-import { useState } from "react"
-import { getOpenRouterAuthUrl } from "../utils/providerUtils"
-import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
-import VSCodeButtonLink from "../../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Component to display OpenRouter balance information
  */
@@ -32,7 +33,6 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	return (
 		<VSCodeLink
 			href="https://openrouter.ai/settings/keys"
-			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}
 			style={{
 				fontSize: "12px",
 				color: "var(--vscode-foreground)",
@@ -40,7 +40,8 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 				fontWeight: 500,
 				paddingLeft: 4,
 				cursor: "pointer",
-			}}>
+			}}
+			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}>
 			Balance: {formattedBalance}
 		</VSCodeLink>
 	)
@@ -59,7 +60,7 @@ interface OpenRouterProviderProps {
  * The OpenRouter provider configuration component
  */
 export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
-	const { apiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
@@ -70,9 +71,9 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 				<DebouncedTextField
 					initialValue={apiConfiguration?.openRouterApiKey || ""}
 					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
+					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
-					type="password"
-					placeholder="Enter API Key...">
+					type="password">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 						{apiConfiguration?.openRouterApiKey && (
@@ -81,12 +82,18 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 					</div>
 				</DebouncedTextField>
 				{!apiConfiguration?.openRouterApiKey && (
-					<VSCodeButtonLink
-						href={getOpenRouterAuthUrl(uriScheme)}
-						style={{ margin: "5px 0 0 0" }}
-						appearance="secondary">
+					<VSCodeButton
+						appearance="secondary"
+						onClick={async () => {
+							try {
+								await AccountServiceClient.openrouterAuthClicked(EmptyRequest.create())
+							} catch (error) {
+								console.error("Failed to open OpenRouter auth:", error)
+							}
+						}}
+						style={{ margin: "5px 0 0 0" }}>
 						Get OpenRouter API Key
-					</VSCodeButtonLink>
+					</VSCodeButton>
 				)}
 				<p
 					style={{
@@ -101,7 +108,6 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 			{showModelOptions && (
 				<>
 					<VSCodeCheckbox
-						style={{ marginTop: -10 }}
 						checked={providerSortingSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
@@ -109,7 +115,8 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 							if (!isChecked) {
 								handleFieldChange("openRouterProviderSorting", "")
 							}
-						}}>
+						}}
+						style={{ marginTop: -10 }}>
 						Sort underlying provider routing
 					</VSCodeCheckbox>
 
@@ -117,11 +124,11 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 						<div style={{ marginBottom: -6 }}>
 							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
 								<VSCodeDropdown
-									style={{ width: "100%", marginTop: 3 }}
-									value={apiConfiguration?.openRouterProviderSorting}
 									onChange={(e: any) => {
 										handleFieldChange("openRouterProviderSorting", e.target.value)
-									}}>
+									}}
+									style={{ width: "100%", marginTop: 3 }}
+									value={apiConfiguration?.openRouterProviderSorting}>
 									<VSCodeOption value="">Default</VSCodeOption>
 									<VSCodeOption value="price">Price</VSCodeOption>
 									<VSCodeOption value="throughput">Throughput</VSCodeOption>
@@ -141,7 +148,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 						</div>
 					)}
 
-					<OpenRouterModelPicker isPopup={isPopup} currentMode={currentMode} />
+					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} />
 				</>
 			)}
 		</div>

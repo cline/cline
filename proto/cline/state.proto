@@ -52,6 +52,18 @@ enum PlanActMode {
   ACT = 1;
 }
 
+enum OpenaiReasoningEffort {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+}
+
+enum McpDisplayMode {
+  RICH = 0;
+  PLAIN = 1;
+  MARKDOWN = 2;
+}
+
 message ChatContent {
   optional string message = 1;
   repeated string images = 2;
@@ -105,12 +117,14 @@ message UpdateSettingsRequest {
   optional int32 shell_integration_timeout = 8;
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
-  optional string mcp_display_mode = 11;
+  optional McpDisplayMode mcp_display_mode = 11;
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional string openai_reasoning_effort = 15;
+  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
+  optional FocusChainSettings focus_chain_settings = 17;
+  optional bool use_auto_condense = 18;
 }
 
 // Complete API Configuration message
@@ -118,7 +132,7 @@ message ApiConfiguration {
   // Global configuration fields (not mode-specific)
   optional string api_key = 1; // anthropic
   optional string cline_api_key = 2;
-  optional string task_id = 3;
+  optional string ulid = 3;
   optional string lite_llm_base_url = 4;
   optional string lite_llm_api_key = 5;
   optional bool lite_llm_use_prompt_cache = 6;
@@ -148,31 +162,36 @@ message ApiConfiguration {
   optional string openai_native_api_key = 30;
   optional string deep_seek_api_key = 31;
   optional string requesty_api_key = 32;
-  optional string together_api_key = 33;
-  optional string fireworks_api_key = 34;
-  optional int32 fireworks_model_max_completion_tokens = 35;
-  optional int32 fireworks_model_max_tokens = 36;
-  optional string qwen_api_key = 37;
-  optional string doubao_api_key = 38;
-  optional string mistral_api_key = 39;
-  optional string azure_api_version = 40;
-  optional string qwen_api_line = 41;
-  optional string nebius_api_key = 42;
-  optional string asksage_api_url = 43;
-  optional string asksage_api_key = 44;
-  optional string xai_api_key = 45;
-  optional string sambanova_api_key = 46;
-  optional string cerebras_api_key = 47;
-  optional int32 request_timeout_ms = 48;
-  optional string sap_ai_core_client_id = 49;
-  optional string sap_ai_core_client_secret = 50;
-  optional string sap_ai_resource_group = 51;
-  optional string sap_ai_core_token_url = 52;
-  optional string sap_ai_core_base_url = 53;
-  optional string moonshot_api_key = 54;
-  optional string moonshot_api_line = 55;
-  optional string huawei_cloud_maas_api_key = 56;
-  optional string ollama_api_key = 57;
+  optional string requesty_base_url = 33;
+  optional string together_api_key = 34;
+  optional string fireworks_api_key = 35;
+  optional int32 fireworks_model_max_completion_tokens = 36;
+  optional int32 fireworks_model_max_tokens = 37;
+  optional string qwen_api_key = 38;
+  optional string doubao_api_key = 39;
+  optional string mistral_api_key = 40;
+  optional string azure_api_version = 41;
+  optional string qwen_api_line = 42;
+  optional string nebius_api_key = 43;
+  optional string asksage_api_url = 44;
+  optional string asksage_api_key = 45;
+  optional string xai_api_key = 46;
+  optional string sambanova_api_key = 47;
+  optional string cerebras_api_key = 48;
+  optional int32 request_timeout_ms = 49;
+  optional string sap_ai_core_client_id = 50;
+  optional string sap_ai_core_client_secret = 51;
+  optional string sap_ai_resource_group = 52;
+  optional string sap_ai_core_token_url = 53;
+  optional string sap_ai_core_base_url = 54;
+  optional string moonshot_api_key = 55;
+  optional string moonshot_api_line = 56;
+  optional string huawei_cloud_maas_api_key = 57;
+  optional string ollama_api_key = 58;
+  optional string zai_api_key = 59;
+  optional string zai_api_line = 60;
+  optional string lm_studio_max_tokens = 61;
+  optional string vercel_ai_gateway_api_key = 62;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
@@ -197,6 +216,8 @@ message ApiConfiguration {
   optional string plan_mode_sap_ai_core_model_id = 119;
   optional string plan_mode_huawei_cloud_maas_model_id = 120;
   optional string plan_mode_huawei_cloud_maas_model_info = 121;
+  optional string plan_mode_vercel_ai_gateway_model_id = 122;
+  optional string plan_mode_vercel_ai_gateway_model_info = 123;
   
   // Act mode configurations
   optional string act_mode_api_provider = 200;
@@ -221,6 +242,8 @@ message ApiConfiguration {
   optional string act_mode_sap_ai_core_model_id = 219;
   optional string act_mode_huawei_cloud_maas_model_id = 220;
   optional string act_mode_huawei_cloud_maas_model_info = 221;
+  optional string act_mode_vercel_ai_gateway_model_id = 222;
+  optional string act_mode_vercel_ai_gateway_model_info = 223;
   
   // Favorited model IDs
   repeated string favorited_model_ids = 300;
@@ -234,6 +257,11 @@ message ApiConfiguration {
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
+}
+
+message FocusChainSettings {
+  bool enabled = 1;
+  int32 remind_cline_interval = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {

@@ -7,7 +7,9 @@ interface QuickWinCardProps {
 }
 
 const renderIcon = (iconName?: string) => {
-	if (!iconName) return <span className="codicon codicon-rocket !text-[28px] !leading-[1]"></span>
+	if (!iconName) {
+		return <span className="codicon codicon-rocket !text-[28px] !leading-[1]"></span>
+	}
 
 	let iconClass = "codicon-rocket"
 	switch (iconName) {

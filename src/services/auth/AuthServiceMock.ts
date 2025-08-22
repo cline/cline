@@ -1,37 +1,33 @@
 import { String } from "@shared/proto/cline/common"
-import type vscode from "vscode"
 import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
 import type { UserResponse } from "@/shared/ClineAccount"
-import { AuthService, type ServiceConfig } from "./AuthService"
-import { Controller } from "@/core/controller"
+import { AuthService } from "./AuthService"
 
 export class AuthServiceMock extends AuthService {
-	protected constructor(controller: Controller, config: ServiceConfig, authProvider?: any) {
-		super(controller, config, authProvider)
+	protected constructor(controller: Controller) {
+		super(controller)
 
 		if (process?.env?.CLINE_ENVIRONMENT !== "local") {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._config = Object.assign({ URI: clineEnvConfig.apiBaseUrl }, config)
-
-		const providerName = "firebase"
-		this._setProvider(providerName)
-
+		this._config = { URI: clineEnvConfig.apiBaseUrl }
+		this._setProvider("firebase")
 		this._controller = controller
 	}
 
 	/**
 	 * Gets the singleton instance of AuthServiceMock.
 	 */
-	public static override getInstance(controller?: Controller, config?: ServiceConfig, authProvider?: any): AuthServiceMock {
+	public static override getInstance(controller?: Controller): AuthServiceMock {
 		if (!AuthServiceMock.instance) {
 			if (!controller) {
 				console.error("Extension controller was not provided to AuthServiceMock.getInstance")
 				throw new Error("Extension controller was not provided to AuthServiceMock.getInstance")
 			}
-			AuthServiceMock.instance = new AuthServiceMock(controller, config || {}, authProvider)
+			AuthServiceMock.instance = new AuthServiceMock(controller)
 		}
 		if (controller !== undefined) {
 			AuthServiceMock.instance.controller = controller

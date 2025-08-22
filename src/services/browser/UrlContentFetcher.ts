@@ -1,12 +1,13 @@
-import * as vscode from "vscode"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
+import { fileExistsAtPath } from "@utils/fs"
+import * as cheerio from "cheerio"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, launch } from "puppeteer-core"
-import * as cheerio from "cheerio"
-import TurndownService from "turndown"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import { fileExistsAtPath } from "@utils/fs"
+import { Browser, launch, Page } from "puppeteer-core"
+import TurndownService from "turndown"
+import * as vscode from "vscode"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -45,9 +46,14 @@ export class UrlContentFetcher {
 			return
 		}
 		const stats = await this.ensureChromiumExists()
+		// Read browser settings from globalState for custom args only
+		const browserSettings = this.context.globalState.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
+		const customArgsStr = browserSettings.customArgs || ""
+		const customArgs = customArgsStr.trim() ? customArgsStr.split(/\s+/) : []
 		this.browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				...customArgs, // Append user-provided custom arguments
 			],
 			executablePath: stats.executablePath,
 		})

@@ -1,14 +1,13 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { getAllExtensionState } from "../../storage/state"
-import { groqModels } from "../../../shared/api"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
 import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { groqModels } from "../../../shared/api"
+import { Controller } from ".."
 
 /**
  * Refreshes the Groq models and returns the updated model list
@@ -16,12 +15,10 @@ import { telemetryService } from "@/services/posthog/PostHogClientProvider"
  * @param request Empty request object
  * @returns Response containing the Groq models
  */
-export async function refreshGroqModels(controller: Controller, request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshGroqModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
 
-	// Get the Groq API key from the controller's state
-	const { apiConfiguration } = await getAllExtensionState(controller.context)
-	const groqApiKey = apiConfiguration?.groqApiKey
+	const groqApiKey = controller.cacheService.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
@@ -113,7 +110,6 @@ export async function refreshGroqModels(controller: Controller, request: EmptyRe
 		}
 
 		telemetryService.captureProviderApiError({
-			taskId: controller.task?.taskId || "",
 			ulid: controller.task?.ulid || "",
 			errorMessage,
 			errorStatus: error.status,

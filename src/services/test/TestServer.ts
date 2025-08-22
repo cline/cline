@@ -1,17 +1,16 @@
-import { getCwd } from "@/utils/path"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
-import { getAllExtensionState, updateGlobalState } from "@core/storage/state"
 import { WebviewProvider } from "@core/webview"
 import { Logger } from "@services/logging/Logger"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ApiProvider } from "@shared/api"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { execa } from "execa"
 import * as http from "http"
 import * as path from "path"
 import * as vscode from "vscode"
-import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 import { Controller } from "@/core/controller"
+import { getCwd } from "@/utils/path"
+import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -29,13 +28,13 @@ function createToolCallTracker(): {
 }
 
 // Task completion tracking
-let taskCompletionResolver: (() => void) | null = null
+let _taskCompletionResolver: (() => void) | null = null
 
 // Function to create a new task completion promise
 function createTaskCompletionTracker(): Promise<void> {
 	// Create a new promise that will resolve when the task is completed
 	return new Promise<void>((resolve) => {
-		taskCompletionResolver = resolve
+		_taskCompletionResolver = resolve
 	})
 }
 
@@ -47,13 +46,13 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const { autoApprovalSettings } = await getAllExtensionState(context)
+		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
-			...autoApprovalSettings,
+			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
 			enabled: true,
 			actions: {
 				readFiles: true,
@@ -68,7 +67,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, cont
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
@@ -209,7 +208,7 @@ export function createTestServer(controller: Controller): http.Server {
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
+						const apiConfiguration = visibleWebview.controller.cacheService.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {
@@ -402,7 +401,7 @@ export function createTestServer(controller: Controller): http.Server {
 								files: fileChanges,
 							}),
 						)
-					} catch (timeoutError) {
+					} catch (_timeoutError) {
 						// Task didn't complete within the timeout period
 						res.writeHead(200, { "Content-Type": "application/json" })
 						res.end(

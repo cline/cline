@@ -1,38 +1,7 @@
-import { ApiHandler } from "@api/index"
+import { ApiHandlerModel } from "@core/api"
 
-export function isClaude4ModelFamily(api: ApiHandler): boolean {
-	const model = api.getModel()
-	const modelId = model.id.toLowerCase()
-	return (
-		modelId.includes("sonnet-4") || modelId.includes("opus-4") || modelId.includes("4-sonnet") || modelId.includes("4-opus")
-	)
-}
-
-export function isGemini2dot5ModelFamily(api: ApiHandler): boolean {
-	const model = api.getModel()
-	const modelId = model.id
-	return modelId.includes("gemini-2.5")
-}
-
-export function isGrok4ModelFamily(api: ApiHandler): boolean {
-	const model = api.getModel()
-	const modelId = model.id.toLowerCase()
-	return modelId.includes("grok-4")
-}
-
-export function isGPT5ModelFamily(api: ApiHandler): boolean {
-	const model = api.getModel()
-	const modelId = model.id.toLowerCase()
-	return modelId.includes("gpt-5") || modelId.includes("gpt5") || modelId.includes("nectarine")
-}
-
-export function isNextGenModelFamily(api: ApiHandler): boolean {
-	return isClaude4ModelFamily(api) || isGemini2dot5ModelFamily(api) || isGrok4ModelFamily(api) || isGPT5ModelFamily(api)
-}
-
-export function modelDoesntSupportWebp(api: ApiHandler): boolean {
-	const model = api.getModel()
-	const modelId = model.id.toLowerCase()
+export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
+	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("grok")
 }
 

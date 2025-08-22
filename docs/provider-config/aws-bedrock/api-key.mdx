@@ -1,0 +1,136 @@
+---
+title: "API Key (Simple Setup)"
+sidebarTitle: "API Key"
+description: "Set up AWS Bedrock with Cline using Bedrock API Keys. Simplest setup for individual developers to access frontier models."
+---
+
+### Overview
+
+-   **AWS Bedrock:** A fully managed service that offers access to leading generative AI models (e.g., Anthropic Claude, Amazon Nova) through AWS.\
+    [Learn more about AWS Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html).
+-   **Cline:** A VS Code extension that acts as a coding assistant by integrating with AI models—empowering developers to generate code, debug, and analyze data.
+-   **Developer Focus:** This guide is tailored for individual developers that want to enable access to frontier models via AWS Bedrock with a simplified setup using API Keys.
+
+---
+
+### Step 1: Prepare Your AWS Environment
+
+#### 1.1 Individual user setup - Create a Bedrock API Key
+
+For more detailed instructions check the [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html).
+
+1. **Sign in to the AWS Management Console:**\
+   [AWS Console](https://aws.amazon.com/console/)
+2. **Access Bedrock Console:**
+    - [Bedrock Console](https://console.aws.amazon.com/bedrock)
+    - Create a new Long Lived API Key. This API Key will have by default the `AmazonBedrockLimitedAccess` IAM policy
+      [View AmazonBedrockLimitedAccess Policy Details](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html)
+
+#### 1.2 Create or Modify the Policy
+
+To ensure Cline can interact with AWS Bedrock, your IAM user or role needs specific permissions. While the `AmazonBedrockLimitedAccess` managed policy provides comprehensive access, for a more restricted and secure setup adhering to the principle of least privilege, the following minimal permissions are sufficient for Cline's core model invocation functionality:
+
+-   `bedrock:InvokeModel`
+-   `bedrock:InvokeModelWithResponseStream`
+-   `bedrock:CallWithBearerToken`
+
+You can create a custom IAM policy with these permissions and attach it to your IAM user or role.
+
+1.  In the AWS IAM console, create a new policy.
+2.  Use the JSON editor to add the following policy document:
+    ```json
+    {
+    	"Version": "2012-10-17",
+    	"Statement": [
+    		{
+    			"Effect": "Allow",
+    			"Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:CallWithBearerToken"],
+    			"Resource": "*" // For enhanced security, scope this to specific model ARNs if possible.
+    		}
+    	]
+    }
+    ```
+3.  Name the policy (e.g., `ClineBedrockInvokeAccess`) and attach it to the IAM user associated with the key you created. The IAM user and the API key have the same prefix.
+
+**Important Considerations:**
+
+-   **Model Listing in Cline:** The minimal permissions (`bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`) are sufficient for Cline to _use_ a model if you specify the model ID directly in Cline's settings. If you rely on Cline to dynamically list available Bedrock models, you might need additional permissions like `bedrock:ListFoundationModels`.
+-   **AWS Marketplace Subscriptions:** For third-party models (e.g., Anthropic Claude), the **`AmazonBedrockLimitedAccess`** policy grants you the necessary permissions to subscribe via the AWS Marketplace. There is no explicit access to be enabled. For Anthropic models you are still required to submit a First Time Use (FTU) form via the Console. If you get the following message in the Cline chat `[ERROR] Failed to process response: Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model.` then open the [Playground in the AWS Bedrock Console](https://console.aws.amazon.com/bedrock/home?#/text-generation-playground), select any Anthropic model and fill in the form (you might need to send a prompt first)
+
+---
+
+### Step 2: Verify Regional and Model Access
+
+#### 2.1 Choose and Confirm a Region
+
+1. **Select a Region:**\
+   AWS Bedrock is available in multiple regions (e.g., US East, Europe, Asia Pacific). Choose the region that meets your latency and compliance needs.\
+   [AWS Global Infrastructure](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
+2. **Verify Model Access:**
+    - **Note:** Some models are only accessible via an [Inference Profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html). In such case check the box "Cross Region Inference".
+
+---
+
+### Step 3: Configure the Cline VS Code Extension
+
+#### 3.1 Install and Open Cline
+
+1. **Install VS Code:**\
+   Download from the [VS Code website](https://code.visualstudio.com/).
+2. **Install the Cline Extension:**
+    - Open VS Code.
+    - Go to the Extensions Marketplace (`Ctrl+Shift+X` or `Cmd+Shift+X`).
+    - Search for **Cline** and install it.
+
+#### 3.2 Configure Cline Settings
+
+1. **Open Cline Settings:**
+    - Click on the settings ⚙️ to select your API Provider.
+2. **Select AWS Bedrock as the API Provider:**
+    - From the API Provider dropdown, choose **AWS Bedrock**.
+3. **Enter Your AWS API Key:**
+    - Input your **API Key**
+    - Specify the correct **AWS Region** (e.g., `us-east-1` or your enterprise-approved region).
+4. **Select a Model:**
+    - Choose an on-demand model (e.g., **anthropic.claude-3-5-sonnet-20241022-v2:0**).
+5. **Save and Test:**
+    - Click **Done/Save** to apply your settings.
+    - Test the integration by sending a simple prompt (e.g., "Generate a Python function to check if a number is prime.").
+
+---
+
+### Step 4: Security, Monitoring, and Best Practices
+
+1. **Secure Access:**
+    - Prefer AWS SSO/federated roles over long-lived API Key when possible.
+    - [AWS IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+2. **Enhance Network Security:**
+    - Consider setting up [AWS PrivateLink](https://docs.aws.amazon.com/vpc/latest/userguide/endpoint-services-overview.html) to securely connect to Bedrock.
+3. **Monitor and Log Activity:**
+    - Enable AWS CloudTrail to log Bedrock API calls.
+    - Use CloudWatch to monitor metrics like invocation count, latency, and token usage.
+    - Set up alerts for abnormal activity.
+4. **Handle Errors and Manage Costs:**
+    - Implement exponential backoff for throttling errors.
+    - Use AWS Cost Explorer and set billing alerts to track usage.\
+      [AWS Cost Management](https://docs.aws.amazon.com/cost-management/latest/userguide/what-is-aws-cost-management.html)
+5. **Regular Audits and Compliance:**
+    - Periodically review IAM roles and CloudTrail logs.
+    - Follow internal data privacy and governance policies.
+
+---
+
+### Conclusion
+
+By following these steps, you can quickly integrate AWS Bedrock with the Cline VS Code extension to accelerate development:
+
+1. **Prepare Your AWS Environment:** Create a Bedrock API Key with the necessary permissions.
+2. **Verify Region and Model Access:** Confirm that your selected region supports your required models.
+3. **Configure Cline in VS Code:** Install and set up Cline with your AWS API Key and choose an appropriate model.
+4. **Implement Security and Monitoring:** Use best practices for IAM, network security, monitoring, and cost management.
+
+For further details, consult the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html). Happy coding!
+
+---
+
+_This guide will be updated as AWS Bedrock and Cline evolve. Always refer to the latest documentation and internal policies for up-to-date practices._

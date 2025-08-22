@@ -1,21 +1,21 @@
-import HeroTooltip from "@/components/common/HeroTooltip"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import HeroTooltip from "@/components/common/HeroTooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
-import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
-import AboutSection from "./sections/AboutSection"
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -184,7 +184,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	// Setup resize observer to detect when we should switch to compact mode
 	useEffect(() => {
-		if (!containerRef.current) return
+		if (!containerRef.current) {
+			return
+		}
 
 		const observer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
@@ -213,16 +215,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			</TabHeader>
 
 			{/* Vertical tabs layout */}
-			<div ref={containerRef} className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`}>
+			<div className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`} ref={containerRef}>
 				{/* Tab sidebar */}
 				<TabList
-					value={activeTab}
-					onValueChange={handleTabChange}
 					className={settingsTabList}
-					data-compact={isCompactMode}>
+					data-compact={isCompactMode}
+					onValueChange={handleTabChange}
+					value={activeTab}>
 					{SETTINGS_TABS.map((tab) =>
 						isCompactMode ? (
-							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
+							<HeroTooltip content={tab.tooltipText} key={tab.id} placement="right">
 								<div
 									className={`${
 										activeTab === tab.id
@@ -244,15 +246,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							</HeroTooltip>
 						) : (
 							<TabTrigger
-								key={tab.id}
-								value={tab.id}
 								className={`${
 									activeTab === tab.id
 										? `${settingsTabTrigger} ${settingsTabTriggerActive}`
 										: settingsTabTrigger
 								} focus:ring-0`}
 								data-compact={isCompactMode}
-								data-testid={`tab-${tab.id}`}>
+								data-testid={`tab-${tab.id}`}
+								key={tab.id}
+								value={tab.id}>
 								<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
 									<tab.icon className="w-4 h-4" />
 									<span className="tab-label">{tab.name}</span>
@@ -266,7 +268,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				{(() => {
 					const renderSectionHeader = (tabId: string) => {
 						const tab = SETTINGS_TABS.find((t) => t.id === tabId)
-						if (!tab) return null
+						if (!tab) {
+							return null
+						}
 
 						return (
 							<SectionHeader>
@@ -305,7 +309,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 							{/* About Tab */}
 							{activeTab === "about" && (
-								<AboutSection version={version} renderSectionHeader={renderSectionHeader} />
+								<AboutSection renderSectionHeader={renderSectionHeader} version={version} />
 							)}
 						</TabContent>
 					)

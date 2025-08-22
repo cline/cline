@@ -1,0 +1,124 @@
+---
+title: "Z AI (Zhipu AI)"
+description: "Learn how to configure and use Z AI's GLM-4.5 models with Cline. Experience advanced hybrid reasoning, agentic capabilities, and open-source excellence with regional optimization."
+---
+
+Z AI (formerly Zhipu AI) offers the groundbreaking GLM-4.5 series, featuring hybrid reasoning capabilities and agentic AI design. Released in July 2025, these models excel in unified reasoning, coding, and intelligent agent applications while maintaining open-source accessibility under MIT license.
+
+**Website:** [https://z.ai/model-api](https://z.ai/model-api) (International) | [https://open.bigmodel.cn/](https://open.bigmodel.cn/) (China)
+
+### Getting an API Key
+
+#### International Users
+1.  **Sign Up/Sign In:** Go to [https://z.ai/model-api](https://z.ai/model-api). Create an account or sign in.
+2.  **Navigate to API Keys:** Access your account dashboard and find the API keys section.
+3.  **Create a Key:** Generate a new API key for your application.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+#### China Mainland Users
+1.  **Sign Up/Sign In:** Go to [https://open.bigmodel.cn/](https://open.bigmodel.cn/). Create an account or sign in.
+2.  **Navigate to API Keys:** Access your account dashboard and find the API keys section.
+3.  **Create a Key:** Generate a new API key for your application.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+### Supported Models
+
+Z AI provides different model catalogs based on your selected region:
+
+#### GLM-4.5 Series
+-   **GLM-4.5** - Flagship model with 355B total parameters, 32B active parameters
+-   **GLM-4.5-Air** - Compact model with 106B total parameters, 12B active parameters
+
+#### GLM-4.5 Hybrid Reasoning Models
+-   **GLM-4.5 (Thinking Mode)** - Advanced reasoning with step-by-step analysis
+-   **GLM-4.5-Air (Thinking Mode)** - Efficient reasoning for mainstream hardware
+
+All models feature:
+-   **128,000 token context window** for extensive document processing
+-   **Mixture of Experts (MoE) architecture** for optimal performance
+-   **Agent-native design** integrating reasoning, coding, and tool usage
+-   **Open-source availability** under MIT license
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Z AI" from the "API Provider" dropdown.
+3.  **Select Region:** Choose your region:
+    -   "International" for global access
+    -   "China" for mainland China access
+4.  **Enter API Key:** Paste your Z AI API key into the "Z AI API Key" field.
+5.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Z AI's Hybrid Intelligence
+
+Z AI's GLM-4.5 series introduces revolutionary capabilities that set it apart from conventional language models:
+
+#### Hybrid Reasoning Architecture
+GLM-4.5 operates in two distinct modes:
+- **Thinking Mode:** Designed for complex reasoning tasks and tool usage, engaging in deeper analytical processes
+- **Non-Thinking Mode:** Provides immediate responses for straightforward queries, optimizing efficiency
+
+This dual-mode architecture represents an "agent-native" design philosophy that adapts processing intensity based on query complexity.
+
+#### Exceptional Performance
+GLM-4.5 achieves a comprehensive score of **63.2** across 12 benchmarks spanning agentic tasks, reasoning, and coding challenges, securing **3rd place** among all proprietary and open-source models. GLM-4.5-Air maintains competitive performance with a score of **59.8** while delivering superior efficiency.
+
+#### Mixture of Experts Excellence
+The sophisticated MoE architecture optimizes performance while maintaining computational efficiency:
+- **GLM-4.5:** 355B total parameters with 32B active parameters
+- **GLM-4.5-Air:** 106B total parameters with 12B active parameters
+
+#### Extended Context Capabilities
+The 128,000-token context window enables comprehensive understanding of lengthy documents and codebases, with real-world testing confirming effective processing of nearly 2,000-line codebases while maintaining remarkable performance.
+
+#### Open-Source Leadership
+Released under MIT license, GLM-4.5 provides researchers and developers with access to state-of-the-art capabilities without proprietary restrictions, including base models, hybrid reasoning versions, and optimized FP8 variants.
+
+### Regional Optimization
+
+#### API Endpoints
+- **International:** Uses `https://api.z.ai/api/paas/v4`
+- **China:** Uses `https://open.bigmodel.cn/api/paas/v4`
+
+#### Model Availability
+The region setting determines both API endpoint and available models, with automatic filtering to ensure compatibility with your selected region.
+
+### Special Features
+
+#### Agentic Capabilities
+GLM-4.5's unified architecture makes it particularly suitable for complex intelligent agent applications requiring integrated reasoning, coding, and tool utilization capabilities.
+
+#### Comprehensive Benchmarking
+Performance evaluation encompasses:
+- **3 agentic task benchmarks**
+- **7 reasoning benchmarks** 
+- **2 coding benchmarks**
+
+This comprehensive assessment demonstrates versatility across diverse AI applications.
+
+#### Developer Integration
+Models support integration through multiple frameworks:
+- **transformers**
+- **vLLM**
+- **SGLang**
+
+Complete with dedicated model code, tool parser, and reasoning parser implementations.
+
+### Performance Comparisons
+
+#### vs Claude 4 Sonnet
+GLM-4.5 shows competitive performance in agentic coding and reasoning tasks, though Claude Sonnet 4 maintains advantages in coding success rates and autonomous multi-feature application development.
+
+#### vs GPT-4.5
+GLM-4.5 ranks competitively in reasoning and agent benchmarks, with GPT-4.5 generally leading in raw task accuracy on professional benchmarks like MMLU and AIME.
+
+### Tips and Notes
+
+-   **Region Selection:** Choose the appropriate region for optimal performance and compliance with local regulations.
+-   **Model Selection:** GLM-4.5 for maximum performance, GLM-4.5-Air for efficiency and mainstream hardware compatibility.
+-   **Context Advantage:** Large 128K context window enables processing of substantial codebases and documents.
+-   **Open Source Benefits:** MIT license enables both commercial use and secondary development.
+-   **Agentic Applications:** Particularly strong for applications requiring reasoning, coding, and tool usage integration.
+-   **Hybrid Reasoning:** Use Thinking Mode for complex problems, Non-Thinking Mode for simple queries.
+-   **API Compatibility:** OpenAI-compatible API provides streaming responses and usage reporting.
+-   **Framework Support:** Multiple integration options available for different deployment scenarios.

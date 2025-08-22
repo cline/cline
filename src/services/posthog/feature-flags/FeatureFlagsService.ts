@@ -7,9 +7,7 @@ export class FeatureFlagsService {
 	public constructor(
 		private readonly getFeatureFlag: (flag: string) => Promise<boolean | string | undefined>,
 		private readonly getFeatureFlagPayload: (flag: string) => Promise<unknown>,
-	) {
-		console.log("[FeatureFlagsService] Initialized with distinctId:")
-	}
+	) {}
 
 	/**
 	 * Check if a feature flag is enabled
@@ -27,6 +25,25 @@ export class FeatureFlagsService {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return false
 		}
+	}
+
+	/**
+	 * Wrapper: safely get boolean flag with default fallback
+	 */
+	public async getBooleanFlagEnabled(flagName: string, defaultValue = false): Promise<boolean> {
+		try {
+			return await this.isFeatureFlagEnabled(flagName)
+		} catch (error) {
+			console.error(`Error getting boolean flag ${flagName}:`, error)
+			return defaultValue
+		}
+	}
+
+	/**
+	 * Convenience: focus chain checklist remote gate
+	 */
+	public async getFocusChainEnabled(): Promise<boolean> {
+		return this.getBooleanFlagEnabled("focus_chain_checklist", true)
 	}
 
 	/**

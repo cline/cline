@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import * as fs from "fs/promises"
-import * as path from "path"
 import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
+import * as fs from "fs/promises"
+import * as path from "path"
 
 const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
 
@@ -23,9 +23,14 @@ export function getFqn(name) {
 	return typeNameToFQN.get(name)
 }
 
-export async function loadProtoDescriptorSet() {
+export async function getPackageDefinition() {
 	const descriptorBuffer = await fs.readFile(DESCRIPTOR_SET)
-	const packageDefinition = protoLoader.loadFileDescriptorSetFromBuffer(descriptorBuffer)
+	const options = { longs: Number } // Encode int64 fields as numbers
+	return protoLoader.loadFileDescriptorSetFromBuffer(descriptorBuffer, options)
+}
+
+export async function loadProtoDescriptorSet() {
+	const packageDefinition = await getPackageDefinition()
 	return grpc.loadPackageDefinition(packageDefinition)
 }
 

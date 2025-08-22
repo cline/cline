@@ -3,7 +3,7 @@ title: "Context Management"
 description: "Context is key to getting the most out of Cline"
 ---
 
-> 💡 **Quick Reference**
+> **Quick Reference**
 >
 > -   Context = The information Cline knows about your project
 > -   Context Window = How much information Cline can hold at once
@@ -38,7 +38,7 @@ Cline actively builds context in two ways:
     - Guide focus areas
     - Share design thoughts and requirements
 
-💡 **Key Point**: Cline isn't passive - it actively seeks to understand your project. You can either let it explore or guide its focus, especially in [Plan](https://docs.cline.bot/features/plan-and-act) mode.
+**Key Point**: Cline isn't passive - it actively seeks to understand your project. You can either let it explore or guide its focus, especially in [Plan Mode](/features/plan-and-act).
 
 ### Context & Context Windows
 
@@ -53,12 +53,13 @@ Think of context like a whiteboard you and Cline share:
 -   **Context Window** is the size of the whiteboard itself:
     -   Measured in tokens (1 token ≈ 3/4 of an English word)
     -   Each model has a fixed size:
-        -   Claude 3.5 Sonnet: 200,000 tokens
-        -   DeepSeek: 64,000 tokens
-    -   When the whiteboard is full, you need to erase (clear context) to write more
-        -   [How Cline manages context under the hood](https://cline.bot/blog/understanding-the-new-context-window-progress-bar-in-cline)
+        -   Claude Sonnet 4: 1,000,000 tokens
+        -   Qwen3 Coder: 256,000 tokens
+        -   Gemini 2.5 Pro: 1,000,000+ tokens
+        -   GPT-5: 400,000 tokens
+    -   When the whiteboard is full, Cline automatically summarizes the conversation to free up space
 
-⚠️ **Important**: Having a large context window (like Claude's 200k tokens) doesn't mean you should fill it completely. Just like a cluttered whiteboard, too much information can make it harder to focus on what's important.
+**Important**: Having a large context window doesn't mean you should fill it completely. Models start degrading around 400-500K tokens even if they claim higher limits. Just like a cluttered whiteboard, too much information can make it harder to focus on what's important.
 
 ## Understanding the Context Window Progress Bar
 
@@ -76,7 +77,7 @@ Cline provides a visual way to monitor your context window usage through a progr
 -   ↑ shows input tokens (what you've sent to the LLM)
 -   ↓ shows output tokens (what the LLM has generated)
 -   The progress bar visualizes how much of your context window you've used
--   The total shows your model's maximum capacity (e.g., 200k for Claude 3.5-Sonnet)
+-   The total shows your model's maximum capacity (e.g., 1M for Claude Sonnet 4)
 
 ### When to Watch the Bar
 
@@ -85,7 +86,33 @@ Cline provides a visual way to monitor your context window usage through a progr
 -   Before starting complex tasks
 -   When Cline seems to lose context
 
-💡 **Tip**: Consider starting a fresh session when usage reaches 70-80% to maintain optimal performance.
+**Tip**: With [Auto Compact](/features/auto-compact), Cline can now handle long conversations automatically. When combined with [Focus Chain](/features/focus-chain), you can work on complex projects that span multiple context windows without losing progress.
+
+## Automatic Context Management
+
+Cline includes intelligent features to manage context automatically:
+
+### Default Settings You Should Keep On
+
+**Focus Chain** - Enabled by default in v3.25. Cline generates a todo list at task start and keeps it in context so the thread doesn't drift. You can edit the markdown to add or reorder steps and Cline will adapt. [Learn more about Focus Chain](/features/focus-chain).
+
+**Auto Compact** - Always on. As the context window reaches its limit, Cline creates a comprehensive summary, replaces the bloated history, and continues where it left off. Decisions, code changes, and state are preserved. [Learn more about Auto Compact](/features/auto-compact).
+
+## Advanced Context Tools
+
+When you need more control over context management:
+
+### Deep Planning (`/deep-planning`)
+For substantial features, refactors, or integrations. Cline investigates your codebase, asks targeted questions, then writes `implementation_plan.md`. It creates a fresh task with distilled, high-value context. [Learn more about Deep Planning](/features/slash-commands/deep-planning).
+
+### New Task (`/newtask`)
+At natural transition points, packages only what matters into a fresh task. Clean slate for implementation after research, or crisp handoff between teammates. [Learn more about New Task](/features/slash-commands/new-task).
+
+### Smol (`/smol`)
+Compress the conversation in place to keep momentum. Ideal during debugging or exploratory work when you don't want to break flow. [Learn more about Smol](/features/slash-commands/smol).
+
+### Memory Bank + .clinerules
+For non-trivial projects. The Memory Bank captures project knowledge as Markdown in your repo. `.clinerules` are version-controlled instructions that align Cline's behavior with your team. [Learn more about Memory Bank](/prompting/cline-memory-bank) and [Cline Rules](/features/cline-rules).
 
 ## Working with Context Files
 
@@ -93,12 +120,12 @@ Context files help maintain understanding across sessions. They serve as documen
 
 #### Approaches to Context Files
 
-1. **Evergreen Project Context (i.e.** [**Memory Bank**](https://docs.cline.bot/prompting/cline-memory-bank)**)**
+1. **Evergreen Project Context (Memory Bank)**
     - Living documentation that evolves with your project
     - Updated as architecture and patterns emerge
     - Example: The Memory Bank pattern maintains files like `techContext.md` and `systemPatterns.md`
     - Useful for long-running projects and teams
-2. **Task-Specific Context (i.e.** [**Structured Approach**](https://cline.bot/blog/building-advanced-software-with-cline-a-structured-approach)**)**
+2. **Task-Specific Context**
 
     - Created for specific implementation tasks
     - Document requirements, constraints, and decisions
@@ -151,9 +178,19 @@ Context files help maintain understanding across sessions. They serve as documen
     - Use Plan mode for complex discussions
     - Start fresh sessions when needed
 3. **Team Projects**
-    - Share common context files (consider using [.clinerules](https://docs.cline.bot/features/cline-rules) files in project roots)
+    - Share common context files (consider using [.clinerules](/features/cline-rules) files in project roots)
     - Document architectural decisions
     - Maintain consistent patterns
     - Keep documentation current
 
-Remember: The goal is to help Cline maintain consistent understanding of your project across sessions.
+## Bonus Context Tips
+
+- You can @ links and have the webpage's context added to Cline (docs, blogs, etc.)
+- Utilize MCP servers to pull in context from your external knowledge bases
+- Screenshots can be used as context for models that support image inputs
+
+## The Bottom Line
+
+Cline already does a lot of context work for you - [Focus Chain](/features/focus-chain), [Auto Compact](/features/auto-compact), and the planning flow are designed to keep the thread intact across long horizons. The goal is to help Cline maintain consistent understanding of your project across sessions.
+
+Remember: The goal is to keep only what matters in view, at every step.

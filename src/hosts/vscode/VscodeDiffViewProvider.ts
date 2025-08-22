@@ -1,15 +1,13 @@
-import { arePathsEqual } from "@/utils/path"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "./diagnostics"
+import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
-	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
@@ -18,15 +16,12 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
 		}
-		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
-		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
 		this.documentWasOpen = false
 		// close the tab if it's open (it's already been saved)
 		const tabs = vscode.window.tabGroups.all
-			.map((tg) => tg.tabs)
-			.flat()
+			.flatMap((tg) => tg.tabs)
 			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
@@ -164,16 +159,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return this.activeDiffEditor.document.getText()
 	}
 
-	protected override async getNewDiagnosticProblems(): Promise<string> {
-		// Get the diagnostics after changing the document.
-		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
-		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
-		// will be empty string if no errors
-		const problems = await diagnosticsToProblemsString(newProblems, [vscode.DiagnosticSeverity.Error])
-		return problems
-	}
-
 	protected override async saveDocument(): Promise<Boolean> {
 		if (!this.activeDiffEditor) {
 			return false
@@ -185,7 +170,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return true
 	}
 
-	protected async closeDiffView(): Promise<void> {
+	protected async closeAllDiffViews(): Promise<void> {
 		// Close all the cline diff views.
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
@@ -206,6 +191,5 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
-		this.preDiagnostics = []
 	}
 }
