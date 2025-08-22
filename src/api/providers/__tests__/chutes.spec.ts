@@ -163,6 +163,28 @@ describe("ChutesHandler", () => {
 		expect(model.info).toEqual(expect.objectContaining(chutesModels[testModelId]))
 	})
 
+	it("should return DeepSeek V3.1 model with correct configuration", () => {
+		const testModelId: ChutesModelId = "deepseek-ai/DeepSeek-V3.1"
+		const handlerWithModel = new ChutesHandler({
+			apiModelId: testModelId,
+			chutesApiKey: "test-chutes-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 32768,
+				contextWindow: 163840,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0,
+				outputPrice: 0,
+				description: "DeepSeek V3.1 model.",
+				temperature: 0.5, // Non-R1 DeepSeek models use default temperature
+			}),
+		)
+	})
+
 	it("should return Qwen3-235B-A22B-Instruct-2507 model with correct configuration", () => {
 		const testModelId: ChutesModelId = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 		const handlerWithModel = new ChutesHandler({
