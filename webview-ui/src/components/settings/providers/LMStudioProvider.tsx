@@ -154,18 +154,21 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				className="w-full pointer-events-none"
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
-				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
+				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
 
 			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
-				Use Compact Prompt
+				Use compact prompt
 			</VSCodeCheckbox>
-			<div
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
+			<div className="text-xs text-description">
+				A system prompt optimized for smaller context window (e.g. 8k or less).
+				<div className="text-error flex align-middle">
+					<i className="codicon codicon-x" />
+					Does not support Mcp and Focus Chain
+				</div>
+			</div>
+
+			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their
 				<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
 					quickstart guide.
