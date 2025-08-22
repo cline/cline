@@ -47,6 +47,12 @@ export interface ApiHandlerModel {
 	info: ModelInfo
 }
 
+export interface ApiProviderInfo {
+	modelId: string
+	providerId: string
+	customPrompt?: string
+}
+
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }

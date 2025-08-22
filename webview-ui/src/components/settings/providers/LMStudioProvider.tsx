@@ -1,5 +1,5 @@
 import type { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -8,6 +8,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { updateSetting } from "../utils/settingsHandlers"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -36,12 +37,13 @@ interface LMStudioApiModel {
  * The LM Studio provider configuration component
  */
 export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, customPrompt } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
+	const [isCompactPromptEnabled, setIsCompactPromptEnabled] = useState<boolean>(customPrompt === "compact")
 
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === lmStudioModelId),
@@ -52,6 +54,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		[apiConfiguration?.lmStudioBaseUrl],
 	)
 
+	const toggleCompactPrompt = useCallback((isChecked: boolean) => {
+		setIsCompactPromptEnabled(isChecked)
+		updateSetting("customPrompt", isChecked ? "compact" : "")
+	}, [])
+
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
@@ -59,7 +66,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		})
 			.then((response) => {
 				if (response?.values) {
-					console.log("Fetched LM Studio models:", response.values)
 					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
 					setLmStudioModels(models)
 				}
@@ -148,15 +154,21 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				className="w-full pointer-events-none"
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
-				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
+				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
 
-			<div
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
+			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
+				Use compact prompt
+			</VSCodeCheckbox>
+			<div className="text-xs text-description">
+				A system prompt optimized for smaller context window (e.g. 8k or less).
+				<div className="text-error flex align-middle">
+					<i className="codicon codicon-x" />
+					Does not support Mcp and Focus Chain
+				</div>
+			</div>
+
+			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their
 				<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
 					quickstart guide.
