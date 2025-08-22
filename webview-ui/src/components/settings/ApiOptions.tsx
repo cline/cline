@@ -42,6 +42,7 @@ import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import { PortkeyProvider } from "./providers/PortkeyProvider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -81,9 +82,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
+
+	// Portkey UI mode when using OpenAI Compatible with Portkey base URL
+	const [portkeyMode, setPortkeyMode] = useState<boolean>(
+		(apiConfiguration?.openAiBaseUrl || "").toLowerCase().includes("portkey.ai"),
+	)
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -127,24 +133,39 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</label>
 				<VSCodeDropdown
 					id="api-provider"
-					onChange={(e: any) => {
-						handleModeFieldChange(
-							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-							e.target.value,
-							currentMode,
-						)
+					onChange={async (e: any) => {
+						const value = e.target.value
+						if (value === "portkey") {
+							setPortkeyMode(true)
+							await handleModeFieldChange(
+								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+								"openai",
+								currentMode,
+							)
+							if (!apiConfiguration?.openAiBaseUrl) {
+								await handleFieldChange("openAiBaseUrl", "https://api.portkey.ai/v1")
+							}
+						} else {
+							setPortkeyMode((apiConfiguration?.openAiBaseUrl || "").toLowerCase().includes("portkey.ai"))
+							await handleModeFieldChange(
+								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+								value,
+								currentMode,
+							)
+						}
 					}}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={selectedProvider}>
+					value={selectedProvider === "openai" && portkeyMode ? "portkey" : selectedProvider}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
 					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="portkey">Portkey</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="groq">Groq</VSCodeOption>
@@ -219,8 +240,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && (
+			{apiConfiguration && selectedProvider === "openai" && !portkeyMode && (
 				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "openai" && portkeyMode && (
+				<PortkeyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
