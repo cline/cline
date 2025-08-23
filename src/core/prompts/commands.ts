@@ -26,7 +26,7 @@ Below is the the user's input when they indicated that they wanted to create a n
 </explicit_instructions>\n
 `
 
-export const condenseToolResponse = () =>
+export const condenseToolResponse = (focusChainSettings?: { enabled: boolean }) =>
 	`<explicit_instructions type="condense">
 The user has explicitly asked you to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. The user may have provided instructions or additional information for you to consider when summarizing the conversation.
 Irrespective of whether additional information or instructions are given, you are only allowed to respond to this message by calling the condense tool.
@@ -46,10 +46,20 @@ Parameters:
   4. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
   5. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
   6. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
+${
+	focusChainSettings?.enabled
+		? `- task_progress: (required) The current state of the task_progress list, with completed items marked. Important information on this parameter is as follows:
+  1. XML schema matches that of prior task_progress lists.
+  2. All items are retained, with the exact same desciptive content as in prior occurences.
+  3. All completed items are marked as completed.
+  4. The only compenent of this list that can be changed is the compeletion state of invidiual items in the list`
+		: ""
+}
 
 Usage:
 <condense>
 <context>Your detailed summary</context>
+${focusChainSettings?.enabled ? `<task_progress>task_progress list here</task_progress>` : ""}
 </condense>
 
 Example:
@@ -83,6 +93,16 @@ Example:
   - [Task 2 details & next steps]
   - [...]
 </context>
+${
+	focusChainSettings?.enabled
+		? `<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>`
+		: ""
+}
 </condense>
 
 </explicit_instructions>\n
@@ -392,6 +412,14 @@ task_progress Items:
 You also MUST include the path to the markdown file you have created in your new task prompt. You should do this as follows:
 
 Refer to @path/to/file/markdown.md for a complete breakdown of the task requirements and steps. You should periodically read this file again.
+
+${
+	focusChainSettings?.enabled
+		? `
+**Task Progress Parameter:**
+When creating the new task, you must include a task_progress parameter that breaks down the implementation into trackable steps. This should follow the standard Markdown checklist format with "- [ ]" for incomplete items.`
+		: ""
+}
 
 
 
