@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "baseten"
+	| "vercel-ai-gateway"
 	| "zai"
 
 export interface ApiHandlerOptions {
@@ -94,6 +95,7 @@ export interface ApiHandlerOptions {
 	cerebrasApiKey?: string
 	groqApiKey?: string
 	basetenApiKey?: string
+	vercelAiGatewayApiKey?: string
 	requestTimeoutMs?: number
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
@@ -132,6 +134,8 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
+	planModeVercelAiGatewayModelId?: string
+	planModeVercelAiGatewayModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -161,6 +165,8 @@ export interface ApiHandlerOptions {
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
+	actModeVercelAiGatewayModelId?: string
+	actModeVercelAiGatewayModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -562,7 +568,6 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 
 // Cline custom model - sonic (same config as grok-4)
 export const clineMicrowaveAlphaModelInfo: ModelInfo = {
-	maxTokens: 16_000,
 	contextWindow: 262144,
 	supportsImages: false,
 	supportsPromptCache: true,
@@ -1241,7 +1246,7 @@ export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
 	"deepseek-chat": {
 		maxTokens: 8_000,
-		contextWindow: 64_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
@@ -1251,7 +1256,7 @@ export const deepSeekModels = {
 	},
 	"deepseek-reasoner": {
 		maxTokens: 8_000,
-		contextWindow: 64_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
@@ -2379,6 +2384,94 @@ export const nebiusModels = {
 		inputPrice: 0.2,
 		outputPrice: 0.6,
 	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 16384, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.5,
+		outputPrice: 2.4,
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 163800, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 1.8,
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+	},
+	"zai-org/GLM-4.5": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
+	"zai-org/GLM-4.5-Air": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.2,
+	},
+	"deepseek-ai/DeepSeek-R1-0528-fast": {
+		maxTokens: 128000, // Quantization: fp4
+		contextWindow: 164_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 64000, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+	"Qwen/Qwen3-30B-A3B": {
+		maxTokens: 32000, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B-fast": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
 } as const satisfies Record<string, ModelInfo>
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
@@ -2718,6 +2811,23 @@ export const cerebrasModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// VERCEL AI GATEWAY MODELS
+export type VercelAIGatewayModelId = string
+
+export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
+export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
+	maxTokens: 64_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+}
+
 // Groq
 // https://console.groq.com/docs/models
 // https://groq.com/pricing/
@@ -2819,9 +2929,10 @@ export const groqModels = {
 		maxTokens: 16384,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description:
 			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
 	},
@@ -3221,12 +3332,12 @@ export const internationalZAiModels = {
 			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
 	},
 	"glm-4.5-air": {
-		maxTokens: 98_304,
-		contextWindow: 131_072,
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.2,
-		outputPrice: 1.1,
+		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.03,
 		description:
@@ -3270,8 +3381,8 @@ export const mainlandZAiModels = {
 		],
 	},
 	"glm-4.5-air": {
-		maxTokens: 98_304,
-		contextWindow: 131_072,
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.086,
@@ -3300,5 +3411,59 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.017,
 			},
 		],
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Fireworks AI
+export type FireworksModelId = keyof typeof fireworksModels
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		description:
+			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
+	},
+	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.88,
+		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
+	},
+	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.45,
+		outputPrice: 1.8,
+		description: "Qwen3's most agentic code model to date.",
+	},
+	"accounts/fireworks/models/deepseek-r1-0528": {
+		maxTokens: 20480,
+		contextWindow: 160000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 8,
+		description:
+			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+	"accounts/fireworks/models/deepseek-v3": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.9,
+		outputPrice: 0.9,
+		description:
+			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
 	},
 } as const satisfies Record<string, ModelInfo>
