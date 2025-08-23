@@ -1,0 +1,68 @@
+name: "Build Extension"
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+    build:
+        needs: test
+        name: Build Extension
+        runs-on: ${{ github.repository == 'cline/cline' && 'high-capacity-runner' || 'ubuntu-latest' }}
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "lts/*"
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci --include=optional
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci --include=optional
+
+            - name: Install Publishing Tools
+              run: npm install -g @vscode/vsce ovsx
+
+            - name: Set Variables
+              id: set_variables
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  SHORT_SHA=$(git rev-parse --short HEAD)
+                  echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+                  echo "file_path=cline-${VERSION}-${SHORT_SHA}.vsix" >> $GITHUB_OUTPUT
+
+            - name: Package Extension
+              run: |
+                  echo "Packaging extension with version ${{ steps.set_variables.outputs.version }}"
+                  vsce package --out "${{ steps.set_variables.outputs.file_path }}"
+
+            - name: Upload Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: vsix-package
+                  path: ${{ steps.set_variables.outputs.file_path }}
