@@ -19,6 +19,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 }
 
 interface Deployment {
@@ -551,6 +552,11 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
 				delete payload.max_tokens
 				delete payload.temperature
+
+				// Add reasoning effort for reasoning models
+				if (this.options.reasoningEffort) {
+					payload.reasoning_effort = this.options.reasoningEffort
+				}
 			}
 
 			if (model.id === "o3-mini") {
