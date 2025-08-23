@@ -112,6 +112,7 @@ export type GlobalStateKey =
 	| "preferredLanguage"
 	| "openaiReasoningEffort"
 	| "mode"
+	| "customPrompt"
 	// Plan mode configurations
 	| "planModeApiProvider"
 	| "planModeApiModelId"
@@ -241,6 +242,8 @@ export interface GlobalState {
 	mode: Mode
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled: boolean
+	customPrompt: "compact" | undefined
+
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

@@ -780,6 +780,7 @@ export class CacheService {
 			taskHistory: state.taskHistory,
 			lastShownAnnouncementId: state.lastShownAnnouncementId,
 			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
+			customPrompt: state.customPrompt,
 
 			// Plan mode configuration updates
 			planModeApiProvider,
