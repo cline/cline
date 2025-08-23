@@ -1,8 +1,10 @@
 # Changelog
 
-## 3.26.3
+## [3.26.3]
 
-- a50200a: Support compact system prompt for LM studio models and token usage tracking
+- Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
+- Add token usage tracking for LM Studio models to better monitor API consumption
+- Add "Use compact prompt" checkbox in LM Studio provider settings
 
 ## [3.26.2]
 
