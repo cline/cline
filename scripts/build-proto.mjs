@@ -15,15 +15,7 @@ import { loadProtoDescriptorSet } from "./proto-utils.mjs"
 const require = createRequire(import.meta.url)
 const isWindows = process.platform === "win32"
 
-// Use system-installed protoc if available, fallback to grpc-tools
-const SYSTEM_PROTOC =
-	"C:\\Users\\EVIN\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Google.Protobuf_Microsoft.Winget.Source_8wekyb3d8bbwe\\bin\\protoc.exe"
-const PROTOC =
-	isWindows && require("fs").existsSync(SYSTEM_PROTOC)
-		? SYSTEM_PROTOC
-		: isWindows
-			? path.join(require.resolve("grpc-tools"), "../bin/protoc.exe")
-			: path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
