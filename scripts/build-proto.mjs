@@ -13,7 +13,17 @@ import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 import { loadProtoDescriptorSet } from "./proto-utils.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const isWindows = process.platform === "win32"
+
+// Use system-installed protoc if available, fallback to grpc-tools
+const SYSTEM_PROTOC =
+	"C:\\Users\\EVIN\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Google.Protobuf_Microsoft.Winget.Source_8wekyb3d8bbwe\\bin\\protoc.exe"
+const PROTOC =
+	isWindows && require("fs").existsSync(SYSTEM_PROTOC)
+		? SYSTEM_PROTOC
+		: isWindows
+			? path.join(require.resolve("grpc-tools"), "../bin/protoc.exe")
+			: path.join(require.resolve("grpc-tools"), "../bin/protoc")
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -21,7 +31,6 @@ const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
 const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
-const isWindows = process.platform === "win32"
 const TS_PROTO_PLUGIN = isWindows
 	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")

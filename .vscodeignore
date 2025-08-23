@@ -64,3 +64,6 @@ old_docs/**
 e2e-build.mjs
 e2e.vsix
 test-results/
+
+# Ignore reference codebase
+cline_with_qwencode/**

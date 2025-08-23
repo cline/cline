@@ -31,6 +31,7 @@ import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
@@ -159,6 +160,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="fireworks">Fireworks AI</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+					<VSCodeOption value="qwen-code">Qwen Code</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
@@ -197,6 +199,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "qwen" && (
 				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "qwen-code" && (
+				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "doubao" && (
