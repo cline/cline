@@ -17,11 +17,12 @@ export const mockProviderInfo = {
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
-	providerId,
+	providerId: modelId.includes("ollama") ? "ollama" : providerId,
 	model: {
 		...mockProviderInfo.model,
 		id: modelId,
 	},
+	customPrompt: providerId.includes("lmstudio") || providerId.includes("ollama") ? "compact" : undefined,
 })
 
 const baseContext: SystemPromptContext = {
@@ -92,16 +93,19 @@ describe("Prompt System Integration Tests", () => {
 		{
 			modelGroup: ModelFamily.GENERIC,
 			modelIds: ["gpt-3"],
+			providerId: "openai",
 			contextVariations,
 		},
 		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
+			providerId: "anthropic",
 			contextVariations,
 		},
 		{
 			modelGroup: ModelFamily.XS,
-			modelIds: ["qwen-ollama"],
+			modelIds: ["qwen3_coder"],
+			providerId: "lmstudio",
 			contextVariations,
 		},
 	]
@@ -119,20 +123,20 @@ describe("Prompt System Integration Tests", () => {
 			}
 		})
 
-		for (const { modelGroup, modelIds, contextVariations } of modelTestCases) {
+		for (const { modelGroup, modelIds, providerId, contextVariations } of modelTestCases) {
 			describe(`${modelGroup} Model Group`, () => {
 				for (const modelId of modelIds) {
 					for (const { name: contextName, baseContext } of contextVariations) {
-						const context = { ...baseContext, providerInfo: makeMockProviderInfo(modelId, modelId), isTesting: true }
-						it(`should generate consistent prompt for ${modelId} with ${contextName} context`, async function () {
+						const context = {
+							...baseContext,
+							providerInfo: makeMockProviderInfo(modelId, providerId),
+							isTesting: true,
+						}
+						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const _context = {
-									...context,
-									providerInfo: makeMockProviderInfo(modelId),
-								} as SystemPromptContext
-								const prompt = await getSystemPrompt(_context)
+								const prompt = await getSystemPrompt(context as SystemPromptContext)
 
 								// Basic structure assertions
 								expect(prompt).to.be.a("string")
@@ -140,7 +144,7 @@ describe("Prompt System Integration Tests", () => {
 								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
 								// Save snapshot
-								const snapshotName = `${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
+								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
 								const snapshotPath = path.join(snapshotsDir, snapshotName)
 
 								await fs.writeFile(snapshotPath, prompt, "utf-8")
