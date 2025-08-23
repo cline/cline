@@ -2,11 +2,26 @@ import { mkdirSync, readFileSync } from "fs"
 import os from "os"
 import path, { join } from "path"
 import type { Extension, ExtensionContext } from "vscode"
-import * as vscode from "vscode"
-import { ExtensionKind, ExtensionMode } from "vscode"
+import { ExtensionKind, ExtensionMode, Terminal } from "vscode"
 import { URI } from "vscode-uri"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
+
+// Augment the vscode module to include types for proposed APIs
+declare module "vscode" {
+	interface ExtensionContext {
+		languageModelAccessInformation?: {
+			canSendRequest: (id: string) => boolean
+		}
+	}
+
+	interface Terminal {
+		readonly shellIntegration?: {
+			readonly cwd?: URI
+			executeCommand(command: string, args?: string[]): { read(): AsyncIterable<string> }
+		}
+	}
+}
 
 const VERSION = getPackageVersion()
 log("Running standalone cline ", VERSION)
@@ -33,8 +48,8 @@ const extension: Extension<void> = {
 
 const extensionContext: ExtensionContext = {
 	languageModelAccessInformation: {
-		canSendRequest: () => undefined,
-	} as any,
+		canSendRequest: () => true, // Mock implementation for standalone
+	},
 	extension: extension,
 	extensionMode: EXTENSION_MODE,
 

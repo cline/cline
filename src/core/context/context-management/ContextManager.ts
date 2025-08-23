@@ -596,7 +596,9 @@ export class ContextManager {
 		let match: RegExpExecArray | null
 		while (true) {
 			match = pattern.exec(secondBlockText)
-			if (match === null) break
+			if (match === null) {
+				break
+			}
 			foundMatch = true
 
 			const filePath = match[1]
@@ -793,82 +795,5 @@ export class ContextManager {
 		}
 
 		return [didUpdate, updatedMessageIndices]
-	}
-
-	/**
-	 * count total characters in messages and total savings within this range
-	 */
-	private countCharactersAndSavingsInRange(
-		apiMessages: Anthropic.Messages.MessageParam[],
-		startIndex: number,
-		endIndex: number,
-		uniqueFileReadIndices: Set<number>,
-	): { totalCharacters: number; charactersSaved: number } {
-		let totalCharCount = 0
-		let totalCharactersSaved = 0
-
-		for (let i = startIndex; i < endIndex; i++) {
-			// looping over the outer indices of messages
-			const message = apiMessages[i]
-
-			if (!message.content) {
-				continue
-			}
-
-			// hasExistingAlterations checks whether the outer idnex has any changes
-			// hasExistingAlterations will also include the alterations we just made
-			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
-			const hasNewAlterations = uniqueFileReadIndices.has(i)
-
-			if (Array.isArray(message.content)) {
-				for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
-					// looping over inner indices of messages
-					const block = message.content[blockIndex]
-
-					if (block.type === "text" && block.text) {
-						// true if we just altered it, or it was altered before
-						if (hasExistingAlterations) {
-							const innerTuple = this.contextHistoryUpdates.get(i)
-							const updates = innerTuple?.[1].get(blockIndex) // updated text for this inner index
-
-							if (updates && updates.length > 0) {
-								// exists if we have an update for the message at this index
-								const latestUpdate = updates[updates.length - 1]
-
-								// if block was just altered, then calculate savings
-								if (hasNewAlterations) {
-									let originalTextLength: number
-									if (updates.length > 1) {
-										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
-									} else {
-										originalTextLength = block.text.length
-									}
-
-									const newTextLength = latestUpdate[2][0].length // replacement text
-									totalCharactersSaved += originalTextLength - newTextLength
-
-									totalCharCount += originalTextLength
-								} else {
-									// meaning there was an update to this text previously, but we didn't just alter it
-									totalCharCount += latestUpdate[2][0].length
-								}
-							} else {
-								// reach here if there was one inner index with an update, but now we are at a different index, so updates is not defined
-								totalCharCount += block.text.length
-							}
-						} else {
-							// reach here if there's no alterations for this outer index, meaning each inner index won't have any changes either
-							totalCharCount += block.text.length
-						}
-					} else if (block.type === "image" && block.source) {
-						if (block.source.type === "base64" && block.source.data) {
-							totalCharCount += block.source.data.length
-						}
-					}
-				}
-			}
-		}
-
-		return { totalCharacters: totalCharCount, charactersSaved: totalCharactersSaved }
 	}
 }
