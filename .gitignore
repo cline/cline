@@ -5,6 +5,11 @@ node_modules
 tmp
 .vscode-test/
 *.vsix
+**__pycache__/
+.cursor/
+.env
+venv/
+.aider*
 
 .DS_Store
 .idea
@@ -35,3 +40,6 @@ test-results
 
 ## CLI pre-release  ##
 /cli 
+
+## Test harness ##
+tests/ide_results/
