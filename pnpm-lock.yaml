@@ -575,8 +575,8 @@ importers:
         specifier: ^1.1.1
         version: 1.2.0
       '@mistralai/mistralai':
-        specifier: ^1.3.6
-        version: 1.6.1(zod@3.25.61)
+        specifier: ^1.9.18
+        version: 1.9.18(zod@3.25.61)
       '@modelcontextprotocol/sdk':
         specifier: ^1.9.0
         version: 1.12.0
@@ -2116,8 +2116,8 @@ packages:
   '@microsoft/fast-web-utilities@5.4.1':
     resolution: {integrity: sha512-ReWYncndjV3c8D8iq9tp7NcFNc1vbVHvcBFPME2nNFKNbS1XCesYZGlIlf3ot5EmuOXPlrzUHOWzQ2vFpIkqDg==}
 
-  '@mistralai/mistralai@1.6.1':
-    resolution: {integrity: sha512-NFAMamNFSAaLT4YhDrqEjhJALJXSheZdA5jXT6gG5ICCJRk9+WQx7vRQO1sIZNIRP+xpPyROpa7X6ZcufiucIA==}
+  '@mistralai/mistralai@1.9.18':
+    resolution: {integrity: sha512-D/vNAGEvWMsg95tzgLTg7pPnW9leOPyH+nh1Os05NwxVPbUykoYgMAwOEX7J46msahWdvZ4NQQuxUXIUV2P6dg==}
     peerDependencies:
       zod: '>= 3'
 
@@ -11409,7 +11409,7 @@ snapshots:
     dependencies:
       exenv-es6: 1.1.1
 
-  '@mistralai/mistralai@1.6.1(zod@3.25.61)':
+  '@mistralai/mistralai@1.9.18(zod@3.25.61)':
     dependencies:
       zod: 3.25.61
       zod-to-json-schema: 3.24.5(zod@3.25.61)
@@ -13573,7 +13573,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@24.2.1)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
+      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@20.17.50)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
 
   '@vitest/utils@3.2.4':
     dependencies:
