@@ -5,6 +5,7 @@
 - Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
 - Add token usage tracking for LM Studio models to better monitor API consumption
 - Add "Use compact prompt" checkbox in LM Studio provider settings
+- Fix "Unexpected API Response" bug with gpt-5
 
 ## [3.26.2]
 
