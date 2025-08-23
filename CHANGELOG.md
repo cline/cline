@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.26.4]
+
+- Update nebius ai studio models
+- Update sap provider - support reasoning effort for open ai models
+- Fix Claude 4 image input in SAP AI Core Provider
+
 ## [3.26.3]
 
 - Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
