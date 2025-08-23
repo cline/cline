@@ -1,0 +1,306 @@
+/* Markdown content styling for rehype-parsed content */
+
+/* Headers - with increasing font weights for better hierarchy */
+h1 {
+	font-size: 2em;
+	font-weight: 700;
+	margin: 0.67em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+h2 {
+	font-size: 1.5em;
+	font-weight: 700;
+	margin: 0.83em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+h3 {
+	font-size: 1.17em;
+	font-weight: 600;
+	margin: 1em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+h4 {
+	font-size: 1em;
+	font-weight: 600;
+	margin: 1.33em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+h5 {
+	font-size: 0.83em;
+	font-weight: 600;
+	margin: 1.67em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+h6 {
+	font-size: 0.67em;
+	font-weight: 600;
+	margin: 2.33em 0;
+	color: var(--vscode-editor-foreground);
+}
+
+/* Paragraphs */
+p {
+	margin: 1em 0;
+	line-height: 1.6;
+}
+
+/* Links */
+a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+/* Lists */
+ul,
+ol {
+	margin: 1em 0;
+	padding-left: 2em;
+}
+
+li {
+	margin: 0.25em 0;
+	line-height: 1.6;
+}
+
+/* Nested lists */
+ul ul,
+ol ol,
+ul ol,
+ol ul {
+	margin: 0.25em 0;
+}
+
+/* Blockquotes */
+blockquote {
+	margin: 1em 0;
+	padding: 0.5em 1em;
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	background-color: var(--vscode-textBlockQuote-background);
+	color: var(--vscode-editor-foreground);
+	font-style: italic;
+}
+
+blockquote p {
+	margin: 0.5em 0;
+}
+
+/* Horizontal rules */
+hr {
+	margin: 2em 0;
+	border: none;
+	border-top: 1px solid var(--vscode-textSeparator-foreground);
+}
+
+/* Tables */
+table {
+	border-collapse: collapse;
+	margin: 1em 0;
+	width: 100%;
+}
+
+th,
+td {
+	padding: 0.5em 1em;
+	border: 1px solid var(--vscode-editorGroup-border);
+	text-align: left;
+}
+
+th {
+	background-color: var(--vscode-editor-background);
+	font-weight: 600;
+	color: var(--vscode-editor-foreground);
+}
+
+tr:nth-child(even) {
+	background-color: var(--vscode-editor-background);
+	opacity: 0.95;
+}
+
+/* Inline code */
+code:not(pre > code) {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 0.9em;
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textPreformat-foreground);
+	border: 1px solid var(--vscode-textSeparator-foreground);
+}
+
+/* Code blocks */
+pre {
+	margin: 1em 0;
+	padding: 1em;
+	border-radius: 5px;
+	overflow-x: auto;
+	background-color: var(--vscode-textCodeBlock-background);
+}
+
+pre code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 13px);
+	line-height: 1.5;
+	color: var(--vscode-editor-foreground);
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+/* Strong emphasis */
+strong,
+b {
+	font-weight: 600;
+	color: var(--vscode-editor-foreground);
+}
+
+/* Emphasis */
+em,
+i {
+	font-style: italic;
+	color: var(--vscode-editor-foreground);
+}
+
+/* Strikethrough */
+del,
+s {
+	text-decoration: line-through;
+	opacity: 0.7;
+}
+
+/* Images */
+img {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin: 1em 0;
+}
+
+/* Definition lists */
+dl {
+	margin: 1em 0;
+}
+
+dt {
+	font-weight: 600;
+	margin-top: 1em;
+}
+
+dd {
+	margin-left: 2em;
+	margin-bottom: 0.5em;
+}
+
+/* Keyboard input */
+kbd {
+	display: inline-block;
+	padding: 0.2em 0.4em;
+	font-size: 0.85em;
+	font-family: var(--vscode-editor-font-family, monospace);
+	line-height: 1;
+	color: var(--vscode-editor-foreground);
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorGroup-border);
+	border-radius: 3px;
+	box-shadow: inset 0 -1px 0 var(--vscode-editorGroup-border);
+}
+
+/* Abbreviations */
+abbr[title] {
+	border-bottom: 1px dotted var(--vscode-editor-foreground);
+	cursor: help;
+	text-decoration: none;
+}
+
+/* Mark/highlight */
+mark {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+	color: var(--vscode-editor-foreground);
+	padding: 0.2em;
+}
+
+/* Small text */
+small {
+	font-size: 0.85em;
+}
+
+/* Subscript and superscript */
+sub,
+sup {
+	font-size: 0.75em;
+	line-height: 0;
+	position: relative;
+	vertical-align: baseline;
+}
+
+sup {
+	top: -0.5em;
+}
+
+sub {
+	bottom: -0.25em;
+}
+
+/* Details/Summary */
+details {
+	margin: 1em 0;
+}
+
+summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--vscode-textLink-foreground);
+}
+
+summary:hover {
+	text-decoration: underline;
+}
+
+/* Task lists */
+input[type="checkbox"] {
+	margin-right: 0.5em;
+}
+
+/* Ensure proper spacing between elements */
+* + h1,
+* + h2,
+* + h3,
+* + h4,
+* + h5,
+* + h6 {
+	margin-top: 1.5em;
+}
+
+/* First child margins */
+h1:first-child,
+h2:first-child,
+h3:first-child,
+h4:first-child,
+h5:first-child,
+h6:first-child,
+p:first-child {
+	margin-top: 0;
+}
+
+/* Last child margins */
+h1:last-child,
+h2:last-child,
+h3:last-child,
+h4:last-child,
+h5:last-child,
+h6:last-child,
+p:last-child {
+	margin-bottom: 0;
+}
