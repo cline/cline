@@ -18,8 +18,13 @@ import fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
+import { clineEnvConfig } from "@/config"
+import { HostProvider } from "@/hosts/host-provider"
+import { AuthService } from "@/services/auth/AuthService"
+import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
@@ -169,7 +174,7 @@ export class Controller {
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalStateKey("strictPlanModeEnabled")
-		const useAutoCondense = this.cacheService.getGlobalStateKey("useAutoCondense")
+		const useAutoCondense = this.stateManager.getGlobalStateKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 

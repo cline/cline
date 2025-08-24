@@ -1628,7 +1628,7 @@ export class Task {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
+		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
 		return { modelId, providerId, customPrompt }
 	}
 
