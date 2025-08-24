@@ -1,5 +1,4 @@
 import { ClineRulesToggles, ToggleWorkflowRequest } from "@shared/proto/cline/file"
-import { ClineRulesToggles as AppClineRulesToggles } from "../../../shared/cline-rules"
 import { Controller } from ".."
 
 /**

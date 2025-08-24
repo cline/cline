@@ -1,14 +1,15 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
-import { ApiConfiguration } from "./api"
+
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
-import { FocusChainSettings } from "./FocusChainSettings"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
-import { HistoryItem } from "./HistoryItem"
-import { TelemetrySetting } from "./TelemetrySetting"
 import { ClineRulesToggles } from "./cline-rules"
-import { UserInfo } from "./UserInfo"
+import { FocusChainSettings } from "./FocusChainSettings"
+import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
+import { Mode, OpenaiReasoningEffort } from "./storage/types"
+import { TelemetrySetting } from "./TelemetrySetting"
+import { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -66,8 +67,10 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
+	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
+	customPrompt?: string
 }
 
 export interface ClineMessage {

@@ -1,16 +1,74 @@
-import { Controller } from ".."
+import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { CLAUDE_SONNET_4_1M_TIERS, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import axios from "axios"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
+import path from "path"
+import { CLAUDE_SONNET_4_1M_TIERS, clineMicrowaveAlphaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { Controller } from ".."
+
+type OpenRouterSupportedParams =
+	| "frequency_penalty"
+	| "include_reasoning"
+	| "logit_bias"
+	| "logprobs"
+	| "max_tokens"
+	| "min_p"
+	| "presence_penalty"
+	| "reasoning"
+	| "repetition_penalty"
+	| "response_format"
+	| "seed"
+	| "stop"
+	| "temperature"
+	| "tool_choice"
+	| "tools"
+	| "top_k"
+	| "top_logprobs"
+	| "top_p"
 
 /**
- * Refreshes the OpenRouter models and returns the updated model list
+ * The raw model information returned by the OpenRouter API to list models
+ * @link https://openrouter.ai/docs/overview/models
+ */
+interface OpenRouterRawModelInfo {
+	id: string
+	name: string
+	description: string | null
+	context_length: number | null
+	top_provider: {
+		max_completion_tokens: number | null
+		context_length: number | null
+		is_moderated: boolean | null
+	} | null
+	architecture: {
+		modality: string[]
+		input_modalities: string[]
+		output_modalities: string[]
+		tokenizer: string
+		instruct_type: string
+	} | null
+	pricing: {
+		prompt: string
+		completion: string
+		request: string
+		image: string
+		audio: string
+		web_search: string
+		internal_reasoning: string
+		input_cache_read: string
+		input_cache_write: string
+	} | null
+	thinking_config: any | null
+	supports_global_endpoint: boolean | null
+	tiers: any[] | null
+	supported_parameters?: OpenRouterSupportedParams[] | null
+}
+
+/**
+ * Refreshes the OpenRouter models and returns the updated model listhttps://openrouter.ai/docs/overview/models
  * @param controller The controller instance
  * @param request Empty request object
  * @returns Response containing the OpenRouter models
@@ -33,7 +91,8 @@ export async function refreshOpenRouterModels(
 				}
 				return undefined
 			}
-			for (const rawModel of rawModels) {
+			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
+				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
 				const modelInfo = OpenRouterModelInfo.create({
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
@@ -41,10 +100,10 @@ export async function refreshOpenRouterModels(
 					supportsPromptCache: false,
 					inputPrice: parsePrice(rawModel.pricing?.prompt) ?? 0,
 					outputPrice: parsePrice(rawModel.pricing?.completion) ?? 0,
-					cacheWritesPrice: 0,
-					cacheReadsPrice: 0,
+					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
+					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: rawModel.thinking_config ?? undefined,
+					thinkingConfig: supportThinking ? (rawModel.thinking_config ?? {}) : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? [],
 				})
@@ -122,6 +181,7 @@ export async function refreshOpenRouterModels(
 					case "openai/gpt-5-mini":
 					case "openai/gpt-5-nano":
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
+						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
@@ -151,6 +211,22 @@ export async function refreshOpenRouterModels(
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
 				}
 			}
+
+			// Add hardcoded cline/sonic model
+			models["cline/sonic"] = OpenRouterModelInfo.create({
+				maxTokens: clineMicrowaveAlphaModelInfo.maxTokens ?? 0,
+				contextWindow: clineMicrowaveAlphaModelInfo.contextWindow ?? 0,
+				supportsImages: clineMicrowaveAlphaModelInfo.supportsImages ?? false,
+				supportsPromptCache: clineMicrowaveAlphaModelInfo.supportsPromptCache ?? false,
+				inputPrice: clineMicrowaveAlphaModelInfo.inputPrice ?? 0,
+				outputPrice: clineMicrowaveAlphaModelInfo.outputPrice ?? 0,
+				cacheWritesPrice: clineMicrowaveAlphaModelInfo.cacheWritesPrice ?? 0,
+				cacheReadsPrice: clineMicrowaveAlphaModelInfo.cacheReadsPrice ?? 0,
+				description: clineMicrowaveAlphaModelInfo.description ?? "",
+				thinkingConfig: clineMicrowaveAlphaModelInfo.thinkingConfig ?? undefined,
+				supportsGlobalEndpoint: clineMicrowaveAlphaModelInfo.supportsGlobalEndpoint ?? undefined,
+				tiers: clineMicrowaveAlphaModelInfo.tiers ?? [],
+			})
 		} else {
 			console.error("Invalid response from OpenRouter API")
 		}

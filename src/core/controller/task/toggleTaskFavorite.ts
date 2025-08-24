@@ -1,6 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { TaskFavoriteRequest } from "@shared/proto/cline/task"
-import { HistoryItem } from "@/shared/HistoryItem"
 import { Controller } from "../"
 
 export async function toggleTaskFavorite(controller: Controller, request: TaskFavoriteRequest): Promise<Empty> {

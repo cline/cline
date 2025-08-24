@@ -148,18 +148,18 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 				await fs.unlink(tempPath).catch(() => {}) // delete backup
 
 				return false // conversion successful with no errors
-			} catch (conversionError) {
+			} catch (_conversionError) {
 				// attempt to restore backup on conversion failure
 				try {
 					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
 					await fs.rename(tempPath, clinerulePath) // restore backup
-				} catch (restoreError) {}
+				} catch (_restoreError) {}
 				return true // in either case here we consider this an error
 			}
 		}
 		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
 		return false
-	} catch (error) {
+	} catch (_error) {
 		return true
 	}
 }
@@ -214,7 +214,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 		await fs.writeFile(filePath, "", "utf8")
 
 		return { filePath, fileExists: false }
-	} catch (error) {
+	} catch (_error) {
 		return { filePath: null, fileExists: false }
 	}
 }

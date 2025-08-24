@@ -7,6 +7,7 @@ import { ClineSay } from "../../../shared/ExtensionMessage"
 import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../../shared/proto/host/watch"
 import { Mode } from "../../../shared/storage/types"
 import { writeFile } from "../../../utils/fs"
+import { CacheService } from "../../storage/CacheService"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { TaskState } from "../TaskState"
@@ -345,7 +346,7 @@ ${listInstrunctionsReminder}\n`
 			const todoList = extractFocusChainListFromText(markdownContent)
 
 			if (todoList) {
-				const todoLines = extractFocusChainItemsFromText(markdownContent)
+				const _todoLines = extractFocusChainItemsFromText(markdownContent)
 				return todoList
 			}
 
@@ -429,7 +430,7 @@ ${listInstrunctionsReminder}\n`
 				// No model update provided, check if markdown file exists and load it
 				const markdownTodoList = await this.readFocusChainFromDisk()
 				if (markdownTodoList) {
-					const previousList = this.taskState.currentFocusChainChecklist
+					const _previousList = this.taskState.currentFocusChainChecklist
 					this.taskState.currentFocusChainChecklist = markdownTodoList
 
 					// Create a task_progress message to display the focus chain list in the UI

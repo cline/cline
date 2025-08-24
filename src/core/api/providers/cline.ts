@@ -1,18 +1,18 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "../"
-import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import axios from "axios"
+import OpenAI from "openai"
+import { clineEnvConfig } from "@/config"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { AuthService } from "@/services/auth/AuthService"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { version as extensionVersion } from "../../../../package.json"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import axios from "axios"
 import { OpenRouterErrorResponse } from "./types"
-import { withRetry } from "../retry"
-import { AuthService } from "@/services/auth/AuthService"
-import OpenAI from "openai"
-import { version as extensionVersion } from "../../../../package.json"
-import { shouldSkipReasoningForModel } from "@utils/model-utils"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { clineEnvConfig } from "@/config"
 
 interface ClineHandlerOptions {
 	ulid?: string
@@ -31,7 +31,6 @@ export class ClineHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
-	private counter = 0
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -134,11 +133,9 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					// const provider = modelId.split("/")[0]
-					// // If provider is x-ai, set totalCost to 0 (we're doing a promo)
-					// if (provider === "x-ai") {
-					// 	totalCost = 0
-					// }
+					if (this.getModel().id === "cline/sonic") {
+						totalCost = 0
+					}
 
 					yield {
 						type: "usage",
@@ -202,7 +199,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		let modelId = this.options.openRouterModelId
+		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }

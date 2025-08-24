@@ -1348,7 +1348,7 @@ export class ToolExecutor {
 						if (mcp_arguments) {
 							try {
 								parsedArguments = JSON.parse(mcp_arguments)
-							} catch (error) {
+							} catch (_error) {
 								this.taskState.consecutiveMistakeCount++
 								await this.say(
 									"error",
@@ -1401,7 +1401,7 @@ export class ToolExecutor {
 							await this.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
 						}
 
-						const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
+						const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments, this.ulid)
 
 						// Check for any pending notifications after the tool call
 						const notificationsAfter = this.mcpHub.getPendingNotifications()
@@ -1724,6 +1724,7 @@ export class ToolExecutor {
 						await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 							Date.now(),
 							await ensureTaskDirectoryExists(this.context, this.taskId),
+							apiConversationHistory,
 						)
 					}
 					await this.saveCheckpoint()
@@ -1743,6 +1744,10 @@ export class ToolExecutor {
 							telemetryData.tokensUsed,
 							telemetryData.maxContextWindow,
 						)
+					}
+
+					if (!block.partial && this.focusChainSettings.enabled) {
+						await this.updateFCListFromToolResponse(block.params.task_progress)
 					}
 
 					break
@@ -1812,6 +1817,7 @@ export class ToolExecutor {
 							await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 								Date.now(),
 								await ensureTaskDirectoryExists(this.context, this.taskId),
+								apiConversationHistory,
 							)
 						}
 						await this.saveCheckpoint()
@@ -1896,8 +1902,7 @@ export class ToolExecutor {
 
 						// Derive system information values algorithmically
 						const operatingSystem = os.platform() + " " + os.release()
-						const clineVersion =
-							vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
+						const clineVersion = this.context.extension.packageJSON.version || "Unknown"
 						const host = await HostProvider.env.getHostVersion({})
 						const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 						const currentMode = this.mode

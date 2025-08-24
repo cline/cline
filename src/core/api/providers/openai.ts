@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
-import { withRetry } from "../retry"
-import { azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiCompatibleModelInfo } from "@shared/api"
-import { ApiHandler } from "../index"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
-import { convertToR1Format } from "../transform/r1-format"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertToR1Format } from "../transform/r1-format"
+import { ApiStream } from "../transform/stream"
 
 interface OpenAiHandlerOptions {
 	openAiApiKey?: string
@@ -73,7 +73,7 @@ export class OpenAiHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
-		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
+		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
 
 		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {

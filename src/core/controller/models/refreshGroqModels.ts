@@ -15,7 +15,7 @@ import { Controller } from ".."
  * @param request Empty request object
  * @returns Response containing the Groq models
  */
-export async function refreshGroqModels(controller: Controller, request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshGroqModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
 
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")

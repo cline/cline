@@ -18,13 +18,8 @@ import fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { clineEnvConfig } from "@/config"
-import { HostProvider } from "@/hosts/host-provider"
-import { AuthService } from "@/services/auth/AuthService"
-import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
 import { getLatestAnnouncementId } from "@/utils/announcements"
-import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
@@ -91,6 +86,7 @@ export class Controller {
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
@@ -142,7 +138,7 @@ export class Controller {
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
-		} catch (error) {
+		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",
@@ -173,6 +169,7 @@ export class Controller {
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalStateKey("strictPlanModeEnabled")
+		const useAutoCondense = this.cacheService.getGlobalStateKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -209,7 +206,8 @@ export class Controller {
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
-			strictPlanModeEnabled ?? false,
+			strictPlanModeEnabled ?? true,
+			useAutoCondense ?? true,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -509,6 +507,20 @@ export class Controller {
 		return undefined
 	}
 
+	// Read Vercel AI Gateway models from disk cache
+	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const vercelAiGatewayModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.vercelAiGatewayModels,
+		)
+		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -583,6 +595,7 @@ export class Controller {
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalStateKey("strictPlanModeEnabled")
+		const useAutoCondense = this.stateManager.getGlobalStateKey("useAutoCondense")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
@@ -598,6 +611,7 @@ export class Controller {
 		const welcomeViewCompleted = Boolean(
 			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
 		)
+		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalStateKey("terminalOutputLineLimit")
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -640,6 +654,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
+			useAutoCondense,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -660,6 +675,7 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			customPrompt,
 		}
 	}
 

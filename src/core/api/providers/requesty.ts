@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
 import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { calculateApiCostOpenAI } from "@utils/cost"
+import OpenAI from "openai"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiStream } from "../transform/stream"
 
 interface RequestyHandlerOptions {
@@ -94,7 +94,7 @@ export class RequestyHandler implements ApiHandler {
 			...thinkingArgs,
 		})
 
-		let lastUsage: any = undefined
+		let lastUsage: any
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta

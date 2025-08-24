@@ -1,15 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import {
+	type ContentBlock as BedrockContentBlock,
+	ConversationRole as BedrockConversationRole,
+	type Message as BedrockMessage,
+} from "@aws-sdk/client-bedrock-runtime"
+import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import {
-	type Message as BedrockMessage,
-	type ContentBlock as BedrockContentBlock,
-	ConversationRole as BedrockConversationRole,
-} from "@aws-sdk/client-bedrock-runtime"
 
 interface SapAiCoreHandlerOptions {
 	sapAiCoreClientId?: string
@@ -19,6 +19,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 }
 
 interface Deployment {
@@ -154,7 +155,6 @@ namespace Bedrock {
 	 * Processes image content with proper error handling and user notification
 	 */
 	function processImageContent(item: any): BedrockContentBlock | null {
-		let imageData: Uint8Array
 		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
 
 		// Extract format from media_type if available
@@ -172,22 +172,34 @@ namespace Bedrock {
 
 		// Get image data with improved error handling
 		try {
+			let imageData: string
+
 			if (typeof item.source.data === "string") {
-				// Handle base64 encoded data
-				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+				// Keep as base64 string, just clean the data URI prefix if present
+				imageData = item.source.data.replace(/^data:image\/\w+;base64,/, "")
 			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+				// Convert Buffer/Uint8Array to base64 string
+				if (Buffer.isBuffer(item.source.data)) {
+					imageData = item.source.data.toString("base64")
+				} else {
+					// Assume Uint8Array
+					const buffer = Buffer.from(item.source.data as Uint8Array)
+					imageData = buffer.toString("base64")
+				}
 			} else {
 				throw new Error("Unsupported image data format")
+			}
+
+			// Validate base64 data
+			if (!imageData || imageData.length === 0) {
+				throw new Error("Empty or invalid image data")
 			}
 
 			return {
 				image: {
 					format,
 					source: {
-						bytes: imageData,
+						bytes: imageData as any, // Keep as base64 string for Bedrock Converse API compatibility
 					},
 				},
 			}
@@ -320,7 +332,7 @@ namespace Gemini {
 
 		// Add thinking config if the model supports it and budget is provided
 		const thinkingBudget = thinkingBudgetTokens ?? 0
-		const maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
+		const _maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
 
 		if (thinkingBudget > 0 && model.info.thinkingConfig) {
 			// Add thinking configuration to the payload
@@ -520,7 +532,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} else if (openAIModels.includes(model.id)) {
-			let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 				{ role: "system", content: systemPrompt },
 				...convertToOpenAiMessages(messages),
 			]
@@ -540,6 +552,11 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
 				delete payload.max_tokens
 				delete payload.temperature
+
+				// Add reasoning effort for reasoning models
+				if (this.options.reasoningEffort) {
+					payload.reasoning_effort = this.options.reasoningEffort
+				}
 			}
 
 			if (model.id === "o3-mini") {
@@ -628,9 +645,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletion(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		let usage = { input_tokens: 0, output_tokens: 0 }
+		const usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
 			for await (const chunk of stream) {
@@ -680,7 +697,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionSonnet37(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
 		function toStrictJson(str: string): string {
 			// Wrap it in parentheses so JS will treat it as an expression
@@ -688,7 +705,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			return JSON.stringify(obj)
 		}
 
-		let usage = { input_tokens: 0, output_tokens: 0 }
+		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
 			// Iterate over the stream and process each chunk
@@ -761,9 +778,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionGPT(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		let currentContent = ""
+		let _currentContent = ""
 		let inputTokens = 0
 		let outputTokens = 0
 
@@ -793,7 +810,7 @@ export class SapAiCoreHandler implements ApiHandler {
 										type: "text",
 										text: choice.delta.content,
 									}
-									currentContent += choice.delta.content
+									_currentContent += choice.delta.content
 								}
 							}
 
@@ -832,7 +849,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *streamCompletionGemini(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo },
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
 		let promptTokens = 0
 		let outputTokens = 0

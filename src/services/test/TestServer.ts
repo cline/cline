@@ -28,13 +28,13 @@ function createToolCallTracker(): {
 }
 
 // Task completion tracking
-let taskCompletionResolver: (() => void) | null = null
+let _taskCompletionResolver: (() => void) | null = null
 
 // Function to create a new task completion promise
 function createTaskCompletionTracker(): Promise<void> {
 	// Create a new promise that will resolve when the task is completed
 	return new Promise<void>((resolve) => {
-		taskCompletionResolver = resolve
+		_taskCompletionResolver = resolve
 	})
 }
 
@@ -46,7 +46,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
 		const autoApprovalSettings = controller?.stateManager.getGlobalStateKey("autoApprovalSettings")
 
@@ -401,7 +401,7 @@ export function createTestServer(controller: Controller): http.Server {
 								files: fileChanges,
 							}),
 						)
-					} catch (timeoutError) {
+					} catch (_timeoutError) {
 						// Task didn't complete within the timeout period
 						res.writeHead(200, { "Content-Type": "application/json" })
 						res.end(

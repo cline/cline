@@ -1,11 +1,12 @@
-import { ApiConfiguration, sambanovaModels } from "@shared/api"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { sambanovaModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
 /**
  * Props for the SambanovaProvider component
  */
@@ -37,8 +38,8 @@ export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={sambanovaModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -46,10 +47,10 @@ export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

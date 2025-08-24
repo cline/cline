@@ -1,10 +1,8 @@
 import { writeFile } from "@utils/fs"
-import { arePathsEqual } from "@utils/path"
 import * as os from "os"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -37,7 +35,7 @@ export async function openFile(absolutePath: string, preserveFocus: boolean = fa
 			path: absolutePath,
 			options: { preserveFocus, preview },
 		})
-	} catch (error) {
+	} catch (_error) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Could not open file!`,

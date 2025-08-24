@@ -16,7 +16,7 @@ import { Controller } from ".."
  */
 export async function refreshBasetenModels(
 	controller: Controller,
-	request: EmptyRequest,
+	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
 	console.log("=== refreshBasetenModels called ===")
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)

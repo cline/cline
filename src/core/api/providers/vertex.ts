@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { withRetry } from "../retry"
+import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { ApiHandler } from "../"
-import { ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
@@ -77,11 +77,11 @@ export class VertexHandler implements ApiHandler {
 		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn =
-			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) && budget_tokens !== 0
-				? true
-				: false
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = !!(
+			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) &&
+			budget_tokens !== 0
+		)
 		let stream
 
 		switch (modelId) {

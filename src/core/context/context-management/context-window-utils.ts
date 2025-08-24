@@ -13,7 +13,7 @@ export function getContextWindowInfo(api: ApiHandler) {
 
 	// Handle special cases like DeepSeek
 	if (api instanceof OpenAiHandler && api.getModel().id.toLowerCase().includes("deepseek")) {
-		contextWindow = 64_000
+		contextWindow = 128_000
 	}
 
 	let maxAllowedSize: number

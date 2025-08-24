@@ -10,7 +10,7 @@ import { Controller } from "../index"
  * @param request The request message
  * @returns The browser connection result
  */
-export async function discoverBrowser(controller: Controller, request: EmptyRequest): Promise<BrowserConnection> {
+export async function discoverBrowser(controller: Controller, _request: EmptyRequest): Promise<BrowserConnection> {
 	try {
 		const discoveredHost = await discoverChromeInstances()
 

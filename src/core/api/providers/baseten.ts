@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { BasetenModelId, ModelInfo, basetenDefaultModelId, basetenModels } from "@shared/api"
+import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
+import OpenAI from "openai"
+import { ApiHandler } from "../"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -158,7 +158,7 @@ export class BasetenHandler implements ApiHandler {
 	 * Checks if the current model supports tools
 	 */
 	supportsTools(): boolean {
-		const model = this.getModel()
+		const _model = this.getModel()
 		// Baseten models support tools via OpenAI-compatible API
 		return true
 	}
