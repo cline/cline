@@ -51,14 +51,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "cline/sonic",
-		description: "Advanced model with 262K context for complex coding",
-		label: "Alpha",
+		id: "openai/gpt-5",
+		description: "State of the art model for complex, long-horizon tasks",
+		label: "New",
 	},
 	{
-		id: "anthropic/claude-sonnet-4:1m",
-		description: "Large 1M context window for complex tasks",
-		label: "New",
+		id: "cline/sonic",
+		description: "Advanced model with 262K context for complex coding",
+		label: "Free",
 	},
 ]
 

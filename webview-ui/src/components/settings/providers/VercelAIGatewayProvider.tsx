@@ -1,7 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
+import { useCallback, useMemo, useState } from "react"
+import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -25,69 +25,49 @@ interface VercelAIGatewayProviderProps {
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
 	const { apiConfiguration, vercelAiGatewayModels, setVercelAiGatewayModels } = useExtensionState()
 	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
-	const [isLoadingModels, setIsLoadingModels] = useState(true)
+	const [isLoadingModels, setIsLoadingModels] = useState(false)
 
 	// Get the normalized configuration (includes defaults)
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const requestVercelAiGatewayModels = useCallback(async () => {
-		try {
-			const response = await ModelsServiceClient.refreshVercelAiGatewayModels(EmptyRequest.create({}))
-			if (response && response.models) {
-				setVercelAiGatewayModels(response.models)
-			}
-			setIsLoadingModels(false)
-		} catch (error) {
-			console.error("Failed to fetch Vercel AI Gateway models:", error)
-			setVercelAiGatewayModels({})
-			setIsLoadingModels(false)
-		}
-	}, [setVercelAiGatewayModels])
-
-	const handleModelChange = (modelId: string) => {
-		const modelInfo = vercelAiGatewayModels[modelId]
-
-		if (modelId && modelInfo) {
-			handleModeFieldsChange(
-				{
-					vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-					vercelAiGatewayModelInfo: {
-						plan: "planModeVercelAiGatewayModelInfo",
-						act: "actModeVercelAiGatewayModelInfo",
-					},
-				},
-				{
-					vercelAiGatewayModelId: modelId,
-					vercelAiGatewayModelInfo: modelInfo,
-				},
-				currentMode,
-			)
-		} else {
-			handleModeFieldsChange(
-				{
-					vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-					vercelAiGatewayModelInfo: {
-						plan: "planModeVercelAiGatewayModelInfo",
-						act: "actModeVercelAiGatewayModelInfo",
-					},
-				},
-				{
-					vercelAiGatewayModelId: modelId,
-					vercelAiGatewayModelInfo: undefined,
-				},
-				currentMode,
-			)
-		}
-	}
-
-	useEffect(() => {
+	// Fetch models only once when component mounts
+	useMount(() => {
 		if (showModelOptions) {
-			requestVercelAiGatewayModels()
+			setIsLoadingModels(true)
+			ModelsServiceClient.refreshVercelAiGatewayModels(EmptyRequest.create({}))
+				.then((response) => {
+					if (response && response.models) {
+						setVercelAiGatewayModels(response.models)
+					}
+					setIsLoadingModels(false)
+				})
+				.catch((error) => {
+					console.error("Failed to fetch Vercel AI Gateway models:", error)
+					setVercelAiGatewayModels({})
+					setIsLoadingModels(false)
+				})
 		}
-	}, [requestVercelAiGatewayModels, showModelOptions])
+	})
 
-	// Only poll when model options are shown
-	useInterval(showModelOptions ? requestVercelAiGatewayModels : () => {}, showModelOptions ? 2000 : null)
+	const handleModelChange = useCallback(
+		(modelId: string) => {
+			handleModeFieldsChange(
+				{
+					vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
+					vercelAiGatewayModelInfo: {
+						plan: "planModeVercelAiGatewayModelInfo",
+						act: "actModeVercelAiGatewayModelInfo",
+					},
+				},
+				{
+					vercelAiGatewayModelId: modelId,
+					vercelAiGatewayModelInfo: vercelAiGatewayModels[modelId],
+				},
+				currentMode,
+			)
+		},
+		[vercelAiGatewayModels, handleModeFieldsChange, currentMode],
+	)
 
 	const hasModels = useMemo(() => {
 		return Object.keys(vercelAiGatewayModels).length > 0
@@ -119,7 +99,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					}}>
 					This key is stored locally and only used to make API requests from this extension.
 					{!apiConfiguration?.vercelAiGatewayApiKey && (
-						<>
+						<span>
 							{" "}
 							<a
 								href="https://vercel.com/"
@@ -129,7 +109,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 								}}>
 								You can get a Vercel AI Gateway API key by signing up here.
 							</a>
-						</>
+						</span>
 					)}
 				</p>
 			</div>
