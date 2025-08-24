@@ -471,6 +471,10 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 
+		// Note: Bedrock no longer supports PromptCache on new AWS accounts for Sonnet 3.5v2
+		// AWS accounts that were previously given access will retain access. New accounts
+		// will not be given access and our encouraged to use PromptCache with newer models.
+		// See the announcement at https://aws.amazon.com/about-aws/whats-new/2025/04/amazon-bedrock-general-availability-prompt-caching/
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
