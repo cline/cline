@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.26.5]
+
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
+
+## [3.26.4]
+
+- Update nebius ai studio models
+- Update sap provider - support reasoning effort for open ai models
+- Fix Claude 4 image input in SAP AI Core Provider
+
+## [3.26.3]
+
+- Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
+- Add token usage tracking for LM Studio models to better monitor API consumption
+- Add "Use compact prompt" checkbox in LM Studio provider settings
+- Fix "Unexpected API Response" bug with gpt-5
+
 ## [3.26.2]
 
 - Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
