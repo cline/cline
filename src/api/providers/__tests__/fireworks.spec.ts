@@ -179,6 +179,27 @@ describe("FireworksHandler", () => {
 		)
 	})
 
+	it("should return DeepSeek V3.1 model with correct configuration", () => {
+		const testModelId: FireworksModelId = "accounts/fireworks/models/deepseek-v3p1"
+		const handlerWithModel = new FireworksHandler({
+			apiModelId: testModelId,
+			fireworksApiKey: "test-fireworks-api-key",
+		})
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe(testModelId)
+		expect(model.info).toEqual(
+			expect.objectContaining({
+				maxTokens: 16384,
+				contextWindow: 163840,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.56,
+				outputPrice: 1.68,
+				description: expect.stringContaining("DeepSeek v3.1 is an improved version"),
+			}),
+		)
+	})
+
 	it("should return GLM-4.5 model with correct configuration", () => {
 		const testModelId: FireworksModelId = "accounts/fireworks/models/glm-4p5"
 		const handlerWithModel = new FireworksHandler({
