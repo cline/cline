@@ -2157,7 +2157,7 @@ export class Task {
 		}
 
 		// Separate logic when using the auto-condense context management vs the original context management methods
-		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel())) {
+		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
 			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
 			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
