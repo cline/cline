@@ -53,24 +53,6 @@ Thanks to [Claude 3.7 Sonnet's agentic coding capabilities](https://www.anthrop
 
 Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP Vertex, Cerebras and Groq. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
 
-#### 🆕 Qwen Code API Integration
-
-This fork adds support for **Qwen Code API** with enterprise-grade OAuth2 authentication:
-
-- **Secure OAuth Flow**: Implements complete OAuth2 authentication with automatic token refresh
-- **Credential Management**: Configurable credential file path for flexible deployment scenarios
-- **Token Caching**: Intelligent token caching with 30-second expiry buffer for optimal performance
-- **Error Resilience**: Automatic retry logic for 401 responses with seamless token refresh
-- **Enterprise Ready**: Supports enterprise authentication workflows and credential management
-
-**Setup Instructions:**
-1. Configure your Qwen Code credentials file path in settings
-2. The extension will automatically handle OAuth authentication
-3. Tokens are cached and refreshed automatically as needed
-4. Enjoy seamless access to Qwen's advanced coding models
-
-The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
-
 <!-- Transparent pixel to create line break after floating image -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
