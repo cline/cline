@@ -779,7 +779,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 															console.error("Error scrolling to checkpoint settings:", error)
 														}
 													}, 300)
-												}}>
+												}}
+												style={{ fontSize: "inherit" }}>
 												disabling checkpoints.
 											</button>
 										)}
