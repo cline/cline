@@ -158,6 +158,10 @@ export async function createOpenRouterStream(
 		shouldApplyMiddleOutTransform = true
 	}
 
+	if (model.id === "openai/gpt-5" || model.id === "openai/gpt-5-chat") {
+		shouldApplyMiddleOutTransform = false
+	}
+
 	// hardcoded provider sorting for kimi-k2
 	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
