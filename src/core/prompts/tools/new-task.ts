@@ -1,11 +1,9 @@
 import { ToolArgs } from "./types"
 
-export function getNewTaskDescription(args: ToolArgs): string {
-	const todosRequired = args.settings?.newTaskRequireTodos === true
-
-	// When setting is disabled, don't show todos parameter at all
-	if (!todosRequired) {
-		return `## new_task
+/**
+ * Prompt when todos are NOT required (default)
+ */
+const PROMPT_WITHOUT_TODOS = `## new_task
 Description: This will let you create a new task instance in the chosen mode using your provided message.
 
 Parameters:
@@ -21,13 +19,14 @@ Usage:
 Example:
 <new_task>
 <mode>code</mode>
-<message>Implement a new feature for the application.</message>
+<message>Implement a new feature for the application</message>
 </new_task>
 `
-	}
 
-	// When setting is enabled, show todos as required
-	return `## new_task
+/**
+ * Prompt when todos ARE required
+ */
+const PROMPT_WITH_TODOS = `## new_task
 Description: This will let you create a new task instance in the chosen mode using your provided message and initial todo list.
 
 Parameters:
@@ -57,5 +56,12 @@ Example:
 [ ] Write tests
 </todos>
 </new_task>
+
 `
+
+export function getNewTaskDescription(args: ToolArgs): string {
+	const todosRequired = args.settings?.newTaskRequireTodos === true
+
+	// Simply return the appropriate prompt based on the setting
+	return todosRequired ? PROMPT_WITH_TODOS : PROMPT_WITHOUT_TODOS
 }
