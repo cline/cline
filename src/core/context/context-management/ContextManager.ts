@@ -135,7 +135,7 @@ export class ContextManager {
 		maxContextWindow: number
 	} | null {
 		// Use provided triggerIndex or fallback to automatic detection
-		let targetIndex
+		let targetIndex: number
 		if (triggerIndex !== undefined) {
 			targetIndex = triggerIndex
 		} else {
@@ -179,8 +179,68 @@ export class ContextManager {
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
+		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
 	) {
-		const updatedConversationHistoryDeletedRange = false
+		let updatedConversationHistoryDeletedRange = false
+
+		if (!useAutoCondense) {
+			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+			if (previousApiReqIndex >= 0) {
+				const previousRequest = clineMessages[previousApiReqIndex]
+				if (previousRequest && previousRequest.text) {
+					const timestamp = previousRequest.ts
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+					const { maxAllowedSize } = getContextWindowInfo(api)
+
+					// This is the most reliable way to know when we're close to hitting the context window.
+					if (totalTokens >= maxAllowedSize) {
+						// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+						// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
+						// we later check how many chars we trim to determine if we should still truncate history
+						let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+							apiConversationHistory,
+							conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+							timestamp,
+						)
+
+						let needToTruncate = true
+						if (anyContextUpdates) {
+							// determine whether we've saved enough chars to not truncate
+							const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								uniqueFileReadIndices,
+							)
+							if (charactersSavedPercentage >= 0.3) {
+								needToTruncate = false
+							}
+						}
+
+						if (needToTruncate) {
+							// go ahead with truncation
+							anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
+
+							// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+							conversationHistoryDeletedRange = this.getNextTruncationRange(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								keep,
+							)
+
+							updatedConversationHistoryDeletedRange = true
+						}
+
+						// if we alter the context history, save the updated version to disk
+						if (anyContextUpdates) {
+							await this.saveContextHistory(taskDirectory)
+						}
+					}
+				}
+			}
+		}
 
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
@@ -378,7 +438,7 @@ export class ContextManager {
 	/**
 	 * applies the context optimization steps and returns whether any changes were made
 	 */
-	private applyContextOptimizations(
+	public applyContextOptimizations(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
 		timestamp: number,
@@ -399,14 +459,14 @@ export class ContextManager {
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
-	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
-		/*
-        const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
-		const userUpdated = this.applyFirstUserMessageReplacement(timestamp)
-		if (assistantUpdated || userUpdated)
-		*/
-		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
-		if (updated) {
+	async triggerApplyStandardContextTruncationNoticeChange(
+		timestamp: number,
+		taskDirectory: string,
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+	) {
+		const assistantUpdated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		const userUpdated = this.applyFirstUserMessageReplacement(timestamp, apiConversationHistory)
+		if (assistantUpdated || userUpdated) {
 			await this.saveContextHistory(taskDirectory)
 		}
 	}
@@ -428,13 +488,35 @@ export class ContextManager {
 	/**
 	 * Replace the first user message when context window is compacted
 	 */
-	private applyFirstUserMessageReplacement(timestamp: number): boolean {
+	private applyFirstUserMessageReplacement(
+		timestamp: number,
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+	): boolean {
 		if (!this.contextHistoryUpdates.has(0)) {
-			// first user message always at index 0
-			const innerMap = new Map<number, ContextUpdate[]>()
-			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationFirstUserMessage()], []]])
-			this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
-			return true
+			try {
+				// choosing to be extra careful here, but likely not required
+				let firstUserMessage = ""
+
+				const message = apiConversationHistory[0]
+				if (Array.isArray(message.content)) {
+					const block = message.content[0]
+					if (block && block.type === "text") {
+						firstUserMessage = block.text
+					}
+				}
+
+				if (firstUserMessage) {
+					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation(firstUserMessage)
+
+					const innerMap = new Map<number, ContextUpdate[]>()
+					innerMap.set(0, [[timestamp, "text", [processedFirstUserMessage], []]])
+					this.contextHistoryUpdates.set(0, [0, innerMap]) // same EditType as first assistant truncation notice
+
+					return true
+				}
+			} catch (error) {
+				console.error("applyFirstUserMessageReplacement:", error)
+			}
 		}
 		return false
 	}
@@ -571,8 +653,7 @@ export class ContextManager {
 		let foundMatch = false
 		const filePaths: string[] = []
 
-		let match
-		while ((match = pattern.exec(secondBlockText)) !== null) {
+		for (const match of secondBlockText.matchAll(pattern)) {
 			foundMatch = true
 
 			const filePath = match[1]
@@ -813,7 +894,7 @@ export class ContextManager {
 
 								// if block was just altered, then calculate savings
 								if (hasNewAlterations) {
-									let originalTextLength
+									let originalTextLength: number
 									if (updates.length > 1) {
 										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
 									} else {

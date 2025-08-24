@@ -116,7 +116,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						onChange={(value) => {
 							// Convert to number, with validation
 							const numValue = parseInt(value, 10)
-							if (!isNaN(numValue) && numValue > 0) {
+							if (!Number.isNaN(numValue) && numValue > 0) {
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
 						}}

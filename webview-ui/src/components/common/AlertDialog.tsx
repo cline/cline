@@ -1,6 +1,6 @@
-import React, { ReactNode } from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle } from "lucide-react"
+import React, { ReactNode } from "react"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
 
 interface AlertDialogProps {
@@ -10,7 +10,9 @@ interface AlertDialogProps {
 }
 
 export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
-	if (!open) return null
+	if (!open) {
+		return null
+	}
 
 	// Close the dialog when clicking on the backdrop
 	const handleBackdropClick = (e: React.MouseEvent) => {
@@ -95,7 +97,7 @@ export function UnsavedChangesDialog({
 	showSaveOption?: boolean
 }) {
 	return (
-		<AlertDialog open={open} onOpenChange={onOpenChange}>
+		<AlertDialog onOpenChange={onOpenChange} open={open}>
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<AlertDialogTitle>
@@ -107,7 +109,7 @@ export function UnsavedChangesDialog({
 				<AlertDialogFooter>
 					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
 					{showSaveOption && onSave && <AlertDialogAction onClick={onSave}>{saveText}</AlertDialogAction>}
-					<AlertDialogAction onClick={onConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
+					<AlertDialogAction appearance={showSaveOption ? "secondary" : "primary"} onClick={onConfirm}>
 						{confirmText}
 					</AlertDialogAction>
 				</AlertDialogFooter>

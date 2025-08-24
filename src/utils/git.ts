@@ -16,7 +16,7 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 	try {
 		await execAsync("git rev-parse --git-dir", { cwd })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -25,7 +25,7 @@ async function checkGitInstalled(): Promise<boolean> {
 	try {
 		await execAsync("git --version")
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -34,7 +34,7 @@ async function checkGitRepoHasCommits(cwd: string): Promise<boolean> {
 	try {
 		await execAsync("git rev-parse HEAD", { cwd })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }

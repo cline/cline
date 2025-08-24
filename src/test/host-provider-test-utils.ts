@@ -1,4 +1,4 @@
-import { HostProvider, WebviewProviderCreator, DiffViewProviderCreator } from "@/hosts/host-provider"
+import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 

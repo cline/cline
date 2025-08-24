@@ -1,12 +1,12 @@
+import ExcelJS from "exceljs"
+import fs from "fs/promises"
+import * as iconv from "iconv-lite"
+import { isBinaryFile } from "isbinaryfile"
+import * as chardet from "jschardet"
+import mammoth from "mammoth"
 import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
-import mammoth from "mammoth"
-import fs from "fs/promises"
-import { isBinaryFile } from "isbinaryfile"
-import * as chardet from "jschardet"
-import * as iconv from "iconv-lite"
-import ExcelJS from "exceljs"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -28,7 +28,7 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
 		await fs.access(filePath)
-	} catch (error) {
+	} catch (_error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
 
@@ -139,7 +139,7 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 	try {
 		await workbook.xlsx.readFile(filePath)
 
-		workbook.eachSheet((worksheet, sheetId) => {
+		workbook.eachSheet((worksheet, _sheetId) => {
 			// Skip hidden sheets
 			if (worksheet.state === "hidden" || worksheet.state === "veryHidden") {
 				return
@@ -157,7 +157,7 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 				const rowTexts: string[] = []
 				let hasContent = false
 
-				row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+				row.eachCell({ includeEmpty: true }, (cell, _colNumber) => {
 					const cellText = formatCellValue(cell)
 					if (cellText.trim()) {
 						hasContent = true

@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiStream } from "../transform/stream"
-import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
+import { ApiStream } from "../transform/stream"
+import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
 interface VsCodeLmHandlerOptions {
@@ -189,7 +189,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				family: "lm",
 				version: "1.0",
 				maxInputTokens: 8192,
-				sendRequest: async (messages, options, token) => {
+				sendRequest: async (_messages, _options, _token) => {
 					// Provide a minimal implementation
 					return {
 						stream: (async function* () {
@@ -245,10 +245,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				.join("")
 		}
 		return ""
-	}
-
-	private isClaudeModel(): boolean {
-		return this.client?.family?.startsWith("claude") || false
 	}
 
 	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
@@ -469,8 +465,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 						}
 					} catch (error) {
 						console.error("Cline <Language Model API>: Failed to process tool call:", error)
-						// Continue processing other chunks even if one fails
-						continue
 					}
 				} else {
 					console.warn("Cline <Language Model API>: Unknown chunk type received:", chunk)
