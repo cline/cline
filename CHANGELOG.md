@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.26.5
+## [3.26.5]
 
-- 99eccaa: fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
-- b0ea2e4: Fix OVSX publish command
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
 
 ## [3.26.4]
 
