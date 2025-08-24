@@ -1,7 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { LINKS } from "@/constants"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -10,6 +10,9 @@ import { McpServiceClient } from "@/services/grpc-client"
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
+	const [transportType, setTransportType] = useState<"streamableHttp" | "sse">("streamableHttp")
+	const [authHeader, setAuthHeader] = useState("")
+	const [timeoutSeconds, setTimeoutSeconds] = useState<string>("")
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
 	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
@@ -40,10 +43,16 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 		setShowConnectingMessage(true)
 
 		try {
+			const headers = authHeader.trim() ? { Authorization: authHeader.trim() } : undefined
+			const timeout = timeoutSeconds.trim() ? Number(timeoutSeconds.trim()) : undefined
+
 			const servers: McpServers = await McpServiceClient.addRemoteMcpServer(
 				AddRemoteMcpServerRequest.create({
 					serverName: serverName.trim(),
 					serverUrl: serverUrl.trim(),
+					transportType,
+					headers,
+					timeout,
 				}),
 			)
 
@@ -54,6 +63,9 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 			setServerName("")
 			setServerUrl("")
+			setAuthHeader("")
+			setTimeoutSeconds("")
+			setTransportType("streamableHttp")
 			onServerAdded()
 			setShowConnectingMessage(false)
 		} catch (error) {
@@ -66,7 +78,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	return (
 		<div className="p-4 px-5">
 			<div className="text-[var(--vscode-foreground)] mb-2">
-				Add a remote MCP server by providing a name and its URL endpoint. Learn more{" "}
+				Add a remote MCP server by providing a name, transport, and URL endpoint. Learn more{" "}
 				<VSCodeLink href={LINKS.DOCUMENTATION.REMOTE_MCP_SERVER_DOCS} style={{ display: "inline" }}>
 					here.
 				</VSCodeLink>
@@ -88,6 +100,22 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 				</div>
 
 				<div className="mb-2">
+					<label className="block mb-1 text-[var(--vscode-foreground)]">Transport</label>
+					<VSCodeDropdown
+						className="w-full"
+						disabled={isSubmitting}
+						onChange={(e) => {
+							const val = (e.target as HTMLSelectElement).value as "streamableHttp" | "sse"
+							setTransportType(val)
+							setError("")
+						}}
+						value={transportType}>
+						<VSCodeOption value="streamableHttp">Streamable HTTP (recommended)</VSCodeOption>
+						<VSCodeOption value="sse">SSE</VSCodeOption>
+					</VSCodeDropdown>
+				</div>
+
+				<div className="mb-2">
 					<VSCodeTextField
 						className="w-full mr-4"
 						disabled={isSubmitting}
@@ -98,6 +126,34 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 						placeholder="https://example.com/mcp-server"
 						value={serverUrl}>
 						Server URL
+					</VSCodeTextField>
+				</div>
+
+				<div className="mb-2">
+					<VSCodeTextField
+						className="w-full"
+						disabled={isSubmitting}
+						onChange={(e) => {
+							setAuthHeader((e.target as HTMLInputElement).value)
+							setError("")
+						}}
+						placeholder="Bearer <token>"
+						value={authHeader}>
+						Authorization Header (optional)
+					</VSCodeTextField>
+				</div>
+
+				<div className="mb-2">
+					<VSCodeTextField
+						className="w-full"
+						disabled={isSubmitting}
+						onChange={(e) => {
+							setTimeoutSeconds((e.target as HTMLInputElement).value)
+							setError("")
+						}}
+						placeholder="60"
+						value={timeoutSeconds}>
+						Timeout (seconds, optional)
 					</VSCodeTextField>
 				</div>
 

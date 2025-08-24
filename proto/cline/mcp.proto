@@ -40,6 +40,10 @@ message AddRemoteMcpServerRequest {
   Metadata metadata = 1;
   string server_name = 2;
   string server_url = 3;
+  // New fields for first-class transport setup
+  string transport_type = 4; // "streamableHttp" | "sse" | "stdio" (clients may default to "streamableHttp")
+  map<string, string> headers = 5; // optional headers (e.g., Authorization)
+  int32 timeout = 6; // optional per-server timeout in seconds
 }
 
 message ToggleToolAutoApproveRequest {

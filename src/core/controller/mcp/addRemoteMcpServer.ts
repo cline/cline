@@ -19,8 +19,19 @@ export async function addRemoteMcpServer(controller: Controller, request: AddRem
 			throw new Error("Server URL is required")
 		}
 
-		// Call the McpHub method to add the remote server
-		const servers = await controller.mcpHub?.addRemoteServer(request.serverName, request.serverUrl)
+		// Optional inputs for first-class transport setup
+		const transportType = request.transportType || undefined
+		const headers = request.headers && Object.keys(request.headers).length > 0 ? request.headers : undefined
+		const timeout = typeof request.timeout === "number" && request.timeout > 0 ? request.timeout : undefined
+
+		// Call the McpHub method to add the remote server with transport details
+		const servers = await controller.mcpHub?.addRemoteServer(
+			request.serverName,
+			request.serverUrl,
+			transportType,
+			headers,
+			timeout,
+		)
 
 		const protoServers = convertMcpServersToProtoMcpServers(servers)
 

@@ -14,6 +14,6 @@ export type McpConnection = {
 	transport: Transport
 }
 
-export type McpTransportType = "stdio" | "sse" | "http"
+export type McpTransportType = "stdio" | "sse" | "streamableHttp"
 
 export type McpServerConfig = z.infer<typeof ServerConfigSchema>

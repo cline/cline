@@ -312,6 +312,13 @@ export class McpHub {
 						}
 						await this.notifyWebviewOfServerChanges()
 					}
+					transport.onclose = async () => {
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
 					break
 				}
 				default:
@@ -510,6 +517,14 @@ export class McpHub {
 			try {
 				// Only close transport and client if they exist (disabled servers don't have them)
 				if (connection.transport) {
+					// Gracefully terminate Streamable HTTP session if applicable
+					try {
+						if (connection.transport instanceof StreamableHTTPClientTransport) {
+							await (connection.transport as StreamableHTTPClientTransport).terminateSession()
+						}
+					} catch (err) {
+						console.error(`Failed to terminate streamable HTTP session for ${name}:`, err)
+					}
 					await connection.transport.close()
 				}
 				if (connection.client) {
@@ -987,7 +1002,13 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string): Promise<McpServer[]> {
+	public async addRemoteServer(
+		serverName: string,
+		serverUrl: string,
+		transportType?: string,
+		headers?: Record<string, string>,
+		timeout?: number,
+	): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1003,27 +1024,45 @@ export class McpHub {
 				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
 			}
 
-			const serverConfig = {
-				url: serverUrl,
+			// Determine transport type (default to streamableHttp)
+			const type =
+				transportType === "sse" || transportType === "stdio" || transportType === "streamableHttp"
+					? (transportType as "sse" | "stdio" | "streamableHttp")
+					: ("streamableHttp" as const)
+
+			// Build server config to persist (include type explicitly)
+			const serverConfig: any = {
+				url: serverUrl, // TODO remove after answering question: dont we need the URL? as it required to know where to connect to? currently all the servers being used are STDIO so that should likely be the default here
+				type,
 				disabled: false,
 				autoApprove: [],
 			}
 
+			if (type === "stdio") {
+				throw new Error(
+					"STDIO servers cannot be added via the remote add form. Edit settings to configure local stdio servers.",
+				)
+			} else {
+				serverConfig.url = serverUrl
+				if (headers && Object.keys(headers).length > 0) {
+					serverConfig.headers = headers
+				}
+			}
+
+			if (typeof timeout === "number") {
+				serverConfig.timeout = timeout
+			}
+
+			// Validate against schema (also maps legacy transportType internally)
 			const parsedConfig = ServerConfigSchema.parse(serverConfig)
 
-			settings.mcpServers[serverName] = parsedConfig
+			// Persist exactly what the user intended (including 'type')
 			const settingsPath = await this.getMcpSettingsFilePath()
+			const updated = { ...settings.mcpServers, [serverName]: serverConfig }
+			await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: updated }, null, 2))
 
-			// We don't write the zod-transformed version to the file.
-			// The above parse() call adds the transportType field to the server config
-			// It would be fine if this was written, but we don't want to clutter up the file with internal details
-
-			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
-			await fs.writeFile(
-				settingsPath,
-				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
-			)
-
+			// Use in-memory parsed config for live connections
+			settings.mcpServers[serverName] = parsedConfig
 			await this.updateServerConnectionsRPC(settings.mcpServers)
 
 			const serverOrder = Object.keys(settings.mcpServers || {})
