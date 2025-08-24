@@ -139,6 +139,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.cacheService.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
+		// Update auto-condense setting
+		if (request.useAutoCondense !== undefined) {
+			if (controller.task) {
+				controller.task.updateUseAutoCondense(request.useAutoCondense)
+			}
+			controller.cacheService.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
 			const remoteEnabled = controller.cacheService.getGlobalStateKey("focusChainFeatureFlagEnabled")
@@ -160,6 +168,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 					telemetryService.captureFocusChainToggle(isEnabled)
 				}
 			}
+		}
+
+		// Update custom prompt choice
+		if (request.customPrompt !== undefined) {
+			const value = request.customPrompt === "compact" ? "compact" : undefined
+			controller.cacheService.setGlobalState("customPrompt", value)
 		}
 
 		// Post updated state to webview

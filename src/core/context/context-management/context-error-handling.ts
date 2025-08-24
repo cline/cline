@@ -14,6 +14,10 @@ function checkIsOpenRouterContextWindowError(error: any): boolean {
 		const status = error?.status ?? error?.code ?? error?.error?.status ?? error?.response?.status
 		const message: string = String(error?.message || error?.error?.message || "")
 
+		// There seems to be an issue where the true status code is embedded only in the message itself
+		const statusFromMessage = message.match(/"code":\s*(\d+)/)?.[1]
+		const finalStatus = statusFromMessage || status
+
 		// Known OpenAI/OpenRouter-style signal (code 400 and message includes "context length")
 		const CONTEXT_ERROR_PATTERNS = [
 			/\bcontext\s*(?:length|window)\b/i,
@@ -22,7 +26,7 @@ function checkIsOpenRouterContextWindowError(error: any): boolean {
 			/\btoo\s*many\s*tokens?\b/i,
 		] as const
 
-		return String(status) === "400" && CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+		return String(finalStatus) === "400" && CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(message))
 	} catch {
 		return false
 	}

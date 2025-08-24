@@ -19,6 +19,7 @@ interface SapAiCoreHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 }
 
 interface Deployment {
@@ -154,7 +155,6 @@ namespace Bedrock {
 	 * Processes image content with proper error handling and user notification
 	 */
 	function processImageContent(item: any): BedrockContentBlock | null {
-		let imageData: Uint8Array
 		let format: "png" | "jpeg" | "gif" | "webp" = "jpeg" // default format
 
 		// Extract format from media_type if available
@@ -172,23 +172,34 @@ namespace Bedrock {
 
 		// Get image data with improved error handling
 		try {
+			let imageData: string
+
 			if (typeof item.source.data === "string") {
-				// Handle base64 encoded data
-				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-			} else if (item.source.data instanceof Uint8Array) {
-				imageData = item.source.data
-			} else if (item.source.data instanceof Buffer) {
-				imageData = new Uint8Array(item.source.data.buffer, item.source.data.byteOffset, item.source.data.byteLength)
+				// Keep as base64 string, just clean the data URI prefix if present
+				imageData = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+			} else if (item.source.data && typeof item.source.data === "object") {
+				// Convert Buffer/Uint8Array to base64 string
+				if (Buffer.isBuffer(item.source.data)) {
+					imageData = item.source.data.toString("base64")
+				} else {
+					// Assume Uint8Array
+					const buffer = Buffer.from(item.source.data as Uint8Array)
+					imageData = buffer.toString("base64")
+				}
 			} else {
 				throw new Error("Unsupported image data format")
+			}
+
+			// Validate base64 data
+			if (!imageData || imageData.length === 0) {
+				throw new Error("Empty or invalid image data")
 			}
 
 			return {
 				image: {
 					format,
 					source: {
-						bytes: imageData,
+						bytes: imageData as any, // Keep as base64 string for Bedrock Converse API compatibility
 					},
 				},
 			}
@@ -543,6 +554,11 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
 				delete payload.max_tokens
 				delete payload.temperature
+
+				// Add reasoning effort for reasoning models
+				if (this.options.reasoningEffort) {
+					payload.reasoning_effort = this.options.reasoningEffort
+				}
 			}
 
 			if (model.id === "o3-mini") {

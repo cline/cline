@@ -174,13 +174,73 @@ export class ContextManager {
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		_clineMessages: ClineMessage[],
-		_api: ApiHandler,
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
-		_previousApiReqIndex: number,
-		_taskDirectory: string,
+		previousApiReqIndex: number,
+		taskDirectory: string,
+		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
 	) {
-		const updatedConversationHistoryDeletedRange = false
+		let updatedConversationHistoryDeletedRange = false
+
+		if (!useAutoCondense) {
+			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+			if (previousApiReqIndex >= 0) {
+				const previousRequest = clineMessages[previousApiReqIndex]
+				if (previousRequest && previousRequest.text) {
+					const timestamp = previousRequest.ts
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+					const { maxAllowedSize } = getContextWindowInfo(api)
+
+					// This is the most reliable way to know when we're close to hitting the context window.
+					if (totalTokens >= maxAllowedSize) {
+						// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+						// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
+						// we later check how many chars we trim to determine if we should still truncate history
+						let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+							apiConversationHistory,
+							conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+							timestamp,
+						)
+
+						let needToTruncate = true
+						if (anyContextUpdates) {
+							// determine whether we've saved enough chars to not truncate
+							const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								uniqueFileReadIndices,
+							)
+							if (charactersSavedPercentage >= 0.3) {
+								needToTruncate = false
+							}
+						}
+
+						if (needToTruncate) {
+							// go ahead with truncation
+							anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
+
+							// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+							conversationHistoryDeletedRange = this.getNextTruncationRange(
+								apiConversationHistory,
+								conversationHistoryDeletedRange,
+								keep,
+							)
+
+							updatedConversationHistoryDeletedRange = true
+						}
+
+						// if we alter the context history, save the updated version to disk
+						if (anyContextUpdates) {
+							await this.saveContextHistory(taskDirectory)
+						}
+					}
+				}
+			}
+		}
 
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
@@ -593,12 +653,7 @@ export class ContextManager {
 		let foundMatch = false
 		const filePaths: string[] = []
 
-		let match: RegExpExecArray | null
-		while (true) {
-			match = pattern.exec(secondBlockText)
-			if (match === null) {
-				break
-			}
+		for (const match of secondBlockText.matchAll(pattern)) {
 			foundMatch = true
 
 			const filePath = match[1]
@@ -795,5 +850,109 @@ export class ContextManager {
 		}
 
 		return [didUpdate, updatedMessageIndices]
+	}
+
+	/**
+	 * count total characters in messages and total savings within this range
+	 */
+	private countCharactersAndSavingsInRange(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		startIndex: number,
+		endIndex: number,
+		uniqueFileReadIndices: Set<number>,
+	): { totalCharacters: number; charactersSaved: number } {
+		let totalCharCount = 0
+		let totalCharactersSaved = 0
+
+		for (let i = startIndex; i < endIndex; i++) {
+			// looping over the outer indices of messages
+			const message = apiMessages[i]
+
+			if (!message.content) {
+				continue
+			}
+
+			// hasExistingAlterations checks whether the outer idnex has any changes
+			// hasExistingAlterations will also include the alterations we just made
+			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
+			const hasNewAlterations = uniqueFileReadIndices.has(i)
+
+			if (Array.isArray(message.content)) {
+				for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
+					// looping over inner indices of messages
+					const block = message.content[blockIndex]
+
+					if (block.type === "text" && block.text) {
+						// true if we just altered it, or it was altered before
+						if (hasExistingAlterations) {
+							const innerTuple = this.contextHistoryUpdates.get(i)
+							const updates = innerTuple?.[1].get(blockIndex) // updated text for this inner index
+
+							if (updates && updates.length > 0) {
+								// exists if we have an update for the message at this index
+								const latestUpdate = updates[updates.length - 1]
+
+								// if block was just altered, then calculate savings
+								if (hasNewAlterations) {
+									let originalTextLength: number
+									if (updates.length > 1) {
+										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
+									} else {
+										originalTextLength = block.text.length
+									}
+
+									const newTextLength = latestUpdate[2][0].length // replacement text
+									totalCharactersSaved += originalTextLength - newTextLength
+
+									totalCharCount += originalTextLength
+								} else {
+									// meaning there was an update to this text previously, but we didn't just alter it
+									totalCharCount += latestUpdate[2][0].length
+								}
+							} else {
+								// reach here if there was one inner index with an update, but now we are at a different index, so updates is not defined
+								totalCharCount += block.text.length
+							}
+						} else {
+							// reach here if there's no alterations for this outer index, meaning each inner index won't have any changes either
+							totalCharCount += block.text.length
+						}
+					} else if (block.type === "image" && block.source) {
+						if (block.source.type === "base64" && block.source.data) {
+							totalCharCount += block.source.data.length
+						}
+					}
+				}
+			}
+		}
+
+		return { totalCharacters: totalCharCount, charactersSaved: totalCharactersSaved }
+	}
+
+	/**
+	 * count total percentage character savings across in-range conversation
+	 */
+	private calculateContextOptimizationMetrics(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		uniqueFileReadIndices: Set<number>,
+	): number {
+		// count for first user-assistant message pair
+		const firstChunkResult = this.countCharactersAndSavingsInRange(apiMessages, 0, 2, uniqueFileReadIndices)
+
+		// count for the remaining in-range messages
+		const secondChunkResult = this.countCharactersAndSavingsInRange(
+			apiMessages,
+			conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+			apiMessages.length,
+			uniqueFileReadIndices,
+		)
+
+		const totalCharacters = firstChunkResult.totalCharacters + secondChunkResult.totalCharacters
+		const totalCharactersSaved = firstChunkResult.charactersSaved + secondChunkResult.charactersSaved
+
+		const percentCharactersSaved = totalCharacters === 0 ? 0 : totalCharactersSaved / totalCharacters
+
+		return percentCharactersSaved
 	}
 }

@@ -19,6 +19,8 @@ service ModelsService {
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
+  // Refreshes and returns Vercel AI Gateway models
+  rpc refreshVercelAiGatewayModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
@@ -29,6 +31,8 @@ service ModelsService {
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from SAP AI Core
+  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (StringArray);
 }
 
 // List of VS Code LM models
@@ -94,6 +98,16 @@ message OpenAiModelsRequest {
   string api_key = 3;
 }
 
+// Request for fetching SAP AI Core models
+message SapAiCoreModelsRequest {
+  Metadata metadata = 1;
+  string client_id = 2;
+  string client_secret = 3;
+  string base_url = 4;
+  string token_url = 5;
+  string resource_group = 6;
+}
+
 // Request for updating API configuration
 message UpdateApiConfigurationRequest {
   Metadata metadata = 1;
@@ -135,6 +149,7 @@ enum ApiProvider {
   HUAWEI_CLOUD_MAAS = 30;
   BASETEN = 31;
   ZAI = 32;
+  VERCEL_AI_GATEWAY = 33;
 }
 
 // Model info for OpenAI-compatible models
@@ -242,8 +257,9 @@ message ModelsApiConfiguration {
   optional string zai_api_key = 65;
   optional string zai_api_line = 66;
   optional string lm_studio_max_tokens = 67;
-  optional string gemini_cli_oauth_path = 68;
-  optional string gemini_cli_project_id = 69;
+  optional string vercel_ai_gateway_api_key = 68;
+  optional string gemini_cli_oauth_path = 69;
+  optional string gemini_cli_project_id = 70;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -274,6 +290,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125;
   optional string plan_mode_baseten_model_id = 126;
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
+  optional string plan_mode_vercel_ai_gateway_model_id = 128;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 129;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -304,6 +322,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
   optional string act_mode_baseten_model_id = 226;
   optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
+  optional string act_mode_vercel_ai_gateway_model_id = 228;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 229;
 
   repeated string favorited_model_ids = 300;
 }

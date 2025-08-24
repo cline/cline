@@ -1,0 +1,98 @@
+---
+title: "Vercel AI Gateway"
+description: "Use Vercel AI Gateway in Cline to reach 100+ models from one endpoint with routing, retries, and spend observability."
+---
+
+Vercel AI Gateway gives you a single API to access models from many providers. You switch by model id without swapping SDKs or juggling multiple keys. Cline integrates directly so you can pick a Gateway model in the dropdown, use it like any other provider, and see token and cache usage in the stream.
+
+Useful links:
+- Team dashboard: https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai
+- Models catalog: https://vercel.com/ai-gateway/models
+- Docs: https://vercel.com/docs/ai-gateway
+
+## What you get
+
+- One endpoint for 100+ models with a single key
+- Automatic retries and fallbacks that you configure on the dashboard
+- Spend monitoring with requests by model, token counts, cache usage, latency percentiles, and cost
+- OpenAI-compatible surface so existing clients work
+
+## Getting an API Key
+
+1. Sign in at https://vercel.com
+2. Dashboard → AI Gateway → API Keys → Create key
+3. Copy the key
+
+For more on authentication and OIDC options, see https://vercel.com/docs/ai-gateway/authentication
+
+## Configuration in Cline
+
+1. Open Cline settings
+2. Select **Vercel AI Gateway** as the API Provider
+3. Paste your Gateway API Key
+4. Pick a model from the list. Cline fetches the catalog automatically. You can also paste an exact id
+
+Notes:
+- Model ids often follow `provider/model`. Copy the exact id from the catalog  
+  Examples:
+  - `openai/gpt-5`
+  - `anthropic/claude-sonnet-4`
+  - `google/gemini-2.5-pro`
+  - `groq/llama-3.1-70b`
+  - `deepseek/deepseek-v3`
+
+## Observability you can act on
+
+<Frame>
+  <img src="https://assets.vercel.com/image/upload/v1753121283/gateway-overhead-dark_zhqwwj.svg" alt="Vercel AI Gateway observability with requests by model, tokens, cache, latency, and cost." />
+</Frame>
+
+What to watch:
+- Requests by model - confirm routing and adoption
+- Tokens - input vs output, including reasoning if exposed
+- Cache - cached input and cache creation tokens
+- Latency - p75 duration and p75 time to first token
+- Cost - per project and per model
+
+Use it to:
+- Compare output tokens per request before and after a model change
+- Validate cache strategy by tracking cache reads and write creation
+- Catch TTFT regressions during experiments
+- Align budgets with real usage
+
+## Supported models
+
+The gateway supports a large and changing set of models. Cline pulls the list from the Gateway API and caches it locally. For the current catalog, see https://vercel.com/ai-gateway/models
+
+## Tips
+
+<Tip>
+Use separate gateway keys per environment (dev, staging, prod). It keeps dashboards clean and budgets isolated.
+</Tip>
+
+<Note>
+Pricing is pass-through at provider list price. Bring-your-own key has 0% markup. You still pay provider and processing fees.
+</Note>
+
+<Info>
+Vercel does not add rate limits. Upstream providers may. New accounts receive $5 credits every 30 days until the first payment.
+</Info>
+
+## Troubleshooting
+
+- 401 - send the Gateway key to the Gateway endpoint, not an upstream URL
+- 404 model - copy the exact id from the Vercel catalog
+- Slow first token - check p75 TTFT in the dashboard and try a model optimized for streaming
+- Cost spikes - break down by model in the dashboard and cap or route traffic
+
+## Inspiration
+
+- Multi-model evals - swap only the model id in Cline and compare latency and output tokens
+- Progressive rollout - route a small percent to a new model in the dashboard and ramp with metrics
+- Budget enforcement - set per-project limits without code changes
+
+## Crosslinks
+
+- OpenAI-Compatible setup: /provider-config/openai-compatible
+- Model Selection Guide: /getting-started/model-selection-guide
+- Understanding Context Management: /getting-started/understanding-context-management

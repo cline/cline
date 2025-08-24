@@ -30,6 +30,7 @@ import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
 import { SapAiCoreHandler } from "./providers/sapaicore"
 import { TogetherHandler } from "./providers/together"
+import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
@@ -45,6 +46,12 @@ export interface ApiHandler {
 export interface ApiHandlerModel {
 	id: string
 	info: ModelInfo
+}
+
+export interface ApiProviderInfo {
+	modelId: string
+	providerId: string
+	customPrompt?: string
 }
 
 export interface SingleCompletionHandler {
@@ -169,8 +176,6 @@ function createHandlerForProvider(
 			return new FireworksHandler({
 				fireworksApiKey: options.fireworksApiKey,
 				fireworksModelId: mode === "plan" ? options.planModeFireworksModelId : options.actModeFireworksModelId,
-				fireworksModelMaxCompletionTokens: options.fireworksModelMaxCompletionTokens,
-				fireworksModelMaxTokens: options.fireworksModelMaxTokens,
 			})
 		case "together":
 			return new TogetherHandler({
@@ -287,6 +292,7 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
@@ -302,6 +308,14 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+			})
+		case "vercel-ai-gateway":
+			return new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
+				vercelAiGatewayModelId:
+					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
+				vercelAiGatewayModelInfo:
+					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
 			})
 		case "zai":
 			return new ZAiHandler({
