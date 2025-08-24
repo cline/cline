@@ -154,7 +154,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
-					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="zai">Z AI</VSCodeOption>
 					<VSCodeOption value="groq">Groq</VSCodeOption>
