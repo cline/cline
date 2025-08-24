@@ -12,7 +12,6 @@ import MermaidBlock from "@/components/common/MermaidBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
-import "./markdown-parser.css"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {
