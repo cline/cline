@@ -2,8 +2,6 @@
 
 ## 3.26.5
 
-### Patch Changes
-
 - 99eccaa: fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
 - b0ea2e4: Fix OVSX publish command
 
