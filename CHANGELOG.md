@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.26.5]
+
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
+
 ## [3.26.4]
 
 - Update nebius ai studio models
