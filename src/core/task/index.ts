@@ -94,6 +94,7 @@ export class Task {
 	readonly ulid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
+	private taskInitializationStartTime: number
 
 	taskState: TaskState
 
@@ -172,6 +173,7 @@ export class Task {
 		files?: string[],
 		historyItem?: HistoryItem,
 	) {
+		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.controller = controller
 		this.mcpHub = mcpHub
@@ -2266,6 +2268,12 @@ export class Task {
 		})
 
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
+
+		// Capture task initialization timing telemetry for the first API request
+		if (isFirstRequest) {
+			const durationMs = Math.round(performance.now() - this.taskInitializationStartTime)
+			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, this.enableCheckpoints)
+		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
