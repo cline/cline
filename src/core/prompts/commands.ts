@@ -177,7 +177,7 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 </explicit_instructions>\n
 `
 
-export const deepPlanningToolResponse = () => {
+export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
 	const detectedShell = require("@utils/shell").getShell()
 	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
 
@@ -204,19 +204,19 @@ ${
 	isPowerShell
 		? `
 # Discover project structure and file types
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-Object -First 30 | Select-Object FullName
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-Object -First 30 | Select-Object FullName
 
 # Find all class and function definitions
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "class|function|def|interface|struct"
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "class|function|def|interface|struct"
 
 # Analyze import patterns and dependencies
 Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "import|from|require|#include" | Sort-Object | Get-Unique
 
 # Find dependency manifests
-Get-ChildItem -Recurse -Include "requirements*.txt","package.json","Cargo.toml","pom.xml","Gemfile" | Get-Content
+Get-ChildItem -Recurse -Include "requirements*.txt","package.json","Cargo.toml","pom.xml","Gemfile","go.mod" | Get-Content
 
 # Identify technical debt and TODOs
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "TODO|FIXME|XXX|HACK|NOTE"
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "TODO|FIXME|XXX|HACK|NOTE"
 `
 		: `
 # Discover project structure and file types
