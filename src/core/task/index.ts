@@ -2261,6 +2261,12 @@ export class Task {
 			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, this.enableCheckpoints)
 		}
 
+		// Capture task initialization timing telemetry for the first API request
+		if (isFirstRequest) {
+			const durationMs = Math.round(performance.now() - this.taskInitializationStartTime)
+			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, this.enableCheckpoints)
+		}
+
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
 		await this.messageStateHandler.updateClineMessage(lastApiReqIndex, {
