@@ -16,6 +16,7 @@ import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClineProvider } from "./providers/ClineProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
+import { DifyProvider } from "./providers/DifyProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { GeminiProvider } from "./providers/GeminiProvider"
@@ -174,6 +175,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					<VSCodeOption value="dify">Dify.ai</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -303,6 +305,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
 				<HuaweiCloudMaasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "dify" && (
+				<DifyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "zai" && (
