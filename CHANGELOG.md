@@ -2,8 +2,6 @@
 
 ## 3.26.6
 
-### Patch Changes
-
 - 8eba965: Fix Provider Options to properly handle retry attempts
 - cd066c4: fix issue with gpt-5 not using auto-compact even when toggled on
 - ce89547: Make markdown and code block parsing styling reactive to theme change
