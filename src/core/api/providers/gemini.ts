@@ -1,8 +1,8 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
 import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { telemetryService } from "@/services/telemetry"
 import { ApiHandler } from "../"
 import { withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"

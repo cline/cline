@@ -1,5 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "../posthog/PostHogClientProvider"
+import { errorService } from "../error"
 
 /**
  * Simple logging utility for the extension's backend code.

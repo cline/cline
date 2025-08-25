@@ -1,7 +1,7 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
+import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 
 /**

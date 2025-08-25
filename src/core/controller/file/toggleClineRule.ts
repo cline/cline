@@ -1,7 +1,7 @@
 import path from "node:path"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { ToggleClineRules } from "@shared/proto/cline/file"
+import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 
 /**

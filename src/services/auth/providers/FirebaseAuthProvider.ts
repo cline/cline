@@ -1,10 +1,10 @@
-import { errorService } from "@services/posthog/PostHogClientProvider"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
 import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
+import { errorService } from "@/services/error"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 export class FirebaseAuthProvider {
