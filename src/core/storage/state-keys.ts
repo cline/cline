@@ -46,6 +46,7 @@ export type SecretKey =
 	| "basetenApiKey"
 	| "vercelAiGatewayApiKey"
 	| "zaiApiKey"
+	| "difyApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -104,6 +105,7 @@ export type GlobalStateKey =
 	| "sapAiResourceGroup"
 	| "sapAiCoreUseOrchestrationMode"
 	| "claudeCodePath"
+	| "difyBaseUrl"
 	| "qwenCodeOauthPath"
 	| "strictPlanModeEnabled"
 	| "useAutoCondense"
@@ -245,6 +247,7 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
+	difyBaseUrl: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -345,6 +348,7 @@ export interface Secrets {
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
+	difyApiKey: string | undefined
 }
 
 export interface LocalState {

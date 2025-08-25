@@ -252,6 +252,8 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -421,6 +423,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			difyBaseUrl,
 			qwenCodeOauthPath,
 		})
 
@@ -457,6 +460,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		})
@@ -685,6 +689,8 @@ export class CacheService {
 			qwenCodeOauthPath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -886,6 +892,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			difyBaseUrl,
 			qwenCodeOauthPath,
 		} satisfies GlobalState
 
@@ -926,6 +933,7 @@ export class CacheService {
 			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		} satisfies Secrets
@@ -981,6 +989,7 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 
@@ -1021,6 +1030,7 @@ export class CacheService {
 			sapAiCoreUseOrchestrationMode: this.globalStateCache["sapAiCoreUseOrchestrationMode"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
+			difyBaseUrl: this.globalStateCache["difyBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],
