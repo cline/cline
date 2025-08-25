@@ -4,10 +4,10 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
 
 interface CustomPromptCheckboxProps {
-	key: string
+	providerId: string
 }
 
-const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ key }) => {
+const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ providerId }) => {
 	const { customPrompt } = useExtensionState()
 	const [isCompactPromptEnabled, setIsCompactPromptEnabled] = useState<boolean>(customPrompt === "compact")
 
@@ -17,7 +17,7 @@ const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ key }) =
 	}, [])
 
 	return (
-		<div key={key}>
+		<div id={providerId}>
 			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
 				Use compact prompt
 			</VSCodeCheckbox>
