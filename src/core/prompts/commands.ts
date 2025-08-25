@@ -52,7 +52,7 @@ ${
   1. XML schema matches that of prior task_progress lists.
   2. All items are retained, with the exact same desciptive content as in prior occurences.
   3. All completed items are marked as completed.
-  4. The only compenent of this list that can be changed is the compeletion state of invidiual items in the list`
+  4. The only compenent of this list that can be changed is the completion state of invidiual items in the list`
 		: ""
 }
 
