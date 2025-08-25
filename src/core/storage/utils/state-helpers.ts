@@ -4,6 +4,7 @@ import { Controller } from "@/core/controller"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@/shared/FocusChainSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
@@ -71,6 +72,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const difyBaseUrl = context.globalState.get("difyBaseUrl") as string | undefined
 	const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
+	const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
+	const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
 
 	// Get all secret values
 	const [
@@ -389,6 +392,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
 		},
+		focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
