@@ -77,7 +77,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
-import { CacheService } from "../storage/CacheService"
+import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { showChangedFilesDiff } from "./multifile-diff"
@@ -133,7 +133,7 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	// Cache service
-	private cacheService: CacheService
+	private stateManager: StateManager
 
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
@@ -167,7 +167,7 @@ export class Task {
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		cwd: string,
-		cacheService: CacheService,
+		stateManager: StateManager,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -212,7 +212,7 @@ export class Task {
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
-		this.cacheService = cacheService
+		this.stateManager = stateManager
 		this.useAutoCondense = useAutoCondense
 
 		// Set up MCP notification callback for real-time notifications
@@ -257,7 +257,7 @@ export class Task {
 				taskState: this.taskState,
 				mode: this.mode,
 				context: this.getContext(),
-				cacheService: this.cacheService,
+				stateManager: this.stateManager,
 				postStateToWebview: this.postStateToWebview,
 				say: this.say.bind(this),
 				focusChainSettings: this.focusChainSettings,
@@ -353,7 +353,7 @@ export class Task {
 			this.fileContextTracker,
 			this.clineIgnoreController,
 			this.contextManager,
-			this.cacheService,
+			this.stateManager,
 			this.autoApprovalSettings,
 			this.browserSettings,
 			this.focusChainSettings,
@@ -1628,9 +1628,9 @@ export class Task {
 
 	private getCurrentProviderInfo(): ApiProviderInfo {
 		const modelId = this.api.getModel()?.id
-		const apiConfig = this.cacheService.getApiConfiguration()
+		const apiConfig = this.stateManager.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
+		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
 		return { modelId, providerId, customPrompt }
 	}
 
