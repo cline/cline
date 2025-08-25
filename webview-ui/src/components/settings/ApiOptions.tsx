@@ -289,6 +289,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</label>
 				<ProviderDropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
+						data-testid="provider-selector-input"
 						id="api-provider"
 						onFocus={() => {
 							setIsDropdownVisible(true)
@@ -329,6 +330,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<ProviderDropdownList ref={dropdownListRef}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
+									data-testid={`provider-option-${item.value}`}
 									isSelected={index === selectedIndex}
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
