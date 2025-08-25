@@ -118,10 +118,10 @@ export class ClaudeCodeHandler implements ApiHandler {
 					}
 				}
 
-				usage.inputTokens += message.usage.input_tokens
-				usage.outputTokens += message.usage.output_tokens
-				usage.cacheReadTokens = (usage.cacheReadTokens || 0) + (message.usage.cache_read_input_tokens || 0)
-				usage.cacheWriteTokens = (usage.cacheWriteTokens || 0) + (message.usage.cache_creation_input_tokens || 0)
+				usage.inputTokens = message.usage.input_tokens
+				usage.outputTokens = message.usage.output_tokens
+				usage.cacheReadTokens = message.usage.cache_read_input_tokens || 0
+				usage.cacheWriteTokens = message.usage.cache_creation_input_tokens || 0
 
 				continue
 			}
