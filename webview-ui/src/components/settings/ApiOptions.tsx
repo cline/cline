@@ -86,19 +86,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
-	// Ensure the dropdown displays a preset label
-	const selectedDropdownValue = (() => {
-		for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
-			if (preset.provider === selectedProvider) {
-				const defaultUrl = preset.defaults?.openAiBaseUrl
-				if (defaultUrl && apiConfiguration?.openAiBaseUrl === defaultUrl) {
-					return key
-				}
-			}
-		}
-		return selectedProvider
-	})()
-
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
@@ -161,7 +148,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={selectedDropdownValue}>
+					value={selectedProvider}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
