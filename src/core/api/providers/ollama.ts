@@ -1,12 +1,12 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
-import type { ApiHandler } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
 import type { ApiStream } from "../transform/stream"
 
-interface OllamaHandlerOptions {
+interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 	ollamaBaseUrl?: string
 	ollamaApiKey?: string
 	ollamaModelId?: string

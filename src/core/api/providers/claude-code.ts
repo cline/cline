@@ -2,11 +2,11 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
-import { type ApiHandler } from ".."
+import { CommonApiHandlerOptions, type ApiHandler } from ".."
 import { withRetry } from "../retry"
 import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 
-interface ClaudeCodeHandlerOptions {
+interface ClaudeCodeHandlerOptions extends CommonApiHandlerOptions {
 	claudeCodePath?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
