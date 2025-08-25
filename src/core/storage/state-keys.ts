@@ -103,6 +103,7 @@ export type GlobalStateKey =
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
+	| "qwenCodeOauthPath"
 	| "strictPlanModeEnabled"
 	| "useAutoCondense"
 	| "focusChainSettings"
@@ -233,6 +234,7 @@ export interface GlobalState {
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
 	claudeCodePath: string | undefined
+	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean
 	useAutoCondense: boolean
 	preferredLanguage: string
