@@ -9,6 +9,7 @@ import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
@@ -344,6 +345,15 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+			})
+		case "dify": // Add Dify.ai handler
+			console.log("[DIFY DEBUG] Instantiating DifyHandler with options:", {
+				difyApiKeyPresent: !!options.difyApiKey,
+				difyBaseUrl: options.difyBaseUrl,
+			})
+			return new DifyHandler({
+				difyApiKey: options.difyApiKey,
+				difyBaseUrl: options.difyBaseUrl,
 			})
 		case "vercel-ai-gateway":
 			return new VercelAIGatewayHandler({

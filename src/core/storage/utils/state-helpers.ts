@@ -68,6 +68,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const sapAiCoreTokenUrl = context.globalState.get("sapAiCoreTokenUrl") as string | undefined
 	const sapAiResourceGroup = context.globalState.get("sapAiResourceGroup") as string | undefined
 	const claudeCodePath = context.globalState.get("claudeCodePath") as string | undefined
+	const difyBaseUrl = context.globalState.get("difyBaseUrl") as string | undefined
 	const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 
@@ -106,6 +107,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		zaiApiKey,
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
+		difyApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -140,6 +142,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
+		context.secrets.get("difyApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -321,6 +324,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			zaiApiKey,
 			ollamaApiKey,
 			vercelAiGatewayApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -459,6 +464,7 @@ export async function resetGlobalState(controller: Controller) {
 		"huaweiCloudMaasApiKey",
 		"vercelAiGatewayApiKey",
 		"zaiApiKey",
+		"difyApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.cacheService.reInitialize()
