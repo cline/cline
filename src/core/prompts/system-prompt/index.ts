@@ -18,7 +18,7 @@ export { validateVariant } from "./variants/variant-validator"
  */
 export function getModelFamily(providerInfo: ApiProviderInfo): ModelFamily {
 	// Check for next-gen models first
-	if (isNextGenModelFamily(providerInfo.model)) {
+	if (isNextGenModelFamily(providerInfo.model.id)) {
 		return ModelFamily.NEXT_GEN
 	}
 	if (providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) {

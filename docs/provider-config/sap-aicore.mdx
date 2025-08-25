@@ -40,3 +40,20 @@ Refer to the [Generative AI Hub Supported Models page](https://me.sap.com/notes/
     -   **Deployed Models:** These models are already deployed in your specified resource group and are ready to use immediately.
     -   **Not Deployed Models:** These models don't have active deployments in your specified resource group. You won't be able to use these models until you create deployments for them in SAP AI Core.
 -   **Creating Deployments:** To use a not deployed model, you'll need to create a deployment in your resource group in sap ai core service instance. See [Create a Deployment for a Generative AI Model](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-deployment-for-generative-ai-model-in-sap-ai-core) for instructions.
+
+#### Configuring Reasoning Effort for OpenAI Models
+
+When using OpenAI reasoning models (such as o1, o3, o3-mini, o4-mini) through SAP AI Core, you can control the reasoning effort to balance performance and cost:
+
+1. **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2. **Navigate to Features:** Go to the "Features" section in the settings.
+3. **Find OpenAI Reasoning Effort:** Locate the "OpenAI Reasoning Effort" setting.
+4. **Choose Effort Level:** Select between:
+   - **Low:** Faster responses with lower token usage, suitable for simpler tasks
+   - **Medium:** Balanced performance and token usage for most tasks
+   - **High:** More thorough analysis with higher token usage, better for complex reasoning tasks
+
+> 💡 **Note**
+>
+> This setting only applies when using OpenAI reasoning models (o1, o3, o3-mini, o4-mini, gpt-5, etc.) deployed through SAP AI Core. Other models will ignore this setting.
+
