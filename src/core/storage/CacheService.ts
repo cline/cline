@@ -248,6 +248,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
@@ -420,6 +421,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			qwenCodeOauthPath,
 		})
 
 		// Batch update secrets
@@ -680,6 +682,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			vercelAiGatewayApiKey,
@@ -883,6 +886,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
+			qwenCodeOauthPath,
 		} satisfies GlobalState
 
 		// Populate global state cache directly
@@ -1016,6 +1020,7 @@ export class CacheService {
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
 			sapAiCoreUseOrchestrationMode: this.globalStateCache["sapAiCoreUseOrchestrationMode"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
+			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],
