@@ -4,6 +4,7 @@ import { Controller } from "@/core/controller"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@/shared/FocusChainSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
@@ -68,8 +69,11 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const sapAiCoreTokenUrl = context.globalState.get("sapAiCoreTokenUrl") as string | undefined
 	const sapAiResourceGroup = context.globalState.get("sapAiResourceGroup") as string | undefined
 	const claudeCodePath = context.globalState.get("claudeCodePath") as string | undefined
+	const difyBaseUrl = context.globalState.get("difyBaseUrl") as string | undefined
 	const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
+	const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
+	const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
 
 	// Get all secret values
 	const [
@@ -106,6 +110,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		zaiApiKey,
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
+		difyApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -140,6 +145,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
+		context.secrets.get("difyApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -321,6 +327,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			zaiApiKey,
 			ollamaApiKey,
 			vercelAiGatewayApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -384,6 +392,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
 		},
+		focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
@@ -459,6 +469,7 @@ export async function resetGlobalState(controller: Controller) {
 		"huaweiCloudMaasApiKey",
 		"vercelAiGatewayApiKey",
 		"zaiApiKey",
+		"difyApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
