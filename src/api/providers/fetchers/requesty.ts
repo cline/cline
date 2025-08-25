@@ -16,7 +16,7 @@ export async function getRequestyModels(baseUrl?: string, apiKey?: string): Prom
 		}
 
 		const resolvedBaseUrl = toRequestyServiceUrl(baseUrl)
-		const modelsUrl = new URL("models", resolvedBaseUrl)
+		const modelsUrl = new URL("v1/models", resolvedBaseUrl)
 
 		const response = await axios.get(modelsUrl.toString(), { headers })
 		const rawModels = response.data.data
