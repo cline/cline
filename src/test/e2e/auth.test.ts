@@ -11,19 +11,21 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	// Navigate to API key setup
 	await sidebar.getByRole("button", { name: "Use your own API key" }).click()
 
-	const providerSelector = sidebar.locator("#api-provider div").first()
+	const providerSelectorInput = sidebar.getByTestId("provider-selector-input")
 
-	// Verify provider selector is visible and set to OpenRouter
-	await expect(sidebar.locator("slot").filter({ hasText: /^OpenRouter$/ })).toBeVisible()
+	// Verify provider selector is visible
+	await expect(providerSelectorInput).toBeVisible()
+
 	// Test Cline provider option
-	await providerSelector.click({ delay: 100 })
-	await expect(sidebar.getByRole("option", { name: "Cline" })).toBeVisible()
-	await sidebar.getByRole("option", { name: "Cline" }).click({ delay: 100 })
+	await providerSelectorInput.click({ delay: 100 })
+	// Wait for dropdown to appear and find Cline option
+	await expect(sidebar.getByTestId("provider-option-cline")).toBeVisible()
+	await sidebar.getByTestId("provider-option-cline").click({ delay: 100 })
 	await expect(sidebar.getByRole("button", { name: "Sign Up with Cline" })).toBeVisible()
 
 	// Switch to OpenRouter and complete setup
-	await providerSelector.click({ delay: 100 })
-	await sidebar.getByRole("option", { name: "OpenRouter" }).click({ delay: 100 })
+	await providerSelectorInput.click({ delay: 100 })
+	await sidebar.getByTestId("provider-option-openrouter").click({ delay: 100 })
 
 	const apiKeyInput = sidebar.getByRole("textbox", {
 		name: "OpenRouter API Key",
@@ -38,7 +40,7 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 
 	// Verify start up page is no longer visible
 	await expect(apiKeyInput).not.toBeVisible()
-	await expect(providerSelector).not.toBeVisible()
+	await expect(providerSelectorInput).not.toBeVisible()
 
 	// Verify you are now in the chat page after setup was completed
 	const clineLogo = sidebar.getByRole("img").filter({ hasText: /^$/ }).locator("path")
