@@ -4,3 +4,14 @@ export const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, { provider: "ope
 	{
 		portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
 	}
+
+export function mapOptionToProviderAndDefaults(optionValue: string): {
+	provider: string
+	defaults?: { openAiBaseUrl?: string }
+} {
+	const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
+	if (preset) {
+		return { provider: preset.provider, defaults: preset.defaults }
+	}
+	return { provider: optionValue }
+}

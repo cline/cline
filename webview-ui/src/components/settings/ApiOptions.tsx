@@ -1,10 +1,11 @@
+import type { ApiProvider as ApiProviderType } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { OPENAI_COMPATIBLE_PRESETS } from "@/components/settings/utils/providerPresets"
+import { mapOptionToProviderAndDefaults } from "@/components/settings/utils/providerPresets"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -130,15 +131,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					id="api-provider"
 					onChange={(e: any) => {
 						const value = e.target.value
-						const preset = OPENAI_COMPATIBLE_PRESETS[value]
-						const targetProvider = preset?.provider ?? value
+						const { provider: targetProvider, defaults } = mapOptionToProviderAndDefaults(value)
+						const providerToSet = targetProvider as unknown as ApiProviderType
 						handleModeFieldChange(
 							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-							targetProvider,
+							providerToSet,
 							currentMode,
 						)
-						if (targetProvider === "openai" && !apiConfiguration?.openAiBaseUrl && preset?.defaults?.openAiBaseUrl) {
-							handleFieldChange("openAiBaseUrl", preset.defaults.openAiBaseUrl)
+						if (targetProvider === "openai" && !apiConfiguration?.openAiBaseUrl && defaults?.openAiBaseUrl) {
+							handleFieldChange("openAiBaseUrl", defaults.openAiBaseUrl)
 						}
 					}}
 					style={{
