@@ -1,7 +1,7 @@
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -39,6 +39,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const [availableModels, setAvailableModels] = useState<string[]>([])
 
 	useEffect(() => {
 		return () => {
@@ -60,10 +61,17 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						baseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
-				})
+				)
+					.then((resp) => {
+						setAvailableModels(resp?.values ?? [])
+					})
+					.catch((error) => {
+						console.error("Failed to refresh OpenAI models:", error)
+						setAvailableModels([])
+					})
 			}, 500)
+		} else {
+			setAvailableModels([])
 		}
 	}, [])
 
@@ -73,7 +81,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				initialValue={apiConfiguration?.openAiBaseUrl || ""}
 				onChange={(value) => {
 					handleFieldChange("openAiBaseUrl", value)
-					debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
+					if (value && apiConfiguration?.openAiApiKey) {
+						debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
+					} else {
+						setAvailableModels([])
+					}
 				}}
 				placeholder={"Enter base URL..."}
 				style={{ width: "100%", marginBottom: 10 }}
@@ -85,20 +97,50 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				initialValue={apiConfiguration?.openAiApiKey || ""}
 				onChange={(value) => {
 					handleFieldChange("openAiApiKey", value)
-					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
+					if (apiConfiguration?.openAiBaseUrl && value) {
+						debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
+					} else {
+						setAvailableModels([])
+					}
 				}}
 				providerName="OpenAI Compatible"
 			/>
 
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-				}
-				placeholder={"Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{availableModels.length > 0 ? (
+				<div style={{ width: "100%", marginBottom: 10 }}>
+					<label htmlFor="openai-compatible-model-id">
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</label>
+					<VSCodeDropdown
+						id="openai-compatible-model-id"
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						style={{ width: "100%", marginBottom: 10 }}
+						value={selectedModelId || ""}>
+						<VSCodeOption value="">Select a model...</VSCodeOption>
+						{availableModels.map((m) => (
+							<VSCodeOption key={m} value={m}>
+								{m}
+							</VSCodeOption>
+						))}
+					</VSCodeDropdown>
+				</div>
+			) : (
+				<DebouncedTextField
+					initialValue={selectedModelId || ""}
+					onChange={(value) =>
+						handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+					}
+					placeholder={"Enter Model ID..."}
+					style={{ width: "100%", marginBottom: 10 }}>
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</DebouncedTextField>
+			)}
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
