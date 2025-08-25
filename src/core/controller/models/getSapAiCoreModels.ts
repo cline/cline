@@ -82,7 +82,7 @@ async function fetchAiCoreModelNames(accessToken: string, baseUrl: string, resou
  * @param request The request containing SAP AI Core configuration
  * @returns StringArray of model names
  */
-export async function getSapAiCoreModels(controller: Controller, request: SapAiCoreModelsRequest): Promise<StringArray> {
+export async function getSapAiCoreModels(_controller: Controller, request: SapAiCoreModelsRequest): Promise<StringArray> {
 	try {
 		// Check if required configuration is provided
 		if (!request.clientId || !request.clientSecret || !request.baseUrl) {
