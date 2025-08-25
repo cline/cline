@@ -85,9 +85,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		}
 
 		return (
-			<div className="flex px-[15px] pt-[10px]">
+			<div className="flex px-[15px]">
 				<VSCodeButton
 					appearance="icon"
+					aria-label="Scroll to bottom"
 					className="text-lg text-[var(--vscode-primaryButton-foreground)] bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
 					onClick={handleScrollToBottom}
 					onKeyDown={(e) => {
@@ -95,8 +96,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 							e.preventDefault()
 							handleScrollToBottom()
 						}
-					}}
-					aria-label="Scroll to bottom">
+					}}>
 					<span className="codicon codicon-chevron-down" />
 				</VSCodeButton>
 			</div>
@@ -107,12 +107,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
 
 	return (
-		<div className={`flex px-[15px] ${shouldShowButtons ? "pt-[10px]" : "pt-0"}`} style={{ opacity }}>
+		<div className="flex px-[15px]" style={{ opacity }}>
 			{primaryButtonText && (
 				<VSCodeButton
 					appearance="primary"
-					disabled={!enableButtons}
 					className={`${secondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
+					disabled={!enableButtons}
 					onClick={() => {
 						if (primaryButtonText === "Start New Task") {
 							messageHandlers.startNewTask()
@@ -126,8 +126,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{secondaryButtonText && (
 				<VSCodeButton
 					appearance="secondary"
-					disabled={!enableButtons}
 					className={`${primaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
+					disabled={!enableButtons}
 					onClick={() => {
 						messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
 					}}>

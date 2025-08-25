@@ -1,3 +1,4 @@
+import { isFocusChainItem } from "@shared/focus-chain-utils"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -32,7 +33,7 @@ export function extractFocusChainItemsFromText(text: string): string[] {
 	const lines = text.split("\n")
 	return lines.filter((line) => {
 		const trimmed = line.trim()
-		return trimmed.startsWith("- [ ]") || trimmed.startsWith("- [x]") || trimmed.startsWith("- [X]")
+		return isFocusChainItem(trimmed)
 	})
 }
 

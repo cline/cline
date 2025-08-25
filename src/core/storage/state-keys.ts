@@ -1,16 +1,16 @@
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
+import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DictationSettings } from "@/shared/DictationSettings"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
-import { DictationSettings } from "@/shared/DictationSettings"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 
 export type SecretKey =
 	| "apiKey"
@@ -45,6 +45,9 @@ export type SecretKey =
 	| "groqApiKey"
 	| "huaweiCloudMaasApiKey"
 	| "basetenApiKey"
+	| "vercelAiGatewayApiKey"
+	| "zaiApiKey"
+	| "difyApiKey"
 
 export type GlobalStateKey =
 	| "awsRegion"
@@ -59,11 +62,13 @@ export type GlobalStateKey =
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
 	| "taskHistory"
+	| "requestyBaseUrl"
 	| "openAiBaseUrl"
 	| "openAiHeaders"
 	| "ollamaBaseUrl"
 	| "ollamaApiOptionsCtxNum"
 	| "lmStudioBaseUrl"
+	| "lmStudioMaxTokens"
 	| "anthropicBaseUrl"
 	| "geminiBaseUrl"
 	| "azureApiVersion"
@@ -79,6 +84,7 @@ export type GlobalStateKey =
 	| "fireworksModelMaxTokens"
 	| "qwenApiLine"
 	| "moonshotApiLine"
+	| "zaiApiLine"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
 	| "asksageApiUrl"
@@ -99,14 +105,18 @@ export type GlobalStateKey =
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
 	| "claudeCodePath"
+	| "difyBaseUrl"
+	| "qwenCodeOauthPath"
 	| "strictPlanModeEnabled"
 	| "dictationSettings"
+	| "useAutoCondense"
 	| "focusChainSettings"
 	| "focusChainFeatureFlagEnabled"
 	// Settings around plan/act and ephemeral model configuration
 	| "preferredLanguage"
 	| "openaiReasoningEffort"
 	| "mode"
+	| "customPrompt"
 	// Plan mode configurations
 	| "planModeApiProvider"
 	| "planModeApiModelId"
@@ -136,6 +146,8 @@ export type GlobalStateKey =
 	| "planModeHuggingFaceModelInfo"
 	| "planModeHuaweiCloudMaasModelId"
 	| "planModeHuaweiCloudMaasModelInfo"
+	| "planModeVercelAiGatewayModelId"
+	| "planModeVercelAiGatewayModelInfo"
 	// Act mode configurations
 	| "actModeApiProvider"
 	| "actModeApiModelId"
@@ -165,6 +177,8 @@ export type GlobalStateKey =
 	| "actModeHuggingFaceModelInfo"
 	| "actModeHuaweiCloudMaasModelId"
 	| "actModeHuaweiCloudMaasModelInfo"
+	| "actModeVercelAiGatewayModelId"
+	| "actModeVercelAiGatewayModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
 
@@ -181,11 +195,13 @@ export interface GlobalState {
 	vertexRegion: string | undefined
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
+	requestyBaseUrl: string | undefined
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
 	ollamaBaseUrl: string | undefined
 	ollamaApiOptionsCtxNum: string | undefined
 	lmStudioBaseUrl: string | undefined
+	lmStudioMaxTokens: string | undefined
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
@@ -201,6 +217,7 @@ export interface GlobalState {
 	fireworksModelMaxTokens: number | undefined
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
+	zaiApiLine: string | undefined
 	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
@@ -221,13 +238,18 @@ export interface GlobalState {
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
 	claudeCodePath: string | undefined
+	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean
+	useAutoCondense: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
 	dictationSettings: DictationSettings
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled: boolean
+	customPrompt: "compact" | undefined
+	difyBaseUrl: string | undefined
+
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined
@@ -286,6 +308,10 @@ export interface GlobalState {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeVercelAiGatewayModelId: string | undefined
+	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeVercelAiGatewayModelId: string | undefined
+	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 }
 
 export interface Secrets {
@@ -312,6 +338,7 @@ export interface Secrets {
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
 	moonshotApiKey: string | undefined
+	zaiApiKey: string | undefined
 	huggingFaceApiKey: string | undefined
 	nebiusApiKey: string | undefined
 	sambanovaApiKey: string | undefined
@@ -321,6 +348,8 @@ export interface Secrets {
 	groqApiKey: string | undefined
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
+	vercelAiGatewayApiKey: string | undefined
+	difyApiKey: string | undefined
 }
 
 export interface LocalState {

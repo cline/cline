@@ -1,10 +1,10 @@
-import { FileServiceClient } from "@/services/grpc-client"
-import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import mermaid from "mermaid"
 import { useEffect, useRef, useState } from "react"
 import styled from "styled-components"
+import { FileServiceClient } from "@/services/grpc-client"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
@@ -126,9 +126,13 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	 * Converts the <svg> to a PNG and sends it to the extension.
 	 */
 	const handleClick = async () => {
-		if (!containerRef.current) return
+		if (!containerRef.current) {
+			return
+		}
 		const svgEl = containerRef.current.querySelector("svg")
-		if (!svgEl) return
+		if (!svgEl) {
+			return
+		}
 
 		try {
 			const pngDataUrl = await svgToPng(svgEl)
@@ -152,11 +156,11 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 		<MermaidBlockContainer>
 			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
 			<ButtonContainer>
-				<StyledVSCodeButton onClick={handleCopyCode} title="Copy Code" aria-label="Copy Code">
+				<StyledVSCodeButton aria-label="Copy Code" onClick={handleCopyCode} title="Copy Code">
 					<span className="codicon codicon-copy"></span>
 				</StyledVSCodeButton>
 			</ButtonContainer>
-			<SvgContainer onClick={handleClick} ref={containerRef} $isLoading={isLoading} />
+			<SvgContainer $isLoading={isLoading} onClick={handleClick} ref={containerRef} />
 		</MermaidBlockContainer>
 	)
 }
@@ -199,7 +203,9 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 			canvas.height = scaledHeight
 
 			const ctx = canvas.getContext("2d")
-			if (!ctx) return reject("Canvas context not available")
+			if (!ctx) {
+				return reject("Canvas context not available")
+			}
 
 			// Fill background with Mermaid's dark theme background color
 			ctx.fillStyle = MERMAID_THEME.background

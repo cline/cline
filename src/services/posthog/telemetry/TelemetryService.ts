@@ -1,13 +1,12 @@
-import * as vscode from "vscode"
-import { version as extensionVersion } from "../../../../package.json"
 import { HostProvider } from "@hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
-
-import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { PostHogClientProvider } from "../PostHogClientProvider"
-import { Mode } from "@/shared/storage/types"
+import { ShowMessageType } from "@shared/proto/host/window"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Mode } from "@/shared/storage/types"
+import { version as extensionVersion } from "../../../../package.json"
+import type { PostHogClientProvider } from "../PostHogClientProvider"
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -30,7 +29,7 @@ const MAX_ERROR_MESSAGE_LENGTH = 500
 export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
-		["checkpoints", false], // Checkpoints telemetry disabled
+		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
@@ -68,6 +67,8 @@ export class TelemetryService {
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
+			// Tracks when MCP tools are used
+			MCP_TOOL_CALLED: "task.mcp_tool_called",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -98,6 +99,16 @@ export class TelemetryService {
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
 			FOCUS_CHAIN_LIST_WRITTEN: "task.focus_chain_list_written",
+			// Tracks when the context window is auto-condensed with the summarize_task tool call
+			AUTO_COMPACT: "task.summarize_task",
+			// Tracks when slash commands or workflows are activated
+			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when individual Cline rules are toggled on/off
+			RULE_TOGGLED: "task.rule_toggled",
+			// Tracks when auto condense setting is toggled on/off
+			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
+			// Tracks task initialization timing
+			INITIALIZATION: "task.initialization",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -107,6 +118,8 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
+			// Tracks when the rules menu button is clicked
+			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -149,20 +162,28 @@ export class TelemetryService {
 		if (!vscode.env.isTelemetryEnabled) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
-				void HostProvider.window
-					.showMessage({
+				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
+				if (isVsCodeHost) {
+					void HostProvider.window
+						.showMessage({
+							type: ShowMessageType.WARNING,
+							message:
+								"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
+							options: {
+								items: ["Open Settings"],
+							},
+						})
+						.then((response) => {
+							if (response.selectedOption === "Open Settings") {
+								void HostProvider.window.openSettings({ query: "telemetry.telemetryLevel" })
+							}
+						})
+				} else {
+					void HostProvider.window.showMessage({
 						type: ShowMessageType.WARNING,
-						message:
-							"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-						options: {
-							items: ["Open Settings"],
-						},
+						message: "Anonymous Cline error and usage reporting is enabled, but host telemetry is disabled.",
 					})
-					.then((response) => {
-						if (response.selectedOption === "Open Settings") {
-							void vscode.commands.executeCommand("workbench.action.openSettings", "telemetry.telemetryLevel")
-						}
-					})
+				}
 			}
 		}
 
@@ -317,6 +338,25 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Records when context summarization is triggered due to context window pressure
+	 * @param ulid Unique identifier for the task
+	 * @param modelId The model that triggered summarization
+	 * @param currentTokens Total tokens in context window when summarization was triggered
+	 * @param maxContextWindow Maximum context window size for the model
+	 */
+	public captureSummarizeTask(ulid: string, modelId: string, currentTokens: number, maxContextWindow: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
+			properties: {
+				ulid,
+				modelId,
+				currentTokens,
+				maxContextWindow,
+			},
+		})
+	}
+
+	/**
 	 * Records user feedback on completed tasks
 	 * @param ulid Unique identifier for the task
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
@@ -352,6 +392,40 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+			},
+		})
+	}
+
+	/**
+	 * Records when an MCP tool is called.
+	 * This telemetry event is designed to monitor the usage and performance of MCP tools
+	 * without compromising user privacy. It captures the tool's metadata (server, name, and arguments)
+	 * but explicitly avoids logging the values of the arguments.
+	 *
+	 * @param ulid Unique identifier for the task.
+	 * @param serverName The name of the MCP server.
+	 * @param toolName The name of the tool being called.
+	 * @param status The status of the tool call.
+	 * @param errorMessage Optional error message if the call failed.
+	 * @param argumentKeys Optional array of argument keys for the tool.
+	 */
+	public captureMcpToolCall(
+		ulid: string,
+		serverName: string,
+		toolName: string,
+		status: "started" | "success" | "error",
+		errorMessage?: string,
+		argumentKeys?: string[],
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
+			properties: {
+				ulid,
+				serverName,
+				toolName,
+				status,
+				errorMessage,
+				argumentKeys,
 			},
 		})
 	}
@@ -877,6 +951,91 @@ export class TelemetryService {
 			properties: {
 				ulid,
 			},
+		})
+	}
+
+	/**
+	 * Records when slash commands or workflows are activated
+	 * @param ulid Unique identifier for the task
+	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
+	 * @param commandType Whether it's a built-in command or custom workflow
+	 */
+	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
+			properties: {
+				ulid,
+				commandName,
+				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records when individual Cline rules are toggled on/off
+	 * @param ulid Unique identifier for the task (to track rule changes within task context)
+	 * @param ruleFileName The filename of the rule (sanitized to exclude full path)
+	 * @param enabled Whether the rule is being enabled (true) or disabled (false)
+	 * @param isGlobal Whether this is a global rule or workspace-specific rule
+	 */
+	public captureClineRuleToggled(ulid: string, ruleFileName: string, enabled: boolean, isGlobal: boolean) {
+		// Sanitize filename to remove any path information for privacy
+		const sanitizedFileName = ruleFileName.split("/").pop() || ruleFileName.split("\\").pop() || ruleFileName
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.RULE_TOGGLED,
+			properties: {
+				ulid,
+				ruleFileName: sanitizedFileName,
+				enabled,
+				isGlobal,
+			},
+		})
+	}
+
+	/**
+	 * Records when auto condense is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether auto condense was enabled (true) or disabled (false)
+	 * @param modelId The model ID being used when the toggle occurred
+	 */
+	public captureAutoCondenseToggle(ulid: string, enabled: boolean, modelId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_CONDENSE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+				modelId,
+			},
+		})
+	}
+
+	/**
+	 * Records task initialization timing and metadata
+	 * @param ulid Unique identifier for the task
+	 * @param taskId Task ID (timestamp in milliseconds when task was created)
+	 * @param durationMs Duration of initialization in milliseconds
+	 * @param hasCheckpoints Whether checkpoints are enabled for this task
+	 */
+	public captureTaskInitialization(ulid: string, taskId: string, durationMs: number, hasCheckpoints: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.INITIALIZATION,
+			properties: {
+				ulid,
+				taskId,
+				durationMs,
+				hasCheckpoints,
+			},
+		})
+	}
+
+	/**
+	 * Records when the rules menu button is clicked to open the rules/workflows modal
+	 */
+	public captureRulesMenuOpened() {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
+			properties: {},
 		})
 	}
 

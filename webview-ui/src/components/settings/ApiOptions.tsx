@@ -1,45 +1,49 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { ClineProvider } from "./providers/ClineProvider"
-import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { MistralProvider } from "./providers/MistralProvider"
-import { DeepSeekProvider } from "./providers/DeepSeekProvider"
-import { TogetherProvider } from "./providers/TogetherProvider"
-import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
-import { SambanovaProvider } from "./providers/SambanovaProvider"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
-import { OpenAINativeProvider } from "./providers/OpenAINative"
-import { GeminiProvider } from "./providers/GeminiProvider"
-import { DoubaoProvider } from "./providers/DoubaoProvider"
-import { QwenProvider } from "./providers/QwenProvider"
-import { VertexProvider } from "./providers/VertexProvider"
-import { RequestyProvider } from "./providers/RequestyProvider"
-import { FireworksProvider } from "./providers/FireworksProvider"
-import { XaiProvider } from "./providers/XaiProvider"
-import { CerebrasProvider } from "./providers/CerebrasProvider"
-import { OllamaProvider } from "./providers/OllamaProvider"
-import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
-import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { BedrockProvider } from "./providers/BedrockProvider"
-import { MoonshotProvider } from "./providers/MoonshotProvider"
-import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
-import { NebiusProvider } from "./providers/NebiusProvider"
-import { LiteLlmProvider } from "./providers/LiteLlmProvider"
-import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
-import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { GroqProvider } from "./providers/GroqProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
-import { Mode } from "@shared/storage/types"
+import { BedrockProvider } from "./providers/BedrockProvider"
+import { CerebrasProvider } from "./providers/CerebrasProvider"
+import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
+import { ClineProvider } from "./providers/ClineProvider"
+import { DeepSeekProvider } from "./providers/DeepSeekProvider"
+import { DifyProvider } from "./providers/DifyProvider"
+import { DoubaoProvider } from "./providers/DoubaoProvider"
+import { FireworksProvider } from "./providers/FireworksProvider"
+import { GeminiProvider } from "./providers/GeminiProvider"
+import { GroqProvider } from "./providers/GroqProvider"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
+import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
+import { LiteLlmProvider } from "./providers/LiteLlmProvider"
+import { LMStudioProvider } from "./providers/LMStudioProvider"
+import { MistralProvider } from "./providers/MistralProvider"
+import { MoonshotProvider } from "./providers/MoonshotProvider"
+import { NebiusProvider } from "./providers/NebiusProvider"
+import { OllamaProvider } from "./providers/OllamaProvider"
+import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
+import { OpenAINativeProvider } from "./providers/OpenAINative"
+import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import { QwenCodeProvider } from "./providers/QwenCodeProvider"
+import { QwenProvider } from "./providers/QwenProvider"
+import { RequestyProvider } from "./providers/RequestyProvider"
+import { SambanovaProvider } from "./providers/SambanovaProvider"
+import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
+import { TogetherProvider } from "./providers/TogetherProvider"
+import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
+import { VertexProvider } from "./providers/VertexProvider"
+import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
+import { XaiProvider } from "./providers/XaiProvider"
+import { ZAiProvider } from "./providers/ZAiProvider"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -81,7 +85,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -125,7 +129,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</label>
 				<VSCodeDropdown
 					id="api-provider"
-					value={selectedProvider}
 					onChange={(e: any) => {
 						handleModeFieldChange(
 							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
@@ -136,159 +139,180 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					style={{
 						minWidth: 130,
 						position: "relative",
-					}}>
+					}}
+					value={selectedProvider}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
-					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="groq">Groq</VSCodeOption>
+					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
+					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
-					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
-					<VSCodeOption value="baseten">Baseten</VSCodeOption>
-					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
+					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
+					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
+					<VSCodeOption value="zai">Z AI</VSCodeOption>
+					<VSCodeOption value="groq">Groq</VSCodeOption>
+					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="vercel-ai-gateway">Vercel AI Gateway</VSCodeOption>
+					<VSCodeOption value="baseten">Baseten</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
-					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
+					<VSCodeOption value="fireworks">Fireworks AI</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+					<VSCodeOption value="qwen-code">Qwen Code</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
-					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="moonshot">Moonshot</VSCodeOption>
 					<VSCodeOption value="huggingface">Hugging Face</VSCodeOption>
 					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
-					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
+					<VSCodeOption value="dify">Dify.ai</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
 			{apiConfiguration && selectedProvider === "cline" && (
-				<ClineProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<ClineProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<ClaudeCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "qwen-code" && (
+				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<DoubaoProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<MistralProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<DeepSeekProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
+				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<SambanovaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<GeminiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
 
 			{apiConfiguration && selectedProvider === "groq" && (
-				<GroqProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 			{apiConfiguration && selectedProvider === "baseten" && (
-				<BasetenProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<LMStudioProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<OllamaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "moonshot" && (
-				<MoonshotProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "huggingface" && (
-				<HuggingFaceProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<NebiusProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<CerebrasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
-				<HuaweiCloudMaasProvider showModelOptions={showModelOptions} isPopup={isPopup} currentMode={currentMode} />
+				<HuaweiCloudMaasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "dify" && (
+				<DifyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "zai" && (
+				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiErrorMessage && (

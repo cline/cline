@@ -41,11 +41,13 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		ollamaApiKey: config.ollamaApiKey,
 		ollamaApiOptionsCtxNum: config.ollamaApiOptionsCtxNum,
 		lmStudioBaseUrl: config.lmStudioBaseUrl,
+		lmStudioMaxTokens: config.lmStudioMaxTokens,
 		geminiApiKey: config.geminiApiKey,
 		geminiBaseUrl: config.geminiBaseUrl,
 		openaiNativeApiKey: config.openAiNativeApiKey,
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
+		requestyBaseUrl: config.requestyBaseUrl,
 		togetherApiKey: config.togetherApiKey,
 		fireworksApiKey: config.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens
@@ -64,12 +66,16 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		xaiApiKey: config.xaiApiKey,
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
+		zaiApiKey: config.zaiApiKey,
 		requestTimeoutMs: config.requestTimeoutMs ? Number(config.requestTimeoutMs) : undefined,
 		sapAiCoreClientId: config.sapAiCoreClientId,
 		sapAiCoreClientSecret: config.sapAiCoreClientSecret,
 		sapAiResourceGroup: config.sapAiResourceGroup,
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
+		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
+		difyBaseUrl: config.difyBaseUrl,
+		difyApiKey: config.difyApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider,
@@ -100,6 +106,10 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		planModeTogetherModelId: config.planModeTogetherModelId,
 		planModeFireworksModelId: config.planModeFireworksModelId,
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
+		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: config.planModeVercelAiGatewayModelInfo
+			? JSON.stringify(config.planModeVercelAiGatewayModelInfo)
+			: undefined,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider,
@@ -126,6 +136,10 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		actModeTogetherModelId: config.actModeTogetherModelId,
 		actModeFireworksModelId: config.actModeFireworksModelId,
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
+		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: config.actModeVercelAiGatewayModelInfo
+			? JSON.stringify(config.actModeVercelAiGatewayModelInfo)
+			: undefined,
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -171,11 +185,13 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		ollamaApiKey: protoConfig.ollamaApiKey,
 		ollamaApiOptionsCtxNum: protoConfig.ollamaApiOptionsCtxNum,
 		lmStudioBaseUrl: protoConfig.lmStudioBaseUrl,
+		lmStudioMaxTokens: protoConfig.lmStudioMaxTokens,
 		geminiApiKey: protoConfig.geminiApiKey,
 		geminiBaseUrl: protoConfig.geminiBaseUrl,
 		openAiNativeApiKey: protoConfig.openaiNativeApiKey,
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,
+		requestyBaseUrl: protoConfig.requestyBaseUrl,
 		togetherApiKey: protoConfig.togetherApiKey,
 		fireworksApiKey: protoConfig.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens
@@ -194,12 +210,16 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		xaiApiKey: protoConfig.xaiApiKey,
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
+		zaiApiKey: protoConfig.zaiApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs ? Number(protoConfig.requestTimeoutMs) : undefined,
 		sapAiCoreClientId: protoConfig.sapAiCoreClientId,
 		sapAiCoreClientSecret: protoConfig.sapAiCoreClientSecret,
 		sapAiResourceGroup: protoConfig.sapAiResourceGroup,
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
+		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
+		difyApiKey: protoConfig.difyApiKey,
+		difyBaseUrl: protoConfig.difyBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: protoConfig.planModeApiProvider as ApiProvider,
@@ -219,6 +239,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		planModeTogetherModelId: protoConfig.planModeTogetherModelId,
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
+		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 
 		// Act mode configurations
 		actModeApiProvider: protoConfig.actModeApiProvider as ApiProvider,
@@ -238,6 +259,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		actModeTogetherModelId: protoConfig.actModeTogetherModelId,
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
+		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 
 		// Favorited model IDs
 		favoritedModelIds: protoConfig.favoritedModelIds || [],
@@ -277,6 +299,12 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		}
 		if (protoConfig.actModeRequestyModelInfo) {
 			config.actModeRequestyModelInfo = JSON.parse(protoConfig.actModeRequestyModelInfo)
+		}
+		if (protoConfig.planModeVercelAiGatewayModelInfo) {
+			config.planModeVercelAiGatewayModelInfo = JSON.parse(protoConfig.planModeVercelAiGatewayModelInfo)
+		}
+		if (protoConfig.actModeVercelAiGatewayModelInfo) {
+			config.actModeVercelAiGatewayModelInfo = JSON.parse(protoConfig.actModeVercelAiGatewayModelInfo)
 		}
 	} catch (error) {
 		console.error("Failed to parse complex JSON objects in API configuration:", error)

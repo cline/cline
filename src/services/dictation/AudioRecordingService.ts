@@ -1,8 +1,8 @@
-import * as fs from "fs"
-import * as path from "path"
-import * as os from "os"
-import { spawn, ChildProcess } from "child_process"
 import { Logger } from "@services/logging/Logger"
+import { ChildProcess, spawn } from "child_process"
+import * as fs from "fs"
+import * as os from "os"
+import * as path from "path"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 
 function isExecutable(filePath: string): boolean {

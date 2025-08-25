@@ -1,6 +1,14 @@
 {
-	"extension": ["ts"],
-	"spec": ["src/**/__tests__/*.ts", "eslint-rules/__tests__/**/*.test.ts"],
-	"require": ["ts-node/register", "source-map-support/register", "./src/test/requires.ts"],
+	"extension": [
+		"ts"
+	],
+	"spec": [
+		"src/**/__tests__/*.ts"
+	],
+	"require": [
+		"ts-node/register",
+		"source-map-support/register",
+		"./src/test/requires.ts"
+	],
 	"recursive": true
 }

@@ -1,13 +1,11 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "@/services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "@/shared/proto/index.host"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, buildApiHandler } from "@api/index"
-import { ApiStream } from "@api/transform/stream"
+import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
+import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
-import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -24,15 +22,15 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
+	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
-	GlobalFileNames,
 } from "@core/storage/disk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -46,14 +44,14 @@ import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
@@ -61,28 +59,31 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
+import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
+import { HostProvider } from "@/hosts/host-provider"
+import { errorService } from "@/services/posthog/PostHogClientProvider"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
+import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
+import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { CacheService } from "../storage/CacheService"
+import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
-import { FocusChainManager } from "./focus-chain"
-import { summarizeTask } from "@core/prompts/contextManagement"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -93,6 +94,7 @@ export class Task {
 	readonly ulid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
+	private taskInitializationStartTime: number
 
 	taskState: TaskState
 
@@ -120,6 +122,9 @@ export class Task {
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
+
+	// Context Management
+	private useAutoCondense: boolean
 
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -155,6 +160,7 @@ export class Task {
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
+		useAutoCondense: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -167,6 +173,7 @@ export class Task {
 		files?: string[],
 		historyItem?: HistoryItem,
 	) {
+		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.controller = controller
 		this.mcpHub = mcpHub
@@ -206,9 +213,10 @@ export class Task {
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
 		this.cacheService = cacheService
+		this.useAutoCondense = useAutoCondense
 
 		// Set up MCP notification callback for real-time notifications
-		this.mcpHub.setNotificationCallback(async (serverName: string, level: string, message: string) => {
+		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
 			// Display notification in chat immediately
 			await this.say("mcp_notification", `[${serverName}] ${message}`)
 		})
@@ -296,7 +304,7 @@ export class Task {
 
 		const currentProvider = this.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-		if (currentProvider === "openai" || currentProvider === "openai-native") {
+		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "sapaicore") {
 			if (this.mode === "plan") {
 				effectiveApiConfiguration.planModeReasoningEffort = this.openaiReasoningEffort
 			} else {
@@ -375,6 +383,13 @@ export class Task {
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
 		this.toolExecutor.updateStrictPlanModeEnabled(strictPlanModeEnabled)
+	}
+
+	public updateUseAutoCondense(useAutoCondense: boolean): void {
+		// Track the setting change with current task and model context
+		telemetryService.captureAutoCondenseToggle(this.ulid, useAutoCondense, this.api.getModel().id)
+
+		this.useAutoCondense = useAutoCondense
 	}
 
 	// While a task is ref'd by a controller, it will always have access to the extension context
@@ -729,9 +744,8 @@ export class Task {
 		let askTs: number
 		if (partial !== undefined) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastAskMessageIndex = findLastIndex(clineMessages, (m) => m.type === "ask")
-			const lastMessage = lastAskMessageIndex !== -1 ? clineMessages[lastAskMessageIndex] : undefined
-			const lastMessageIndex = lastAskMessageIndex
+			const lastMessage = clineMessages.at(-1)
+			const lastMessageIndex = clineMessages.length - 1
 
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
@@ -1039,7 +1053,7 @@ export class Task {
 
 		// load the context history state
 
-		const taskDir = await ensureTaskDirectoryExists(context, this.taskId)
+		const _taskDir = await ensureTaskDirectoryExists(context, this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
 
 		const lastClineMessage = this.messageStateHandler
@@ -1409,7 +1423,7 @@ export class Task {
 			})
 
 			// Race between command completion and timeout
-			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((_error) => {
 				// If we get here due to timeout, return a partial result with timeout flag
 				Logger.info(`Command timed out after 30s: ${command}`)
 				return {
@@ -1612,19 +1626,19 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{
-		modelId: string
-		providerId: string
-	}> {
+	private getCurrentProviderInfo(): ApiProviderInfo {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return { modelId, providerId }
+		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
+		return { modelId, providerId, customPrompt }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
+		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
+
 		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-			this.messageStateHandler.getApiConversationHistory(),
+			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
@@ -1632,6 +1646,7 @@ export class Task {
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			apiConversationHistory,
 		)
 
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
@@ -1648,19 +1663,20 @@ export class Task {
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		const modelInfo = this.api.getModel()
+		const providerInfo = this.getCurrentProviderInfo()
 		// cline browser tool uses image recognition for navigation (requires model image support).
 		const modelSupportsBrowserUse = modelInfo.info.supportsImages ?? false
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		const isNextGenModel = isNextGenModelFamily(this.api)
-		let systemPrompt = await SYSTEM_PROMPT(
+		let systemPrompt = await buildSystemPrompt(
 			this.cwd,
 			supportsBrowserUse,
 			this.mcpHub,
 			this.browserSettings,
+			this.api.getModel(),
 			this.focusChainSettings,
-			isNextGenModel,
+			providerInfo,
 		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -1716,6 +1732,7 @@ export class Task {
 			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			this.useAutoCondense,
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -1736,7 +1753,7 @@ export class Task {
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
-			const { modelId, providerId } = await this.getCurrentProviderInfo()
+			const { modelId, providerId } = this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
@@ -1949,7 +1966,7 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId } = await this.getCurrentProviderInfo()
+		const { modelId, providerId, customPrompt } = this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
@@ -2141,81 +2158,108 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
-		// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
-		// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
-		// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
-		let shouldCompact = false
-		if (this.taskState.currentlySummarizing) {
-			this.taskState.currentlySummarizing = false
+		// Separate logic when using the auto-condense context management vs the original context management methods
+		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
+			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
+			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
+			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
+			let shouldCompact = false
+			if (this.taskState.currentlySummarizing) {
+				this.taskState.currentlySummarizing = false
 
-			if (this.taskState.conversationHistoryDeletedRange) {
-				const [start, end] = this.taskState.conversationHistoryDeletedRange
-				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+				if (this.taskState.conversationHistoryDeletedRange) {
+					const [start, end] = this.taskState.conversationHistoryDeletedRange
+					const apiHistory = this.messageStateHandler.getApiConversationHistory()
 
-				// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
-				const safeEnd = Math.min(end + 2, apiHistory.length - 1)
-				if (end + 2 <= safeEnd) {
-					this.taskState.conversationHistoryDeletedRange = [start, end + 2]
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
+					const safeEnd = Math.min(end + 2, apiHistory.length - 1)
+					if (end + 2 <= safeEnd) {
+						this.taskState.conversationHistoryDeletedRange = [start, end + 2]
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					}
+				}
+			} else {
+				shouldCompact = this.contextManager.shouldCompactContextWindow(
+					this.messageStateHandler.getClineMessages(),
+					this.api,
+					previousApiReqIndex,
+				)
+
+				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
+				// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
+				// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
+				// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
+				// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
+				// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
+				// for now to prevent additional disk from needing to be used.
+				// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
+					const apiHistory = this.messageStateHandler.getApiConversationHistory()
+					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+
+					// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
+					// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
+					if (activeMessageCount <= 2) {
+						shouldCompact = false
+					}
 				}
 			}
-		} else {
-			shouldCompact = this.contextManager.shouldCompactContextWindow(
-				this.messageStateHandler.getClineMessages(),
-				this.api,
-				previousApiReqIndex,
-			)
 
-			// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
-			// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
-			// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
-			// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
-			// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
-			// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
-			// for now to prevent additional disk from needing to be used.
-			// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
-			if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
-				const apiHistory = this.messageStateHandler.getApiConversationHistory()
-				const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+			let parsedUserContent: UserContent
+			let environmentDetails: string
+			let clinerulesError: boolean
 
-				// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
-				// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
-				if (activeMessageCount <= 2) {
-					shouldCompact = false
-				}
+			// when summarizing the context window, we do not want to inject updated to the context
+			if (shouldCompact) {
+				parsedUserContent = userContent
+				environmentDetails = ""
+				clinerulesError = false
+				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
+			} else {
+				;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+					userContent,
+					includeFileDetails,
+				)
 			}
-		}
 
-		let parsedUserContent: UserContent
-		let environmentDetails: string
-		let clinerulesError: boolean
+			// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
+			if (clinerulesError === true) {
+				await this.say(
+					"error",
+					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+				)
+			}
+			// Compact prompt is tailored for models with small context window where environment details would often
+			// overflow the context window
+			const useCompactPrompt = customPrompt === "compact"
 
-		// when summarizing the context window, we do not want to inject updated to the context
-		if (shouldCompact) {
-			parsedUserContent = userContent
-			environmentDetails = ""
-			clinerulesError = false
+			userContent = parsedUserContent
+			// add environment details as its own text block, separate from tool results
+			// do not add environment details to the message which we are compacting the context window
+			if (!shouldCompact && !useCompactPrompt) {
+				userContent.push({ type: "text", text: environmentDetails })
+			}
+
+			if (shouldCompact) {
+				userContent.push({ type: "text", text: summarizeTask(this.focusChainSettings.enabled) })
+			}
 		} else {
-			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
-		}
-
-		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
-		if (clinerulesError === true) {
-			await this.say(
-				"error",
-				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+				userContent,
+				includeFileDetails,
+				customPrompt === "compact",
 			)
-		}
 
-		userContent = parsedUserContent
-		// add environment details as its own text block, separate from tool results
-		// do not add environment details to the message which we are compacting the context window
-		if (!shouldCompact) {
+			if (clinerulesError === true) {
+				await this.say(
+					"error",
+					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+				)
+			}
+
+			userContent = parsedUserContent
+
 			userContent.push({ type: "text", text: environmentDetails })
-		}
-
-		if (shouldCompact) {
-			userContent.push({ type: "text", text: summarizeTask() })
 		}
 
 		await this.messageStateHandler.addToApiConversationHistory({
@@ -2224,6 +2268,12 @@ export class Task {
 		})
 
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
+
+		// Capture task initialization timing telemetry for the first API request
+		if (isFirstRequest) {
+			const durationMs = Math.round(performance.now() - this.taskInitializationStartTime)
+			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, this.enableCheckpoints)
+		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
@@ -2528,13 +2578,17 @@ export class Task {
 			}
 
 			return didEndLoop // will always be false for now
-		} catch (error) {
+		} catch (_error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}
 	}
 
-	async loadContext(userContent: UserContent, includeFileDetails: boolean = false): Promise<[UserContent, string, boolean]> {
+	async loadContext(
+		userContent: UserContent,
+		includeFileDetails: boolean = false,
+		useCompactPrompt = false,
+	): Promise<[UserContent, string, boolean]> {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
@@ -2566,6 +2620,7 @@ export class Task {
 								parsedText,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								this.ulid,
 							)
 
 							if (needsCheck) {
@@ -2596,7 +2651,7 @@ export class Task {
 		}
 
 		// Add focu chain list instructions if needed
-		if (this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
+		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
 			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
 			processedUserContent.push({
 				type: "text",
@@ -2668,23 +2723,6 @@ export class Task {
 			}).catch(() => {})
 		}
 
-		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
-		/*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		*/
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
 		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
@@ -2785,7 +2823,7 @@ export class Task {
 		}
 
 		// Add context window usage information
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
+		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
@@ -2795,7 +2833,7 @@ export class Task {
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-			} catch (e) {
+			} catch (_e) {
 				return 0
 			}
 		}

@@ -1,21 +1,22 @@
-import { ExtensionContext } from "vscode"
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
-import { LanguageModelChatSelector } from "vscode"
+import { ExtensionContext, LanguageModelChatSelector } from "vscode"
+import { Controller } from "@/core/controller"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/DictationSettings"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@/shared/FocusChainSettings"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
+import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { SecretKey } from "../state-keys"
-import { Controller } from "@/core/controller"
-import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/DictationSettings"
 
 export async function readStateFromDisk(context: ExtensionContext) {
 	// Get all global state values
 	const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
+	const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 	const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 	const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined
 	const awsRegion = context.globalState.get("awsRegion") as string | undefined
@@ -28,10 +29,12 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const vertexProjectId = context.globalState.get("vertexProjectId") as string | undefined
 	const vertexRegion = context.globalState.get("vertexRegion") as string | undefined
 	const openAiBaseUrl = context.globalState.get("openAiBaseUrl") as string | undefined
+	const requestyBaseUrl = context.globalState.get("requestyBaseUrl") as string | undefined
 	const openAiHeaders = context.globalState.get("openAiHeaders") as Record<string, string> | undefined
 	const ollamaBaseUrl = context.globalState.get("ollamaBaseUrl") as string | undefined
 	const ollamaApiOptionsCtxNum = context.globalState.get("ollamaApiOptionsCtxNum") as string | undefined
 	const lmStudioBaseUrl = context.globalState.get("lmStudioBaseUrl") as string | undefined
+	const lmStudioMaxTokens = context.globalState.get("lmStudioMaxTokens") as string | undefined
 	const anthropicBaseUrl = context.globalState.get("anthropicBaseUrl") as string | undefined
 	const geminiBaseUrl = context.globalState.get("geminiBaseUrl") as string | undefined
 	const azureApiVersion = context.globalState.get("azureApiVersion") as string | undefined
@@ -47,6 +50,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const userInfo = context.globalState.get("userInfo") as UserInfo | undefined
 	const qwenApiLine = context.globalState.get("qwenApiLine") as string | undefined
 	const moonshotApiLine = context.globalState.get("moonshotApiLine") as string | undefined
+	const zaiApiLine = context.globalState.get("zaiApiLine") as string | undefined
 	const telemetrySetting = context.globalState.get("telemetrySetting") as TelemetrySetting | undefined
 	const asksageApiUrl = context.globalState.get("asksageApiUrl") as string | undefined
 	const planActSeparateModelsSettingRaw = context.globalState.get("planActSeparateModelsSetting") as boolean | undefined
@@ -66,9 +70,12 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const sapAiCoreTokenUrl = context.globalState.get("sapAiCoreTokenUrl") as string | undefined
 	const sapAiResourceGroup = context.globalState.get("sapAiResourceGroup") as string | undefined
 	const claudeCodePath = context.globalState.get("claudeCodePath") as string | undefined
+	const difyBaseUrl = context.globalState.get("difyBaseUrl") as string | undefined
 	const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 	const dictationSettings = context.globalState.get("dictationSettings") as DictationSettings | undefined
+	const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
+	const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
 
 	// Get all secret values
 	const [
@@ -102,7 +109,10 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		sapAiCoreClientSecret,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
+		zaiApiKey,
 		ollamaApiKey,
+		vercelAiGatewayApiKey,
+		difyApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -134,7 +144,10 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
+		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
+		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
+		context.secrets.get("difyApiKey") as Promise<string | undefined>,
 	])
 
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
@@ -178,6 +191,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const planModeHuaweiCloudMaasModelInfo = context.globalState.get("planModeHuaweiCloudMaasModelInfo") as ModelInfo | undefined
 	const planModeBasetenModelId = context.globalState.get("planModeBasetenModelId") as string | undefined
 	const planModeBasetenModelInfo = context.globalState.get("planModeBasetenModelInfo") as ModelInfo | undefined
+	const planModeVercelAiGatewayModelId = context.globalState.get("planModeVercelAiGatewayModelId") as string | undefined
+	const planModeVercelAiGatewayModelInfo = context.globalState.get("planModeVercelAiGatewayModelInfo") as ModelInfo | undefined
 	// Act mode configurations
 	const actModeApiProvider = context.globalState.get("actModeApiProvider") as ApiProvider | undefined
 	const actModeApiModelId = context.globalState.get("actModeApiModelId") as string | undefined
@@ -211,6 +226,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const actModeHuaweiCloudMaasModelInfo = context.globalState.get("actModeHuaweiCloudMaasModelInfo") as ModelInfo | undefined
 	const actModeBasetenModelId = context.globalState.get("actModeBasetenModelId") as string | undefined
 	const actModeBasetenModelInfo = context.globalState.get("actModeBasetenModelInfo") as ModelInfo | undefined
+	const actModeVercelAiGatewayModelId = context.globalState.get("actModeVercelAiGatewayModelId") as string | undefined
+	const actModeVercelAiGatewayModelInfo = context.globalState.get("actModeVercelAiGatewayModelInfo") as ModelInfo | undefined
 
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
@@ -230,7 +247,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 	// On win11 state sometimes initializes as empty string instead of undefined
-	let planActSeparateModelsSetting: boolean | undefined = undefined
+	let planActSeparateModelsSetting: boolean | undefined
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
@@ -263,11 +280,13 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
+			requestyBaseUrl,
 			openAiApiKey,
 			openAiHeaders: openAiHeaders || {},
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -278,6 +297,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			qwenApiKey,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -306,7 +326,11 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			basetenApiKey,
+			zaiApiKey,
 			ollamaApiKey,
+			vercelAiGatewayApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -336,6 +360,8 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeBasetenModelId,
 			planModeBasetenModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -365,8 +391,13 @@ export async function readStateFromDisk(context: ExtensionContext) {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		},
-		strictPlanModeEnabled: strictPlanModeEnabled ?? false,
+		focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
+		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
+		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
 		welcomeViewCompleted,
 		lastShownAnnouncementId,
@@ -378,12 +409,12 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 		mode: mode || "act",
 		userInfo,
-		mcpMarketplaceEnabled: mcpMarketplaceEnabledRaw || true,
+		mcpMarketplaceEnabled: mcpMarketplaceEnabledRaw ?? true,
 		mcpDisplayMode: mcpDisplayMode ?? DEFAULT_MCP_DISPLAY_MODE,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
-		enableCheckpointsSetting: enableCheckpointsSettingRaw || true,
+		enableCheckpointsSetting: enableCheckpointsSettingRaw ?? true,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 		terminalReuseEnabled: terminalReuseEnabled ?? true,
 		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
@@ -439,6 +470,9 @@ export async function resetGlobalState(controller: Controller) {
 		"nebiusApiKey",
 		"huggingFaceApiKey",
 		"huaweiCloudMaasApiKey",
+		"vercelAiGatewayApiKey",
+		"zaiApiKey",
+		"difyApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.cacheService.reInitialize()

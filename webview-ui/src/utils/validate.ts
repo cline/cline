@@ -1,6 +1,6 @@
-import { ApiConfiguration, openRouterDefaultModelId, ModelInfo } from "@shared/api"
-import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
@@ -8,7 +8,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			apiProvider,
 			openAiModelId,
 			requestyModelId,
-			fireworksModelId,
 			togetherModelId,
 			ollamaModelId,
 			lmStudioModelId,
@@ -82,12 +81,12 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "requesty":
-				if (!apiConfiguration.requestyApiKey || !requestyModelId) {
+				if (!apiConfiguration.requestyApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !fireworksModelId) {
+				if (!apiConfiguration.fireworksApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
@@ -143,6 +142,19 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				if (!apiConfiguration.sapAiCoreTokenUrl) {
 					return "You must provide a valid Auth URL or choose a different provider."
+				}
+				break
+			case "zai":
+				if (!apiConfiguration.zaiApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "dify":
+				if (!apiConfiguration.difyBaseUrl) {
+					return "You must provide a valid Base URL or choose a different provider."
+				}
+				if (!apiConfiguration.difyApiKey) {
+					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 		}

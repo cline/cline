@@ -1,11 +1,11 @@
-import { ApiConfiguration } from "@shared/api"
-import { SecretKey, GlobalStateKey, LocalStateKey, GlobalState, Secrets, LocalState } from "./state-keys"
-import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
-import type { ExtensionContext } from "vscode"
-import { readStateFromDisk } from "./utils/state-helpers"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import type { ExtensionContext } from "vscode"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_DICTATION_SETTINGS } from "@/shared/DictationSettings"
+import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
+import { readStateFromDisk } from "./utils/state-helpers"
 
 /**
  * Interface for persistence error event data
@@ -209,12 +209,14 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
+			requestyBaseUrl,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -226,6 +228,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -245,9 +248,14 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
+			vercelAiGatewayApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
 			planModeApiProvider,
@@ -278,6 +286,8 @@ export class CacheService {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -307,6 +317,8 @@ export class CacheService {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -340,6 +352,8 @@ export class CacheService {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -370,6 +384,8 @@ export class CacheService {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -381,11 +397,13 @@ export class CacheService {
 			awsAuthentication,
 			vertexProjectId,
 			vertexRegion,
+			requestyBaseUrl,
 			openAiBaseUrl,
 			openAiHeaders,
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
@@ -394,6 +412,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -403,6 +422,8 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			difyBaseUrl,
+			qwenCodeOauthPath,
 		})
 
 		// Batch update secrets
@@ -438,6 +459,9 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			vercelAiGatewayApiKey,
+			zaiApiKey,
 		})
 	}
 
@@ -620,12 +644,14 @@ export class CacheService {
 			ollamaApiKey,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
+			requestyBaseUrl,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -637,6 +663,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -657,9 +684,15 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
+			vercelAiGatewayApiKey,
+			zaiApiKey,
 			requestTimeoutMs,
+			authNonce,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -689,6 +722,8 @@ export class CacheService {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -718,12 +753,15 @@ export class CacheService {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 		} = state.apiConfiguration || {}
 
 		// Directly populate global state cache without triggering persistence
 		const globalStateFields = {
 			// Extension state fields
 			strictPlanModeEnabled: state.strictPlanModeEnabled,
+			useAutoCondense: state.useAutoCondense,
 			isNewUser: state.isNewUser,
 			welcomeViewCompleted: state.welcomeViewCompleted,
 			autoApprovalSettings: state.autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS,
@@ -748,6 +786,9 @@ export class CacheService {
 			defaultTerminalProfile: state.defaultTerminalProfile,
 			globalWorkflowToggles: state.globalWorkflowToggles,
 			taskHistory: state.taskHistory,
+			lastShownAnnouncementId: state.lastShownAnnouncementId,
+			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
+			customPrompt: state.customPrompt,
 
 			// Plan mode configuration updates
 			planModeApiProvider,
@@ -778,6 +819,8 @@ export class CacheService {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -808,6 +851,8 @@ export class CacheService {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 
 			// API configuration global state updates
 			awsRegion,
@@ -817,13 +862,16 @@ export class CacheService {
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+			awsBedrockApiKey,
 			vertexProjectId,
 			vertexRegion,
+			requestyBaseUrl,
 			openAiBaseUrl,
 			openAiHeaders,
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
+			lmStudioMaxTokens,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
@@ -832,6 +880,7 @@ export class CacheService {
 			liteLlmUsePromptCache,
 			qwenApiLine,
 			moonshotApiLine,
+			zaiApiLine,
 			asksageApiUrl,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -841,7 +890,9 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
-		}
+			difyBaseUrl,
+			qwenCodeOauthPath,
+		} satisfies GlobalState
 
 		// Populate global state cache directly
 		Object.assign(this.globalStateCache, globalStateFields)
@@ -877,9 +928,13 @@ export class CacheService {
 			nebiusApiKey,
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
+			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
-		}
+			difyApiKey,
+			vercelAiGatewayApiKey,
+			zaiApiKey,
+		} satisfies Secrets
 
 		// Populate secrets cache directly
 		Object.assign(this.secretsCache, secretsFields)
@@ -932,6 +987,9 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			difyApiKey: this.secretsCache["difyApiKey"],
+			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
+			zaiApiKey: this.secretsCache["zaiApiKey"],
 
 			// Global state
 			awsRegion: this.globalStateCache["awsRegion"],
@@ -943,11 +1001,13 @@ export class CacheService {
 			awsAuthentication: this.globalStateCache["awsAuthentication"],
 			vertexProjectId: this.globalStateCache["vertexProjectId"],
 			vertexRegion: this.globalStateCache["vertexRegion"],
+			requestyBaseUrl: this.globalStateCache["requestyBaseUrl"],
 			openAiBaseUrl: this.globalStateCache["openAiBaseUrl"],
 			openAiHeaders: this.globalStateCache["openAiHeaders"] || {},
 			ollamaBaseUrl: this.globalStateCache["ollamaBaseUrl"],
 			ollamaApiOptionsCtxNum: this.globalStateCache["ollamaApiOptionsCtxNum"],
 			lmStudioBaseUrl: this.globalStateCache["lmStudioBaseUrl"],
+			lmStudioMaxTokens: this.globalStateCache["lmStudioMaxTokens"],
 			anthropicBaseUrl: this.globalStateCache["anthropicBaseUrl"],
 			geminiBaseUrl: this.globalStateCache["geminiBaseUrl"],
 			azureApiVersion: this.globalStateCache["azureApiVersion"],
@@ -956,6 +1016,7 @@ export class CacheService {
 			liteLlmUsePromptCache: this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.globalStateCache["qwenApiLine"],
 			moonshotApiLine: this.globalStateCache["moonshotApiLine"],
+			zaiApiLine: this.globalStateCache["zaiApiLine"],
 			asksageApiUrl: this.globalStateCache["asksageApiUrl"],
 			favoritedModelIds: this.globalStateCache["favoritedModelIds"],
 			requestTimeoutMs: this.globalStateCache["requestTimeoutMs"],
@@ -965,6 +1026,8 @@ export class CacheService {
 			sapAiCoreTokenUrl: this.globalStateCache["sapAiCoreTokenUrl"],
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
+			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
+			difyBaseUrl: this.globalStateCache["difyBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],
@@ -985,7 +1048,7 @@ export class CacheService {
 			planModeRequestyModelId: this.globalStateCache["planModeRequestyModelId"],
 			planModeRequestyModelInfo: this.globalStateCache["planModeRequestyModelInfo"],
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
-			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"],
+			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
@@ -995,6 +1058,8 @@ export class CacheService {
 			planModeHuggingFaceModelInfo: this.globalStateCache["planModeHuggingFaceModelInfo"],
 			planModeHuaweiCloudMaasModelId: this.globalStateCache["planModeHuaweiCloudMaasModelId"],
 			planModeHuaweiCloudMaasModelInfo: this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
+			planModeVercelAiGatewayModelId: this.globalStateCache["planModeVercelAiGatewayModelId"],
+			planModeVercelAiGatewayModelInfo: this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider: this.globalStateCache["actModeApiProvider"],
@@ -1015,7 +1080,7 @@ export class CacheService {
 			actModeRequestyModelId: this.globalStateCache["actModeRequestyModelId"],
 			actModeRequestyModelInfo: this.globalStateCache["actModeRequestyModelInfo"],
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
-			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"],
+			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
@@ -1025,6 +1090,8 @@ export class CacheService {
 			actModeHuggingFaceModelInfo: this.globalStateCache["actModeHuggingFaceModelInfo"],
 			actModeHuaweiCloudMaasModelId: this.globalStateCache["actModeHuaweiCloudMaasModelId"],
 			actModeHuaweiCloudMaasModelInfo: this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
+			actModeVercelAiGatewayModelId: this.globalStateCache["actModeVercelAiGatewayModelId"],
+			actModeVercelAiGatewayModelInfo: this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 		}
 	}
 }

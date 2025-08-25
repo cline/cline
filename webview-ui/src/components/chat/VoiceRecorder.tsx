@@ -1,14 +1,13 @@
-import React, { useState, useCallback, useEffect, useRef } from "react"
-import { DictationServiceClient } from "@/services/grpc-client"
 import {
+	GetRecordingStatusRequest,
 	StartRecordingRequest,
 	StopRecordingRequest,
 	TranscribeAudioRequest,
-	GetRecordingStatusRequest,
 } from "@shared/proto/cline/dictation"
-
-import HeroTooltip from "../common/HeroTooltip"
+import React, { useCallback, useEffect, useRef, useState } from "react"
+import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
+import HeroTooltip from "../common/HeroTooltip"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void

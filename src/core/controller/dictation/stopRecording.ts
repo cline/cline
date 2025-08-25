@@ -1,7 +1,7 @@
-import { Controller } from ".."
-import { StopRecordingRequest, RecordedAudio } from "@shared/proto/cline/dictation"
-import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { RecordedAudio, StopRecordingRequest } from "@shared/proto/cline/dictation"
+import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
+import { Controller } from ".."
 
 /**
  * Stops audio recording and returns the recorded audio

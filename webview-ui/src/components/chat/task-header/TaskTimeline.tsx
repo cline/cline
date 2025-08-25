@@ -1,17 +1,17 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
-import { Virtuoso } from "react-virtuoso"
-import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import { Virtuoso } from "react-virtuoso"
+import { COLOR_GRAY } from "../colors"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_PURPLE, COLOR_GREEN } from "../colors"
 
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "13px"
 const BLOCK_WIDTH = "13px"
 const BLOCK_GAP = "3px"
-const TOOLTIP_MARGIN = 32 // 32px margin on each side
+const _TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
@@ -23,12 +23,14 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
 	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
-		if (messages.length <= 1) return { taskTimelinePropsMessages: [], messageIndexMap: [] }
+		if (messages.length <= 1) {
+			return { taskTimelinePropsMessages: [], messageIndexMap: [] }
+		}
 
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
 		const indexMap: number[] = []
 
-		const filtered = processed.filter((msg, processedIndex) => {
+		const filtered = processed.filter((msg, _processedIndex) => {
 			const originalIndex = messages.findIndex((originalMsg, idx) => idx > 0 && originalMsg.ts === msg.ts)
 
 			// Filter out standard "say" events we don't want to show
@@ -137,7 +139,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				style={{
 					position: "relative",
 					width: "100%",
-					marginTop: "4px",
 					marginBottom: "4px",
 					overflow: "hidden",
 				}}>
@@ -171,7 +172,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				position: "relative",
 				width: "100%",
 				height: TIMELINE_HEIGHT,
-				marginTop: "4px",
 				marginBottom: "4px",
 			}}>
 			<style>
@@ -188,18 +188,18 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 			</style>
 
 			<Virtuoso
-				ref={virtuosoRef}
 				className="timeline-virtuoso"
+				fixedItemHeight={itemWidth}
+				horizontalDirection={true}
+				increaseViewportBy={12}
+				itemContent={TimelineBlock}
+				ref={virtuosoRef}
 				style={{
 					height: TIMELINE_HEIGHT,
 					width: "100%",
 					//overflowY: "hidden",
 				}}
 				totalCount={Math.max(1, taskTimelinePropsMessages.length)}
-				itemContent={TimelineBlock}
-				horizontalDirection={true}
-				increaseViewportBy={12}
-				fixedItemHeight={itemWidth}
 			/>
 		</div>
 	)

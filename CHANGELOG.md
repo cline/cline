@@ -1,5 +1,79 @@
 # Changelog
 
+## [3.26.6]
+
+- Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option
+- Fix GPT-5 models not respecting auto-compact setting when enabled, improving context window management
+- Fix provider retry attempts not showing proper user feedback during rate limiting scenarios
+- Improve markdown and code block styling to automatically adapt when switching VS Code themes
+
+## [3.26.5]
+
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
+
+## [3.26.4]
+
+- Update nebius ai studio models
+- Update sap provider - support reasoning effort for open ai models
+- Fix Claude 4 image input in SAP AI Core Provider
+
+## [3.26.3]
+
+- Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
+- Add token usage tracking for LM Studio models to better monitor API consumption
+- Add "Use compact prompt" checkbox in LM Studio provider settings
+- Fix "Unexpected API Response" bug with gpt-5
+
+## [3.26.2]
+
+- Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
+- Fix OpenRouter context window error handling to properly extract error codes from error messages, resolving "Unexpected API Response" errors with GPT-5 on Cline provider
+- Fix GPT-5 context window configuration for OpenAI/OpenRouter/Cline providers to use correct 272K limit
+- Remove max tokens configuration from Sonic Alpha model
+- Add Go language support to deep-planning feature (Thanks @yuvalman!)
+- Fix typo in Focus Chain settings page (Thanks @joyceerhl!)
+
+## [3.26.1]
+
+- Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
+- Improve SAP AI Core provider to show deployed and undeployed models in the UI (Thanks @yuvalman!)
+- Fix Fireworks provider configuration and functionality (Thanks @ershang-fireworks!)
+- Add telemetry tracking for MCP tool usage to help improve the extension
+- Improve telemetry tracking for rules and workflow usage analytics
+- Set Plan mode to use strict mode by default for better planning results
+
+## [3.26.0]
+
+- Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
+- Add Cline Sonic Alpha model - experimental advanced model with 262K context window for complex coding tasks
+- Add support for LM Studio local models from v0 API endpoint with configurable max tokens
+- Fix Ollama context window configuration not being used in requests
+
+## [3.25.3]
+
+- Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload
+- Move the position of the focus chain edit button when a scrollbar is present. Make the pencil icon bigger and better centered.
+
+## [3.25.2]
+
+- Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
+- Fix OpenRouter showing cline credits error after 402 response
+
+## [3.25.1]
+
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
+
+## [3.25.0]
+
+- **Focus Chain:** Automatically creates and maintains todo lists as you work with Cline, breaking down complex tasks into manageable steps with real-time progress tracking
+- **Auto Compact:** Intelligently manages conversation context to prevent token limit errors by automatically compacting older messages while preserving important context
+- **Deep Planning:** New `/deep-planning` slash command for structured 4-step implementation planning that integrates with Focus Chain for automatic progress tracking
+- Add support for 200k context window for Claude Sonnet 4 in OpenRouter and Cline providers
+- Add option to configure custom base URL for Requesty provider
+
 ## [3.24.0]
 
 - Add OpenAI GPT-5 Chat(gpt-5-chat-latest)

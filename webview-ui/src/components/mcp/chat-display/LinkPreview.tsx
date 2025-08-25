@@ -1,8 +1,8 @@
-import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
-import { WebServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import { WebServiceClient } from "@/services/grpc-client"
 import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 
 interface OpenGraphData {
@@ -231,15 +231,6 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 			return (
 				<div
 					className="link-preview-error"
-					style={{
-						padding: "12px",
-						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
-						color: "var(--vscode-errorForeground)",
-						height: "128px",
-						maxWidth: "512px",
-						overflow: "auto",
-					}}
 					onClick={async () => {
 						try {
 							await WebServiceClient.openInBrowser(
@@ -250,6 +241,15 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 						} catch (err) {
 							console.error("Error opening URL in browser:", err)
 						}
+					}}
+					style={{
+						padding: "12px",
+						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
+						borderRadius: "4px",
+						color: "var(--vscode-errorForeground)",
+						height: "128px",
+						maxWidth: "512px",
+						overflow: "auto",
 					}}>
 					<div style={{ fontWeight: "bold" }}>{errorDisplay}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -273,15 +273,6 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 		return (
 			<div
 				className="link-preview"
-				style={{
-					display: "flex",
-					border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-					borderRadius: "4px",
-					overflow: "hidden",
-					cursor: "pointer",
-					height: "128px",
-					maxWidth: "512px",
-				}}
 				onClick={async () => {
 					try {
 						await WebServiceClient.openInBrowser(
@@ -292,17 +283,24 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					} catch (err) {
 						console.error("Error opening URL in browser:", err)
 					}
+				}}
+				style={{
+					display: "flex",
+					border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
+					borderRadius: "4px",
+					overflow: "hidden",
+					cursor: "pointer",
+					height: "128px",
+					maxWidth: "512px",
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
 						<img
-							src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
 							alt=""
-							style={{
-								width: "100%",
-								height: "100%",
-								objectFit: "contain", // Use contain for link preview thumbnails to handle logos
-								objectPosition: "center", // Center the image
+							onError={(e) => {
+								console.log(`Image could not be loaded: ${data.image}`)
+								// Hide the broken image
+								;(e.target as HTMLImageElement).style.display = "none"
 							}}
 							onLoad={(e) => {
 								// Check aspect ratio to determine if we should use contain or cover
@@ -318,10 +316,12 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 									}
 								}
 							}}
-							onError={(e) => {
-								console.log(`Image could not be loaded: ${data.image}`)
-								// Hide the broken image
-								;(e.target as HTMLImageElement).style.display = "none"
+							src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
+							style={{
+								width: "100%",
+								height: "100%",
+								objectFit: "contain", // Use contain for link preview thumbnails to handle logos
+								objectPosition: "center", // Center the image
 							}}
 						/>
 					</div>

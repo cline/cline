@@ -1,5 +1,5 @@
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 import { serializeError } from "serialize-error"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
@@ -67,14 +67,18 @@ export class ClineError extends Error {
 		// Construct the error details object to includes relevant information
 		// And ensure it has a consistent structure
 		this._error = {
+			...error,
 			message: raw.message || message,
 			status,
-			request_id: error.response?.headers?.["x-request-id"],
+			request_id:
+				error.error?.request_id ||
+				error.request_id ||
+				error.response?.request_id ||
+				error.response?.headers?.["x-request-id"],
 			code: error.code || error?.cause?.code,
 			modelId,
 			providerId,
 			details: error.details || error.error, // Additional details provided by the server
-			...error,
 			stack: undefined, // Avoid serializing stack trace to keep the error object clean
 		}
 	}
@@ -129,7 +133,7 @@ export class ClineError extends Error {
 		const { code, status, details } = err._error
 
 		// Check balance error first (most specific)
-		if (status === 402 || (code === "insufficient_credits" && typeof details?.current_balance === "number")) {
+		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
 			return ClineErrorType.Balance
 		}
 

@@ -1,17 +1,17 @@
-import React, { memo, useEffect, useRef, useState } from "react"
+import { StringRequest } from "@shared/proto/cline/common"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import type { ComponentProps } from "react"
+import React, { memo, useEffect, useRef } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
-import { visit } from "unist-util-visit"
 import type { Node } from "unist"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { visit } from "unist-util-visit"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
-import { WithCopyButton } from "./CopyButton"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
-import { StringRequest, BooleanResponse } from "@shared/proto/cline/common"
+import { WithCopyButton } from "./CopyButton"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {
@@ -19,6 +19,9 @@ const ActModeHighlight: React.FC = () => {
 
 	return (
 		<span
+			className={`text-[var(--vscode-textLink-foreground)] inline-flex items-center gap-1 ${
+				mode === "plan" ? "hover:opacity-90 cursor-pointer" : "cursor-default opacity-60"
+			}`}
 			onClick={() => {
 				// Only toggle to Act mode if we're currently in Plan mode
 				if (mode === "plan") {
@@ -29,10 +32,7 @@ const ActModeHighlight: React.FC = () => {
 					)
 				}
 			}}
-			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}
-			className={`text-[var(--vscode-textLink-foreground)] inline-flex items-center gap-1 ${
-				mode === "plan" ? "hover:opacity-90 cursor-pointer" : "cursor-default opacity-60"
-			}`}>
+			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}>
 			<div className="p-1 rounded-[12px] bg-[var(--vscode-editor-background)] flex items-center justify-end w-4 border-[1px] border-[var(--vscode-input-border)]">
 				<div className="rounded-full bg-[var(--vscode-textLink-foreground)] w-2 h-2" />
 			</div>
@@ -275,28 +275,7 @@ const StyledMarkdown = styled.div`
 	}
 `
 
-const StyledPre = styled.pre<{ theme: any }>`
-	& .hljs {
-		color: var(--vscode-editor-foreground, #fff);
-	}
-
-	${(props) =>
-		Object.keys(props.theme)
-			.map((key, index) => {
-				return `
-      & ${key} {
-        color: ${props.theme[key]};
-      }
-    `
-			})
-			.join("")}
-`
-
-const PreWithCopyButton = ({
-	children,
-	theme,
-	...preProps
-}: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
+const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
 	const preRef = useRef<HTMLPreElement>(null)
 
 	const handleCopy = () => {
@@ -310,13 +289,11 @@ const PreWithCopyButton = ({
 		return null
 	}
 
-	const styledPreProps = theme ? { ...preProps, theme } : preProps
-
 	return (
-		<WithCopyButton onCopy={handleCopy} position="top-right" ariaLabel="Copy code">
-			<StyledPre {...styledPreProps} ref={preRef}>
+		<WithCopyButton ariaLabel="Copy code" onCopy={handleCopy} position="top-right">
+			<pre {...preProps} ref={preRef}>
 				{children}
-			</StyledPre>
+			</pre>
 		</WithCopyButton>
 	)
 }
@@ -355,8 +332,6 @@ const remarkFilePathDetection = () => {
 }
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
-	const { theme } = useExtensionState()
-
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
@@ -390,11 +365,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 							return child
 						}
 					}
-					return (
-						<PreWithCopyButton {...preProps} theme={theme || {}}>
-							{children}
-						</PreWithCopyButton>
-					)
+					return <PreWithCopyButton {...preProps}>{children}</PreWithCopyButton>
 				},
 				code: (props: ComponentProps<"code"> & { [key: string]: any }) => {
 					const className = props.className || ""
@@ -412,10 +383,10 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 							<>
 								<code {...props} />
 								<button
-									type="button"
 									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-[1px] text-[var(--vscode-textPreformat-foreground)] translate-y-[-2px]"
 									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
 									title={`Open ${filePath} in editor`}
+									type="button"
 								/>
 							</>
 						)
@@ -450,7 +421,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 
 	useEffect(() => {
 		setMarkdown(markdown || "")
-	}, [markdown, setMarkdown, theme])
+	}, [markdown, setMarkdown])
 
 	return (
 		<div>

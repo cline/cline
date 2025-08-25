@@ -1,13 +1,13 @@
-import { clineEnvConfig } from "@/config"
-import { Controller } from "@/core/controller"
-import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
-import { openExternal } from "@/utils/env"
-import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
+import { clineEnvConfig } from "@/config"
+import { Controller } from "@/core/controller"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
+import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
+import { openExternal } from "@/utils/env"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -60,13 +60,11 @@ export class AuthService {
 
 	/**
 	 * Creates an instance of AuthService.
-	 * @param config - Configuration for the service, including the URI for authentication.
-	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 */
-	protected constructor(controller: Controller, config: ServiceConfig, authProvider?: any) {
-		const providerName = authProvider || "firebase"
-		this._config = Object.assign({ URI: DefaultClineAccountURI }, config)
+	protected constructor(controller: Controller) {
+		const providerName = "firebase"
+		this._config = { URI: DefaultClineAccountURI }
 
 		// Fetch AuthProviders
 		// TODO:  Deliver this config from the backend securely
@@ -100,12 +98,10 @@ export class AuthService {
 
 	/**
 	 * Gets the singleton instance of AuthService.
-	 * @param config - Configuration for the service, including the URI for authentication.
-	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 * @returns The singleton instance of AuthService.
 	 */
-	public static getInstance(controller?: Controller, config?: ServiceConfig, authProvider?: any): AuthService {
+	public static getInstance(controller?: Controller): AuthService {
 		if (!AuthService.instance) {
 			if (!controller) {
 				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
@@ -115,9 +111,9 @@ export class AuthService {
 				// Use require instead of import to avoid circular dependency issues
 				// eslint-disable-next-line @typescript-eslint/no-var-requires
 				const { AuthServiceMock } = require("./AuthServiceMock")
-				AuthService.instance = AuthServiceMock.getInstance(controller, config || {}, authProvider)
+				AuthService.instance = AuthServiceMock.getInstance(controller)
 			} else {
-				AuthService.instance = new AuthService(controller, config || {}, authProvider)
+				AuthService.instance = new AuthService(controller)
 			}
 		}
 		if (controller !== undefined && AuthService.instance) {

@@ -8,7 +8,7 @@
 		"build": "tsc -b && vite build",
 		"build:test": "tsc -b && vite build -- --dev-build",
 		"preview": "vite preview",
-		"lint": "eslint . --ext .ts,.tsx",
+		"lint": "biome lint --changed --no-errors-on-unmatched",
 		"test": "vitest run",
 		"test:watch": "vitest dev",
 		"test:coverage": "vitest run --coverage",
@@ -45,7 +45,6 @@
 		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
-		"@eslint/js": "^9.17.0",
 		"@tailwindcss/vite": "^4.1.4",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
@@ -59,16 +58,11 @@
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
 		"@vitest/coverage-v8": "^3.0.9",
-		"eslint": "^8.57.0",
-		"eslint-plugin-eslint-rules": "file:../eslint-rules",
-		"eslint-plugin-react-hooks": "^5.2.0",
-		"eslint-plugin-react-refresh": "^0.4.16",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
 		"react-devtools": "^6.1.2",
 		"tailwindcss": "^4.1.5",
 		"typescript": "^5.7.3",
-		"typescript-eslint": "^8.18.2",
 		"vite": "^6.3.4",
 		"vitest": "^3.0.5"
 	},

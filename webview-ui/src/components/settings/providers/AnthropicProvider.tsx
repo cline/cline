@@ -1,13 +1,15 @@
 import { anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useMemo } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -37,6 +39,25 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
+	// Check if the current model is Claude Sonnet 4 and determine the alternate variant
+	const claudeSonnet4Variant = useMemo(() => {
+		const SONNET_4_MODEL_ID = "claude-sonnet-4-20250514"
+		if (selectedModelId === SONNET_4_MODEL_ID) {
+			return {
+				current: SONNET_4_MODEL_ID,
+				alternate: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
+				linkText: "Switch to 1M context window model",
+			}
+		} else if (selectedModelId === `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`) {
+			return {
+				current: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
+				alternate: SONNET_4_MODEL_ID,
+				linkText: "Switch to 200K context window model",
+			}
+		}
+		return null
+	}, [selectedModelId])
+
 	return (
 		<div>
 			<ApiKeyField
@@ -48,16 +69,16 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 			<BaseUrlField
 				initialValue={apiConfiguration?.anthropicBaseUrl}
+				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
 				placeholder="Default: https://api.anthropic.com"
-				label="Use custom base URL"
 			/>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={anthropicModels}
-						selectedModelId={selectedModelId}
 						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -65,14 +86,34 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
+					{claudeSonnet4Variant && (
+						<div style={{ marginBottom: 2 }}>
+							<VSCodeLink
+								onClick={() =>
+									handleModeFieldChange(
+										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+										claudeSonnet4Variant.alternate,
+										currentMode,
+									)
+								}
+								style={{
+									display: "inline",
+									fontSize: "10.5px",
+									color: "var(--vscode-textLink-foreground)",
+								}}>
+								{claudeSonnet4Variant.linkText}
+							</VSCodeLink>
+						</div>
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					)}
+
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

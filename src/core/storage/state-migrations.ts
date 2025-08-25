@@ -1,7 +1,7 @@
-import * as vscode from "vscode"
-import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
+import * as vscode from "vscode"
+import { ensureRulesDirectoryExists } from "./disk"
 import { readStateFromDisk } from "./utils/state-helpers"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
@@ -108,7 +108,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 				let existingContent = ""
 				try {
 					existingContent = await fs.readFile(migrationFilePath, "utf8")
-				} catch (readError) {
+				} catch (_readError) {
 					// File doesn't exist, which is fine
 				}
 
@@ -545,6 +545,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.xaiApiKey,
 						config.sambanovaApiKey,
 						config.sapAiCoreClientId,
+						config.difyApiKey,
 					].some((key) => key !== undefined)
 				: false
 

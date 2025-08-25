@@ -1,12 +1,12 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { expect } from "chai"
-import sinon from "sinon"
-import { showChangedFilesDiff } from "@core/task/multifile-diff"
 import { MessageStateHandler } from "@core/task/message-state"
-import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
+import { showChangedFilesDiff } from "@core/task/multifile-diff"
+import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/index.host"
+import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { ClineMessage } from "@/shared/ExtensionMessage"
+import { ShowMessageType } from "@/shared/proto/index.host"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("multifile-diff", () => {

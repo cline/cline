@@ -1,7 +1,7 @@
 const { spawn } = require("child_process")
 const { EventEmitter } = require("events")
-const path = require("path")
-const os = require("os")
+const _path = require("path")
+const _os = require("os")
 
 // Enhanced terminal management for standalone Cline
 // This replaces VSCode's terminal integration with real subprocess management
@@ -94,7 +94,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 		}
 	}
 
-	handleOutput(data, didEmitEmptyLine) {
+	handleOutput(data, _didEmitEmptyLine) {
 		// Set process as hot (actively outputting)
 		this.isHot = true
 		if (this.hotTimer) {
@@ -140,7 +140,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 		this.buffer += chunk
 		let lineEndIndex
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd()
+			const line = this.buffer.slice(0, lineEndIndex).trimEnd()
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
@@ -232,7 +232,7 @@ class StandaloneTerminal {
 		// Mock shell integration for compatibility
 		this.shellIntegration = {
 			cwd: { fsPath: this._cwd },
-			executeCommand: (command) => {
+			executeCommand: (_command) => {
 				// Return a mock execution object that the TerminalProcess expects
 				return {
 					read: async function* () {
@@ -380,7 +380,9 @@ class StandaloneTerminalManager {
 
 		// Find available terminal with matching CWD
 		const matchingTerminal = terminals.find((t) => {
-			if (t.busy) return false
+			if (t.busy) {
+				return false
+			}
 			return t.terminal._cwd === cwd
 		})
 
@@ -446,7 +448,7 @@ class StandaloneTerminalManager {
 
 	disposeAll() {
 		// Terminate all processes
-		for (const [terminalId, process] of this.processes) {
+		for (const [_terminalId, process] of this.processes) {
 			if (process && process.terminate) {
 				process.terminate()
 			}
