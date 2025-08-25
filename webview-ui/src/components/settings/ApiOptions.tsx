@@ -121,7 +121,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	// Define the provider options
 	const providerOptions = useMemo(
 		() => [
 			{ value: "cline", label: "Cline" },
@@ -162,7 +161,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		[],
 	)
 
-	// Get current provider label for display
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
 	}, [providerOptions, selectedProvider])
@@ -174,7 +172,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}
 	}, [currentProviderLabel, isDropdownVisible])
 
-	// Setup searchable items for Fuse
 	const searchableItems = useMemo(() => {
 		return providerOptions.map((option) => ({
 			value: option.value,
@@ -182,7 +179,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}))
 	}, [providerOptions])
 
-	// Setup Fuse for fuzzy search
 	const fuse = useMemo(() => {
 		return new Fuse(searchableItems, {
 			keys: ["html"],
@@ -195,21 +191,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		})
 	}, [searchableItems])
 
-	// Get search results
 	const providerSearchResults = useMemo(() => {
 		return searchTerm && searchTerm !== currentProviderLabel
 			? highlight(fuse.search(searchTerm), "provider-item-highlight")
 			: searchableItems
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
-	// Handle provider change
 	const handleProviderChange = (newProvider: string) => {
 		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
 
-	// Handle keyboard navigation
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) {
 			return
