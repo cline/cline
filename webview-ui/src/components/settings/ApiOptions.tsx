@@ -127,23 +127,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</label>
 				<VSCodeDropdown
 					id="api-provider"
-					onChange={async (e: any) => {
+					onChange={(e: any) => {
 						const value = e.target.value
 						if (value === "portkey") {
-							await handleModeFieldChange(
+							// Treat Portkey as an OpenAI-compatible preset
+							handleModeFieldChange(
 								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
 								"openai",
 								currentMode,
 							)
 							if (!apiConfiguration?.openAiBaseUrl) {
-								await handleFieldChange("openAiBaseUrl", "https://api.portkey.ai/v1")
+								handleFieldChange("openAiBaseUrl", "https://api.portkey.ai/v1")
 							}
 						} else {
-							await handleModeFieldChange(
-								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-								value,
-								currentMode,
-							)
+							handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, value, currentMode)
 						}
 					}}
 					style={{
@@ -153,38 +150,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					value={selectedProvider}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
-					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
+					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="portkey">Portkey</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
-					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="groq">Groq</VSCodeOption>
+					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
+					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
+					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="claude-code">Claude Code</VSCodeOption>
+					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
+					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+					<VSCodeOption value="mistral">Mistral</VSCodeOption>
+					<VSCodeOption value="zai">Z AI</VSCodeOption>
+					<VSCodeOption value="groq">Groq</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
 					<VSCodeOption value="vercel-ai-gateway">Vercel AI Gateway</VSCodeOption>
 					<VSCodeOption value="baseten">Baseten</VSCodeOption>
-					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
-					<VSCodeOption value="mistral">Mistral</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="fireworks">Fireworks AI</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
-					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
-					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="moonshot">Moonshot</VSCodeOption>
 					<VSCodeOption value="huggingface">Hugging Face</VSCodeOption>
 					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
-					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="huawei-cloud-maas">Huawei Cloud MaaS</VSCodeOption>
-					<VSCodeOption value="zai">Z AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
