@@ -7,11 +7,11 @@ import {
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface SapAiCoreHandlerOptions {
+interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
 	sapAiCoreTokenUrl?: string
