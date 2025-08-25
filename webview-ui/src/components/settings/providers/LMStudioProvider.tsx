@@ -1,5 +1,5 @@
 import type { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -9,7 +9,6 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import UseCustomPromptCheckbox from "../UseCustomPrompt"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { updateSetting } from "../utils/settingsHandlers"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -152,7 +151,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
 
-			<UseCustomPromptCheckbox key="lmstudio" />
+			<UseCustomPromptCheckbox providerId="lmstudio" />
 
 			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their

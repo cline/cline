@@ -11,7 +11,6 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import OllamaModelPicker from "../OllamaModelPicker"
 import UseCustomPromptCheckbox from "../UseCustomPrompt"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { updateSetting } from "../utils/settingsHandlers"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -126,7 +125,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				</>
 			)}
 
-			<UseCustomPromptCheckbox key="ollama" />
+			<UseCustomPromptCheckbox providerId="ollama" />
 
 			<p
 				style={{
