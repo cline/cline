@@ -75,6 +75,10 @@ declare module "vscode" {
 	}
 }
 
+const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, { provider: "openai"; defaults?: { openAiBaseUrl?: string } }>> = {
+	portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
+}
+
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration } = useExtensionState()
@@ -129,15 +133,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					id="api-provider"
 					onChange={(e: any) => {
 						const value = e.target.value
-						if (value === "portkey") {
-							// Treat Portkey as an OpenAI-compatible preset
+						const preset = OPENAI_COMPATIBLE_PRESETS[value]
+						if (preset) {
 							handleModeFieldChange(
 								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-								"openai",
+								preset.provider,
 								currentMode,
 							)
-							if (!apiConfiguration?.openAiBaseUrl) {
-								handleFieldChange("openAiBaseUrl", "https://api.portkey.ai/v1")
+							if (!apiConfiguration?.openAiBaseUrl && preset.defaults?.openAiBaseUrl) {
+								handleFieldChange("openAiBaseUrl", preset.defaults.openAiBaseUrl)
 							}
 						} else {
 							handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, value, currentMode)
