@@ -2,7 +2,7 @@ import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { PromptRegistry } from "./registry/PromptRegistry"
 import type { SystemPromptContext } from "./types"
-import { isLocalModel, isNextGenModelFamily } from "./utils"
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "./utils"
 
 export { ClineToolSet } from "./registry/ClineToolSet"
 export { PromptBuilder } from "./registry/PromptBuilder"
@@ -17,6 +17,9 @@ export { validateVariant } from "./variants/variant-validator"
  * Extract model family from model ID (e.g., "claude-4" -> "claude")
  */
 export function getModelFamily(providerInfo: ApiProviderInfo): ModelFamily {
+	if (isGPT5ModelFamily(providerInfo.model.id)) {
+		return ModelFamily.GPT_5
+	}
 	// Check for next-gen models first
 	if (isNextGenModelFamily(providerInfo.model.id)) {
 		return ModelFamily.NEXT_GEN
