@@ -795,7 +795,8 @@
 		"modelAvailability": "L'ID de model ({{modelId}}) que heu proporcionat no està disponible. Si us plau, trieu un altre model.",
 		"providerNotAllowed": "El proveïdor '{{provider}}' no està permès per la vostra organització",
 		"modelNotAllowed": "El model '{{model}}' no està permès per al proveïdor '{{provider}}' per la vostra organització",
-		"profileInvalid": "Aquest perfil conté un proveïdor o model que no està permès per la vostra organització"
+		"profileInvalid": "Aquest perfil conté un proveïdor o model que no està permès per la vostra organització",
+		"qwenCodeOauthPath": "Has de proporcionar una ruta vàlida de credencials OAuth"
 	},
 	"placeholders": {
 		"apiKey": "Introduïu la clau API...",

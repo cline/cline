@@ -796,7 +796,8 @@
 		"modelAvailability": "Het opgegeven model-ID ({{modelId}}) is niet beschikbaar. Kies een ander model.",
 		"providerNotAllowed": "Provider '{{provider}}' is niet toegestaan door je organisatie",
 		"modelNotAllowed": "Model '{{model}}' is niet toegestaan voor provider '{{provider}}' door je organisatie",
-		"profileInvalid": "Dit profiel bevat een provider of model dat niet is toegestaan door je organisatie"
+		"profileInvalid": "Dit profiel bevat een provider of model dat niet is toegestaan door je organisatie",
+		"qwenCodeOauthPath": "Je moet een geldig OAuth-referentiepad opgeven"
 	},
 	"placeholders": {
 		"apiKey": "Voer API-sleutel in...",

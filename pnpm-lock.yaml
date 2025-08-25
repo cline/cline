@@ -584,8 +584,8 @@ importers:
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
       '@roo-code/cloud':
-        specifier: ^0.19.0
-        version: 0.19.0
+        specifier: ^0.21.0
+        version: 0.21.0
       '@roo-code/ipc':
         specifier: workspace:^
         version: link:../packages/ipc
@@ -3262,11 +3262,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@roo-code/cloud@0.19.0':
-    resolution: {integrity: sha512-alZ3X4+TPqRr0xSs9v/UDo3eTlcHaI8ZW8AbWPDtgqf86P8govnyM2hVUMhGXete3AlbYIPRE/9w3/7MrcIjsA==}
+  '@roo-code/cloud@0.21.0':
+    resolution: {integrity: sha512-yNVybIjaS7Hy8GwDtGJc76N1WpCXGaCSlAEsW7VGjnojpxaIzV2GcJP1j1hg5q8HqLQnU4ixV0qXxOkxwhkEiA==}
 
-  '@roo-code/types@1.55.0':
-    resolution: {integrity: sha512-+T5MP8IQcDp7htnGDnk3M4n7S5eYk6jNkw3VBSUBZRhS4EE2GuPDI+CcdmhnDiMb6NMV6yseL+CT4G4QV5ktUw==}
+  '@roo-code/types@1.60.0':
+    resolution: {integrity: sha512-tQO6njPr/ZDNBoSHQg1/dpxfVEYeUzpKcernUxgJzmttn1zJbS0sc3CfUyPYOfYKB331z6O3KFUpaiqYFje1wA==}
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -4071,9 +4071,6 @@ packages:
 
   '@types/node@20.17.57':
     resolution: {integrity: sha512-f3T4y6VU4fVQDKVqJV4Uppy8c1p/sVvS3peyqxyWnzkqXFJLRU7Y1Bl7rMS1Qe9z0v4M6McY0Fp9yBsgHJUsWQ==}
-
-  '@types/node@20.19.11':
-    resolution: {integrity: sha512-uug3FEEGv0r+jrecvUUpbY8lLisvIjg6AAic6a2bSP5OEOLeJsDSnvhCDov7ipFFMXS3orMpzlmi0ZcuGkBbow==}
 
   '@types/node@24.2.1':
     resolution: {integrity: sha512-DRh5K+ka5eJic8CjH7td8QpYEV6Zo10gfRkjHCO3weqZHWDtAaSTFtl4+VMqOJ4N5jcuhZ9/l+yy8rVgw7BQeQ==}
@@ -9490,9 +9487,6 @@ packages:
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
   undici-types@7.10.0:
     resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
 
@@ -12569,9 +12563,9 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.40.2':
     optional: true
 
-  '@roo-code/cloud@0.19.0':
+  '@roo-code/cloud@0.21.0':
     dependencies:
-      '@roo-code/types': 1.55.0
+      '@roo-code/types': 1.60.0
       ioredis: 5.6.1
       p-wait-for: 5.0.2
       socket.io-client: 4.8.1
@@ -12581,7 +12575,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@roo-code/types@1.55.0':
+  '@roo-code/types@1.60.0':
     dependencies:
       zod: 3.25.76
 
@@ -13574,11 +13568,6 @@ snapshots:
     dependencies:
       undici-types: 6.19.8
 
-  '@types/node@20.19.11':
-    dependencies:
-      undici-types: 6.21.0
-    optional: true
-
   '@types/node@24.2.1':
     dependencies:
       undici-types: 7.10.0
@@ -13642,7 +13631,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 20.19.11
+      '@types/node': 24.2.1
     optional: true
 
   '@types/yargs-parser@21.0.3': {}
@@ -13815,7 +13804,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@20.17.50)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
+      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@24.2.1)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(tsx@4.19.4)(yaml@2.8.0)
 
   '@vitest/utils@3.2.4':
     dependencies:
@@ -19933,9 +19922,6 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@6.19.8: {}
-
-  undici-types@6.21.0:
-    optional: true
 
   undici-types@7.10.0: {}
 

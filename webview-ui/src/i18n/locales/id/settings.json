@@ -825,7 +825,8 @@
 		"modelAvailability": "Model ID ({{modelId}}) yang kamu berikan tidak tersedia. Silakan pilih model yang berbeda.",
 		"providerNotAllowed": "Provider '{{provider}}' tidak diizinkan oleh organisasi kamu",
 		"modelNotAllowed": "Model '{{model}}' tidak diizinkan untuk provider '{{provider}}' oleh organisasi kamu",
-		"profileInvalid": "Profil ini berisi provider atau model yang tidak diizinkan oleh organisasi kamu"
+		"profileInvalid": "Profil ini berisi provider atau model yang tidak diizinkan oleh organisasi kamu",
+		"qwenCodeOauthPath": "Kamu harus memberikan jalur kredensial OAuth yang valid"
 	},
 	"placeholders": {
 		"apiKey": "Masukkan API Key...",

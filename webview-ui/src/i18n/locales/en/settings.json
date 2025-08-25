@@ -794,7 +794,8 @@
 		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
 		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
 		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
-		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization"
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
 		"apiKey": "Enter API Key...",

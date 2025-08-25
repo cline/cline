@@ -795,7 +795,8 @@
 		"modelAvailability": "Die von dir angegebene Modell-ID ({{modelId}}) ist nicht verfügbar. Bitte wähle ein anderes Modell.",
 		"providerNotAllowed": "Anbieter '{{provider}}' ist von deiner Organisation nicht erlaubt",
 		"modelNotAllowed": "Modell '{{model}}' ist für Anbieter '{{provider}}' von deiner Organisation nicht erlaubt",
-		"profileInvalid": "Dieses Profil enthält einen Anbieter oder ein Modell, das von deiner Organisation nicht erlaubt ist"
+		"profileInvalid": "Dieses Profil enthält einen Anbieter oder ein Modell, das von deiner Organisation nicht erlaubt ist",
+		"qwenCodeOauthPath": "Du musst einen gültigen OAuth-Anmeldedaten-Pfad angeben"
 	},
 	"placeholders": {
 		"apiKey": "API-Schlüssel eingeben...",

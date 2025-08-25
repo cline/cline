@@ -796,7 +796,8 @@
 		"modelAvailability": "제공한 모델 ID({{modelId}})를 사용할 수 없습니다. 다른 모델을 선택하세요.",
 		"providerNotAllowed": "제공자 '{{provider}}'는 조직에서 허용되지 않습니다",
 		"modelNotAllowed": "모델 '{{model}}'은 제공자 '{{provider}}'에 대해 조직에서 허용되지 않습니다",
-		"profileInvalid": "이 프로필에는 조직에서 허용되지 않는 제공자 또는 모델이 포함되어 있습니다"
+		"profileInvalid": "이 프로필에는 조직에서 허용되지 않는 제공자 또는 모델이 포함되어 있습니다",
+		"qwenCodeOauthPath": "유효한 OAuth 자격 증명 경로를 제공해야 합니다"
 	},
 	"placeholders": {
 		"apiKey": "API 키 입력...",

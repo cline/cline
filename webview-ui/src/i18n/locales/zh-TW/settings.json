@@ -796,7 +796,8 @@
 		"modelAvailability": "您指定的模型 ID ({{modelId}}) 目前無法使用，請選擇其他模型。",
 		"providerNotAllowed": "供應商 '{{provider}}' 不允許用於您的組織。",
 		"modelNotAllowed": "模型 '{{model}}' 不允許用於供應商 '{{provider}}'，您的組織不允許",
-		"profileInvalid": "此設定檔包含您的組織不允許的供應商或模型"
+		"profileInvalid": "此設定檔包含您的組織不允許的供應商或模型",
+		"qwenCodeOauthPath": "您必須提供有效的 OAuth 憑證路徑"
 	},
 	"placeholders": {
 		"apiKey": "請輸入 API 金鑰...",

@@ -796,7 +796,8 @@
 		"modelAvailability": "Sağladığınız model kimliği ({{modelId}}) kullanılamıyor. Lütfen başka bir model seçin.",
 		"providerNotAllowed": "Sağlayıcı '{{provider}}' kuruluşunuz tarafından izin verilmiyor",
 		"modelNotAllowed": "Model '{{model}}' sağlayıcı '{{provider}}' için kuruluşunuz tarafından izin verilmiyor",
-		"profileInvalid": "Bu profil, kuruluşunuz tarafından izin verilmeyen bir sağlayıcı veya model içeriyor"
+		"profileInvalid": "Bu profil, kuruluşunuz tarafından izin verilmeyen bir sağlayıcı veya model içeriyor",
+		"qwenCodeOauthPath": "Geçerli bir OAuth kimlik bilgileri yolu sağlamalısın"
 	},
 	"placeholders": {
 		"apiKey": "API anahtarını girin...",

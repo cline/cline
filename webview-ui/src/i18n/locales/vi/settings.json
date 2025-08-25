@@ -796,7 +796,8 @@
 		"modelAvailability": "ID mô hình ({{modelId}}) bạn đã cung cấp không khả dụng. Vui lòng chọn một mô hình khác.",
 		"providerNotAllowed": "Nhà cung cấp '{{provider}}' không được phép bởi tổ chức của bạn",
 		"modelNotAllowed": "Mô hình '{{model}}' không được phép cho nhà cung cấp '{{provider}}' bởi tổ chức của bạn",
-		"profileInvalid": "Hồ sơ này chứa một nhà cung cấp hoặc mô hình không được phép bởi tổ chức của bạn"
+		"profileInvalid": "Hồ sơ này chứa một nhà cung cấp hoặc mô hình không được phép bởi tổ chức của bạn",
+		"qwenCodeOauthPath": "Bạn phải cung cấp đường dẫn thông tin xác thực OAuth hợp lệ"
 	},
 	"placeholders": {
 		"apiKey": "Nhập khóa API...",
