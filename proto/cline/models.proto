@@ -149,6 +149,8 @@ enum ApiProvider {
   BASETEN = 30;
   ZAI = 31;
   VERCEL_AI_GATEWAY = 32;
+  QWEN_CODE = 33;
+  DIFY = 34;
 }
 
 // Model info for OpenAI-compatible models
@@ -257,6 +259,9 @@ message ModelsApiConfiguration {
   optional string zai_api_line = 66;
   optional string lm_studio_max_tokens = 67;
   optional string vercel_ai_gateway_api_key = 68;
+  optional string qwen_code_oauth_path = 69;
+  optional string dify_api_key = 70;
+  optional string dify_base_url = 71;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
