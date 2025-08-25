@@ -28,3 +28,29 @@ export function mapOptionToProviderAndDefaults(optionValue: string): {
 	}
 	return { provider: optionValue }
 }
+
+/**
+ * Maps the actual provider and current config back to a dropdown option.
+ * For OpenAI-compatible presets, show the matching preset option (e.g., "portkey").
+ */
+export function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
+	if (provider !== "openai") {
+		return provider
+	}
+	const url = (openAiBaseUrl || "").toLowerCase()
+	for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
+		const presetUrl = preset.defaults?.openAiBaseUrl?.toLowerCase()
+		if (!presetUrl) {
+			continue
+		}
+		try {
+			const presetHost = new URL(presetUrl).host
+			if (url.startsWith(presetUrl) || (presetHost && url.includes(presetHost))) {
+				return option
+			}
+		} catch {
+			// ignore URL parsing errors
+		}
+	}
+	return provider
+}

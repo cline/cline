@@ -5,7 +5,7 @@ import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { mapOptionToProviderAndDefaults } from "@/components/settings/utils/providerPresets"
+import { mapOptionToProviderAndDefaults, mapProviderToOption } from "@/components/settings/utils/providerPresets"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -146,7 +146,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={selectedProvider}>
+					value={mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
