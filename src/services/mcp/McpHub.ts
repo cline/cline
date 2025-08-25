@@ -38,6 +38,8 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
+import { substituteEnvironmentVariables } from "./utils"
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -100,7 +102,10 @@ export class McpHub {
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
+			const rawContent = await fs.readFile(settingsPath, "utf-8")
+
+			// Substitute environment variables
+			const content = substituteEnvironmentVariables(rawContent)
 
 			let config: any
 
