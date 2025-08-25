@@ -30,6 +30,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
+	const [useManualModelEntry, setUseManualModelEntry] = useState(false)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -63,7 +64,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					}),
 				)
 					.then((resp) => {
-						setAvailableModels(resp?.values ?? [])
+						const fetched = resp?.values ?? []
+						setAvailableModels(fetched)
+						// If we fetched models and none is selected yet, prefill with the first.
+						if (fetched.length > 0 && !selectedModelId) {
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+								fetched[0],
+								currentMode,
+							)
+						}
 					})
 					.catch((error) => {
 						console.error("Failed to refresh OpenAI models:", error)
@@ -98,11 +108,17 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				providerName="OpenAI Compatible"
 			/>
 
-			{availableModels.length > 0 && (
+			{/* Model ID chooser: show either dropdown (when fetched) or manual input, not both */}
+			{availableModels.length > 0 && !useManualModelEntry ? (
 				<div style={{ width: "100%", marginBottom: 10 }}>
-					<label htmlFor="openai-compatible-model-id">
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</label>
+					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+						<label htmlFor="openai-compatible-model-id">
+							<span style={{ fontWeight: 500 }}>Model ID</span>
+						</label>
+						<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(true)}>
+							Enter manually
+						</VSCodeButton>
+					</div>
 					<VSCodeDropdown
 						id="openai-compatible-model-id"
 						onChange={(e: any) =>
@@ -122,17 +138,24 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						))}
 					</VSCodeDropdown>
 				</div>
+			) : (
+				<DebouncedTextField
+					initialValue={selectedModelId || ""}
+					onChange={(value) =>
+						handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+					}
+					placeholder={availableModels.length > 0 ? "Enter a custom model ID..." : "Enter Model ID..."}
+					style={{ width: "100%", marginBottom: 10 }}>
+					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+						{availableModels.length > 0 && (
+							<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(false)}>
+								Pick from list
+							</VSCodeButton>
+						)}
+					</div>
+				</DebouncedTextField>
 			)}
-
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-				}
-				placeholder={availableModels.length > 0 ? "Or enter a custom model ID..." : "Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
