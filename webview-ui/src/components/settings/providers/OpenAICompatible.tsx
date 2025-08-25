@@ -85,6 +85,15 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
+	// Auto-switch to manual entry if the current selection is not in the fetched list
+	useEffect(() => {
+		if (availableModels.length > 0 && selectedModelId) {
+			if (!availableModels.includes(selectedModelId)) {
+				setUseManualModelEntry(true)
+			}
+		}
+	}, [availableModels, selectedModelId])
+
 	return (
 		<div>
 			<DebouncedTextField
@@ -111,31 +120,32 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			{/* Model ID chooser: show either dropdown (when fetched) or manual input, not both */}
 			{availableModels.length > 0 && !useManualModelEntry ? (
 				<div style={{ width: "100%", marginBottom: 10 }}>
-					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-						<label htmlFor="openai-compatible-model-id">
-							<span style={{ fontWeight: 500 }}>Model ID</span>
-						</label>
-						<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(true)}>
-							Enter manually
-						</VSCodeButton>
-					</div>
+					<label htmlFor="openai-compatible-model-id">
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</label>
 					<VSCodeDropdown
 						id="openai-compatible-model-id"
-						onChange={(e: any) =>
+						onChange={(e: any) => {
+							const value = e.target.value
+							if (value === "__manual__") {
+								setUseManualModelEntry(true)
+								return
+							}
 							handleModeFieldChange(
 								{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-								e.target.value,
+								value,
 								currentMode,
 							)
-						}
+						}}
 						style={{ width: "100%", marginBottom: 10 }}
-						value={selectedModelId || ""}>
+						value={availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>
 						{availableModels.map((m) => (
 							<VSCodeOption key={m} value={m}>
 								{m}
 							</VSCodeOption>
 						))}
+						<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
 					</VSCodeDropdown>
 				</div>
 			) : (
@@ -146,14 +156,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					}
 					placeholder={availableModels.length > 0 ? "Enter a custom model ID..." : "Enter Model ID..."}
 					style={{ width: "100%", marginBottom: 10 }}>
-					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-						{availableModels.length > 0 && (
-							<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(false)}>
-								Pick from list
-							</VSCodeButton>
-						)}
-					</div>
+					<span style={{ fontWeight: 500 }}>Model ID</span>
 				</DebouncedTextField>
 			)}
 
