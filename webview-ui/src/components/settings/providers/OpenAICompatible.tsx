@@ -156,7 +156,14 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					}
 					placeholder={availableModels.length > 0 ? "Enter a custom model ID..." : "Enter Model ID..."}
 					style={{ width: "100%", marginBottom: 10 }}>
-					<span style={{ fontWeight: 500 }}>Model ID</span>
+					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+						{availableModels.length > 0 && (
+							<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(false)}>
+								Pick from list
+							</VSCodeButton>
+						)}
+					</div>
 				</DebouncedTextField>
 			)}
 
