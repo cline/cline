@@ -46,7 +46,7 @@ export default function Privacy() {
 					<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
 						Roo Code Cloud Privacy Policy
 					</h1>
-					<p className="text-muted-foreground">Last Updated: June 19, 2025</p>
+					<p className="text-muted-foreground">Last Updated: August 20, 2025</p>
 
 					<p className="lead">
 						This Privacy Policy explains how Roo Code, Inc. (&quot;Roo Code,&quot; &quot;we,&quot;
@@ -82,9 +82,14 @@ export default function Privacy() {
 					<h2 className="mt-12 text-2xl font-bold">Quick Summary</h2>
 					<ul>
 						<li>
-							<strong>Your source code never transits Roo Code servers.</strong> It stays on your device
-							and is sent <strong>directly</strong>—via a client‑to‑provider TLS connection—to the
-							third‑party AI model you select. Roo Code never stores, inspects, or trains on your code.
+							<strong>
+								Your source code does not transit Roo Code servers unless you explicitly choose Roo Code
+								as a model provider (proxy mode).
+							</strong>{" "}
+							When Roo Code Cloud is your model provider, your code briefly transits Roo Code servers only to
+							forward it to the upstream model, is not stored, and is deleted immediately after
+							forwarding. Otherwise, your code is sent <strong>directly</strong>—via client‑to‑provider
+							TLS—to the model you select. Roo Code never stores, inspects, or trains on your code.
 						</li>
 						<li>
 							<strong>Prompts and chat snippets are collected by default</strong> in Roo Code Cloud so you
@@ -200,10 +205,12 @@ export default function Privacy() {
 										Code & files you work on
 									</td>
 									<td className="border border-border px-4 py-2">
-										Your chosen model provider (direct client → provider TLS)
+										Your chosen model provider (direct client → provider TLS), or Roo Code (proxy
+										mode; transit‑only) when you select Roo Code as the provider
 									</td>
 									<td className="border border-border px-4 py-2">
-										Roo Code servers; ad networks; model‑training pipelines
+										Roo Code servers (except proxy mode; transit‑only, no storage); ad networks;
+										model‑training pipelines
 									</td>
 								</tr>
 								<tr className="bg-muted/25">
