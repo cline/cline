@@ -500,7 +500,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 export default ApiOptions
 
-// Styled components for the provider dropdown (following OpenRouterModelPicker pattern)
 const ProviderDropdownWrapper = styled.div`
 	position: relative;
 	width: 100%;
