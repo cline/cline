@@ -56,7 +56,7 @@ const featuredModels = [
 		label: "New",
 	},
 	{
-		id: "xai/grok-code-fast-1",
+		id: "x-ai/grok-code-fast-1",
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
 	},
