@@ -90,20 +90,25 @@ class PromptRegistry {
     this.loaded = true;
   }
 
-  // Get prompt by model ID with model family fallback
-  async get(modelId: string, context: SystemPromptContext): Promise<string> {
-    await this.load();
-    
-    const modelFamily = getModelFamily(modelId);
-    const variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC);
-    
-    if (!variant) {
-      throw new Error(`No prompt variant found for model '${modelId}'`);
-    }
+	/**
+	 * Get prompt by model ID with fallback to generic
+	 */
+	async get(context: SystemPromptContext): Promise<string> {
+		await this.load()
 
-    const builder = new PromptBuilder(variant, context, this.components);
-    return await builder.build();
-  }
+		// Try model family fallback (e.g., "claude-4" -> "claude")
+		const modelFamily = getModelFamily(context.providerInfo)
+		const variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC)
+
+		if (!variant) {
+			throw new Error(
+				`No prompt variant found for model '${context.providerInfo.model.id}' and no generic fallback available`,
+			)
+		}
+
+		const builder = new PromptBuilder(variant, context, this.components)
+		return await builder.build()
+	}
 
   // Get specific version of a prompt
   async getVersion(modelId: string, version: number, context: SystemPromptContext, isNextGenModelFamily?: boolean): Promise<string> {
