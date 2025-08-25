@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface LiteLlmHandlerOptions {
+interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	liteLlmApiKey?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
