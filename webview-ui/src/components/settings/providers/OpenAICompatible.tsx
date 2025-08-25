@@ -81,11 +81,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				initialValue={apiConfiguration?.openAiBaseUrl || ""}
 				onChange={(value) => {
 					handleFieldChange("openAiBaseUrl", value)
-					if (value && apiConfiguration?.openAiApiKey) {
-						debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
-					} else {
-						setAvailableModels([])
-					}
+					debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
 				}}
 				placeholder={"Enter base URL..."}
 				style={{ width: "100%", marginBottom: 10 }}
@@ -97,11 +93,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				initialValue={apiConfiguration?.openAiApiKey || ""}
 				onChange={(value) => {
 					handleFieldChange("openAiApiKey", value)
-					if (apiConfiguration?.openAiBaseUrl && value) {
-						debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
-					} else {
-						setAvailableModels([])
-					}
+					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
 				providerName="OpenAI Compatible"
 			/>
