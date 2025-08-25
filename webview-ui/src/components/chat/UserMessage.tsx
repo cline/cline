@@ -54,9 +54,11 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				}),
 			)
 
+			// FIXME: The checkpointRestore function ends by calling the cancelTask function, which restores a new task from history (with the updated task messages after the restore). We need to wait for the task to be initialized before sending this message, and for now are using this hack to wait for 1 second for all the state to propagate. The correct solution here would be to send some signal from the task class to the chat view that the task is initialized and ready to receive a message. However, the message edit ux could be greatly improved by not having to delete/resend the message and instead do an in-place edit.
+			const delay = 1_000
 			setTimeout(() => {
 				sendMessageFromChatRow?.(editedText, images || [], files || [])
-			}, 1_000) // FIXME: The checkpointRestore function ends by calling the cancelTask function, which restores a new task from history (with the updated task messages after the restore). We need to wait for the task to be initialized before sending this message, and for now are using this hack to wait for 1 second for all the state to propagate. The correct solution here would be to send some signal from the task class to the chat view that the task is initialized and ready to receive a message. However, the message edit ux could be greatly improved by not having to delete/resend the message and instead do an in-place edit.
+			}, delay)
 		} catch (err) {
 			console.error("Checkpoint restore error:", err)
 		}
