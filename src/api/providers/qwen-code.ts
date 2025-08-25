@@ -4,15 +4,16 @@ import OpenAI from "openai"
 import * as os from "os"
 import * as path from "path"
 
-import type { ModelInfo } from "@roo-code/types"
+import { type ModelInfo, type QwenCodeModelId, qwenCodeModels, qwenCodeDefaultModelId } from "@roo-code/types"
+
 import type { ApiHandlerOptions } from "../../shared/api"
 
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler } from "../index"
 
-// --- Constants for Qwen OAuth2 ---
 const QWEN_OAUTH_BASE_URL = "https://chat.qwen.ai"
 const QWEN_OAUTH_TOKEN_ENDPOINT = `${QWEN_OAUTH_BASE_URL}/api/v1/oauth2/token`
 const QWEN_OAUTH_CLIENT_ID = "f0304373b74a44d2b584a3fb70ca9e56"
@@ -266,7 +267,6 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 				}
 			}
 
-			// Handle reasoning content (o1-style)
 			if ("reasoning_content" in delta && delta.reasoning_content) {
 				yield {
 					type: "reasoning",
@@ -285,16 +285,9 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 	}
 
 	override getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		const { qwenCodeModels, qwenCodeDefaultModelId } = require("@roo-code/types")
-		if (modelId && modelId in qwenCodeModels) {
-			const id = modelId
-			return { id, info: qwenCodeModels[id] }
-		}
-		return {
-			id: qwenCodeDefaultModelId,
-			info: qwenCodeModels[qwenCodeDefaultModelId],
-		}
+		const id = this.options.apiModelId ?? qwenCodeDefaultModelId
+		const info = qwenCodeModels[id as keyof typeof qwenCodeModels] || qwenCodeModels[qwenCodeDefaultModelId]
+		return { id, info }
 	}
 
 	async completePrompt(prompt: string): Promise<string> {
