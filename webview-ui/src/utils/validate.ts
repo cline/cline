@@ -60,11 +60,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
-			case "qwen-code":
-				if (!apiConfiguration.qwenCodeOauthPath) {
-					return "You must provide a valid OAuth credentials path or choose a different provider."
-				}
-				break
 			case "doubao":
 				if (!apiConfiguration.doubaoApiKey) {
 					return "You must provide a valid API key or choose a different provider."
