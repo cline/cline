@@ -4,6 +4,7 @@ import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
+import { OPENAI_COMPATIBLE_PRESETS } from "@/components/settings/utils/providerPresets"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -73,10 +74,6 @@ declare module "vscode" {
 		version?: string
 		id?: string
 	}
-}
-
-const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, { provider: "openai"; defaults?: { openAiBaseUrl?: string } }>> = {
-	portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
