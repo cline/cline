@@ -18,7 +18,7 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 	if (incomingVersion > currentVersion) {
 		const settings = convertProtoToAutoApprovalSettings(request)
 
-		controller.cacheService.setGlobalState("autoApprovalSettings", settings)
+		controller.stateManager.setGlobalState("autoApprovalSettings", settings)
 
 		if (controller.task) {
 			controller.task.updateAutoApprovalSettings(settings)

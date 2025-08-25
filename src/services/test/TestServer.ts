@@ -48,7 +48,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
+		const autoApprovalSettings = controller?.stateManager.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
@@ -67,7 +67,7 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
+		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
@@ -208,7 +208,7 @@ export function createTestServer(controller: Controller): http.Server {
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const apiConfiguration = visibleWebview.controller.cacheService.getApiConfiguration()
+						const apiConfiguration = visibleWebview.controller.stateManager.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {
@@ -218,13 +218,13 @@ export function createTestServer(controller: Controller): http.Server {
 						}
 
 						// Store the API key securely
-						visibleWebview.controller.cacheService.setSecret("clineAccountId", apiKey)
+						visibleWebview.controller.stateManager.setSecret("clineAccountId", apiKey)
 
-						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
+						visibleWebview.controller.stateManager.setApiConfiguration(updatedConfig)
 
 						// Update cache service to use cline provider
-						const currentConfig = visibleWebview.controller.cacheService.getApiConfiguration()
-						visibleWebview.controller.cacheService.setApiConfiguration({
+						const currentConfig = visibleWebview.controller.stateManager.getApiConfiguration()
+						visibleWebview.controller.stateManager.setApiConfiguration({
 							...currentConfig,
 							planModeApiProvider: "cline",
 							actModeApiProvider: "cline",

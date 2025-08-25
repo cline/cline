@@ -11,7 +11,7 @@ import type { Controller } from "../index"
 export async function setWelcomeViewCompleted(controller: Controller, request: BooleanRequest): Promise<Empty> {
 	try {
 		// Update the global state to set welcomeViewCompleted to the requested value
-		controller.cacheService.setGlobalState("welcomeViewCompleted", request.value)
+		controller.stateManager.setGlobalState("welcomeViewCompleted", request.value)
 
 		await controller.postStateToWebview()
 
