@@ -1,5 +1,6 @@
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { ModelFamily } from "@/shared/prompts"
 import { getModelFamily } from ".."
 import { PromptRegistry } from "../registry/PromptRegistry"
 import type { SystemPromptContext } from "../types"
@@ -49,16 +50,16 @@ describe("PromptRegistry", () => {
 	describe("getModelFamily", () => {
 		it("should extract correct model families", () => {
 			const testCases = [
-				{ id: "claude-3-5-sonnet", expected: "generic" },
-				{ id: "gpt-4-turbo", expected: "generic" },
-				{ id: "gemini-pro", expected: "generic" },
-				{ id: "qwen-max", provider: "lmstudio", expected: "xs" },
-				{ id: "anthropic/claude-3", expected: "generic" },
-				{ id: "openai/gpt-4", expected: "generic" },
-				{ id: "google/gemini", expected: "generic" },
-				{ id: "claude-sonnet-4", expected: "next-gen" },
-				{ id: "gpt-5", expected: "next-gen" },
-				{ id: "unknown-model", expected: "generic" },
+				{ id: "claude-3-5-sonnet", expected: ModelFamily.GENERIC },
+				{ id: "gpt-4-turbo", expected: ModelFamily.GENERIC },
+				{ id: "gemini-pro", expected: ModelFamily.GENERIC },
+				{ id: "qwen-max", provider: "lmstudio", expected: ModelFamily.XS },
+				{ id: "anthropic/claude-3", expected: ModelFamily.GENERIC },
+				{ id: "openai/gpt-4", expected: ModelFamily.GENERIC },
+				{ id: "google/gemini", expected: ModelFamily.GENERIC },
+				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
+				{ id: "gpt-5", expected: ModelFamily.GPT_5 },
+				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 
 			for (const { id, expected, provider } of testCases) {
