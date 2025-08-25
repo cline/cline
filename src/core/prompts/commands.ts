@@ -198,6 +198,9 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 `
 
 export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
+	const detectedShell = require("@utils/shell").getShell()
+	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
+
 	return `<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
 
@@ -250,6 +253,8 @@ find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -
 
 # Identify technical debt and TODOs
 grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+`
+}
 
 
 ## STEP 2: Discussion and Questions
@@ -337,7 +342,34 @@ Your new task should be self-contained and reference the plan document rather th
 **Plan Document Navigation Commands:**
 The implementation agent should use these commands to read specific sections of the implementation plan. You should adapt these examples to conform to the structure of the .md file you createdm, and explicitly provide them when creating the new task:
 
+${
+	isPowerShell
+		? `
+# Read Overview section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Overview\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $content[($start-1)..($end-2)]
 
+# Read Types section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Files section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Functions section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Classes section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Dependencies section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Testing section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Implementation Order section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($content.Length-1)]
+`
+		: `
 # Read Overview section
 sed -n '/\[Overview\]/,/\[Types\]/p' implementation_plan.md | head -n 1 | cat
 
@@ -361,6 +393,8 @@ sed -n '/\[Testing\]/,/\[Implementation Order\]/p' implementation_plan.md | head
 
 # Read Implementation Order section
 sed -n '/\[Implementation Order\]/,$p' implementation_plan.md | cat
+`
+}
 
 
 **Task Progress Format:**
