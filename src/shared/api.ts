@@ -41,6 +41,8 @@ export interface ApiHandlerOptions {
 	apiKey?: string // anthropic
 	clineAccountId?: string
 	ulid?: string // Used to identify the task in API requests
+	sendMetadataHeadersEnabled?: boolean
+	telemetryEnabled?: boolean
 	liteLlmBaseUrl?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean

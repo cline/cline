@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { version as extensionVersion } from "../../../../package.json"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -115,11 +116,21 @@ function createHandlerForProvider(
 				ulid: options.ulid,
 			})
 		case "openai":
+			const mergedHeaders: Record<string, string> = { ...(options.openAiHeaders || {}) }
+			if (options.sendMetadataHeadersEnabled && options.telemetryEnabled) {
+				if (options.ulid) {
+					mergedHeaders["x-cline-task-id"] = options.ulid
+				}
+				mergedHeaders["x-cline-os"] = process.platform
+				mergedHeaders["x-cline-extension-version"] = extensionVersion
+				mergedHeaders["x-cline-client"] = "vscode-extension"
+			}
+
 			return new OpenAiHandler({
 				openAiApiKey: options.openAiApiKey,
 				openAiBaseUrl: options.openAiBaseUrl,
 				azureApiVersion: options.azureApiVersion,
-				openAiHeaders: options.openAiHeaders,
+				openAiHeaders: mergedHeaders,
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,

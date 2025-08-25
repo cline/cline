@@ -160,6 +160,7 @@ export class Task {
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
 		useAutoCondense: boolean,
+		sendMetadataHeadersEnabled: boolean | undefined,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
@@ -266,6 +267,10 @@ export class Task {
 		const effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			ulid: this.ulid,
+			sendMetadataHeadersEnabled,
+			telemetryEnabled:
+				this.controller.cacheService.getGlobalStateKey("telemetrySetting") !== "disabled" &&
+				(vscode?.env?.isTelemetryEnabled ?? true),
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")

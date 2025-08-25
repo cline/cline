@@ -57,6 +57,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 	const requestTimeoutMs = context.globalState.get("requestTimeoutMs") as number | undefined
 	const shellIntegrationTimeout = context.globalState.get("shellIntegrationTimeout") as number | undefined
 	const enableCheckpointsSettingRaw = context.globalState.get("enableCheckpointsSetting") as boolean | undefined
+	const sendMetadataHeadersEnabled = context.globalState.get("sendMetadataHeadersEnabled") as boolean | undefined
 	const mcpMarketplaceEnabledRaw = context.globalState.get("mcpMarketplaceEnabled") as boolean | undefined
 	const mcpDisplayMode = context.globalState.get("mcpDisplayMode") as McpDisplayMode | undefined
 	const mcpResponsesCollapsedRaw = context.globalState.get("mcpResponsesCollapsed") as boolean | undefined
@@ -403,6 +404,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSettingRaw ?? true,
+		sendMetadataHeadersEnabled,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 		terminalReuseEnabled: terminalReuseEnabled ?? true,
 		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,

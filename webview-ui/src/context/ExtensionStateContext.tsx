@@ -203,6 +203,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: true,
+		sendMetadataHeadersEnabled: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

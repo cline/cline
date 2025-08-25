@@ -420,6 +420,7 @@ export class CacheService {
 			sapAiResourceGroup,
 			claudeCodePath,
 			qwenCodeOauthPath,
+			sendMetadataHeadersEnabled: this.globalStateCache["sendMetadataHeadersEnabled"],
 		})
 
 		// Batch update secrets
@@ -770,6 +771,7 @@ export class CacheService {
 			mcpDisplayMode: state.mcpDisplayMode,
 			mcpResponsesCollapsed: state.mcpResponsesCollapsed,
 			telemetrySetting: state.telemetrySetting,
+			sendMetadataHeadersEnabled: state.sendMetadataHeadersEnabled,
 			planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 			enableCheckpointsSetting: state.enableCheckpointsSetting,
 			shellIntegrationTimeout: state.shellIntegrationTimeout,
@@ -1001,6 +1003,7 @@ export class CacheService {
 			geminiBaseUrl: this.globalStateCache["geminiBaseUrl"],
 			azureApiVersion: this.globalStateCache["azureApiVersion"],
 			openRouterProviderSorting: this.globalStateCache["openRouterProviderSorting"],
+			sendMetadataHeadersEnabled: this.globalStateCache["sendMetadataHeadersEnabled"],
 			liteLlmBaseUrl: this.globalStateCache["liteLlmBaseUrl"],
 			liteLlmUsePromptCache: this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.globalStateCache["qwenApiLine"],

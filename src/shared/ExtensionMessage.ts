@@ -68,6 +68,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	useAutoCondense?: boolean
+	sendMetadataHeadersEnabled?: boolean
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string

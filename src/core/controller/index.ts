@@ -175,6 +175,7 @@ export class Controller {
 		const taskHistory = this.cacheService.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.cacheService.getGlobalStateKey("strictPlanModeEnabled")
 		const useAutoCondense = this.cacheService.getGlobalStateKey("useAutoCondense")
+		const sendMetadataHeadersEnabled = this.cacheService.getGlobalStateKey("sendMetadataHeadersEnabled")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -213,6 +214,7 @@ export class Controller {
 			mode,
 			strictPlanModeEnabled ?? true,
 			useAutoCondense ?? true,
+			sendMetadataHeadersEnabled,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -606,6 +608,7 @@ export class Controller {
 		const mcpDisplayMode = this.cacheService.getGlobalStateKey("mcpDisplayMode")
 		const telemetrySetting = this.cacheService.getGlobalStateKey("telemetrySetting")
 		const planActSeparateModelsSetting = this.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+		const sendMetadataHeadersEnabled = this.cacheService.getGlobalStateKey("sendMetadataHeadersEnabled")
 		const enableCheckpointsSetting = this.cacheService.getGlobalStateKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.cacheService.getGlobalStateKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.cacheService.getGlobalStateKey("globalWorkflowToggles")
@@ -643,6 +646,7 @@ export class Controller {
 		return {
 			version,
 			apiConfiguration,
+			// expose flags needed by UI logic if necessary
 			uriScheme,
 			currentTaskItem,
 			checkpointTrackerErrorMessage,
@@ -665,6 +669,7 @@ export class Controller {
 			mcpDisplayMode,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			sendMetadataHeadersEnabled,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},

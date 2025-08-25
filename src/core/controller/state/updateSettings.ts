@@ -57,6 +57,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.cacheService.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
+		// Update send metadata headers setting
+		if (request.sendMetadataHeadersEnabled !== undefined) {
+			controller.cacheService.setGlobalState("sendMetadataHeadersEnabled", request.sendMetadataHeadersEnabled)
+		}
+
 		// Update MCP display mode setting
 		if (request.mcpDisplayMode !== undefined) {
 			// Convert proto enum to string type

@@ -9,7 +9,7 @@ interface GeneralSettingsSectionProps {
 }
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting } = useExtensionState()
+	const { telemetrySetting, sendMetadataHeadersEnabled } = useExtensionState()
 
 	return (
 		<div>
@@ -38,6 +38,22 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.
+					</p>
+				</div>
+
+				<div className="mb-[5px]">
+					<VSCodeCheckbox
+						checked={!!sendMetadataHeadersEnabled}
+						className="mb-[5px]"
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							updateSetting("sendMetadataHeadersEnabled", checked)
+						}}>
+						Send Cline metadata headers (Portkey/OpenAI-compatible)
+					</VSCodeCheckbox>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						Adds non-identifying headers (task ID, OS, extension version) to OpenAI-compatible requests when telemetry
+						is enabled.
 					</p>
 				</div>
 			</Section>

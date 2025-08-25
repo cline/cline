@@ -108,6 +108,7 @@ export type GlobalStateKey =
 	| "useAutoCondense"
 	| "focusChainSettings"
 	| "focusChainFeatureFlagEnabled"
+	| "sendMetadataHeadersEnabled"
 	// Settings around plan/act and ephemeral model configuration
 	| "preferredLanguage"
 	| "openaiReasoningEffort"
@@ -237,6 +238,7 @@ export interface GlobalState {
 	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean
 	useAutoCondense: boolean
+	sendMetadataHeadersEnabled: boolean | undefined
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode

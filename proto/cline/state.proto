@@ -126,6 +126,7 @@ message UpdateSettingsRequest {
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
+  optional bool send_metadata_headers_enabled = 20;
 }
 
 // Complete API Configuration message
