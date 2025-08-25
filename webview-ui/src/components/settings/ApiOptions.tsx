@@ -1,9 +1,11 @@
+import type { ApiProvider as ApiProviderType } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
+import { mapOptionToProviderAndDefaults, mapProviderToOption } from "@/components/settings/utils/providerPresets"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -82,7 +84,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -129,21 +131,28 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<VSCodeDropdown
 					id="api-provider"
 					onChange={(e: any) => {
+						const value = e.target.value
+						const { provider: targetProvider, defaults } = mapOptionToProviderAndDefaults(value)
+						const providerToSet = targetProvider as unknown as ApiProviderType
 						handleModeFieldChange(
 							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-							e.target.value,
+							providerToSet,
 							currentMode,
 						)
+						if (targetProvider === "openai" && !apiConfiguration?.openAiBaseUrl && defaults?.openAiBaseUrl) {
+							handleFieldChange("openAiBaseUrl", defaults.openAiBaseUrl)
+						}
 					}}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={selectedProvider}>
+					value={mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)}>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="portkey">Portkey</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
