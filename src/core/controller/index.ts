@@ -620,6 +620,7 @@ export class Controller {
 		const mcpResponsesCollapsed = this.cacheService.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.cacheService.getGlobalStateKey("terminalOutputLineLimit")
 		const localClineRulesToggles = this.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+		const localAgentsRulesToggles = this.cacheService.getWorkspaceStateKey("localAgentsRulesToggles")
 		const localWindsurfRulesToggles = this.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.cacheService.getWorkspaceStateKey("localCursorRulesToggles")
 		const workflowToggles = this.cacheService.getWorkspaceStateKey("workflowToggles")
@@ -669,6 +670,7 @@ export class Controller {
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			localAgentsRulesToggles: localAgentsRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},

@@ -14,6 +14,7 @@ import {
 	refreshClineRulesToggles,
 } from "@core/context/instructions/user-instructions/cline-rules"
 import {
+	getLocalAgentsRules,
 	getLocalCursorRules,
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
@@ -1684,12 +1685,17 @@ export class Task {
 				: ""
 
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
+		const { agentsLocalToggles, windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(
+			this.controller,
+			this.cwd,
+		)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(this.cwd, localToggles)
+
+		const localAgentsRulesFileInstructions = await getLocalAgentsRules(this.cwd, agentsLocalToggles)
 		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
 			this.cwd,
 			cursorLocalToggles,
@@ -1705,6 +1711,7 @@ export class Task {
 		if (
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
+			localAgentsRulesFileInstructions ||
 			localCursorRulesFileInstructions ||
 			localCursorRulesDirInstructions ||
 			localWindsurfRulesFileInstructions ||
@@ -1715,6 +1722,7 @@ export class Task {
 			const userInstructions = addUserInstructions(
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
+				localAgentsRulesFileInstructions,
 				localCursorRulesFileInstructions,
 				localCursorRulesDirInstructions,
 				localWindsurfRulesFileInstructions,
