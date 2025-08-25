@@ -247,6 +247,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
@@ -418,6 +419,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 		})
 
 		// Batch update secrets
@@ -677,6 +679,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			vercelAiGatewayApiKey,
@@ -777,6 +780,7 @@ export class CacheService {
 			taskHistory: state.taskHistory,
 			lastShownAnnouncementId: state.lastShownAnnouncementId,
 			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
+			customPrompt: state.customPrompt,
 
 			// Plan mode configuration updates
 			planModeApiProvider,
@@ -878,6 +882,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			qwenCodeOauthPath,
 		} satisfies GlobalState
 
 		// Populate global state cache directly
@@ -1010,6 +1015,7 @@ export class CacheService {
 			sapAiCoreTokenUrl: this.globalStateCache["sapAiCoreTokenUrl"],
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
+			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],

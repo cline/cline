@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, buildApiHandler } from "@core/api"
+import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -302,7 +302,7 @@ export class Task {
 
 		const currentProvider = this.mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-		if (currentProvider === "openai" || currentProvider === "openai-native") {
+		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "sapaicore") {
 			if (this.mode === "plan") {
 				effectiveApiConfiguration.planModeReasoningEffort = this.openaiReasoningEffort
 			} else {
@@ -1624,14 +1624,12 @@ export class Task {
 		}
 	}
 
-	private async getCurrentProviderInfo(): Promise<{
-		modelId: string
-		providerId: string
-	}> {
+	private getCurrentProviderInfo(): ApiProviderInfo {
 		const modelId = this.api.getModel()?.id
 		const apiConfig = this.cacheService.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return { modelId, providerId }
+		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
+		return { modelId, providerId, customPrompt }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -1663,6 +1661,7 @@ export class Task {
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		const modelInfo = this.api.getModel()
+		const providerInfo = this.getCurrentProviderInfo()
 		// cline browser tool uses image recognition for navigation (requires model image support).
 		const modelSupportsBrowserUse = modelInfo.info.supportsImages ?? false
 
@@ -1675,6 +1674,7 @@ export class Task {
 			this.browserSettings,
 			this.api.getModel(),
 			this.focusChainSettings,
+			providerInfo,
 		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
@@ -1751,7 +1751,7 @@ export class Task {
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
-			const { modelId, providerId } = await this.getCurrentProviderInfo()
+			const { modelId, providerId } = this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
 
 			// Capture provider failure telemetry using clineError
@@ -1964,7 +1964,7 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId } = await this.getCurrentProviderInfo()
+		const { modelId, providerId, customPrompt } = this.getCurrentProviderInfo()
 		if (providerId && modelId) {
 			try {
 				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
@@ -2157,7 +2157,7 @@ export class Task {
 		}
 
 		// Separate logic when using the auto-condense context management vs the original context management methods
-		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel())) {
+		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
 			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
 			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
@@ -2227,11 +2227,14 @@ export class Task {
 					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 				)
 			}
+			// Compact prompt is tailored for models with small context window where environment details would often
+			// overflow the context window
+			const useCompactPrompt = customPrompt === "compact"
 
 			userContent = parsedUserContent
 			// add environment details as its own text block, separate from tool results
 			// do not add environment details to the message which we are compacting the context window
-			if (!shouldCompact) {
+			if (!shouldCompact && !useCompactPrompt) {
 				userContent.push({ type: "text", text: environmentDetails })
 			}
 
@@ -2242,6 +2245,7 @@ export class Task {
 			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
 				userContent,
 				includeFileDetails,
+				customPrompt === "compact",
 			)
 
 			if (clinerulesError === true) {
@@ -2572,7 +2576,11 @@ export class Task {
 		}
 	}
 
-	async loadContext(userContent: UserContent, includeFileDetails: boolean = false): Promise<[UserContent, string, boolean]> {
+	async loadContext(
+		userContent: UserContent,
+		includeFileDetails: boolean = false,
+		useCompactPrompt = false,
+	): Promise<[UserContent, string, boolean]> {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
@@ -2635,7 +2643,7 @@ export class Task {
 		}
 
 		// Add focu chain list instructions if needed
-		if (this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
+		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
 			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
 			processedUserContent.push({
 				type: "text",
@@ -2807,7 +2815,7 @@ export class Task {
 		}
 
 		// Add context window usage information
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
+		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
