@@ -98,7 +98,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				providerName="OpenAI Compatible"
 			/>
 
-			{availableModels.length > 0 ? (
+			{availableModels.length > 0 && (
 				<div style={{ width: "100%", marginBottom: 10 }}>
 					<label htmlFor="openai-compatible-model-id">
 						<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -122,17 +122,17 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						))}
 					</VSCodeDropdown>
 				</div>
-			) : (
-				<DebouncedTextField
-					initialValue={selectedModelId || ""}
-					onChange={(value) =>
-						handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-					}
-					placeholder={"Enter Model ID..."}
-					style={{ width: "100%", marginBottom: 10 }}>
-					<span style={{ fontWeight: 500 }}>Model ID</span>
-				</DebouncedTextField>
 			)}
+
+			<DebouncedTextField
+				initialValue={selectedModelId || ""}
+				onChange={(value) =>
+					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+				}
+				placeholder={availableModels.length > 0 ? "Or enter a custom model ID..." : "Enter Model ID..."}
+				style={{ width: "100%", marginBottom: 10 }}>
+				<span style={{ fontWeight: 500 }}>Model ID</span>
+			</DebouncedTextField>
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
