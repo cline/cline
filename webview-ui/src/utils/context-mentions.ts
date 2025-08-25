@@ -169,7 +169,7 @@ export function getContextMenuOptions(
 			if (matchingCommands.length > 0) {
 				results.push({
 					type: ContextMenuOptionType.SectionHeader,
-					label: "Custom Commands",
+					label: "Commands",
 				})
 				results.push(...matchingCommands)
 			}

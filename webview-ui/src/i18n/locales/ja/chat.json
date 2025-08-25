@@ -368,7 +368,8 @@
 	"slashCommands": {
 		"tooltip": "スラッシュコマンドを管理",
 		"title": "スラッシュコマンド",
-		"description": "よく使用するプロンプトやワークフローに素早くアクセスするためのカスタムスラッシュコマンドを作成します。<DocsLink>ドキュメント</DocsLink>",
+		"description": "組み込みスラッシュコマンドを使用するか、よく使用するプロンプトやワークフローに素早くアクセスするためのカスタムスラッシュコマンドを作成します。<DocsLink>ドキュメント</DocsLink>",
+		"builtInCommands": "組み込みコマンド",
 		"globalCommands": "グローバルコマンド",
 		"workspaceCommands": "ワークスペースコマンド",
 		"globalCommand": "グローバルコマンド",

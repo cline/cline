@@ -15,7 +15,7 @@ describe("Command Integration Tests", () => {
 		commands.forEach((command) => {
 			expect(command.name).toBeDefined()
 			expect(typeof command.name).toBe("string")
-			expect(command.source).toMatch(/^(project|global)$/)
+			expect(command.source).toMatch(/^(project|global|built-in)$/)
 			expect(command.content).toBeDefined()
 			expect(typeof command.content).toBe("string")
 		})
@@ -43,7 +43,7 @@ describe("Command Integration Tests", () => {
 
 			expect(loadedCommand).toBeDefined()
 			expect(loadedCommand?.name).toBe(firstCommand.name)
-			expect(loadedCommand?.source).toMatch(/^(project|global)$/)
+			expect(loadedCommand?.source).toMatch(/^(project|global|built-in)$/)
 			expect(loadedCommand?.content).toBeDefined()
 			expect(typeof loadedCommand?.content).toBe("string")
 		}

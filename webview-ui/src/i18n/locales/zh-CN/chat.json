@@ -368,7 +368,8 @@
 	"slashCommands": {
 		"tooltip": "管理斜杠命令",
 		"title": "斜杠命令",
-		"description": "创建自定义斜杠命令，快速访问常用提示词和工作流程。<DocsLink>文档</DocsLink>",
+		"description": "使用内置斜杠命令或创建自定义命令，快速访问常用提示词和工作流程。<DocsLink>文档</DocsLink>",
+		"builtInCommands": "内置命令",
 		"globalCommands": "全局命令",
 		"workspaceCommands": "工作区命令",
 		"globalCommand": "全局命令",

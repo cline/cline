@@ -9,6 +9,11 @@ vi.mock("../roo-config", () => ({
 	getGlobalRooDirectory: vi.fn(() => "/mock/global/.roo"),
 	getProjectRooDirectoryForCwd: vi.fn(() => "/mock/project/.roo"),
 }))
+vi.mock("../built-in-commands", () => ({
+	getBuiltInCommands: vi.fn(() => Promise.resolve([])),
+	getBuiltInCommand: vi.fn(() => Promise.resolve(undefined)),
+	getBuiltInCommandNames: vi.fn(() => Promise.resolve([])),
+}))
 
 const mockFs = vi.mocked(fs)
 

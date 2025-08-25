@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Plus, Globe, Folder } from "lucide-react"
+import { Plus, Globe, Folder, Settings } from "lucide-react"
 
 import type { Command } from "@roo/ExtensionMessage"
 
@@ -90,6 +90,7 @@ export const SlashCommandsList: React.FC<SlashCommandsListProps> = ({ commands, 
 	}
 
 	// Group commands by source
+	const builtInCommands = commands.filter((cmd) => cmd.source === "built-in")
 	const globalCommands = commands.filter((cmd) => cmd.source === "global")
 	const projectCommands = commands.filter((cmd) => cmd.source === "project")
 
@@ -175,6 +176,24 @@ export const SlashCommandsList: React.FC<SlashCommandsListProps> = ({ commands, 
 									<Plus className="w-4 h-4" />
 								</Button>
 							</div>
+						</>
+					)}
+
+					{/* Built-in Commands Section */}
+					{builtInCommands.length > 0 && (
+						<>
+							<div className="px-3 py-1.5 text-xs font-medium text-vscode-descriptionForeground flex items-center gap-1.5 mt-4">
+								<Settings className="w-3 h-3" />
+								{t("chat:slashCommands.builtInCommands")}
+							</div>
+							{builtInCommands.map((command) => (
+								<SlashCommandItem
+									key={`built-in-${command.name}`}
+									command={command}
+									onDelete={handleDeleteClick}
+									onClick={handleCommandClick}
+								/>
+							))}
 						</>
 					)}
 				</div>

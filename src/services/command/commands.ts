@@ -2,27 +2,35 @@ import fs from "fs/promises"
 import * as path from "path"
 import matter from "gray-matter"
 import { getGlobalRooDirectory, getProjectRooDirectoryForCwd } from "../roo-config"
+import { getBuiltInCommands, getBuiltInCommand } from "./built-in-commands"
 
 export interface Command {
 	name: string
 	content: string
-	source: "global" | "project"
+	source: "global" | "project" | "built-in"
 	filePath: string
 	description?: string
 	argumentHint?: string
 }
 
 /**
- * Get all available commands from both global and project directories
+ * Get all available commands from built-in, global, and project directories
+ * Priority order: project > global > built-in (later sources override earlier ones)
  */
 export async function getCommands(cwd: string): Promise<Command[]> {
 	const commands = new Map<string, Command>()
 
-	// Scan global commands first
+	// Add built-in commands first (lowest priority)
+	const builtInCommands = await getBuiltInCommands()
+	for (const command of builtInCommands) {
+		commands.set(command.name, command)
+	}
+
+	// Scan global commands (override built-in)
 	const globalDir = path.join(getGlobalRooDirectory(), "commands")
 	await scanCommandDirectory(globalDir, "global", commands)
 
-	// Scan project commands (these override global ones)
+	// Scan project commands (highest priority - override both global and built-in)
 	const projectDir = path.join(getProjectRooDirectoryForCwd(cwd), "commands")
 	await scanCommandDirectory(projectDir, "project", commands)
 
@@ -31,13 +39,14 @@ export async function getCommands(cwd: string): Promise<Command[]> {
 
 /**
  * Get a specific command by name (optimized to avoid scanning all commands)
+ * Priority order: project > global > built-in
  */
 export async function getCommand(cwd: string, name: string): Promise<Command | undefined> {
 	// Try to find the command directly without scanning all commands
 	const projectDir = path.join(getProjectRooDirectoryForCwd(cwd), "commands")
 	const globalDir = path.join(getGlobalRooDirectory(), "commands")
 
-	// Check project directory first (project commands override global ones)
+	// Check project directory first (highest priority)
 	const projectCommand = await tryLoadCommand(projectDir, name, "project")
 	if (projectCommand) {
 		return projectCommand
@@ -45,7 +54,12 @@ export async function getCommand(cwd: string, name: string): Promise<Command | u
 
 	// Check global directory if not found in project
 	const globalCommand = await tryLoadCommand(globalDir, name, "global")
-	return globalCommand
+	if (globalCommand) {
+		return globalCommand
+	}
+
+	// Check built-in commands if not found in project or global (lowest priority)
+	return await getBuiltInCommand(name)
 }
 
 /**
