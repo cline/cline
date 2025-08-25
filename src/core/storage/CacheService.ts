@@ -246,6 +246,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			qwenCodeOauthPath,
 			basetenApiKey,
@@ -418,6 +419,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			qwenCodeOauthPath,
 		})
@@ -678,6 +680,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			qwenCodeOauthPath,
 			huggingFaceApiKey,
@@ -881,6 +884,7 @@ export class CacheService {
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
+			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			qwenCodeOauthPath,
 		} satisfies GlobalState
@@ -1014,6 +1018,7 @@ export class CacheService {
 			sapAiCoreBaseUrl: this.globalStateCache["sapAiCoreBaseUrl"],
 			sapAiCoreTokenUrl: this.globalStateCache["sapAiCoreTokenUrl"],
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
+			sapAiCoreUseOrchestrationMode: this.globalStateCache["sapAiCoreUseOrchestrationMode"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
 

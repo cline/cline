@@ -1,6 +1,6 @@
 import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -26,10 +26,17 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
+	// Handle orchestration checkbox change
+	const handleOrchestrationChange = async (checked: boolean) => {
+		await handleFieldChange("sapAiCoreUseOrchestrationMode", checked)
+	}
+
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// State for dynamic model fetching
 	const [deployedModelsArray, setDeployedModelsArray] = useState<string[]>([])
+	const [orchestrationAvailable, setOrchestrationAvailable] = useState<boolean>(false)
+	const [hasCheckedOrchestration, setHasCheckedOrchestration] = useState<boolean>(false)
 	const [isLoadingModels, setIsLoadingModels] = useState(false)
 	const [modelError, setModelError] = useState<string | null>(null)
 
@@ -45,6 +52,8 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const fetchSapAiCoreModels = useCallback(async () => {
 		if (!hasRequiredCredentials) {
 			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(false)
 			return
 		}
 
@@ -62,15 +71,21 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				}),
 			)
 
-			if (response && response.values) {
-				setDeployedModelsArray(response.values)
+			if (response) {
+				setDeployedModelsArray(response.modelNames || [])
+				setOrchestrationAvailable(response.orchestrationAvailable || false)
+				setHasCheckedOrchestration(true)
 			} else {
 				setDeployedModelsArray([])
+				setOrchestrationAvailable(false)
+				setHasCheckedOrchestration(true)
 			}
 		} catch (error) {
 			console.error("Error fetching SAP AI Core models:", error)
 			setModelError("Failed to fetch models. Please check your configuration.")
 			setDeployedModelsArray([])
+			setOrchestrationAvailable(false)
+			setHasCheckedOrchestration(true)
 		} finally {
 			setIsLoadingModels(false)
 		}
@@ -88,6 +103,13 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			fetchSapAiCoreModels()
 		}
 	}, [showModelOptions, hasRequiredCredentials, fetchSapAiCoreModels])
+
+	// Handle automatic disabling of orchestration mode when not available
+	useEffect(() => {
+		if (hasCheckedOrchestration && !orchestrationAvailable && apiConfiguration?.sapAiCoreUseOrchestrationMode) {
+			handleFieldChange("sapAiCoreUseOrchestrationMode", false)
+		}
+	}, [hasCheckedOrchestration, orchestrationAvailable, apiConfiguration?.sapAiCoreUseOrchestrationMode, handleFieldChange])
 
 	// Handle model selection
 	const handleModelChange = useCallback(
@@ -160,6 +182,26 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				</VSCodeLink>
 			</p>
 
+			{orchestrationAvailable && (
+				<div className="flex flex-col gap-2.5 mt-[15px]">
+					<div className="flex items-center gap-2">
+						<VSCodeCheckbox
+							aria-label="Orchestration Mode"
+							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+							onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
+						/>
+						<span className="font-medium">Orchestration Mode</span>
+					</div>
+
+					<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						When enabled, provides access to all available models without requiring individual deployments.
+						<br />
+						<br />
+						When disabled, provides access only to deployed models in your AI Core service instance.
+					</p>
+				</div>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="flex flex-col gap-1.5">
@@ -187,6 +229,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 									placeholder="Select a model..."
 									sapAiCoreDeployedModels={deployedModelsArray}
 									selectedModelId={selectedModelId || ""}
+									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
 								/>
 							</>
 						) : (
