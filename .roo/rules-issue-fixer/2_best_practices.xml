@@ -14,5 +14,6 @@
   - Check for accessibility issues (for UI changes)
   - Delegate translation tasks to translate mode when implementing user-facing changes
   - Always check for hard-coded strings and internationalization needs
+  - When using new_task to delegate work, always include a comprehensive todos list
   - Wait for translation completion before proceeding to final testing
 </best_practices>

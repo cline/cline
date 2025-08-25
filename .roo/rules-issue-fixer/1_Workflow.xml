@@ -273,6 +273,13 @@
        - [Note any technical terms or constraints]
  
        Please ensure all translations maintain consistency with existing terminology and follow the project's localization guidelines.</message>
+       <todos>
+[ ] Identify all user-facing strings that need translation
+[ ] Update i18n JSON files for all supported languages
+[ ] Translate any markdown documentation files
+[ ] Verify translations maintain consistency with existing terminology
+[ ] Test translations in the application context
+       </todos>
        </new_task>
        
        Wait for the translation task to complete before proceeding to testing.
