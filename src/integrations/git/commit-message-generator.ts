@@ -17,46 +17,62 @@ export const GitCommitGenerator = {
 let commitGenerationAbortController: AbortController | undefined
 
 async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
-	const cwd = await getCwd()
-	if (!context || !cwd) {
+	// Set context IMMEDIATELY to show stop button
+	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+
+	try {
+		// Get the repository path from the source control object
+		const repoPath = (scm as any)?.rootUri?.fsPath || (await getCwd())
+		if (!context || !repoPath) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "No workspace folder open",
+			})
+			return
+		}
+
+		const gitDiff = await getWorkingState(repoPath)
+		if (gitDiff === "No changes in working directory") {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "No changes in workspace for commit message",
+			})
+			// Reset the commit generation state before returning
+			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+			return
+		}
+
+		const inputBox = scm?.inputBox
+		if (!inputBox) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Git extension not found or no repositories available",
+			})
+			return
+		}
+
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.SourceControl,
+				title: "Generating commit message...",
+				cancellable: true,
+			},
+			() => performCommitGeneration(context, gitDiff, inputBox, repoPath),
+		)
+	} catch (error) {
+		// Clear context on error
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "No workspace folder open",
+			message: errorMessage,
 		})
-		return
 	}
-
-	const gitDiff = await getWorkingState(cwd)
-	if (gitDiff === "No changes in working directory") {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.INFORMATION,
-			message: "No changes in workspace for commit message",
-		})
-		return
-	}
-
-	const inputBox = scm?.inputBox
-	if (!inputBox) {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: "Git extension not found or no repositories available",
-		})
-		return
-	}
-
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.SourceControl,
-			title: "Generating commit message...",
-			cancellable: true,
-		},
-		() => performCommitGeneration(context, gitDiff, inputBox),
-	)
 }
 
-async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
+async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any, repoPath: string) {
 	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+		// Context already set in generate() function for immediate stop button
 
 		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
 
