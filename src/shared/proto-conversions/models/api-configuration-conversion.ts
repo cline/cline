@@ -212,6 +212,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DEEPSEEK
 		case "qwen":
 			return ProtoApiProvider.QWEN
+		case "qwen-code":
+			return ProtoApiProvider.QWEN_CODE
 		case "doubao":
 			return ProtoApiProvider.DOUBAO
 		case "mistral":
@@ -286,6 +288,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "deepseek"
 		case ProtoApiProvider.QWEN:
 			return "qwen"
+		case ProtoApiProvider.QWEN_CODE:
+			return "qwen-code"
 		case ProtoApiProvider.DOUBAO:
 			return "doubao"
 		case ProtoApiProvider.MISTRAL:
@@ -377,6 +381,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: config.fireworksModelMaxTokens,
 		qwenApiKey: config.qwenApiKey,
+		qwenCodeOauthPath: config.qwenCodeOauthPath,
 		doubaoApiKey: config.doubaoApiKey,
 		mistralApiKey: config.mistralApiKey,
 		azureApiVersion: config.azureApiVersion,
@@ -518,6 +523,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: protoConfig.fireworksModelMaxTokens,
 		qwenApiKey: protoConfig.qwenApiKey,
+		qwenCodeOauthPath: protoConfig.qwenCodeOauthPath,
 		doubaoApiKey: protoConfig.doubaoApiKey,
 		mistralApiKey: protoConfig.mistralApiKey,
 		azureApiVersion: protoConfig.azureApiVersion,
