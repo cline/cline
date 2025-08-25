@@ -2,12 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface BasetenHandlerOptions {
+interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 	basetenApiKey?: string
 	basetenModelId?: string
 	basetenModelInfo?: ModelInfo

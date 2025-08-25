@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, vercelAiGatewayDefaultModelId, vercelAiGatewayDefaultModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stream"
 
-interface VercelAIGatewayHandlerOptions {
+interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	vercelAiGatewayApiKey?: string
 	vercelAiGatewayModelId?: string
 	vercelAiGatewayModelInfo?: ModelInfo
