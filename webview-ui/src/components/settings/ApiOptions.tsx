@@ -131,17 +131,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					onChange={(e: any) => {
 						const value = e.target.value
 						const preset = OPENAI_COMPATIBLE_PRESETS[value]
-						if (preset) {
-							handleModeFieldChange(
-								{ plan: "planModeApiProvider", act: "actModeApiProvider" },
-								preset.provider,
-								currentMode,
-							)
-							if (!apiConfiguration?.openAiBaseUrl && preset.defaults?.openAiBaseUrl) {
-								handleFieldChange("openAiBaseUrl", preset.defaults.openAiBaseUrl)
-							}
-						} else {
-							handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, value, currentMode)
+						const targetProvider = preset?.provider ?? value
+						handleModeFieldChange(
+							{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+							targetProvider,
+							currentMode,
+						)
+						if (targetProvider === "openai" && !apiConfiguration?.openAiBaseUrl && preset?.defaults?.openAiBaseUrl) {
+							handleFieldChange("openAiBaseUrl", preset.defaults.openAiBaseUrl)
 						}
 					}}
 					style={{
