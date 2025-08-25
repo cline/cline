@@ -34,19 +34,29 @@ export function mapProviderToOption(provider: string, openAiBaseUrl?: string): s
 	if (provider !== "openai") {
 		return provider
 	}
-	const url = (openAiBaseUrl || "").toLowerCase()
+	const base = (openAiBaseUrl || "").trim()
 	for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
-		const presetUrl = preset.defaults?.openAiBaseUrl?.toLowerCase()
+		const presetUrl = preset.defaults?.openAiBaseUrl
 		if (!presetUrl) {
 			continue
 		}
 		try {
-			const presetHost = new URL(presetUrl).host
-			if (url.startsWith(presetUrl) || (presetHost && url.includes(presetHost))) {
+			const input = new URL(base)
+			const presetParsed = new URL(presetUrl)
+			const inputHost = input.hostname.toLowerCase()
+			const presetHost = presetParsed.hostname.toLowerCase()
+			const inputPath = input.pathname || "/"
+			const presetPath = presetParsed.pathname || "/"
+
+			const isSameHost = inputHost === presetHost
+			const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+			const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+			if ((isSameHost || isSubdomain) && isPathCompatible) {
 				return option
 			}
 		} catch {
-			// ignore URL parsing errors
+			// Fall through; if parsing fails we won't match this preset
 		}
 	}
 	return provider

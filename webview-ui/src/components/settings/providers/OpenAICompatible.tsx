@@ -123,30 +123,35 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					<label htmlFor="openai-compatible-model-id">
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</label>
-					<VSCodeDropdown
-						id="openai-compatible-model-id"
-						onChange={(e: any) => {
-							const value = e.target.value
-							if (value === "__manual__") {
-								setUseManualModelEntry(true)
-								return
-							}
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-								value,
-								currentMode,
-							)
-						}}
-						style={{ width: "100%", marginBottom: 10 }}
-						value={availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""}>
-						<VSCodeOption value="">Select a model...</VSCodeOption>
-						{availableModels.map((m) => (
-							<VSCodeOption key={m} value={m}>
-								{m}
-							</VSCodeOption>
-						))}
-						<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
-					</VSCodeDropdown>
+					{(() => {
+						const dropdownValue = availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""
+						return (
+							<VSCodeDropdown
+								id="openai-compatible-model-id"
+								onChange={(e: any) => {
+									const value = e.target.value
+									if (value === "__manual__") {
+										setUseManualModelEntry(true)
+										return
+									}
+									handleModeFieldChange(
+										{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+										value,
+										currentMode,
+									)
+								}}
+								style={{ width: "100%", marginBottom: 10 }}
+								value={dropdownValue}>
+								<VSCodeOption value="">Select a model...</VSCodeOption>
+								{availableModels.map((m) => (
+									<VSCodeOption key={m} value={m}>
+										{m}
+									</VSCodeOption>
+								))}
+								<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
+							</VSCodeDropdown>
+						)
+					})()}
 				</div>
 			) : (
 				<DebouncedTextField
