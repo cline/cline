@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.26.6
+
+### Patch Changes
+
+- 8eba965: Fix Provider Options to properly handle retry attempts
+- cd066c4: fix issue with gpt-5 not using auto-compact even when toggled on
+- ce89547: Make markdown and code block parsing styling reactive to theme change
+- 2b7147d: add free grok-coder-free model to cline provider
+
 ## [3.26.5]
 
 - fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
