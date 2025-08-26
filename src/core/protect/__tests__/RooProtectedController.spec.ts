@@ -44,6 +44,13 @@ describe("RooProtectedController", () => {
 			expect(controller.isWriteProtected(".vscode/tasks.json")).toBe(true)
 		})
 
+		it("should protect .code-workspace files", () => {
+			expect(controller.isWriteProtected("myproject.code-workspace")).toBe(true)
+			expect(controller.isWriteProtected("pentest.code-workspace")).toBe(true)
+			expect(controller.isWriteProtected(".code-workspace")).toBe(true)
+			expect(controller.isWriteProtected("folder/workspace.code-workspace")).toBe(true)
+		})
+
 		it("should protect AGENTS.md file", () => {
 			expect(controller.isWriteProtected("AGENTS.md")).toBe(true)
 		})
@@ -149,6 +156,7 @@ describe("RooProtectedController", () => {
 				".clinerules*",
 				".roo/**",
 				".vscode/**",
+				"*.code-workspace",
 				".rooprotected",
 				"AGENTS.md",
 				"AGENT.md",
