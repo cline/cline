@@ -89,8 +89,8 @@ describe("Built-in Commands", () => {
 			expect(content).toContain("Please analyze this codebase")
 			expect(content).toContain("Build/lint/test commands")
 			expect(content).toContain("Code style guidelines")
-			expect(content).toContain("mode-specific rule directories")
-			expect(content).toContain("analysis_workflow")
+			expect(content).toContain("non-obvious")
+			expect(content).toContain("discovered by reading files")
 
 			// Should mention important concepts
 			expect(content).toContain("AGENTS.md")
