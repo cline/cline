@@ -321,9 +321,6 @@
 						"type": "string"
 					},
 					"default": [
-						"npm test",
-						"npm install",
-						"tsc",
 						"git log",
 						"git diff",
 						"git show"

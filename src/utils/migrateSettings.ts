@@ -8,7 +8,7 @@ import * as yaml from "yaml"
 const deprecatedCustomModesJSONFilename = "custom_modes.json"
 
 /**
- * Migrates old settings files to new file names
+ * Migrates old settings files to new file names and removes commands from old defaults
  *
  * TODO: Remove this migration code in September 2025 (6 months after implementation)
  */
@@ -16,6 +16,8 @@ export async function migrateSettings(
 	context: vscode.ExtensionContext,
 	outputChannel: vscode.OutputChannel,
 ): Promise<void> {
+	// First, migrate commands from old defaults (security fix)
+	await migrateDefaultCommands(context, outputChannel)
 	// Legacy file names that need to be migrated to the new names in GlobalFileNames
 	const fileMigrations = [
 		// custom_modes.json to custom_modes.yaml is handled separately below
@@ -111,5 +113,59 @@ async function migrateCustomModesToYaml(settingsDir: string, outputChannel: vsco
 		}
 	} catch (fileError) {
 		outputChannel.appendLine(`Error reading custom_modes.json: ${fileError}. Skipping migration.`)
+	}
+}
+
+/**
+ * Removes commands from old defaults that could execute arbitrary code
+ * This addresses the security vulnerability where npm install/test can run malicious postinstall scripts
+ */
+async function migrateDefaultCommands(
+	context: vscode.ExtensionContext,
+	outputChannel: vscode.OutputChannel,
+): Promise<void> {
+	try {
+		// Check if this migration has already been run
+		const migrationKey = "defaultCommandsMigrationCompleted"
+		if (context.globalState.get(migrationKey)) {
+			outputChannel.appendLine("[Default Commands Migration] Migration already completed, skipping")
+			return
+		}
+
+		const allowedCommands = context.globalState.get<string[]>("allowedCommands")
+
+		if (!allowedCommands || !Array.isArray(allowedCommands)) {
+			// Mark migration as complete even if no commands to migrate
+			await context.globalState.update(migrationKey, true)
+			outputChannel.appendLine("No allowed commands found in global state, marking migration as complete")
+			return
+		}
+
+		// Only migrate the specific commands that were removed from the defaults
+		const oldDefaultCommands = ["npm install", "npm test", "tsc"]
+
+		// Filter out old default commands (case-insensitive exact match only)
+		const originalLength = allowedCommands.length
+		const filteredCommands = allowedCommands.filter((cmd) => {
+			const cmdLower = cmd.toLowerCase().trim()
+			return !oldDefaultCommands.some((oldDefault) => cmdLower === oldDefault.toLowerCase())
+		})
+
+		if (filteredCommands.length < originalLength) {
+			const removedCount = originalLength - filteredCommands.length
+			await context.globalState.update("allowedCommands", filteredCommands)
+
+			outputChannel.appendLine(
+				`[Default Commands Migration] Removed ${removedCount} command(s) from old defaults to prevent arbitrary code execution vulnerability`,
+			)
+		} else {
+			outputChannel.appendLine("[Default Commands Migration] No old default commands found in allowed list")
+		}
+
+		// Mark migration as complete
+		await context.globalState.update(migrationKey, true)
+		outputChannel.appendLine("[Default Commands Migration] Migration marked as complete")
+	} catch (error) {
+		outputChannel.appendLine(`[Default Commands Migration] Error migrating default commands: ${error}`)
 	}
 }
