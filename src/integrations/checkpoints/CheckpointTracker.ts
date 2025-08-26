@@ -1,3 +1,4 @@
+import { observeDecorator } from "@services/laminar/LaminarService"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import fs from "fs/promises"
 import * as path from "path"
@@ -158,6 +159,7 @@ class CheckpointTracker {
 	 * - Initialize simple-git
 	 * - Stage or commit files
 	 */
+	@observeDecorator({ name: "CheckpointTracker.commit" })
 	public async commit(): Promise<string | undefined> {
 		try {
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)

@@ -11,6 +11,7 @@ import { EmptyRequest } from "./shared/proto/cline/common"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import { laminarService } from "@services/laminar/LaminarService"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { telemetryService } from "./services/posthog/PostHogClientProvider"
@@ -35,6 +36,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 		}
 	}
 	PostHogClientProvider.getInstance(distinctId)
+
+	// Initialize Laminar tracing
+	await laminarService.initialize()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)

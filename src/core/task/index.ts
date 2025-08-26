@@ -38,9 +38,11 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { Laminar } from "@lmnr-ai/lmnr"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
+import { LaminarAttributes, laminarService } from "@services/laminar/LaminarService"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
@@ -1180,6 +1182,12 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
+			laminarService.agentSpan = laminarService.startActiveSpan({
+				name: `agent.step`,
+				spanType: "DEFAULT",
+				sessionId: this.taskId,
+				input: userContent,
+			})
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1211,6 +1219,11 @@ export class Task {
 		// Check for incomplete progress before aborting
 		if (this.FocusChainManager) {
 			this.FocusChainManager.checkIncompleteProgressOnCompletion()
+		}
+
+		if (laminarService.agentSpan) {
+			laminarService.endSpan(laminarService.agentSpan)
+			laminarService.agentSpan = undefined
 		}
 
 		this.taskState.abort = true // will stop any autonomously running promises
@@ -1725,6 +1738,11 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
+		laminarService.startLlmSpan({
+			name: "llm_call",
+			spanType: "LLM",
+			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
+		})
 		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
@@ -2354,6 +2372,7 @@ export class Task {
 							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
+								laminarService.shouldEndAgentSpan = true
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
 							// present content to user
@@ -2365,6 +2384,8 @@ export class Task {
 					if (this.taskState.abort) {
 						console.log("aborting stream...")
 						if (!this.taskState.abandoned) {
+							laminarService.endLlmSpan()
+							laminarService.endAgentSpan()
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
@@ -2398,6 +2419,20 @@ export class Task {
 				}
 			} finally {
 				this.taskState.isStreaming = false
+
+				laminarService.addSpanAttributes(
+					{
+						[LaminarAttributes.INPUT_TOKEN_COUNT]: inputTokens,
+						[LaminarAttributes.OUTPUT_TOKEN_COUNT]: outputTokens,
+						[LaminarAttributes.TOTAL_COST]: totalCost,
+						[LaminarAttributes.REQUEST_MODEL]: modelId,
+						[LaminarAttributes.PROVIDER]: providerId,
+						"lmnr.span.output": [{ role: "assistant", content: [{ type: "text", text: assistantMessage }] }],
+					},
+					laminarService.llmSpan,
+				)
+
+				laminarService.endLlmSpan()
 			}
 
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
@@ -2482,7 +2517,31 @@ export class Task {
 				// 	this.userMessageContentReady = true
 				// }
 
-				await pWaitFor(() => this.taskState.userMessageContentReady)
+				// await pWaitFor(() => !Boolean(laminarService.isEndAgentSpan));
+				await pWaitFor(() => {
+					if (!this.taskState.userMessageContentReady && laminarService.shouldEndAgentSpan) {
+						laminarService.endAgentSpan()
+						laminarService.shouldEndAgentSpan = false
+					}
+					return this.taskState.userMessageContentReady
+				})
+
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
+				const latestUserMessage =
+					apiHistory.length > 0 && apiHistory[apiHistory.length - 1]?.role === "user"
+						? typeof apiHistory[apiHistory.length - 1].content === "string"
+							? apiHistory[apiHistory.length - 1].content
+							: apiHistory[apiHistory.length - 1].content[-1]
+						: this.taskState.userMessageContent
+
+				if (!laminarService.agentSpan) {
+					laminarService.agentSpan = laminarService.startActiveSpan({
+						name: `agent.step`,
+						spanType: "DEFAULT",
+						sessionId: this.taskId,
+						input: latestUserMessage,
+					})
+				}
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")

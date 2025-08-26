@@ -6,8 +6,11 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
+import { Laminar } from "@lmnr-ai/lmnr"
+import { Span } from "@opentelemetry/api"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { laminarService } from "@services/laminar/LaminarService"
 import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
@@ -338,6 +341,16 @@ export class ToolExecutor {
 
 		if (block.name !== "browser_action") {
 			await this.browserSession.closeBrowser()
+		}
+
+		let toolSpan: Span | undefined
+
+		if (!block.partial) {
+			toolSpan = laminarService.startSpan({
+				input: [{ role: "tool", content: [{ name: block.name, arguments: block.params, type: "tool_call" }] }],
+				name: block.name,
+				spanType: "TOOL",
+			})
 		}
 
 		switch (block.name) {
@@ -2342,8 +2355,17 @@ export class ToolExecutor {
 							}
 						}
 
+						toolSpan?.end()
+						// if (!block.partial && block.type === 'tool_use' && block.name === 'attempt_completion') {
+						// 	laminarService.endAgentSpan()
+						// }
 						// we already sent completion_result says, an empty string asks relinquishes control over button and field
+						// NOTE: waiting for next user message.
+						laminarService.shouldEndAgentSpan = true
+
+						Laminar.event({ name: "--event before ask" })
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
+						Laminar.event({ name: "--event after ask" })
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 							break
@@ -2393,5 +2415,6 @@ export class ToolExecutor {
 				}
 			}
 		}
+		toolSpan?.end()
 	}
 }
