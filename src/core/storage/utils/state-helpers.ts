@@ -281,6 +281,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	const actModeBasetenModelInfo = context.globalState.get("actModeBasetenModelInfo") as ModelInfo | undefined
 	const actModeVercelAiGatewayModelId = context.globalState.get("actModeVercelAiGatewayModelId") as string | undefined
 	const actModeVercelAiGatewayModelInfo = context.globalState.get("actModeVercelAiGatewayModelInfo") as ModelInfo | undefined
+	const sapAiCoreUseOrchestrationMode = context.globalState.get("sapAiCoreUseOrchestrationMode") as boolean | undefined
 
 	let apiProvider: ApiProvider
 	if (planModeApiProvider) {
@@ -344,6 +345,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		sapAiCoreTokenUrl,
 		sapAiResourceGroup,
 		difyBaseUrl,
+		sapAiCoreUseOrchestrationMode,
 		// Plan mode configurations
 		planModeApiProvider: planModeApiProvider || apiProvider,
 		planModeApiModelId,
