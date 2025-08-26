@@ -770,6 +770,369 @@ The system supports the following tools (mapped to `ClineDefaultTool` enum):
 - `MCP_DOCS`: Load MCP documentation
 - `TODO`: Todo management
 
+## Adding New Tools
+
+### Tool Structure and Anatomy
+
+Each tool in Cline follows a specific structure with variants for different model families. Here's the anatomy of a tool:
+
+```typescript
+// src/core/prompts/system-prompt/tools/my_new_tool.ts
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import type { ClineToolSpec } from "../spec"
+
+const id = ClineDefaultTool.MY_NEW_TOOL // Add to enum first
+
+const generic: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id,
+	name: "my_new_tool",
+	description: "Description of what this tool does and when to use it",
+	parameters: [
+		{
+			name: "required_param",
+			required: true,
+			instruction: "Description of this parameter and how to use it",
+			usage: "Example value or placeholder text",
+		},
+		{
+			name: "optional_param",
+			required: false,
+			instruction: "Description of optional parameter",
+			usage: "Optional example (optional)",
+			dependencies: [ClineDefaultTool.SOME_OTHER_TOOL], // Only show if dependency exists
+		},
+	],
+}
+
+// Create variants for different model families if needed
+const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
+const gpt = { ...generic, variant: ModelFamily.GPT }
+const gemini = { ...generic, variant: ModelFamily.GEMINI }
+
+export const my_new_tool_variants = [generic, nextGen, gpt, gemini]
+```
+
+### Step-by-Step Instructions for Adding a New Tool
+
+#### 1. Add Tool ID to Enum
+
+First, add your tool ID to the `ClineDefaultTool` enum:
+
+```typescript
+// src/shared/tools.ts
+export enum ClineDefaultTool {
+	// ... existing tools
+	MY_NEW_TOOL = "my_new_tool",
+}
+```
+
+#### 2. Create Tool Specification File
+
+Create a new file in `src/core/prompts/system-prompt/tools/` following the naming convention `{tool_name}.ts`:
+
+```typescript
+// src/core/prompts/system-prompt/tools/my_new_tool.ts
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import type { ClineToolSpec } from "../spec"
+
+const id = ClineDefaultTool.MY_NEW_TOOL
+
+const generic: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id,
+	name: "my_new_tool",
+	description: "Comprehensive description of the tool's purpose, when to use it, and what it accomplishes. Be specific about use cases and limitations.",
+	parameters: [
+		{
+			name: "input_parameter",
+			required: true,
+			instruction: "Clear instruction on what this parameter expects and how to format it",
+			usage: "Example input here",
+		},
+		{
+			name: "options",
+			required: false,
+			instruction: "Optional configuration or settings for the tool",
+			usage: "Configuration options (optional)",
+		},
+	],
+}
+
+// Export variants array - this is crucial for registration
+export const my_new_tool_variants = [generic]
+```
+
+#### 3. Export Tool from Index
+
+Add your tool export to the tools index file:
+
+```typescript
+// src/core/prompts/system-prompt/tools/index.ts
+export * from "./my_new_tool"
+```
+
+#### 4. Register Tool in Init File
+
+Add your tool to the registration function:
+
+```typescript
+// src/core/prompts/system-prompt/tools/init.ts
+import { my_new_tool_variants } from "./my_new_tool"
+
+export function registerClineToolSets(): void {
+	const allToolVariants = [
+		// ... existing tool variants
+		...my_new_tool_variants,
+	]
+
+	allToolVariants.forEach((v) => {
+		ClineToolSet.register(v)
+	})
+}
+```
+
+#### 5. Implement Tool Handler (Backend)
+
+Create the actual tool implementation in the appropriate handler:
+
+```typescript
+// In your tool handler class (e.g., ClineProvider)
+async handleMyNewTool(args: { input_parameter: string; options?: string }) {
+	// Implement your tool logic here
+	const result = await performToolOperation(args.input_parameter, args.options)
+	
+	return {
+		type: "tool_result" as const,
+		content: result,
+	}
+}
+```
+
+### Advanced Tool Configuration
+
+#### Context-Aware Tools
+
+Tools can be conditionally enabled based on context:
+
+```typescript
+const contextAwareTool: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id: ClineDefaultTool.CONTEXT_TOOL,
+	name: "context_tool",
+	description: "Tool that only appears in certain contexts",
+	contextRequirements: (context: SystemPromptContext) => {
+		// Only show this tool if browser support is available
+		return context.supportsBrowserUse === true
+	},
+	parameters: [
+		// ... parameters
+	],
+}
+```
+
+#### Model-Specific Variants
+
+Create different tool behaviors for different model families:
+
+```typescript
+const claude: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id: ClineDefaultTool.MODEL_SPECIFIC_TOOL,
+	name: "model_specific_tool",
+	description: "Tool optimized for Claude models with detailed instructions",
+	parameters: [
+		{
+			name: "detailed_input",
+			required: true,
+			instruction: "Provide comprehensive details as Claude handles complex instructions well",
+			usage: "Detailed input with context and examples",
+		},
+	],
+}
+
+const gpt: ClineToolSpec = {
+	...claude,
+	variant: ModelFamily.GPT,
+	description: "Tool optimized for GPT models with concise instructions",
+	parameters: [
+		{
+			name: "detailed_input",
+			required: true,
+			instruction: "Provide concise, structured input",
+			usage: "Brief, structured input",
+		},
+	],
+}
+
+export const model_specific_tool_variants = [claude, gpt]
+```
+
+#### Parameter Dependencies
+
+Tools can have parameters that only appear when other tools are available:
+
+```typescript
+const dependentTool: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id: ClineDefaultTool.DEPENDENT_TOOL,
+	name: "dependent_tool",
+	description: "Tool with conditional parameters",
+	parameters: [
+		{
+			name: "always_present",
+			required: true,
+			instruction: "This parameter is always available",
+			usage: "Standard input",
+		},
+		{
+			name: "conditional_param",
+			required: false,
+			instruction: "This parameter only appears if TODO tool is available",
+			usage: "Conditional input (optional)",
+			dependencies: [ClineDefaultTool.TODO],
+		},
+	],
+}
+```
+
+### Best Practices
+
+#### 1. Tool Naming Conventions
+- Use snake_case for tool IDs and file names
+- Use descriptive names that clearly indicate the tool's purpose
+- Prefix with action verb when appropriate (e.g., `create_file`, `search_code`)
+
+#### 2. Parameter Design
+- Always provide clear, actionable instructions
+- Include usage examples that show expected format
+- Mark parameters as required/optional appropriately
+- Use dependencies to avoid cluttering the prompt with irrelevant parameters
+
+#### 3. Description Guidelines
+- Be specific about when and why to use the tool
+- Include limitations and constraints
+- Mention any prerequisites or setup requirements
+- Provide context about expected outcomes
+
+#### 4. Model Variant Strategy
+- Start with a GENERIC variant that works across all models
+- Create specific variants only when models need different instructions
+- Keep variant differences minimal and focused on instruction style
+- Test across different model families to ensure compatibility
+
+#### 5. Error Handling
+- Design tools to fail gracefully
+- Provide meaningful error messages
+- Consider edge cases in parameter validation
+- Document expected error scenarios
+
+### Testing Your New Tool
+
+#### 1. Unit Tests
+Create unit tests for your tool specification:
+
+```typescript
+// src/core/prompts/system-prompt/tools/__tests__/my_new_tool.test.ts
+import { my_new_tool_variants } from "../my_new_tool"
+import { ModelFamily } from "@/shared/prompts"
+
+describe("my_new_tool", () => {
+	it("should have correct structure", () => {
+		const generic = my_new_tool_variants.find(v => v.variant === ModelFamily.GENERIC)
+		expect(generic).toBeDefined()
+		expect(generic?.name).toBe("my_new_tool")
+		expect(generic?.parameters).toHaveLength(2)
+	})
+})
+```
+
+#### 2. Integration Tests
+Add your tool to the integration test suite:
+
+```typescript
+// src/core/prompts/system-prompt/__tests__/integration.test.ts
+// The test will automatically pick up your tool if properly registered
+```
+
+#### 3. Manual Testing
+1. Run the unit tests: `npm run test:unit`
+2. Start the application and verify your tool appears in the system prompt
+3. Test tool execution with various parameter combinations
+4. Verify tool works across different model families
+
+### Complete Example: File Analyzer Tool
+
+Here's a complete example of adding a new "analyze_file" tool:
+
+```typescript
+// 1. Add to src/shared/tools.ts
+export enum ClineDefaultTool {
+	// ... existing tools
+	ANALYZE_FILE = "analyze_file",
+}
+
+// 2. Create src/core/prompts/system-prompt/tools/analyze_file.ts
+import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
+import type { ClineToolSpec } from "../spec"
+
+const id = ClineDefaultTool.ANALYZE_FILE
+
+const generic: ClineToolSpec = {
+	variant: ModelFamily.GENERIC,
+	id,
+	name: "analyze_file",
+	description: "Analyze a file's structure, dependencies, and potential issues. Use this when you need to understand a file's architecture, identify problems, or assess code quality before making changes.",
+	parameters: [
+		{
+			name: "file_path",
+			required: true,
+			instruction: "The path to the file you want to analyze (relative to current working directory)",
+			usage: "src/components/MyComponent.tsx",
+		},
+		{
+			name: "analysis_type",
+			required: false,
+			instruction: "Type of analysis to perform: 'structure', 'dependencies', 'quality', or 'all'",
+			usage: "all (optional)",
+		},
+		{
+			name: "include_suggestions",
+			required: false,
+			instruction: "Whether to include improvement suggestions in the analysis",
+			usage: "true (optional)",
+		},
+	],
+}
+
+const nextGen: ClineToolSpec = {
+	...generic,
+	variant: ModelFamily.NEXT_GEN,
+	description: "Perform comprehensive file analysis including structure, dependencies, code quality, and improvement suggestions. Ideal for code review and refactoring planning.",
+}
+
+export const analyze_file_variants = [generic, nextGen]
+
+// 3. Add to src/core/prompts/system-prompt/tools/index.ts
+export * from "./analyze_file"
+
+// 4. Add to src/core/prompts/system-prompt/tools/init.ts
+import { analyze_file_variants } from "./analyze_file"
+
+export function registerClineToolSets(): void {
+	const allToolVariants = [
+		// ... existing variants
+		...analyze_file_variants,
+	]
+	// ... rest of function
+}
+```
+
+This comprehensive guide should help developers understand both the architecture and practical steps needed to extend Cline with new tools.
+
 ## Key Features
 
 - **Modular Components**: Reusable across different model variants  
