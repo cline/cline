@@ -6,10 +6,12 @@ import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "../RooIgnoreController"
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
+import * as fsSync from "fs"
 import { fileExistsAtPath } from "../../../utils/fs"
 
 // Mock dependencies
 vi.mock("fs/promises")
+vi.mock("fs")
 vi.mock("../../../utils/fs")
 
 // Mock vscode
@@ -65,6 +67,10 @@ describe("RooIgnoreController", () => {
 		// Setup fs mocks
 		mockFileExists = fileExistsAtPath as Mock<typeof fileExistsAtPath>
 		mockReadFile = fs.readFile as Mock<typeof fs.readFile>
+
+		// Setup fsSync mocks with default behavior (return path as-is, like regular files)
+		const mockRealpathSync = vi.mocked(fsSync.realpathSync)
+		mockRealpathSync.mockImplementation((filePath) => filePath.toString())
 
 		// Create controller
 		controller = new RooIgnoreController(TEST_CWD)
@@ -216,6 +222,27 @@ describe("RooIgnoreController", () => {
 			expect(emptyController.validateAccess("node_modules/package.json")).toBe(true)
 			expect(emptyController.validateAccess("secrets/api-keys.json")).toBe(true)
 			expect(emptyController.validateAccess(".git/HEAD")).toBe(true)
+		})
+
+		/**
+		 * Tests symlink resolution
+		 */
+		it("should block symlinks pointing to ignored files", () => {
+			// Mock fsSync.realpathSync to simulate symlink resolution
+			const mockRealpathSync = vi.mocked(fsSync.realpathSync)
+			mockRealpathSync.mockImplementation((filePath) => {
+				// Simulate "config.json" being a symlink to "node_modules/package.json"
+				if (filePath.toString().endsWith("config.json")) {
+					return path.join(TEST_CWD, "node_modules/package.json")
+				}
+				return filePath.toString()
+			})
+
+			// Direct access to ignored file should be blocked
+			expect(controller.validateAccess("node_modules/package.json")).toBe(false)
+
+			// Symlink to ignored file should also be blocked
+			expect(controller.validateAccess("config.json")).toBe(false)
 		})
 	})
 
