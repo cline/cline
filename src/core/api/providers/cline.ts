@@ -136,6 +136,10 @@ export class ClineHandler implements ApiHandler {
 
 					if (this.getModel().id === "cline/sonic") {
 						totalCost = 0
+					} 
+
+					if  (this.getModel().id === "x-ai/grok-code-fast-1") {
+						totalCost = 0
 					}
 
 					yield {
