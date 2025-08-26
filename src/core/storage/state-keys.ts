@@ -71,6 +71,7 @@ export interface GlobalState {
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
+	sapAiCoreUseOrchestrationMode: boolean | undefined
 	claudeCodePath: string | undefined
 	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean

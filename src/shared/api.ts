@@ -105,6 +105,7 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	sapAiCoreUseOrchestrationMode?: boolean
 	huaweiCloudMaasApiKey?: string
 	difyApiKey?: string
 	difyBaseUrl?: string
