@@ -54,7 +54,6 @@ export type GlobalStateKey =
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"
 	| "awsProfile"
-	| "awsBedrockApiKey"
 	| "awsAuthentication"
 	| "awsUseProfile"
 	| "vertexProjectId"
@@ -186,7 +185,6 @@ export interface GlobalState {
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
-	awsBedrockApiKey: string | undefined
 	awsAuthentication: string | undefined
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined

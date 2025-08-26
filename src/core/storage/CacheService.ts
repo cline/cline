@@ -1,6 +1,6 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import type { ExtensionContext } from "vscode"
-import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
@@ -12,10 +12,10 @@ export interface PersistenceErrorEvent {
 }
 
 /**
- * In-memory state manager for fast state access
+ * In-memory cache service for fast state access
  * Provides immediate reads/writes with async disk persistence
  */
-export class StateManager {
+export class CacheService {
 	private globalStateCache: GlobalState = {} as GlobalState
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
@@ -42,9 +42,9 @@ export class StateManager {
 	async initialize(): Promise<void> {
 		try {
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(this.context)
-			const secrets = await readSecretsFromDisk(this.context)
-			const workspaceState = await readWorkspaceStateFromDisk(this.context)
+			const globalState = readGlobalStateFromDisk(this.context)
+			const secrets = readSecretsFromDisk(this.context)
+			const workspaceState = readWorkspaceStateFromDisk(this.context)
 
 			// Populate the caches with all extension state fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -52,7 +52,7 @@ export class StateManager {
 
 			this.isInitialized = true
 		} catch (error) {
-			console.error("Failed to initialize StateManager:", error)
+			console.error("Failed to initialize CacheService:", error)
 			throw error
 		}
 	}
@@ -62,7 +62,7 @@ export class StateManager {
 	 */
 	setGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -78,7 +78,7 @@ export class StateManager {
 	 */
 	setGlobalStateBatch(updates: Partial<GlobalState>): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache in one go
@@ -99,7 +99,7 @@ export class StateManager {
 	 */
 	setSecret<K extends keyof Secrets>(key: K, value: Secrets[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -115,7 +115,7 @@ export class StateManager {
 	 */
 	setSecretsBatch(updates: Partial<Secrets>): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for all keys
@@ -133,7 +133,7 @@ export class StateManager {
 	 */
 	setWorkspaceState<K extends keyof LocalState>(key: K, value: LocalState[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -149,7 +149,7 @@ export class StateManager {
 	 */
 	setWorkspaceStateBatch(updates: Partial<LocalState>): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for all keys
@@ -168,7 +168,7 @@ export class StateManager {
 	 */
 	getApiConfiguration(): ApiConfiguration {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		// Construct API configuration from cached component keys
@@ -180,7 +180,7 @@ export class StateManager {
 	 */
 	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 
 		const {
@@ -467,7 +467,7 @@ export class StateManager {
 	 */
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 		return this.globalStateCache[key]
 	}
@@ -477,7 +477,7 @@ export class StateManager {
 	 */
 	getSecretKey<K extends keyof Secrets>(key: K): Secrets[K] {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 		return this.secretsCache[key]
 	}
@@ -487,13 +487,13 @@ export class StateManager {
 	 */
 	getWorkspaceStateKey<K extends keyof LocalState>(key: K): LocalState[K] {
 		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
 		}
 		return this.workspaceStateCache[key]
 	}
 
 	/**
-	 * Reinitialize the state manager by clearing all state and reloading from disk
+	 * Reinitialize the cache service by clearing all state and reloading from disk
 	 * Used for error recovery when write operations fail
 	 */
 	async reInitialize(): Promise<void> {
@@ -505,7 +505,7 @@ export class StateManager {
 	}
 
 	/**
-	 * Dispose of the state manager
+	 * Dispose of the cache service
 	 */
 	private dispose(): void {
 		if (this.persistenceTimeout) {
