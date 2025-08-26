@@ -7,6 +7,9 @@ interface CustomPromptCheckboxProps {
 	providerId: string
 }
 
+/**
+ * Checkbox to enable or disable the use of a compact prompt for local models providers.
+ */
 const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ providerId }) => {
 	const { customPrompt } = useExtensionState()
 	const [isCompactPromptEnabled, setIsCompactPromptEnabled] = useState<boolean>(customPrompt === "compact")
