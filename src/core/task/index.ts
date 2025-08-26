@@ -67,7 +67,8 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
-import { buildSystemPrompt } from "@/core/prompts/system-prompt/build-system-prompt"
+import type { SystemPromptContext } from "@/core/prompts/system-prompt"
+import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { errorService } from "@/services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -75,9 +76,8 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
-import { addUserInstructions } from "../prompts/system-prompt/user-instructions/addUserInstructions"
 import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
-import { CacheService } from "../storage/CacheService"
+import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { showChangedFilesDiff } from "./multifile-diff"
@@ -133,7 +133,7 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	// Cache service
-	private cacheService: CacheService
+	private stateManager: StateManager
 
 	// User chat state
 	autoApprovalSettings: AutoApprovalSettings
@@ -167,7 +167,7 @@ export class Task {
 		defaultTerminalProfile: string,
 		enableCheckpointsSetting: boolean,
 		cwd: string,
-		cacheService: CacheService,
+		stateManager: StateManager,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -212,7 +212,7 @@ export class Task {
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
-		this.cacheService = cacheService
+		this.stateManager = stateManager
 		this.useAutoCondense = useAutoCondense
 
 		// Set up MCP notification callback for real-time notifications
@@ -257,7 +257,7 @@ export class Task {
 				taskState: this.taskState,
 				mode: this.mode,
 				context: this.getContext(),
-				cacheService: this.cacheService,
+				stateManager: this.stateManager,
 				postStateToWebview: this.postStateToWebview,
 				say: this.say.bind(this),
 				focusChainSettings: this.focusChainSettings,
@@ -353,7 +353,7 @@ export class Task {
 			this.fileContextTracker,
 			this.clineIgnoreController,
 			this.contextManager,
-			this.cacheService,
+			this.stateManager,
 			this.autoApprovalSettings,
 			this.browserSettings,
 			this.focusChainSettings,
@@ -1627,11 +1627,11 @@ export class Task {
 	}
 
 	private getCurrentProviderInfo(): ApiProviderInfo {
-		const modelId = this.api.getModel()?.id
-		const apiConfig = this.cacheService.getApiConfiguration()
+		const model = this.api.getModel()
+		const apiConfig = this.stateManager.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.cacheService.getGlobalStateKey("customPrompt")
-		return { modelId, providerId, customPrompt }
+		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
+		return { model, providerId, customPrompt }
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -1660,24 +1660,13 @@ export class Task {
 			console.error("MCP servers failed to connect in time")
 		})
 
+		const providerInfo = this.getCurrentProviderInfo()
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
-		const modelInfo = this.api.getModel()
-		const providerInfo = this.getCurrentProviderInfo()
 		// cline browser tool uses image recognition for navigation (requires model image support).
-		const modelSupportsBrowserUse = modelInfo.info.supportsImages ?? false
+		const modelSupportsBrowserUse = providerInfo.model.info.supportsImages ?? false
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
-
-		let systemPrompt = await buildSystemPrompt(
-			this.cwd,
-			supportsBrowserUse,
-			this.mcpHub,
-			this.browserSettings,
-			this.api.getModel(),
-			this.focusChainSettings,
-			providerInfo,
-		)
 
 		const preferredLanguage = getLanguageKey(this.preferredLanguage as LanguageDisplay)
 		const preferredLanguageInstructions =
@@ -1704,27 +1693,24 @@ export class Task {
 			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
 		}
 
-		if (
-			globalClineRulesFileInstructions ||
-			localClineRulesFileInstructions ||
-			localCursorRulesFileInstructions ||
-			localCursorRulesDirInstructions ||
-			localWindsurfRulesFileInstructions ||
-			clineIgnoreInstructions ||
-			preferredLanguageInstructions
-		) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			const userInstructions = addUserInstructions(
-				globalClineRulesFileInstructions,
-				localClineRulesFileInstructions,
-				localCursorRulesFileInstructions,
-				localCursorRulesDirInstructions,
-				localWindsurfRulesFileInstructions,
-				clineIgnoreInstructions,
-				preferredLanguageInstructions,
-			)
-			systemPrompt += userInstructions
+		const promptContext: SystemPromptContext = {
+			cwd: this.cwd,
+			providerInfo,
+			supportsBrowserUse,
+			mcpHub: this.mcpHub,
+			focusChainSettings: this.focusChainSettings,
+			globalClineRulesFileInstructions,
+			localClineRulesFileInstructions,
+			localCursorRulesFileInstructions,
+			localCursorRulesDirInstructions,
+			localWindsurfRulesFileInstructions,
+			clineIgnoreInstructions,
+			preferredLanguageInstructions,
+			browserSettings: this.browserSettings,
 		}
+
+		const systemPrompt = await getSystemPrompt(promptContext)
+
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
@@ -1753,8 +1739,8 @@ export class Task {
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
-			const { modelId, providerId } = this.getCurrentProviderInfo()
-			const clineError = errorService.toClineError(error, modelId, providerId)
+			const { model, providerId } = this.getCurrentProviderInfo()
+			const clineError = errorService.toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
 			// TODO: Move into errorService
@@ -1966,10 +1952,10 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { modelId, providerId, customPrompt } = this.getCurrentProviderInfo()
-		if (providerId && modelId) {
+		const { model, providerId, customPrompt } = this.getCurrentProviderInfo()
+		if (providerId && model.id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(providerId, modelId, this.mode)
+				await this.modelContextTracker.recordModelUsage(providerId, model.id, this.mode)
 			} catch {}
 		}
 
@@ -2241,7 +2227,7 @@ export class Task {
 			}
 
 			if (shouldCompact) {
-				userContent.push({ type: "text", text: summarizeTask(this.focusChainSettings.enabled) })
+				userContent.push({ type: "text", text: summarizeTask(this.focusChainSettings) })
 			}
 		} else {
 			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
@@ -2267,7 +2253,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "user")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user")
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2509,7 +2495,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, modelId, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
@@ -2621,6 +2607,7 @@ export class Task {
 								localWorkflowToggles,
 								globalWorkflowToggles,
 								this.ulid,
+								this.focusChainSettings,
 							)
 
 							if (needsCheck) {
