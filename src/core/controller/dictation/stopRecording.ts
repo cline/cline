@@ -1,15 +1,14 @@
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import { RecordedAudio, RecordingRequest } from "@shared/proto/cline/dictation"
+import { RecordedAudio } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { Controller } from ".."
 
 /**
  * Stops audio recording and returns the recorded audio
  * @param controller The controller instance
- * @param request RecordingRequest
  * @returns RecordedAudio with audio data
  */
-export const stopRecording = async (controller: Controller, _request: RecordingRequest): Promise<RecordedAudio> => {
+export const stopRecording = async (controller: Controller): Promise<RecordedAudio> => {
 	const taskId = controller.task?.taskId
 	const recordingStatus = audioRecordingService.getRecordingStatus()
 	const recordingDuration = recordingStatus.durationSeconds * 1000 // Convert to milliseconds
@@ -17,10 +16,7 @@ export const stopRecording = async (controller: Controller, _request: RecordingR
 	try {
 		const result = await audioRecordingService.stopRecording()
 
-		// Capture telemetry for recording stop
 		telemetryService.captureVoiceRecordingStopped(taskId, recordingDuration, result.success, process.platform)
-
-		// Calculate audio size if available
 
 		return RecordedAudio.create({
 			success: result.success,
@@ -30,7 +26,6 @@ export const stopRecording = async (controller: Controller, _request: RecordingR
 	} catch (error) {
 		console.error("Error stopping recording:", error)
 
-		// Capture telemetry for recording failure
 		telemetryService.captureVoiceRecordingStopped(taskId, recordingDuration, false, process.platform)
 
 		return RecordedAudio.create({

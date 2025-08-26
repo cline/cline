@@ -750,12 +750,7 @@ export class TelemetryService {
 	 * @param language Language hint provided for transcription
 	 * @param collect If true, collect event instead of sending
 	 */
-	public captureVoiceTranscriptionStarted(
-		taskId?: string,
-		audioSizeBytes?: number,
-		language?: string,
-		collect: boolean = false,
-	) {
+	public captureVoiceTranscriptionStarted(taskId?: string, language?: string, collect: boolean = false) {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
@@ -764,7 +759,6 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_STARTED,
 			properties: {
 				taskId,
-				audioSizeBytes,
 				language,
 				timestamp: new Date().toISOString(),
 			},

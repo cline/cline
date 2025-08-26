@@ -6,19 +6,14 @@ option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
 service DictationService {
-  rpc startRecording(RecordingRequest) returns (RecordingResult);
-  rpc stopRecording(RecordingRequest) returns (RecordedAudio);
-  rpc cancelRecording(RecordingRequest) returns (RecordingResult);
-  rpc getRecordingStatus(RecordingRequest) returns (RecordingStatus);
+  rpc startRecording(EmptyRequest) returns (RecordingResult);
+  rpc stopRecording(EmptyRequest) returns (RecordedAudio);
+  rpc cancelRecording(EmptyRequest) returns (RecordingResult);
+  rpc getRecordingStatus(EmptyRequest) returns (RecordingStatus);
   rpc transcribeAudio(TranscribeAudioRequest) returns (Transcription);
 }
 
-message RecordingRequest {
-  Metadata metadata = 1;
-}
-
 message TranscribeAudioRequest {
-  Metadata metadata = 1;
   string audio_base64 = 2;
   string language = 3;
 }

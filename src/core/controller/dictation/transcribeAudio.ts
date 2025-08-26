@@ -15,20 +15,15 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 	const taskId = controller.task?.taskId
 	const startTime = Date.now()
 
-	// Calculate audio size from base64
-	const audioSizeBytes = Math.ceil((request.audioBase64.length * 3) / 4)
-
 	// Capture telemetry for transcription start
-	telemetryService.captureVoiceTranscriptionStarted(taskId, audioSizeBytes, request.language || "en")
+	telemetryService.captureVoiceTranscriptionStarted(taskId, request.language || "en")
 
 	try {
 		// Transcribe the audio
-		const result = await voiceTranscriptionService.transcribeAudio(request.audioBase64, request.language || undefined)
+		const result = await voiceTranscriptionService.transcribeAudio(request.audioBase64, request.language || "en")
 		const durationMs = Date.now() - startTime
 
-		// Handle transcription result
 		if (result.error) {
-			// Determine error type for telemetry
 			let errorType = "api_error"
 			if (result.error.includes("Authentication failed")) {
 				errorType = "invalid_jwt_token"
@@ -42,11 +37,9 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 				errorType = "network_error"
 			}
 
-			// Capture telemetry for transcription error
 			telemetryService.captureVoiceTranscriptionError(taskId, errorType, result.error, durationMs)
 
 			let errorMessage = ""
-			// Show error notification if transcription failed
 			if (result.error.includes("Authentication failed")) {
 				errorMessage = "Authentication failed. Please log in again."
 			} else if (result.error.includes("Insufficient credits")) {
@@ -62,11 +55,9 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 				message: errorMessage,
 			})
 		} else if (result.text) {
-			// Capture telemetry for successful transcription
 			telemetryService.captureVoiceTranscriptionCompleted(taskId, result.text.length, durationMs, request.language || "en")
 		}
 
-		// Return the response
 		return Transcription.create({
 			text: result.text || "",
 			error: result.error || "",
@@ -76,7 +67,6 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 		const durationMs = Date.now() - startTime
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
-		// Capture telemetry for unexpected error
 		telemetryService.captureVoiceTranscriptionError(taskId, "unexpected_error", errorMessage, durationMs)
 
 		return Transcription.create({
