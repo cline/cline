@@ -24,13 +24,20 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 
 	// This is the same core logic as in the original handler
 	if (isGlobal) {
-		const toggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
+		const toggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
 		toggles[rulePath] = enabled
-		controller.cacheService.setGlobalState("globalClineRulesToggles", toggles)
+		controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 	} else {
-		const toggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+		const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		toggles[rulePath] = enabled
-		controller.cacheService.setWorkspaceState("localClineRulesToggles", toggles)
+		controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
+	}
+
+	// Track rule toggle telemetry with current task context
+	if (controller.task?.ulid) {
+		// Extract just the filename for privacy (no full paths)
+		const ruleFileName = path.basename(rulePath)
+		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
 
 	// Track rule toggle telemetry with current task context
@@ -41,8 +48,8 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	}
 
 	// Get the current state to return in the response
-	const globalToggles = controller.cacheService.getGlobalStateKey("globalClineRulesToggles")
-	const localToggles = controller.cacheService.getWorkspaceStateKey("localClineRulesToggles")
+	const globalToggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
+	const localToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 
 	return ToggleClineRules.create({
 		globalClineRulesToggles: { toggles: globalToggles },

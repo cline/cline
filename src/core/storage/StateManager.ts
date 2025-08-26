@@ -2,7 +2,7 @@ import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import type { ExtensionContext } from "vscode"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
-import { CACHE_SERVICE_NOT_INITIALIZED } from "./error-messages"
+import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readStateFromDisk } from "./utils/state-helpers"
 
@@ -14,10 +14,10 @@ export interface PersistenceErrorEvent {
 }
 
 /**
- * In-memory cache service for fast state access
+ * In-memory state manager for fast state access
  * Provides immediate reads/writes with async disk persistence
  */
-export class CacheService {
+export class StateManager {
 	private globalStateCache: GlobalState = {} as GlobalState
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
@@ -54,7 +54,7 @@ export class CacheService {
 
 			this.isInitialized = true
 		} catch (error) {
-			console.error("Failed to initialize CacheService:", error)
+			console.error("Failed to initialize StateManager:", error)
 			throw error
 		}
 	}
@@ -64,7 +64,7 @@ export class CacheService {
 	 */
 	setGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -80,7 +80,7 @@ export class CacheService {
 	 */
 	setGlobalStateBatch(updates: Partial<GlobalState>): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache in one go
@@ -101,7 +101,7 @@ export class CacheService {
 	 */
 	setSecret<K extends keyof Secrets>(key: K, value: Secrets[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -117,7 +117,7 @@ export class CacheService {
 	 */
 	setSecretsBatch(updates: Partial<Secrets>): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for all keys
@@ -135,7 +135,7 @@ export class CacheService {
 	 */
 	setWorkspaceState<K extends keyof LocalState>(key: K, value: LocalState[K]): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for instant access
@@ -151,7 +151,7 @@ export class CacheService {
 	 */
 	setWorkspaceStateBatch(updates: Partial<LocalState>): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Update cache immediately for all keys
@@ -170,7 +170,7 @@ export class CacheService {
 	 */
 	getApiConfiguration(): ApiConfiguration {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		// Construct API configuration from cached component keys
@@ -182,7 +182,7 @@ export class CacheService {
 	 */
 	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
 		const {
@@ -251,6 +251,8 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -419,6 +421,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			difyBaseUrl,
 			qwenCodeOauthPath,
 		})
 
@@ -455,6 +458,7 @@ export class CacheService {
 			basetenApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		})
@@ -465,7 +469,7 @@ export class CacheService {
 	 */
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.globalStateCache[key]
 	}
@@ -475,7 +479,7 @@ export class CacheService {
 	 */
 	getSecretKey<K extends keyof Secrets>(key: K): Secrets[K] {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.secretsCache[key]
 	}
@@ -485,13 +489,13 @@ export class CacheService {
 	 */
 	getWorkspaceStateKey<K extends keyof LocalState>(key: K): LocalState[K] {
 		if (!this.isInitialized) {
-			throw new Error(CACHE_SERVICE_NOT_INITIALIZED)
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.workspaceStateCache[key]
 	}
 
 	/**
-	 * Reinitialize the cache service by clearing all state and reloading from disk
+	 * Reinitialize the state manager by clearing all state and reloading from disk
 	 * Used for error recovery when write operations fail
 	 */
 	async reInitialize(): Promise<void> {
@@ -503,7 +507,7 @@ export class CacheService {
 	}
 
 	/**
-	 * Dispose of the cache service
+	 * Dispose of the state manager
 	 */
 	private dispose(): void {
 		if (this.persistenceTimeout) {
@@ -682,6 +686,8 @@ export class CacheService {
 			qwenCodeOauthPath,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
+			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -882,6 +888,7 @@ export class CacheService {
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			claudeCodePath,
+			difyBaseUrl,
 			qwenCodeOauthPath,
 		} satisfies GlobalState
 
@@ -922,6 +929,7 @@ export class CacheService {
 			authNonce,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
+			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		} satisfies Secrets
@@ -977,6 +985,7 @@ export class CacheService {
 			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
+			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 
@@ -1016,6 +1025,7 @@ export class CacheService {
 			sapAiResourceGroup: this.globalStateCache["sapAiResourceGroup"],
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
+			difyBaseUrl: this.globalStateCache["difyBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],

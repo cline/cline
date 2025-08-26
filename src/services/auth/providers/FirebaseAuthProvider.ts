@@ -41,7 +41,7 @@ export class FirebaseAuthProvider {
 	 * @throws {Error} Throws an error if the restoration fails.
 	 */
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
-		const userRefreshToken = controller.cacheService.getSecretKey("clineAccountId")
+		const userRefreshToken = controller.stateManager.getSecretKey("clineAccountId")
 		if (!userRefreshToken) {
 			console.error("No stored authentication credential found.")
 			return null
@@ -122,7 +122,7 @@ export class FirebaseAuthProvider {
 
 			// store the long-lived refresh token in secret storage
 			try {
-				controller.cacheService.setSecret("clineAccountId", userCredential.refreshToken)
+				controller.stateManager.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
 				errorService.logMessage("Firebase store token error", "error")
 				errorService.logException(error)

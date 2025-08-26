@@ -241,7 +241,7 @@ export class AuthService {
 	 * This is typically called when the user logs out.
 	 */
 	async clearAuthToken(): Promise<void> {
-		this._controller.cacheService.setSecret("clineAccountId", undefined)
+		this._controller.stateManager.setSecret("clineAccountId", undefined)
 	}
 
 	/**
