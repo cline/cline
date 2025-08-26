@@ -31,6 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { createTaskCheckpointManager, TaskCheckpointManager } from "@integrations/checkpoints"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
@@ -246,8 +247,8 @@ export class Task {
 		})
 
 		// Initialize file context tracker
-		this.fileContextTracker = new FileContextTracker(context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
+		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
 		// Initialize checkpoint manager
 		try {
@@ -259,7 +260,7 @@ export class Task {
 					enableCheckpoints: enableCheckpointsSetting,
 				},
 				{
-					context,
+					context: controller.context,
 					diffViewProvider: this.diffViewProvider,
 					messageStateHandler: this.messageStateHandler,
 					fileContextTracker: this.fileContextTracker,
@@ -280,7 +281,10 @@ export class Task {
 			console.error("Failed to initialize checkpoint manager:", error)
 			if (enableCheckpointsSetting) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				vscode.window.showErrorMessage(`Failed to initialize checkpoint manager: ${errorMessage}`)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Failed to initialize checkpoint manager: ${errorMessage}`,
+				})
 			}
 		}
 
@@ -1707,7 +1711,10 @@ export class Task {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint manager:", errorMessage)
 				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
-				vscode.window.showErrorMessage(`Checkpoint initialization timed out: ${errorMessage}`)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Checkpoint initialization timed out: ${errorMessage}`,
+				})
 			}
 		}
 

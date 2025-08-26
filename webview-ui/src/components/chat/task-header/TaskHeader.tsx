@@ -750,7 +750,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								</div>
 							)}
 
-							{checkpointTrackerErrorMessage && (
+							{checkpointManagerErrorMessage && (
 								<div
 									style={{
 										display: "flex",
@@ -765,24 +765,26 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
 											<>
 												<button
+													className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
 													onClick={() => {
 														// First open the settings panel using direct navigation
 														navigateToSettings()
 
-													// After a short delay, send a message to scroll to settings
-													setTimeout(async () => {
-														try {
-															await UiServiceClient.scrollToSettings(
-																StringRequest.create({ value: "features" }),
-															)
-														} catch (error) {
-															console.error("Error scrolling to checkpoint settings:", error)
-														}
-													}, 300)
-												}}
-												style={{ fontSize: "inherit" }}>
-												disabling checkpoints.
-											</button>
+														// After a short delay, send a message to scroll to settings
+														setTimeout(async () => {
+															try {
+																await UiServiceClient.scrollToSettings(
+																	StringRequest.create({ value: "features" }),
+																)
+															} catch (error) {
+																console.error("Error scrolling to checkpoint settings:", error)
+															}
+														}, 300)
+													}}
+													style={{ fontSize: "inherit" }}>
+													disabling checkpoints.
+												</button>
+											</>
 										)}
 										{checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
