@@ -1,4 +1,5 @@
-import { RecordingRequest, TranscribeAudioRequest } from "@shared/proto/cline/dictation"
+import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
+import { EmptyRequest } from "@shared/proto/index.cline"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
@@ -40,7 +41,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			setRecordingDuration(0) // Reset recording duration
 
 			// Call Extension Host to start recording
-			const response = await DictationServiceClient.startRecording(RecordingRequest.create({}))
+			const response = await DictationServiceClient.startRecording(EmptyRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
@@ -65,7 +66,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			onProcessingStateChange?.(true, "Processing...")
 
 			// Call Extension Host to stop recording and get audio
-			const response = await DictationServiceClient.stopRecording(RecordingRequest.create({}))
+			const response = await DictationServiceClient.stopRecording(EmptyRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
@@ -124,7 +125,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	useEffect(() => {
 		const pollRecordingStatus = async () => {
 			try {
-				const statusResponse = await DictationServiceClient.getRecordingStatus(RecordingRequest.create({}))
+				const statusResponse = await DictationServiceClient.getRecordingStatus(EmptyRequest.create({}))
 				if (statusResponse.isRecording) {
 					setRecordingDuration(Math.floor(statusResponse.durationSeconds))
 
@@ -165,7 +166,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			onTranscription("")
 
 			// Call Extension Host to cancel recording
-			const response = await DictationServiceClient.cancelRecording(RecordingRequest.create({}))
+			const response = await DictationServiceClient.cancelRecording(EmptyRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to cancel recording:", response.error)
