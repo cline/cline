@@ -1,4 +1,4 @@
-import { RecordingResult, StartRecordingRequest } from "@shared/proto/cline/dictation"
+import { RecordingRequest, RecordingResult } from "@shared/proto/cline/dictation"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
@@ -9,10 +9,10 @@ import { Controller } from ".."
 /**
  * Starts audio recording using the Extension Host
  * @param controller The controller instance
- * @param request StartRecordingRequest
+ * @param request RecordingRequest
  * @returns RecordingResult with success status
  */
-export const startRecording = async (controller: Controller, _request: StartRecordingRequest): Promise<RecordingResult> => {
+export const startRecording = async (controller: Controller, _request: RecordingRequest): Promise<RecordingResult> => {
 	const taskId = controller.task?.taskId
 
 	try {

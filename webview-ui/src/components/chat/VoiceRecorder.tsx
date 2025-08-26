@@ -1,9 +1,4 @@
-import {
-	GetRecordingStatusRequest,
-	StartRecordingRequest,
-	StopRecordingRequest,
-	TranscribeAudioRequest,
-} from "@shared/proto/cline/dictation"
+import { RecordingRequest, TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
@@ -12,6 +7,7 @@ import HeroTooltip from "../common/HeroTooltip"
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
 	onProcessingStateChange?: (isProcessing: boolean, message?: string) => void
+	onRecordingStateChange?: (isRecording: boolean) => void
 	disabled?: boolean
 	language?: string
 }
@@ -21,6 +17,7 @@ const MAX_DURATION = 5 * 60 // 5 minutes in seconds
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	onTranscription,
 	onProcessingStateChange,
+	onRecordingStateChange,
 	disabled = false,
 	language = "en",
 }) => {
@@ -30,6 +27,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	const [error, setError] = useState<string | null>(null)
 	const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+	// Notify parent when recording state changes
+	useEffect(() => {
+		onRecordingStateChange?.(isRecording)
+	}, [isRecording, onRecordingStateChange])
+
 	const startRecording = useCallback(async () => {
 		try {
 			setIsRecording(true)
@@ -38,7 +40,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			setRecordingDuration(0) // Reset recording duration
 
 			// Call Extension Host to start recording
-			const response = await DictationServiceClient.startRecording(StartRecordingRequest.create({}))
+			const response = await DictationServiceClient.startRecording(RecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
@@ -63,7 +65,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			onProcessingStateChange?.(true, "Processing...")
 
 			// Call Extension Host to stop recording and get audio
-			const response = await DictationServiceClient.stopRecording(StopRecordingRequest.create({}))
+			const response = await DictationServiceClient.stopRecording(RecordingRequest.create({}))
 
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
@@ -118,7 +120,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	useEffect(() => {
 		const pollRecordingStatus = async () => {
 			try {
-				const statusResponse = await DictationServiceClient.getRecordingStatus(GetRecordingStatusRequest.create({}))
+				const statusResponse = await DictationServiceClient.getRecordingStatus(RecordingRequest.create({}))
 				if (statusResponse.isRecording) {
 					setRecordingDuration(Math.floor(statusResponse.durationSeconds))
 
@@ -151,62 +153,84 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		}
 	}, [isRecording, isProcessing, stopRecording])
 
-	const handleClick = useCallback(() => {
-		if (disabled || isProcessing) return
+	const cancelRecording = useCallback(async () => {
+		try {
+			setIsRecording(false)
+			setError(null)
+			onProcessingStateChange?.(false)
 
-		if (error) return setError(null)
+			// Call Extension Host to cancel recording
+			const response = await DictationServiceClient.cancelRecording(RecordingRequest.create({}))
 
-		if (isRecording) {
-			stopRecording()
-		} else {
-			startRecording()
+			if (!response.success) {
+				console.error("Failed to cancel recording:", response.error)
+				setError(response.error || "Failed to cancel recording")
+				return
+			}
+
+			console.log("Recording canceled successfully")
+		} catch (error) {
+			console.error("Error canceling recording:", error)
+			const errorMessage = error instanceof Error ? error.message : "Failed to cancel recording"
+			setError(errorMessage)
 		}
-	}, [isRecording, startRecording, stopRecording, disabled, isProcessing, error])
+	}, [onProcessingStateChange])
 
-	const getIconClass = () => {
-		if (isProcessing) return "codicon-loading"
-		if (isRecording) return "codicon-stop-circle"
-		if (error) return "codicon-error"
-		return "codicon-mic"
-	}
+	const handleStartClick = useCallback(() => {
+		if (disabled || isProcessing) return
+		if (error) return setError(null)
+		startRecording()
+	}, [startRecording, disabled, isProcessing, error])
 
-	const getIconColor = () => {
-		if (isRecording) return "var(--vscode-errorForeground)"
-		if (error) return "var(--vscode-errorForeground)"
-		return ""
-	}
+	const handleCancelClick = useCallback(() => {
+		if (disabled || isProcessing) return
+		cancelRecording()
+	}, [cancelRecording, disabled, isProcessing])
 
-	const getIconAnimation = () => {
-		if (isProcessing) return "animate-spin"
-		if (isRecording) return "animate-pulse"
-		return ""
-	}
+	const handleStopClick = useCallback(() => {
+		if (disabled || isProcessing) return
+		stopRecording()
+	}, [stopRecording, disabled, isProcessing])
 
-	const getIconAdjustment = () => {
-		if (isProcessing) return "mt-0"
-		if (isRecording) return "mt-1"
-		if (error) return "mt-1"
-		return "mt-0.5"
-	}
+	// When not recording, show single mic button
+	if (!isRecording) {
+		const iconClass = isProcessing ? "codicon-loading" : error ? "codicon-error" : "codicon-mic"
+		const iconColor = error ? "var(--vscode-errorForeground)" : ""
+		const iconAnimation = isProcessing ? "animate-spin" : ""
+		const iconAdjustment = isProcessing ? "mt-0" : error ? "mt-1" : "mt-0.5"
+		const tooltipContent = isProcessing ? "Transcribing..." : error ? `Error: ${error}` : null
 
-	const getRecTooltipContent = () => {
-		if (isProcessing) return "Transcribing..."
-		if (isRecording) return `Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`
-		if (error) return `Error: ${error}`
-		return null
+		return (
+			<HeroTooltip content={tooltipContent} placement="top">
+				<div
+					className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing ? "disabled" : ""}`}
+					onClick={handleStartClick}
+					style={{ color: iconColor }}>
+					<span className={`codicon ${iconClass}`} />
+				</div>
+			</HeroTooltip>
+		)
 	}
 
 	return (
-		<HeroTooltip content={getRecTooltipContent()} placement="top">
-			<div
-				className={`input-icon-button mr-1.5 text-base ${getIconAdjustment()} ${getIconAnimation()} ${disabled || isProcessing ? "disabled" : ""}`}
-				onClick={handleClick}
-				style={{
-					color: getIconColor(),
-				}}>
-				<span className={`codicon ${getIconClass()}`} />
-			</div>
-		</HeroTooltip>
+		<div className={`flex items-center ${isRecording ? "mr-0.5" : "mr-1.5"}`}>
+			<HeroTooltip
+				content={`Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`}
+				placement="top">
+				<div
+					className={`input-icon-button text-base mr-1 mt-1 animate-pulse text-[var(--vscode-errorForeground)] ${disabled || isProcessing ? "disabled" : ""}`}
+					onClick={handleStopClick}>
+					<span className="codicon codicon-stop-circle" />
+				</div>
+			</HeroTooltip>
+			<HeroTooltip content="Cancel Recording" placement="top">
+				<div
+					className={`input-icon-button text-base mt-1 text-[var(--vscode-textForeground)] ${disabled || isProcessing ? "disabled" : ""}`}
+					onClick={handleCancelClick}>
+					<span className="codicon codicon-close" />
+				</div>
+			</HeroTooltip>
+		</div>
 	)
 }
 

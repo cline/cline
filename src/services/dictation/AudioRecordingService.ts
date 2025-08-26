@@ -145,6 +145,58 @@ export class AudioRecordingService {
 		}
 	}
 
+	async cancelRecording(): Promise<{ success: boolean; error?: string }> {
+		try {
+			if (!this.isRecording || !this.recordingProcess) {
+				return { success: false, error: "Not currently recording" }
+			}
+
+			Logger.info("Canceling audio recording...")
+
+			// Send SIGINT to stop recording gracefully (like Ctrl+C)
+			this.recordingProcess.kill("SIGINT")
+
+			// Wait for the process to finish
+			await new Promise<void>((resolve) => {
+				if (this.recordingProcess) {
+					// Timeout after 5 seconds
+					const timeoutId = setTimeout(() => {
+						resolve()
+					}, 5000)
+
+					this.recordingProcess.on("exit", (code) => {
+						clearTimeout(timeoutId) // Clear the timeout since process exited
+						resolve()
+					})
+				} else {
+					resolve()
+				}
+			})
+
+			this.recordingProcess = null
+			this.isRecording = false
+
+			// Clean up temporary file without reading it
+			if (this.outputFile && fs.existsSync(this.outputFile)) {
+				try {
+					fs.unlinkSync(this.outputFile)
+				} catch (cleanupError) {
+					Logger.warn(
+						"Failed to cleanup temporary audio file during cancel: " +
+							(cleanupError instanceof Error ? cleanupError.message : String(cleanupError)),
+					)
+				}
+			}
+
+			Logger.info("Audio recording canceled successfully")
+			return { success: true }
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			Logger.error("Failed to cancel audio recording: " + errorMessage)
+			return { success: false, error: `Failed to cancel recording: ${errorMessage}` }
+		}
+	}
+
 	getRecordingStatus(): { isRecording: boolean; durationSeconds: number; error?: string } {
 		const durationSeconds = this.isRecording ? (Date.now() - this.startTime) / 1000 : 0
 		return {

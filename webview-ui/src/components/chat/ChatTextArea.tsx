@@ -325,6 +325,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [isVoiceRecording, setIsVoiceRecording] = useState(false)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1418,6 +1419,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			)
 		}
 
+		const handleSetVoiceRecording = (isRecording: boolean) => {
+			setIsVoiceRecording(isRecording)
+			sendingDisabled = isRecording
+		}
+
 		return (
 			<div>
 				<div
@@ -1650,9 +1656,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							position: "absolute",
 							right: 23,
 							display: "flex",
-							alignItems: "center",
+							alignItems: "flex-end",
 							height: textAreaBaseHeight || 31,
 							bottom: 9.5, // should be 10 but doesn't look good on mac
+							paddingBottom: "8px",
 							zIndex: 2,
 						}}>
 						<div
@@ -1673,6 +1680,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										}
 										// When processing is done, the onTranscription callback will handle the final text
 									}}
+									onRecordingStateChange={handleSetVoiceRecording}
 									onTranscription={(text) => {
 										// Remove any processing text first
 										const cleanedValue = inputValue.replace(/\s*\[Transcribing\.\.\.\]$/, "")
@@ -1702,16 +1710,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontSize: 16.5,
 								}}
 							/> */}
-							<div
-								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
-								data-testid="send-button"
-								onClick={() => {
-									if (!sendingDisabled) {
-										setIsTextAreaFocused(false)
-										onSend()
-									}
-								}}
-								style={{ fontSize: 15 }}></div>
+							{!isVoiceRecording && (
+								<div
+									className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
+									data-testid="send-button"
+									onClick={() => {
+										if (!sendingDisabled) {
+											setIsTextAreaFocused(false)
+											onSend()
+										}
+									}}
+									style={{ fontSize: 15 }}></div>
+							)}
 						</div>
 					</div>
 				</div>
