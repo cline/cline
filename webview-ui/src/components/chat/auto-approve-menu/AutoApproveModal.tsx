@@ -226,8 +226,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 							/>
 						</div>
 					</HeroTooltip>
-				</div>{" "}
-				{/* Close scrollable content container */}
+				</div>
 			</div>
 		</div>
 	)
