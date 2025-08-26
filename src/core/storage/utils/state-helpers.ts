@@ -396,6 +396,7 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		},
 		focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
 		focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
+		dictationSettings: dictationSettings || DEFAULT_DICTATION_SETTINGS,
 		strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 		useAutoCondense: useAutoCondense ?? true,
 		isNewUser: isNewUser ?? true,
@@ -424,7 +425,6 @@ export async function readStateFromDisk(context: ExtensionContext) {
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
 		localWorkflowToggles: localWorkflowToggles || {},
-		dictationSettings: dictationSettings || DEFAULT_DICTATION_SETTINGS,
 	}
 }
 

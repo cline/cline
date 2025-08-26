@@ -140,7 +140,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.dictationSettings !== undefined) {
-			controller.cacheService.setGlobalState("dictationSettings", request.dictationSettings)
+			controller.stateManager.setGlobalState("dictationSettings", request.dictationSettings)
 		}
 
 		// Update auto-condense setting
