@@ -254,6 +254,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VERCEL_AI_GATEWAY
 		case "zai":
 			return ProtoApiProvider.ZAI
+		case "dify":
+			return ProtoApiProvider.DIFY
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -330,6 +332,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "vercel-ai-gateway"
 		case ProtoApiProvider.ZAI:
 			return "zai"
+		case ProtoApiProvider.DIFY:
+			return "dify"
 		default:
 			return "anthropic"
 	}
@@ -407,6 +411,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		huaweiCloudMaasApiKey: config.huaweiCloudMaasApiKey,
 		zaiApiLine: config.zaiApiLine,
 		zaiApiKey: config.zaiApiKey,
+		difyApiKey: config.difyApiKey,
+		difyBaseUrl: config.difyBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -549,6 +555,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		huaweiCloudMaasApiKey: protoConfig.huaweiCloudMaasApiKey,
 		zaiApiLine: protoConfig.zaiApiLine,
 		zaiApiKey: protoConfig.zaiApiKey,
+		difyApiKey: protoConfig.difyApiKey,
+		difyBaseUrl: protoConfig.difyBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:

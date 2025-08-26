@@ -243,7 +243,7 @@ export class FileContextTracker {
 			const key = `pendingFileContextWarning_${this.taskId}`
 			// NOTE: Using 'as any' because dynamic keys like pendingFileContextWarning_${taskId}
 			// are legitimate workspace state keys but don't fit the strict LocalStateKey type system
-			this.controller.cacheService.setWorkspaceState(key as any, files)
+			this.controller.stateManager.setWorkspaceState(key as any, files)
 		} catch (error) {
 			console.error("Error storing pending file context warning:", error)
 		}
@@ -255,7 +255,7 @@ export class FileContextTracker {
 	async retrievePendingFileContextWarning(): Promise<string[] | undefined> {
 		try {
 			const key = `pendingFileContextWarning_${this.taskId}`
-			const files = this.controller.cacheService.getWorkspaceStateKey(key as any) as string[]
+			const files = this.controller.stateManager.getWorkspaceStateKey(key as any) as string[]
 			return files
 		} catch (error) {
 			console.error("Error retrieving pending file context warning:", error)
@@ -270,7 +270,7 @@ export class FileContextTracker {
 		try {
 			const files = await this.retrievePendingFileContextWarning()
 			if (files) {
-				this.controller.cacheService.setWorkspaceState(`pendingFileContextWarning_${this.taskId}` as any, undefined)
+				this.controller.stateManager.setWorkspaceState(`pendingFileContextWarning_${this.taskId}` as any, undefined)
 				return files
 			}
 		} catch (error) {

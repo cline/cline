@@ -11,7 +11,7 @@ import { Controller } from "../index"
 export async function getBrowserConnectionInfo(controller: Controller, _: EmptyRequest): Promise<BrowserConnectionInfo> {
 	try {
 		// Get browser settings from extension state
-		const browserSettings = controller.cacheService.getGlobalStateKey("browserSettings")
+		const browserSettings = controller.stateManager.getGlobalStateKey("browserSettings")
 
 		// Check if there's an active browser session by using the controller's handleWebviewMessage approach
 		// This is similar to what's done in controller/index.ts for the "getBrowserConnectionInfo" message

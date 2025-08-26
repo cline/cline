@@ -1,0 +1,185 @@
+/* Code block syntax highlighting using subtle VS Code theme variables */
+/* Minimal color variation for a cleaner look */
+
+/* Variables and identifiers - use default foreground */
+.hljs-variable,
+.hljs-params,
+.hljs-attr,
+.hljs-attribute {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Functions - slightly emphasized */
+.hljs-title.function_,
+.hljs-built_in {
+	color: var(--vscode-editor-foreground);
+	font-weight: 600;
+}
+
+/* Keywords and control flow - subtle blue */
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-selector-tag {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Language built-ins like 'this', 'super', 'self' - same as keywords but bold */
+.hljs-variable.language_ {
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+}
+
+/* Strings - use debug token string color */
+.hljs-string,
+.hljs-meta .hljs-string,
+.hljs-regexp,
+.hljs-template-string {
+	color: var(--vscode-debugTokenExpression-string);
+}
+
+/* Numbers - use debug token number color */
+.hljs-number,
+.hljs-literal {
+	color: var(--vscode-debugTokenExpression-number);
+}
+
+/* Booleans - same as numbers */
+.hljs-literal.hljs-boolean {
+	color: var(--vscode-debugTokenExpression-number);
+}
+
+/* Comments - dimmed foreground */
+.hljs-comment,
+.hljs-quote {
+	color: var(--vscode-editor-foreground);
+	opacity: 0.6;
+	font-style: italic;
+}
+
+/* Classes, types, and constructors - slightly emphasized */
+.hljs-class,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-type,
+.hljs-typedef {
+	color: var(--vscode-editor-foreground);
+	font-weight: 600;
+}
+
+/* Properties and fields - default foreground */
+.hljs-property,
+.hljs-selector-class,
+.hljs-selector-id {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Tags (for markup languages) - same as keywords */
+.hljs-tag,
+.hljs-name {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Doctags and annotations - more colorful for better visibility */
+.hljs-doctag {
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+}
+
+.hljs-meta {
+	color: var(--vscode-debugTokenExpression-name);
+	font-weight: 600;
+}
+
+/* Meta keywords like @param, @returns, etc. */
+.hljs-meta .hljs-keyword,
+.hljs-meta .hljs-doctag {
+	color: var(--vscode-debugTokenExpression-type);
+	font-weight: bold;
+}
+
+/* Meta strings in annotations */
+.hljs-meta .hljs-string {
+	color: var(--vscode-debugTokenExpression-string);
+	font-style: italic;
+}
+
+/* Constants and symbols - default foreground */
+.hljs-constant,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Operators - default foreground */
+.hljs-operator {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Template tags and variables - default foreground */
+.hljs-template-tag,
+.hljs-template-variable {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Enums - default foreground */
+.hljs-enum {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Modules/Namespaces - default foreground */
+.hljs-module,
+.hljs-namespace {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Methods - slightly emphasized */
+.hljs-section {
+	color: var(--vscode-editor-foreground);
+	font-weight: 600;
+}
+
+/* Substrings and template literals - default foreground */
+.hljs-subst {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Emphasis */
+.hljs-emphasis {
+	font-style: italic;
+}
+
+/* Strong */
+.hljs-strong {
+	font-weight: bold;
+}
+
+/* Deletion (for diffs) */
+.hljs-deletion {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	color: var(--vscode-diffEditor-removedLineBackground);
+}
+
+/* Addition (for diffs) */
+.hljs-addition {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+/* Section headers - slightly emphasized */
+.hljs-title {
+	color: var(--vscode-editor-foreground);
+	font-weight: 600;
+}
+
+/* Meta information keywords - slightly dimmed */
+.hljs-meta-keyword {
+	color: var(--vscode-editor-foreground);
+	opacity: 0.8;
+}
+
+/* Default text color */
+.hljs {
+	color: var(--vscode-editor-foreground);
+	background: transparent;
+}

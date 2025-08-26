@@ -11,7 +11,7 @@ export async function updateDefaultTerminalProfile(
 	const profileId = request.value
 
 	// Update the terminal profile in the state
-	controller.cacheService.setGlobalState("defaultTerminalProfile", profileId)
+	controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
 
 	let closedCount = 0
 	let busyTerminals: TerminalInfo[] = []

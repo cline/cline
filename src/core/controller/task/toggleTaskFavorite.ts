@@ -12,7 +12,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	try {
 		// Update in-memory state only
 		try {
-			const history = controller.cacheService.getGlobalStateKey("taskHistory")
+			const history = controller.stateManager.getGlobalStateKey("taskHistory")
 
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
@@ -28,7 +28,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 
 				// Update global state and wait for it to complete
 				try {
-					controller.cacheService.setGlobalState("taskHistory", updatedHistory)
+					controller.stateManager.setGlobalState("taskHistory", updatedHistory)
 				} catch (stateErr) {
 					console.error("Error updating global state:", stateErr)
 				}

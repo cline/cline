@@ -85,7 +85,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		}
 
 		return (
-			<div className="flex px-[15px] pt-[10px]">
+			<div className="flex px-[15px]">
 				<VSCodeButton
 					appearance="icon"
 					aria-label="Scroll to bottom"
@@ -107,7 +107,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
 
 	return (
-		<div className={`flex px-[15px] ${shouldShowButtons ? "pt-[10px]" : "pt-0"}`} style={{ opacity }}>
+		<div className="flex px-[15px]" style={{ opacity }}>
 			{primaryButtonText && (
 				<VSCodeButton
 					appearance="primary"

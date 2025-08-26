@@ -12,7 +12,7 @@ import { Controller } from "../index"
 export async function updateBrowserSettings(controller: Controller, request: UpdateBrowserSettingsRequest): Promise<Boolean> {
 	try {
 		// Get current browser settings to preserve fields not in the request
-		const currentSettings = controller.cacheService.getGlobalStateKey("browserSettings")
+		const currentSettings = controller.stateManager.getGlobalStateKey("browserSettings")
 		const mergedWithDefaults = { ...DEFAULT_BROWSER_SETTINGS, ...currentSettings }
 
 		// Convert from protobuf format to shared format, merging with existing settings
@@ -39,7 +39,7 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 		}
 
 		// Update global state with new settings
-		controller.cacheService.setGlobalState("browserSettings", newBrowserSettings)
+		controller.stateManager.setGlobalState("browserSettings", newBrowserSettings)
 
 		// Update task browser settings if task exists
 		if (controller.task) {

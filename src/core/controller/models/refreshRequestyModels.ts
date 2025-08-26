@@ -19,7 +19,7 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 
 	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
-		const apiKey = controller.cacheService.getSecretKey("requestyApiKey")
+		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
 		}

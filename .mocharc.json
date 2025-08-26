@@ -3,8 +3,7 @@
 		"ts"
 	],
 	"spec": [
-		"src/**/__tests__/*.ts",
-		"eslint-rules/__tests__/**/*.test.ts"
+		"src/**/__tests__/*.ts"
 	],
 	"require": [
 		"ts-node/register",

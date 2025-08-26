@@ -1,12 +1,12 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
-import type { ApiHandler } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
 import type { ApiStream } from "../transform/stream"
 
-interface OllamaHandlerOptions {
+interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 	ollamaBaseUrl?: string
 	ollamaApiKey?: string
 	ollamaModelId?: string
@@ -29,7 +29,7 @@ export class OllamaHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				const clientOptions: Partial<Config> = {
-					host: this.options.ollamaBaseUrl || "http://localhost:11434",
+					host: this.options.ollamaBaseUrl,
 				}
 
 				// Add API key if provided (for Ollama cloud or authenticated instances)

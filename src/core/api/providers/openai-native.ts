@@ -3,12 +3,12 @@ import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativ
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface OpenAiNativeHandlerOptions {
+interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
 	reasoningEffort?: string
 	apiModelId?: string

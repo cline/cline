@@ -70,6 +70,8 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		sapAiCoreTokenUrl: config.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: config.sapAiCoreBaseUrl,
 		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
+		difyBaseUrl: config.difyBaseUrl,
+		difyApiKey: config.difyApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider,
@@ -208,6 +210,8 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		sapAiCoreTokenUrl: protoConfig.sapAiCoreTokenUrl,
 		sapAiCoreBaseUrl: protoConfig.sapAiCoreBaseUrl,
 		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
+		difyApiKey: protoConfig.difyApiKey,
+		difyBaseUrl: protoConfig.difyBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: protoConfig.planModeApiProvider as ApiProvider,

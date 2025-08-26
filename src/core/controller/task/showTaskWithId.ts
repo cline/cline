@@ -14,7 +14,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		const id = request.value
 
 		// First check if task exists in global state for faster access
-		const taskHistory = controller.cacheService.getGlobalStateKey("taskHistory")
+		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const historyItem = taskHistory.find((item) => item.id === id)
 
 		// We need to initialize the task before returning data
