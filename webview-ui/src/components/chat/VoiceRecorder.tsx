@@ -72,6 +72,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				setIsProcessing(false)
 				const errorMessage = response.error || "Failed to stop recording"
 				setError(errorMessage)
+				onTranscription("")
 				return
 			}
 
@@ -80,6 +81,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				setIsProcessing(false)
 				const errorMessage = "No audio data received"
 				setError(errorMessage)
+				onTranscription("")
 				return
 			}
 
@@ -97,6 +99,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			if (transcriptionResponse.error) {
 				console.error("Transcription error:", transcriptionResponse.error)
 				setError(transcriptionResponse.error)
+				onTranscription("")
 				// Clear the error after a delay
 				setTimeout(() => {
 					setError(null)
@@ -111,6 +114,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			console.error("Error stopping recording:", error)
 			const errorMessage = error instanceof Error ? error.message : "An error occurred"
 			setError(errorMessage)
+			onTranscription("")
 		} finally {
 			setIsProcessing(false)
 		}
@@ -158,6 +162,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			setIsRecording(false)
 			setError(null)
 			onProcessingStateChange?.(false)
+			onTranscription("")
 
 			// Call Extension Host to cancel recording
 			const response = await DictationServiceClient.cancelRecording(RecordingRequest.create({}))
@@ -174,7 +179,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			const errorMessage = error instanceof Error ? error.message : "Failed to cancel recording"
 			setError(errorMessage)
 		}
-	}, [onProcessingStateChange])
+	}, [onProcessingStateChange, onTranscription])
 
 	const handleStartClick = useCallback(() => {
 		if (disabled || isProcessing) return

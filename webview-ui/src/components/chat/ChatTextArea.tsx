@@ -1683,7 +1683,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									onRecordingStateChange={handleSetVoiceRecording}
 									onTranscription={(text) => {
 										// Remove any processing text first
-										const cleanedValue = inputValue.replace(/\s*\[Transcribing\.\.\.\]$/, "")
+										const processingPattern = /\s*\[Transcribing\.\.\.\]$/
+										const cleanedValue = inputValue.replace(processingPattern, "")
+
+										if (!text) {
+											setInputValue(cleanedValue)
+											return
+										}
+
 										// Append the transcribed text to the cleaned input
 										const newValue = cleanedValue + (cleanedValue ? " " : "") + text
 										setInputValue(newValue)
