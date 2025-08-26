@@ -69,7 +69,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 								itemIndex === selectedIndex
 									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
 									: ""
-							} hover:bg-[var(--vscode-list-hoverBackground)]`}
+							} hover:bg-[var(--vscode-quickInputList-focusBackground)]`}
 							id={`slash-command-menu-item-${itemIndex}`}
 							key={command.name}
 							onClick={() => handleClick(command)}
