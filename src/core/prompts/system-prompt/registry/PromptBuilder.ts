@@ -155,19 +155,19 @@ export class PromptBuilder {
 		// Clone parameters to avoid mutating original
 		const params = [...config.parameters]
 
-		// Collect additional descriptions in one pass
-		const additionalDesc = params.map((p) => p.description).filter((desc): desc is string => Boolean(desc))
-		if (additionalDesc.length) {
-			description.push(...additionalDesc)
-		}
-
-		// Filter parameters based on dependencies in one pass
+		// Filter parameters based on dependencies FIRST, before collecting descriptions
 		const filteredParams = params.filter((p) => {
 			if (!p.dependencies?.length) {
 				return true
 			}
 			return p.dependencies.every((d) => registry.includes(d))
 		})
+
+		// Collect additional descriptions only from filtered parameters
+		const additionalDesc = filteredParams.map((p) => p.description).filter((desc): desc is string => Boolean(desc))
+		if (additionalDesc.length) {
+			description.push(...additionalDesc)
+		}
 
 		// Build prompt sections efficiently
 		const sections = [
