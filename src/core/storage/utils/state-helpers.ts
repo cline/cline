@@ -432,7 +432,7 @@ export async function resetWorkspaceState(controller: Controller) {
 	const context = controller.context
 	await Promise.all(context.workspaceState.keys().map((key) => controller.context.workspaceState.update(key, undefined)))
 
-	await controller.cacheService.reInitialize()
+	await controller.stateManager.reInitialize()
 }
 
 export async function resetGlobalState(controller: Controller) {
@@ -475,5 +475,5 @@ export async function resetGlobalState(controller: Controller) {
 		"difyApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
-	await controller.cacheService.reInitialize()
+	await controller.stateManager.reInitialize()
 }
