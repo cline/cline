@@ -132,34 +132,15 @@ describe("ApiOptions Component", () => {
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
-	it("renders Fireworks Model ID input", () => {
+	it("renders Fireworks Model Select", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
-		expect(modelIdInput).toBeInTheDocument()
-	})
-
-	it("renders Fireworks Max Completion Tokens input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const maxCompletionTokensInput = screen.getByPlaceholderText("2000")
-		expect(maxCompletionTokensInput).toBeInTheDocument()
-	})
-
-	it("renders Fireworks Max Tokens input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const maxTokensInput = screen.getByPlaceholderText("4000")
-		expect(maxTokensInput).toBeInTheDocument()
+		const modelIdSelect = screen.getByLabelText("Model")
+		expect(modelIdSelect).toBeInTheDocument()
+		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2-instruct")
 	})
 })
 

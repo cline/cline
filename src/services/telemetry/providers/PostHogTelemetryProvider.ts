@@ -68,11 +68,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public identifyUser(userInfo: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
-		if (!this.isEnabled()) {
-			return
-		}
 		const distinctId = getDistinctId()
-		if (userInfo && userInfo?.id !== distinctId) {
+		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
+		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {
 			this.client.identify({
 				distinctId: userInfo.id,
 				properties: {
@@ -83,6 +81,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 					alias: distinctId,
 				},
 			})
+			// Ensure distinct ID is updated so that we will not identify the user again
 			setDistinctId(userInfo.id)
 		}
 	}

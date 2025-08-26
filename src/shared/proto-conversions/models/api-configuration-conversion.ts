@@ -212,6 +212,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DEEPSEEK
 		case "qwen":
 			return ProtoApiProvider.QWEN
+		case "qwen-code":
+			return ProtoApiProvider.QWEN_CODE
 		case "doubao":
 			return ProtoApiProvider.DOUBAO
 		case "mistral":
@@ -248,6 +250,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLAUDE_CODE
 		case "huawei-cloud-maas":
 			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
+		case "vercel-ai-gateway":
+			return ProtoApiProvider.VERCEL_AI_GATEWAY
 		case "zai":
 			return ProtoApiProvider.ZAI
 		default:
@@ -284,6 +288,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "deepseek"
 		case ProtoApiProvider.QWEN:
 			return "qwen"
+		case ProtoApiProvider.QWEN_CODE:
+			return "qwen-code"
 		case ProtoApiProvider.DOUBAO:
 			return "doubao"
 		case ProtoApiProvider.MISTRAL:
@@ -320,6 +326,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "claude-code"
 		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
 			return "huawei-cloud-maas"
+		case ProtoApiProvider.VERCEL_AI_GATEWAY:
+			return "vercel-ai-gateway"
 		case ProtoApiProvider.ZAI:
 			return "zai"
 		default:
@@ -373,6 +381,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: config.fireworksModelMaxTokens,
 		qwenApiKey: config.qwenApiKey,
+		qwenCodeOauthPath: config.qwenCodeOauthPath,
 		doubaoApiKey: config.doubaoApiKey,
 		mistralApiKey: config.mistralApiKey,
 		azureApiVersion: config.azureApiVersion,
@@ -386,6 +395,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		xaiApiKey: config.xaiApiKey,
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
+		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
 		groqApiKey: config.groqApiKey,
 		basetenApiKey: config.basetenApiKey,
 		requestTimeoutMs: config.requestTimeoutMs,
@@ -427,6 +437,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeSapAiCoreModelId: config.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: config.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuaweiCloudMaasModelInfo),
+		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -457,6 +469,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeSapAiCoreModelId: config.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: config.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
+		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -509,6 +523,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: protoConfig.fireworksModelMaxTokens,
 		qwenApiKey: protoConfig.qwenApiKey,
+		qwenCodeOauthPath: protoConfig.qwenCodeOauthPath,
 		doubaoApiKey: protoConfig.doubaoApiKey,
 		mistralApiKey: protoConfig.mistralApiKey,
 		azureApiVersion: protoConfig.azureApiVersion,
@@ -522,6 +537,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		xaiApiKey: protoConfig.xaiApiKey,
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
+		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
 		groqApiKey: protoConfig.groqApiKey,
 		basetenApiKey: protoConfig.basetenApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
@@ -566,6 +582,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 		planModeHuaweiCloudMaasModelId: protoConfig.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.planModeHuaweiCloudMaasModelInfo),
+		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -597,6 +615,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 		actModeHuaweiCloudMaasModelId: protoConfig.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
+		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds:

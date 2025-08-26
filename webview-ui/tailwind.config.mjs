@@ -78,6 +78,7 @@ export default {
 					background: "var(--vscode-badge-background)",
 				},
 				error: "var(--vscode-errorForeground)",
+				description: "var(--vscode-descriptionForeground)",
 			},
 			fontSize: {
 				xl: "calc(2 * var(--vscode-font-size))",

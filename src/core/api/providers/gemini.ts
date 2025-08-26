@@ -3,7 +3,7 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { telemetryService } from "@/services/telemetry"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
@@ -11,7 +11,7 @@ import { ApiStream } from "../transform/stream"
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const _DEFAULT_CACHE_TTL_SECONDS = 900
 
-interface GeminiHandlerOptions {
+interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string

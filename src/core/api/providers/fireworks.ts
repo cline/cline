@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { FireworksModelId, fireworksDefaultModelId, fireworksModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface FireworksHandlerOptions {
+interface FireworksHandlerOptions extends CommonApiHandlerOptions {
 	fireworksApiKey?: string
 	fireworksModelId?: string
 	fireworksModelMaxCompletionTokens?: number
@@ -50,10 +50,6 @@ export class FireworksHandler implements ApiHandler {
 
 		const stream = await client.chat.completions.create({
 			model: modelId,
-			...(this.options.fireworksModelMaxCompletionTokens
-				? { max_completion_tokens: this.options.fireworksModelMaxCompletionTokens }
-				: {}),
-			...(this.options.fireworksModelMaxTokens ? { max_tokens: this.options.fireworksModelMaxTokens } : {}),
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -99,10 +95,15 @@ export class FireworksHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	getModel(): { id: FireworksModelId; info: ModelInfo } {
+		const modelId = this.options.fireworksModelId
+		if (modelId && modelId in fireworksModels) {
+			const id = modelId as FireworksModelId
+			return { id, info: fireworksModels[id] }
+		}
 		return {
-			id: this.options.fireworksModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			id: fireworksDefaultModelId,
+			info: fireworksModels[fireworksDefaultModelId],
 		}
 	}
 }

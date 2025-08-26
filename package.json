@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.26.0",
+	"version": "3.26.6",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -369,8 +369,8 @@
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish",
-		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
+		"publish:marketplace": "vsce publish --allow-package-secrets sendgrid && ovsx publish",
+		"publish:marketplace:prerelease": "vsce publish --allow-package-secrets sendgrid --pre-release && ovsx publish --pre-release",
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
@@ -468,7 +468,6 @@
 		"jschardet": "^3.1.4",
 		"jwt-decode": "^4.0.0",
 		"mammoth": "^1.8.0",
-		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"nice-grpc": "^2.1.12",
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
