@@ -308,9 +308,21 @@ function getSelectedModel({
 			return { id, info }
 		}
 		case "roo": {
-			const id = apiConfiguration.apiModelId ?? rooDefaultModelId
-			const info = rooModels[id as keyof typeof rooModels]
-			return { id, info }
+			const requestedId = apiConfiguration.apiModelId
+
+			// Check if the requested model exists in rooModels
+			if (requestedId && rooModels[requestedId as keyof typeof rooModels]) {
+				return {
+					id: requestedId,
+					info: rooModels[requestedId as keyof typeof rooModels],
+				}
+			}
+
+			// Fallback to default model if requested model doesn't exist or is not specified
+			return {
+				id: rooDefaultModelId,
+				info: rooModels[rooDefaultModelId as keyof typeof rooModels],
+			}
 		}
 		case "qwen-code": {
 			const id = apiConfiguration.apiModelId ?? qwenCodeDefaultModelId

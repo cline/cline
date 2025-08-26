@@ -266,10 +266,10 @@
 	"announcement": {
 		"title": "🎉 Rilasciato Roo Code {{version}}",
 		"stealthModel": {
-			"feature": "<bold>Modello stealth GRATUITO per tempo limitato</bold> - Un modello di ragionamento velocissimo che eccelle nella programmazione agentica con una finestra di contesto di 262k, disponibile tramite Roo Code Cloud.",
-			"note": "(Nota: i prompt e le completazioni sono registrati dal creatore del modello e utilizzati per migliorarlo)",
+			"feature": "Il modello stealth Sonic ora è <bold>Grok Code Fast</bold>! Questo modello di ragionamento ad alte prestazioni è disponibile come <code>grok-code-fast-1</code> sotto il provider <bold>xAI (Grok)</bold>.",
+			"note": "Come ringraziamento per tutti i feedback utili su Sonic, xAI sta estendendo l'accesso gratuito a <code>grok-code-fast-1</code> per un'altra settimana tramite il provider <bold>Roo Code Cloud</bold>.",
 			"connectButton": "Connetti a Roo Code Cloud",
-			"selectModel": "Seleziona <code>roo/sonic</code> dal provider Roo Code Cloud in<br/><settingsLink>Impostazioni</settingsLink> per iniziare"
+			"selectModel": "Visita le <settingsLink>Impostazioni</settingsLink> per aggiornare la configurazione del provider."
 		},
 		"description": "Roo Code {{version}} porta nuove potenti funzionalità e miglioramenti significativi per potenziare il tuo flusso di lavoro di sviluppo.",
 		"whatsNew": "Novità",

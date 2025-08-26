@@ -3,9 +3,20 @@ import type { ModelInfo } from "../model.js"
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
 
-export const xaiDefaultModelId: XAIModelId = "grok-4"
+export const xaiDefaultModelId: XAIModelId = "grok-code-fast-1"
 
 export const xaiModels = {
+	"grok-code-fast-1": {
+		maxTokens: 16_384,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.5,
+		cacheWritesPrice: 0.02,
+		cacheReadsPrice: 0.02,
+		description: "xAI's Grok Code Fast model with 256K context window",
+	},
 	"grok-4": {
 		maxTokens: 8192,
 		contextWindow: 256000,

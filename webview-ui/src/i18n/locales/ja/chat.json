@@ -266,10 +266,10 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",
 		"stealthModel": {
-			"feature": "<bold>期間限定無料ステルスモデル</bold> - 262kコンテキストウィンドウを持つ、エージェンティックコーディングに優れた超高速推論モデル、Roo Code Cloud経由で利用可能。",
-			"note": "(注意：プロンプトと補完はモデル作成者によってログに記録され、モデルの改善に使用されます)",
+			"feature": "Sonicステルスモデルが今、<bold>Grok Code Fast</bold>に！この高性能推論モデルが<bold>xAI (Grok)</bold>プロバイダーの下で<code>grok-code-fast-1</code>として利用できるようになりました。",
+			"note": "Sonicに関するすべての有用なフィードバックに感謝して、xAIは<bold>Roo Code Cloud</bold>プロバイダーを通じて<code>grok-code-fast-1</code>への無料アクセスをもう1週間延長しています。",
 			"connectButton": "Roo Code Cloudに接続",
-			"selectModel": "<br/><settingsLink>設定</settingsLink>でRoo Code Cloudプロバイダーから<code>roo/sonic</code>を選択して開始"
+			"selectModel": "プロバイダー設定を更新するために<settingsLink>設定</settingsLink>にアクセスしてください。"
 		},
 		"description": "Roo Code {{version}}は、開発ワークフローを向上させる強力な新機能と重要な改善をもたらします。",
 		"whatsNew": "新機能",

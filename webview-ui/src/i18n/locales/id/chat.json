@@ -278,10 +278,10 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",
 		"stealthModel": {
-			"feature": "<bold>Model stealth GRATIS waktu terbatas</bold> - Model penalaran super cepat yang unggul dalam coding agentik dengan jendela konteks 262k, tersedia melalui Roo Code Cloud.",
-			"note": "(Catatan: prompt dan completion dicatat oleh pembuat model dan digunakan untuk meningkatkan model)",
+			"feature": "Model stealth Sonic kini adalah <bold>Grok Code Fast</bold>! Model penalaran berperforma tinggi ini tersedia sebagai <code>grok-code-fast-1</code> di bawah penyedia <bold>xAI (Grok)</bold>.",
+			"note": "Sebagai ucapan terima kasih atas semua masukan berguna tentang Sonic, xAI memperpanjang akses gratis ke <code>grok-code-fast-1</code> selama satu minggu lagi melalui penyedia <bold>Roo Code Cloud</bold>.",
 			"connectButton": "Hubungkan ke Roo Code Cloud",
-			"selectModel": "Pilih <code>roo/sonic</code> dari penyedia Roo Code Cloud di<br/><settingsLink>Pengaturan</settingsLink> untuk memulai"
+			"selectModel": "Kunjungi <settingsLink>Pengaturan</settingsLink> untuk memperbarui konfigurasi penyedia."
 		},
 		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
 		"whatsNew": "Yang Baru",

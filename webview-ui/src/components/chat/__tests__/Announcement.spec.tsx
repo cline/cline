@@ -25,10 +25,10 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				return `🎉 Roo Code ${options?.version} Released`
 			}
 			if (key === "chat:announcement.stealthModel.feature") {
-				return "Stealth reasoning model with advanced capabilities"
+				return "The Sonic stealth model is now Grok Code Fast!"
 			}
 			if (key === "chat:announcement.stealthModel.note") {
-				return "Note: This is an experimental feature"
+				return "As a thank you for all the helpful feedback about Sonic, you'll also continue to have free access to the grok-code-fast-1 model for another week through the Roo Code Cloud provider."
 			}
 			if (key === "chat:announcement.stealthModel.connectButton") {
 				return "Connect to Roo Code Cloud"
@@ -43,10 +43,23 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 vi.mock("react-i18next", () => ({
 	Trans: ({ i18nKey, children }: { i18nKey?: string; children: React.ReactNode }) => {
 		if (i18nKey === "chat:announcement.stealthModel.feature") {
-			return <>Stealth reasoning model with advanced capabilities</>
+			return (
+				<>
+					The Sonic stealth model is now Grok Code Fast! The fast reasoning model is now available as
+					grok-code-fast-1 under the &ldquo;xAI (Grok)&rdquo; provider.
+				</>
+			)
 		}
 		if (i18nKey === "chat:announcement.stealthModel.selectModel") {
-			return <>Please select the roo/sonic model in settings</>
+			return <>Visit Settings to get started</>
+		}
+		if (i18nKey === "chat:announcement.stealthModel.note") {
+			return (
+				<>
+					As a thank you for all the helpful feedback about Sonic, you&rsquo;ll also continue to have free
+					access to the grok-code-fast-1 model for another week through the Roo Code Cloud provider.
+				</>
+			)
 		}
 		return <>{children}</>
 	},
@@ -77,11 +90,11 @@ describe("Announcement", () => {
 		// Check if the mocked version number is present in the title
 		expect(screen.getByText(`🎉 Roo Code ${expectedVersion} Released`)).toBeInTheDocument()
 
-		// Check if the stealth model feature is displayed (using partial match due to bullet point)
-		expect(screen.getByText(/Stealth reasoning model with advanced capabilities/)).toBeInTheDocument()
+		// Check if the Grok Code Fast feature is displayed
+		expect(screen.getByText(/The Sonic stealth model is now Grok Code Fast!/)).toBeInTheDocument()
 
 		// Check if the note is displayed
-		expect(screen.getByText("Note: This is an experimental feature")).toBeInTheDocument()
+		expect(screen.getByText(/As a thank you for all the helpful feedback about Sonic/)).toBeInTheDocument()
 
 		// Check if the connect button is displayed (since cloudIsAuthenticated is false in the mock)
 		expect(screen.getByText("Connect to Roo Code Cloud")).toBeInTheDocument()

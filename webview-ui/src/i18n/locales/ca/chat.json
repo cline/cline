@@ -266,10 +266,10 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Llançat",
 		"stealthModel": {
-			"feature": "<bold>Model stealth GRATUÏT per temps limitat</bold> - Un model de raonament ultraràpid que destaca en codificació agèntica amb una finestra de context de 262k, disponible a través de Roo Code Cloud.",
-			"note": "(Nota: els prompts i completacions són registrats pel creador del model i utilitzats per millorar-lo)",
-			"connectButton": "Connectar a Roo Code Cloud",
-			"selectModel": "Selecciona <code>roo/sonic</code> del proveïdor Roo Code Cloud a<br/><settingsLink>Configuració</settingsLink> per començar"
+			"feature": "El model stealth Sonic ara és <bold>Grok Code Fast</bold>! Aquest model de raonament d'alt rendiment està disponible com a <code>grok-code-fast-1</code> sota el proveïdor <bold>xAI (Grok)</bold>.",
+			"note": "Com a agraïment per tots els comentaris útils sobre Sonic, xAI està ampliant l'accés gratuït a <code>grok-code-fast-1</code> durant una setmana més a través del proveïdor <bold>Roo Code Cloud</bold>.",
+			"connectButton": "Connectar amb Roo Code Cloud",
+			"selectModel": "Visita la <settingsLink>Configuració</settingsLink> per actualitzar la configuració del proveïdor."
 		},
 		"description": "Roo Code {{version}} porta noves funcions potents i millores significatives per millorar el vostre flux de treball de desenvolupament.",
 		"whatsNew": "Novetats",

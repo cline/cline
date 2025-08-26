@@ -42,29 +42,65 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					<DialogTitle>{t("chat:announcement.title", { version: Package.version })}</DialogTitle>
 				</DialogHeader>
 				<div>
-					<ul className="space-y-2">
-						<li>
-							•{" "}
+					<div className="space-y-2">
+						<div>
 							<Trans
 								i18nKey="chat:announcement.stealthModel.feature"
 								components={{
 									bold: <b />,
+									code: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded" />,
 								}}
 							/>
-						</li>
-					</ul>
+						</div>
+					</div>
 
-					<p className="text-xs text-muted-foreground mt-2">{t("chat:announcement.stealthModel.note")}</p>
+					<div className="mt-4">
+						<Trans
+							i18nKey="chat:announcement.stealthModel.note"
+							components={{
+								bold: <b />,
+								code: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded" />,
+							}}
+						/>
+					</div>
 
 					<div className="mt-4">
 						{!cloudIsAuthenticated ? (
-							<Button
-								onClick={() => {
-									vscode.postMessage({ type: "rooCloudSignIn" })
-								}}
-								className="w-full">
-								{t("chat:announcement.stealthModel.connectButton")}
-							</Button>
+							<div className="space-y-3">
+								<div className="text-sm w-full">
+									<Trans
+										i18nKey="chat:announcement.stealthModel.selectModel"
+										components={{
+											code: <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded" />,
+											settingsLink: (
+												<VSCodeLink
+													href="#"
+													onClick={(e) => {
+														e.preventDefault()
+														setOpen(false)
+														hideAnnouncement()
+														window.postMessage(
+															{
+																type: "action",
+																action: "settingsButtonClicked",
+																values: { section: "provider" },
+															},
+															"*",
+														)
+													}}
+												/>
+											),
+										}}
+									/>
+								</div>
+								<Button
+									onClick={() => {
+										vscode.postMessage({ type: "rooCloudSignIn" })
+									}}
+									className="w-full">
+									{t("chat:announcement.stealthModel.connectButton")}
+								</Button>
+							</div>
 						) : (
 							<div className="text-sm w-full">
 								<Trans
