@@ -155,6 +155,12 @@ export class QdrantVectorStore implements IVectorStore {
 					vectors: {
 						size: this.vectorSize,
 						distance: this.DISTANCE_METRIC,
+						on_disk: true,
+					},
+					hnsw_config: {
+						m: 64,
+						ef_construct: 512,
+						on_disk: true,
 					},
 				})
 				created = true
@@ -244,6 +250,12 @@ export class QdrantVectorStore implements IVectorStore {
 				vectors: {
 					size: this.vectorSize,
 					distance: this.DISTANCE_METRIC,
+					on_disk: true,
+				},
+				hnsw_config: {
+					m: 64,
+					ef_construct: 512,
+					on_disk: true,
 				},
 			})
 			console.log(`[QdrantVectorStore] Successfully created new collection ${this.collectionName}`)
@@ -491,8 +503,6 @@ export class QdrantVectorStore implements IVectorStore {
 				// Include first few file paths for debugging (avoid logging too many)
 				samplePaths: filePaths.slice(0, 3),
 			})
-
-			throw error
 		}
 	}
 

@@ -532,6 +532,12 @@ describe("QdrantVectorStore", () => {
 				vectors: {
 					size: mockVectorSize,
 					distance: "Cosine", // Assuming 'Cosine' is the DISTANCE_METRIC
+					on_disk: true,
+				},
+				hnsw_config: {
+					m: 64,
+					ef_construct: 512,
+					on_disk: true,
 				},
 			})
 			expect(mockQdrantClientInstance.deleteCollection).not.toHaveBeenCalled()
@@ -610,6 +616,12 @@ describe("QdrantVectorStore", () => {
 				vectors: {
 					size: mockVectorSize, // Should use the new, correct vector size
 					distance: "Cosine",
+					on_disk: true,
+				},
+				hnsw_config: {
+					m: 64,
+					ef_construct: 512,
+					on_disk: true,
 				},
 			})
 
@@ -903,6 +915,12 @@ describe("QdrantVectorStore", () => {
 				vectors: {
 					size: newVectorSize, // Should create with new 768 dimensions
 					distance: "Cosine",
+					on_disk: true,
+				},
+				hnsw_config: {
+					m: 64,
+					ef_construct: 512,
+					on_disk: true,
 				},
 			})
 			expect(mockQdrantClientInstance.createPayloadIndex).toHaveBeenCalledTimes(5)
