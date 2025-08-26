@@ -18,7 +18,7 @@ export const startRecording = async (controller: Controller, _request: Recording
 	try {
 		const userInfo = AuthService.getInstance().getInfo()
 		if (!userInfo?.user?.uid) {
-			throw new Error("User is not authenticated. Please log in first.")
+			throw new Error("Please sign in to your Cline Account to use Dictation.")
 		}
 
 		const result = await audioRecordingService.startRecording()
