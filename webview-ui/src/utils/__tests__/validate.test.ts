@@ -41,6 +41,7 @@ describe("Model Validation Functions", () => {
 		ollama: {},
 		lmstudio: {},
 		"io-intelligence": {},
+		"vercel-ai-gateway": {},
 	}
 
 	const allowAllOrganization: OrganizationAllowList = {

@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "ARN içindeki bölgenin yukarıda seçilen AWS Bölgesiyle eşleştiğinden emin olun.",
 		"openRouterApiKey": "OpenRouter API Anahtarı",
 		"getOpenRouterApiKey": "OpenRouter API Anahtarı Al",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Anahtarı",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway API Anahtarı Al",
 		"apiKeyStorageNotice": "API anahtarları VSCode'un Gizli Depolamasında güvenli bir şekilde saklanır",
 		"glamaApiKey": "Glama API Anahtarı",
 		"getGlamaApiKey": "Glama API Anahtarı Al",

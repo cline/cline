@@ -136,6 +136,11 @@ function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): stri
 				return i18next.t("settings:validation.qwenCodeOauthPath")
 			}
 			break
+		case "vercel-ai-gateway":
+			if (!apiConfiguration.vercelAiGatewayApiKey) {
+				return i18next.t("settings:validation.apiKey")
+			}
+			break
 	}
 
 	return undefined
@@ -204,6 +209,8 @@ function getModelIdForProvider(apiConfiguration: ProviderSettings, provider: str
 			return apiConfiguration.huggingFaceModelId
 		case "io-intelligence":
 			return apiConfiguration.ioIntelligenceModelId
+		case "vercel-ai-gateway":
+			return apiConfiguration.vercelAiGatewayModelId
 		default:
 			return apiConfiguration.apiModelId
 	}
@@ -276,6 +283,9 @@ export function validateModelId(apiConfiguration: ProviderSettings, routerModels
 			break
 		case "io-intelligence":
 			modelId = apiConfiguration.ioIntelligenceModelId
+			break
+		case "vercel-ai-gateway":
+			modelId = apiConfiguration.vercelAiGatewayModelId
 			break
 	}
 

@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "Zorg ervoor dat de regio in de ARN overeenkomt met je geselecteerde AWS-regio hierboven.",
 		"openRouterApiKey": "OpenRouter API-sleutel",
 		"getOpenRouterApiKey": "OpenRouter API-sleutel ophalen",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API-sleutel",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway API-sleutel ophalen",
 		"apiKeyStorageNotice": "API-sleutels worden veilig opgeslagen in de geheime opslag van VSCode",
 		"glamaApiKey": "Glama API-sleutel",
 		"getGlamaApiKey": "Glama API-sleutel ophalen",

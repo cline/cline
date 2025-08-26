@@ -27,6 +27,7 @@ const routerNames = [
 	"ollama",
 	"lmstudio",
 	"io-intelligence",
+	"vercel-ai-gateway",
 ] as const
 
 export type RouterName = (typeof routerNames)[number]
@@ -151,3 +152,4 @@ export type GetModelsOptions =
 	| { provider: "ollama"; baseUrl?: string }
 	| { provider: "lmstudio"; baseUrl?: string }
 	| { provider: "io-intelligence"; apiKey: string }
+	| { provider: "vercel-ai-gateway" }

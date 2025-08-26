@@ -1,0 +1,102 @@
+import type { ModelInfo } from "../model.js"
+
+// https://ai-gateway.vercel.sh/v1/
+export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
+
+export const VERCEL_AI_GATEWAY_PROMPT_CACHING_MODELS = new Set([
+	"anthropic/claude-3-haiku",
+	"anthropic/claude-3-opus",
+	"anthropic/claude-3.5-haiku",
+	"anthropic/claude-3.5-sonnet",
+	"anthropic/claude-3.7-sonnet",
+	"anthropic/claude-opus-4",
+	"anthropic/claude-opus-4.1",
+	"anthropic/claude-sonnet-4",
+	"openai/gpt-4.1",
+	"openai/gpt-4.1-mini",
+	"openai/gpt-4.1-nano",
+	"openai/gpt-4o",
+	"openai/gpt-4o-mini",
+	"openai/gpt-5",
+	"openai/gpt-5-mini",
+	"openai/gpt-5-nano",
+	"openai/o1",
+	"openai/o3",
+	"openai/o3-mini",
+	"openai/o4-mini",
+])
+
+export const VERCEL_AI_GATEWAY_VISION_ONLY_MODELS = new Set([
+	"alibaba/qwen-3-14b",
+	"alibaba/qwen-3-235b",
+	"alibaba/qwen-3-30b",
+	"alibaba/qwen-3-32b",
+	"alibaba/qwen3-coder",
+	"amazon/nova-pro",
+	"anthropic/claude-3.5-haiku",
+	"google/gemini-1.5-flash-8b",
+	"google/gemini-2.0-flash-thinking",
+	"google/gemma-3-27b",
+	"mistral/devstral-small",
+	"xai/grok-vision-beta",
+])
+
+export const VERCEL_AI_GATEWAY_VISION_AND_TOOLS_MODELS = new Set([
+	"amazon/nova-lite",
+	"anthropic/claude-3-haiku",
+	"anthropic/claude-3-opus",
+	"anthropic/claude-3-sonnet",
+	"anthropic/claude-3.5-sonnet",
+	"anthropic/claude-3.7-sonnet",
+	"anthropic/claude-opus-4",
+	"anthropic/claude-opus-4.1",
+	"anthropic/claude-sonnet-4",
+	"google/gemini-1.5-flash",
+	"google/gemini-1.5-pro",
+	"google/gemini-2.0-flash",
+	"google/gemini-2.0-flash-lite",
+	"google/gemini-2.0-pro",
+	"google/gemini-2.5-flash",
+	"google/gemini-2.5-flash-lite",
+	"google/gemini-2.5-pro",
+	"google/gemini-exp",
+	"meta/llama-3.2-11b",
+	"meta/llama-3.2-90b",
+	"meta/llama-3.3",
+	"meta/llama-4-maverick",
+	"meta/llama-4-scout",
+	"mistral/pixtral-12b",
+	"mistral/pixtral-large",
+	"moonshotai/kimi-k2",
+	"openai/gpt-4-turbo",
+	"openai/gpt-4.1",
+	"openai/gpt-4.1-mini",
+	"openai/gpt-4.1-nano",
+	"openai/gpt-4.5-preview",
+	"openai/gpt-4o",
+	"openai/gpt-4o-mini",
+	"openai/gpt-oss-120b",
+	"openai/gpt-oss-20b",
+	"openai/o3",
+	"openai/o3-pro",
+	"openai/o4-mini",
+	"vercel/v0-1.0-md",
+	"xai/grok-2-vision",
+	"zai/glm-4.5v",
+])
+
+export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
+	maxTokens: 64000,
+	contextWindow: 200000,
+	supportsImages: true,
+	supportsComputerUse: true,
+	supportsPromptCache: true,
+	inputPrice: 3,
+	outputPrice: 15,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"Claude Sonnet 4 significantly improves on Sonnet 3.7's industry-leading capabilities, excelling in coding with a state-of-the-art 72.7% on SWE-bench. The model balances performance and efficiency for internal and external use cases, with enhanced steerability for greater control over implementations. While not matching Opus 4 in most domains, it delivers an optimal mix of capability and practicality.",
+}
+
+export const VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE = 0.7

@@ -2669,6 +2669,7 @@ describe("ClineProvider - Router Models", () => {
 		expect(getModels).toHaveBeenCalledWith({ provider: "requesty", apiKey: "requesty-key" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "glama" })
 		expect(getModels).toHaveBeenCalledWith({ provider: "unbound", apiKey: "unbound-key" })
+		expect(getModels).toHaveBeenCalledWith({ provider: "vercel-ai-gateway" })
 		expect(getModels).toHaveBeenCalledWith({
 			provider: "litellm",
 			apiKey: "litellm-key",
@@ -2686,6 +2687,7 @@ describe("ClineProvider - Router Models", () => {
 				litellm: mockModels,
 				ollama: {},
 				lmstudio: {},
+				"vercel-ai-gateway": mockModels,
 			},
 		})
 	})
@@ -2716,6 +2718,7 @@ describe("ClineProvider - Router Models", () => {
 			.mockRejectedValueOnce(new Error("Requesty API error")) // requesty fail
 			.mockResolvedValueOnce(mockModels) // glama success
 			.mockRejectedValueOnce(new Error("Unbound API error")) // unbound fail
+			.mockResolvedValueOnce(mockModels) // vercel-ai-gateway success
 			.mockRejectedValueOnce(new Error("LiteLLM connection failed")) // litellm fail
 
 		await messageHandler({ type: "requestRouterModels" })
@@ -2731,6 +2734,7 @@ describe("ClineProvider - Router Models", () => {
 				ollama: {},
 				lmstudio: {},
 				litellm: {},
+				"vercel-ai-gateway": mockModels,
 			},
 		})
 
@@ -2841,6 +2845,7 @@ describe("ClineProvider - Router Models", () => {
 				litellm: {},
 				ollama: {},
 				lmstudio: {},
+				"vercel-ai-gateway": mockModels,
 			},
 		})
 	})

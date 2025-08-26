@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "ARN의 리전이 위에서 선택한 AWS 리전과 일치하는지 확인하세요.",
 		"openRouterApiKey": "OpenRouter API 키",
 		"getOpenRouterApiKey": "OpenRouter API 키 받기",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API 키",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway API 키 받기",
 		"apiKeyStorageNotice": "API 키는 VSCode의 보안 저장소에 안전하게 저장됩니다",
 		"glamaApiKey": "Glama API 키",
 		"getGlamaApiKey": "Glama API 키 받기",

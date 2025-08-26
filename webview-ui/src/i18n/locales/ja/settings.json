@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "ARN内のリージョンが上で選択したAWSリージョンと一致していることを確認してください。",
 		"openRouterApiKey": "OpenRouter APIキー",
 		"getOpenRouterApiKey": "OpenRouter APIキーを取得",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway APIキー",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway APIキーを取得",
 		"apiKeyStorageNotice": "APIキーはVSCodeのシークレットストレージに安全に保存されます",
 		"glamaApiKey": "Glama APIキー",
 		"getGlamaApiKey": "Glama APIキーを取得",

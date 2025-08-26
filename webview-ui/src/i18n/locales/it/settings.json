@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "Assicurati che la regione nell'ARN corrisponda alla regione AWS selezionata sopra.",
 		"openRouterApiKey": "Chiave API OpenRouter",
 		"getOpenRouterApiKey": "Ottieni chiave API OpenRouter",
+		"vercelAiGatewayApiKey": "Chiave API Vercel AI Gateway",
+		"getVercelAiGatewayApiKey": "Ottieni chiave API Vercel AI Gateway",
 		"apiKeyStorageNotice": "Le chiavi API sono memorizzate in modo sicuro nell'Archivio Segreto di VSCode",
 		"glamaApiKey": "Chiave API Glama",
 		"getGlamaApiKey": "Ottieni chiave API Glama",

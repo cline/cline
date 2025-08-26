@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "Đảm bảo rằng vùng trong ARN khớp với vùng AWS đã chọn ở trên.",
 		"openRouterApiKey": "Khóa API OpenRouter",
 		"getOpenRouterApiKey": "Lấy khóa API OpenRouter",
+		"vercelAiGatewayApiKey": "Khóa API Vercel AI Gateway",
+		"getVercelAiGatewayApiKey": "Lấy khóa API Vercel AI Gateway",
 		"apiKeyStorageNotice": "Khóa API được lưu trữ an toàn trong Bộ lưu trữ bí mật của VSCode",
 		"glamaApiKey": "Khóa API Glama",
 		"getGlamaApiKey": "Lấy khóa API Glama",

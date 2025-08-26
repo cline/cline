@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "सुनिश्चित करें कि ARN में क्षेत्र ऊपर चयनित AWS क्षेत्र से मेल खाता है।",
 		"openRouterApiKey": "OpenRouter API कुंजी",
 		"getOpenRouterApiKey": "OpenRouter API कुंजी प्राप्त करें",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API कुंजी",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway API कुंजी प्राप्त करें",
 		"apiKeyStorageNotice": "API कुंजियाँ VSCode के सुरक्षित स्टोरेज में सुरक्षित रूप से संग्रहीत हैं",
 		"glamaApiKey": "Glama API कुंजी",
 		"getGlamaApiKey": "Glama API कुंजी प्राप्त करें",
