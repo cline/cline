@@ -1,4 +1,4 @@
-import { PostHog } from "posthog-node"
+import { EventMessage, PostHog } from "posthog-node"
 import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
 import { posthogConfig } from "../../shared/services/config/posthog-config"
@@ -14,6 +14,39 @@ interface TelemetrySettings {
 	cline: boolean
 	host: boolean
 	level?: "all" | "off" | "error" | "crash"
+}
+
+/**
+ * Filters PostHog events before they are sent.
+ * For exceptions, we only capture those from the Cline extension.
+ */
+function posthogEventFilter(event: EventMessage | null) {
+	// Only capture exceptions from the Cline extension
+	if (!event || event?.event !== "$exception") {
+		return event
+	}
+	const exceptionList = event.properties?.["$exception_list"]
+	if (!exceptionList?.length) {
+		return null
+	}
+	// Check if any exception is from Cline
+	for (let i = 0; i < exceptionList.length; i++) {
+		const stacktrace = exceptionList[i].stacktrace
+		// Fast check: error message contains "cline"
+		if (stacktrace?.value?.toLowerCase().includes("cline")) {
+			return event
+		}
+		// Check stack frames for Cline extension path
+		const frames = stacktrace?.frames
+		if (frames?.length) {
+			for (let j = 0; j < frames.length; j++) {
+				if (frames[j]?.filename?.includes("saoudrizwan")) {
+					return event
+				}
+			}
+		}
+	}
+	return null
 }
 
 export class PostHogClientProvider {
@@ -42,20 +75,7 @@ export class PostHogClientProvider {
 		// Initialize PostHog client
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
-			// Only logs exception contains "saoudrizwan\.claude-dev[/\\\\]dist[/\\\\]extension\.js" substring in sources
-			before_send: (event) => {
-				if (event?.event === "$exception") {
-					const regex = /saoudrizwan\.claude-dev[/\\]dist[/\\]extension\.js/
-					const exceptionList = event?.properties?.["$exception_list"] || []
-					for (const exception of exceptionList) {
-						if (exception?.stacktrace?.frames?.some((frame: { filename: string }) => regex.test(frame.filename))) {
-							return event
-						}
-					}
-					return null
-				}
-				return event
-			},
+			before_send: (event) => posthogEventFilter(event),
 			enableExceptionAutocapture: true,
 		})
 
