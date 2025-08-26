@@ -6,6 +6,30 @@ import { swebench_tasks } from "./swe-bench-tasks"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")
 
+// Timeout constants
+const GIT_CHECKOUT_TIMEOUT_MS = 30_000;
+const GIT_FETCH_TIMEOUT_MS = 60_000;
+const GIT_CLONE_TIMEOUT_MS = 600_000;
+const COPY_TIMEOUT_MS = 60_000;
+const CLEANUP_TIMEOUT_MS = 30_000;
+
+// Directory names
+const REPOSITORIES_DIR = "repositories";
+const SWE_BENCH_DIR = "swe-bench";
+const SWE_BENCH_BASE_DIR = "swe-bench-base";
+const RESULTS_DIR = "results";
+const PATCHES_DIR = "patches"; // jsonl output dir for swe-bench evaluation
+
+// Git configuration
+const GIT_USER_NAME = "SWE-Bench Evaluator";
+const GIT_USER_EMAIL = "swe-bench@example.com";
+const REPO_SEPARATOR = "__";
+const GITHUB_BASE_URL = "https://github.com";
+
+// File extensions and formats
+const JSONL_EXTENSION = ".jsonl";
+const GIT_DIR = ".git";
+
 // List of unique repositories used in SWE-Bench verified
 const UNIQUE_REPOSITORIES = [
 	'astropy/astropy',
@@ -35,15 +59,15 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 		console.log(`Setting up SWE-Bench environment...`)
 
 		// Create repositories directory if it doesn't exist
-		const repoDir = path.join(EVALS_DIR, "repositories", "swe-bench")
+		const repoDir = path.join(EVALS_DIR, REPOSITORIES_DIR, SWE_BENCH_DIR)
 		this.ensureDirectoryExists(repoDir)
 
 		// Create patches output directory if it doesn't exist
-		const patchesDir = path.join(EVALS_DIR, "results", "patches")
+		const patchesDir = path.join(EVALS_DIR, RESULTS_DIR, PATCHES_DIR)
 		this.ensureDirectoryExists(patchesDir)
 
 		// Create base repositories directory for pre-cloned repos
-		const baseRepoDir = path.join(EVALS_DIR, "repositories", "swe-bench-base")
+		const baseRepoDir = path.join(EVALS_DIR, REPOSITORIES_DIR, SWE_BENCH_BASE_DIR)
 		this.ensureDirectoryExists(baseRepoDir)
 
 		// Pre-clone all unique repositories
@@ -60,29 +84,29 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 
 		for (let i = 0; i < UNIQUE_REPOSITORIES.length; i++) {
 			const repo = UNIQUE_REPOSITORIES[i]
-			const repoName = repo.replace('/', '__')
+			const repoName = repo.replace('/', REPO_SEPARATOR)
 			const repoPath = path.join(baseRepoDir, repoName)
 
 			console.log(`[${i + 1}/${UNIQUE_REPOSITORIES.length}] Processing repository: ${repo}`)
 
-			if (fs.existsSync(path.join(repoPath, ".git"))) {
+			if (fs.existsSync(path.join(repoPath, GIT_DIR))) {
 				console.log(`Repository ${repo} already exists, skipping...`)
 			} else {
-				console.log(`Cloning repository: https://github.com/${repo}`)
+				console.log(`Cloning repository: ${GITHUB_BASE_URL}/${repo}`)
 				
 				const startTime = Date.now()
 				try {
 					this.ensureDirectoryExists(repoPath)
-					await execa("git", ["clone", `https://github.com/${repo}`, "."], {
+					await execa("git", ["clone", `${GITHUB_BASE_URL}/${repo}`, "."], {
 						cwd: repoPath,
-						timeout: 600000 // 10 minute timeout for large repos
+						timeout: GIT_CLONE_TIMEOUT_MS
 					})
 					const duration = (Date.now() - startTime) / 1000
 					console.log(`Repository ${repo} cloned successfully in ${duration.toFixed(2)}s`)
 				} catch (error: any) {
 					console.error(`Failed to clone ${repo}: ${error.message}`)
 					if (error.timedOut) {
-						console.error(`Clone operation timed out after 10 minutes`)
+						console.error(`Clone operation timed out after ${GIT_CLONE_TIMEOUT_MS / 60000} minutes`)
 					}
 					// Continue with other repositories even if one fails
 				}
@@ -112,11 +136,11 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 		}
 
 		// Validate that the pre-cloned repository exists
-		const baseRepoDir = path.join(EVALS_DIR, "repositories", "swe-bench-base")
-		const repoName = task.metadata.repository.replace('/', '__')
+		const baseRepoDir = path.join(EVALS_DIR, REPOSITORIES_DIR, SWE_BENCH_BASE_DIR)
+		const repoName = task.metadata.repository.replace('/', REPO_SEPARATOR)
 		const sourceRepoPath = path.join(baseRepoDir, repoName)
 
-		if (!fs.existsSync(path.join(sourceRepoPath, ".git"))) {
+		if (!fs.existsSync(path.join(sourceRepoPath, GIT_DIR))) {
 			throw new Error(`Pre-cloned repository not found: ${sourceRepoPath}. Please run setup first.`)
 		}
 
@@ -136,8 +160,8 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 		this.ensureDirectoryExists(taskWorkspace)
 
 		// Copy from pre-cloned repository
-		const baseRepoDir = path.join(EVALS_DIR, "repositories", "swe-bench-base")
-		const repoName = task.metadata.repository.replace('/', '__')
+		const baseRepoDir = path.join(EVALS_DIR, REPOSITORIES_DIR, SWE_BENCH_BASE_DIR)
+		const repoName = task.metadata.repository.replace('/', REPO_SEPARATOR)
 		const sourceRepoPath = path.join(baseRepoDir, repoName)
 
 		const startTime = Date.now()
@@ -152,40 +176,34 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 
 		// Checkout the specific issue commit
 		console.log(`Checking out issue commit: ${task.metadata.issue}`)
-		try {
-			await execa("git", ["checkout", task.metadata.issue], { 
-				cwd: taskWorkspace,
-				timeout: 30000 // 30 second timeout
-			})
-		} catch (error: any) {
-			// Try to fetch the specific commit if checkout fails
-			console.log(`Attempting to fetch specific commit...`)
-			try {
-				await execa("git", ["fetch", "origin", task.metadata.issue], { 
-					cwd: taskWorkspace,
-					timeout: 60000
-				})
-				await execa("git", ["checkout", task.metadata.issue], { 
-					cwd: taskWorkspace,
-					timeout: 30000
-				})
-				console.log(`Issue commit checked out successfully after fetch`)
-			} catch (fetchError: any) {
-				console.error(`Failed to fetch and checkout commit: ${fetchError.message}`)
-				throw new Error(`Failed to checkout commit ${task.metadata.issue}: ${error.message}`)
-			}
-		}
+		await this.checkoutCommit(task.metadata.issue, taskWorkspace)
 
 		// Ensure git is properly configured for commits
 		try {
 			await execa("git", ["config", "user.name"], { cwd: taskWorkspace })
 		} catch {
 			console.log(`Setting git user configuration...`)
-			await execa("git", ["config", "user.name", "SWE-Bench Evaluator"], { cwd: taskWorkspace })
-			await execa("git", ["config", "user.email", "swe-bench@example.com"], { cwd: taskWorkspace })
+			await execa("git", ["config", "user.name", GIT_USER_NAME], { cwd: taskWorkspace })
+			await execa("git", ["config", "user.email", GIT_USER_EMAIL], { cwd: taskWorkspace })
 			console.log(`Git user configuration set successfully`)
 		}
 
+	}
+
+	/**
+	 * Checkout a specific commit with fetch fallback
+	 * @param ref The commit reference to checkout
+	 * @param cwd The working directory to execute git commands in
+	 */
+	private async checkoutCommit(ref: string, cwd: string): Promise<void> {
+		try {
+			await execa("git", ["fetch", "origin", ref], { cwd, timeout: GIT_FETCH_TIMEOUT_MS });
+			await execa("git", ["checkout", ref], { cwd, timeout: GIT_CHECKOUT_TIMEOUT_MS });
+
+			console.log(`Checked out commit: ${ref}`);
+		} catch (err: any) {
+			throw new Error(`Failed to fetch/checkout commit ${ref}: ${err.message}`);
+		}
 	}
 
 	/**
@@ -195,14 +213,14 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 		try {
 			// Use cp -r to copy the entire directory structure
 			await execa("cp", ["-r", source + "/.", destination], {
-				timeout: 60000 // 1 minute timeout for copy
+				timeout: COPY_TIMEOUT_MS
 			})
 		} catch (error: any) {
 			// Fallback to rsync if cp fails
 			console.log(`cp failed, trying rsync...`)
 			try {
 				await execa("rsync", ["-a", source + "/", destination], {
-					timeout: 60000 // 1 minute timeout for rsync
+					timeout: COPY_TIMEOUT_MS
 				})
 			} catch (rsyncError: any) {
 				throw new Error(`Both cp and rsync failed: ${error.message}, ${rsyncError.message}`)
@@ -281,8 +299,8 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 				model_patch: patch
 			}
 
-			const patchesDir = path.join(EVALS_DIR, "results", "patches")
-			const jsonlFile = path.join(patchesDir, `${modelName}.jsonl`)
+			const patchesDir = path.join(EVALS_DIR, RESULTS_DIR, PATCHES_DIR)
+			const jsonlFile = path.join(patchesDir, `${modelName}${JSONL_EXTENSION}`)
 			
 			await this.writeToJsonl(jsonlFile, patchData)
 
@@ -326,15 +344,15 @@ export class SWEBenchAdapter implements BenchmarkAdapter {
 		try {
 			if (fs.existsSync(workspacePath)) {
 				await execa("rm", ["-rf", workspacePath], {
-					timeout: 30000 // 30 second timeout for cleanup
+					timeout: CLEANUP_TIMEOUT_MS
 				})
 			}
 
 			// Also clean up the swe-bench directory if it exists
-			const sweBenchDir = path.join(EVALS_DIR, "repositories", "swe-bench")
+			const sweBenchDir = path.join(EVALS_DIR, REPOSITORIES_DIR, SWE_BENCH_DIR)
 			if (fs.existsSync(sweBenchDir)) {
 				await execa("rm", ["-rf", sweBenchDir], {
-					timeout: 30000 // 30 second timeout for cleanup
+					timeout: CLEANUP_TIMEOUT_MS
 				})
 			}
 		} catch (error: any) {
