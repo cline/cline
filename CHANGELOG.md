@@ -1,5 +1,25 @@
 # Roo Code Changelog
 
+## [3.26.0] - 2025-08-26
+
+- Sonic -> Grok Code Fast
+- feat: Add Qwen Code CLI API Support with OAuth Authentication (thanks @evinelias and Cline!)
+- feat: Add Deepseek v3.1 to Fireworks AI provider (#7374 by @dmarkey, PR by @app/roomote)
+- Add a built-in /init slash command (thanks @mrubens and @hannesrudolph!)
+- Fix: Make auto approve toggle trigger stay (#3909 by @kyle-apex, PR by @elianiva)
+- Fix: Preserve user input when selecting follow-up choices (#7316 by @teihome, PR by @daniel-lxs)
+- Fix: Handle Mistral thinking content as reasoning chunks (#6842 by @Biotrioo, PR by @app/roomote)
+- Fix: Resolve newTaskRequireTodos setting not working correctly (thanks @hannesrudolph!)
+- Fix: Requesty model listing (#7377 by @dtrugman, PR by @dtrugman)
+- feat: Hide static providers with no models from provider list (thanks @daniel-lxs!)
+- Add todos parameter to new_task tool usage in issue-fixer mode (thanks @hannesrudolph!)
+- Handle substitution patterns in command validation (thanks @mrubens!)
+- Mark code-workspace files as protected (thanks @mrubens!)
+- Update list of default allowed commands (thanks @mrubens!)
+- Follow symlinks in rooignore checks (thanks @mrubens!)
+- Show cache read and write prices for OpenRouter inference providers (thanks @chrarnoldus!)
+- chore(deps): Update dependency drizzle-kit to v0.31.4 (thanks @app/renovate!)
+
 ## [3.25.23] - 2025-08-22
 
 - feat: add custom base URL support for Requesty provider (thanks @requesty-JohnCosta27!)
