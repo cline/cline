@@ -45,8 +45,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 		apiConfiguration?.sapAiCoreClientId &&
 		apiConfiguration?.sapAiCoreClientSecret &&
 		apiConfiguration?.sapAiCoreBaseUrl &&
-		apiConfiguration?.sapAiCoreTokenUrl &&
-		apiConfiguration?.sapAiResourceGroup
+		apiConfiguration?.sapAiCoreTokenUrl
 
 	// Function to fetch SAP AI Core models
 	const fetchSapAiCoreModels = useCallback(async () => {
@@ -67,7 +66,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 					clientSecret: apiConfiguration.sapAiCoreClientSecret,
 					baseUrl: apiConfiguration.sapAiCoreBaseUrl,
 					tokenUrl: apiConfiguration.sapAiCoreTokenUrl,
-					resourceGroup: apiConfiguration.sapAiResourceGroup,
+					resourceGroup: apiConfiguration.sapAiResourceGroup || "default",
 				}),
 			)
 
