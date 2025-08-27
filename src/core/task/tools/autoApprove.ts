@@ -1,3 +1,37 @@
+/**
+ * TODO: Refactor Auto-Approval Behavior for Consistency
+ *
+ * CURRENT ISSUE:
+ * The auto-approval logic is currently split and inconsistent between two execution contexts:
+ *
+ * 1. UIHelpers (used in handlePartialBlock):
+ *    - Makes approval decisions during streaming/partial updates
+ *    - Uses shouldAutoApproveToolWithPath() and other helper methods
+ *    - Logic is embedded in the UIHelpers factory pattern
+ *
+ * 2. Execute functions (used in handleCompleteBlock):
+ *    - Makes approval decisions after tool completion
+ *    - Uses different approval patterns and checks
+ *    - Logic is scattered across individual tool handlers
+ *
+ * This split creates several problems:
+ * - Inconsistent approval behavior between streaming and final execution
+ * - Duplicate approval logic that can drift apart
+ * - Harder to maintain and reason about approval flow
+ * - Potential for approval bypasses or double-approvals
+ *
+ * PROPOSED SOLUTION:
+ * - Consolidate all auto-approval logic into this AutoApprove class
+ * - Create a single source of truth for approval decisions
+ * - Ensure both partial and complete blocks use the same approval flow
+ * - Make approval behavior predictable and testable
+ *
+ * AFFECTED FILES TO REFACTOR:
+ * - src/core/task/tools/types/UIHelpers.ts (shouldAutoApproveToolWithPath logic)
+ * - src/core/task/tools/handlers/* (individual handler approval logic)
+ * - src/core/task/ToolExecutor.ts (approval flow coordination)
+ */
+
 import { ToolUseName } from "@core/assistant-message"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import * as path from "path"
