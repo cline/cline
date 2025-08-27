@@ -18,7 +18,7 @@ interface ApiConfigSelectorProps {
 	title: string
 	onChange: (value: string) => void
 	triggerClassName?: string
-	listApiConfigMeta: Array<{ id: string; name: string }>
+	listApiConfigMeta: Array<{ id: string; name: string; modelId?: string }>
 	pinnedApiConfigs?: Record<string, boolean>
 	togglePinnedApiConfig: (id: string) => void
 }
@@ -87,7 +87,7 @@ export const ApiConfigSelector = ({
 	}, [])
 
 	const renderConfigItem = useCallback(
-		(config: { id: string; name: string }, isPinned: boolean) => {
+		(config: { id: string; name: string; modelId?: string }, isPinned: boolean) => {
 			const isCurrentConfig = config.id === value
 
 			return (
@@ -100,7 +100,19 @@ export const ApiConfigSelector = ({
 						isCurrentConfig &&
 							"bg-vscode-list-activeSelectionBackground text-vscode-list-activeSelectionForeground",
 					)}>
-					<span className="flex-1 truncate">{config.name}</span>
+					<div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden">
+						<span className="flex-shrink-0">{config.name}</span>
+						{config.modelId && (
+							<>
+								<span className="text-vscode-descriptionForeground opacity-70 flex-shrink-0">·</span>
+								<span
+									className="text-vscode-descriptionForeground opacity-70 min-w-0 overflow-hidden"
+									style={{ direction: "rtl", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									{config.modelId}
+								</span>
+							</>
+						)}
+					</div>
 					<div className="flex items-center gap-1">
 						{isCurrentConfig && (
 							<div className="size-5 p-1 flex items-center justify-center">

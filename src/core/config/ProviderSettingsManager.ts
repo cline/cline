@@ -9,6 +9,7 @@ import {
 	isSecretStateKey,
 	ProviderSettingsEntry,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
+	getModelId,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
@@ -275,6 +276,20 @@ export class ProviderSettingsManager {
 	}
 
 	/**
+	 * Clean model ID by removing prefix before "/"
+	 */
+	private cleanModelId(modelId: string | undefined): string | undefined {
+		if (!modelId) return undefined
+
+		// Check for "/" and take the part after it
+		if (modelId.includes("/")) {
+			return modelId.split("/").pop()
+		}
+
+		return modelId
+	}
+
+	/**
 	 * List all available configs with metadata.
 	 */
 	public async listConfig(): Promise<ProviderSettingsEntry[]> {
@@ -286,6 +301,7 @@ export class ProviderSettingsManager {
 					name,
 					id: apiConfig.id || "",
 					apiProvider: apiConfig.apiProvider,
+					modelId: this.cleanModelId(getModelId(apiConfig)),
 				}))
 			})
 		} catch (error) {

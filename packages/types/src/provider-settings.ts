@@ -81,6 +81,7 @@ export const providerSettingsEntrySchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	apiProvider: providerNamesSchema.optional(),
+	modelId: z.string().optional(),
 })
 
 export type ProviderSettingsEntry = z.infer<typeof providerSettingsEntrySchema>

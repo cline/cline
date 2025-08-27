@@ -21,6 +21,21 @@ vi.mock("@/components/ui/hooks/useRooPortal", () => ({
 	useRooPortal: () => document.body,
 }))
 
+// Mock the ExtensionStateContext
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({
+		apiConfiguration: {
+			apiProvider: "anthropic",
+			apiModelId: "claude-3-opus-20240229",
+		},
+	}),
+}))
+
+// Mock the getModelId function from @roo-code/types
+vi.mock("@roo-code/types", () => ({
+	getModelId: (config: any) => config?.apiModelId || undefined,
+}))
+
 // Mock Popover components to be testable
 vi.mock("@/components/ui", () => ({
 	Popover: ({ children, open }: any) => (
@@ -52,9 +67,9 @@ describe("ApiConfigSelector", () => {
 		title: "API Config",
 		onChange: mockOnChange,
 		listApiConfigMeta: [
-			{ id: "config1", name: "Config 1" },
-			{ id: "config2", name: "Config 2" },
-			{ id: "config3", name: "Config 3" },
+			{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+			{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+			{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
 		],
 		pinnedApiConfigs: { config1: true },
 		togglePinnedApiConfig: mockTogglePinnedApiConfig,
@@ -120,13 +135,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
@@ -154,13 +169,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
@@ -184,13 +199,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
@@ -210,13 +225,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
@@ -263,7 +278,8 @@ describe("ApiConfigSelector", () => {
 		const config1Elements = screen.getAllByText("Config 1")
 		// Find the one that's in the dropdown content (not the trigger)
 		const configInDropdown = config1Elements.find((el) => el.closest('[data-testid="popover-content"]'))
-		const selectedConfigRow = configInDropdown?.closest("div")
+		// Navigate up to find the parent row that contains both the text and the check icon
+		const selectedConfigRow = configInDropdown?.closest(".group")
 		const checkIcon = selectedConfigRow?.querySelector(".codicon-check")
 		expect(checkIcon).toBeInTheDocument()
 	})
@@ -280,13 +296,24 @@ describe("ApiConfigSelector", () => {
 		fireEvent.click(trigger)
 
 		const content = screen.getByTestId("popover-content")
-		const configTexts = content.querySelectorAll(".truncate")
+		// Get all config items by looking for the group class
+		const configRows = content.querySelectorAll(".group")
+
+		// Extract the config names from each row
+		const configNames: string[] = []
+		configRows.forEach((row) => {
+			// Find the first span that's flex-shrink-0 (the profile name)
+			const nameElement = row.querySelector(".flex-1 span.flex-shrink-0")
+			if (nameElement?.textContent) {
+				configNames.push(nameElement.textContent)
+			}
+		})
 
 		// Pinned configs should appear first
-		expect(configTexts[0]).toHaveTextContent("Config 1")
-		expect(configTexts[1]).toHaveTextContent("Config 3")
+		expect(configNames[0]).toBe("Config 1")
+		expect(configNames[1]).toBe("Config 3")
 		// Unpinned config should appear after separator
-		expect(configTexts[2]).toHaveTextContent("Config 2")
+		expect(configNames[2]).toBe("Config 2")
 	})
 
 	test("toggles pin status when pin button is clicked", () => {
@@ -296,8 +323,10 @@ describe("ApiConfigSelector", () => {
 		fireEvent.click(trigger)
 
 		// Find the pin button for Config 2 (unpinned)
-		const config2Row = screen.getByText("Config 2").closest("div")
-		const pinButton = config2Row?.querySelector("button")
+		const config2Row = screen.getByText("Config 2").closest(".group")
+		// Find the button with the pin icon (it's the second button, first is the row itself)
+		const buttons = config2Row?.querySelectorAll("button")
+		const pinButton = Array.from(buttons || []).find((btn) => btn.querySelector(".codicon-pin"))
 
 		if (pinButton) {
 			fireEvent.click(pinButton)
@@ -332,13 +361,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
@@ -389,13 +418,13 @@ describe("ApiConfigSelector", () => {
 		const props = {
 			...defaultProps,
 			listApiConfigMeta: [
-				{ id: "config1", name: "Config 1" },
-				{ id: "config2", name: "Config 2" },
-				{ id: "config3", name: "Config 3" },
-				{ id: "config4", name: "Config 4" },
-				{ id: "config5", name: "Config 5" },
-				{ id: "config6", name: "Config 6" },
-				{ id: "config7", name: "Config 7" },
+				{ id: "config1", name: "Config 1", modelId: "claude-3-opus-20240229" },
+				{ id: "config2", name: "Config 2", modelId: "gpt-4" },
+				{ id: "config3", name: "Config 3", modelId: "claude-3-sonnet-20240229" },
+				{ id: "config4", name: "Config 4", modelId: "gpt-3.5-turbo" },
+				{ id: "config5", name: "Config 5", modelId: "claude-3-haiku-20240307" },
+				{ id: "config6", name: "Config 6", modelId: "gpt-4-turbo" },
+				{ id: "config7", name: "Config 7", modelId: "claude-2.1" },
 			],
 		}
 		render(<ApiConfigSelector {...props} />)
