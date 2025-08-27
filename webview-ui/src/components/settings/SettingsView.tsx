@@ -25,11 +25,10 @@ import {
 	LucideIcon,
 } from "lucide-react"
 
-import type { ProviderSettings, ExperimentId } from "@roo-code/types"
-
-import { TelemetrySetting } from "@roo/TelemetrySetting"
+import type { ProviderSettings, ExperimentId, TelemetrySetting } from "@roo-code/types"
 
 import { vscode } from "@src/utils/vscode"
+import { cn } from "@src/lib/utils"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { ExtensionStateContextType, useExtensionState } from "@src/context/ExtensionStateContext"
 import {
@@ -65,7 +64,6 @@ import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
 import PromptsSettings from "./PromptsSettings"
-import { cn } from "@/lib/utils"
 
 export const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
 export const settingsTabList =

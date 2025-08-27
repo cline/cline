@@ -1,7 +1,8 @@
 import React from "react"
 import { render, RenderOptions } from "@testing-library/react"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { STANDARD_TOOLTIP_DELAY } from "@/components/ui/standard-tooltip"
+
+import { TooltipProvider } from "@src/components/ui/tooltip"
+import { STANDARD_TOOLTIP_DELAY } from "@src/components/ui/standard-tooltip"
 
 interface AllTheProvidersProps {
 	children: React.ReactNode

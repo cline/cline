@@ -41,26 +41,24 @@ export const SlashCommandsPopover: React.FC<SlashCommandsPopoverProps> = ({ clas
 		}
 	}
 
-	const trigger = (
-		<PopoverTrigger asChild>
-			<Button
-				variant="ghost"
-				size="sm"
-				className={cn(
-					"h-7 w-7 p-0",
-					"text-vscode-foreground opacity-85",
-					"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)]",
-					"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
-					className,
-				)}>
-				<Zap className="w-4 h-4" />
-			</Button>
-		</PopoverTrigger>
-	)
-
 	return (
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
-			<StandardTooltip content={t("chat:slashCommands.tooltip")}>{trigger}</StandardTooltip>
+			<StandardTooltip content={t("chat:slashCommands.tooltip")}>
+				<PopoverTrigger asChild>
+					<Button
+						variant="ghost"
+						size="sm"
+						className={cn(
+							"h-7 w-7 p-0",
+							"text-vscode-foreground opacity-85",
+							"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)]",
+							"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+							className,
+						)}>
+						<Zap className="w-4 h-4" />
+					</Button>
+				</PopoverTrigger>
+			</StandardTooltip>
 
 			<PopoverContent
 				align="start"

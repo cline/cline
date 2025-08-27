@@ -73,16 +73,19 @@ vi.mock("react-i18next", () => ({
 }))
 
 vi.mock("../ChatTextArea", () => {
+	const ChatTextAreaComponent = React.forwardRef(function MockChatTextArea(
+		_props: any,
+		ref: React.ForwardedRef<{ focus: () => void }>,
+	) {
+		React.useImperativeHandle(ref, () => ({
+			focus: vi.fn(),
+		}))
+		return <div data-testid="chat-textarea" />
+	})
+
 	return {
-		default: React.forwardRef(function MockChatTextArea(
-			_props: any,
-			ref: React.ForwardedRef<{ focus: () => void }>,
-		) {
-			React.useImperativeHandle(ref, () => ({
-				focus: vi.fn(),
-			}))
-			return <div data-testid="chat-textarea" />
-		}),
+		default: ChatTextAreaComponent,
+		ChatTextArea: ChatTextAreaComponent, // Export as named export too
 	}
 })
 

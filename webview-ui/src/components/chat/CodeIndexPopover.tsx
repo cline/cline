@@ -10,6 +10,13 @@ import {
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import * as ProgressPrimitive from "@radix-ui/react-progress"
+import { AlertTriangle } from "lucide-react"
+
+import { CODEBASE_INDEX_DEFAULTS } from "@roo-code/types"
+
+import type { EmbedderProvider } from "@roo/embeddingModels"
+import type { IndexingStatus } from "@roo/ExtensionMessage"
+
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -32,16 +39,11 @@ import {
 	AlertDialogTrigger,
 	Popover,
 	PopoverContent,
-	PopoverTrigger,
 	Slider,
 	StandardTooltip,
 } from "@src/components/ui"
-import { AlertTriangle } from "lucide-react"
 import { useRooPortal } from "@src/components/ui/hooks/useRooPortal"
 import { useEscapeKey } from "@src/hooks/useEscapeKey"
-import type { EmbedderProvider } from "@roo/embeddingModels"
-import type { IndexingStatus } from "@roo/ExtensionMessage"
-import { CODEBASE_INDEX_DEFAULTS } from "@roo-code/types"
 
 // Default URLs for providers
 const DEFAULT_QDRANT_URL = "http://localhost:6333"
@@ -525,7 +527,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 						setOpen(newOpen)
 					}
 				}}>
-				<PopoverTrigger asChild>{children}</PopoverTrigger>
+				{children}
 				<PopoverContent
 					className="w-[calc(100vw-32px)] max-w-[450px] max-h-[80vh] overflow-y-auto p-0"
 					align="end"

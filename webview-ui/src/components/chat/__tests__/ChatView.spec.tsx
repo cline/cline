@@ -181,30 +181,33 @@ vi.mock("../ChatTextArea", () => {
 	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const mockReact = require("react")
 
-	return {
-		default: mockReact.forwardRef(function MockChatTextArea(
-			props: ChatTextAreaProps,
-			ref: React.ForwardedRef<{ focus: () => void }>,
-		) {
-			// Use useImperativeHandle to expose the mock focus method
-			React.useImperativeHandle(ref, () => ({
-				focus: mockFocus,
-			}))
+	const ChatTextAreaComponent = mockReact.forwardRef(function MockChatTextArea(
+		props: ChatTextAreaProps,
+		ref: React.ForwardedRef<{ focus: () => void }>,
+	) {
+		// Use useImperativeHandle to expose the mock focus method
+		mockReact.useImperativeHandle(ref, () => ({
+			focus: mockFocus,
+		}))
 
-			return (
-				<div data-testid="chat-textarea">
-					<input
-						ref={mockInputRef}
-						type="text"
-						onChange={(e) => {
-							// With message queueing, onSend is always called (it handles queueing internally)
-							props.onSend(e.target.value)
-						}}
-						data-sending-disabled={props.sendingDisabled}
-					/>
-				</div>
-			)
-		}),
+		return (
+			<div data-testid="chat-textarea">
+				<input
+					ref={mockInputRef}
+					type="text"
+					onChange={(e) => {
+						// With message queueing, onSend is always called (it handles queueing internally)
+						props.onSend(e.target.value)
+					}}
+					data-sending-disabled={props.sendingDisabled}
+				/>
+			</div>
+		)
+	})
+
+	return {
+		default: ChatTextAreaComponent,
+		ChatTextArea: ChatTextAreaComponent, // Export as named export too
 	}
 })
 

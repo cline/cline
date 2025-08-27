@@ -49,6 +49,7 @@ describe("ApiConfigSelector", () => {
 	const defaultProps = {
 		value: "config1",
 		displayName: "Config 1",
+		title: "API Config",
 		onChange: mockOnChange,
 		listApiConfigMeta: [
 			{ id: "config1", name: "Config 1" },
@@ -75,8 +76,8 @@ describe("ApiConfigSelector", () => {
 		render(<ApiConfigSelector {...defaultProps} />)
 
 		const trigger = screen.getByTestId("dropdown-trigger")
-		// Check for the icon by looking for the codicon span element
-		const icon = trigger.querySelector(".codicon-chevron-up")
+		// Check for the icon by looking for the svg element (ChevronUp from lucide-react renders as svg)
+		const icon = trigger.querySelector("svg")
 		expect(icon).toBeInTheDocument()
 	})
 

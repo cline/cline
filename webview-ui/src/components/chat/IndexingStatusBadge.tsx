@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { Database } from "lucide-react"
+
 import { cn } from "@src/lib/utils"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { useTooltip } from "@/hooks/useTooltip"
-import { useExtensionState } from "@src/context/ExtensionStateContext"
-import { CodeIndexPopover } from "./CodeIndexPopover"
+
 import type { IndexingStatus, IndexingStatusUpdateMessage } from "@roo/ExtensionMessage"
+
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { PopoverTrigger, StandardTooltip, Button } from "@src/components/ui"
+
+import { CodeIndexPopover } from "./CodeIndexPopover"
 
 interface IndexingStatusBadgeProps {
 	className?: string
@@ -15,8 +19,6 @@ interface IndexingStatusBadgeProps {
 export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ className }) => {
 	const { t } = useAppTranslation()
 	const { cwd } = useExtensionState()
-	const { showTooltip, handleMouseEnter, handleMouseLeave, cleanup } = useTooltip({ delay: 300 })
-	const [isHovered, setIsHovered] = useState(false)
 
 	const [indexingStatus, setIndexingStatus] = useState<IndexingStatus>({
 		systemStatus: "Standby",
@@ -26,10 +28,10 @@ export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ classN
 	})
 
 	useEffect(() => {
-		// Request initial indexing status
+		// Request initial indexing status.
 		vscode.postMessage({ type: "requestIndexingStatus" })
 
-		// Set up message listener for status updates
+		// Set up message listener for status updates.
 		const handleMessage = (event: MessageEvent<IndexingStatusUpdateMessage>) => {
 			if (event.data.type === "indexingStatusUpdate") {
 				const status = event.data.values
@@ -43,11 +45,9 @@ export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ classN
 
 		return () => {
 			window.removeEventListener("message", handleMessage)
-			cleanup()
 		}
-	}, [cleanup, cwd])
+	}, [cwd])
 
-	// Calculate progress percentage with memoization
 	const progressPercentage = useMemo(
 		() =>
 			indexingStatus.totalItems > 0
@@ -56,8 +56,7 @@ export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ classN
 		[indexingStatus.processedItems, indexingStatus.totalItems],
 	)
 
-	// Get tooltip text with internationalization
-	const getTooltipText = () => {
+	const tooltipText = useMemo(() => {
 		switch (indexingStatus.systemStatus) {
 			case "Standby":
 				return t("chat:indexingStatus.ready")
@@ -70,93 +69,44 @@ export const IndexingStatusBadge: React.FC<IndexingStatusBadgeProps> = ({ classN
 			default:
 				return t("chat:indexingStatus.status")
 		}
-	}
+	}, [indexingStatus.systemStatus, progressPercentage, t])
 
-	const handleMouseEnterButton = () => {
-		setIsHovered(true)
-		handleMouseEnter()
-	}
-
-	const handleMouseLeaveButton = () => {
-		setIsHovered(false)
-		handleMouseLeave()
-	}
-
-	// Get status color classes for the badge dot
-	const getStatusColorClass = () => {
+	const statusColorClass = useMemo(() => {
 		const statusColors = {
-			Standby: {
-				default: "bg-vscode-descriptionForeground/60",
-				hover: "bg-vscode-descriptionForeground/80",
-			},
-			Indexing: {
-				default: "bg-yellow-500 animate-pulse",
-				hover: "bg-yellow-500 animate-pulse",
-			},
-			Indexed: {
-				default: "bg-green-500",
-				hover: "bg-green-500",
-			},
-			Error: {
-				default: "bg-red-500",
-				hover: "bg-red-500",
-			},
+			Standby: "bg-vscode-descriptionForeground/60",
+			Indexing: "bg-yellow-500 animate-pulse",
+			Indexed: "bg-green-500",
+			Error: "bg-red-500",
 		}
 
-		const colors = statusColors[indexingStatus.systemStatus as keyof typeof statusColors] || statusColors.Standby
-		return isHovered ? colors.hover : colors.default
-	}
+		return statusColors[indexingStatus.systemStatus as keyof typeof statusColors] || statusColors.Standby
+	}, [indexingStatus.systemStatus])
 
 	return (
-		<div className={cn("relative inline-block", className)}>
-			<CodeIndexPopover indexingStatus={indexingStatus}>
-				<button
-					onMouseEnter={handleMouseEnterButton}
-					onMouseLeave={handleMouseLeaveButton}
-					className={cn(
-						"relative inline-flex items-center justify-center",
-						"bg-transparent border-none p-1.5",
-						"rounded-md min-w-[28px] min-h-[28px]",
-						"opacity-85 text-vscode-foreground",
-						"transition-all duration-150",
-						"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
-						"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
-						"active:bg-[rgba(255,255,255,0.1)]",
-						"cursor-pointer",
-						className,
-					)}
-					aria-label={getTooltipText()}>
-					{/* File search icon */}
-					<Database className="w-4 h-4 text-vscode-foreground" />
-
-					{/* Status dot badge */}
-					<span
+		<CodeIndexPopover indexingStatus={indexingStatus}>
+			<StandardTooltip content={tooltipText}>
+				<PopoverTrigger asChild>
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-label={tooltipText}
 						className={cn(
-							"absolute top-1 right-1 w-1.5 h-1.5 rounded-full transition-colors duration-200",
-							getStatusColorClass(),
-						)}
-					/>
-				</button>
-			</CodeIndexPopover>
-			{showTooltip && (
-				<div
-					className={cn(
-						"absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2",
-						"px-2 py-1 text-xs font-medium text-vscode-foreground",
-						"bg-vscode-editor-background border border-vscode-panel-border",
-						"rounded shadow-lg whitespace-nowrap z-50",
-					)}
-					role="tooltip">
-					{getTooltipText()}
-					<div
-						className={cn(
-							"absolute top-full left-1/2 transform -translate-x-1/2",
-							"w-0 h-0 border-l-4 border-r-4 border-t-4",
-							"border-l-transparent border-r-transparent border-t-vscode-panel-border",
-						)}
-					/>
-				</div>
-			)}
-		</div>
+							"relative h-7 w-7 p-0",
+							"text-vscode-foreground opacity-85",
+							"hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)]",
+							"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
+							className,
+						)}>
+						<Database className="w-4 h-4" />
+						<span
+							className={cn(
+								"absolute top-1 right-1 w-1.5 h-1.5 rounded-full transition-colors duration-200",
+								statusColorClass,
+							)}
+						/>
+					</Button>
+				</PopoverTrigger>
+			</StandardTooltip>
+		</CodeIndexPopover>
 	)
 }

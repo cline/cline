@@ -1,18 +1,21 @@
-import React, { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback } from "react"
+import { Fzf } from "fzf"
+import { ChevronUp } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
 import { Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"
-import { IconButton } from "./IconButton"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
-import { Fzf } from "fzf"
 import { Button } from "@/components/ui"
+
+import { IconButton } from "./IconButton"
 
 interface ApiConfigSelectorProps {
 	value: string
 	displayName: string
 	disabled?: boolean
-	title?: string
+	title: string
 	onChange: (value: string) => void
 	triggerClassName?: string
 	listApiConfigMeta: Array<{ id: string; name: string }>
@@ -24,7 +27,7 @@ export const ApiConfigSelector = ({
 	value,
 	displayName,
 	disabled = false,
-	title = "",
+	title,
 	onChange,
 	triggerClassName = "",
 	listApiConfigMeta,
@@ -36,30 +39,33 @@ export const ApiConfigSelector = ({
 	const [searchValue, setSearchValue] = useState("")
 	const portalContainer = useRooPortal("roo-portal")
 
-	// Create searchable items for fuzzy search
-	const searchableItems = useMemo(() => {
-		return listApiConfigMeta.map((config) => ({
-			original: config,
-			searchStr: config.name,
-		}))
-	}, [listApiConfigMeta])
+	// Create searchable items for fuzzy search.
+	const searchableItems = useMemo(
+		() =>
+			listApiConfigMeta.map((config) => ({
+				original: config,
+				searchStr: config.name,
+			})),
+		[listApiConfigMeta],
+	)
 
-	// Create Fzf instance
-	const fzfInstance = useMemo(() => {
-		return new Fzf(searchableItems, {
-			selector: (item) => item.searchStr,
-		})
-	}, [searchableItems])
+	// Create Fzf instance.
+	const fzfInstance = useMemo(
+		() => new Fzf(searchableItems, { selector: (item) => item.searchStr }),
+		[searchableItems],
+	)
 
-	// Filter configs based on search
+	// Filter configs based on search.
 	const filteredConfigs = useMemo(() => {
-		if (!searchValue) return listApiConfigMeta
+		if (!searchValue) {
+			return listApiConfigMeta
+		}
 
 		const matchingItems = fzfInstance.find(searchValue).map((result) => result.item.original)
 		return matchingItems
 	}, [listApiConfigMeta, searchValue, fzfInstance])
 
-	// Separate pinned and unpinned configs
+	// Separate pinned and unpinned configs.
 	const { pinnedConfigs, unpinnedConfigs } = useMemo(() => {
 		const pinned = filteredConfigs.filter((config) => pinnedApiConfigs?.[config.id])
 		const unpinned = filteredConfigs.filter((config) => !pinnedApiConfigs?.[config.id])
@@ -76,10 +82,7 @@ export const ApiConfigSelector = ({
 	)
 
 	const handleEditClick = useCallback(() => {
-		vscode.postMessage({
-			type: "switchTab",
-			tab: "settings",
-		})
+		vscode.postMessage({ type: "switchTab", tab: "settings" })
 		setOpen(false)
 	}, [])
 
@@ -112,10 +115,7 @@ export const ApiConfigSelector = ({
 								onClick={(e) => {
 									e.stopPropagation()
 									togglePinnedApiConfig(config.id)
-									vscode.postMessage({
-										type: "toggleApiConfigPin",
-										text: config.id,
-									})
+									vscode.postMessage({ type: "toggleApiConfigPin", text: config.id })
 								}}
 								className={cn("size-5 flex items-center justify-center", {
 									"opacity-0 group-hover:opacity-100": !isPinned && !isCurrentConfig,
@@ -131,32 +131,30 @@ export const ApiConfigSelector = ({
 		[value, handleSelect, t, togglePinnedApiConfig],
 	)
 
-	const triggerContent = (
-		<PopoverTrigger
-			disabled={disabled}
-			data-testid="dropdown-trigger"
-			className={cn(
-				"w-full min-w-0 max-w-full inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
-				"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground",
-				"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
-				disabled
-					? "opacity-50 cursor-not-allowed"
-					: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
-				triggerClassName,
-			)}>
-			<span
-				className={cn(
-					"codicon codicon-chevron-up pointer-events-none opacity-80 flex-shrink-0 text-xs transition-transform duration-200",
-					open && "rotate-180",
-				)}
-			/>
-			<span className="truncate">{displayName}</span>
-		</PopoverTrigger>
-	)
-
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			{title ? <StandardTooltip content={title}>{triggerContent}</StandardTooltip> : triggerContent}
+		<Popover open={open} onOpenChange={setOpen} data-testid="api-config-selector-root">
+			<StandardTooltip content={title}>
+				<PopoverTrigger
+					disabled={disabled}
+					data-testid="dropdown-trigger"
+					className={cn(
+						"w-full min-w-0 max-w-full inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
+						"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground",
+						"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
+						disabled
+							? "opacity-50 cursor-not-allowed"
+							: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
+						triggerClassName,
+					)}>
+					<ChevronUp
+						className={cn(
+							"pointer-events-none opacity-80 flex-shrink-0 size-3 transition-transform duration-200",
+							open && "rotate-180",
+						)}
+					/>
+					<span className="truncate">{displayName}</span>
+				</PopoverTrigger>
+			</StandardTooltip>
 			<PopoverContent
 				align="start"
 				sideOffset={4}
@@ -214,12 +212,13 @@ export const ApiConfigSelector = ({
 					</div>
 
 					{/* Bottom bar with buttons on left and title on right */}
-					<div className="flex flex-row items-center justify-between p-2 border-t border-vscode-dropdown-border">
+					<div className="flex flex-row items-center justify-between px-2 py-2 border-t border-vscode-dropdown-border">
 						<div className="flex flex-row gap-1">
 							<IconButton
 								iconClass="codicon-settings-gear"
 								title={t("chat:edit")}
 								onClick={handleEditClick}
+								tooltip={false}
 							/>
 						</div>
 

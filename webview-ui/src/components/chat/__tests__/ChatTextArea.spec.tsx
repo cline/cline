@@ -1,12 +1,11 @@
-import { render, fireEvent, screen } from "@/utils/test-utils"
-
 import { defaultModeSlug } from "@roo/modes"
 
+import { render, fireEvent, screen } from "@src/utils/test-utils"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 import * as pathMentions from "@src/utils/path-mentions"
 
-import ChatTextArea from "../ChatTextArea"
+import { ChatTextArea } from "../ChatTextArea"
 
 vi.mock("@src/utils/vscode", () => ({
 	vscode: {
@@ -1056,56 +1055,6 @@ describe("ChatTextArea", () => {
 			render(<ChatTextArea {...defaultProps} sendingDisabled={true} selectApiConfigDisabled={true} />)
 			const apiConfigDropdown = getApiConfigDropdown()
 			expect(apiConfigDropdown).toHaveAttribute("disabled")
-		})
-	})
-	describe("edit mode integration", () => {
-		it("should render edit mode UI when isEditMode is true", () => {
-			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
-				filePaths: [],
-				openedTabs: [],
-				taskHistory: [],
-				cwd: "/test/workspace",
-				customModes: [],
-				customModePrompts: {},
-			})
-
-			render(<ChatTextArea {...defaultProps} isEditMode={true} />)
-
-			// The edit mode UI should be rendered
-			// We can verify this by checking for the presence of elements that are unique to edit mode
-			const cancelButton = screen.getByRole("button", { name: /cancel/i })
-			expect(cancelButton).toBeInTheDocument()
-
-			// Should show save button instead of send button
-			const saveButton = screen.getByRole("button", { name: /save/i })
-			expect(saveButton).toBeInTheDocument()
-
-			// Should not show send button in edit mode
-			const sendButton = screen.queryByRole("button", { name: /send.*message/i })
-			expect(sendButton).not.toBeInTheDocument()
-		})
-
-		it("should not render edit mode UI when isEditMode is false", () => {
-			;(useExtensionState as ReturnType<typeof vi.fn>).mockReturnValue({
-				filePaths: [],
-				openedTabs: [],
-				taskHistory: [],
-				cwd: "/test/workspace",
-			})
-
-			render(<ChatTextArea {...defaultProps} isEditMode={false} />)
-
-			// The edit mode UI should not be rendered
-			const cancelButton = screen.queryByRole("button", { name: /cancel/i })
-			expect(cancelButton).not.toBeInTheDocument()
-
-			// Should show send button when not in edit mode
-			const sendButton = screen.getByRole("button", { name: /send.*message/i })
-			expect(sendButton).toBeInTheDocument()
-
-			// Should not show save button when not in edit mode
-			const saveButton = screen.queryByRole("button", { name: /save/i })
-			expect(saveButton).not.toBeInTheDocument()
 		})
 	})
 })

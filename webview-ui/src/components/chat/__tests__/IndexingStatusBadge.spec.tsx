@@ -55,16 +55,6 @@ vi.mock("@src/utils/vscode", () => ({
 	},
 }))
 
-// Mock the useTooltip hook
-vi.mock("@/hooks/useTooltip", () => ({
-	useTooltip: vi.fn(() => ({
-		showTooltip: false,
-		handleMouseEnter: vi.fn(),
-		handleMouseLeave: vi.fn(),
-		cleanup: vi.fn(),
-	})),
-}))
-
 // Mock the ExtensionStateContext
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
