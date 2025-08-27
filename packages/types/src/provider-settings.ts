@@ -453,6 +453,11 @@ export const getApiProtocol = (provider: ProviderName | undefined, modelId?: str
 		return "anthropic"
 	}
 
+	// Vercel AI Gateway uses anthropic protocol for anthropic models
+	if (provider && provider === "vercel-ai-gateway" && modelId && modelId.toLowerCase().startsWith("anthropic/")) {
+		return "anthropic"
+	}
+
 	return "openai"
 }
 
