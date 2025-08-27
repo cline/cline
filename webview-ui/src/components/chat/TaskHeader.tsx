@@ -264,19 +264,6 @@ const TaskHeader = ({
 										</tr>
 									)}
 
-									{/* Cache size display */}
-									{((typeof cacheReads === "number" && cacheReads > 0) ||
-										(typeof cacheWrites === "number" && cacheWrites > 0)) && (
-										<tr>
-											<th className="font-bold text-left align-top w-1 whitespace-nowrap pl-1 pr-3 h-[24px]">
-												{t("chat:task.cache")}
-											</th>
-											<td className="align-top">
-												{prettyBytes(((cacheReads || 0) + (cacheWrites || 0)) * 4)}
-											</td>
-										</tr>
-									)}
-
 									{/* Size display */}
 									{!!currentTaskItem?.size && currentTaskItem.size > 0 && (
 										<tr>
