@@ -34,7 +34,7 @@ describe("Command Mentions", () => {
 			mockUrlContentFetcher, // urlContentFetcher
 			undefined, // fileContextTracker
 			undefined, // rooIgnoreController
-			true, // showRooIgnoredFiles
+			false, // showRooIgnoredFiles
 			true, // includeDiagnosticMessages
 			50, // maxDiagnosticMessages
 			undefined, // maxReadFileLine

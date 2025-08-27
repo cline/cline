@@ -51,7 +51,7 @@ describe("processUserContentMentions", () => {
 				mockUrlContentFetcher,
 				mockFileContextTracker,
 				mockRooIgnoreController,
-				true,
+				false,
 				true, // includeDiagnosticMessages
 				50, // maxDiagnosticMessages
 				100,
@@ -80,7 +80,7 @@ describe("processUserContentMentions", () => {
 				mockUrlContentFetcher,
 				mockFileContextTracker,
 				mockRooIgnoreController,
-				true,
+				false,
 				true, // includeDiagnosticMessages
 				50, // maxDiagnosticMessages
 				undefined,
@@ -110,7 +110,7 @@ describe("processUserContentMentions", () => {
 				mockUrlContentFetcher,
 				mockFileContextTracker,
 				mockRooIgnoreController,
-				true,
+				false,
 				true, // includeDiagnosticMessages
 				50, // maxDiagnosticMessages
 				-1,
@@ -293,7 +293,7 @@ describe("processUserContentMentions", () => {
 	})
 
 	describe("showRooIgnoredFiles parameter", () => {
-		it("should default showRooIgnoredFiles to true", async () => {
+		it("should default showRooIgnoredFiles to false", async () => {
 			const userContent = [
 				{
 					type: "text" as const,
@@ -314,7 +314,7 @@ describe("processUserContentMentions", () => {
 				mockUrlContentFetcher,
 				mockFileContextTracker,
 				undefined,
-				true, // showRooIgnoredFiles should default to true
+				false, // showRooIgnoredFiles should default to false
 				true, // includeDiagnosticMessages
 				50, // maxDiagnosticMessages
 				undefined,

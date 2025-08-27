@@ -12,7 +12,7 @@ export async function processUserContentMentions({
 	urlContentFetcher,
 	fileContextTracker,
 	rooIgnoreController,
-	showRooIgnoredFiles = true,
+	showRooIgnoredFiles = false,
 	includeDiagnosticMessages = true,
 	maxDiagnosticMessages = 50,
 	maxReadFileLine,
