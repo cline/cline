@@ -10,7 +10,14 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true
+		"resolveJsonModule": true,
+		"baseUrl": ".",
+		"paths": {
+			"@adapters/*": ["src/adapters/*"],
+			"@commands/*": ["src/commands/*"],
+			"@db/*": ["src/db/*"],
+			"@utils/*": ["src/utils/*"]
+		}
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist"]

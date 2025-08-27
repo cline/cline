@@ -2,7 +2,7 @@ import * as path from "path"
 import * as fs from "fs"
 import execa from "execa"
 import { BenchmarkAdapter, Task, VerificationResult } from "./types"
-import { swebench_tasks } from "./swe-bench-tasks"
+import { swebench_tasks } from "@adapters/swe-bench-tasks"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")
 
