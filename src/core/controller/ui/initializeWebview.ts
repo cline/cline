@@ -214,10 +214,10 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Prefetch marketplace and OpenRouter models
 
 		// Send stored MCP marketplace catalog if available
-		const mcpMarketplaceCatalog = controller.stateManager.getGlobalStateKey("mcpMarketplaceCatalog")
+		const mcpMarketplaceCatalog = await controller.readMcpMarketplaceCatalog()
 
 		if (mcpMarketplaceCatalog) {
-			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog as McpMarketplaceCatalog)
+			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog)
 		}
 
 		// Silently refresh MCP marketplace catalog

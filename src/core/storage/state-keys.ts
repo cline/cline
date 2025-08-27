@@ -52,7 +52,6 @@ export interface GlobalState {
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
 	zaiApiLine: string | undefined
-	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
 	planActSeparateModelsSetting: boolean

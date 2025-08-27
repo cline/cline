@@ -383,8 +383,8 @@ export class Controller {
 				})),
 			}
 
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
+			// Store in cache file
+			await this.writeMcpMarketplaceCatalog(catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -421,8 +421,8 @@ export class Controller {
 				})),
 			}
 
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
+			// Store in cache file
+			await this.writeMcpMarketplaceCatalog(catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -524,6 +524,29 @@ export class Controller {
 			return JSON.parse(fileContents)
 		}
 		return undefined
+	}
+
+	// Read MCP marketplace catalog from disk cache
+	async readMcpMarketplaceCatalog(): Promise<McpMarketplaceCatalog | undefined> {
+		const mcpMarketplaceCatalogFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.mcpMarketplaceCatalog,
+		)
+		const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	// Write MCP marketplace catalog to disk cache
+	async writeMcpMarketplaceCatalog(catalog: McpMarketplaceCatalog): Promise<void> {
+		const mcpMarketplaceCatalogFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.mcpMarketplaceCatalog,
+		)
+		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
 	}
 
 	// Task history
