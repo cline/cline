@@ -66,7 +66,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 					clientSecret: apiConfiguration.sapAiCoreClientSecret,
 					baseUrl: apiConfiguration.sapAiCoreBaseUrl,
 					tokenUrl: apiConfiguration.sapAiCoreTokenUrl,
-					resourceGroup: apiConfiguration.sapAiResourceGroup || "default",
+					resourceGroup: apiConfiguration.sapAiResourceGroup,
 				}),
 			)
 
