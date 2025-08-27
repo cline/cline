@@ -104,7 +104,6 @@ export const ApiConfigSelector = ({
 						<span className="flex-shrink-0">{config.name}</span>
 						{config.modelId && (
 							<>
-								<span className="text-vscode-descriptionForeground opacity-70 flex-shrink-0">·</span>
 								<span
 									className="text-vscode-descriptionForeground opacity-70 min-w-0 overflow-hidden"
 									style={{ direction: "rtl", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
