@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import {
+	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
@@ -44,6 +45,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
+
+	// Clean up MCP marketplace catalog from global state (moved to disk cache)
+	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
