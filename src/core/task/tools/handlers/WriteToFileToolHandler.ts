@@ -304,6 +304,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					await config.callbacks.saveCheckpoint()
 				}
 
+				// Clean up the diff view when operation is rejected
+				await config.services.diffViewProvider.revertChanges()
+				await config.services.diffViewProvider.reset()
+
 				config.taskState.didRejectTool = true
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return `The user denied this operation. ${fileDeniedNote}`
