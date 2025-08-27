@@ -2,6 +2,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
+import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -59,7 +60,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		})
 			.then((response) => {
 				if (response?.values) {
-					console.log("Fetched LM Studio models:", response.values)
 					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
 					setLmStudioModels(models)
 				}
@@ -148,15 +148,12 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				className="w-full pointer-events-none"
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
-				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "-")}
+				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
 
-			<div
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
+			<UseCustomPromptCheckbox providerId="lmstudio" />
+
+			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their
 				<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
 					quickstart guide.
