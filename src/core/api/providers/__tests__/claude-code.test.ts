@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
-import "should"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
-import { ClaudeCodeHandler } from "../claude-code"
+import "should"
+import { ClaudeCodeHandler } from "@core/api/providers/claude-code"
 
 describe("ClaudeCodeHandler", () => {
 	let handler: ClaudeCodeHandler
@@ -22,28 +22,8 @@ describe("ClaudeCodeHandler", () => {
 
 	describe("token counting", () => {
 		it("should correctly handle token usage from assistant messages", async () => {
-			/**
-			 * This test verifies the fix for token counting in Claude Code provider.
-			 *
-			 * THE BUG THAT WAS FIXED:
-			 * Previously, the code was double-counting cache tokens, leading to inflated context usage
-			 * and premature truncation of conversation history.
-			 *
-			 * According to Anthropic's official API documentation:
-			 * https://docs.anthropic.com/en/api/messages#usage-object
-			 *
-			 * The 'input_tokens' field represents the TOTAL number of input tokens used,
-			 * INCLUDING any tokens read from or written to the cache.
-			 *
-			 * Therefore:
-			 * - input_tokens = base_input_tokens + cache_read_input_tokens + cache_creation_input_tokens
-			 *
-			 * The bug was that ContextManager was calculating total tokens as:
-			 * tokensIn + tokensOut + cacheWrites + cacheReads
-			 *
-			 * But since tokensIn (input_tokens) already includes the cache tokens,
-			 * this resulted in counting cache tokens twice, inflating the total by 30-50%.
-			 */
+			// The 'input_tokens' field represents the TOTAL number of input tokens used.
+			// See https://docs.anthropic.com/en/api/messages#usage-object
 
 			// Mock the runClaudeCode function
 			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
