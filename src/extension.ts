@@ -141,11 +141,20 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			const config = await CloudService.instance.cloudAPI.bridgeConfig()
 
+			const isCloudAgent =
+				typeof process.env.ROO_CODE_CLOUD_TOKEN === "string" && process.env.ROO_CODE_CLOUD_TOKEN.length > 0
+
+			cloudLogger(`[CloudService] isCloudAgent = ${isCloudAgent}, socketBridgeUrl = ${config.socketBridgeUrl}`)
+
 			ExtensionBridgeService.handleRemoteControlState(
 				userInfo,
-				contextProxy.getValue("remoteControlEnabled"),
-				{ ...config, provider, sessionId: vscode.env.sessionId },
-				(message: string) => outputChannel.appendLine(message),
+				isCloudAgent ? true : contextProxy.getValue("remoteControlEnabled"),
+				{
+					...config,
+					provider,
+					sessionId: vscode.env.sessionId,
+				},
+				cloudLogger,
 			)
 		} catch (error) {
 			cloudLogger(
