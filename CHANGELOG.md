@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.26.1] - 2025-08-27
+
+- Add Vercel AI Gateway provider integration (thanks @joshualipman123!)
+- Add support for Vercel embeddings (thanks @mrubens!)
+- Enable on-disk storage for Qdrant vectors and HNSW index (thanks @daniel-lxs!)
+- Show model ID in API configuration dropdown (thanks @daniel-lxs!)
+- Update tooltip component to match native VSCode tooltip shadow styling (thanks @roomote!)
+- Fix: remove duplicate cache display in task header (thanks @mrubens!)
+- Random chat text area cleanup (thanks @cte!)
+
 ## [3.26.0] - 2025-08-26
 
 - Sonic -> Grok Code Fast
