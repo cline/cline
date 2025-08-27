@@ -12,7 +12,7 @@ try {
 	console.warn("Failed to load environment variables:", e)
 }
 
-import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
+import { CloudService, ExtensionBridgeService, type CloudUserInfo } from "@roo-code/cloud"
 import { TelemetryService, PostHogTelemetryClient } from "@roo-code/telemetry"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
@@ -51,6 +51,11 @@ import { initializeI18n } from "./i18n"
 
 let outputChannel: vscode.OutputChannel
 let extensionContext: vscode.ExtensionContext
+let cloudService: CloudService | undefined
+
+let authStateChangedHandler: (() => void) | undefined
+let settingsUpdatedHandler: (() => void) | undefined
+let userInfoHandler: ((data: { userInfo: CloudUserInfo }) => Promise<void>) | undefined
 
 // This method is called when your extension is activated.
 // Your extension is activated the very first time the command is executed.
@@ -94,13 +99,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const contextProxy = await ContextProxy.getInstance(context)
 
-	// Initialize code index managers for all workspace folders
+	// Initialize code index managers for all workspace folders.
 	const codeIndexManagers: CodeIndexManager[] = []
+
 	if (vscode.workspace.workspaceFolders) {
 		for (const folder of vscode.workspace.workspaceFolders) {
 			const manager = CodeIndexManager.getInstance(context, folder.uri.fsPath)
+
 			if (manager) {
 				codeIndexManagers.push(manager)
+
 				try {
 					await manager.initialize(contextProxy)
 				} catch (error) {
@@ -108,13 +116,49 @@ export async function activate(context: vscode.ExtensionContext) {
 						`[CodeIndexManager] Error during background CodeIndexManager configuration/indexing for ${folder.uri.fsPath}: ${error.message || error}`,
 					)
 				}
+
 				context.subscriptions.push(manager)
 			}
 		}
 	}
 
+	// Initialize the provider *before* the Roo Code Cloud service.
+	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, mdmService)
+
 	// Initialize Roo Code Cloud service.
-	const cloudService = await CloudService.createInstance(context, cloudLogger)
+	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebview()
+	authStateChangedHandler = postStateListener
+	settingsUpdatedHandler = postStateListener
+
+	userInfoHandler = async ({ userInfo }: { userInfo: CloudUserInfo }) => {
+		postStateListener()
+
+		if (!CloudService.instance.cloudAPI) {
+			cloudLogger("[CloudService] CloudAPI is not initialized")
+			return
+		}
+
+		try {
+			const config = await CloudService.instance.cloudAPI.bridgeConfig()
+
+			ExtensionBridgeService.handleRemoteControlState(
+				userInfo,
+				contextProxy.getValue("remoteControlEnabled"),
+				{ ...config, provider, sessionId: vscode.env.sessionId },
+				(message: string) => outputChannel.appendLine(message),
+			)
+		} catch (error) {
+			cloudLogger(
+				`[CloudService] Failed to fetch bridgeConfig: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	}
+
+	cloudService = await CloudService.createInstance(context, cloudLogger, {
+		"auth-state-changed": authStateChangedHandler,
+		"settings-updated": settingsUpdatedHandler,
+		"user-info": userInfoHandler,
+	})
 
 	try {
 		if (cloudService.telemetryClient) {
@@ -126,33 +170,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		)
 	}
 
-	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebview()
-
-	cloudService.on("auth-state-changed", postStateListener)
-	cloudService.on("settings-updated", postStateListener)
-
-	cloudService.on("user-info", async ({ userInfo }) => {
-		postStateListener()
-
-		const bridgeConfig = await cloudService.cloudAPI?.bridgeConfig().catch(() => undefined)
-
-		if (!bridgeConfig) {
-			outputChannel.appendLine("[CloudService] Failed to get bridge config")
-			return
-		}
-
-		ExtensionBridgeService.handleRemoteControlState(
-			userInfo,
-			contextProxy.getValue("remoteControlEnabled"),
-			{ ...bridgeConfig, provider, sessionId: vscode.env.sessionId },
-			(message: string) => outputChannel.appendLine(message),
-		)
-	})
-
 	// Add to subscriptions for proper cleanup on deactivate.
 	context.subscriptions.push(cloudService)
 
-	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, mdmService)
+	// Finish initializing the provider.
 	TelemetryService.instance.setProvider(provider)
 
 	context.subscriptions.push(
@@ -279,6 +300,28 @@ export async function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated.
 export async function deactivate() {
 	outputChannel.appendLine(`${Package.name} extension deactivated`)
+
+	if (cloudService && CloudService.hasInstance()) {
+		try {
+			if (authStateChangedHandler) {
+				CloudService.instance.off("auth-state-changed", authStateChangedHandler)
+			}
+
+			if (settingsUpdatedHandler) {
+				CloudService.instance.off("settings-updated", settingsUpdatedHandler)
+			}
+
+			if (userInfoHandler) {
+				CloudService.instance.off("user-info", userInfoHandler as any)
+			}
+
+			outputChannel.appendLine("CloudService event handlers cleaned up")
+		} catch (error) {
+			outputChannel.appendLine(
+				`Failed to clean up CloudService event handlers: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	}
 
 	const bridgeService = ExtensionBridgeService.getInstance()
 

@@ -584,8 +584,8 @@ importers:
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
       '@roo-code/cloud':
-        specifier: ^0.22.0
-        version: 0.22.0
+        specifier: ^0.24.0
+        version: 0.24.0
       '@roo-code/ipc':
         specifier: workspace:^
         version: link:../packages/ipc
@@ -661,6 +661,9 @@ importers:
       isbinaryfile:
         specifier: ^5.0.2
         version: 5.0.4
+      jwt-decode:
+        specifier: ^4.0.0
+        version: 4.0.0
       lodash.debounce:
         specifier: ^4.0.8
         version: 4.0.8
@@ -3343,8 +3346,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@roo-code/cloud@0.22.0':
-    resolution: {integrity: sha512-s1d4wcDYeDzcwr+YypMWDlNKL4f2osOZ3NoIlD36LCfFeMs+hnluZPS1oXX3WHtmPDC76vSzPMfwW2Ef41hEoA==}
+  '@roo-code/cloud@0.24.0':
+    resolution: {integrity: sha512-0aG1rWFQ18jCC1ZuDlBYoB+di640p7uK1pv2zNRwOJIClWRtkP84GARYPotRgtCGfiyuI4sQ0jQRdi8Hh1ClRQ==}
 
   '@roo-code/types@1.61.0':
     resolution: {integrity: sha512-YJdFc6aYfaZ8EN08KbWaKLehRr1dcN3G3CzDjpppb08iehSEUZMycax/ryP5/G4vl34HTdtzyHNMboDen5ElUg==}
@@ -7000,6 +7003,10 @@ packages:
 
   jws@4.0.0:
     resolution: {integrity: sha512-KDncfTmOZoOMTFG4mBlG0qUIOlc03fmzH+ru6RgYVZhPkyiy/92Owlt/8UEN+a4TXR1FQetfIpJE8ApdvdVxTg==}
+
+  jwt-decode@4.0.0:
+    resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
+    engines: {node: '>=18'}
 
   katex@0.16.22:
     resolution: {integrity: sha512-XCHRdUw4lf3SKBaJe4EvgqIuWwkPSo9XoeO8GjQW94Bp7TWv9hNhzZjZ+OH9yf1UmLygb7DIT5GSFQiyt16zYg==}
@@ -12725,10 +12732,11 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.40.2':
     optional: true
 
-  '@roo-code/cloud@0.22.0':
+  '@roo-code/cloud@0.24.0':
     dependencies:
       '@roo-code/types': 1.61.0
       ioredis: 5.6.1
+      jwt-decode: 4.0.0
       p-wait-for: 5.0.2
       socket.io-client: 4.8.1
       zod: 3.25.76
@@ -17001,6 +17009,8 @@ snapshots:
     dependencies:
       jwa: 2.0.1
       safe-buffer: 5.2.1
+
+  jwt-decode@4.0.0: {}
 
   katex@0.16.22:
     dependencies:

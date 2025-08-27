@@ -1787,8 +1787,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const areButtonsVisible = showScrollToBottom || primaryButtonText || secondaryButtonText || isStreaming
 
-	console.log("ChatView - render()")
-
 	return (
 		<div
 			data-testid="chat-view"
