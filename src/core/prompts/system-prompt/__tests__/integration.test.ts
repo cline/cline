@@ -1,3 +1,23 @@
+/**
+ * System Prompt Integration Tests with Snapshot Testing
+ *
+ * This test suite validates that system prompts remain consistent across different
+ * model families and context configurations using snapshot testing.
+ *
+ * Usage:
+ * - Run tests normally: `npm test` or `yarn test`
+ *   Tests will fail if generated prompts don't match existing snapshots
+ *
+ * - Update snapshots: `npm test -- --update-snapshots` or `yarn test --update-snapshots`
+ *   This will regenerate all snapshot files with current prompt output
+ *
+ * When tests fail:
+ * 1. Review the differences shown in the error message
+ * 2. Determine if changes are intentional (e.g., prompt improvements)
+ * 3. If changes are correct, run with --update-snapshots to update baselines
+ * 4. If changes are unintentional, investigate why prompt generation changed
+ */
+
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { expect } from "chai"
@@ -5,6 +25,84 @@ import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
 import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
+
+// Check if snapshots should be updated via process argument
+const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots")
+
+// Helper to format snapshot mismatch error messages
+const formatSnapshotError = (snapshotName: string, differences: string): string => {
+	return `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ SNAPSHOT MISMATCH: ${snapshotName}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${differences}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 HOW TO FIX:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 📋 Review the differences above to understand what changed
+2. 🤔 Determine if the changes are intentional:
+   - ✅ Expected changes (prompt improvements, new features)
+   - ❌ Unexpected changes (bugs, regressions)
+
+3. 🔄 If changes are correct, update snapshots:
+   npm test -- --update-snapshots
+   # or
+   yarn test --update-snapshots
+
+4. 🐛 If changes are unintentional, investigate:
+   - Check recent changes to prompt generation logic
+   - Verify context/configuration hasn't changed unexpectedly
+   - Look for dependency updates that might affect output
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`
+}
+
+// Helper to compare two strings and return differences
+const compareStrings = (expected: string, actual: string): string | null => {
+	if (expected === actual) return null
+
+	const expectedLines = expected.split("\n")
+	const actualLines = actual.split("\n")
+	const maxLines = Math.max(expectedLines.length, actualLines.length)
+	const differences: string[] = []
+
+	for (let i = 0; i < maxLines; i++) {
+		const expectedLine = expectedLines[i] || ""
+		const actualLine = actualLines[i] || ""
+
+		if (expectedLine !== actualLine) {
+			if (differences.length < 10) {
+				// Limit to first 10 differences for readability
+				differences.push(`Line ${i + 1}:`)
+				if (expectedLine)
+					differences.push(`  - Expected: ${expectedLine.substring(0, 100)}${expectedLine.length > 100 ? "..." : ""}`)
+				if (actualLine)
+					differences.push(`  + Actual:   ${actualLine.substring(0, 100)}${actualLine.length > 100 ? "..." : ""}`)
+			}
+		}
+	}
+
+	if (differences.length === 0) return null
+
+	const summary = [
+		`Expected length: ${expected.length} characters`,
+		`Actual length: ${actual.length} characters`,
+		`Line count difference: ${expectedLines.length} vs ${actualLines.length}`,
+		"",
+		"First differences:",
+		...differences,
+	]
+
+	if (differences.length >= 10) {
+		summary.push("... and more differences")
+	}
+
+	return summary.join("\n")
+}
 
 export const mockProviderInfo = {
 	providerId: "test",
@@ -72,6 +170,15 @@ describe("Prompt System Integration Tests", () => {
 	beforeEach(() => {
 		// Reset any necessary state before each test
 	})
+
+	// Show helpful information about snapshot testing mode
+	before(() => {
+		if (UPDATE_SNAPSHOTS) {
+			console.log("🔄 SNAPSHOT UPDATE MODE: Will update all snapshot files with current output")
+		} else {
+			console.log("✅ SNAPSHOT TEST MODE: Will compare against existing snapshots")
+		}
+	})
 	const contextVariations = [
 		{ name: "basic", baseContext: { ...baseContext } },
 		{
@@ -111,7 +218,7 @@ describe("Prompt System Integration Tests", () => {
 	]
 
 	// Generate snapshots for all model/context combinations
-	describe("Snapshot Generation", () => {
+	describe("Snapshot Testing", () => {
 		const snapshotsDir = path.join(__dirname, "__snapshots__")
 
 		before(async () => {
@@ -143,20 +250,41 @@ describe("Prompt System Integration Tests", () => {
 								expect(prompt.length).to.be.greaterThan(100)
 								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
-								// Save snapshot
+								// Snapshot testing logic
 								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
 								const snapshotPath = path.join(snapshotsDir, snapshotName)
 
-								await fs.writeFile(snapshotPath, prompt, "utf-8")
+								if (UPDATE_SNAPSHOTS) {
+									// Update mode: write new snapshot
+									await fs.writeFile(snapshotPath, prompt, "utf-8")
+									console.log(`Updated snapshot: ${snapshotName} (${prompt.length} chars)`)
+								} else {
+									// Test mode: compare with existing snapshot
+									try {
+										const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
+										const differences = compareStrings(existingSnapshot, prompt)
 
-								console.log(`Generated snapshot: ${snapshotName} (${prompt.length} chars)`)
+										if (differences) {
+											throw new Error(formatSnapshotError(snapshotName, differences))
+										}
 
-								// Verify snapshot was created
-								const snapshotExists = await fs
-									.access(snapshotPath)
-									.then(() => true)
-									.catch(() => false)
-								expect(snapshotExists).to.be.true
+										console.log(`✓ Snapshot matches: ${snapshotName}`)
+									} catch (error) {
+										if (error instanceof Error && (error as any).code === "ENOENT") {
+											// Snapshot doesn't exist
+											throw new Error(
+												formatSnapshotError(
+													snapshotName,
+													`Snapshot file does not exist: ${snapshotPath}\n` +
+														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
+												),
+											)
+										} else {
+											// Re-throw comparison errors
+											throw error
+										}
+									}
+								}
 							} catch (error) {
 								// For missing variants, we expect errors - that's okay
 								if (error instanceof Error && error.message.includes("No prompt variant found")) {
@@ -383,7 +511,7 @@ describe("Prompt System Integration Tests", () => {
 			expect(oldNextGenWithoutFocus).to.not.include("task_progress")
 			expect(oldGenericWithoutFocus).to.not.include("task_progress")
 
-			// Save snapshots of old prompts
+			// Snapshot testing for old prompts
 			const snapshotsDir = path.join(__dirname, "__snapshots__")
 			await fs.mkdir(snapshotsDir, { recursive: true })
 
@@ -396,8 +524,38 @@ describe("Prompt System Integration Tests", () => {
 
 			for (const snapshot of snapshots) {
 				const snapshotPath = path.join(snapshotsDir, snapshot.name)
-				await fs.writeFile(snapshotPath, snapshot.content, "utf-8")
-				console.log(`Generated old prompt snapshot: ${snapshot.name} (${snapshot.content.length} chars)`)
+
+				if (UPDATE_SNAPSHOTS) {
+					// Update mode: write new snapshot
+					await fs.writeFile(snapshotPath, snapshot.content, "utf-8")
+					console.log(`Updated old prompt snapshot: ${snapshot.name} (${snapshot.content.length} chars)`)
+				} else {
+					// Test mode: compare with existing snapshot
+					try {
+						const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
+						const differences = compareStrings(existingSnapshot, snapshot.content)
+
+						if (differences) {
+							throw new Error(formatSnapshotError(snapshot.name, differences))
+						}
+
+						console.log(`✓ Old prompt snapshot matches: ${snapshot.name}`)
+					} catch (error) {
+						if (error instanceof Error && (error as any).code === "ENOENT") {
+							// Snapshot doesn't exist
+							throw new Error(
+								formatSnapshotError(
+									snapshot.name,
+									`Old prompt snapshot file does not exist: ${snapshotPath}\n` +
+										`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
+								),
+							)
+						} else {
+							// Re-throw comparison errors
+							throw error
+						}
+					}
+				}
 			}
 		})
 
@@ -473,7 +631,7 @@ describe("Prompt System Integration Tests", () => {
 				expect(newNextGenHasSection || newGenericHasSection).to.be.true
 			}
 
-			// Save comparison results
+			// Snapshot testing for section title comparison
 			const snapshotsDir = path.join(__dirname, "__snapshots__")
 			const comparisonPath = path.join(snapshotsDir, "section-title-comparison.json")
 
@@ -491,8 +649,39 @@ describe("Prompt System Integration Tests", () => {
 				},
 			}
 
-			await fs.writeFile(comparisonPath, JSON.stringify(comparison, null, 2), "utf-8")
-			// console.log(`Saved section title comparison to: ${comparisonPath}`)
+			const comparisonContent = JSON.stringify(comparison, null, 2).trim()
+
+			if (UPDATE_SNAPSHOTS) {
+				// Update mode: write new comparison snapshot
+				await fs.writeFile(comparisonPath, comparisonContent, "utf-8")
+				console.log(`Updated section title comparison snapshot`)
+			} else {
+				// Test mode: compare with existing snapshot
+				try {
+					const existingComparison = await fs.readFile(comparisonPath, "utf-8")
+					const differences = compareStrings(existingComparison, comparisonContent)
+
+					if (differences) {
+						throw new Error(formatSnapshotError("section-title-comparison.json", differences))
+					}
+
+					console.log(`✓ Section title comparison matches`)
+				} catch (error) {
+					if (error instanceof Error && (error as any).code === "ENOENT") {
+						// Snapshot doesn't exist
+						throw new Error(
+							formatSnapshotError(
+								"section-title-comparison.json",
+								`Section title comparison snapshot file does not exist: ${comparisonPath}\n` +
+									`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
+							),
+						)
+					} else {
+						// Re-throw comparison errors
+						throw error
+					}
+				}
+			}
 		})
 	})
 })
