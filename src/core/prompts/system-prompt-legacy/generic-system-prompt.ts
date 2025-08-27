@@ -1,10 +1,11 @@
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { getShell } from "@utils/shell"
-import os from "os"
-import osName from "os-name"
+import { getSystemEnv } from "../system-prompt/components/system_info"
 
+/**
+ * @deprecated Use getSystemPrompt() from src/core/prompts/system-prompt/index.ts instead
+ */
 export const SYSTEM_PROMPT_GENERIC = async (
 	cwd: string,
 	supportsBrowserUse: boolean,
@@ -12,6 +13,8 @@ export const SYSTEM_PROMPT_GENERIC = async (
 	browserSettings: BrowserSettings,
 	focusChainSettings: FocusChainSettings,
 ) => {
+	// This should always set isTesting to true because this is deprecated and should only be used for testing purpose.
+	const systemInfo = await getSystemEnv(cwd, true)
 	return `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
@@ -781,10 +784,10 @@ RULES
 
 SYSTEM INFORMATION
 
-Operating System: ${osName()}
-Default Shell: ${getShell()}
-Home Directory: ${os.homedir().toPosix()}
-Current Working Directory: ${cwd.toPosix()}
+Operating System: ${systemInfo.os}
+Default Shell: ${systemInfo.shell}
+Home Directory: ${systemInfo.homeDir}
+Current Working Directory: ${systemInfo.workingDir}
 
 ====
 

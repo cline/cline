@@ -17,11 +17,11 @@ export const config = createVariant(ModelFamily.GENERIC)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
-		SystemPromptSection.TODO,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
-		SystemPromptSection.TASK_PROGRESS,
+		SystemPromptSection.TODO,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.RULES,
 		SystemPromptSection.SYSTEM_INFO,
