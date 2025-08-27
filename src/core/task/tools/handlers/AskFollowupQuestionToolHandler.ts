@@ -18,6 +18,19 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 		return `[${block.name} for '${block.params.question}']`
 	}
 
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const question = block.params.question || ""
+		const optionsRaw = block.params.options || "[]"
+		const sharedMessage = {
+			question: uiHelpers.removeClosingTag(block, "question", question),
+			options: parsePartialArrayString(uiHelpers.removeClosingTag(block, "options", optionsRaw)),
+		} satisfies ClineAskQuestion
+
+		// For followup, just stream ask messages
+		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "followup")
+		await uiHelpers.ask("followup" as ClineAsk, JSON.stringify(sharedMessage), block.partial).catch(() => {})
+	}
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		// For partial blocks, don't execute yet
 		if (block.partial) {
@@ -87,18 +100,5 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 		} catch (error) {
 			return `Error asking question: ${(error as Error).message}`
 		}
-	}
-
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const question = block.params.question || ""
-		const optionsRaw = block.params.options || "[]"
-		const sharedMessage = {
-			question: uiHelpers.removeClosingTag(block, "question", question),
-			options: parsePartialArrayString(uiHelpers.removeClosingTag(block, "options", optionsRaw)),
-		} satisfies ClineAskQuestion
-
-		// For followup, just stream ask messages
-		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "followup")
-		await uiHelpers.ask("followup" as ClineAsk, JSON.stringify(sharedMessage), block.partial).catch(() => {})
 	}
 }

@@ -20,6 +20,19 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		return `[${block.name}]`
 	}
 
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const partialMessage = JSON.stringify({
+			title: uiHelpers.removeClosingTag(block, "title", block.params.title),
+			what_happened: uiHelpers.removeClosingTag(block, "what_happened", block.params.what_happened),
+			steps_to_reproduce: uiHelpers.removeClosingTag(block, "steps_to_reproduce", block.params.steps_to_reproduce),
+			api_request_output: uiHelpers.removeClosingTag(block, "api_request_output", block.params.api_request_output),
+			additional_context: uiHelpers.removeClosingTag(block, "additional_context", block.params.additional_context),
+		})
+
+		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "report_bug")
+		await uiHelpers.ask("report_bug" as ClineAsk, partialMessage, block.partial).catch(() => {})
+	}
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		// For partial blocks, don't execute yet
 		if (block.partial) {
@@ -126,18 +139,5 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 
 			return formatResponse.toolResult(`The user accepted the creation of the Github issue.`)
 		}
-	}
-
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const partialMessage = JSON.stringify({
-			title: uiHelpers.removeClosingTag(block, "title", block.params.title),
-			what_happened: uiHelpers.removeClosingTag(block, "what_happened", block.params.what_happened),
-			steps_to_reproduce: uiHelpers.removeClosingTag(block, "steps_to_reproduce", block.params.steps_to_reproduce),
-			api_request_output: uiHelpers.removeClosingTag(block, "api_request_output", block.params.api_request_output),
-			additional_context: uiHelpers.removeClosingTag(block, "additional_context", block.params.additional_context),
-		})
-
-		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "report_bug")
-		await uiHelpers.ask("report_bug" as ClineAsk, partialMessage, block.partial).catch(() => {})
 	}
 }

@@ -21,6 +21,33 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		return `[${block.name} for '${block.params.command}']`
 	}
 
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const command = block.params.command
+
+		// For commands, we need to wait for the requires_approval parameter before showing UI
+		// This is because the approval flow depends on that parameter
+		if (!block.params.requires_approval) {
+			return // Wait for complete block
+		}
+
+		// Command partial streaming is handled differently - just show the command
+		const partialCommand = uiHelpers.removeClosingTag(block, "command", command)
+
+		// Check if this should be auto-approved to determine UI flow
+		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool("execute_command")
+
+		if (shouldAutoApprove) {
+			// For auto-approved commands, we can't partially stream a say prematurely
+			// since it may become an ask based on the requires_approval parameter
+			// So we wait for the complete block
+			return
+		} else {
+			// For manual approval, stream the ask message
+			await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "command")
+			await uiHelpers.ask("command" as ClineAsk, partialCommand, block.partial).catch(() => {})
+		}
+	}
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		// For partial blocks, don't execute yet
 		if (block.partial) {
@@ -118,33 +145,6 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			return result
 		} catch (error) {
 			return `Error executing command: ${(error as Error).message}`
-		}
-	}
-
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const command = block.params.command
-
-		// For commands, we need to wait for the requires_approval parameter before showing UI
-		// This is because the approval flow depends on that parameter
-		if (!block.params.requires_approval) {
-			return // Wait for complete block
-		}
-
-		// Command partial streaming is handled differently - just show the command
-		const partialCommand = uiHelpers.removeClosingTag(block, "command", command)
-
-		// Check if this should be auto-approved to determine UI flow
-		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool("execute_command")
-
-		if (shouldAutoApprove) {
-			// For auto-approved commands, we can't partially stream a say prematurely
-			// since it may become an ask based on the requires_approval parameter
-			// So we wait for the complete block
-			return
-		} else {
-			// For manual approval, stream the ask message
-			await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "command")
-			await uiHelpers.ask("command" as ClineAsk, partialCommand, block.partial).catch(() => {})
 		}
 	}
 }

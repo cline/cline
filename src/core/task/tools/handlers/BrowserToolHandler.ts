@@ -15,6 +15,49 @@ export class BrowserToolHandler implements IFullyManagedTool {
 		return `[${block.name} for '${block.params.action}']`
 	}
 
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const action: BrowserAction | undefined = block.params.action as BrowserAction
+		const url: string | undefined = block.params.url
+		const coordinate: string | undefined = block.params.coordinate
+		const text: string | undefined = block.params.text
+
+		// Validate action parameter
+		if (!action || !browserActions.includes(action)) {
+			return // Wait for more content
+		}
+
+		// Handle partial block streaming - exact original logic
+		if (action === "launch") {
+			if (uiHelpers.shouldAutoApproveTool(block.name)) {
+				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
+				await uiHelpers.say(
+					"browser_action_launch",
+					uiHelpers.removeClosingTag(block, "url", url),
+					undefined,
+					undefined,
+					block.partial,
+				)
+			} else {
+				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
+				await uiHelpers
+					.ask("browser_action_launch", uiHelpers.removeClosingTag(block, "url", url), block.partial)
+					.catch(() => {})
+			}
+		} else {
+			await uiHelpers.say(
+				"browser_action",
+				JSON.stringify({
+					action: action as BrowserAction,
+					coordinate: uiHelpers.removeClosingTag(block, "coordinate", coordinate),
+					text: uiHelpers.removeClosingTag(block, "text", text),
+				} satisfies ClineSayBrowserAction),
+				undefined,
+				undefined,
+				block.partial,
+			)
+		}
+	}
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		// For partial blocks, don't execute yet
 		if (block.partial) {
@@ -174,48 +217,5 @@ export class BrowserToolHandler implements IFullyManagedTool {
 
 		// This should never be reached, but TypeScript requires a return
 		return ""
-	}
-
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const action: BrowserAction | undefined = block.params.action as BrowserAction
-		const url: string | undefined = block.params.url
-		const coordinate: string | undefined = block.params.coordinate
-		const text: string | undefined = block.params.text
-
-		// Validate action parameter
-		if (!action || !browserActions.includes(action)) {
-			return // Wait for more content
-		}
-
-		// Handle partial block streaming - exact original logic
-		if (action === "launch") {
-			if (uiHelpers.shouldAutoApproveTool(block.name)) {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
-				await uiHelpers.say(
-					"browser_action_launch",
-					uiHelpers.removeClosingTag(block, "url", url),
-					undefined,
-					undefined,
-					block.partial,
-				)
-			} else {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
-				await uiHelpers
-					.ask("browser_action_launch", uiHelpers.removeClosingTag(block, "url", url), block.partial)
-					.catch(() => {})
-			}
-		} else {
-			await uiHelpers.say(
-				"browser_action",
-				JSON.stringify({
-					action: action as BrowserAction,
-					coordinate: uiHelpers.removeClosingTag(block, "coordinate", coordinate),
-					text: uiHelpers.removeClosingTag(block, "text", text),
-				} satisfies ClineSayBrowserAction),
-				undefined,
-				undefined,
-				block.partial,
-			)
-		}
 	}
 }

@@ -17,6 +17,23 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 		return `[${block.name} for '${block.params.url}']`
 	}
 
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const url = block.params.url || ""
+		const sharedMessageProps: ClineSayTool = {
+			tool: "webFetch",
+			path: uiHelpers.removeClosingTag(block, "url", url),
+			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
+			operationIsLocatedInWorkspace: false, // web_fetch is always external
+		}
+
+		const partialMessage = JSON.stringify(sharedMessageProps)
+
+		// For partial blocks, we'll let the ToolExecutor handle auto-approval logic
+		// Just stream the UI update for now
+		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
+		await uiHelpers.ask("tool" as ClineAsk, partialMessage, block.partial).catch(() => {})
+	}
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		// For partial blocks, don't execute yet
 		if (block.partial) {
@@ -90,22 +107,5 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 		} catch (error) {
 			return `Error fetching web content: ${(error as Error).message}`
 		}
-	}
-
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const url = block.params.url || ""
-		const sharedMessageProps: ClineSayTool = {
-			tool: "webFetch",
-			path: uiHelpers.removeClosingTag(block, "url", url),
-			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
-			operationIsLocatedInWorkspace: false, // web_fetch is always external
-		}
-
-		const partialMessage = JSON.stringify(sharedMessageProps)
-
-		// For partial blocks, we'll let the ToolExecutor handle auto-approval logic
-		// Just stream the UI update for now
-		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
-		await uiHelpers.ask("tool" as ClineAsk, partialMessage, block.partial).catch(() => {})
 	}
 }
