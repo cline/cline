@@ -9,7 +9,6 @@ export class LaminarService {
 	private userId?: string
 	public agentSpan?: Span = undefined
 	public llmSpan?: Span = undefined
-	public shouldEndAgentSpan?: boolean = false
 
 	private constructor() {}
 

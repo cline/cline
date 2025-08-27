@@ -2372,7 +2372,6 @@ export class Task {
 							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
-								laminarService.shouldEndAgentSpan = true
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
 							// present content to user
@@ -2517,14 +2516,7 @@ export class Task {
 				// 	this.userMessageContentReady = true
 				// }
 
-				// await pWaitFor(() => !Boolean(laminarService.isEndAgentSpan));
-				await pWaitFor(() => {
-					if (!this.taskState.userMessageContentReady && laminarService.shouldEndAgentSpan) {
-						laminarService.endAgentSpan()
-						laminarService.shouldEndAgentSpan = false
-					}
-					return this.taskState.userMessageContentReady
-				})
+				await pWaitFor(() => this.taskState.userMessageContentReady)
 
 				const apiHistory = this.messageStateHandler.getApiConversationHistory()
 				const latestUserMessage =

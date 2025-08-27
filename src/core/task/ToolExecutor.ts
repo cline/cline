@@ -294,7 +294,7 @@ export class ToolExecutor {
 		// - Optionally matches whitespace before the tag
 		// - Matches '<' or '</' optionally followed by any subset of characters from the tag name
 		const tagRegex = new RegExp(
-			`\\s?<\/?${tag
+			`\\s?</?${tag
 				.split("")
 				.map((char) => `(?:${char})?`)
 				.join("")}$`,
@@ -2356,16 +2356,8 @@ export class ToolExecutor {
 						}
 
 						toolSpan?.end()
-						// if (!block.partial && block.type === 'tool_use' && block.name === 'attempt_completion') {
-						// 	laminarService.endAgentSpan()
-						// }
-						// we already sent completion_result says, an empty string asks relinquishes control over button and field
-						// NOTE: waiting for next user message.
-						laminarService.shouldEndAgentSpan = true
-
-						Laminar.event({ name: "--event before ask" })
+						laminarService.endAgentSpan()
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
-						Laminar.event({ name: "--event after ask" })
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 							break
