@@ -12,7 +12,7 @@ Default Shell: {{shell}}
 Home Directory: {{homeDir}}
 Current Working Directory: {{workingDir}}`
 
-async function getSystemEnv(cwd?: string, isTesting = false) {
+export async function getSystemEnv(cwd?: string, isTesting = false) {
 	return {
 		os: isTesting ? "macOS" : osName(),
 		shell: isTesting ? "/bin/zsh" : getShell(),
