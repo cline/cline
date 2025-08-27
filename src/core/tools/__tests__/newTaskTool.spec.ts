@@ -84,6 +84,7 @@ const mockCline = {
 	consecutiveMistakeCount: 0,
 	isPaused: false,
 	pausedModeSlug: "ask",
+	taskId: "mock-parent-task-id",
 	providerRef: {
 		deref: vi.fn(() => ({
 			getState: vi.fn(() => ({ customModes: [], mode: "ask" })),
@@ -157,7 +158,7 @@ describe("newTaskTool", () => {
 		)
 
 		// Verify side effects
-		expect(mockCline.emit).toHaveBeenCalledWith("taskSpawned", expect.any(String)) // Assuming initCline returns a mock task ID
+		expect(mockCline.emit).toHaveBeenCalledWith("taskSpawned", "mock-subtask-id")
 		expect(mockCline.isPaused).toBe(true)
 		expect(mockCline.emit).toHaveBeenCalledWith("taskPaused")
 		expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("Successfully created new task"))

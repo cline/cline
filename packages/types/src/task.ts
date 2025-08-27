@@ -57,6 +57,9 @@ export type TaskProviderEvents = {
 	[RooCodeEventName.TaskInteractive]: [taskId: string]
 	[RooCodeEventName.TaskResumable]: [taskId: string]
 	[RooCodeEventName.TaskIdle]: [taskId: string]
+
+	// Subtask Lifecycle
+	[RooCodeEventName.TaskSpawned]: [taskId: string]
 }
 
 /**
