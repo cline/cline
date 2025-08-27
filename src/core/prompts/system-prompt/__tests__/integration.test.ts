@@ -649,7 +649,8 @@ describe("Prompt System Integration Tests", () => {
 				},
 			}
 
-			const comparisonContent = JSON.stringify(comparison, null, 2).trim()
+			// Use tabs for indentation to match existing snapshot format
+			const comparisonContent = JSON.stringify(comparison, null, "\t").trim()
 
 			if (UPDATE_SNAPSHOTS) {
 				// Update mode: write new comparison snapshot
