@@ -50,6 +50,9 @@
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "Klucz API:",
 		"mistralApiKeyPlaceholder": "Wprowadź swój klucz API Mistral",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "Klucz API",
+		"vercelAiGatewayApiKeyPlaceholder": "Wprowadź swój klucz API Vercel AI Gateway",
 		"openaiCompatibleProvider": "Kompatybilny z OpenAI",
 		"openAiKeyLabel": "Klucz API OpenAI",
 		"openAiKeyPlaceholder": "Wprowadź swój klucz API OpenAI",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "Wymagany jest wymiar modelu",
 			"geminiApiKeyRequired": "Wymagany jest klucz API Gemini",
 			"mistralApiKeyRequired": "Klucz API Mistral jest wymagany",
+			"vercelAiGatewayApiKeyRequired": "Klucz API Vercel AI Gateway jest wymagany",
 			"ollamaBaseUrlRequired": "Wymagany jest bazowy adres URL Ollama",
 			"baseUrlRequired": "Wymagany jest bazowy adres URL",
 			"modelDimensionMinValue": "Wymiar modelu musi być większy niż 0"

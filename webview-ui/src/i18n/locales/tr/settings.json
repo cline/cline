@@ -50,6 +50,9 @@
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "API Anahtarı:",
 		"mistralApiKeyPlaceholder": "Mistral API anahtarınızı girin",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API Anahtarı",
+		"vercelAiGatewayApiKeyPlaceholder": "Vercel AI Gateway API anahtarınızı girin",
 		"openaiCompatibleProvider": "OpenAI Uyumlu",
 		"openAiKeyLabel": "OpenAI API Anahtarı",
 		"openAiKeyPlaceholder": "OpenAI API anahtarınızı girin",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "Model boyutu gereklidir",
 			"geminiApiKeyRequired": "Gemini API anahtarı gereklidir",
 			"mistralApiKeyRequired": "Mistral API anahtarı gereklidir",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API anahtarı gereklidir",
 			"ollamaBaseUrlRequired": "Ollama temel URL'si gereklidir",
 			"baseUrlRequired": "Temel URL'si gereklidir",
 			"modelDimensionMinValue": "Model boyutu 0'dan büyük olmalıdır"

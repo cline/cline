@@ -47,6 +47,7 @@
 		"openAiCompatibleConfigMissing": "Falta la configuración compatible con OpenAI para crear el incrustador",
 		"geminiConfigMissing": "Falta la configuración de Gemini para crear el incrustador",
 		"mistralConfigMissing": "Falta la configuración de Mistral para la creación del incrustador",
+		"vercelAiGatewayConfigMissing": "Falta la configuración de Vercel AI Gateway para la creación del incrustador",
 		"invalidEmbedderType": "Tipo de incrustador configurado inválido: {{embedderProvider}}",
 		"vectorDimensionNotDeterminedOpenAiCompatible": "No se pudo determinar la dimensión del vector para el modelo '{{modelId}}' con el proveedor '{{provider}}'. Asegúrate de que la 'Dimensión de incrustación' esté configurada correctamente en los ajustes del proveedor compatible con OpenAI.",
 		"vectorDimensionNotDetermined": "No se pudo determinar la dimensión del vector para el modelo '{{modelId}}' con el proveedor '{{provider}}'. Verifica los perfiles del modelo o la configuración.",

@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API Key:",
 		"geminiApiKeyPlaceholder": "Masukkan kunci API Gemini Anda",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Masukkan kunci API Vercel AI Gateway Anda",
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "Kunci API:",
 		"mistralApiKeyPlaceholder": "Masukkan kunci API Mistral Anda",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "Dimensi model diperlukan",
 			"geminiApiKeyRequired": "Kunci API Gemini diperlukan",
 			"mistralApiKeyRequired": "Kunci API Mistral diperlukan",
+			"vercelAiGatewayApiKeyRequired": "Kunci API Vercel AI Gateway diperlukan",
 			"ollamaBaseUrlRequired": "URL dasar Ollama diperlukan",
 			"baseUrlRequired": "URL dasar diperlukan",
 			"modelDimensionMinValue": "Dimensi model harus lebih besar dari 0"

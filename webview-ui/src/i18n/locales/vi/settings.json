@@ -50,6 +50,9 @@
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "Khóa API:",
 		"mistralApiKeyPlaceholder": "Nhập khóa API Mistral của bạn",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "Khóa API",
+		"vercelAiGatewayApiKeyPlaceholder": "Nhập khóa API Vercel AI Gateway của bạn",
 		"openaiCompatibleProvider": "Tương thích OpenAI",
 		"openAiKeyLabel": "Khóa API OpenAI",
 		"openAiKeyPlaceholder": "Nhập khóa API OpenAI của bạn",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "Yêu cầu kích thước mô hình",
 			"geminiApiKeyRequired": "Yêu cầu khóa API Gemini",
 			"mistralApiKeyRequired": "Cần có khóa API của Mistral",
+			"vercelAiGatewayApiKeyRequired": "Cần có khóa API Vercel AI Gateway",
 			"ollamaBaseUrlRequired": "Yêu cầu URL cơ sở Ollama",
 			"baseUrlRequired": "Yêu cầu URL cơ sở",
 			"modelDimensionMinValue": "Kích thước mô hình phải lớn hơn 0"

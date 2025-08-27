@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Chave de API:",
 		"geminiApiKeyPlaceholder": "Digite sua chave de API do Gemini",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "Chave de API",
+		"vercelAiGatewayApiKeyPlaceholder": "Digite sua chave de API do Vercel AI Gateway",
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "Chave de API:",
 		"mistralApiKeyPlaceholder": "Digite sua chave de API da Mistral",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "A dimensão do modelo é obrigatória",
 			"geminiApiKeyRequired": "A chave de API do Gemini é obrigatória",
 			"mistralApiKeyRequired": "A chave de API Mistral é obrigatória",
+			"vercelAiGatewayApiKeyRequired": "A chave de API do Vercel AI Gateway é obrigatória",
 			"ollamaBaseUrlRequired": "A URL base do Ollama é obrigatória",
 			"baseUrlRequired": "A URL base é obrigatória",
 			"modelDimensionMinValue": "A dimensão do modelo deve ser maior que 0"

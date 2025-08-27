@@ -2,7 +2,7 @@
  * Defines profiles for different embedding models, including their dimensions.
  */
 
-export type EmbedderProvider = "openai" | "ollama" | "openai-compatible" | "gemini" | "mistral" // Add other providers as needed
+export type EmbedderProvider = "openai" | "ollama" | "openai-compatible" | "gemini" | "mistral" | "vercel-ai-gateway" // Add other providers as needed
 
 export interface EmbeddingModelProfile {
 	dimension: number
@@ -52,6 +52,23 @@ export const EMBEDDING_MODEL_PROFILES: EmbeddingModelProfiles = {
 	},
 	mistral: {
 		"codestral-embed-2505": { dimension: 1536, scoreThreshold: 0.4 },
+	},
+	"vercel-ai-gateway": {
+		// OpenAI models
+		"openai/text-embedding-3-small": { dimension: 1536, scoreThreshold: 0.4 },
+		"openai/text-embedding-3-large": { dimension: 3072, scoreThreshold: 0.4 },
+		"openai/text-embedding-ada-002": { dimension: 1536, scoreThreshold: 0.4 },
+		// Cohere models
+		"cohere/embed-v4.0": { dimension: 1024, scoreThreshold: 0.4 },
+		// Google models
+		"google/gemini-embedding-001": { dimension: 3072, scoreThreshold: 0.4 },
+		"google/text-embedding-005": { dimension: 768, scoreThreshold: 0.4 },
+		"google/text-multilingual-embedding-002": { dimension: 768, scoreThreshold: 0.4 },
+		// Amazon models
+		"amazon/titan-embed-text-v2": { dimension: 1024, scoreThreshold: 0.4 },
+		// Mistral models
+		"mistral/codestral-embed": { dimension: 1536, scoreThreshold: 0.4 },
+		"mistral/mistral-embed": { dimension: 1024, scoreThreshold: 0.4 },
 	},
 }
 
@@ -142,6 +159,9 @@ export function getDefaultModelId(provider: EmbedderProvider): string {
 
 		case "mistral":
 			return "codestral-embed-2505"
+
+		case "vercel-ai-gateway":
+			return "openai/text-embedding-3-large"
 
 		default:
 			// Fallback for unknown providers

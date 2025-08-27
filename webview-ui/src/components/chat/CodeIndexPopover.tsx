@@ -72,6 +72,7 @@ interface LocalCodeIndexSettings {
 	codebaseIndexOpenAiCompatibleApiKey?: string
 	codebaseIndexGeminiApiKey?: string
 	codebaseIndexMistralApiKey?: string
+	codebaseIndexVercelAiGatewayApiKey?: string
 }
 
 // Validation schema for codebase index settings
@@ -138,6 +139,16 @@ const createValidationSchema = (provider: EmbedderProvider, t: any) => {
 					.min(1, t("settings:codeIndex.validation.modelSelectionRequired")),
 			})
 
+		case "vercel-ai-gateway":
+			return baseSchema.extend({
+				codebaseIndexVercelAiGatewayApiKey: z
+					.string()
+					.min(1, t("settings:codeIndex.validation.vercelAiGatewayApiKeyRequired")),
+				codebaseIndexEmbedderModelId: z
+					.string()
+					.min(1, t("settings:codeIndex.validation.modelSelectionRequired")),
+			})
+
 		default:
 			return baseSchema
 	}
@@ -182,6 +193,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 		codebaseIndexOpenAiCompatibleApiKey: "",
 		codebaseIndexGeminiApiKey: "",
 		codebaseIndexMistralApiKey: "",
+		codebaseIndexVercelAiGatewayApiKey: "",
 	})
 
 	// Initial settings state - stores the settings when popover opens
@@ -216,6 +228,7 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 				codebaseIndexOpenAiCompatibleApiKey: "",
 				codebaseIndexGeminiApiKey: "",
 				codebaseIndexMistralApiKey: "",
+				codebaseIndexVercelAiGatewayApiKey: "",
 			}
 			setInitialSettings(settings)
 			setCurrentSettings(settings)
@@ -324,6 +337,14 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 					if (!prev.codebaseIndexMistralApiKey || prev.codebaseIndexMistralApiKey === SECRET_PLACEHOLDER) {
 						updated.codebaseIndexMistralApiKey = secretStatus.hasMistralApiKey ? SECRET_PLACEHOLDER : ""
 					}
+					if (
+						!prev.codebaseIndexVercelAiGatewayApiKey ||
+						prev.codebaseIndexVercelAiGatewayApiKey === SECRET_PLACEHOLDER
+					) {
+						updated.codebaseIndexVercelAiGatewayApiKey = secretStatus.hasVercelAiGatewayApiKey
+							? SECRET_PLACEHOLDER
+							: ""
+					}
 
 					return updated
 				}
@@ -396,7 +417,8 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 					key === "codeIndexOpenAiKey" ||
 					key === "codebaseIndexOpenAiCompatibleApiKey" ||
 					key === "codebaseIndexGeminiApiKey" ||
-					key === "codebaseIndexMistralApiKey"
+					key === "codebaseIndexMistralApiKey" ||
+					key === "codebaseIndexVercelAiGatewayApiKey"
 				) {
 					dataToValidate[key] = "placeholder-valid"
 				}
@@ -643,6 +665,9 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 												</SelectItem>
 												<SelectItem value="mistral">
 													{t("settings:codeIndex.mistralProvider")}
+												</SelectItem>
+												<SelectItem value="vercel-ai-gateway">
+													{t("settings:codeIndex.vercelAiGatewayProvider")}
 												</SelectItem>
 											</SelectContent>
 										</Select>
@@ -991,6 +1016,76 @@ export const CodeIndexPopover: React.FC<CodeIndexPopoverProps> = ({
 												{formErrors.codebaseIndexMistralApiKey && (
 													<p className="text-xs text-vscode-errorForeground mt-1 mb-0">
 														{formErrors.codebaseIndexMistralApiKey}
+													</p>
+												)}
+											</div>
+
+											<div className="space-y-2">
+												<label className="text-sm font-medium">
+													{t("settings:codeIndex.modelLabel")}
+												</label>
+												<VSCodeDropdown
+													value={currentSettings.codebaseIndexEmbedderModelId}
+													onChange={(e: any) =>
+														updateSetting("codebaseIndexEmbedderModelId", e.target.value)
+													}
+													className={cn("w-full", {
+														"border-red-500": formErrors.codebaseIndexEmbedderModelId,
+													})}>
+													<VSCodeOption value="" className="p-2">
+														{t("settings:codeIndex.selectModel")}
+													</VSCodeOption>
+													{getAvailableModels().map((modelId) => {
+														const model =
+															codebaseIndexModels?.[
+																currentSettings.codebaseIndexEmbedderProvider
+															]?.[modelId]
+														return (
+															<VSCodeOption key={modelId} value={modelId} className="p-2">
+																{modelId}{" "}
+																{model
+																	? t("settings:codeIndex.modelDimensions", {
+																			dimension: model.dimension,
+																		})
+																	: ""}
+															</VSCodeOption>
+														)
+													})}
+												</VSCodeDropdown>
+												{formErrors.codebaseIndexEmbedderModelId && (
+													<p className="text-xs text-vscode-errorForeground mt-1 mb-0">
+														{formErrors.codebaseIndexEmbedderModelId}
+													</p>
+												)}
+											</div>
+										</>
+									)}
+
+									{currentSettings.codebaseIndexEmbedderProvider === "vercel-ai-gateway" && (
+										<>
+											<div className="space-y-2">
+												<label className="text-sm font-medium">
+													{t("settings:codeIndex.vercelAiGatewayApiKeyLabel")}
+												</label>
+												<VSCodeTextField
+													type="password"
+													value={currentSettings.codebaseIndexVercelAiGatewayApiKey || ""}
+													onInput={(e: any) =>
+														updateSetting(
+															"codebaseIndexVercelAiGatewayApiKey",
+															e.target.value,
+														)
+													}
+													placeholder={t(
+														"settings:codeIndex.vercelAiGatewayApiKeyPlaceholder",
+													)}
+													className={cn("w-full", {
+														"border-red-500": formErrors.codebaseIndexVercelAiGatewayApiKey,
+													})}
+												/>
+												{formErrors.codebaseIndexVercelAiGatewayApiKey && (
+													<p className="text-xs text-vscode-errorForeground mt-1 mb-0">
+														{formErrors.codebaseIndexVercelAiGatewayApiKey}
 													</p>
 												)}
 											</div>

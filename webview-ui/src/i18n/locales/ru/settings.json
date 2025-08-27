@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Ключ API:",
 		"geminiApiKeyPlaceholder": "Введите свой API-ключ Gemini",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "Ключ API",
+		"vercelAiGatewayApiKeyPlaceholder": "Введите свой API-ключ Vercel AI Gateway",
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "Ключ API:",
 		"mistralApiKeyPlaceholder": "Введите свой API-ключ Mistral",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "Требуется размерность модели",
 			"geminiApiKeyRequired": "Требуется ключ API Gemini",
 			"mistralApiKeyRequired": "Требуется API-ключ Mistral",
+			"vercelAiGatewayApiKeyRequired": "Требуется API-ключ Vercel AI Gateway",
 			"ollamaBaseUrlRequired": "Требуется базовый URL Ollama",
 			"baseUrlRequired": "Требуется базовый URL",
 			"modelDimensionMinValue": "Размерность модели должна быть больше 0"

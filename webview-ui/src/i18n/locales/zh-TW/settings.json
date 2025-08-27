@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API 金鑰：",
 		"geminiApiKeyPlaceholder": "輸入您的 Gemini API 金鑰",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API 金鑰",
+		"vercelAiGatewayApiKeyPlaceholder": "輸入您的 Vercel AI Gateway API 金鑰",
 		"mistralProvider": "Mistral",
 		"mistralApiKeyLabel": "API 金鑰：",
 		"mistralApiKeyPlaceholder": "輸入您的 Mistral API 金鑰",
@@ -113,6 +116,7 @@
 			"modelDimensionRequired": "需要模型維度",
 			"geminiApiKeyRequired": "需要 Gemini API 金鑰",
 			"mistralApiKeyRequired": "需要 Mistral API 金鑰",
+			"vercelAiGatewayApiKeyRequired": "需要 Vercel AI Gateway API 金鑰",
 			"ollamaBaseUrlRequired": "需要 Ollama 基礎 URL",
 			"baseUrlRequired": "需要基礎 URL",
 			"modelDimensionMinValue": "模型維度必須大於 0"
