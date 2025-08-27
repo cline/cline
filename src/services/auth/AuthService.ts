@@ -1,4 +1,4 @@
-import { laminarService } from "@services/laminar/LaminarService"
+import laminarService from "@services/laminar/LaminarService"
 import { featureFlagsService, telemetryService } from "@services/posthog/PostHogClientProvider"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"

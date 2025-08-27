@@ -6,11 +6,9 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { Laminar } from "@lmnr-ai/lmnr"
-import { Span } from "@opentelemetry/api"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { laminarService } from "@services/laminar/LaminarService"
+import laminarService from "@services/laminar/LaminarService"
 import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
@@ -276,6 +274,10 @@ export class ToolExecutor {
 			console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 			return
 		}
+
+		// Record exception in Laminar using the current tool span
+		laminarService.recordException("tool", error)
+
 		const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 		await this.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 
@@ -343,13 +345,11 @@ export class ToolExecutor {
 			await this.browserSession.closeBrowser()
 		}
 
-		let toolSpan: Span | undefined
-
+		// Record complete chunks of tool
 		if (!block.partial) {
-			toolSpan = laminarService.startSpan({
+			laminarService.startSpan("tool", {
 				input: [{ role: "tool", content: [{ name: block.name, arguments: block.params, type: "tool_call" }] }],
 				name: block.name,
-				spanType: "TOOL",
 			})
 		}
 
@@ -2355,8 +2355,8 @@ export class ToolExecutor {
 							}
 						}
 
-						toolSpan?.end()
-						laminarService.endAgentSpan()
+						laminarService.endSpan("tool")
+						laminarService.endSpan("agent")
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
@@ -2407,6 +2407,6 @@ export class ToolExecutor {
 				}
 			}
 		}
-		toolSpan?.end()
+		laminarService.endSpan("tool")
 	}
 }

@@ -38,11 +38,10 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { Laminar } from "@lmnr-ai/lmnr"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
-import { LaminarAttributes, laminarService } from "@services/laminar/LaminarService"
+import laminarService, { LaminarAttributes } from "@services/laminar/LaminarService"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
@@ -1182,12 +1181,7 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
-			laminarService.agentSpan = laminarService.startActiveSpan({
-				name: `agent.step`,
-				spanType: "DEFAULT",
-				sessionId: this.taskId,
-				input: userContent,
-			})
+			laminarService.startSpan("agent", { name: `agent.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1221,10 +1215,7 @@ export class Task {
 			this.FocusChainManager.checkIncompleteProgressOnCompletion()
 		}
 
-		if (laminarService.agentSpan) {
-			laminarService.endSpan(laminarService.agentSpan)
-			laminarService.agentSpan = undefined
-		}
+		laminarService.endSpan("agent")
 
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
@@ -1738,9 +1729,8 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		laminarService.startLlmSpan({
+		laminarService.startSpan("llm", {
 			name: "llm_call",
-			spanType: "LLM",
 			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
 		})
 		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
@@ -1754,6 +1744,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
+			laminarService.recordException("llm", error)
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
@@ -2383,8 +2374,7 @@ export class Task {
 					if (this.taskState.abort) {
 						console.log("aborting stream...")
 						if (!this.taskState.abandoned) {
-							laminarService.endLlmSpan()
-							laminarService.endAgentSpan()
+							laminarService.endSpan("llm")
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
@@ -2408,6 +2398,7 @@ export class Task {
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
+				laminarService.recordException("llm", error)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 					const clineError = errorService.toClineError(error, this.api.getModel().id)
@@ -2419,19 +2410,18 @@ export class Task {
 			} finally {
 				this.taskState.isStreaming = false
 
-				laminarService.addSpanAttributes(
-					{
-						[LaminarAttributes.INPUT_TOKEN_COUNT]: inputTokens,
-						[LaminarAttributes.OUTPUT_TOKEN_COUNT]: outputTokens,
-						[LaminarAttributes.TOTAL_COST]: totalCost,
-						[LaminarAttributes.REQUEST_MODEL]: modelId,
-						[LaminarAttributes.PROVIDER]: providerId,
-						"lmnr.span.output": [{ role: "assistant", content: [{ type: "text", text: assistantMessage }] }],
-					},
-					laminarService.llmSpan,
-				)
+				laminarService.addAttributes("llm", {
+					[LaminarAttributes.INPUT_TOKEN_COUNT]: inputTokens,
+					[LaminarAttributes.OUTPUT_TOKEN_COUNT]: outputTokens,
+					[LaminarAttributes.TOTAL_COST]: totalCost,
+					[LaminarAttributes.REQUEST_MODEL]: modelId,
+					[LaminarAttributes.PROVIDER]: providerId,
+					"lmnr.span.output": JSON.stringify([
+						{ role: "assistant", content: [{ type: "text", text: assistantMessage }] },
+					]),
+				})
 
-				laminarService.endLlmSpan()
+				laminarService.endSpan("llm")
 			}
 
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
@@ -2526,15 +2516,13 @@ export class Task {
 							: apiHistory[apiHistory.length - 1].content[-1]
 						: this.taskState.userMessageContent
 
-				if (!laminarService.agentSpan) {
-					laminarService.agentSpan = laminarService.startActiveSpan({
-						name: `agent.step`,
-						spanType: "DEFAULT",
-						sessionId: this.taskId,
-						input: latestUserMessage,
-					})
+				if (!laminarService.getSpan("agent")) {
+					laminarService.startSpan(
+						"agent",
+						{ name: `agent.step`, sessionId: this.taskId, input: latestUserMessage },
+						true,
+					)
 				}
-
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 
@@ -2582,6 +2570,7 @@ export class Task {
 
 			return didEndLoop // will always be false for now
 		} catch (_error) {
+			laminarService.endSpan("llm")
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}

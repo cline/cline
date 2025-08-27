@@ -2,13 +2,15 @@ import { Laminar, LaminarAttributes, observe, observeDecorator, Span } from "@lm
 import { laminarConfig } from "@shared/services/config/laminar-config"
 import { Logger } from "@/services/logging/Logger"
 
-export class LaminarService {
+type SpanType = "LLM" | "DEFAULT" | "TOOL"
+type SpanKey = "agent" | "llm" | "tool"
+
+class LaminarService {
 	private static instance: LaminarService | undefined
 	private enabled = false
-	private recordInputs = false
+	private recordIO = false
 	private userId?: string
-	public agentSpan?: Span = undefined
-	public llmSpan?: Span = undefined
+	private spans = new Map<SpanKey, Span>()
 
 	private constructor() {}
 
@@ -19,27 +21,30 @@ export class LaminarService {
 		return LaminarService.instance
 	}
 
-	setUserId(userId: string): void {
-		this.userId = userId
-	}
-
 	async initialize(): Promise<void> {
 		try {
 			Laminar.initialize({
 				projectApiKey: laminarConfig.apiKey,
 			})
-			this.enabled = true
 
-			if (laminarConfig.recordInputs) {
-				this.recordInputs = laminarConfig.recordInputs
-			}
+			this.enabled = true
+			this.recordIO = laminarConfig.recordIO ?? false
+
 			console.info("Laminar instrumentation initialized successfully")
 		} catch (error) {
 			Logger.error(`Failed to initialize Laminar: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 
-	startSpan(options: { name: string; input?: any; spanType?: "LLM" | "DEFAULT" | "TOOL"; sessionId?: string }) {
+	setUserId(userId: string): void {
+		this.userId = userId
+	}
+
+	getSpan(key: SpanKey) {
+		return this.spans.get(key)
+	}
+
+	createSpan(options: { name: string; input?: any; spanType?: SpanType; sessionId?: string }, active?: boolean) {
 		if (!this.enabled) {
 			return
 		}
@@ -49,73 +54,64 @@ export class LaminarService {
 			spanType: options.spanType,
 			sessionId: options.sessionId,
 			userId: this.userId,
-			...(this.recordInputs && options.input && { input: options.input }),
+			...(this.recordIO && options.input && { input: options.input }),
 		}
 
-		return Laminar.startSpan(spanOptions)
+		return active ? Laminar.startActiveSpan(spanOptions) : Laminar.startSpan(spanOptions)
 	}
 
-	startActiveSpan(options: { name: string; input?: any; spanType?: "LLM" | "DEFAULT" | "TOOL"; sessionId?: string }) {
-		if (!this.enabled) {
-			return
-		}
-		const spanOptions = {
-			name: options.name,
-			spanType: options.spanType,
-			sessionId: options.sessionId,
-			userId: this.userId,
-			...(this.recordInputs && options.input && { input: options.input }),
+	startSpan(spanKey: SpanKey, options: { name: string; input?: any; sessionId?: string }, active?: boolean): Span | undefined {
+		const spanTypeMap: Record<SpanKey, SpanType> = {
+			agent: "DEFAULT",
+			llm: "LLM",
+			tool: "TOOL",
 		}
 
-		return Laminar.startActiveSpan(spanOptions)
+		const span = this.createSpan(
+			{
+				name: options.name,
+				input: options.input,
+				sessionId: options.sessionId,
+				spanType: spanTypeMap[spanKey],
+			},
+			active,
+		)
+
+		if (span) {
+			this.spans.set(spanKey, span)
+		}
+
+		return span
 	}
 
-	startLlmSpan(options: { name: string; input?: any; spanType?: "LLM" | "DEFAULT" | "TOOL"; sessionId?: string }) {
-		if (!this.enabled) {
-			return
-		}
-
-		this.llmSpan = Laminar.startSpan(options)
-	}
-
-	endLlmSpan(): void {
-		const llmSpan = this.llmSpan
-		if (llmSpan) {
-			this.endSpan(llmSpan)
-		}
-		this.llmSpan = undefined
-	}
-
-	endAgentSpan(): void {
-		const agentSpan = this.agentSpan
-		if (agentSpan) {
-			this.endSpan(agentSpan)
-			this.agentSpan = undefined
+	endSpan(key: SpanKey): void {
+		const span = this.getSpan(key)
+		if (this.enabled && span) {
+			this.spans.delete(key)
+			span.end()
 		}
 	}
 
-	addSpanAttributes(attributes: Record<string, any>, span?: Span): void {
-		if (!this.enabled || !span) {
-			return
+	addAttributes(key: SpanKey, attributes: Record<string, any>): void {
+		const span = this.spans.get(key)
+		if (this.enabled && span) {
+			const { "lmnr.span.output": output, ...rest } = attributes
+			const filteredAttributes = this.recordIO ? attributes : rest
+
+			span.setAttributes(filteredAttributes)
 		}
-		span.setAttributes(attributes)
 	}
 
-	recordException(span: Span, error: Error): void {
-		if (!this.enabled) {
-			return
+	recordException(key: SpanKey, error: Error): void {
+		const span = this.spans.get(key)
+		if (this.enabled && span) {
+			span.recordException(error)
 		}
-		span.recordException(error)
-	}
-
-	endSpan(span: Span): void {
-		if (!this.enabled) {
-			return
-		}
-		span.end()
 	}
 }
 
-export const laminarService = LaminarService.getInstance()
+const laminarService = LaminarService.getInstance()
+
+export default laminarService
 
 export { observeDecorator, observe, LaminarAttributes }
