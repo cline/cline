@@ -1,45 +1,40 @@
 ---
 title: "LM Studio"
-description: "A quick guide to setting up LM Studio for local AI model execution with Cline."
+description: "Run Cline completely offline with LM Studio and Qwen3 Coder 30B - no API costs, no data leaving your machine."
 ---
 
-## 🤖 Setting Up LM Studio with Cline
+## The Local Coding Stack
 
-Run AI models locally using LM Studio with Cline.
+For the first time, local models are powerful enough to run Cline effectively on a laptop. You can now code completely offline - no API costs, no data leaving your machine, no internet dependency.
 
-### 📋 Prerequisites
+The stack is simple: LM Studio provides the runtime, Qwen3 Coder 30B provides the intelligence, and Cline orchestrates the work.
 
--   Windows, macOS, or Linux computer with AVX2 support
--   Cline installed in VS Code
+### What You Need
 
-### 🚀 Setup Steps
+- **LM Studio** for model hosting and inference
+- **Cline** for VS Code  
+- **Qwen3 Coder 30B** as your model
+- Mac with Apple Silicon (recommended) or Windows/Linux with 16GB+ RAM
+
+### Setup Steps
 
 #### 1. Install LM Studio
 
--   Visit [lmstudio.ai](https://lmstudio.ai)
--   Download and install for your operating system
+Visit [lmstudio.ai](https://lmstudio.ai) and download for your operating system.
 
 <Frame>
 	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(7).png" alt="LM Studio download page" />
 </Frame>
 
-#### 2. Launch LM Studio
+#### 2. Download Qwen3 Coder 30B
 
--   Open the installed application
--   You'll see four tabs on the left: **Chat**, **Developer** (where you will start the server), **My Models** (where your downloaded models are stored), **Discover** (add new models)
+Open LM Studio and navigate to the "Discover" tab. Search for "qwen3-coder-30b" and select **Qwen3 Coder 30B A3B Instruct**.
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(10).png"
-		alt="LM Studio interface overview"
-	/>
-</Frame>
+LM Studio will automatically recommend the right format:
+- **MLX** for Apple Silicon Macs (optimized performance)
+- **GGUF** for Windows and other platforms
 
-#### 3. Download a Model
-
--   Browse the "Discover" page
--   Select and download your preferred model
--   Wait for download to complete
+Choose **4-bit quantization** for the best balance of performance and quality. If you have extra RAM and want slightly better results, 5-bit or 6-bit are available options.
 
 <Frame>
 	<img
@@ -48,11 +43,22 @@ Run AI models locally using LM Studio with Cline.
 	/>
 </Frame>
 
-#### 4. Start the Server
+<Tip>
+	**Quantization** reduces the model's memory footprint by using lower-precision numbers. 4-bit quantization makes a 30B parameter model run smoothly on consumer hardware while maintaining excellent coding performance.
+</Tip>
 
--   Navigate to the "Developer" tab
--   Toggle the server switch to "Running"
--   Note: The server will run at `http://localhost:1234`
+#### 3. Configure LM Studio Server
+
+Navigate to the "Developer" tab and load your downloaded model. Before starting the server, configure these critical settings:
+
+**Context Length:** Set to **262,144** (the model's maximum)
+**KV Cache Quantization:** Leave **unchecked**
+
+<Note>
+	KV Cache Quantization can persist context between tasks and create unpredictable behavior. Keep it disabled for consistent performance with Cline.
+</Note>
+
+Toggle the server to "Running." The default endpoint is `http://127.0.0.1:1234`.
 
 <Frame>
 	<img
@@ -61,12 +67,14 @@ Run AI models locally using LM Studio with Cline.
 	/>
 </Frame>
 
-#### 5. Configure Cline
+#### 4. Configure Cline
 
-1. Open VS Code
-2. Click Cline settings icon
-3. Select "LM Studio" as API provider
-4. Select your model from the available options
+Open VS Code and click the Cline settings icon. Configure these settings:
+
+1. **API Provider:** Select "LM Studio"
+2. **Model:** Select "qwen/qwen3-coder-30b" 
+3. **Context Window:** Set to **262,144** tokens (matching LM Studio)
+4. **Use Compact Prompt:** Enable this setting
 
 <Frame>
 	<img
@@ -75,16 +83,65 @@ Run AI models locally using LM Studio with Cline.
 	/>
 </Frame>
 
+<Info>
+	**Compact Prompt** is crucial for local models. It's roughly 10% the size of Cline's full system prompt, making inference much more efficient. The tradeoff is losing access to MCP tools, Focus Chain, and MTP features, but you gain a streamlined experience optimized for local performance.
+</Info>
+
+### Performance Characteristics
+
+Qwen3 Coder 30B performs well on modern laptops, especially Apple Silicon machines where the MLX optimization makes inference surprisingly fast for a 30B parameter model.
+
+**What to expect:**
+- Some warmup time when first loading the model (normal, happens once per session)
+- Large context ingestion slows down over time (inherent to long-context inference)
+- 4-bit quantization provides excellent quality with manageable resource usage
+
+If you're working with massive repositories, consider breaking work into phases or reducing the context window for better performance.
+
+### Troubleshooting
+
+**Cline can't connect to LM Studio:**
+- Verify the server is running (Developer tab shows "Server: Running")
+- Ensure a model is loaded and active
+- Check that you're using the default endpoint `http://127.0.0.1:1234`
+
+**Model seems unresponsive:**
+- Confirm "Use compact prompt" is enabled in Cline settings
+- Verify "KV Cache Quantization" is disabled in LM Studio
+- Try reloading the model in LM Studio
+
+**Performance degrades during long sessions:**
+- Reduce the context window by half in both LM Studio and Cline
+- Reload the model in LM Studio to clear accumulated context
+- Consider breaking large tasks into smaller phases
+
+### The Offline Advantage
+
+This setup enables truly offline coding. Your laptop becomes a self-contained development environment where Cline can analyze codebases, suggest improvements, write tests, and execute commands - all without any network dependency.
+
+**Privacy:** Your code never leaves your machine. Perfect for sensitive projects or air-gapped environments.
+
+**Cost:** No API tokens, no usage meters, no surprise bills. Once you've downloaded the model, everything runs locally at no additional cost.
+
+**Independence:** Code on a boat in the middle of the ocean. No internet required.
+
+### When to Use Local vs Cloud
+
+**Local models excel for:**
+- Offline development sessions where internet is unreliable
+- Privacy-sensitive projects where code can't leave your environment  
+- Cost-conscious development where API usage would be prohibitive
+- Learning and experimentation where you want unlimited usage
+
+**Cloud models still have advantages for:**
+- Very large repositories that exceed local context limits
+- Multi-hour refactoring sessions that benefit from the largest available context windows
+- Teams that need consistent performance across different hardware
+
 ### ⚠️ Important Notes
 
--   Start LM Studio before using with Cline
--   Keep LM Studio running in background
--   First model download may take several minutes depending on size
--   Models are stored locally after download
-
-### 🔧 Troubleshooting
-
-1. If Cline can't connect to LM Studio:
-2. Verify LM Studio server is running (check Developer tab)
-3. Ensure a model is loaded
-4. Check your system meets hardware requirements
+- Start LM Studio before using with Cline
+- Keep LM Studio running in the background during development
+- First model download may take 30+ minutes depending on your internet connection
+- Models are stored locally after download (no re-downloading needed)
+- Expect 10-15GB of disk space for the 4-bit quantized model
