@@ -55,6 +55,8 @@ export const modelInfoSchema = z.object({
 	// Capability flag to indicate whether the model supports an output verbosity parameter
 	supportsVerbosity: z.boolean().optional(),
 	supportsReasoningBudget: z.boolean().optional(),
+	// Capability flag to indicate whether the model supports temperature parameter
+	supportsTemperature: z.boolean().optional(),
 	requiredReasoningBudget: z.boolean().optional(),
 	supportsReasoningEffort: z.boolean().optional(),
 	supportedParameters: z.array(modelParametersSchema).optional(),

@@ -31,6 +31,7 @@ export const openAiNativeModels = {
 		description: "GPT-5: The best model for coding and agentic tasks across domains",
 		// supportsVerbosity is a new capability; ensure ModelInfo includes it
 		supportsVerbosity: true,
+		supportsTemperature: false,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 128000,
@@ -44,6 +45,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.03,
 		description: "GPT-5 Mini: A faster, more cost-efficient version of GPT-5 for well-defined tasks",
 		supportsVerbosity: true,
+		supportsTemperature: false,
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 128000,
@@ -57,6 +59,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.01,
 		description: "GPT-5 Nano: Fastest, most cost-efficient version of GPT-5",
 		supportsVerbosity: true,
+		supportsTemperature: false,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
@@ -66,6 +69,7 @@ export const openAiNativeModels = {
 		inputPrice: 2,
 		outputPrice: 8,
 		cacheReadsPrice: 0.5,
+		supportsTemperature: true,
 	},
 	"gpt-4.1-mini": {
 		maxTokens: 32_768,
@@ -75,6 +79,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.4,
 		outputPrice: 1.6,
 		cacheReadsPrice: 0.1,
+		supportsTemperature: true,
 	},
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
@@ -84,6 +89,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
+		supportsTemperature: true,
 	},
 	o3: {
 		maxTokens: 100_000,
@@ -95,6 +101,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.5,
 		supportsReasoningEffort: true,
 		reasoningEffort: "medium",
+		supportsTemperature: false,
 	},
 	"o3-high": {
 		maxTokens: 100_000,
@@ -105,6 +112,7 @@ export const openAiNativeModels = {
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
 		reasoningEffort: "high",
+		supportsTemperature: false,
 	},
 	"o3-low": {
 		maxTokens: 100_000,
@@ -115,6 +123,7 @@ export const openAiNativeModels = {
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
 		reasoningEffort: "low",
+		supportsTemperature: false,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
@@ -126,6 +135,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.275,
 		supportsReasoningEffort: true,
 		reasoningEffort: "medium",
+		supportsTemperature: false,
 	},
 	"o4-mini-high": {
 		maxTokens: 100_000,
@@ -136,6 +146,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
 		reasoningEffort: "high",
+		supportsTemperature: false,
 	},
 	"o4-mini-low": {
 		maxTokens: 100_000,
@@ -146,6 +157,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
 		reasoningEffort: "low",
+		supportsTemperature: false,
 	},
 	"o3-mini": {
 		maxTokens: 100_000,
@@ -157,6 +169,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.55,
 		supportsReasoningEffort: true,
 		reasoningEffort: "medium",
+		supportsTemperature: false,
 	},
 	"o3-mini-high": {
 		maxTokens: 100_000,
@@ -167,6 +180,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
 		reasoningEffort: "high",
+		supportsTemperature: false,
 	},
 	"o3-mini-low": {
 		maxTokens: 100_000,
@@ -177,6 +191,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
 		reasoningEffort: "low",
+		supportsTemperature: false,
 	},
 	o1: {
 		maxTokens: 100_000,
@@ -186,6 +201,7 @@ export const openAiNativeModels = {
 		inputPrice: 15,
 		outputPrice: 60,
 		cacheReadsPrice: 7.5,
+		supportsTemperature: false,
 	},
 	"o1-preview": {
 		maxTokens: 32_768,
@@ -195,6 +211,7 @@ export const openAiNativeModels = {
 		inputPrice: 15,
 		outputPrice: 60,
 		cacheReadsPrice: 7.5,
+		supportsTemperature: false,
 	},
 	"o1-mini": {
 		maxTokens: 65_536,
@@ -204,6 +221,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
+		supportsTemperature: false,
 	},
 	"gpt-4o": {
 		maxTokens: 16_384,
@@ -213,6 +231,7 @@ export const openAiNativeModels = {
 		inputPrice: 2.5,
 		outputPrice: 10,
 		cacheReadsPrice: 1.25,
+		supportsTemperature: true,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
@@ -222,6 +241,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.075,
+		supportsTemperature: true,
 	},
 	"codex-mini-latest": {
 		maxTokens: 16_384,
@@ -231,6 +251,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.5,
 		outputPrice: 6,
 		cacheReadsPrice: 0,
+		supportsTemperature: false,
 		description:
 			"Codex Mini: Cloud-based software engineering agent powered by codex-1, a version of o3 optimized for coding tasks. Trained with reinforcement learning to generate human-style code, adhere to instructions, and iteratively run tests.",
 	},

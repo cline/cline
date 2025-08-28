@@ -743,11 +743,13 @@ const ApiOptions = ({
 							fuzzyMatchThreshold={apiConfiguration.fuzzyMatchThreshold}
 							onChange={(field, value) => setApiConfigurationField(field, value)}
 						/>
-						<TemperatureControl
-							value={apiConfiguration.modelTemperature}
-							onChange={handleInputChange("modelTemperature", noTransform)}
-							maxValue={2}
-						/>
+						{selectedModelInfo?.supportsTemperature !== false && (
+							<TemperatureControl
+								value={apiConfiguration.modelTemperature}
+								onChange={handleInputChange("modelTemperature", noTransform)}
+								maxValue={2}
+							/>
+						)}
 						<RateLimitSecondsControl
 							value={apiConfiguration.rateLimitSeconds || 0}
 							onChange={(value) => setApiConfigurationField("rateLimitSeconds", value)}
