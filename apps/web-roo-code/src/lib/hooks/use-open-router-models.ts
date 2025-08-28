@@ -22,7 +22,8 @@ export const openRouterModelSchema = z.object({
 		.optional(),
 	architecture: z
 		.object({
-			modality: z.string(),
+			input_modalities: z.array(z.string()).nullish(),
+			output_modalities: z.array(z.string()).nullish(),
 		})
 		.optional(),
 })
@@ -47,6 +48,10 @@ export const getOpenRouterModels = async (): Promise<OpenRouterModelRecord> => {
 	}
 
 	return result.data.data
+		.filter((rawModel) => {
+			// Skip image generation models (models that output images)
+			return !rawModel.architecture?.output_modalities?.includes("image")
+		})
 		.sort((a, b) => a.name.localeCompare(b.name))
 		.map((rawModel) => ({
 			...rawModel,
@@ -57,7 +62,7 @@ export const getOpenRouterModels = async (): Promise<OpenRouterModelRecord> => {
 				outputPrice: parsePrice(rawModel.pricing?.completion),
 				description: rawModel.description,
 				supportsPromptCache: false,
-				supportsImages: false,
+				supportsImages: rawModel.architecture?.input_modalities?.includes("image") ?? false,
 				supportsThinking: false,
 				tiers: [],
 			},
