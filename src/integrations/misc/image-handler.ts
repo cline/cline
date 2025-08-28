@@ -64,7 +64,7 @@ export async function saveImage(dataUri: string) {
 	// Get workspace path or fallback to home directory
 	const workspacePath = getWorkspacePath()
 	const defaultPath = workspacePath || os.homedir()
-	const defaultFileName = `mermaid_diagram_${Date.now()}.${format}`
+	const defaultFileName = `img_${Date.now()}.${format}`
 	const defaultUri = vscode.Uri.file(path.join(defaultPath, defaultFileName))
 
 	// Show save dialog
