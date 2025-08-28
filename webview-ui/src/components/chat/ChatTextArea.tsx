@@ -1440,38 +1440,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						// Drag-over styles moved to DynamicTextArea
 						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
 					}}>
-					{isVoiceRecording && (
-						<div
+					<div
+						style={{
+							position: "absolute",
+							inset: "10px 15px", // match textarea/hightlight inset
+							pointerEvents: "none",
+							zIndex: 1, // Above textarea but below menus
+							overflow: "hidden", // clip shader to rounded rect
+							borderRadius: 2, // match textarea radius
+							transition: "opacity 1s ease-in-out",
+							opacity: isVoiceRecording ? 1 : 0,
+						}}>
+						<PulsingBorder
+							bloom={1}
+							colorBack={"rgba(0,0,0,0)"}
+							colors={[
+								"#ffffff", // white
+								"#ffffff",
+								"#9d57fa",
+								"#ffffff",
+							]} // Match textarea border radius
+							intensity={0.97}
+							pulse={0}
+							roundness={0}
+							scale={1.0}
+							smoke={0.18}
+							smokeSize={0.76}
+							softness={1}
+							speed={1}
+							spotSize={0.4}
+							spots={3}
 							style={{
-								position: "absolute",
-								inset: "10px 15px", // match textarea/hightlight inset
-								pointerEvents: "none",
-								zIndex: 1, // Above textarea but below menus
-								overflow: "hidden", // clip shader to rounded rect
-								borderRadius: 2, // match textarea radius
-							}}>
-							<PulsingBorder
-								bloom={0.8}
-								colorBack={"rgba(0,0,0,0)"}
-								colors={["#ffffff", "#ffffff", "#9d57fa", "#ffffff"]} // Match textarea border radius
-								intensity={0.9}
-								pulse={1}
-								roundness={0.02}
-								scale={1.0}
-								smoke={0.4}
-								smokeSize={0.8}
-								softness={2}
-								speed={1}
-								spotSize={10}
-								spots={3}
-								style={{
-									width: "100%",
-									height: "100%",
-								}}
-								thickness={0.08}
-							/>
-						</div>
-					)}
+								width: "100%",
+								height: "100%",
+							}}
+							thickness={0}
+						/>
+					</div>
+
 					{showDimensionError && (
 						<div
 							style={{
@@ -1555,7 +1561,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							style={{
 								position: "absolute",
 								inset: "10px 15px",
-								border: "1px solid var(--vscode-input-border)",
+								// border: "1px solid var(--vscode-input-border)",
 								borderRadius: 2,
 								pointerEvents: "none",
 								zIndex: 5,
