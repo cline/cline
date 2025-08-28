@@ -316,12 +316,17 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
+			console.log(`File ${this.absolutePath} has been deleted.`)
+
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
-				await fs.rmdir(this.createdDirs[i])
-				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+				try {
+					await fs.rmdir(this.createdDirs[i])
+					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+				} catch (error) {
+					console.log('Could not delete directory', error)
+				}
 			}
-			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
