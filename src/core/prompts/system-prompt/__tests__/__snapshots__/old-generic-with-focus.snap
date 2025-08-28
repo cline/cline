@@ -663,8 +663,8 @@ SYSTEM INFORMATION
 
 Operating System: macOS
 Default Shell: /bin/zsh
-Home Directory: /Users/beatrix
-Current Working Directory: /test/project
+Home Directory: /Users/tester
+Current Working Directory: /Users/tester/dev/project
 
 ====
 

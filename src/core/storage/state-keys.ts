@@ -23,7 +23,6 @@ export interface GlobalState {
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
-	awsBedrockApiKey: string | undefined
 	awsAuthentication: string | undefined
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
