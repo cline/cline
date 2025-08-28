@@ -54,9 +54,9 @@ export interface ApiHandlerModel {
 }
 
 export interface ApiProviderInfo {
-	modelId: string
 	providerId: string
-	customPrompt?: string
+	model: ApiHandlerModel
+	customPrompt?: string // "compact"
 }
 
 export interface SingleCompletionHandler {
@@ -329,6 +329,7 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
