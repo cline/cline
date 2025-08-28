@@ -7,8 +7,14 @@
  */
 
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
+export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
+
+import { config as genericConfig } from "./generic/config"
+import { config as gpt5Config } from "./gpt-5/config"
+import { config as nextGenConfig } from "./next-gen/config"
+import { config as xsConfig } from "./xs/config"
 
 /**
  * Variant Registry for dynamic loading
@@ -22,20 +28,20 @@ export const VARIANT_CONFIGS = {
 	 * Generic variant - Fallback for all model types
 	 * Optimized for broad compatibility and stable performance
 	 */
-	generic: () => import("./generic/config").then((m) => m.config),
+	generic: () => genericConfig,
 
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
 	 */
-	"next-gen": () => import("./next-gen/config").then((m) => m.config),
-	gpt5: () => import("./gpt-5/config").then((m) => m.config),
+	"next-gen": nextGenConfig,
+	gpt5: () => gpt5Config,
 
 	/**
 	 * XS variant - Compact models with limited context windows
 	 * Streamlined for efficiency with essential tools only
 	 */
-	xs: () => import("./xs/config").then((m) => m.config),
+	xs: () => xsConfig,
 } as const
 
 /**
@@ -64,8 +70,7 @@ export function isValidVariantId(id: string): id is VariantId {
  * @returns Promise that resolves to the variant configuration
  */
 export async function loadVariantConfig(variantId: VariantId) {
-	const loader = VARIANT_CONFIGS[variantId]
-	return await loader()
+	return VARIANT_CONFIGS[variantId]
 }
 
 /**
@@ -73,6 +78,6 @@ export async function loadVariantConfig(variantId: VariantId) {
  * @returns Promise that resolves to a map of all variant configurations
  */
 export async function loadAllVariantConfigs() {
-	const entries = await Promise.all(Object.entries(VARIANT_CONFIGS).map(async ([id, loader]) => [id, await loader()] as const))
-	return Object.fromEntries(entries) as Record<VariantId, Awaited<ReturnType<(typeof VARIANT_CONFIGS)[VariantId]>>>
+	const entries = await Promise.all(Object.entries(VARIANT_CONFIGS).map(async ([id, config]) => [id, config] as const))
+	return Object.fromEntries(entries) as Record<VariantId, any>
 }

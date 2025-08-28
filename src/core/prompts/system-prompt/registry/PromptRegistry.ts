@@ -3,6 +3,7 @@ import { getModelFamily } from ".."
 import { getSystemPromptComponents } from "../components"
 import { registerClineToolSets } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
+import { config as genericConfig } from "../variants/generic/config"
 import { PromptBuilder } from "./PromptBuilder"
 
 export class PromptRegistry {
@@ -239,8 +240,8 @@ export class PromptRegistry {
 			// Load each variant configuration
 			const loadPromises = Object.entries(VARIANT_CONFIGS).map(async ([variantId, configLoader]) => {
 				try {
-					const config = await configLoader()
-					await this.loadVariantFromConfig(variantId, config)
+					const config = typeof configLoader === "function" ? configLoader() : configLoader
+					this.loadVariantFromConfig(variantId, config)
 				} catch (error) {
 					console.warn(`Warning: Could not load variant '${variantId}':`, error)
 				}
@@ -271,50 +272,13 @@ export class PromptRegistry {
 	 * Create a minimal generic variant as absolute fallback
 	 */
 	private async createMinimalGenericFallback(): Promise<void> {
-		try {
-			const { ModelFamily } = await import("@/shared/prompts")
-			const { ClineDefaultTool } = await import("@/shared/tools")
-			const { SystemPromptSection } = await import("../templates/placeholders")
-
-			const minimalVariant = {
-				family: ModelFamily.GENERIC,
-				version: 1,
-				tags: ["fallback", "minimal"] as const,
-				labels: { fallback: 1 } as const,
-				description: "Minimal generic fallback variant created due to loading failure",
-				config: {},
-				baseTemplate: `You are Cline, an AI assistant that can help with various tasks.
-
-{{TOOL_USE_SECTION}}
-
-{{OBJECTIVE_SECTION}}
-
-Please help the user with their request.`,
-				componentOrder: [SystemPromptSection.TOOL_USE, SystemPromptSection.OBJECTIVE] as const,
-				componentOverrides: {},
-				placeholders: { MODEL_FAMILY: "generic" } as const,
-				tools: [
-					ClineDefaultTool.BASH,
-					ClineDefaultTool.FILE_READ,
-					ClineDefaultTool.FILE_NEW,
-					ClineDefaultTool.FILE_EDIT,
-					ClineDefaultTool.ASK,
-					ClineDefaultTool.ATTEMPT,
-				] as const,
-				toolOverrides: {},
-			}
-
-			await this.loadVariantFromConfig(ModelFamily.GENERIC, minimalVariant)
-			console.warn("Created minimal generic fallback variant")
-		} catch (error) {
-			console.error("Failed to create minimal generic fallback:", error)
-		}
+		this.loadVariantFromConfig(ModelFamily.GENERIC, genericConfig)
 	}
 
 	/**
 	 * Load a single variant from its TypeScript config
 	 */
-	private async loadVariantFromConfig(variantId: string, config: Omit<PromptVariant, "id">): Promise<void> {
+	private loadVariantFromConfig(variantId: string, config: Omit<PromptVariant, "id">): void {
 		try {
 			const variant: PromptVariant = {
 				...config,
