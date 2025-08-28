@@ -68,7 +68,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
 	try {
-		// If the new file already exists, do nothing
+		// If the old taskHistory vs code global state is undefined, do nothing
 		const vscodeGlobalStateTaskHistory = await context.globalState.get("taskHistory")
 		if (vscodeGlobalStateTaskHistory === undefined) {
 			return
