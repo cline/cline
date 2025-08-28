@@ -22,7 +22,7 @@ export class PostHogClientProvider {
 		this.client = posthogConfig.apiKey
 			? new PostHog(posthogConfig.apiKey, {
 					host: posthogConfig.host,
-					enableExceptionAutocapture: false,
+					enableExceptionAutocapture: false, // This is only enabled for error services
 					before_send: (event) => PostHogClientProvider.eventFilter(event),
 				})
 			: null
