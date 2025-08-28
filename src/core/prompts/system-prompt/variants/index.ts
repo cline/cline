@@ -29,6 +29,7 @@ export const VARIANT_CONFIGS = {
 	 * Includes additional features like feedback loops and web fetching
 	 */
 	"next-gen": () => import("./next-gen/config").then((m) => m.config),
+	gpt5: () => import("./gpt-5/config").then((m) => m.config),
 
 	/**
 	 * XS variant - Compact models with limited context windows
