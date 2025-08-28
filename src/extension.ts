@@ -443,8 +443,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (tabInstances.length > 0) {
 					activeWebview = tabInstances[tabInstances.length - 1]
 				} else {
-					// Try to focus sidebar
-					await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+					// Try to focus sidebar via hostbridge
+					await HostProvider.workspace.openClineSidebarPanel({})
 
 					// Small delay for focus to complete
 					await new Promise((resolve) => setTimeout(resolve, 200))
