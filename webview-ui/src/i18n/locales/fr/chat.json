@@ -172,7 +172,11 @@
 		"wantsToInsertAtEnd": "Roo veut ajouter du contenu à la fin de ce fichier :",
 		"wantsToReadAndXMore": "Roo veut lire ce fichier et {{count}} de plus :",
 		"wantsToReadMultiple": "Roo souhaite lire plusieurs fichiers :",
-		"wantsToApplyBatchChanges": "Roo veut appliquer des modifications à plusieurs fichiers :"
+		"wantsToApplyBatchChanges": "Roo veut appliquer des modifications à plusieurs fichiers :",
+		"wantsToGenerateImage": "Roo veut générer une image :",
+		"wantsToGenerateImageOutsideWorkspace": "Roo veut générer une image en dehors de l'espace de travail :",
+		"wantsToGenerateImageProtected": "Roo veut générer une image dans un emplacement protégé :",
+		"didGenerateImage": "Roo a généré une image :"
 	},
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"

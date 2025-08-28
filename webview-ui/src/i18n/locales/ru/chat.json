@@ -170,7 +170,11 @@
 		"wantsToInsertAtEnd": "Roo хочет добавить содержимое в конец этого файла:",
 		"wantsToReadAndXMore": "Roo хочет прочитать этот файл и еще {{count}}:",
 		"wantsToReadMultiple": "Roo хочет прочитать несколько файлов:",
-		"wantsToApplyBatchChanges": "Roo хочет применить изменения к нескольким файлам:"
+		"wantsToApplyBatchChanges": "Roo хочет применить изменения к нескольким файлам:",
+		"wantsToGenerateImage": "Roo хочет сгенерировать изображение:",
+		"wantsToGenerateImageOutsideWorkspace": "Roo хочет сгенерировать изображение вне рабочего пространства:",
+		"wantsToGenerateImageProtected": "Roo хочет сгенерировать изображение в защищённом месте:",
+		"didGenerateImage": "Roo сгенерировал изображение:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo хочет просмотреть файлы верхнего уровня в этой директории:",

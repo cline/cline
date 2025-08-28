@@ -175,7 +175,11 @@
 		"wantsToInsertAtEnd": "Roo quiere añadir contenido al final de este archivo:",
 		"wantsToReadAndXMore": "Roo quiere leer este archivo y {{count}} más:",
 		"wantsToReadMultiple": "Roo quiere leer varios archivos:",
-		"wantsToApplyBatchChanges": "Roo quiere aplicar cambios a múltiples archivos:"
+		"wantsToApplyBatchChanges": "Roo quiere aplicar cambios a múltiples archivos:",
+		"wantsToGenerateImage": "Roo quiere generar una imagen:",
+		"wantsToGenerateImageOutsideWorkspace": "Roo quiere generar una imagen fuera del espacio de trabajo:",
+		"wantsToGenerateImageProtected": "Roo quiere generar una imagen en una ubicación protegida:",
+		"didGenerateImage": "Roo generó una imagen:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo quiere ver los archivos de nivel superior en este directorio:",

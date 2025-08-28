@@ -48,6 +48,11 @@
 			"copyError": "इमेज कॉपी करने में त्रुटि"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "चित्र"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "अमान्य डेटा URI फॉर्मेट",

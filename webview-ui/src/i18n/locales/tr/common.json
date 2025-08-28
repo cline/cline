@@ -48,6 +48,11 @@
 			"copyError": "Görsel kopyalama hatası"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "Resim"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Geçersiz veri URI formatı",

@@ -175,7 +175,11 @@
 		"wantsToInsertAtEnd": "Rooはこのファイルの末尾にコンテンツを追加したい:",
 		"wantsToReadAndXMore": "Roo はこのファイルと他に {{count}} 個のファイルを読み込もうとしています:",
 		"wantsToReadMultiple": "Rooは複数のファイルを読み取ろうとしています：",
-		"wantsToApplyBatchChanges": "Rooは複数のファイルに変更を適用したい:"
+		"wantsToApplyBatchChanges": "Rooは複数のファイルに変更を適用したい:",
+		"wantsToGenerateImage": "Rooは画像を生成したい:",
+		"wantsToGenerateImageOutsideWorkspace": "Rooはワークスペース外で画像を生成したい:",
+		"wantsToGenerateImageProtected": "Rooは保護された場所で画像を生成したい:",
+		"didGenerateImage": "Rooは画像を生成しました:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい:",

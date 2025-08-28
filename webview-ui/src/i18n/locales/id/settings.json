@@ -759,6 +759,17 @@
 		"NEW_TASK_REQUIRE_TODOS": {
 			"name": "Membutuhkan daftar 'todos' untuk tugas baru",
 			"description": "Ketika diaktifkan, alat new_task akan membutuhkan parameter todos untuk disediakan. Ini memastikan semua tugas baru dimulai dengan daftar tujuan yang jelas. Ketika dinonaktifkan (default), parameter todos tetap opsional untuk kompatibilitas mundur."
+		},
+		"IMAGE_GENERATION": {
+			"name": "Aktifkan pembuatan gambar AI",
+			"description": "Ketika diaktifkan, Roo dapat menghasilkan gambar dari prompt teks menggunakan model pembuatan gambar OpenRouter. Memerlukan kunci API OpenRouter yang dikonfigurasi.",
+			"openRouterApiKeyLabel": "Kunci API OpenRouter",
+			"openRouterApiKeyPlaceholder": "Masukkan kunci API OpenRouter Anda",
+			"getApiKeyText": "Dapatkan kunci API Anda dari",
+			"modelSelectionLabel": "Model Pembuatan Gambar",
+			"modelSelectionDescription": "Pilih model untuk pembuatan gambar",
+			"warningMissingKey": "⚠️ Kunci API OpenRouter diperlukan untuk pembuatan gambar. Silakan konfigurasi di atas.",
+			"successConfigured": "✓ Pembuatan gambar dikonfigurasi dan siap digunakan"
 		}
 	},
 	"promptCaching": {

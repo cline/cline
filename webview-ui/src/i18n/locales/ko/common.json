@@ -48,6 +48,11 @@
 			"copyError": "이미지 복사 오류"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "이미지"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "잘못된 데이터 URI 형식",

@@ -142,6 +142,13 @@ const openRouterSchema = baseProviderSettingsSchema.extend({
 	openRouterBaseUrl: z.string().optional(),
 	openRouterSpecificProvider: z.string().optional(),
 	openRouterUseMiddleOutTransform: z.boolean().optional(),
+	// Image generation settings (experimental)
+	openRouterImageGenerationSettings: z
+		.object({
+			openRouterApiKey: z.string().optional(),
+			selectedModel: z.string().optional(),
+		})
+		.optional(),
 })
 
 const bedrockSchema = apiModelIdProviderModelSchema.extend({

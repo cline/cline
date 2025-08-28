@@ -175,7 +175,11 @@
 		"wantsToInsertAtEnd": "Roo vol afegir contingut al final d'aquest fitxer:",
 		"wantsToReadAndXMore": "En Roo vol llegir aquest fitxer i {{count}} més:",
 		"wantsToReadMultiple": "Roo vol llegir diversos fitxers:",
-		"wantsToApplyBatchChanges": "Roo vol aplicar canvis a múltiples fitxers:"
+		"wantsToApplyBatchChanges": "Roo vol aplicar canvis a múltiples fitxers:",
+		"wantsToGenerateImage": "Roo vol generar una imatge:",
+		"wantsToGenerateImageOutsideWorkspace": "Roo vol generar una imatge fora de l'espai de treball:",
+		"wantsToGenerateImageProtected": "Roo vol generar una imatge en una ubicació protegida:",
+		"didGenerateImage": "Roo ha generat una imatge:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo vol veure els fitxers de nivell superior en aquest directori:",

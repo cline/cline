@@ -48,6 +48,11 @@
 			"copyError": "複製圖片時發生錯誤"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "圖像"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "無效的資料 URI 格式",

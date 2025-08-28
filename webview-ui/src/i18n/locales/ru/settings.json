@@ -730,6 +730,17 @@
 		"NEW_TASK_REQUIRE_TODOS": {
 			"name": "Требовать список 'todos' для новых задач",
 			"description": "Если включено, инструмент new_task будет требовать предоставления параметра todos. Это гарантирует, что все новые задачи начинаются с четкого списка целей. Когда отключено (по умолчанию), параметр todos остается необязательным для обратной совместимости."
+		},
+		"IMAGE_GENERATION": {
+			"name": "Включить генерацию изображений ИИ",
+			"description": "Когда включено, Roo может генерировать изображения из текстовых запросов, используя модели генерации изображений OpenRouter. Требует настроенный API-ключ OpenRouter.",
+			"openRouterApiKeyLabel": "API-ключ OpenRouter",
+			"openRouterApiKeyPlaceholder": "Введите ваш API-ключ OpenRouter",
+			"getApiKeyText": "Получите ваш API-ключ от",
+			"modelSelectionLabel": "Модель генерации изображений",
+			"modelSelectionDescription": "Выберите модель для генерации изображений",
+			"warningMissingKey": "⚠️ API-ключ OpenRouter необходим для генерации изображений. Настройте его выше.",
+			"successConfigured": "✓ Генерация изображений настроена и готова к использованию"
 		}
 	},
 	"promptCaching": {

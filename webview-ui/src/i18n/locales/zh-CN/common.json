@@ -48,6 +48,11 @@
 			"copyError": "复制图片时出错"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "图像"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "无效的数据 URI 格式",

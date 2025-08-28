@@ -730,6 +730,17 @@
 		"NEW_TASK_REQUIRE_TODOS": {
 			"name": "要求新任务提供 'todos' 列表",
 			"description": "启用后，new_task 工具将需要提供 todos 参数。这可以确保所有新任务都以明确的目标列表开始。禁用时（默认），todos 参数保持可选，以实现向后兼容。"
+		},
+		"IMAGE_GENERATION": {
+			"name": "启用 AI 图像生成",
+			"description": "启用后，Roo 可以使用 OpenRouter 的图像生成模型从文本提示生成图像。需要配置 OpenRouter API 密钥。",
+			"openRouterApiKeyLabel": "OpenRouter API 密钥",
+			"openRouterApiKeyPlaceholder": "输入您的 OpenRouter API 密钥",
+			"getApiKeyText": "获取您的 API 密钥",
+			"modelSelectionLabel": "图像生成模型",
+			"modelSelectionDescription": "选择用于图像生成的模型",
+			"warningMissingKey": "⚠️ 图像生成需要 OpenRouter API 密钥。请在上方配置。",
+			"successConfigured": "✓ 图像生成已配置完成，可以使用"
 		}
 	},
 	"promptCaching": {

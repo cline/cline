@@ -729,6 +729,17 @@
 		"NEW_TASK_REQUIRE_TODOS": {
 			"name": "Requerir lista de 'todos' para nuevas tareas",
 			"description": "Cuando está habilitado, la herramienta new_task requerirá que se proporcione un parámetro todos. Esto asegura que todas las nuevas tareas comiencen con una lista clara de objetivos. Cuando está deshabilitado (predeterminado), el parámetro todos permanece opcional por compatibilidad con versiones anteriores."
+		},
+		"IMAGE_GENERATION": {
+			"name": "Habilitar generación de imágenes con IA",
+			"description": "Cuando esté habilitado, Roo puede generar imágenes a partir de prompts de texto usando los modelos de generación de imágenes de OpenRouter. Requiere que se configure una clave de API de OpenRouter.",
+			"openRouterApiKeyLabel": "Clave API de OpenRouter",
+			"openRouterApiKeyPlaceholder": "Introduce tu clave API de OpenRouter",
+			"getApiKeyText": "Obtén tu clave API de",
+			"modelSelectionLabel": "Modelo de generación de imágenes",
+			"modelSelectionDescription": "Selecciona el modelo para la generación de imágenes",
+			"warningMissingKey": "⚠️ La clave API de OpenRouter es requerida para la generación de imágenes. Por favor, configúrala arriba.",
+			"successConfigured": "✓ La generación de imágenes está configurada y lista para usar"
 		}
 	},
 	"promptCaching": {

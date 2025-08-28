@@ -170,7 +170,11 @@
 		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:",
 		"wantsToReadAndXMore": "Roo wil dit bestand en nog {{count}} andere lezen:",
 		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen:",
-		"wantsToApplyBatchChanges": "Roo wil wijzigingen toepassen op meerdere bestanden:"
+		"wantsToApplyBatchChanges": "Roo wil wijzigingen toepassen op meerdere bestanden:",
+		"wantsToGenerateImage": "Roo wil een afbeelding genereren:",
+		"wantsToGenerateImageOutsideWorkspace": "Roo wil een afbeelding genereren buiten de werkruimte:",
+		"wantsToGenerateImageProtected": "Roo wil een afbeelding genereren op een beschermde locatie:",
+		"didGenerateImage": "Roo heeft een afbeelding gegenereerd:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken:",

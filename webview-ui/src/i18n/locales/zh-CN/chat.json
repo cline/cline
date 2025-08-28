@@ -175,7 +175,11 @@
 		"wantsToInsertAtEnd": "需要在文件末尾添加内容:",
 		"wantsToReadAndXMore": "Roo 想读取此文件以及另外 {{count}} 个文件：",
 		"wantsToReadMultiple": "Roo 想要读取多个文件：",
-		"wantsToApplyBatchChanges": "Roo 想要对多个文件应用更改："
+		"wantsToApplyBatchChanges": "Roo 想要对多个文件应用更改：",
+		"wantsToGenerateImage": "需要生成图片:",
+		"wantsToGenerateImageOutsideWorkspace": "需要在工作区外生成图片:",
+		"wantsToGenerateImageProtected": "需要在受保护位置生成图片:",
+		"didGenerateImage": "已生成图片:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "需要查看目录文件列表:",

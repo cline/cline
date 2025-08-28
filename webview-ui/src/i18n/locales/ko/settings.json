@@ -730,6 +730,17 @@
 		"NEW_TASK_REQUIRE_TODOS": {
 			"name": "새 작업에 'todos' 목록 필요",
 			"description": "활성화하면 new_task 도구에 todos 매개변수를 제공해야 합니다. 이렇게 하면 모든 새 작업이 명확한 목표 목록으로 시작됩니다. 비활성화하면(기본값) 이전 버전과의 호환성을 위해 todos 매개변수는 선택 사항으로 유지됩니다."
+		},
+		"IMAGE_GENERATION": {
+			"name": "AI 이미지 생성 활성화",
+			"description": "활성화하면 Roo는 OpenRouter의 이미지 생성 모델을 사용하여 텍스트 프롬프트에서 이미지를 생성할 수 있습니다. OpenRouter API 키 구성이 필요합니다.",
+			"openRouterApiKeyLabel": "OpenRouter API 키",
+			"openRouterApiKeyPlaceholder": "OpenRouter API 키를 입력하세요",
+			"getApiKeyText": "API 키를 받을 곳",
+			"modelSelectionLabel": "이미지 생성 모델",
+			"modelSelectionDescription": "이미지 생성에 사용할 모델을 선택하세요",
+			"warningMissingKey": "⚠️ 이미지 생성에는 OpenRouter API 키가 필요합니다. 위에서 설정해주세요.",
+			"successConfigured": "✓ 이미지 생성이 구성되었으며 사용할 준비가 되었습니다"
 		}
 	},
 	"promptCaching": {

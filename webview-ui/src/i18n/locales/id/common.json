@@ -48,6 +48,11 @@
 			"copyError": "Error menyalin gambar"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "Gambar"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "Format data URI tidak valid",

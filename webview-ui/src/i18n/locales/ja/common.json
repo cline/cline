@@ -48,6 +48,11 @@
 			"copyError": "画像のコピーエラー"
 		}
 	},
+	"image": {
+		"tabs": {
+			"view": "画像"
+		}
+	},
 	"file": {
 		"errors": {
 			"invalidDataUri": "無効なデータURI形式",

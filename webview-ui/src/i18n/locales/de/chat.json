@@ -175,7 +175,11 @@
 		"wantsToInsertWithLineNumber": "Roo möchte Inhalte in diese Datei in Zeile {{lineNumber}} einfügen:",
 		"wantsToInsertAtEnd": "Roo möchte Inhalte am Ende dieser Datei anhängen:",
 		"wantsToReadMultiple": "Roo möchte mehrere Dateien lesen:",
-		"wantsToApplyBatchChanges": "Roo möchte Änderungen an mehreren Dateien vornehmen:"
+		"wantsToApplyBatchChanges": "Roo möchte Änderungen an mehreren Dateien vornehmen:",
+		"wantsToGenerateImage": "Roo möchte ein Bild generieren:",
+		"wantsToGenerateImageOutsideWorkspace": "Roo möchte ein Bild außerhalb des Arbeitsbereichs generieren:",
+		"wantsToGenerateImageProtected": "Roo möchte ein Bild an einem geschützten Ort generieren:",
+		"didGenerateImage": "Roo hat ein Bild generiert:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo möchte die Dateien auf oberster Ebene in diesem Verzeichnis anzeigen:",

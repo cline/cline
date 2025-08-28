@@ -26,6 +26,33 @@ import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler } from "../index"
 
+// Image generation types
+interface ImageGenerationResponse {
+	choices?: Array<{
+		message?: {
+			content?: string
+			images?: Array<{
+				type?: string
+				image_url?: {
+					url?: string
+				}
+			}>
+		}
+	}>
+	error?: {
+		message?: string
+		type?: string
+		code?: string
+	}
+}
+
+export interface ImageGenerationResult {
+	success: boolean
+	imageData?: string
+	imageFormat?: string
+	error?: string
+}
+
 // Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	transforms?: string[]
@@ -241,5 +268,106 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		const completion = response as OpenAI.Chat.ChatCompletion
 		return completion.choices[0]?.message?.content || ""
+	}
+
+	/**
+	 * Generate an image using OpenRouter's image generation API
+	 * @param prompt The text prompt for image generation
+	 * @param model The model to use for generation
+	 * @param apiKey The OpenRouter API key (must be explicitly provided)
+	 * @returns The generated image data and format, or an error
+	 */
+	async generateImage(prompt: string, model: string, apiKey: string): Promise<ImageGenerationResult> {
+		if (!apiKey) {
+			return {
+				success: false,
+				error: "OpenRouter API key is required for image generation",
+			}
+		}
+
+		try {
+			const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+					"HTTP-Referer": "https://github.com/RooVetGit/Roo-Code",
+					"X-Title": "Roo Code",
+				},
+				body: JSON.stringify({
+					model,
+					messages: [
+						{
+							role: "user",
+							content: prompt,
+						},
+					],
+					modalities: ["image", "text"],
+				}),
+			})
+
+			if (!response.ok) {
+				const errorText = await response.text()
+				let errorMessage = `Failed to generate image: ${response.status} ${response.statusText}`
+				try {
+					const errorJson = JSON.parse(errorText)
+					if (errorJson.error?.message) {
+						errorMessage = `Failed to generate image: ${errorJson.error.message}`
+					}
+				} catch {
+					// Use default error message
+				}
+				return {
+					success: false,
+					error: errorMessage,
+				}
+			}
+
+			const result: ImageGenerationResponse = await response.json()
+
+			if (result.error) {
+				return {
+					success: false,
+					error: `Failed to generate image: ${result.error.message}`,
+				}
+			}
+
+			// Extract the generated image from the response
+			const images = result.choices?.[0]?.message?.images
+			if (!images || images.length === 0) {
+				return {
+					success: false,
+					error: "No image was generated in the response",
+				}
+			}
+
+			const imageData = images[0]?.image_url?.url
+			if (!imageData) {
+				return {
+					success: false,
+					error: "Invalid image data in response",
+				}
+			}
+
+			// Extract base64 data from data URL
+			const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/)
+			if (!base64Match) {
+				return {
+					success: false,
+					error: "Invalid image format received",
+				}
+			}
+
+			return {
+				success: true,
+				imageData: imageData,
+				imageFormat: base64Match[1],
+			}
+		} catch (error) {
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : "Unknown error occurred",
+			}
+		}
 	}
 }
