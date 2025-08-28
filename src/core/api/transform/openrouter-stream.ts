@@ -56,7 +56,7 @@ export async function createOpenRouterStream(
 					{
 						type: "text",
 						text: systemPrompt,
-						// @ts-expect-error-next-line
+						// @ts-ignore-next-line
 						cache_control: { type: "ephemeral" },
 					},
 				],
@@ -76,7 +76,7 @@ export async function createOpenRouterStream(
 						lastTextPart = { type: "text", text: "..." }
 						msg.content.push(lastTextPart)
 					}
-					// @ts-expect-error-next-line
+					// @ts-ignore-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
 			})
@@ -156,7 +156,7 @@ export async function createOpenRouterStream(
 	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
 
-	// @ts-expect-error-next-line
+	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
