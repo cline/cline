@@ -1453,7 +1453,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<PulsingBorder
 								bloom={0.8}
 								colorBack={"rgba(0,0,0,0)"}
-								colors={["#ff0080", "#00ffff", "#ffff00", "#ff00ff"]} // Match textarea border radius
+								colors={["#ffffff", "#ffffff", "#9d57fa", "#ffffff"]} // Match textarea border radius
 								intensity={0.9}
 								pulse={1}
 								roundness={0.02}
@@ -1462,8 +1462,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								smokeSize={0.8}
 								softness={2}
 								speed={1}
-								spotSize={1}
-								spots={1}
+								spotSize={10}
+								spots={3}
 								style={{
 									width: "100%",
 									height: "100%",
