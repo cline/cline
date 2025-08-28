@@ -1181,7 +1181,8 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
-			laminarService.startSpan("agent.step", { name: `agent.step`, sessionId: this.taskId, input: userContent }, true)
+			// starting first task.step span for the first turn of conversation
+			laminarService.startSpan("task.step", { name: `task.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1215,7 +1216,7 @@ export class Task {
 			this.FocusChainManager.checkIncompleteProgressOnCompletion()
 		}
 
-		laminarService.endSpan("agent.step")
+		laminarService.endSpan("task.step")
 
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
@@ -2410,19 +2411,6 @@ export class Task {
 				}
 			} finally {
 				this.taskState.isStreaming = false
-
-				laminarService.addAttributesToSpan("llm", {
-					[LaminarAttributes.INPUT_TOKEN_COUNT]: inputTokens,
-					[LaminarAttributes.OUTPUT_TOKEN_COUNT]: outputTokens,
-					[LaminarAttributes.TOTAL_COST]: totalCost,
-					[LaminarAttributes.REQUEST_MODEL]: modelId,
-					[LaminarAttributes.PROVIDER]: providerId,
-					"lmnr.span.output": JSON.stringify([
-						{ role: "assistant", content: [{ type: "text", text: assistantMessage }] },
-					]),
-				})
-
-				laminarService.endSpan("llm")
 			}
 
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
@@ -2453,6 +2441,8 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
+				laminarService.recordExceptionOnSpan("task.step", new Error("Cline instance aborted"))
+				laminarService.endSpan("task.step")
 				throw new Error("Cline instance aborted")
 			}
 
@@ -2494,6 +2484,20 @@ export class Task {
 					totalCost,
 				})
 
+				laminarService.addLlmAttributesToSpan("llm", {
+					inputTokens,
+					outputTokens,
+					totalCost: totalCost ?? 0,
+					modelId,
+					providerId,
+					cacheWriteTokens,
+					cacheReadTokens,
+				})
+				laminarService.addAttributesToSpan("llm", {
+					"lmnr.span.output": JSON.stringify([{ role: "assistant", content: assistantMessage }]),
+				})
+				laminarService.endSpan("llm")
+
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
@@ -2508,6 +2512,19 @@ export class Task {
 				// }
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
+
+				// Start a new task.step active span for the next turn of conversation when user sends next message.
+				// The new task.step span will only be started if the previous task.step span was ended. Otherwise, this call to startSpan will do nothing.
+				laminarService.startSpan(
+					"task.step",
+					{
+						name: "task.step",
+						sessionId: this.taskId,
+						input: this.taskState.userMessageContent,
+					},
+					true,
+				)
+
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 
@@ -2555,7 +2572,6 @@ export class Task {
 
 			return didEndLoop // will always be false for now
 		} catch (_error) {
-			laminarService.endSpan("llm")
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}

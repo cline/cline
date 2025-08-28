@@ -350,7 +350,7 @@ export class ToolExecutor {
 			laminarService.startSpan("tool", {
 				name: block.name,
 				spanType: "TOOL",
-				input: [{ role: "tool", content: [{ name: block.name, arguments: block.params, type: "tool_call" }] }],
+				input: block,
 			})
 		}
 
@@ -2356,17 +2356,11 @@ export class ToolExecutor {
 							}
 						}
 
-						// End agent.step span right before Cline is ready to present it's final message for this conversation turn.
+						// End task.step span right before Cline is ready to present it's final message for this conversation turn.
 						laminarService.endSpan("tool")
-						laminarService.endSpan("agent.step")
+						laminarService.endSpan("task.step")
 
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
-
-						// Start a new agent.step span for the next turn of conversation when user sends next message.
-						laminarService.startSpan("agent.step", {
-							name: "agent.step",
-							input: text,
-						})
 
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)

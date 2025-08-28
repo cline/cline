@@ -61,7 +61,7 @@ class LaminarService {
 	//
 	// Use this method when you want to manually start and end spans. To instrument a full function prefer to use observeDecorator.
 	//
-	// If Laminar is not initialized, this method will do nothing.
+	// If Laminar is not initialized or the span with the same key already running (i.e. it was not ended), this method will do nothing.
 	//
 	// @param spanKey - The key to use to store the span in the spans map
 	// @param options - The options to pass to the span, such as the name, input, sessionId, and spanType. If spanType is not provided, it will default to "DEFAULT".
@@ -74,7 +74,7 @@ class LaminarService {
 		options: { name: string; spanType?: SpanType; input?: any; sessionId?: string },
 		active?: boolean,
 	): void {
-		if (!this.enabled) {
+		if (!this.enabled || this.spans.has(spanKey)) {
 			return
 		}
 
@@ -113,6 +113,36 @@ class LaminarService {
 			const filteredAttributes = this.recordSpanIO ? attributes : rest
 
 			span.setAttributes(filteredAttributes)
+		}
+	}
+
+	addLlmAttributesToSpan(
+		key: string,
+		attributes: {
+			inputTokens: number
+			outputTokens: number
+			totalCost: number
+			modelId: string
+			providerId: string
+			cacheWriteTokens: number
+			cacheReadTokens: number
+		},
+	): void {
+		if (!this.enabled) {
+			return
+		}
+
+		const span = this.spans.get(key)
+		if (span) {
+			span.setAttributes({
+				[LaminarAttributes.INPUT_TOKEN_COUNT]: attributes.inputTokens,
+				[LaminarAttributes.OUTPUT_TOKEN_COUNT]: attributes.outputTokens,
+				[LaminarAttributes.TOTAL_COST]: attributes.totalCost,
+				[LaminarAttributes.REQUEST_MODEL]: attributes.modelId,
+				[LaminarAttributes.PROVIDER]: attributes.providerId,
+				"gen_ai.usage.cache_creation_input_tokens": attributes.cacheWriteTokens,
+				"gen_ai.usage.cache_read_input_tokens": attributes.cacheReadTokens,
+			})
 		}
 	}
 
