@@ -402,4 +402,164 @@ describe("ToolRepetitionDetector", () => {
 			}
 		})
 	})
+
+	// ===== Browser Scroll Action Exclusion tests =====
+	describe("browser scroll action exclusion", () => {
+		it("should not count browser scroll_down actions as repetitions", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			// Create browser_action tool use with scroll_down
+			const scrollDownTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "scroll_down" },
+				partial: false,
+			}
+
+			// Should allow unlimited scroll_down actions
+			for (let i = 0; i < 10; i++) {
+				const result = detector.check(scrollDownTool)
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+		})
+
+		it("should not count browser scroll_up actions as repetitions", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			// Create browser_action tool use with scroll_up
+			const scrollUpTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "scroll_up" },
+				partial: false,
+			}
+
+			// Should allow unlimited scroll_up actions
+			for (let i = 0; i < 10; i++) {
+				const result = detector.check(scrollUpTool)
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+		})
+
+		it("should not count alternating scroll_down and scroll_up as repetitions", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			const scrollDownTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "scroll_down" },
+				partial: false,
+			}
+
+			const scrollUpTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "scroll_up" },
+				partial: false,
+			}
+
+			// Alternate between scroll_down and scroll_up
+			for (let i = 0; i < 5; i++) {
+				let result = detector.check(scrollDownTool)
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+
+				result = detector.check(scrollUpTool)
+				expect(result.allowExecution).toBe(true)
+				expect(result.askUser).toBeUndefined()
+			}
+		})
+
+		it("should still apply repetition detection to other browser_action types", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			// Create browser_action tool use with click action
+			const clickTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "click", coordinate: "[100, 200]" },
+				partial: false,
+			}
+
+			// First call allowed
+			expect(detector.check(clickTool).allowExecution).toBe(true)
+
+			// Second call allowed
+			expect(detector.check(clickTool).allowExecution).toBe(true)
+
+			// Third identical call should be blocked (limit is 2)
+			const result = detector.check(clickTool)
+			expect(result.allowExecution).toBe(false)
+			expect(result.askUser).toBeDefined()
+		})
+
+		it("should still apply repetition detection to non-browser tools", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			const readFileTool = createToolUse("read_file", "read_file", { path: "test.txt" })
+
+			// First call allowed
+			expect(detector.check(readFileTool).allowExecution).toBe(true)
+
+			// Second call allowed
+			expect(detector.check(readFileTool).allowExecution).toBe(true)
+
+			// Third identical call should be blocked (limit is 2)
+			const result = detector.check(readFileTool)
+			expect(result.allowExecution).toBe(false)
+			expect(result.askUser).toBeDefined()
+		})
+
+		it("should not interfere with repetition detection of other tools when scroll actions are interspersed", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			const scrollTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: { action: "scroll_down" },
+				partial: false,
+			}
+
+			const otherTool = createToolUse("execute_command", "execute_command", { command: "ls" })
+
+			// First execute_command
+			expect(detector.check(otherTool).allowExecution).toBe(true)
+
+			// Scroll actions in between (should not affect counter)
+			expect(detector.check(scrollTool).allowExecution).toBe(true)
+			expect(detector.check(scrollTool).allowExecution).toBe(true)
+
+			// Second execute_command
+			expect(detector.check(otherTool).allowExecution).toBe(true)
+
+			// More scroll actions
+			expect(detector.check(scrollTool).allowExecution).toBe(true)
+
+			// Third execute_command should be blocked
+			const result = detector.check(otherTool)
+			expect(result.allowExecution).toBe(false)
+			expect(result.askUser).toBeDefined()
+		})
+
+		it("should handle browser_action with missing or invalid action parameter gracefully", () => {
+			const detector = new ToolRepetitionDetector(2)
+
+			// Browser action without action parameter
+			const noActionTool: ToolUse = {
+				type: "tool_use",
+				name: "browser_action" as ToolName,
+				params: {},
+				partial: false,
+			}
+
+			// Should apply normal repetition detection
+			expect(detector.check(noActionTool).allowExecution).toBe(true)
+			expect(detector.check(noActionTool).allowExecution).toBe(true)
+			const result = detector.check(noActionTool)
+			expect(result.allowExecution).toBe(false)
+			expect(result.askUser).toBeDefined()
+		})
+	})
 })
