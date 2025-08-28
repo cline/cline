@@ -236,7 +236,11 @@ export class PromptRegistry {
 	 */
 	private loadVariants(): void {
 		try {
-			loadAllVariantConfigs()
+			this.variants = new Map<string, PromptVariant>()
+
+			for (const [id, config] of Object.entries(loadAllVariantConfigs())) {
+				this.variants.set(id, { ...config, id })
+			}
 
 			// Ensure generic variant is always available as a safety fallback
 			this.ensureGenericFallback()

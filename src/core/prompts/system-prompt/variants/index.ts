@@ -26,20 +26,20 @@ export const VARIANT_CONFIGS = {
 	 * Generic variant - Fallback for all model types
 	 * Optimized for broad compatibility and stable performance
 	 */
-	generic: () => genericConfig,
+	generic: genericConfig,
 
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
 	 */
-	"next-gen": () => nextGenConfig,
-	gpt5: () => gpt5Config,
+	"next-gen": nextGenConfig,
+	gpt5: gpt5Config,
 
 	/**
 	 * XS variant - Compact models with limited context windows
 	 * Streamlined for efficiency with essential tools only
 	 */
-	xs: () => xsConfig,
+	xs: xsConfig,
 } as const
 
 /**
@@ -76,5 +76,5 @@ export function loadVariantConfig(variantId: VariantId) {
  * @returns A map of all variant configurations
  */
 export function loadAllVariantConfigs() {
-	return Object.fromEntries(Object.entries(VARIANT_CONFIGS).map(([id, config]) => [id, config()]))
+	return VARIANT_CONFIGS
 }
