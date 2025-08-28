@@ -73,7 +73,7 @@ export class PostHogClientProvider {
 
 	private constructor(public distinctId = ENV_ID) {
 		// Initialize PostHog client
-		this.client = new PostHog(posthogConfig.apiKey, {
+		this.client = new PostHog(posthogConfig.apiKey || "no-op", {
 			host: posthogConfig.host,
 			before_send: (event) => posthogEventFilter(event),
 			enableExceptionAutocapture: true,
