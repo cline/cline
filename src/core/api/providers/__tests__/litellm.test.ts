@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/providers/litellm"
+import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"
-import proxyquire from "proxyquire"
 import sinon from "sinon"
-import { type LiteLlmModelInfoResponse } from "../litellm"
 
 const fakeClient = {
 	chat: {
@@ -10,21 +10,13 @@ const fakeClient = {
 			create: sinon.stub(),
 		},
 	},
+	baseURL: "fake",
 }
-
-class FakeOpenAI {
-	chat = fakeClient.chat
-	baseURL = "test"
-	constructor() {}
-}
-
-const { LiteLlmHandler } = proxyquire("../litellm", {
-	openai: FakeOpenAI,
-})
 
 describe("LiteLlmHandler", () => {
 	const originalFetch = global.fetch
 	const mockFetch = sinon.stub()
+
 	const mockModelFetch = (modelInfo: LiteLlmModelInfoResponse["data"][number]) => {
 		mockFetch.resolves({
 			ok: true,
@@ -35,12 +27,48 @@ describe("LiteLlmHandler", () => {
 		})
 	}
 
+	let handler: LiteLlmHandler
+
+	const mockHandlerChat = () => {
+		sinon.stub(handler, "ensureClient" as any).returns(fakeClient)
+	}
+
+	const initializeHandler = (model: string) => {
+		handler = new LiteLlmHandler({
+			liteLlmApiKey: "test-api-key",
+			liteLlmBaseUrl: "http://localhost:4000",
+			liteLlmUsePromptCache: true,
+			liteLlmModelId: model,
+		})
+
+		mockHandlerChat()
+	}
+
 	beforeEach(() => {
 		global.fetch = mockFetch
+
+		// Configure the stub to return a stream that closes immediately with usage data
+		fakeClient.chat.completions.create.resolves(
+			createAsyncIterable([
+				{
+					choices: [{ delta: { content: "test response" } }],
+				},
+				{
+					choices: [{}],
+					usage: {
+						prompt_tokens: 100,
+						completion_tokens: 50,
+						cache_creation_input_tokens: 20,
+						cache_read_input_tokens: 10,
+					},
+				},
+			]),
+		)
 	})
 
 	afterEach(() => {
-		sinon.restore()
+		sinon.reset()
+
 		global.fetch = originalFetch
 	})
 
@@ -53,49 +81,29 @@ describe("LiteLlmHandler", () => {
 	}
 
 	describe("prompt cache", () => {
-		describe("when the model supports prompt cache", () => {
-			const model = "anthropic/claude-sonnet-4-20250514"
+		const setModelData = (model: string, supportsPromptCaching: boolean) => {
+			mockModelFetch({
+				model_name: model,
+				litellm_params: {
+					model,
+				},
+				model_info: {
+					supports_prompt_caching: supportsPromptCaching,
+					input_cost_per_token: 0.01,
+					output_cost_per_token: 0.02,
+				},
+			})
+		}
+
+		describe("when the model doesn't support prompt caching", () => {
+			const model = "openai/gpt-5"
 
 			beforeEach(() => {
-				mockModelFetch({
-					model_name: model,
-					litellm_params: {
-						model,
-					},
-					model_info: {
-						supports_prompt_caching: true,
-						input_cost_per_token: 0.01,
-						output_cost_per_token: 0.02,
-					},
-				})
+				initializeHandler(model)
+				setModelData(model, false)
 			})
 
-			it("inserts the cache control in the system prompt and the last two user messages", async () => {
-				// Configure the stub to return a stream that closes immediately with usage data
-				fakeClient.chat.completions.create.resolves(
-					createAsyncIterable([
-						{
-							choices: [{ delta: { content: "test response" } }],
-						},
-						{
-							choices: [{}],
-							usage: {
-								prompt_tokens: 100,
-								completion_tokens: 50,
-								cache_creation_input_tokens: 20,
-								cache_read_input_tokens: 10,
-							},
-						},
-					]),
-				)
-
-				const handlerWithCache = new LiteLlmHandler({
-					liteLlmApiKey: "test-api-key",
-					liteLlmBaseUrl: "http://localhost:4000",
-					liteLlmUsePromptCache: true,
-					liteLlmModelId: model,
-				})
-
+			it("sends the system prompt and messages with the openai format", async () => {
 				const systemPrompt = "Test System Prompt"
 				const messages: Anthropic.Messages.MessageParam[] = [
 					{
@@ -121,7 +129,59 @@ describe("LiteLlmHandler", () => {
 					},
 				]
 
-				for await (const _ of handlerWithCache.createMessage(systemPrompt, messages)) {
+				for await (const _ of handler.createMessage(systemPrompt, messages)) {
+				}
+
+				sinon.assert.calledOnce(fakeClient.chat.completions.create)
+
+				const callArgs = fakeClient.chat.completions.create.getCall(0).args[0]
+
+				const systemPromptMessage = callArgs.messages.shift()
+				expect(systemPromptMessage).to.deep.equal({
+					role: "system",
+					content: systemPrompt,
+				})
+
+				expect(callArgs.messages).to.deep.equal(convertToOpenAiMessages(messages))
+			})
+		})
+
+		describe("when the model supports prompt caching", () => {
+			const model = "anthropic/claude-sonnet-4-20250514"
+
+			beforeEach(() => {
+				initializeHandler(model)
+
+				setModelData(model, true)
+			})
+
+			it("inserts the cache control in the system prompt and the last two user messages", async () => {
+				const systemPrompt = "Test System Prompt"
+				const messages: Anthropic.Messages.MessageParam[] = [
+					{
+						role: "user",
+						content: "first message",
+					},
+					{
+						role: "assistant",
+						content: "first response",
+					},
+					{
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "test",
+							},
+							{
+								type: "text",
+								text: "second message",
+							},
+						],
+					},
+				]
+
+				for await (const _ of handler.createMessage(systemPrompt, messages)) {
 				}
 
 				sinon.assert.calledOnce(fakeClient.chat.completions.create)
