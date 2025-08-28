@@ -1,1 +1,1 @@
-export const CACHE_SERVICE_NOT_INITIALIZED = "CacheService must be initialized before attempting to access state."
+export const STATE_MANAGER_NOT_INITIALIZED = "StateManager must be initialized before attempting to access state."

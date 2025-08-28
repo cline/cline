@@ -32,7 +32,7 @@ service ModelsService {
   // Refreshes and returns Baseten models
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
-  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (StringArray);
+  rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
 }
 
 // List of VS Code LM models
@@ -108,6 +108,12 @@ message SapAiCoreModelsRequest {
   string resource_group = 6;
 }
 
+// Response for SAP AI Core models with orchestration availability
+message SapAiCoreModelsResponse {
+  repeated string model_names = 1;
+  bool orchestration_available = 2;
+}
+
 // Request for updating API configuration
 message UpdateApiConfigurationRequest {
   Metadata metadata = 1;
@@ -150,6 +156,7 @@ enum ApiProvider {
   ZAI = 31;
   VERCEL_AI_GATEWAY = 32;
   QWEN_CODE = 33;
+  DIFY = 34;
 }
 
 // Model info for OpenAI-compatible models
@@ -244,21 +251,24 @@ message ModelsApiConfiguration {
   optional string sap_ai_resource_group = 52;
   optional string sap_ai_core_token_url = 53;
   optional string sap_ai_core_base_url = 54;
-  optional string moonshot_api_key = 55;
-  optional string moonshot_api_line = 56;
-  optional string aws_authentication = 57;
-  optional string aws_bedrock_api_key = 58;
-  optional string cline_account_id = 59;
-  optional string groq_api_key = 60;
-  optional string hugging_face_api_key = 61;
-  optional string huawei_cloud_maas_api_key = 62;
-  optional string baseten_api_key = 63;
-  optional string ollama_api_key = 64;
-  optional string zai_api_key = 65;
-  optional string zai_api_line = 66;
-  optional string lm_studio_max_tokens = 67;
-  optional string vercel_ai_gateway_api_key = 68;
-  optional string qwen_code_oauth_path = 69;
+  optional bool sap_ai_core_use_orchestration_mode = 55;
+  optional string moonshot_api_key = 56;
+  optional string moonshot_api_line = 57;
+  optional string aws_authentication = 58;
+  optional string aws_bedrock_api_key = 59;
+  optional string cline_account_id = 60;
+  optional string groq_api_key = 61;
+  optional string hugging_face_api_key = 62;
+  optional string huawei_cloud_maas_api_key = 63;
+  optional string baseten_api_key = 64;
+  optional string ollama_api_key = 65;
+  optional string zai_api_key = 66;
+  optional string zai_api_line = 67;
+  optional string lm_studio_max_tokens = 68;
+  optional string vercel_ai_gateway_api_key = 69;
+  optional string qwen_code_oauth_path = 70;
+  optional string dify_api_key = 71;
+  optional string dify_base_url = 72;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

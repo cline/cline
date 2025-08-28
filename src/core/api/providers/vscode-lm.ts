@@ -3,13 +3,13 @@ import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
-interface VsCodeLmHandlerOptions {
+interface VsCodeLmHandlerOptions extends CommonApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 }
 

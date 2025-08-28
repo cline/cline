@@ -75,7 +75,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 				const message = previousVersion
 					? `Cline has been updated to v${currentVersion}`
 					: `Welcome to Cline v${currentVersion}`
-				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await HostProvider.workspace.openClineSidebarPanel({})
 				await new Promise((resolve) => setTimeout(resolve, 200))
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
