@@ -6,6 +6,7 @@ import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
+import laminarService from "@/services/laminar/LaminarService"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -128,6 +129,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			telemetryService.captureTaskCompleted(config.ulid)
 		}
 
+		laminarService.endSpan("tool")
+		laminarService.endSpan("task.step")
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		if (response === "yesButtonClicked") {

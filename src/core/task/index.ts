@@ -2522,7 +2522,7 @@ export class Task {
 					inputTokens,
 					outputTokens,
 					totalCost: totalCost ?? 0,
-					modelId,
+					modelId: model.id,
 					providerId,
 					cacheWriteTokens,
 					cacheReadTokens,

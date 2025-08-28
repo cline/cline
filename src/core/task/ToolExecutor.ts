@@ -298,15 +298,6 @@ export class ToolExecutor {
 				await this.browserSession.closeBrowser()
 			}
 
-			// Only start tool span when block is not partial
-			if (!block.partial) {
-				laminarService.startSpan("tool", {
-					name: block.name,
-					spanType: "TOOL",
-					input: block,
-				})
-			}
-
 			// Handle partial blocks
 			if (block.partial) {
 				await this.handlePartialBlock(block, config)
@@ -362,7 +353,13 @@ export class ToolExecutor {
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
 		// All tools are now fully self-managed and implement IPartialBlockHandler
+		laminarService.startSpan("tool", {
+			name: block.name,
+			spanType: "TOOL",
+			input: block,
+		})
 		const result = await this.coordinator.execute(config, block)
+		laminarService.endSpan("tool")
 
 		await this.saveCheckpoint()
 		this.pushToolResult(result, block)
