@@ -1181,7 +1181,7 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
-			laminarService.startSpan("agent", { name: `agent.step`, sessionId: this.taskId, input: userContent }, true)
+			laminarService.startSpan("agent.step", { name: `agent.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1215,7 +1215,7 @@ export class Task {
 			this.FocusChainManager.checkIncompleteProgressOnCompletion()
 		}
 
-		laminarService.endSpan("agent")
+		laminarService.endSpan("agent.step")
 
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
@@ -1731,6 +1731,7 @@ export class Task {
 
 		laminarService.startSpan("llm", {
 			name: "llm_call",
+			spanType: "LLM",
 			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
 		})
 		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
@@ -1744,7 +1745,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
-			laminarService.recordException("llm", error)
+			laminarService.recordExceptionOnSpan("llm", error)
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { modelId, providerId } = await this.getCurrentProviderInfo()
 			const clineError = errorService.toClineError(error, modelId, providerId)
@@ -2398,7 +2399,7 @@ export class Task {
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
-				laminarService.recordException("llm", error)
+				laminarService.recordExceptionOnSpan("llm", error)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 					const clineError = errorService.toClineError(error, this.api.getModel().id)
@@ -2410,7 +2411,7 @@ export class Task {
 			} finally {
 				this.taskState.isStreaming = false
 
-				laminarService.addAttributes("llm", {
+				laminarService.addAttributesToSpan("llm", {
 					[LaminarAttributes.INPUT_TOKEN_COUNT]: inputTokens,
 					[LaminarAttributes.OUTPUT_TOKEN_COUNT]: outputTokens,
 					[LaminarAttributes.TOTAL_COST]: totalCost,
@@ -2507,22 +2508,6 @@ export class Task {
 				// }
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
-
-				const apiHistory = this.messageStateHandler.getApiConversationHistory()
-				const latestUserMessage =
-					apiHistory.length > 0 && apiHistory[apiHistory.length - 1]?.role === "user"
-						? typeof apiHistory[apiHistory.length - 1].content === "string"
-							? apiHistory[apiHistory.length - 1].content
-							: apiHistory[apiHistory.length - 1].content[-1]
-						: this.taskState.userMessageContent
-
-				if (!laminarService.getSpan("agent")) {
-					laminarService.startSpan(
-						"agent",
-						{ name: `agent.step`, sessionId: this.taskId, input: latestUserMessage },
-						true,
-					)
-				}
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 

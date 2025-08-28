@@ -276,7 +276,7 @@ export class ToolExecutor {
 		}
 
 		// Record exception in Laminar using the current tool span
-		laminarService.recordException("tool", error)
+		laminarService.recordExceptionOnSpan("tool", error)
 
 		const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 		await this.say("error", `Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
@@ -345,11 +345,12 @@ export class ToolExecutor {
 			await this.browserSession.closeBrowser()
 		}
 
-		// Record complete chunks of tool
+		// Only start TOOL span when block is not partial
 		if (!block.partial) {
 			laminarService.startSpan("tool", {
-				input: [{ role: "tool", content: [{ name: block.name, arguments: block.params, type: "tool_call" }] }],
 				name: block.name,
+				spanType: "TOOL",
+				input: [{ role: "tool", content: [{ name: block.name, arguments: block.params, type: "tool_call" }] }],
 			})
 		}
 
@@ -2355,9 +2356,18 @@ export class ToolExecutor {
 							}
 						}
 
+						// End agent.step span right before Cline is ready to present it's final message for this conversation turn.
 						laminarService.endSpan("tool")
-						laminarService.endSpan("agent")
+						laminarService.endSpan("agent.step")
+
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
+
+						// Start a new agent.step span for the next turn of conversation when user sends next message.
+						laminarService.startSpan("agent.step", {
+							name: "agent.step",
+							input: text,
+						})
+
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 							break
