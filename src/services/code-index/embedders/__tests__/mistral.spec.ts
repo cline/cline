@@ -1,5 +1,5 @@
-import { vitest, describe, it, expect, beforeEach } from "vitest"
 import type { MockedClass } from "vitest"
+
 import { MistralEmbedder } from "../mistral"
 import { OpenAICompatibleEmbedder } from "../openai-compatible"
 

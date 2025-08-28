@@ -1,9 +1,10 @@
 import { render, waitFor } from "@testing-library/react"
-import { vi, describe, it, expect, beforeEach } from "vitest"
-import { MarketplaceView } from "../MarketplaceView"
-import { MarketplaceViewStateManager } from "../MarketplaceViewStateManager"
+
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+
+import { MarketplaceView } from "../MarketplaceView"
+import { MarketplaceViewStateManager } from "../MarketplaceViewStateManager"
 
 vi.mock("@/utils/vscode", () => ({
 	vscode: {

@@ -1,6 +1,6 @@
 import React from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+
 import { CommandPatternSelector } from "../CommandPatternSelector"
 import { TooltipProvider } from "../../../components/ui/tooltip"
 

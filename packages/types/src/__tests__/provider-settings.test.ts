@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest"
 import { getApiProtocol } from "../provider-settings.js"
 
 describe("getApiProtocol", () => {

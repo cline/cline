@@ -1,10 +1,9 @@
 // npx vitest core/mentions/__tests__/index.spec.ts
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
 import * as vscode from "vscode"
+
 import { parseMentions } from "../index"
 import { UrlContentFetcher } from "../../../services/browser/UrlContentFetcher"
-import { t } from "../../../i18n"
 
 // Mock vscode
 vi.mock("vscode", () => ({

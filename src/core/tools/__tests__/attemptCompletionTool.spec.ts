@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
 import { TodoItem } from "@roo-code/types"
+
 import { AttemptCompletionToolUse } from "../../../shared/tools"
 
 // Mock the formatResponse module before importing the tool

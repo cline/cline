@@ -1,6 +1,5 @@
-import React from "react"
-import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
+
 import { FormattedTextField, unlimitedIntegerFormatter, unlimitedDecimalFormatter } from "../FormattedTextField"
 
 // Mock VSCodeTextField to render as regular HTML input for testing

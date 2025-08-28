@@ -1,6 +1,5 @@
 import axios from "axios"
-import path from "path"
-import { vi, describe, it, expect, beforeEach } from "vitest"
+
 import { getOllamaModels, parseOllamaModel } from "../ollama"
 import ollamaModelsData from "./fixtures/ollama-model-details.json"
 

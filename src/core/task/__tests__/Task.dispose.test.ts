@@ -1,7 +1,7 @@
+import { ProviderSettings } from "@roo-code/types"
+
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
-import { ProviderSettings } from "@roo-code/types"
-import { vi, describe, test, expect, beforeEach, afterEach } from "vitest"
 
 // Mock dependencies
 vi.mock("../../webview/ClineProvider")

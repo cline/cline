@@ -1,9 +1,8 @@
 import { useCallback } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { type ProviderSettings, vercelAiGatewayDefaultModelId } from "@roo-code/types"
+import { type ProviderSettings, type OrganizationAllowList, vercelAiGatewayDefaultModelId } from "@roo-code/types"
 
-import type { OrganizationAllowList } from "@roo/cloud"
 import type { RouterModels } from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"

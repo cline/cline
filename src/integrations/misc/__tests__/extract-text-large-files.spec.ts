@@ -1,7 +1,7 @@
 // npx vitest run integrations/misc/__tests__/extract-text-large-files.spec.ts
 
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest"
 import * as fs from "fs/promises"
+
 import { extractTextFromFile } from "../extract-text"
 import { countFileLines } from "../line-counter"
 import { readLines } from "../read-lines"

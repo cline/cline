@@ -1,5 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
-
 // Mock dependencies
 vi.mock("vscode", () => ({
 	workspace: {

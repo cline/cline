@@ -67,10 +67,7 @@ vi.mock("../../common/VersionIndicator", () => ({
 }))
 
 // Get the mock function after the module is mocked
-const mockVersionIndicator = vi.mocked(
-	// @ts-expect-error - accessing mocked module
-	(await import("../../common/VersionIndicator")).default,
-)
+const mockVersionIndicator = vi.mocked((await import("../../common/VersionIndicator")).default)
 
 vi.mock("../Announcement", () => ({
 	default: function MockAnnouncement({ hideAnnouncement }: { hideAnnouncement: () => void }) {

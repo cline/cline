@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react"
-import { vi } from "vitest"
+
 import { useEscapeKey } from "./useEscapeKey"
 
 describe("useEscapeKey", () => {

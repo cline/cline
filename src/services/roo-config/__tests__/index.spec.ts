@@ -1,5 +1,4 @@
 import * as path from "path"
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 
 // Use vi.hoisted to ensure mocks are available during hoisting
 const { mockStat, mockReadFile, mockHomedir } = vi.hoisted(() => ({

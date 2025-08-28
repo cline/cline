@@ -1,5 +1,5 @@
-import { vitest, describe, it, expect, beforeEach, afterEach } from "vitest"
 import type { MockedFunction } from "vitest"
+
 import { CodeIndexOllamaEmbedder } from "../ollama"
 
 // Mock fetch

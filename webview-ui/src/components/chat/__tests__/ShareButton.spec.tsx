@@ -1,8 +1,9 @@
-import { describe, test, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
-import { ShareButton } from "../ShareButton"
 import { useTranslation } from "react-i18next"
+
+import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
 import { vscode } from "@/utils/vscode"
+
+import { ShareButton } from "../ShareButton"
 
 // Mock the vscode utility
 vi.mock("@/utils/vscode", () => ({

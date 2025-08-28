@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { Anthropic } from "@anthropic-ai/sdk"
+
 import { IOIntelligenceHandler } from "../io-intelligence"
 import type { ApiHandlerOptions } from "../../../shared/api"
-import { Anthropic } from "@anthropic-ai/sdk"
 
 const mockCreate = vi.fn()
 

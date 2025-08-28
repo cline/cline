@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest"
 import { TaskCommandName, taskCommandSchema } from "../ipc.js"
 
 describe("IPC Types", () => {

@@ -1,9 +1,10 @@
-import { render, screen, fireEvent } from "@/utils/test-utils"
-import { vi, describe, it, expect, beforeEach } from "vitest"
-import { TaskActions } from "../TaskActions"
 import type { HistoryItem } from "@roo-code/types"
+
+import { render, screen, fireEvent } from "@/utils/test-utils"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+
+import { TaskActions } from "../TaskActions"
 
 // Mock scrollIntoView for JSDOM
 Object.defineProperty(Element.prototype, "scrollIntoView", {

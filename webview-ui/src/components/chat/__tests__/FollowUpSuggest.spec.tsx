@@ -1,9 +1,8 @@
 import React, { createContext, useContext } from "react"
 import { render, screen, act } from "@testing-library/react"
-
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { FollowUpSuggest } from "../FollowUpSuggest"
 import { TooltipProvider } from "@radix-ui/react-tooltip"
+
+import { FollowUpSuggest } from "../FollowUpSuggest"
 
 // Mock the translation hook
 vi.mock("@src/i18n/TranslationContext", () => ({

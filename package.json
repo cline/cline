@@ -24,9 +24,7 @@
 		"knip": "knip --include files",
 		"update-contributors": "node scripts/update-contributors.js",
 		"evals": "dotenvx run -f packages/evals/.env.development packages/evals/.env.local -- docker compose -f packages/evals/docker-compose.yml --profile server --profile runner up --build --scale runner=0",
-		"npm:publish:types": "pnpm --filter @roo-code/types npm:publish",
-		"link-workspace-packages": "tsx scripts/link-packages.ts",
-		"unlink-workspace-packages": "tsx scripts/link-packages.ts --unlink"
+		"npm:publish:types": "pnpm --filter @roo-code/types npm:publish"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.10",
@@ -47,7 +45,7 @@
 		"prettier": "^3.4.2",
 		"rimraf": "^6.0.1",
 		"tsx": "^4.19.3",
-		"turbo": "^2.5.3",
+		"turbo": "^2.5.6",
 		"typescript": "^5.4.5"
 	},
 	"lint-staged": {

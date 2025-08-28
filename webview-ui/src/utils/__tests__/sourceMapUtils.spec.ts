@@ -1,4 +1,3 @@
-import { vi, describe, test, expect, beforeEach } from "vitest"
 import { parseStackTrace, applySourceMapsToStack, enhanceErrorWithSourceMaps } from "../sourceMapUtils"
 
 // Mock console.debug to avoid cluttering test output

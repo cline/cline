@@ -1,5 +1,5 @@
 import { render, screen } from "@/utils/test-utils"
-import { describe, it, expect, vi } from "vitest"
+
 import { AccountView } from "../AccountView"
 
 // Mock the translation context

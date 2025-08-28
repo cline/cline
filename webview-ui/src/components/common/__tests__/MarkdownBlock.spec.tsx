@@ -1,7 +1,6 @@
-import React from "react"
 import { render, screen } from "@/utils/test-utils"
+
 import MarkdownBlock from "../MarkdownBlock"
-import { vi } from "vitest"
 
 vi.mock("@src/utils/vscode", () => ({
 	vscode: {

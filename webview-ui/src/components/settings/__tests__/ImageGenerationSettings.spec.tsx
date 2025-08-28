@@ -1,7 +1,8 @@
 import { render, fireEvent } from "@testing-library/react"
-import { vi } from "vitest"
-import { ImageGenerationSettings } from "../ImageGenerationSettings"
+
 import type { ProviderSettings } from "@roo-code/types"
+
+import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
 // Mock the translation context
 vi.mock("@/i18n/TranslationContext", () => ({

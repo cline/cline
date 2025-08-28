@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest"
-import { getPromptComponent } from "../system"
 import type { CustomModePrompts } from "@roo-code/types"
+
+import { getPromptComponent } from "../system"
 
 describe("getPromptComponent", () => {
 	it("should return undefined for empty objects", () => {

@@ -1,8 +1,7 @@
-import React from "react"
 import { render, screen, fireEvent, waitFor } from "@/utils/test-utils"
-import { describe, test, expect, vi, beforeEach } from "vitest"
-import { ApiConfigSelector } from "../ApiConfigSelector"
 import { vscode } from "@/utils/vscode"
+
+import { ApiConfigSelector } from "../ApiConfigSelector"
 
 // Mock the dependencies
 vi.mock("@/utils/vscode", () => ({

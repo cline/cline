@@ -1,6 +1,6 @@
-import { describe, test, expect } from "vitest"
-import { filterMessagesForClaudeCode } from "../message-filter"
 import type { Anthropic } from "@anthropic-ai/sdk"
+
+import { filterMessagesForClaudeCode } from "../message-filter"
 
 describe("filterMessagesForClaudeCode", () => {
 	test("should pass through string messages unchanged", () => {

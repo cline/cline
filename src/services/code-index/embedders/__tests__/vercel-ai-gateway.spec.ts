@@ -1,6 +1,5 @@
 // npx vitest run src/services/code-index/embedders/__tests__/vercel-ai-gateway.spec.ts
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
 import { VercelAiGatewayEmbedder } from "../vercel-ai-gateway"
 import { OpenAICompatibleEmbedder } from "../openai-compatible"
 

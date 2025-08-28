@@ -1,7 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import * as vscode from "vscode"
-import * as path from "path"
-import * as os from "os"
+
 import { openFile } from "../open-file"
 
 // Mock vscode module

@@ -1,6 +1,6 @@
 import React from "react"
 import { render, screen } from "@testing-library/react"
-import { vi } from "vitest"
+
 import ErrorBoundary from "../ErrorBoundary"
 
 // Mock telemetryClient

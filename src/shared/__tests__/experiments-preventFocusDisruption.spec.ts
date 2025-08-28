@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest"
 import { EXPERIMENT_IDS, experimentConfigsMap, experimentDefault, experiments } from "../experiments"
 
 describe("PREVENT_FOCUS_DISRUPTION experiment", () => {

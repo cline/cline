@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest"
-import { getCommands, getCommand, getCommandNames } from "../services/command/commands"
 import * as path from "path"
+
+import { getCommands, getCommand, getCommandNames } from "../services/command/commands"
 
 describe("Command Integration Tests", () => {
 	const testWorkspaceDir = path.join(__dirname, "../../")

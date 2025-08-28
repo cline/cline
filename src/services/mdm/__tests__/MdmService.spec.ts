@@ -1,5 +1,4 @@
 import * as path from "path"
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 
 // Mock dependencies
 vi.mock("fs", () => ({

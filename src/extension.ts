@@ -12,7 +12,8 @@ try {
 	console.warn("Failed to load environment variables:", e)
 }
 
-import { CloudService, ExtensionBridgeService, type CloudUserInfo } from "@roo-code/cloud"
+import type { CloudUserInfo } from "@roo-code/types"
+import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
 import { TelemetryService, PostHogTelemetryClient } from "@roo-code/telemetry"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.

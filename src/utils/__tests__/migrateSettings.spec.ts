@@ -1,7 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import * as vscode from "vscode"
-import * as fs from "fs/promises"
-import * as path from "path"
+
 import { migrateSettings } from "../migrateSettings"
 
 // Mock vscode module

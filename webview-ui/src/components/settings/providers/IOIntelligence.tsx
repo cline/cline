@@ -1,9 +1,12 @@
 import { useCallback } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { type ProviderSettings, ioIntelligenceDefaultModelId, ioIntelligenceModels } from "@roo-code/types"
-
-import type { OrganizationAllowList } from "@roo/cloud"
+import {
+	type ProviderSettings,
+	type OrganizationAllowList,
+	ioIntelligenceDefaultModelId,
+	ioIntelligenceModels,
+} from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"

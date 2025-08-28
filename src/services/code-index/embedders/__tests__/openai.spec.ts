@@ -1,8 +1,8 @@
-import { vitest, describe, it, expect, beforeEach, afterEach } from "vitest"
 import type { MockedClass, MockedFunction } from "vitest"
 import { OpenAI } from "openai"
+
 import { OpenAiEmbedder } from "../openai"
-import { MAX_BATCH_TOKENS, MAX_ITEM_TOKENS, MAX_BATCH_RETRIES, INITIAL_RETRY_DELAY_MS } from "../../constants"
+import { MAX_ITEM_TOKENS, INITIAL_RETRY_DELAY_MS } from "../../constants"
 
 // Mock the OpenAI SDK
 vitest.mock("openai")

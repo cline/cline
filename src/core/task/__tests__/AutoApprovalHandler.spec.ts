@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
-import { AutoApprovalHandler } from "../AutoApprovalHandler"
 import { GlobalState, ClineMessage } from "@roo-code/types"
+
+import { AutoApprovalHandler } from "../AutoApprovalHandler"
 
 // Mock getApiMetrics
 vi.mock("../../../shared/getApiMetrics", () => ({

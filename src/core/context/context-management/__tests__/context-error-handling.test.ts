@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest"
 import { APIError } from "openai"
+
 import { checkContextWindowExceededError } from "../context-error-handling"
 
 describe("checkContextWindowExceededError", () => {

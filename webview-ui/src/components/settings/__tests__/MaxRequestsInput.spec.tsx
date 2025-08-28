@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react"
-import { vi } from "vitest"
+
 import { MaxRequestsInput } from "../MaxRequestsInput"
 
 vi.mock("@/utils/vscode", () => ({

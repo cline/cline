@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach, MockedClass, MockedFunction } from "vitest"
+import type { MockedClass, MockedFunction } from "vitest"
 import { OpenAI } from "openai"
+
 import { OpenAICompatibleEmbedder } from "../openai-compatible"
 
 // Mock the OpenAI SDK

@@ -1,9 +1,12 @@
-import type { McpHub as McpHubType, McpConnection, ConnectedMcpConnection, DisconnectedMcpConnection } from "../McpHub"
-import type { ClineProvider } from "../../../core/webview/ClineProvider"
-import type { ExtensionContext, Uri } from "vscode"
-import { ServerConfigSchema, McpHub, DisableReason } from "../McpHub"
 import fs from "fs/promises"
-import { vi, Mock } from "vitest"
+
+import type { Mock } from "vitest"
+import type { ExtensionContext, Uri } from "vscode"
+
+import type { ClineProvider } from "../../../core/webview/ClineProvider"
+
+import type { McpHub as McpHubType, McpConnection, ConnectedMcpConnection, DisconnectedMcpConnection } from "../McpHub"
+import { ServerConfigSchema, McpHub } from "../McpHub"
 
 // Mock fs/promises before importing anything that uses it
 vi.mock("fs/promises", () => ({

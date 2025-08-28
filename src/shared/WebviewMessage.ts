@@ -6,9 +6,9 @@ import {
 	type ModeConfig,
 	type InstallMarketplaceItemOptions,
 	type MarketplaceItem,
+	type ShareVisibility,
 	marketplaceItemSchema,
 } from "@roo-code/types"
-import type { ShareVisibility } from "@roo-code/cloud"
 
 import { Mode } from "./modes"
 

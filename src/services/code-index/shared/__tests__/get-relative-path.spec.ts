@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest"
 import path from "path"
+
 import { generateNormalizedAbsolutePath, generateRelativeFilePath } from "../get-relative-path"
 
 describe("get-relative-path", () => {

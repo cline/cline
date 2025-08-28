@@ -1,6 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
 import { CodeParser } from "../parser"
-import * as path from "path"
 
 // Mock TelemetryService
 vi.mock("../../../../../packages/telemetry/src/TelemetryService", () => ({

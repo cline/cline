@@ -1,4 +1,3 @@
-import { describe, test, expect, vi, beforeEach } from "vitest"
 import { ClaudeCodeHandler } from "../claude-code"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { ClaudeCodeMessage } from "../../../integrations/claude-code/types"

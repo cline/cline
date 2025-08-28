@@ -1,0 +1,29 @@
+{
+	"name": "@roo-code/cloud",
+	"description": "Roo Code Cloud services.",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": "./src/index.ts",
+	"scripts": {
+		"lint": "eslint src --ext=ts --max-warnings=0",
+		"check-types": "tsc --noEmit",
+		"test": "vitest run",
+		"clean": "rimraf .turbo"
+	},
+	"dependencies": {
+		"@roo-code/types": "workspace:^",
+		"ioredis": "^5.6.1",
+		"jwt-decode": "^4.0.0",
+		"p-wait-for": "^5.0.2",
+		"socket.io-client": "^4.8.1",
+		"zod": "^3.25.76"
+	},
+	"devDependencies": {
+		"@roo-code/config-eslint": "workspace:^",
+		"@roo-code/config-typescript": "workspace:^",
+		"@types/node": "^24.1.0",
+		"@types/vscode": "^1.102.0",
+		"globals": "^16.3.0",
+		"vitest": "^3.2.4"
+	}
+}

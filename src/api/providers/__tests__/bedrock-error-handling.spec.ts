@@ -1,5 +1,3 @@
-import { vi } from "vitest"
-
 // Mock BedrockRuntimeClient and commands
 const mockSend = vi.fn()
 

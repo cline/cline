@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest"
 import { getFetchInstructionsDescription } from "../fetch-instructions"
 
 describe("getFetchInstructionsDescription", () => {

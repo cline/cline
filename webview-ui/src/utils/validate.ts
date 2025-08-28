@@ -1,8 +1,7 @@
 import i18next from "i18next"
 
-import type { ProviderSettings } from "@roo-code/types"
+import type { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
 
-import type { OrganizationAllowList } from "@roo/cloud"
 import { isRouterName, RouterModels } from "@roo/api"
 
 export function validateApiConfiguration(

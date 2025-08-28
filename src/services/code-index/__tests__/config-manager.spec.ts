@@ -1,8 +1,6 @@
 // npx vitest services/code-index/__tests__/config-manager.spec.ts
 
-import { describe, it, expect, beforeEach, vi } from "vitest"
 import { CodeIndexConfigManager } from "../config-manager"
-import { ContextProxy } from "../../../core/config/ContextProxy"
 import { PreviousConfigSnapshot } from "../interfaces/config"
 
 // Mock ContextProxy

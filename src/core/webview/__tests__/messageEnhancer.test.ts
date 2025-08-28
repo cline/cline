@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { MessageEnhancer } from "../messageEnhancer"
 import { ProviderSettings, ClineMessage } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
+
+import { MessageEnhancer } from "../messageEnhancer"
 import * as singleCompletionHandlerModule from "../../../utils/single-completion-handler"
 import { ProviderSettingsManager } from "../../config/ProviderSettingsManager"
 

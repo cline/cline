@@ -1,11 +1,15 @@
 import axios from "axios"
 import * as yaml from "yaml"
 import { z } from "zod"
-import { getRooCodeApiUrl } from "@roo-code/cloud"
-import type { MarketplaceItem, MarketplaceItemType } from "@roo-code/types"
-import { modeMarketplaceItemSchema, mcpMarketplaceItemSchema } from "@roo-code/types"
 
-// Response schemas for YAML API responses
+import {
+	type MarketplaceItem,
+	type MarketplaceItemType,
+	modeMarketplaceItemSchema,
+	mcpMarketplaceItemSchema,
+} from "@roo-code/types"
+import { getRooCodeApiUrl } from "@roo-code/cloud"
+
 const modeMarketplaceResponse = z.object({
 	items: z.array(modeMarketplaceItemSchema),
 })
@@ -38,11 +42,13 @@ export class RemoteConfigLoader {
 	private async fetchModes(): Promise<MarketplaceItem[]> {
 		const cacheKey = "modes"
 		const cached = this.getFromCache(cacheKey)
-		if (cached) return cached
+
+		if (cached) {
+			return cached
+		}
 
 		const data = await this.fetchWithRetry<string>(`${this.apiBaseUrl}/api/marketplace/modes`)
 
-		// Parse and validate YAML response
 		const yamlData = yaml.parse(data)
 		const validated = modeMarketplaceResponse.parse(yamlData)
 
@@ -58,11 +64,13 @@ export class RemoteConfigLoader {
 	private async fetchMcps(): Promise<MarketplaceItem[]> {
 		const cacheKey = "mcps"
 		const cached = this.getFromCache(cacheKey)
-		if (cached) return cached
+
+		if (cached) {
+			return cached
+		}
 
 		const data = await this.fetchWithRetry<string>(`${this.apiBaseUrl}/api/marketplace/mcps`)
 
-		// Parse and validate YAML response
 		const yamlData = yaml.parse(data)
 		const validated = mcpMarketplaceResponse.parse(yamlData)
 

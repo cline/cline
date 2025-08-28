@@ -1,4 +1,4 @@
-import type { CloudUserInfo } from "@roo-code/cloud"
+import type { CloudUserInfo } from "@roo-code/types"
 
 /**
  * Determines if remote control features should be enabled
