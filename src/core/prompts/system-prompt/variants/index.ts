@@ -19,9 +19,7 @@ import { config as xsConfig } from "./xs/config"
 /**
  * Variant Registry for dynamic loading
  *
- * This registry allows for lazy loading of variant configurations,
- * which is useful for reducing initial bundle size and enabling
- * runtime variant selection.
+ * This registry allows for loading variant configurations.
  */
 export const VARIANT_CONFIGS = {
 	/**
@@ -34,7 +32,7 @@ export const VARIANT_CONFIGS = {
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
 	 */
-	"next-gen": nextGenConfig,
+	"next-gen": () => nextGenConfig,
 	gpt5: () => gpt5Config,
 
 	/**
