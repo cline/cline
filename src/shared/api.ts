@@ -2640,6 +2640,15 @@ export const xaiModels = {
 		outputPrice: 15.0,
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
 	},
+	"grok-code-fast-1": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok Code Fast 1 model - optimized for coding tasks with 131K context window",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // SambaNova

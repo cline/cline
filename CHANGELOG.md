@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Add support for xAI's new `grok-code-fast-1` model optimized for coding tasks
+
 ## [3.26.6]
 
 - Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option
