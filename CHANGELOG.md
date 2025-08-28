@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.26.2] - 2025-08-28
+
+- feat: Add experimental image generation tool with OpenRouter integration (thanks @daniel-lxs!)
+- Fix: Resolve GPT-5 Responses API issues with condensing and image support (#7334 by @nlbuescher, PR by @daniel-lxs)
+- Fix: Hide .rooignore'd files from environment details by default (#7368 by @AlexBlack772, PR by @app/roomote)
+- Fix: Exclude browser scroll actions from repetition detection (#7470 by @cgrierson-smartsheet, PR by @app/roomote)
+
 ## [3.26.1] - 2025-08-27
 
 - Add Vercel AI Gateway provider integration (thanks @joshualipman123!)
