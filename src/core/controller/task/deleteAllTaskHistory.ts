@@ -138,7 +138,11 @@ async function cleanupTaskFiles(controller: Controller, preserveTaskIds: string[
 			// Delete only non-preserved task directories
 			for (const dir of taskDirs) {
 				if (!preserveTaskIds.includes(dir)) {
-					await fs.rm(path.join(taskDirPath, dir), { recursive: true, force: true })
+					// Task dir path is not workspace specific
+					await fs.rm(path.join(taskDirPath, dir), {
+						recursive: true,
+						force: true,
+					})
 				}
 			}
 		}

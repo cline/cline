@@ -1,8 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
+import { telemetryService } from "@/services/telemetry"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
-import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -31,7 +31,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
+		const absolutePath = resolveWorkspacePath(config.cwd, relPath, "ListCodeDefinitionNamesToolHandler.handlePartialBlock")
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
@@ -67,7 +67,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -89,7 +89,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to analyze code definitions in ${path.basename(absolutePath)}`
+			const notificationMessage = `Cline wants to analyze code definitions in ${getWorkspaceBasename(absolutePath, "ListCodeDefinitionNamesToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(

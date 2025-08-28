@@ -1,8 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
+import { resolveWorkspacePath } from "@core/workspace"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -81,7 +81,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "SearchFilesToolHandler")
 
 		// Handle approval flow
 		const searchDescription = `'${regex}'${filePattern ? ` in '${filePattern}'` : ""}`
