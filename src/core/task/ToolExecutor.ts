@@ -345,7 +345,7 @@ export class ToolExecutor {
 			await this.browserSession.closeBrowser()
 		}
 
-		// Only start TOOL span when block is not partial
+		// Only start tool span when block is not partial
 		if (!block.partial) {
 			laminarService.startSpan("tool", {
 				name: block.name,
@@ -2361,7 +2361,6 @@ export class ToolExecutor {
 						laminarService.endSpan("task.step")
 
 						const { response, text, images, files: completionFiles } = await this.ask("completion_result", "", false)
-
 						if (response === "yesButtonClicked") {
 							this.pushToolResult("", block) // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 							break
