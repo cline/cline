@@ -96,6 +96,7 @@ export interface SystemPromptContext {
 	readonly focusChainSettings?: FocusChainSettings
 	readonly globalClineRulesFileInstructions?: string
 	readonly localClineRulesFileInstructions?: string
+	readonly localAgentsRulesFileInstructions?: string
 	readonly localCursorRulesFileInstructions?: string
 	readonly localCursorRulesDirInstructions?: string
 	readonly localWindsurfRulesFileInstructions?: string

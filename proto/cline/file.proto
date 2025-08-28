@@ -40,6 +40,9 @@ service FileService {
   // Toggle a Cline rule (enable or disable)
   rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
 
+  // Toggle an Agents rule (enable or disable)
+  rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
+
   // Toggle a Cursor rule (enable or disable)
   rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
   
@@ -73,6 +76,7 @@ message RefreshedRules {
   ClineRulesToggles local_windsurf_rules_toggles = 4;
   ClineRulesToggles local_workflow_toggles = 5;
   ClineRulesToggles global_workflow_toggles = 6;
+  ClineRulesToggles local_agents_rules_toggles = 7;
 }
 
 // Request to toggle a Windsurf rule
@@ -168,6 +172,13 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+}
+
+// Request to toggle an Agents rule
+message ToggleAgentsRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;   // Path to the rule file
+  bool enabled = 3;       // Whether to enable or disable the rule
 }
 
 // Request to toggle a Cursor rule

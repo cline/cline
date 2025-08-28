@@ -188,6 +188,7 @@ export interface Secrets {
 
 export interface LocalState {
 	localClineRulesToggles: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles

@@ -260,6 +260,10 @@ export async function deleteRuleFile(
 				const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setWorkspaceState("workflowToggles", toggles)
+			} else if (type === "agents") {
+				const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
+				delete toggles[rulePath]
+				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else if (type === "cursor") {
 				const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
