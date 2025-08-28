@@ -65,7 +65,7 @@ export function isValidVariantId(id: string): id is VariantId {
 /**
  * Load a variant configuration dynamically
  * @param variantId - The ID of the variant to load
- * @returns Promise that resolves to the variant configuration
+ * @returns Variant configuration
  */
 export function loadVariantConfig(variantId: VariantId) {
 	return VARIANT_CONFIGS[variantId]
@@ -73,8 +73,8 @@ export function loadVariantConfig(variantId: VariantId) {
 
 /**
  * Load all variant configurations
- * @returns Promise that resolves to a map of all variant configurations
+ * @returns A map of all variant configurations
  */
-export async function loadAllVariantConfigs() {
+export function loadAllVariantConfigs() {
 	return Object.fromEntries(Object.entries(VARIANT_CONFIGS).map(([id, config]) => [id, config()]))
 }

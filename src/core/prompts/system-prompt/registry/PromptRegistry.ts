@@ -3,6 +3,7 @@ import { getModelFamily } from ".."
 import { getSystemPromptComponents } from "../components"
 import { registerClineToolSets } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
+import { loadAllVariantConfigs } from "../variants"
 import { config as genericConfig } from "../variants/generic/config"
 import { PromptBuilder } from "./PromptBuilder"
 
@@ -233,45 +234,33 @@ export class PromptRegistry {
 	/**
 	 * Load all variants from the variants directory
 	 */
-	private async loadVariants(): Promise<void> {
+	private loadVariants(): void {
 		try {
-			const { VARIANT_CONFIGS } = await import("../variants")
-
-			// Load each variant configuration
-			const loadPromises = Object.entries(VARIANT_CONFIGS).map(async ([variantId, configLoader]) => {
-				try {
-					const config = typeof configLoader === "function" ? configLoader() : configLoader
-					this.loadVariantFromConfig(variantId, config)
-				} catch (error) {
-					console.warn(`Warning: Could not load variant '${variantId}':`, error)
-				}
-			})
-
-			await Promise.all(loadPromises)
+			loadAllVariantConfigs()
 
 			// Ensure generic variant is always available as a safety fallback
-			await this.ensureGenericFallback()
+			this.ensureGenericFallback()
 		} catch (error) {
 			console.warn("Warning: Could not load variants:", error)
 			// Even if variant loading fails completely, create a minimal generic fallback
-			await this.createMinimalGenericFallback()
+			this.createMinimalGenericFallback()
 		}
 	}
 
 	/**
 	 * Ensure generic variant is available, create minimal one if missing
 	 */
-	private async ensureGenericFallback(): Promise<void> {
+	private ensureGenericFallback(): void {
 		if (!this.variants.has(ModelFamily.GENERIC)) {
 			console.warn("Generic variant not found, creating minimal fallback")
-			await this.createMinimalGenericFallback()
+			this.createMinimalGenericFallback()
 		}
 	}
 
 	/**
 	 * Create a minimal generic variant as absolute fallback
 	 */
-	private async createMinimalGenericFallback(): Promise<void> {
+	private createMinimalGenericFallback(): void {
 		this.loadVariantFromConfig(ModelFamily.GENERIC, genericConfig)
 	}
 
