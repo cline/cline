@@ -94,7 +94,7 @@ export const ImageGenerationSettings = ({
 							onChange={(e: any) => setSelectedModel(e.target.value)}
 							className="w-full">
 							{IMAGE_GENERATION_MODELS.map((model) => (
-								<VSCodeOption key={model.value} value={model.value}>
+								<VSCodeOption key={model.value} value={model.value} className="py-2 px-3">
 									{model.label}
 								</VSCodeOption>
 							))}
