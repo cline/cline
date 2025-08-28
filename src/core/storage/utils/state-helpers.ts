@@ -166,6 +166,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	const anthropicBaseUrl = context.globalState.get("anthropicBaseUrl") as string | undefined
 	const geminiBaseUrl = context.globalState.get("geminiBaseUrl") as string | undefined
 	const azureApiVersion = context.globalState.get("azureApiVersion") as string | undefined
+	const azureIdentity = context.globalState.get("azureIdentity") as boolean | undefined
 	const openRouterProviderSorting = context.globalState.get("openRouterProviderSorting") as string | undefined
 	const lastShownAnnouncementId = context.globalState.get("lastShownAnnouncementId") as string | undefined
 	const taskHistory = context.globalState.get("taskHistory") as HistoryItem[] | undefined
@@ -333,6 +334,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		moonshotApiLine,
 		zaiApiLine,
 		azureApiVersion,
+		azureIdentity,
 		openRouterProviderSorting,
 		liteLlmBaseUrl,
 		liteLlmUsePromptCache,
