@@ -237,7 +237,6 @@ function getDatabaseFilePatterns(): string[] {
 		"*.parquet",
 		"*.pdb",
 		"*.rdb",
-		"*.sql",
 		"*.sqlite",
 	]
 }
