@@ -478,6 +478,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
 												<VSCodeButton
 													appearance="icon"
+													aria-label="Delete"
 													className="delete-button"
 													onClick={(e) => {
 														e.stopPropagation()
@@ -498,6 +499,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											)}
 											<VSCodeButton
 												appearance="icon"
+												aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
 												onClick={(e) => {
 													e.stopPropagation()
 													toggleFavorite(item.id, item.isFavorited || false)
@@ -713,6 +715,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}}>
 					{selectedItems.length > 0 ? (
 						<DangerButton
+							aria-label="Delete selected items"
 							onClick={() => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}
@@ -722,6 +725,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</DangerButton>
 					) : (
 						<DangerButton
+							aria-label="Delete all history"
 							disabled={deleteAllDisabled || taskHistory.length === 0}
 							onClick={() => {
 								setDeleteAllDisabled(true)
@@ -742,6 +746,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 const ExportButton = ({ itemId }: { itemId: string }) => (
 	<VSCodeButton
 		appearance="icon"
+		aria-label="Export"
 		className="export-button"
 		onClick={(e) => {
 			e.stopPropagation()
