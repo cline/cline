@@ -1,7 +1,8 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { ensureRulesDirectoryExists } from "./disk"
+import { HistoryItem } from "@/shared/HistoryItem"
+import { ensureRulesDirectoryExists, taskHistoryStateFileExists, writeTaskHistoryToState } from "./disk"
 import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
@@ -63,6 +64,21 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 			console.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
 		}
+	}
+}
+
+export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
+	try {
+		// If the new file already exists, do nothing
+		if (await taskHistoryStateFileExists(context)) {
+			return
+		}
+		// Read legacy from VS Code globalState, default to []
+		const taskHistory = ((await context.globalState.get("taskHistory")) as HistoryItem[]) || []
+		// Always create the file, even when empty
+		await writeTaskHistoryToState(context, Array.isArray(taskHistory) ? taskHistory : [])
+	} catch (error) {
+		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
 }
 
