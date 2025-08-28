@@ -56,7 +56,7 @@ class LaminarService {
 	}
 
 	// Start a span and keep track of it in the spans map
-	// We expose this convienience method and track spans in the spans map so that manual spans can be freely started and ended in different parts of the codebase
+	// We expose this convenience method and track spans in the spans map so that manual spans can be freely started and ended in different parts of the codebase
 	// without passing around the span object.
 	//
 	// Use this method when you want to manually start and end spans. To instrument a full function prefer to use observeDecorator.
