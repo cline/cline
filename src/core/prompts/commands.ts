@@ -26,7 +26,7 @@ Below is the the user's input when they indicated that they wanted to create a n
 </explicit_instructions>\n
 `
 
-export const condenseToolResponse = () =>
+export const condenseToolResponse = (focusChainSettings?: { enabled: boolean }) =>
 	`<explicit_instructions type="condense">
 The user has explicitly asked you to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. The user may have provided instructions or additional information for you to consider when summarizing the conversation.
 Irrespective of whether additional information or instructions are given, you are only allowed to respond to this message by calling the condense tool.
@@ -46,10 +46,20 @@ Parameters:
   4. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
   5. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
   6. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
+${
+	focusChainSettings?.enabled
+		? `- task_progress: (required) The current state of the task_progress list, with completed items marked. Important information on this parameter is as follows:
+  1. XML schema matches that of prior task_progress lists.
+  2. All items are retained, with the exact same desciptive content as in prior occurences.
+  3. All completed items are marked as completed.
+  4. The only compenent of this list that can be changed is the completion state of invidiual items in the list`
+		: ""
+}
 
 Usage:
 <condense>
 <context>Your detailed summary</context>
+${focusChainSettings?.enabled ? `<task_progress>task_progress list here</task_progress>` : ""}
 </condense>
 
 Example:
@@ -83,6 +93,16 @@ Example:
   - [Task 2 details & next steps]
   - [...]
 </context>
+${
+	focusChainSettings?.enabled
+		? `<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>`
+		: ""
+}
 </condense>
 
 </explicit_instructions>\n
@@ -177,8 +197,11 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 </explicit_instructions>\n
 `
 
-export const deepPlanningToolResponse = () =>
-	`<explicit_instructions type="deep-planning">
+export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
+	const detectedShell = require("@utils/shell").getShell()
+	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
+
+	return `<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
 
 Your behavior should be methodical and thorough - take time to understand the codebase completely before making any recommendations. The quality of your investigation directly impacts the success of the implementation.
@@ -197,21 +220,41 @@ You must use the read_file tool to examine relevant source files, configuration 
 ### Essential Terminal Commands
 Execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. These are only examples, the exact commands will differ depending on the codebase.
 
-
+${
+	isPowerShell
+		? `
 # Discover project structure and file types
-find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" | head -30 | cat
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-Object -First 30 | Select-Object FullName
 
 # Find all class and function definitions
-grep -r "class\|function\|def\|interface\|struct" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | cat
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "class|function|def|interface|struct"
+
+# Analyze import patterns and dependencies
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "import|from|require|#include" | Sort-Object | Get-Unique
+
+# Find dependency manifests
+Get-ChildItem -Recurse -Include "requirements*.txt","package.json","Cargo.toml","pom.xml","Gemfile","go.mod" | Get-Content
+
+# Identify technical debt and TODOs
+Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "TODO|FIXME|XXX|HACK|NOTE"
+`
+		: `
+# Discover project structure and file types
+find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" -o -name "*.go" | head -30 | cat
+
+# Find all class and function definitions
+grep -r "class\|function\|def\|interface\|struct\|func\|type.*struct\|type.*interface" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 
 # Analyze import patterns and dependencies
 grep -r "import\|from\|require\|#include" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | sort | uniq | cat
 
 # Find dependency manifests
-find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" | xargs cat
+find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" -o -name "go.mod" | xargs cat
 
 # Identify technical debt and TODOs
-grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | cat
+grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+`
+}
 
 
 ## STEP 2: Discussion and Questions
@@ -299,7 +342,34 @@ Your new task should be self-contained and reference the plan document rather th
 **Plan Document Navigation Commands:**
 The implementation agent should use these commands to read specific sections of the implementation plan. You should adapt these examples to conform to the structure of the .md file you createdm, and explicitly provide them when creating the new task:
 
+${
+	isPowerShell
+		? `
+# Read Overview section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Overview\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $content[($start-1)..($end-2)]
 
+# Read Types section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Files section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Functions section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Classes section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Dependencies section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Testing section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($end-2)]
+
+# Read Implementation Order section
+$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($content.Length-1)]
+`
+		: `
 # Read Overview section
 sed -n '/\[Overview\]/,/\[Types\]/p' implementation_plan.md | head -n 1 | cat
 
@@ -323,6 +393,8 @@ sed -n '/\[Testing\]/,/\[Implementation Order\]/p' implementation_plan.md | head
 
 # Read Implementation Order section
 sed -n '/\[Implementation Order\]/,$p' implementation_plan.md | cat
+`
+}
 
 
 **Task Progress Format:**
@@ -340,6 +412,14 @@ task_progress Items:
 You also MUST include the path to the markdown file you have created in your new task prompt. You should do this as follows:
 
 Refer to @path/to/file/markdown.md for a complete breakdown of the task requirements and steps. You should periodically read this file again.
+
+${
+	focusChainSettings?.enabled
+		? `
+**Task Progress Parameter:**
+When creating the new task, you must include a task_progress parameter that breaks down the implementation into trackable steps. This should follow the standard Markdown checklist format with "- [ ]" for incomplete items.`
+		: ""
+}
 
 
 
@@ -361,3 +441,4 @@ Your implementation plan should be detailed enough that another developer could 
 Below is the user's input when they indicated that they wanted to create a comprehensive implementation plan.
 </explicit_instructions>\n
 `
+}

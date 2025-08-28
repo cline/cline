@@ -57,13 +57,18 @@
 			{
 				"group": "Getting Started",
 				"pages": [
-					"getting-started/for-new-coders",
-					"getting-started/installing-cline",
-					"getting-started/installing-dev-essentials",
+					"getting-started/what-is-cline",
 					"getting-started/model-selection-guide",
+					"getting-started/installing-cline",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
-					"getting-started/what-is-cline"
+					{
+						"group": "For New Coders",
+						"pages": [
+							"getting-started/for-new-coders",
+							"getting-started/installing-dev-essentials"
+						]
+					}
 				]
 			},
 			{
@@ -166,7 +171,11 @@
 					"provider-config/xai-grok",
 					"provider-config/mistral-ai",
 					"provider-config/deepseek",
-					"provider-config/fireworks-ai",
+					"provider-config/groq",
+					"provider-config/cerebras",
+					"provider-config/doubao",
+					"provider-config/fireworks",
+					"provider-config/zai",
 					"provider-config/ollama",
 					"provider-config/openai",
 					"provider-config/openai-compatible",
@@ -206,6 +215,13 @@
 			"discord": "https://discord.gg/cline"
 		}
 	},
+	"anchors": [
+		{
+			"name": "What is Cline",
+			"icon": "house",
+			"url": "getting-started/what-is-cline"
+		}
+	],
 	"search": {
 		"prompt": "Search Cline documentation..."
 	},

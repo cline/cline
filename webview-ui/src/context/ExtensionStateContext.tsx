@@ -29,12 +29,10 @@ import {
 } from "../../../src/shared/api"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
-import { convertTextMateToHljs } from "../utils/textMateToHljs"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	theme: Record<string, string> | undefined
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
@@ -201,10 +199,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		strictPlanModeEnabled: false,
+		customPrompt: undefined,
+		useAutoCondense: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [theme, setTheme] = useState<Record<string, string>>()
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -240,7 +239,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
-	const themeSubscriptionRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -457,27 +455,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to theme changes
-		themeSubscriptionRef.current = UiServiceClient.subscribeToTheme(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				if (response.value) {
-					try {
-						const themeData = JSON.parse(response.value)
-						setTheme(convertTextMateToHljs(themeData))
-						console.log("[DEBUG] Received theme update from gRPC stream")
-					} catch (error) {
-						console.error("Error parsing theme data:", error)
-					}
-				}
-			},
-			onError: (error) => {
-				console.error("Error in theme subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Theme subscription completed")
-			},
-		})
-
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
@@ -533,7 +510,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
 			onResponse: () => {
 				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => callback())
+				relinquishControlCallbacks.current.forEach((callback) => {
+					callback()
+				})
 			},
 			onError: (error) => {
 				console.error("Error in relinquishControl subscription:", error)
@@ -593,10 +572,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
 			}
-			if (themeSubscriptionRef.current) {
-				themeSubscriptionRef.current()
-				themeSubscriptionRef.current = null
-			}
 			if (openRouterModelsUnsubscribeRef.current) {
 				openRouterModelsUnsubscribeRef.current()
 				openRouterModelsUnsubscribeRef.current = null
@@ -640,7 +615,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		...state,
 		didHydrateState,
 		showWelcome,
-		theme,
 		openRouterModels,
 		openAiModels,
 		requestyModels,
