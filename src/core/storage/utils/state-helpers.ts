@@ -428,7 +428,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
 			focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
-			useAutoCondense: useAutoCondense ?? true,
+			useAutoCondense: useAutoCondense ?? false,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
