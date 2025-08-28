@@ -12,10 +12,7 @@ import { safeWriteJson } from "../../utils/safeWriteJson"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
 
 // Hardcoded list of image generation models for now
-const IMAGE_GENERATION_MODELS = [
-	"google/gemini-2.5-flash-image-preview",
-	// Add more models as they become available
-]
+const IMAGE_GENERATION_MODELS = ["google/gemini-2.5-flash-image-preview", "google/gemini-2.5-flash-image-preview:free"]
 
 export async function generateImageTool(
 	cline: Task,
