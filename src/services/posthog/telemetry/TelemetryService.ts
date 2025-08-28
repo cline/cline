@@ -29,7 +29,7 @@ const MAX_ERROR_MESSAGE_LENGTH = 500
 export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
-		["checkpoints", false], // Checkpoints telemetry disabled
+		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 	])
@@ -104,6 +104,10 @@ export class TelemetryService {
 			SLASH_COMMAND_USED: "task.slash_command_used",
 			// Tracks when individual Cline rules are toggled on/off
 			RULE_TOGGLED: "task.rule_toggled",
+			// Tracks when auto condense setting is toggled on/off
+			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
+			// Tracks task initialization timing
+			INITIALIZATION: "task.initialization",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -828,6 +832,42 @@ export class TelemetryService {
 				ruleFileName: sanitizedFileName,
 				enabled,
 				isGlobal,
+			},
+		})
+	}
+
+	/**
+	 * Records when auto condense is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether auto condense was enabled (true) or disabled (false)
+	 * @param modelId The model ID being used when the toggle occurred
+	 */
+	public captureAutoCondenseToggle(ulid: string, enabled: boolean, modelId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_CONDENSE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+				modelId,
+			},
+		})
+	}
+
+	/**
+	 * Records task initialization timing and metadata
+	 * @param ulid Unique identifier for the task
+	 * @param taskId Task ID (timestamp in milliseconds when task was created)
+	 * @param durationMs Duration of initialization in milliseconds
+	 * @param hasCheckpoints Whether checkpoints are enabled for this task
+	 */
+	public captureTaskInitialization(ulid: string, taskId: string, durationMs: number, hasCheckpoints: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.INITIALIZATION,
+			properties: {
+				ulid,
+				taskId,
+				durationMs,
+				hasCheckpoints,
 			},
 		})
 	}

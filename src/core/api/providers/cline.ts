@@ -8,14 +8,15 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { version as extensionVersion } from "../../../../package.json"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
 
-interface ClineHandlerOptions {
+interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	ulid?: string
+	taskId?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	openRouterProviderSorting?: string
@@ -124,16 +125,20 @@ export class ClineHandler implements ApiHandler {
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						reasoning: delta.reasoning,
 					}
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
 					if (this.getModel().id === "cline/sonic") {
+						totalCost = 0
+					}
+
+					if (this.getModel().id === "x-ai/grok-code-fast-1") {
 						totalCost = 0
 					}
 
@@ -143,7 +148,7 @@ export class ClineHandler implements ApiHandler {
 						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						totalCost: totalCost,
 					}
 					didOutputUsage = true

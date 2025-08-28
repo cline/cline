@@ -8,7 +8,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			apiProvider,
 			openAiModelId,
 			requestyModelId,
-			fireworksModelId,
 			togetherModelId,
 			ollamaModelId,
 			lmStudioModelId,
@@ -87,7 +86,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !fireworksModelId) {
+				if (!apiConfiguration.fireworksApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
@@ -147,6 +146,14 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "zai":
 				if (!apiConfiguration.zaiApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "dify":
+				if (!apiConfiguration.difyBaseUrl) {
+					return "You must provide a valid Base URL or choose a different provider."
+				}
+				if (!apiConfiguration.difyApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break

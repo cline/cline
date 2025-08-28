@@ -1,6 +1,5 @@
 import os from "os"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 
 /*

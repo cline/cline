@@ -50,13 +50,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Available in the Cline provider for free.
 				</li>
 				<li>
-					<b>Z AI Provider:</b> New API provider with GLM-4.5 and GLM-4.5 Air models offering competitive performance
-					with cost-effective pricing, especially optimized for Chinese language tasks and general programming
-					assistance.
+					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
+					down complex tasks into manageable steps with real-time progress tracking and passive reminders.
 				</li>
 				<li>
-					<b>Enhanced LM Studio Support:</b> Improved support for LM Studio local models with v0 API endpoint
-					compatibility and configurable max tokens for better customization.
+					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model's
+					context window limit. This significantly helps Cline stay on track for long task sessions!
+				</li>
+				<li>
+					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
+					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
+					code.
 				</li>
 			</ul>
 			<Accordion className="pl-0" isCompact>
@@ -71,20 +75,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					key="1"
 					title="Previous Updates:">
 					<ul style={ulStyle}>
-						<li>
-							<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management,
-							breaking down complex tasks into manageable steps with real-time progress tracking and passive
-							reminders.
-						</li>
-						<li>
-							<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the
-							model's context window limit. This significantly helps Cline stay on track for long task sessions!
-						</li>
-						<li>
-							<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect
-							who investigates your codebase, asks clarifying questions, and creates a comprehensive plan before
-							writing any code.
-						</li>
 						<li>
 							<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need
 							Tier 4, and Bedrock users must be on a supported region.

@@ -3,18 +3,12 @@ import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface XAIHandlerOptions {
-	xaiApiKey?: string
-	reasoningEffort?: string
-	apiModelId?: string
-}
-
-interface XAIHandlerOptions {
+interface XAIHandlerOptions extends CommonApiHandlerOptions {
 	xaiApiKey?: string
 	reasoningEffort?: string
 	apiModelId?: string
@@ -81,7 +75,7 @@ export class XAIHandler implements ApiHandler {
 				if (!shouldSkipReasoningForModel(modelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						reasoning: delta.reasoning_content,
 					}
 				}
@@ -92,9 +86,9 @@ export class XAIHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

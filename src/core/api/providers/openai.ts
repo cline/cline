@@ -2,13 +2,13 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface OpenAiHandlerOptions {
+interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
 	openAiBaseUrl?: string
 	azureApiVersion?: string
@@ -122,9 +122,9 @@ export class OpenAiHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

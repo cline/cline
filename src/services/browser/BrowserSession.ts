@@ -4,13 +4,13 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
-import { exec, spawn } from "child_process"
+import { spawn } from "child_process"
 import * as chromeLauncher from "chrome-launcher"
 import * as fs from "fs/promises"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-// @ts-ignore
+// @ts-expect-error
 import PCR from "puppeteer-chromium-resolver"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
@@ -369,40 +369,6 @@ export class BrowserSession {
 		throw new Error(
 			"Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
 		)
-	}
-
-	/**
-	 * Kill all Chrome instances, including those not launched by chrome-launcher
-	 */
-	private async killAllChromeBrowsers(): Promise<void> {
-		// First try chrome-launcher's killAll to handle instances it launched
-		try {
-			await chromeLauncher.killAll()
-		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
-		}
-
-		// Then kill other Chrome instances using platform-specific commands
-		try {
-			if (process.platform === "win32") {
-				// Windows: Use taskkill to forcefully terminate Chrome processes
-				await new Promise<void>((resolve, reject) => {
-					exec("taskkill /F /IM chrome.exe /T", () => resolve())
-				})
-			} else if (process.platform === "darwin") {
-				// macOS: Use pkill to terminate Chrome processes
-				await new Promise<void>((resolve) => {
-					exec('pkill -x "Google Chrome"', () => resolve())
-				})
-			} else {
-				// Linux: Use pkill for Chrome and chromium
-				await new Promise<void>((resolve) => {
-					exec('pkill -f "chrome|chromium"', () => resolve())
-				})
-			}
-		} catch (error) {
-			console.error("Error killing Chrome processes:", error)
-		}
 	}
 
 	async closeBrowser(): Promise<BrowserActionResult> {

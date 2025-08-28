@@ -2,12 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface RequestyHandlerOptions {
+interface RequestyHandlerOptions extends CommonApiHandlerOptions {
 	requestyBaseUrl?: string
 	requestyApiKey?: string
 	reasoningEffort?: string
@@ -82,7 +82,7 @@ export class RequestyHandler implements ApiHandler {
 				? thinking
 				: {}
 
-		// @ts-ignore-next-line
+		// @ts-expect-error-next-line
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_tokens: model.info.maxTokens || undefined,

@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { DoubaoModelId, doubaoDefaultModelId, doubaoModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface DoubaoHandlerOptions {
+interface DoubaoHandlerOptions extends CommonApiHandlerOptions {
 	doubaoApiKey?: string
 	apiModelId?: string
 }
@@ -78,9 +78,9 @@ export class DoubaoHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

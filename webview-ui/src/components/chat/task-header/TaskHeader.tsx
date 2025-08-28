@@ -764,7 +764,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
 											<button
-												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
 												onClick={() => {
 													// First open the settings panel using direct navigation
 													navigateToSettings()
@@ -779,7 +779,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 															console.error("Error scrolling to checkpoint settings:", error)
 														}
 													}, 300)
-												}}>
+												}}
+												style={{ fontSize: "inherit" }}>
 												disabling checkpoints.
 											</button>
 										)}

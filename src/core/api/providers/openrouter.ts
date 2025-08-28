@@ -4,22 +4,13 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
 
-interface OpenRouterHandlerOptions {
-	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
-	openRouterProviderSorting?: string
-	reasoningEffort?: string
-	thinkingBudgetTokens?: number
-}
-
-interface OpenRouterHandlerOptions {
+interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
@@ -126,7 +117,7 @@ export class OpenRouterHandler implements ApiHandler {
 			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 				yield {
 					type: "reasoning",
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					reasoning: delta.reasoning,
 				}
 			}
@@ -138,7 +129,7 @@ export class OpenRouterHandler implements ApiHandler {
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
 				}
 				didOutputUsage = true

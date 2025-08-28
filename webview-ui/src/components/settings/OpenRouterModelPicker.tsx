@@ -51,14 +51,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "cline/sonic",
-		description: "Advanced model with 262K context for complex coding",
-		label: "Alpha",
+		id: "openai/gpt-5",
+		description: "State of the art model for complex, long-horizon tasks",
+		label: "New",
 	},
 	{
-		id: "anthropic/claude-sonnet-4:1m",
-		description: "Large 1M context window for complex tasks",
-		label: "New",
+		id: "x-ai/grok-code-fast-1",
+		description: "Advanced model with 262K context for complex coding",
+		label: "Free",
 	},
 ]
 
@@ -218,6 +218,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	const showBudgetSlider = useMemo(() => {
 		return (
+			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
