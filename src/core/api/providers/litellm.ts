@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface LiteLlmHandlerOptions {
+interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	liteLlmApiKey?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
@@ -244,16 +244,16 @@ export class LiteLlmHandler implements ApiHandler {
 				}
 			}
 
-			// Handle reasoning events (thinking)
-			// Thinking is not in the standard types but may be in the response
+			// Handle reasoning events
+			// This is not in the standard types but may be in the response
 			interface ThinkingDelta {
-				thinking?: string
+				reasoning_content?: string
 			}
 
-			if ((delta as ThinkingDelta)?.thinking) {
+			if ((delta as ThinkingDelta)?.reasoning_content) {
 				yield {
 					type: "reasoning",
-					reasoning: (delta as ThinkingDelta).thinking || "",
+					reasoning: (delta as ThinkingDelta).reasoning_content || "",
 				}
 			}
 

@@ -111,18 +111,18 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	followup: {
 		sendingDisabled: false,
 		enableButtons: false,
-		primaryText: "Approve",
-		secondaryText: "Reject",
-		primaryAction: "new_task",
+		primaryText: undefined,
+		secondaryText: undefined,
+		primaryAction: undefined,
 		secondaryAction: undefined,
 	},
 	plan_mode_respond: {
 		sendingDisabled: false,
 		enableButtons: false,
-		primaryText: "Approve",
-		secondaryText: "Reject",
-		primaryAction: "approve",
-		secondaryAction: "reject",
+		primaryText: undefined,
+		secondaryText: undefined,
+		primaryAction: undefined,
+		secondaryAction: undefined,
 	},
 
 	// Task lifecycle states
