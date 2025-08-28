@@ -584,8 +584,8 @@ importers:
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
       '@roo-code/cloud':
-        specifier: ^0.24.0
-        version: 0.24.0
+        specifier: ^0.25.0
+        version: 0.25.0
       '@roo-code/ipc':
         specifier: workspace:^
         version: link:../packages/ipc
@@ -3346,8 +3346,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@roo-code/cloud@0.24.0':
-    resolution: {integrity: sha512-0aG1rWFQ18jCC1ZuDlBYoB+di640p7uK1pv2zNRwOJIClWRtkP84GARYPotRgtCGfiyuI4sQ0jQRdi8Hh1ClRQ==}
+  '@roo-code/cloud@0.25.0':
+    resolution: {integrity: sha512-bRPQ6Zc3u5IqbDb0Vzj5+E5zFiq0tHRLICkZfwi3hyHvAiX9HxzNOboyR/HJhD+pr5xBizTDrJmccfA3RwrEBA==}
 
   '@roo-code/types@1.61.0':
     resolution: {integrity: sha512-YJdFc6aYfaZ8EN08KbWaKLehRr1dcN3G3CzDjpppb08iehSEUZMycax/ryP5/G4vl34HTdtzyHNMboDen5ElUg==}
@@ -12732,7 +12732,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.40.2':
     optional: true
 
-  '@roo-code/cloud@0.24.0':
+  '@roo-code/cloud@0.25.0':
     dependencies:
       '@roo-code/types': 1.61.0
       ioredis: 5.6.1
