@@ -16,11 +16,17 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		this.isSharedClient = !!sharedClient
 
 		// Use shared PostHog client if provided, otherwise create a new one
-		this.client =
-			sharedClient ||
-			new PostHog(posthogConfig.apiKey, {
+		if (sharedClient) {
+			this.client = sharedClient
+		} else {
+			// Only create a new client if we have an API key
+			if (!posthogConfig.apiKey) {
+				throw new Error("PostHog API key is required to create a new client")
+			}
+			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
 			})
+		}
 
 		// Initialize feature flags settings
 		this.settings = {

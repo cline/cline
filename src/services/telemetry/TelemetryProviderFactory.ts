@@ -25,14 +25,19 @@ export class TelemetryProviderFactory {
 	 * @returns ITelemetryProvider instance
 	 */
 	public static createProvider(config: TelemetryProviderConfig): ITelemetryProvider {
+		// Get the shared PostHog client from PostHogClientProvider
+		const sharedClient = PostHogClientProvider.getClient()
 		switch (config.type) {
 			case "posthog":
-				// Get the shared PostHog client from PostHogClientProvider
-				return new PostHogTelemetryProvider(PostHogClientProvider.getClient())
+				if (sharedClient) {
+					return new PostHogTelemetryProvider(sharedClient)
+				}
+				return new NoOpTelemetryProvider()
 			case "none":
 				return new NoOpTelemetryProvider()
 			default:
-				throw new Error(`Unsupported telemetry provider type: ${config.type}`)
+				console.error(`Unsupported telemetry provider type: ${config.type}`)
+				return new NoOpTelemetryProvider()
 		}
 	}
 

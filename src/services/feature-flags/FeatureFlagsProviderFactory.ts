@@ -29,7 +29,11 @@ export class FeatureFlagsProviderFactory {
 			case "posthog":
 				// Get the shared PostHog client from PostHogClientProvider
 				const client = PostHogClientProvider.getClient()
-				return new PostHogFeatureFlagsProvider(client)
+				if (client) {
+					return new PostHogFeatureFlagsProvider(client)
+				}
+				// Fall back to NoOp provider if no client is available
+				return new NoOpFeatureFlagsProvider()
 			case "none":
 				return new NoOpFeatureFlagsProvider()
 			default:

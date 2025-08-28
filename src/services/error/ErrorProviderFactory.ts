@@ -1,3 +1,4 @@
+import { PostHogClientConfig, PostHogClientValidConfig, posthogConfig } from "@/shared/services/config/posthog-config"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
@@ -11,6 +12,7 @@ export type ErrorProviderType = "posthog" | "none"
  */
 export interface ErrorProviderConfig {
 	type: ErrorProviderType
+	config: PostHogClientConfig
 }
 
 /**
@@ -26,11 +28,18 @@ export class ErrorProviderFactory {
 	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
 		switch (config.type) {
 			case "posthog":
-				return new PostHogErrorProvider()
-			case "none":
+				if (config.config.apiKey !== undefined && config.config.errorTrackingApiKey !== undefined) {
+					return new PostHogErrorProvider({
+						apiKey: config.config.apiKey,
+						errorTrackingApiKey: config.config.errorTrackingApiKey,
+						host: config.config.host,
+						uiHost: config.config.uiHost,
+					})
+				}
 				return new NoOpErrorProvider()
 			default:
-				throw new Error(`Unsupported error provider type: ${config.type}`)
+				console.error(`Unsupported error provider type: ${config.type}`)
+				return new NoOpErrorProvider()
 		}
 	}
 
@@ -41,6 +50,7 @@ export class ErrorProviderFactory {
 	public static getDefaultConfig(): ErrorProviderConfig {
 		return {
 			type: "posthog",
+			config: posthogConfig,
 		}
 	}
 }

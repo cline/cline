@@ -16,9 +16,7 @@ let _errorServiceInstance: ErrorService | null = null
  */
 export function getErrorService(): ErrorService {
 	if (!_errorServiceInstance) {
-		const provider = ErrorProviderFactory.createProvider({
-			type: "posthog",
-		})
+		const provider = ErrorProviderFactory.createProvider(ErrorProviderFactory.getDefaultConfig())
 		_errorServiceInstance = new ErrorService(provider)
 	}
 	return _errorServiceInstance

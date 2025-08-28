@@ -1,8 +1,9 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
 import * as pkg from "../../../../package.json"
-import { posthogConfig } from "../../../shared/services/config/posthog-config"
+import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
 import { ClineError } from "../ClineError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 
@@ -15,18 +16,17 @@ const isDev = process.env.IS_DEV === "true"
 export class PostHogErrorProvider implements IErrorProvider {
 	private client: PostHog
 	private errorSettings: ErrorSettings
-	private isSharedClient: boolean
+	// Does not accept shared client
+	private readonly isSharedClient = false
 	private disposables: vscode.Disposable[] = []
 
-	constructor(sharedClient?: PostHog) {
-		this.isSharedClient = !!sharedClient
-
+	constructor(clientConfig: PostHogClientValidConfig) {
 		// Use shared PostHog client if provided, otherwise create a new one
-		this.client =
-			sharedClient ||
-			new PostHog(posthogConfig.apiKey, {
-				host: posthogConfig.host,
-			})
+		this.client = new PostHog(clientConfig.apiKey, {
+			host: clientConfig.host,
+			enableExceptionAutocapture: true,
+			before_send: (event) => PostHogClientProvider.eventFilter(event),
+		})
 
 		// Initialize error settings
 		this.errorSettings = {
