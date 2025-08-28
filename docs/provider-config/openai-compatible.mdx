@@ -1,0 +1,71 @@
+---
+title: "OpenAI Compatible"
+description: "Learn how to configure Cline with various AI model providers that offer OpenAI-compatible APIs."
+---
+
+Cline supports a wide range of AI model providers that offer APIs compatible with the OpenAI API standard. This allows you to use models from providers _other than_ OpenAI, while still utilizing a familiar API interface. This includes providers such as:
+
+-   **Local models** running through tools like Ollama and LM Studio (which are covered in their respective sections).
+-   **Cloud providers** like Perplexity, Together AI, Anyscale, and many others.
+-   **Any other provider** that offers an OpenAI-compatible API endpoint.
+
+This document focuses on setting up providers _other than_ the official OpenAI API (which has its own [dedicated configuration page](/provider-config/openai)).
+
+### General Configuration
+
+The key to using an OpenAI-compatible provider with Cline is to configure these main settings:
+
+1.  **Base URL:** This is the API endpoint specific to the provider. It will _not_ be `https://api.openai.com/v1` (that URL is for the official OpenAI API).
+2.  **API Key:** This is the secret key you obtain from your chosen provider.
+3.  **Model ID:** This is the specific name or identifier for the model you wish to use.
+
+You'll find these settings in the Cline settings panel (click the ⚙️ icon):
+
+-   **API Provider:** Select "OpenAI Compatible".
+-   **Base URL:** Enter the base URL provided by your chosen provider. **This is a crucial step.**
+-   **API Key:** Enter your API key from the provider.
+-   **Model:** Choose or enter the model ID.
+-   **Model Configuration:** This section allows you to customize advanced parameters for the model, such as:
+    -   Max Output Tokens
+    -   Context Window size
+    -   Image Support capabilities
+    -   Computer Use (e.g., for models with tool/function calling)
+    -   Input Price (per token/million tokens)
+    -   Output Price (per token/million tokens)
+
+### Supported Models (for OpenAI Native Endpoint)
+
+While the "OpenAI Compatible" provider type allows connecting to various endpoints, if you are connecting directly to the official OpenAI API (or an endpoint that mirrors it exactly), Cline recognizes the following model IDs based on the `openAiNativeModels` definition in its source code:
+
+-   `o3-mini`
+-   `o3-mini-high`
+-   `o3-mini-low`
+-   `o1`
+-   `o1-preview`
+-   `o1-mini`
+-   `gpt-4o`
+-   `gpt-4o-mini`
+
+**Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
+
+### v0 (Vercel SDK) in Cline:
+
+-   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
+
+-   v0 can be used in Cline with the OpenAI Compatible provider.
+
+-   ### Quickstart
+
+-   1. With the OpenAI Compatible provider selected, set the Base URL to https://api.v0.dev/v1.
+-   2. Paste in your v0 API Key
+-   3. Set the Model ID: v0-1.0-md
+-   4. Click Verify to confirm the connection.
+
+### Troubleshooting
+
+-   **"Invalid API Key":** Double-check that you've entered the API key correctly and that it's for the correct provider.
+-   **"Model Not Found":** Ensure you're using a valid model ID for your chosen provider and that it's available at the specified Base URL.
+-   **Connection Errors:** Verify the Base URL is correct, that your provider's API is accessible from your machine, and that there are no firewall or network issues.
+-   **Unexpected Results:** If you're getting unexpected outputs, try a different model or double-check all configuration parameters.
+
+By using an OpenAI-compatible provider, you can leverage the flexibility of Cline with a wider array of AI models. Remember to always consult your provider's documentation for the most accurate and up-to-date information.

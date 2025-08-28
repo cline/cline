@@ -18,13 +18,6 @@ The Cline extension exposes an API that can be used by other extensions. To use 
     if (cline) {
     	// Now you can use the API
 
-    	// Set custom instructions
-    	await cline.setCustomInstructions("Talk like a pirate")
-
-    	// Get custom instructions
-    	const instructions = await cline.getCustomInstructions()
-    	console.log("Current custom instructions:", instructions)
-
     	// Start a new task with an initial message
     	await cline.startNewTask("Hello, Cline! Let's make a new project...")
 

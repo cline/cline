@@ -1,3 +1,4 @@
+import { Accordion, AccordionItem } from "@heroui/react"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
@@ -18,7 +19,7 @@ const containerStyle: CSSProperties = {
 const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
 const h3TitleStyle: CSSProperties = { margin: "0 0 8px" }
 const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px" }
-const accountIconStyle: CSSProperties = { fontSize: 11 }
+const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
 	height: "1px",
 	background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
@@ -29,13 +30,15 @@ const linkContainerStyle: CSSProperties = { margin: "0" }
 const linkStyle: CSSProperties = { display: "inline" }
 
 /*
-You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with what's in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
+Announcements are automatically shown when the major.minor version changes (for ex 3.19.x → 3.20.x or 4.0.x). 
+The latestAnnouncementId is now automatically generated from the extension's package.json version. 
+Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={closeIconStyle}>
+			<VSCodeButton appearance="icon" data-testid="close-button" onClick={hideAnnouncement} style={closeIconStyle}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={h3TitleStyle}>
@@ -43,95 +46,61 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
+					<b>Free Stealth Model</b> Advanced stealth model with 262K context window designed for complex coding tasks.
+					Available in the Cline provider for free.
 				</li>
 				<li>
-					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
-					and play specific rules for the task
+					<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management, breaking
+					down complex tasks into manageable steps with real-time progress tracking and passive reminders.
 				</li>
 				<li>
-					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
-					(more coming soon!)
+					<b>Auto Compact:</b> Auto summarizes your task and next steps when your conversation approaches the model's
+					context window limit. This significantly helps Cline stay on track for long task sessions!
 				</li>
 				<li>
-					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
-					your project when the message was sent!
+					<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an architect who
+					investigates your codebase, asks clarifying questions, and creates a comprehensive plan before writing any
+					code.
 				</li>
 			</ul>
-			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
-			<ul style={ulStyle}>
-				<li>
-					<b>Model Favorites:</b> You can now mark your favorite models when using Cline & OpenRouter providers for
-					quick access!
-				</li>
-				<li>
-					<b>Faster Diff Editing:</b> Improved animation performance for large files, plus a new indicator in chat
-					showing the number of edits Cline makes.
-				</li>
-				<li>
-					<b>New Auto-Approve Options:</b> Turn off Cline's ability to read and edit files outside your workspace.
-				</li>
-			</ul>
-			{/*
-			// Leave this here for an example of how to structure the announcement
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li>
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
+			<Accordion className="pl-0" isCompact>
+				<AccordionItem
+					aria-label="Previous Updates"
+					classNames={{
+						trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
+						title: "font-bold text-[var(--vscode-foreground)]",
+						indicator:
+							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
+					}}
+					key="1"
+					title="Previous Updates:">
+					<ul style={ulStyle}>
+						<li>
+							<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users need
+							Tier 4, and Bedrock users must be on a supported region.
+						</li>
+						<li>
+							<b>Optimized for Claude 4:</b> Cline is now optimized to work with the Claude 4 family of models,
+							resulting in improved performance, reliability, and new capabilities.
+						</li>
+						<li>
+							<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash
+							commands, making it easy to automate repetitive tasks.
+						</li>
+					</ul>
+				</AccordionItem>
+			</Accordion>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
-				<VSCodeLink style={linkStyle} href="https://x.com/cline">
+				<VSCodeLink href="https://x.com/cline" style={linkStyle}>
 					X,
 				</VSCodeLink>{" "}
-				<VSCodeLink style={linkStyle} href="https://discord.gg/cline">
+				<VSCodeLink href="https://discord.gg/cline" style={linkStyle}>
 					discord,
 				</VSCodeLink>{" "}
 				or{" "}
-				<VSCodeLink style={linkStyle} href="https://www.reddit.com/r/cline/">
+				<VSCodeLink href="https://www.reddit.com/r/cline/" style={linkStyle}>
 					r/cline
 				</VSCodeLink>
 				for more updates!

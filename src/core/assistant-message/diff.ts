@@ -1,3 +1,34 @@
+const SEARCH_BLOCK_START = "------- SEARCH"
+const SEARCH_BLOCK_END = "======="
+const REPLACE_BLOCK_END = "+++++++ REPLACE"
+
+const SEARCH_BLOCK_CHAR = "-"
+const REPLACE_BLOCK_CHAR = "+"
+const LEGACY_SEARCH_BLOCK_CHAR = "<"
+const LEGACY_REPLACE_BLOCK_CHAR = ">"
+
+// Replace the exact string constants with flexible regex patterns
+const SEARCH_BLOCK_START_REGEX = /^[-]{3,} SEARCH>?$/
+const LEGACY_SEARCH_BLOCK_START_REGEX = /^[<]{3,} SEARCH>?$/
+
+const SEARCH_BLOCK_END_REGEX = /^[=]{3,}$/
+
+const REPLACE_BLOCK_END_REGEX = /^[+]{3,} REPLACE>?$/
+const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
+
+// Helper functions to check if a line matches the flexible patterns
+function isSearchBlockStart(line: string): boolean {
+	return SEARCH_BLOCK_START_REGEX.test(line) || LEGACY_SEARCH_BLOCK_START_REGEX.test(line)
+}
+
+function isSearchBlockEnd(line: string): boolean {
+	return SEARCH_BLOCK_END_REGEX.test(line)
+}
+
+function isReplaceBlockEnd(line: string): boolean {
+	return REPLACE_BLOCK_END_REGEX.test(line) || LEGACY_REPLACE_BLOCK_END_REGEX.test(line)
+}
+
 /**
  * Attempts a line-trimmed fallback match for the given search content in the original content.
  * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
@@ -150,11 +181,11 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
  *
  * The diff format is a custom structure that uses three markers to define changes:
  *
- *   <<<<<<< SEARCH
+ *   ------- SEARCH
  *   [Exact content to find in the original file]
  *   =======
  *   [Content to replace with]
- *   >>>>>>> REPLACE
+ *   +++++++ REPLACE
  *
  * Behavior and Assumptions:
  * 1. The file is processed chunk-by-chunk. Each chunk of `diffContent` may contain
@@ -204,7 +235,7 @@ export async function constructNewFileContent(
 	diffContent: string,
 	originalContent: string,
 	isFinal: boolean,
-	version: "v1" | "v2" = "v2",
+	version: "v1" | "v2" = "v1",
 ): Promise<string> {
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
@@ -221,9 +252,6 @@ const constructNewFileContentVersionMapping: Record<
 	v2: constructNewFileContentV2,
 } as const
 
-/**
- * @deprecated
- */
 async function constructNewFileContentV1(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	let result = ""
 	let lastProcessedIndex = 0
@@ -236,30 +264,38 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
 
-	let lines = diffContent.split("\n")
+	// Track all replacements to handle out-of-order edits
+	const replacements: Array<{ start: number; end: number; content: string }> = []
+	let pendingOutOfOrderReplacement = false
+
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
-		lastLine !== "<<<<<<< SEARCH" &&
-		lastLine !== "=======" &&
-		lastLine !== ">>>>>>> REPLACE"
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
+		!isSearchBlockStart(lastLine) &&
+		!isSearchBlockEnd(lastLine) &&
+		!isReplaceBlockEnd(lastLine)
 	) {
 		lines.pop()
 	}
 
 	for (const line of lines) {
-		if (line === "<<<<<<< SEARCH") {
+		if (isSearchBlockStart(line)) {
 			inSearch = true
 			currentSearchContent = ""
 			currentReplaceContent = ""
 			continue
 		}
 
-		if (line === "=======") {
+		if (isSearchBlockEnd(line)) {
 			inSearch = false
 			inReplace = true
 
@@ -277,9 +313,12 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 					searchMatchIndex = 0
 					searchEndIndex = 0
 				} else {
-					// Complete file replacement scenario: treat the entire file as matched
-					searchMatchIndex = 0
-					searchEndIndex = originalContent.length
+					// ERROR: Empty search block with non-empty file indicates malformed SEARCH marker
+					throw new Error(
+						"Empty SEARCH block detected with non-empty file. This usually indicates a malformed SEARCH marker.\n" +
+							"Please ensure your SEARCH marker follows the correct format:\n" +
+							"- Use '------- SEARCH' (7+ dashes + space + SEARCH)\n",
+					)
 				}
 			} else {
 				// Add check for inefficient full-file search
@@ -307,31 +346,55 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {
-							throw new Error(
-								`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file or was searched out of order in the provided blocks.`,
-							)
+							// Last resort: search the entire file from the beginning
+							const fullFileIndex = originalContent.indexOf(currentSearchContent, 0)
+							if (fullFileIndex !== -1) {
+								// Found in the file - could be out of order
+								searchMatchIndex = fullFileIndex
+								searchEndIndex = fullFileIndex + currentSearchContent.length
+								if (searchMatchIndex < lastProcessedIndex) {
+									pendingOutOfOrderReplacement = true
+								}
+							} else {
+								throw new Error(
+									`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+								)
+							}
 						}
 					}
 				}
 			}
 
-			// Output everything up to the match location
-			result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
+			// Check if this is an out-of-order replacement
+			if (searchMatchIndex < lastProcessedIndex) {
+				pendingOutOfOrderReplacement = true
+			}
+
+			// For in-order replacements, output everything up to the match location
+			if (!pendingOutOfOrderReplacement) {
+				result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
+			}
 			continue
 		}
 
-		if (line === ">>>>>>> REPLACE") {
+		if (isReplaceBlockEnd(line)) {
 			// Finished one replace block
 
-			// // Remove the artificially added linebreak in the last line of the REPLACE block
-			// if (result.endsWith("\r\n")) {
-			// 	result = result.slice(0, -2)
-			// } else if (result.endsWith("\n")) {
-			// 	result = result.slice(0, -1)
-			// }
+			if (searchMatchIndex === -1) {
+				throw new Error(`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...is malformatted.`)
+			}
 
-			// Advance lastProcessedIndex to after the matched section
-			lastProcessedIndex = searchEndIndex
+			// Store this replacement
+			replacements.push({
+				start: searchMatchIndex,
+				end: searchEndIndex,
+				content: currentReplaceContent,
+			})
+
+			// If this was an in-order replacement, advance lastProcessedIndex
+			if (!pendingOutOfOrderReplacement) {
+				lastProcessedIndex = searchEndIndex
+			}
 
 			// Reset for next block
 			inSearch = false
@@ -340,6 +403,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			currentReplaceContent = ""
 			searchMatchIndex = -1
 			searchEndIndex = -1
+			pendingOutOfOrderReplacement = false
 			continue
 		}
 
@@ -351,16 +415,59 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {
 			currentReplaceContent += line + "\n"
-			// Output replacement lines immediately if we know the insertion point
-			if (searchMatchIndex !== -1) {
+			// Only output replacement lines immediately for in-order replacements
+			if (searchMatchIndex !== -1 && !pendingOutOfOrderReplacement) {
 				result += line + "\n"
 			}
 		}
 	}
 
-	// If this is the final chunk, append any remaining original content
-	if (isFinal && lastProcessedIndex < originalContent.length) {
-		result += originalContent.slice(lastProcessedIndex)
+	// If this is the final chunk, we need to apply all replacements and build the final result
+	if (isFinal) {
+		// Handle the case where we're still in replace mode when processing ends
+		// and this is the final chunk - treat it as if we encountered the REPLACE marker
+		if (inReplace && searchMatchIndex !== -1) {
+			// Store this replacement
+			replacements.push({
+				start: searchMatchIndex,
+				end: searchEndIndex,
+				content: currentReplaceContent,
+			})
+
+			// If this was an in-order replacement, advance lastProcessedIndex
+			if (!pendingOutOfOrderReplacement) {
+				lastProcessedIndex = searchEndIndex
+			}
+
+			// Reset state
+			inSearch = false
+			inReplace = false
+			currentSearchContent = ""
+			currentReplaceContent = ""
+			searchMatchIndex = -1
+			searchEndIndex = -1
+			pendingOutOfOrderReplacement = false
+		}
+		// end of handling missing replace marker
+
+		// Sort replacements by start position
+		replacements.sort((a, b) => a.start - b.start)
+
+		// Rebuild the entire result by applying all replacements
+		result = ""
+		let currentPos = 0
+
+		for (const replacement of replacements) {
+			// Add original content up to this replacement
+			result += originalContent.slice(currentPos, replacement.start)
+			// Add the replacement content
+			result += replacement.content
+			// Move position to after the replaced section
+			currentPos = replacement.end
+		}
+
+		// Add any remaining original content
+		result += originalContent.slice(currentPos)
 	}
 
 	return result
@@ -380,7 +487,6 @@ class NewFileContentConstructor {
 	private result: string
 	private lastProcessedIndex: number
 	private currentSearchContent: string
-	private currentReplaceContent: string
 	private searchMatchIndex: number
 	private searchEndIndex: number
 
@@ -392,7 +498,6 @@ class NewFileContentConstructor {
 		this.lastProcessedIndex = 0
 		this.state = ProcessingState.Idle
 		this.currentSearchContent = ""
-		this.currentReplaceContent = ""
 		this.searchMatchIndex = -1
 		this.searchEndIndex = -1
 	}
@@ -401,7 +506,6 @@ class NewFileContentConstructor {
 		// Reset for next block
 		this.state = ProcessingState.Idle
 		this.currentSearchContent = ""
-		this.currentReplaceContent = ""
 		this.searchMatchIndex = -1
 		this.searchEndIndex = -1
 	}
@@ -444,7 +548,6 @@ class NewFileContentConstructor {
 	private activateSearchState() {
 		this.updateProcessingState(ProcessingState.StateSearch)
 		this.currentSearchContent = ""
-		this.currentReplaceContent = ""
 	}
 
 	private isSearchingActive(): boolean {
@@ -480,7 +583,7 @@ class NewFileContentConstructor {
 		pendingNonStandardLineLimit: number,
 	): number {
 		let removeLineCount = 0
-		if (line === "<<<<<<< SEARCH") {
+		if (isSearchBlockStart(line)) {
 			removeLineCount = this.trimPendingNonStandardTrailingEmptyLines(pendingNonStandardLineLimit)
 			if (removeLineCount > 0) {
 				pendingNonStandardLineLimit = pendingNonStandardLineLimit - removeLineCount
@@ -490,7 +593,7 @@ class NewFileContentConstructor {
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
 			}
 			this.activateSearchState()
-		} else if (line === "=======") {
+		} else if (isSearchBlockEnd(line)) {
 			// 校验非标内容
 			if (!this.isSearchingActive()) {
 				this.tryFixSearchBlock(pendingNonStandardLineLimit)
@@ -498,7 +601,7 @@ class NewFileContentConstructor {
 			}
 			this.activateReplaceState()
 			this.beforeReplace()
-		} else if (line === ">>>>>>> REPLACE") {
+		} else if (isReplaceBlockEnd(line)) {
 			if (!this.isReplacingActive()) {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
@@ -511,7 +614,6 @@ class NewFileContentConstructor {
 			// (We artificially add a linebreak since we split on \n at the beginning. In order to not include a trailing linebreak in the final search/result blocks we need to remove it before using them. This allows for partial line matches to be correctly identified.)
 			// NOTE: search/replace blocks must be arranged in the order they appear in the file due to how we build the content using lastProcessedIndex. We also cannot strip the trailing newline since for non-partial lines it would remove the linebreak from the original content. (If we remove end linebreak from search, then we'd also have to remove it from replace but we can't know if it's a partial line or not since the model may be using the line break to indicate the end of the block rather than as part of the search content.) We require the model to output full lines in order for our fallbacks to work as well.
 			if (this.isReplacingActive()) {
-				this.currentReplaceContent += line + "\n"
 				// Output replacement lines immediately if we know the insertion point
 				if (this.searchMatchIndex !== -1) {
 					this.result += line + "\n"
@@ -519,9 +621,8 @@ class NewFileContentConstructor {
 			} else if (this.isSearchingActive()) {
 				this.currentSearchContent += line + "\n"
 			} else {
-				let appendToPendingNonStandardLines = canWritependingNonStandardLines
+				const appendToPendingNonStandardLines = canWritependingNonStandardLines
 				if (appendToPendingNonStandardLines) {
-					console.log("unstandard line:" + line)
 					// 处理非标内容
 					this.pendingNonStandardLines.push(line)
 				}
@@ -606,11 +707,11 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error("Invalid SEARCH/REPLACE block structure - no lines available to process")
 		}
-		let searchTagRegexp = /^[<]{3,} SEARCH$/
+		const searchTagRegexp = /^([-]{3,}|[<]{3,}) SEARCH$/
 		const searchTagIndex = this.findLastMatchingLineIndex(searchTagRegexp, lineLimit)
 		if (searchTagIndex !== -1) {
-			let fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
-			fixLines[0] = "<<<<<<< SEARCH"
+			const fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
+			fixLines[0] = SEARCH_BLOCK_START
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, searchTagIndex)
 			}
@@ -630,15 +731,18 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error()
 		}
-		let replaceBeginTagRegexp = /^[=]{3,}$/
+		const replaceBeginTagRegexp = /^[=]{3,}$/
 		const replaceBeginTagIndex = this.findLastMatchingLineIndex(replaceBeginTagRegexp, lineLimit)
 		if (replaceBeginTagIndex !== -1) {
 			// // 校验非标内容
 			// if (!this.isSearchingActive()) {
 			// 	removeLineCount += this.tryFixSearchBlock(replaceBeginTagIndex)
 			// }
-			let fixLines = this.pendingNonStandardLines.slice(replaceBeginTagIndex - removeLineCount, lineLimit - removeLineCount)
-			fixLines[0] = "======="
+			const fixLines = this.pendingNonStandardLines.slice(
+				replaceBeginTagIndex - removeLineCount,
+				lineLimit - removeLineCount,
+			)
+			fixLines[0] = SEARCH_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceBeginTagIndex - removeLineCount)
 			}
@@ -657,7 +761,7 @@ class NewFileContentConstructor {
 			throw new Error()
 		}
 
-		let replaceEndTagRegexp = /^[>]{3,} REPLACE$/
+		const replaceEndTagRegexp = /^([+]{3,}|[>]{3,}) REPLACE$/
 		const replaceEndTagIndex = this.findLastMatchingLineIndex(replaceEndTagRegexp, lineLimit)
 		const likeReplaceEndTag = replaceEndTagIndex === lineLimit - 1
 		if (likeReplaceEndTag) {
@@ -665,8 +769,8 @@ class NewFileContentConstructor {
 			// if (!this.isReplacingActive()) {
 			// 	removeLineCount += this.tryFixReplaceBlock(replaceEndTagIndex)
 			// }
-			let fixLines = this.pendingNonStandardLines.slice(replaceEndTagIndex - removeLineCount, lineLimit - removeLineCount)
-			fixLines[fixLines.length - 1] = ">>>>>>> REPLACE"
+			const fixLines = this.pendingNonStandardLines.slice(replaceEndTagIndex - removeLineCount, lineLimit - removeLineCount)
+			fixLines[fixLines.length - 1] = REPLACE_BLOCK_END
 			for (const line of fixLines) {
 				removeLineCount += this.internalProcessLine(line, false, replaceEndTagIndex - removeLineCount)
 			}
@@ -697,19 +801,23 @@ class NewFileContentConstructor {
 }
 
 export async function constructNewFileContentV2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	let newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
+	const newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
 
-	let lines = diffContent.split("\n")
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
-		lastLine !== "<<<<<<< SEARCH" &&
-		lastLine !== "=======" &&
-		lastLine !== ">>>>>>> REPLACE"
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_SEARCH_BLOCK_CHAR) ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(REPLACE_BLOCK_CHAR) ||
+			lastLine.startsWith(LEGACY_REPLACE_BLOCK_CHAR)) &&
+		lastLine !== SEARCH_BLOCK_START &&
+		lastLine !== SEARCH_BLOCK_END &&
+		lastLine !== REPLACE_BLOCK_END
 	) {
 		lines.pop()
 	}
@@ -718,6 +826,6 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 		newFileContentConstructor.processLine(line)
 	}
 
-	let result = newFileContentConstructor.getResult()
+	const result = newFileContentConstructor.getResult()
 	return result
 }

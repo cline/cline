@@ -1,24 +1,26 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import deepEqual from "fast-deep-equal"
-import React, { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react"
-import { useSize } from "react-use"
-import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
+import { StringRequest } from "@shared/proto/cline/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import deepEqual from "fast-deep-equal"
+import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSize } from "react-use"
+import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
+import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
 import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient } from "@/services/grpc-client"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
-	isExpanded: (messageTs: number) => boolean
+	expandedRows: Record<number, boolean>
 	onToggleExpand: (messageTs: number) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onSetQuote: (text: string) => void
 }
 
 const browserSessionRowContainerInnerStyle: CSSProperties = {
@@ -109,7 +111,7 @@ const headerStyle: CSSProperties = {
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
 	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
@@ -290,7 +292,16 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
+				<BrowserSessionRowContent
+					expandedRows={props.expandedRows}
+					isLast={props.isLast}
+					key={message.ts}
+					lastModifiedMessage={props.lastModifiedMessage}
+					message={message}
+					onSetQuote={props.onSetQuote}
+					onToggleExpand={props.onToggleExpand}
+					setMaxActionHeight={setMaxActionHeight}
+				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
@@ -309,7 +320,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	// Track latest click coordinate
 	const latestClickPosition = useMemo(() => {
-		if (!isBrowsing) return undefined
+		if (!isBrowsing) {
+			return undefined
+		}
 
 		// Look through current page's next actions for the latest browser_action
 		const actions = currentPage?.nextAction?.messages || []
@@ -333,7 +346,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// 	shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 	// }
 
-	const shouldShowSettings = useMemo(() => {
+	const _shouldShowSettings = useMemo(() => {
 		const lastMessage = messages[messages.length - 1]
 		return lastMessage?.ask === "browser_action_launch" || lastMessage?.say === "browser_action_launch"
 	}, [messages])
@@ -352,7 +365,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
 				)}
 				<span style={approveTextStyle}>
-					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
+					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
 				</span>
 			</div>
 			<div
@@ -393,15 +406,14 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					}}>
 					{displayState.screenshot ? (
 						<img
-							src={displayState.screenshot}
 							alt="Browser screenshot"
-							style={imgScreenshotStyle}
 							onClick={() =>
-								vscode.postMessage({
-									type: "openImage",
-									text: displayState.screenshot,
-								})
+								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
+									(err) => console.error("Failed to open image:", err),
+								)
 							}
+							src={displayState.screenshot}
+							style={imgScreenshotStyle}
 						/>
 					) : (
 						<div style={noScreenshotContainerStyle}>
@@ -485,76 +497,84 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	return browserSessionRow
 }, deepEqual)
 
-interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
+interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages" | "onHeightChange"> {
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
+	onSetQuote: (text: string) => void
 }
 
-const BrowserSessionRowContent = ({
-	message,
-	isExpanded,
-	onToggleExpand,
-	lastModifiedMessage,
-	isLast,
-	setMaxActionHeight,
-}: BrowserSessionRowContentProps) => {
-	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
-		return (
-			<>
-				<div style={headerStyle}>
-					<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
-				</div>
-				<div style={codeBlockContainerStyle}>
-					<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
-				</div>
-			</>
-		)
-	}
+const BrowserSessionRowContent = memo(
+	({
+		message,
+		expandedRows,
+		onToggleExpand,
+		lastModifiedMessage,
+		isLast,
+		setMaxActionHeight,
+		onSetQuote,
+	}: BrowserSessionRowContentProps) => {
+		const handleToggle = useCallback(() => {
+			if (message.say === "api_req_started") {
+				setMaxActionHeight(0)
+			}
+			onToggleExpand(message.ts)
+		}, [onToggleExpand, message.ts, setMaxActionHeight])
 
-	switch (message.type) {
-		case "say":
-			switch (message.say) {
-				case "api_req_started":
-				case "text":
-				case "reasoning":
-					return (
-						<div style={chatRowContentContainerStyle}>
-							<ChatRowContent
-								message={message}
-								isExpanded={isExpanded(message.ts)}
-								onToggleExpand={() => {
-									if (message.say === "api_req_started") {
-										setMaxActionHeight(0)
-									}
-									onToggleExpand(message.ts)
-								}}
-								lastModifiedMessage={lastModifiedMessage}
-								isLast={isLast}
+		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+			return (
+				<>
+					<div style={headerStyle}>
+						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
+					</div>
+					<div style={codeBlockContainerStyle}>
+						<CodeBlock forceWrap={true} source={`${"```"}shell\n${message.text}\n${"```"}`} />
+					</div>
+				</>
+			)
+		}
+
+		switch (message.type) {
+			case "say":
+				switch (message.say) {
+					case "api_req_started":
+					case "text":
+					case "reasoning":
+						return (
+							<div style={chatRowContentContainerStyle}>
+								<ChatRowContent
+									isExpanded={expandedRows[message.ts] ?? false}
+									isLast={isLast}
+									lastModifiedMessage={lastModifiedMessage}
+									message={message}
+									onSetQuote={onSetQuote}
+									onToggleExpand={handleToggle}
+								/>
+							</div>
+						)
+
+					case "browser_action":
+						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						return (
+							<BrowserActionBox
+								action={browserAction.action}
+								coordinate={browserAction.coordinate}
+								text={browserAction.text}
 							/>
-						</div>
-					)
+						)
 
-				case "browser_action":
-					const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
-					return (
-						<BrowserActionBox
-							action={browserAction.action}
-							coordinate={browserAction.coordinate}
-							text={browserAction.text}
-						/>
-					)
+					default:
+						return null
+				}
 
-				default:
-					return null
-			}
-
-		case "ask":
-			switch (message.ask) {
-				default:
-					return null
-			}
-	}
-}
+			case "ask":
+				switch (message.ask) {
+					default:
+						return null
+				}
+		}
+	},
+	deepEqual,
+)
 
 const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction; coordinate?: string; text?: string }) => {
 	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
@@ -596,13 +616,13 @@ const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 
 	return (
 		<img
+			alt="cursor"
 			src={cursorBase64}
 			style={{
 				width: "17px",
 				height: "22px",
 				...style,
 			}}
-			alt="cursor"
 		/>
 	)
 }

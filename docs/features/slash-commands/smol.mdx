@@ -1,0 +1,47 @@
+---
+title: "Smol Command"
+sidebarTitle: "/smol"
+---
+
+`/smol` (or its alias, `/compact`) is a slash command that compresses your conversation history while preserving essential context.
+
+Unlike `/newtask` which creates a new task, `/smol` condenses your current conversation into a comprehensive summary, freeing up context window space while allowing you to continue working in the same task.
+
+Think of it like summarizing the relevant parts of a conversation while discarding the rest.
+
+#### Using the `/smol` Slash Command
+
+When your context window is getting full but you want to continue in the same task:
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/smol.png" alt="Using the /smol slash command" />
+</Frame>
+
+-   Type `/smol` (or its alias `/compact`) in the chat input field
+-   Cline will analyze your conversation and create a detailed summary that preserves essential information
+-   You'll have a chance to review this summary and provide feedback if needed
+-   Once accepted, the detailed conversation history is replaced with this condensed version
+
+#### Example
+
+I use `/smol` when I'm deep into a complex debugging session and need to continue in the same task. After exploring multiple approaches and examining several files, my context window gets crowded with all the back-and-forth.
+
+By using `/smol`, I can condense all that exploration into a concise summary that captures what we've learned, which files we've examined, and what approaches we've tried. This frees up space to continue the debugging without losing the insights we've gained.
+
+The key difference from `/newtask` is that I'm staying in the same conversation flow rather than creating a separate task. This is particularly useful when I'm in the middle of something and don't want to context switch.
+
+#### Inspiration
+
+Here are powerful ways I use `/smol` in my workflow:
+
+-   During lengthy brainstorming sessions, I use `/smol` to condense our exploration before implementing the chosen solution, all within the same task.
+-   When debugging complex issues that involve multiple file checks and test runs, I use `/smol` to summarize what we've learned while continuing the debugging process.
+-   For iterative development, I use `/smol` after completing each feature to compress the implementation details while keeping the key decisions and approaches accessible.
+-   When gathering requirements from multiple sources, I use `/smol` to distill the essential needs into a concise summary before moving to the design phase.
+
+#### Smol vs Newtask
+
+People often ask me when to use `/smol` vs `/newtask`. Frankly, it's a matter of personal preference and what you're trying to achieve. Here are some guidelines:
+
+-   Use `/smol` when you're in the middle of something and want to keep going in the same task. It's perfect when you're deep in a debugging flow or brainstorming session and don't want to break your momentum. The downside? Once you compress your history, you can't get those detailed conversations back.
+-   Use `/newtask` when you're at a logical transition point and want to start fresh. It's great for moving from planning to implementation, or when you want to preserve your full conversation history (since it creates a new task rather than overwriting your current one).

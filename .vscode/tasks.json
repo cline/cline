@@ -4,10 +4,41 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "watch",
-			"dependsOn": ["npm: build:webview", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"label": "compile-standalone",
+			"type": "npm",
+			"script": "compile-standalone",
+			"group": "build",
+			"problemMatcher": [],
 			"presentation": {
-				"reveal": "never"
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "npm: protos",
+			"type": "npm",
+			"script": "protos",
+			"problemMatcher": [],
+			"isBackground": false,
+			"presentation": {
+				"reveal": "always"
+			},
+			"options": {
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"label": "watch",
+			"dependsOn": [
+				"npm: protos",
+				"npm: build:webview",
+				"npm: dev:webview",
+				"npm: watch:tsc",
+				"npm: watch:esbuild"
+			],
+			"presentation": {
+				"reveal": "always"
 			},
 			"group": {
 				"kind": "build",
@@ -16,9 +47,15 @@
 		},
 		{
 			"label": "watch:test",
-			"dependsOn": ["npm: build:webview:test", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild:test"],
+			"dependsOn": [
+				"npm: protos",
+				"npm: build:webview:test",
+				"npm: dev:webview",
+				"npm: watch:tsc",
+				"npm: watch:esbuild:test"
+			],
 			"presentation": {
-				"reveal": "never"
+				"reveal": "always"
 			},
 			"group": "build"
 		},
@@ -29,10 +66,12 @@
 			"problemMatcher": [],
 			"isBackground": true,
 			"label": "npm: build:webview",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -47,10 +86,12 @@
 			"problemMatcher": [],
 			"isBackground": true,
 			"label": "npm: build:webview:test",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -82,10 +123,12 @@
 			],
 			"isBackground": true,
 			"label": "npm: dev:webview",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -97,13 +140,33 @@
 			"type": "npm",
 			"script": "watch:esbuild",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": {
+				"pattern": [
+					{
+						"regexp": "^✘ \\[ERROR\\] (.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^\\s+(.*):(\\d+):(\\d+):$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[watch\\] build started$",
+					"endsPattern": "^\\[watch\\] build finished$"
+				}
+			},
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -115,13 +178,33 @@
 			"type": "npm",
 			"script": "watch:esbuild:test",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": {
+				"pattern": [
+					{
+						"regexp": "^✘ \\[ERROR\\] (.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^\\s+(.*):(\\d+):(\\d+):$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[watch\\] build started$",
+					"endsPattern": "^\\[watch\\] build finished$"
+				}
+			},
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			},
 			"options": {
 				"env": {
@@ -137,10 +220,12 @@
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"label": "npm: watch:tsc",
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
+				"reveal": "always"
 			}
 		},
 		{
@@ -148,21 +233,36 @@
 			"script": "watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
+			"dependsOn": [
+				"npm: protos"
+			],
 			"presentation": {
-				"reveal": "never",
+				"reveal": "always",
 				"group": "watchers"
 			},
 			"group": "build"
 		},
 		{
 			"label": "tasks: watch-tests",
-			"dependsOn": ["npm: watch", "npm: watch-tests"],
+			"dependsOn": [
+				"npm: protos",
+				"npm: watch",
+				"npm: watch-tests"
+			],
 			"problemMatcher": []
 		},
 		{
 			"label": "stop",
 			"command": "echo ${input:terminate}",
 			"type": "shell"
+		},
+		{
+			"label": "clean-tmp-user",
+			"type": "shell",
+			"dependsOn": [
+				"watch"
+			],
+			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
 		}
 	],
 	"inputs": [

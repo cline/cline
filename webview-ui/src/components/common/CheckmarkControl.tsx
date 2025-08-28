@@ -1,12 +1,14 @@
-import { useCallback, useRef, useState, useEffect } from "react"
-import { useEvent } from "react-use"
-import styled from "styled-components"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { vscode } from "@/utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { flip, offset, shift, useFloating } from "@floating-ui/react"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Int64Request } from "@shared/proto/cline/common"
+import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { useFloating, offset, flip, shift } from "@floating-ui/react"
+import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckmarkControlProps {
 	messageTs?: number
@@ -19,9 +21,42 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
 	const [restoreBothDisabled, setRestoreBothDisabled] = useState(false)
 	const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
-	const [hasMouseEntered, setHasMouseEntered] = useState(false)
-	const containerRef = useRef<HTMLDivElement>(null)
-	const tooltipRef = useRef<HTMLDivElement>(null)
+	const { onRelinquishControl } = useExtensionState()
+
+	// Debounce
+	const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const scheduleCloseRestore = useCallback(() => {
+		if (closeMenuTimeoutRef.current) {
+			clearTimeout(closeMenuTimeoutRef.current)
+		}
+		closeMenuTimeoutRef.current = setTimeout(() => {
+			setShowRestoreConfirm(false)
+		}, 350)
+	}, [])
+
+	const cancelCloseRestore = useCallback(() => {
+		if (closeMenuTimeoutRef.current) {
+			clearTimeout(closeMenuTimeoutRef.current)
+			closeMenuTimeoutRef.current = null
+		}
+	}, [])
+
+	// Debounce cleanup
+	useEffect(() => {
+		return () => {
+			if (closeMenuTimeoutRef.current) {
+				clearTimeout(closeMenuTimeoutRef.current)
+				closeMenuTimeoutRef.current = null
+			}
+		}
+	}, [showRestoreConfirm])
+
+	// Clear "Restore Files" button when checkpoint is no longer checked out
+	useEffect(() => {
+		if (!isCheckpointCheckedOut && restoreWorkspaceDisabled) {
+			setRestoreWorkspaceDisabled(false)
+		}
+	}, [isCheckpointCheckedOut, restoreWorkspaceDisabled])
 
 	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
@@ -49,78 +84,87 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 		}
 	}, [showRestoreConfirm, update])
 
-	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
-		if (event.data.type === "relinquishControl") {
+	// Use the onRelinquishControl hook instead of message event
+	useEffect(() => {
+		return onRelinquishControl(() => {
 			setCompareDisabled(false)
 			setRestoreTaskDisabled(false)
 			setRestoreWorkspaceDisabled(false)
 			setRestoreBothDisabled(false)
 			setShowRestoreConfirm(false)
-		}
-	}, [])
+		})
+	}, [onRelinquishControl])
 
-	const handleRestoreTask = () => {
+	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "task",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "task"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore task error:", err)
+			setRestoreTaskDisabled(false)
+		}
 	}
 
-	const handleRestoreWorkspace = () => {
+	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "workspace",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "workspace"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore workspace error:", err)
+			setRestoreWorkspaceDisabled(false)
+		}
 	}
 
-	const handleRestoreBoth = () => {
+	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "taskAndWorkspace",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "taskAndWorkspace"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore both error:", err)
+			setRestoreBothDisabled(false)
+		}
 	}
 
 	const handleMouseEnter = () => {
-		setHasMouseEntered(true)
+		cancelCloseRestore()
 	}
 
 	const handleMouseLeave = () => {
-		if (hasMouseEntered) {
-			setShowRestoreConfirm(false)
-			setHasMouseEntered(false)
-		}
+		scheduleCloseRestore()
 	}
 
-	const handleControlsMouseLeave = (e: React.MouseEvent) => {
-		const tooltipElement = tooltipRef.current
-
-		if (tooltipElement && showRestoreConfirm) {
-			const tooltipRect = tooltipElement.getBoundingClientRect()
-
-			if (
-				e.clientY >= tooltipRect.top &&
-				e.clientY <= tooltipRect.bottom &&
-				e.clientX >= tooltipRect.left &&
-				e.clientX <= tooltipRect.right
-			) {
-				return
-			}
-		}
-
-		setShowRestoreConfirm(false)
-		setHasMouseEntered(false)
+	const handleControlsMouseEnter = () => {
+		cancelCloseRestore()
 	}
 
-	useEvent("message", handleMessage)
+	const handleControlsMouseLeave = () => {
+		scheduleCloseRestore()
+	}
 
 	return (
-		<Container isMenuOpen={showRestoreConfirm} $isCheckedOut={isCheckpointCheckedOut} onMouseLeave={handleControlsMouseLeave}>
+		<Container
+			$isCheckedOut={isCheckpointCheckedOut}
+			isMenuOpen={showRestoreConfirm}
+			onMouseEnter={handleControlsMouseEnter}
+			onMouseLeave={handleControlsMouseLeave}>
 			<i
 				className="codicon codicon-bookmark"
 				style={{
@@ -137,17 +181,24 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 				<CustomButton
 					$isCheckedOut={isCheckpointCheckedOut}
 					disabled={compareDisabled}
-					style={{ cursor: compareDisabled ? "wait" : "pointer" }}
-					onClick={() => {
+					onClick={async () => {
 						setCompareDisabled(true)
-						vscode.postMessage({
-							type: "checkpointDiff",
-							number: messageTs,
-						})
-					}}>
+						try {
+							await CheckpointsServiceClient.checkpointDiff(
+								Int64Request.create({
+									value: messageTs,
+								}),
+							)
+						} catch (err) {
+							console.error("CheckpointDiff error:", err)
+						} finally {
+							setCompareDisabled(false)
+						}
+					}}
+					style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
 					Compare
 				</CustomButton>
-				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 				<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
 					<CustomButton
 						$isCheckedOut={isCheckpointCheckedOut}
@@ -158,17 +209,21 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					{showRestoreConfirm &&
 						createPortal(
 							<RestoreConfirmTooltip
-								ref={refs.setFloating}
-								style={floatingStyles}
 								data-placement={placement}
 								onMouseEnter={handleMouseEnter}
-								onMouseLeave={handleMouseLeave}>
+								onMouseLeave={handleMouseLeave}
+								ref={refs.setFloating}
+								style={floatingStyles}>
 								<RestoreOption>
 									<VSCodeButton
+										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
 										onClick={handleRestoreWorkspace}
-										disabled={restoreWorkspaceDisabled}
 										style={{
-											cursor: restoreWorkspaceDisabled ? "wait" : "pointer",
+											cursor: isCheckpointCheckedOut
+												? "not-allowed"
+												: restoreWorkspaceDisabled
+													? "wait"
+													: "pointer",
 											width: "100%",
 											marginBottom: "10px",
 										}}>
@@ -181,8 +236,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
-										onClick={handleRestoreTask}
 										disabled={restoreTaskDisabled}
+										onClick={handleRestoreTask}
 										style={{
 											cursor: restoreTaskDisabled ? "wait" : "pointer",
 											width: "100%",
@@ -194,8 +249,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
-										onClick={handleRestoreBoth}
 										disabled={restoreBothDisabled}
+										onClick={handleRestoreBoth}
 										style={{
 											cursor: restoreBothDisabled ? "wait" : "pointer",
 											width: "100%",
@@ -209,7 +264,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 							document.body,
 						)}
 				</div>
-				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 			</ButtonGroup>
 		</Container>
 	)
@@ -288,9 +343,9 @@ const CustomButton = styled.button<{ disabled?: boolean; isActive?: boolean; $is
 			props.isActive || props.disabled
 				? "none"
 				: `linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-			linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-			linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-			linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%)`};
+            linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
+            linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
+            linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%)`};
 		background-size: ${(props) => (props.isActive || props.disabled ? "auto" : `4px 1px, 1px 4px, 4px 1px, 1px 4px`)};
 		background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
 		background-position:

@@ -1,0 +1,71 @@
+---
+title: "Generate Commit Message"
+sidebarTitle: "Generate Commit Message"
+---
+
+Cline's Git integration brings AI assistance directly to your version control workflow. Generate commit messages without leaving your editor.
+
+## Generate Commit Message
+
+One of the most useful Git integrations is the ability to automatically generate meaningful commit messages:
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/generate-commit-message-with-cline.png"
+		alt="Generate Commit Message with Cline"
+	/>
+</Frame>
+
+1. Make your changes and stage them in Git
+2. Click the robot icon in the Source Control view or run the "Generate Commit Message with Cline" command
+3. Cline analyzes your changes and generates a descriptive commit message
+4. The message is automatically inserted into the commit message input box
+
+The generated commit messages:
+
+-   Start with a concise summary (50-72 characters)
+-   Use imperative mood (e.g., "Add feature" not "Added feature")
+-   Describe what was changed and why
+-   Follow Git best practices
+
+This feature saves time and ensures your commit history is consistent and informative.
+
+<Tip>
+	For information about using `@git-changes` and `@[commit-hash]` mentions in your chat messages, see the [Git
+	Mentions](/features/at-mentions/git-mentions) documentation.
+</Tip>
+
+## How It Works
+
+When you use Cline's commit message generation feature, here's what happens behind the scenes:
+
+1. Cline retrieves the current Git diff using `getWorkingState()`
+2. It formats this diff into a specialized prompt for the AI
+3. The AI analyzes the changes and generates an appropriate commit message
+4. The message is extracted and inserted into the Git commit message input box
+
+This process uses your current Cline API configuration, so the quality of the generated messages matches your chosen AI model.
+
+## Tips for Effective Use
+
+-   **Generate commit messages for complex changes**: The AI excels at summarizing multiple related changes into a coherent message.
+
+-   **Review and edit generated messages**: While the AI generates high-quality messages, it's always good practice to review and adjust them if needed.
+
+-   **Stage related changes together**: For the best results, stage related changes together so the AI can generate a cohesive message.
+
+-   **Use for consistent commit history**: Using the generate commit message feature helps maintain a consistent style across your commit history.
+
+## How It Works Under the Hood
+
+The commit message generation leverages VSCode's Git extension API to access repository information:
+
+1. When you trigger the command:
+    - Cline gets the current diff
+    - It sends this to the AI with specific instructions for commit message formatting
+    - It parses the AI's response
+    - It accesses the Git extension API to set the commit message
+
+This integration with Git makes it easy to generate high-quality commit messages without disrupting your workflow.
+
+Next time you're struggling to write a good commit message, try using Cline's commit message generation. You'll save time and improve your version control workflow with AI assistance right where you need it.

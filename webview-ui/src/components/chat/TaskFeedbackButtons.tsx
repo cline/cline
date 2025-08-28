@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react"
-import styled from "styled-components"
-import { vscode } from "@/utils/vscode"
+import { StringRequest } from "@shared/proto/cline/common"
 import { TaskFeedbackType } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useState } from "react"
+import styled from "styled-components"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
@@ -41,25 +42,31 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 		return null
 	}
 
-	const handleFeedback = (type: TaskFeedbackType) => {
-		if (feedback !== null) return // Already provided feedback
+	const handleFeedback = async (type: TaskFeedbackType) => {
+		if (feedback !== null) {
+			return // Already provided feedback
+		}
 
 		setFeedback(type)
 
-		// Send feedback to extension
-		vscode.postMessage({
-			type: "taskFeedback",
-			feedbackType: type,
-		})
-
-		// Store in localStorage that feedback was provided for this message
 		try {
-			const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
-			const history = JSON.parse(feedbackHistory)
-			history[messageTs] = true
-			localStorage.setItem("taskFeedbackHistory", JSON.stringify(history))
-		} catch (e) {
-			console.error("Error updating feedback history:", e)
+			await TaskServiceClient.taskFeedback(
+				StringRequest.create({
+					value: type,
+				}),
+			)
+
+			// Store in localStorage that feedback was provided for this message
+			try {
+				const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
+				const history = JSON.parse(feedbackHistory)
+				history[messageTs] = true
+				localStorage.setItem("taskFeedbackHistory", JSON.stringify(history))
+			} catch (e) {
+				console.error("Error updating feedback history:", e)
+			}
+		} catch (error) {
+			console.error("Error sending task feedback:", error)
 		}
 	}
 
@@ -69,10 +76,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						onClick={() => handleFeedback("thumbs_up")}
+						aria-label="This was helpful"
 						disabled={feedback !== null}
-						title="This was helpful"
-						aria-label="This was helpful">
+						onClick={() => handleFeedback("thumbs_up")}
+						title="This was helpful">
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_up" ? "codicon-thumbsup-filled" : "codicon-thumbsup"}`}
@@ -83,10 +90,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						onClick={() => handleFeedback("thumbs_down")}
+						aria-label="This wasn't helpful"
 						disabled={feedback !== null && feedback !== "thumbs_down"}
-						title="This wasn't helpful"
-						aria-label="This wasn't helpful">
+						onClick={() => handleFeedback("thumbs_down")}
+						title="This wasn't helpful">
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_down" ? "codicon-thumbsdown-filled" : "codicon-thumbsdown"}`}

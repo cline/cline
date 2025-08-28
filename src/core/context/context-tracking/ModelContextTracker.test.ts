@@ -1,10 +1,10 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import { ModelContextTracker } from "./ModelContextTracker"
-import * as diskModule from "../../storage/disk"
 import type { TaskMetadata } from "./ContextTrackerTypes"
+import { ModelContextTracker } from "./ModelContextTracker"
 
 describe("ModelContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
@@ -73,26 +73,6 @@ describe("ModelContextTracker", () => {
 		} finally {
 			// Restore the clock
 			clock.restore()
-		}
-	})
-
-	it("should throw an error when controller is dereferenced", async () => {
-		// Create a new tracker with a controller that will be garbage collected
-		const weakTracker = new ModelContextTracker(mockContext, taskId)
-
-		// Force the WeakRef to return null by overriding the deref method
-		const weakRef = { deref: sandbox.stub().returns(null) }
-		sandbox.stub(WeakRef.prototype, "deref").callsFake(() => weakRef.deref())
-
-		try {
-			// Try to call the method - this should throw
-			await weakTracker.recordModelUsage("any-provider", "any-model", "any-mode")
-
-			// If we get here, the test should fail
-			expect.fail("Expected an error to be thrown")
-		} catch (error) {
-			// Verify the error message
-			expect(error.message).to.equal("Unable to access extension context")
 		}
 	})
 

@@ -1,13 +1,17 @@
-import React, { useRef, useState, useEffect } from "react"
-import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
-import { vscode } from "@/utils/vscode"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { McpServers } from "@shared/proto/cline/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useRef, useState } from "react"
+import { useClickAway, useWindowSize } from "react-use"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Tooltip from "@/components/common/Tooltip"
+import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
 
 const ServersToggleModal: React.FC = () => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -34,25 +38,36 @@ const ServersToggleModal: React.FC = () => {
 
 	useEffect(() => {
 		if (isVisible) {
-			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
+			McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
+				.then((response: McpServers) => {
+					if (response.mcpServers) {
+						const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+						setMcpServers(mcpServers)
+					}
+				})
+				.catch((error) => {
+					console.error("Failed to fetch MCP servers:", error)
+				})
 		}
 	}, [isVisible])
 
 	return (
 		<div ref={modalRef}>
-			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<VSCodeButton
-					appearance="icon"
-					aria-label="MCP Servers"
-					onClick={() => setIsVisible(!isVisible)}
-					style={{ padding: "0px 0px", height: "20px" }}>
-					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-						<span
-							className="codicon codicon-server flex items-center"
-							style={{ fontSize: "12.5px", marginBottom: 1 }}
-						/>
-					</div>
-				</VSCodeButton>
+			<div className="inline-flex min-w-0 max-w-full" ref={buttonRef}>
+				<Tooltip tipText="Manage MCP Servers" visible={isVisible ? false : undefined}>
+					<VSCodeButton
+						appearance="icon"
+						aria-label="MCP Servers"
+						onClick={() => setIsVisible(!isVisible)}
+						style={{ padding: "0px 0px", height: "20px" }}>
+						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
+							<span
+								className="codicon codicon-server flex items-center"
+								style={{ fontSize: "12.5px", marginBottom: 1 }}
+							/>
+						</div>
+					</VSCodeButton>
+				</Tooltip>
 			</div>
 
 			{isVisible && (
@@ -78,18 +93,15 @@ const ServersToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {
-								vscode.postMessage({
-									type: "showMcpView",
-									tab: "installed",
-								})
 								setIsVisible(false)
+								navigateToMcp("installed")
 							}}>
 							<span className="codicon codicon-gear text-[10px]"></span>
 						</VSCodeButton>
 					</div>
 
 					<div style={{ marginBottom: -10 }}>
-						<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+						<ServersToggleList hasTrashIcon={false} isExpandable={false} listGap="small" servers={mcpServers} />
 					</div>
 				</div>
 			)}

@@ -58,6 +58,11 @@ export type McpToolCallResponse = {
 				mimeType: string
 		  }
 		| {
+				type: "audio"
+				data: string
+				mimeType: string
+		  }
+		| {
 				type: "resource"
 				resource: {
 					uri: string

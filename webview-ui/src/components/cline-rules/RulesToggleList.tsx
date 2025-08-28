@@ -6,11 +6,17 @@ const RulesToggleList = ({
 	toggleRule,
 	listGap = "medium",
 	isGlobal,
+	ruleType,
+	showNewRule,
+	showNoRules,
 }: {
 	rules: [string, boolean][]
 	toggleRule: (rulePath: string, enabled: boolean) => void
 	listGap?: "small" | "medium" | "large"
 	isGlobal: boolean
+	ruleType: string
+	showNewRule: boolean
+	showNoRules: boolean
 }) => {
 	const gapClasses = {
 		small: "gap-0",
@@ -26,21 +32,24 @@ const RulesToggleList = ({
 				<>
 					{rules.map(([rulePath, enabled]) => (
 						<RuleRow
-							key={rulePath}
-							rulePath={rulePath}
 							enabled={enabled}
 							isGlobal={isGlobal}
+							key={rulePath}
+							rulePath={rulePath}
+							ruleType={ruleType}
 							toggleRule={toggleRule}
 						/>
 					))}
-					<NewRuleRow isGlobal={isGlobal} />
+					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
 				</>
 			) : (
 				<>
-					<div className="flex flex-col items-center gap-3 my-3 text-[var(--vscode-descriptionForeground)]">
-						No rules found
-					</div>
-					<NewRuleRow isGlobal={isGlobal} />
+					{showNoRules && (
+						<div className="flex flex-col items-center gap-3 my-3 text-[var(--vscode-descriptionForeground)]">
+							{ruleType === "workflow" ? "No workflows found" : "No rules found"}
+						</div>
+					)}
+					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
 				</>
 			)}
 		</div>

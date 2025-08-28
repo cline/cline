@@ -1,49 +1,69 @@
+import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { requestyDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { ModelsServiceClient } from "../../services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { highlight } from "../history/HistoryView"
+import { ModelInfoView } from "./common/ModelInfoView"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
+	currentMode: Mode
 }
 
-const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, requestyModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
+const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
-			...apiConfiguration,
-			...{
+
+		handleModeFieldsChange(
+			{
+				requestyModelId: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
+				requestyModelInfo: { plan: "planModeRequestyModelInfo", act: "actModeRequestyModelInfo" },
+			},
+			{
 				requestyModelId: newModelId,
 				requestyModelInfo: requestyModels[newModelId],
 			},
-		})
+			currentMode,
+		)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
-		vscode.postMessage({ type: "refreshRequestyModels" })
+		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({}))
+			.then((response) => {
+				setRequestyModels({
+					[requestyDefaultModelId]: requestyDefaultModelInfo,
+					...response.models,
+				})
+			})
+			.catch((err) => {
+				console.error("Failed to refresh Requesty models:", err)
+			})
 	})
 
 	useEffect(() => {
@@ -83,7 +103,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
+		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
 		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
@@ -91,7 +111,9 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 	}, [searchableItems, searchTerm, fuse])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (!isDropdownVisible) return
+		if (!isDropdownVisible) {
+			return
+		}
 
 		switch (event.key) {
 			case "ArrowDown":
@@ -161,23 +183,23 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
-						placeholder="Search and select a model..."
-						value={searchTerm}
+						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
 							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
 							setIsDropdownVisible(true)
 						}}
-						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
+						placeholder="Search and select a model..."
 						style={{
 							width: "100%",
 							zIndex: REQUESTY_MODEL_PICKER_Z_INDEX,
 							position: "relative",
-						}}>
+						}}
+						value={searchTerm}>
 						{searchTerm && (
 							<div
-								className="input-icon-button codicon codicon-close"
 								aria-label="Clear search"
+								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									handleModelChange("")
 									setIsDropdownVisible(true)
@@ -196,17 +218,17 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => (
 								<DropdownItem
-									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
+									dangerouslySetInnerHTML={{
+										__html: item.html,
+									}}
 									isSelected={index === selectedIndex}
-									onMouseEnter={() => setSelectedIndex(index)}
+									key={item.id}
 									onClick={() => {
 										handleModelChange(item.id)
 										setIsDropdownVisible(false)
 									}}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
+									onMouseEnter={() => setSelectedIndex(index)}
+									ref={(el) => (itemRefs.current[index] = el)}
 								/>
 							))}
 						</DropdownList>
@@ -216,16 +238,8 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-					)}
-					<ModelInfoView
-						selectedModelId={selectedModelId}
-						modelInfo={selectedModelInfo}
-						isDescriptionExpanded={isDescriptionExpanded}
-						setIsDescriptionExpanded={setIsDescriptionExpanded}
-						isPopup={isPopup}
-					/>
+					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			) : (
 				<p
@@ -234,18 +248,16 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					<>
-						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://app.requesty.ai/router/list">
-							Requesty.
-						</VSCodeLink>
-						If you're unsure which model to choose, Cline works best with{" "}
-						<VSCodeLink
-							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}>
-							anthropic/claude-3-7-sonnet-latest.
-						</VSCodeLink>
-					</>
+					The extension automatically fetches the latest list of models available on{" "}
+					<VSCodeLink href="https://app.requesty.ai/router/list" style={{ display: "inline", fontSize: "inherit" }}>
+						Requesty.
+					</VSCodeLink>
+					If you're unsure which model to choose, Cline works best with{" "}
+					<VSCodeLink
+						onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}
+						style={{ display: "inline", fontSize: "inherit" }}>
+						anthropic/claude-3-7-sonnet-latest.
+					</VSCodeLink>
 				</p>
 			)}
 		</div>
@@ -413,6 +425,7 @@ export const ModelDescriptionMarkdown = memo(
 								}}
 							/>
 							<VSCodeLink
+								onClick={() => setIsExpanded(true)}
 								style={{
 									// cursor: "pointer",
 									// color: "var(--vscode-textLink-foreground)",
@@ -420,8 +433,7 @@ export const ModelDescriptionMarkdown = memo(
 									paddingRight: 0,
 									paddingLeft: 3,
 									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
-								}}
-								onClick={() => setIsExpanded(true)}>
+								}}>
 								See more
 							</VSCodeLink>
 						</div>

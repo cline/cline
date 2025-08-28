@@ -1,64 +1,49 @@
-import * as vscode from "vscode"
-import { Controller } from "../core/controller"
+import { Controller } from "@core/controller"
+import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
+import { HostProvider } from "@/hosts/host-provider"
 import { ClineAPI } from "./cline"
-import { getGlobalState } from "../core/storage/state"
 
-export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
+export function createClineAPI(sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
-		setCustomInstructions: async (value: string) => {
-			await sidebarController.updateCustomInstructions(value)
-			outputChannel.appendLine("Custom instructions set")
-		},
-
-		getCustomInstructions: async () => {
-			return (await getGlobalState(sidebarController.context, "customInstructions")) as string | undefined
-		},
-
 		startNewTask: async (task?: string, images?: string[]) => {
-			outputChannel.appendLine("Starting new task")
+			HostProvider.get().logToChannel("Starting new task")
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()
-			await sidebarController.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "sendMessage",
-				text: task,
-				images: images,
-			})
-			outputChannel.appendLine(
+
+			await sendChatButtonClickedEvent(sidebarController.id)
+			await sidebarController.initTask(task, images)
+			HostProvider.get().logToChannel(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
 			)
 		},
 
 		sendMessage: async (message?: string, images?: string[]) => {
-			outputChannel.appendLine(
+			HostProvider.get().logToChannel(
 				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "sendMessage",
-				text: message,
-				images: images,
-			})
+			if (sidebarController.task) {
+				await sidebarController.task.handleWebviewAskResponse("messageResponse", message || "", images || [])
+			} else {
+				HostProvider.get().logToChannel("No active task to send message to")
+			}
 		},
 
 		pressPrimaryButton: async () => {
-			outputChannel.appendLine("Pressing primary button")
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "primaryButtonClick",
-			})
+			HostProvider.get().logToChannel("Pressing primary button")
+			if (sidebarController.task) {
+				await sidebarController.task.handleWebviewAskResponse("yesButtonClicked", "", [])
+			} else {
+				HostProvider.get().logToChannel("No active task to press button for")
+			}
 		},
 
 		pressSecondaryButton: async () => {
-			outputChannel.appendLine("Pressing secondary button")
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "secondaryButtonClick",
-			})
+			HostProvider.get().logToChannel("Pressing secondary button")
+			if (sidebarController.task) {
+				await sidebarController.task.handleWebviewAskResponse("noButtonClicked", "", [])
+			} else {
+				HostProvider.get().logToChannel("No active task to press button for")
+			}
 		},
 	}
 

@@ -1,108 +1,76 @@
-import * as vscode from "vscode"
-import * as path from "path"
 import deepEqual from "fast-deep-equal"
+import * as path from "path"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { getCwd } from "@/utils/path"
 
-export function getNewDiagnostics(
-	oldDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-	newDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-): [vscode.Uri, vscode.Diagnostic[]][] {
-	const newProblems: [vscode.Uri, vscode.Diagnostic[]][] = []
-	const oldMap = new Map(oldDiagnostics)
+export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {
+	const oldMap = new Map<string, Diagnostic[]>()
+	for (const diag of oldDiagnostics) {
+		oldMap.set(diag.filePath, diag.diagnostics)
+	}
 
-	for (const [uri, newDiags] of newDiagnostics) {
-		const oldDiags = oldMap.get(uri) || []
-		const newProblemsForUri = newDiags.filter((newDiag) => !oldDiags.some((oldDiag) => deepEqual(oldDiag, newDiag)))
+	const newProblems: FileDiagnostics[] = []
+	for (const newDiags of newDiagnostics) {
+		const oldDiags = oldMap.get(newDiags.filePath) || []
+		const newProblemsForFile = newDiags.diagnostics.filter(
+			(newDiag) => !oldDiags.some((oldDiag) => deepEqual(oldDiag, newDiag)),
+		)
 
-		if (newProblemsForUri.length > 0) {
-			newProblems.push([uri, newProblemsForUri])
+		if (newProblemsForFile.length > 0) {
+			newProblems.push({ filePath: newDiags.filePath, diagnostics: newProblemsForFile })
 		}
 	}
 
 	return newProblems
 }
 
-// Usage:
-// const oldDiagnostics = // ... your old diagnostics array
-// const newDiagnostics = // ... your new diagnostics array
-// const newProblems = getNewDiagnostics(oldDiagnostics, newDiagnostics);
-
-// Example usage with mocks:
-//
-// // Mock old diagnostics
-// const oldDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = [
-//     [vscode.Uri.file("/path/to/file1.ts"), [
-//         new vscode.Diagnostic(new vscode.Range(0, 0, 0, 10), "Old error in file1", vscode.DiagnosticSeverity.Error)
-//     ]],
-//     [vscode.Uri.file("/path/to/file2.ts"), [
-//         new vscode.Diagnostic(new vscode.Range(5, 5, 5, 15), "Old warning in file2", vscode.DiagnosticSeverity.Warning)
-//     ]]
-// ];
-//
-// // Mock new diagnostics
-// const newDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = [
-//     [vscode.Uri.file("/path/to/file1.ts"), [
-//         new vscode.Diagnostic(new vscode.Range(0, 0, 0, 10), "Old error in file1", vscode.DiagnosticSeverity.Error),
-//         new vscode.Diagnostic(new vscode.Range(2, 2, 2, 12), "New error in file1", vscode.DiagnosticSeverity.Error)
-//     ]],
-//     [vscode.Uri.file("/path/to/file2.ts"), [
-//         new vscode.Diagnostic(new vscode.Range(5, 5, 5, 15), "Old warning in file2", vscode.DiagnosticSeverity.Warning)
-//     ]],
-//     [vscode.Uri.file("/path/to/file3.ts"), [
-//         new vscode.Diagnostic(new vscode.Range(1, 1, 1, 11), "New error in file3", vscode.DiagnosticSeverity.Error)
-//     ]]
-// ];
-//
-// const newProblems = getNewProblems(oldDiagnostics, newDiagnostics);
-//
-// console.log("New problems:");
-// for (const [uri, diagnostics] of newProblems) {
-//     console.log(`File: ${uri.fsPath}`);
-//     for (const diagnostic of diagnostics) {
-//         console.log(`- ${diagnostic.message} (${diagnostic.range.start.line}:${diagnostic.range.start.character})`);
-//     }
-// }
-//
-// // Expected output:
-// // New problems:
-// // File: /path/to/file1.ts
-// // - New error in file1 (2:2)
-// // File: /path/to/file3.ts
-// // - New error in file3 (1:1)
-
 // will return empty string if no problems with the given severity are found
-export function diagnosticsToProblemsString(
-	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-	severities: vscode.DiagnosticSeverity[],
-	cwd: string,
-): string {
-	let result = ""
-	for (const [uri, fileDiagnostics] of diagnostics) {
-		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))
-		if (problems.length > 0) {
-			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
-			for (const diagnostic of problems) {
-				let label: string
-				switch (diagnostic.severity) {
-					case vscode.DiagnosticSeverity.Error:
-						label = "Error"
-						break
-					case vscode.DiagnosticSeverity.Warning:
-						label = "Warning"
-						break
-					case vscode.DiagnosticSeverity.Information:
-						label = "Information"
-						break
-					case vscode.DiagnosticSeverity.Hint:
-						label = "Hint"
-						break
-					default:
-						label = "Diagnostic"
-				}
-				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-				const source = diagnostic.source ? `${diagnostic.source} ` : ""
-				result += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
-			}
+export async function diagnosticsToProblemsString(
+	diagnostics: FileDiagnostics[],
+	severities?: DiagnosticSeverity[],
+): Promise<string> {
+	const results = []
+	for (const fileDiagnostics of diagnostics) {
+		const problems = fileDiagnostics.diagnostics.filter((d) => !severities || severities.includes(d.severity))
+		const problemString = await singleFileDiagnosticsToProblemsString(fileDiagnostics.filePath, problems)
+		if (problemString) {
+			results.push(problemString)
 		}
 	}
-	return result.trim()
+	return results.join("\n\n")
+}
+
+export async function singleFileDiagnosticsToProblemsString(filePath: string, diagnostics: Diagnostic[]): Promise<string> {
+	if (!diagnostics.length) {
+		return ""
+	}
+	const cwd = await getCwd()
+	const relPath = path.relative(cwd, filePath).toPosix()
+	let result = `${relPath}`
+
+	for (const diagnostic of diagnostics) {
+		const label = severityToString(diagnostic.severity)
+		// Lines are 0-indexed
+		const line = diagnostic.range?.start ? `${diagnostic.range.start.line + 1}` : ""
+
+		const source = diagnostic.source ? `${diagnostic.source} ` : ""
+		result += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
+	}
+	return result
+}
+
+function severityToString(severity: DiagnosticSeverity): string {
+	switch (severity) {
+		case DiagnosticSeverity.DIAGNOSTIC_ERROR:
+			return "Error"
+		case DiagnosticSeverity.DIAGNOSTIC_WARNING:
+			return "Warning"
+		case DiagnosticSeverity.DIAGNOSTIC_INFORMATION:
+			return "Information"
+		case DiagnosticSeverity.DIAGNOSTIC_HINT:
+			return "Hint"
+		default:
+			console.warn("Unhandled diagnostic severity level:", severity)
+			return "Diagnostic"
+	}
 }

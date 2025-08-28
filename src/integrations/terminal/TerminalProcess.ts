@@ -1,6 +1,7 @@
 import { EventEmitter } from "events"
-import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
+import { stripAnsi } from "./ansiUtils"
+import { getLatestTerminalOutput } from "./get-latest-output"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -23,10 +24,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
 
-	// constructor() {
-	// 	super()
-
 	async run(terminal: vscode.Terminal, command: string) {
+		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
+		const returnCurrentTerminalContents = async () => {
+			try {
+				const terminalSnapshot = await getLatestTerminalOutput()
+				if (terminalSnapshot && terminalSnapshot.trim()) {
+					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+					this.emit("line", fallbackMessage)
+				}
+			} catch (error) {
+				console.error("Error capturing terminal output:", error)
+			}
+		}
+
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -34,6 +45,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+
 			for await (let data of stream) {
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
@@ -76,16 +88,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
 					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+					// Check for duplicated first character that might be a terminal artifact
+					// But skip this check for known syntax characters like {, [, ", etc.
+					if (
+						lines.length > 0 &&
+						lines[0].length >= 2 &&
+						lines[0][0] === lines[0][1] &&
+						!["[", "{", '"', "'", "<", "("].includes(lines[0][0])
+					) {
 						lines[0] = lines[0].slice(1)
 					}
-					// Remove everything up to the first alphanumeric character for first two lines
+					// Only remove specific terminal artifacts from line beginnings while preserving JSON syntax
 					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+						// This regex only removes common terminal artifacts (%, $, >, #) and invisible control chars
+						// but preserves important syntax chars like {, [, ", etc.
+						lines[0] = lines[0].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+						lines[1] = lines[1].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					// Join lines back
 					data = lines.join("\n")
@@ -118,9 +138,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					}
 					data = lines.join("\n")
 				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
@@ -155,6 +172,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				)
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldn't happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
+				// This is only done for the sake of unblocking the UI, in case there may be some time before the command emits a full line
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true
@@ -169,7 +187,13 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.emitRemainingBufferIfListening()
 
+			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
+			if (!this.fullOutput.trim()) {
+				await returnCurrentTerminalContents()
+			}
+
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
+			// to explain this further, before we would send workspace diagnostics automatically with each request, but now we only send new diagnostics after file edits, so there's no need to wait for a bit after commands run to let diagnostics catch up
 			if (this.hotTimer) {
 				clearTimeout(this.hotTimer)
 			}
@@ -178,7 +202,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("completed")
 			this.emit("continue")
 		} else {
+			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			terminal.sendText(command, true)
+
+			// wait 3 seconds for the command to run
+			await new Promise((resolve) => setTimeout(resolve, 3000))
+
+			// For terminals without shell integration, also try to capture terminal content
+			await returnCurrentTerminalContents()
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
 			this.emit("completed")
@@ -196,7 +227,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer += chunk
 		let lineEndIndex: number
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
+			const line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)

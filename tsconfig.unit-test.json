@@ -1,8 +1,19 @@
 {
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"module": "commonjs"
+		"module": "commonjs",
+		"moduleResolution": "node"
 	},
-	"include": ["test/**/*.ts"],
-	"exclude": ["node_modules"]
+	"ts-node": {
+		"require": [
+			"tsconfig-paths/register"
+		]
+	},
+	"include": [
+		"src/**/*.ts",
+		"test/**/*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
 }

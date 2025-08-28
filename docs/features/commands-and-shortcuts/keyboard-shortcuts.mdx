@@ -1,0 +1,103 @@
+---
+title: "Keyboard Shortcuts"
+sidebarTitle: "Keyboard Shortcuts"
+---
+
+Cline's keyboard shortcuts let you access AI assistance without taking your hands off the keyboard. Speed up your workflow by using hotkeys for common Cline actions.
+
+## Default Keyboard Shortcuts
+
+Cline comes with the following built-in keyboard shortcuts to streamline your workflow:
+
+| Action                  | Windows/Linux | macOS   | Condition                    | Description                               |
+| ----------------------- | ------------- | ------- | ---------------------------- | ----------------------------------------- |
+| Add to Cline            | `Ctrl+'`      | `Cmd+'` | When text is selected        | Adds selected code to Cline chat          |
+| Focus Chat Input        | `Ctrl+'`      | `Cmd+'` | When no text is selected     | Focuses the Cline chat input field        |
+| Generate Commit Message | (unset)       | (unset) | When Git is the SCM provider | Available through the Source Control view |
+
+## Available Commands for Custom Shortcuts
+
+While Cline has only a few default keyboard shortcuts, you can assign your own shortcuts to any of these commands:
+
+| Command ID                                                                               | Description                                   |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------- |
+| [`cline.openInNewTab`](/features/commands-and-shortcuts/overview)                        | Opens Cline in a new editor tab               |
+| [`cline.addToChat`](/features/commands-and-shortcuts/code-commands)                      | Adds selected code to Cline chat              |
+| [`cline.addTerminalOutputToChat`](/features/commands-and-shortcuts/terminal-integration) | Adds terminal output to Cline                 |
+| `cline.focusChatInput`                                                                   | Focuses the Cline chat input field            |
+| [`cline.generateGitCommitMessage`](/features/commands-and-shortcuts/git-integration)     | Generates a commit message for staged changes |
+| [`cline.explainCode`](/features/commands-and-shortcuts/code-commands)                    | Explains selected code                        |
+| [`cline.improveCode`](/features/commands-and-shortcuts/code-commands)                    | Suggests improvements for selected code       |
+| [`cline.fixWithCline`](/features/commands-and-shortcuts/code-commands)                   | Fixes code with errors                        |
+| `claude-dev.SidebarProvider.focus`                                                       | Opens and focuses the Cline sidebar           |
+
+## Customizing Keyboard Shortcuts
+
+You can customize Cline's keyboard shortcuts to match your preferences:
+
+1. Open the Keyboard Shortcuts editor in VSCode:
+
+    - Press `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
+    - Or go to File > Preferences > Keyboard Shortcuts
+
+2. Search for "Cline" to see all available commands
+
+3. Click on the pencil icon next to any command to change its shortcut
+
+4. Press the keys you want to assign to that command
+
+5. Press Enter to save the new shortcut
+
+## Suggested Custom Shortcuts
+
+Here are some suggested shortcuts you might find useful:
+
+| Action                | Suggested Shortcut             | Command ID                                | Description                   |
+| --------------------- | ------------------------------ | ----------------------------------------- | ----------------------------- |
+| Open Cline Sidebar    | `Ctrl+Shift+C` / `Cmd+Shift+C` | `claude-dev.SidebarProvider.focus`        | Opens the Cline sidebar panel |
+| New Task              | `Alt+N`                        | `cline.plusButtonClicked`                 | Starts a new Cline task       |
+| Add Terminal to Cline | `Alt+T`                        | `cline.addTerminalOutputToChat`           | Adds terminal output to Cline |
+| Clear Current Task    | `Alt+C`                        | (Requires custom keybinding to UI action) | Clears the current task       |
+
+## Keyboard-Only Workflow
+
+With the right shortcuts, you can use Cline without ever touching the mouse:
+
+1. Select code with keyboard navigation (`Shift+Arrow` keys)
+2. Send to Cline with `Ctrl+'` / `Cmd+'`
+3. Type your question and press Enter
+4. Review the response and apply suggestions
+
+## Editor Integration Shortcuts
+
+Cline's keyboard shortcuts integrate seamlessly with VSCode's built-in shortcuts:
+
+-   Use VSCode's selection shortcuts (`Ctrl+L` / `Cmd+L` to select line, etc.) before sending code to Cline
+-   Combine with VSCode's split editor shortcuts to view code and Cline side by side
+-   Use VSCode's terminal focus shortcut (`` Ctrl+` `` / `` Cmd+` ``) before capturing terminal output
+
+## Tips for Effective Use
+
+-   **Learn the default shortcut first**: The `Ctrl+'` / `Cmd+'` shortcut is versatile - it adds selected code to chat when text is selected, or focuses the chat input when nothing is selected
+-   **Create muscle memory**: Use keyboard shortcuts consistently to build habits
+-   **Customize for your workflow**: Assign shortcuts to commands you use frequently
+-   **Consider ergonomics**: Choose shortcuts that are comfortable for your keyboard layout
+
+Keyboard shortcuts may seem like a small optimization, but they can significantly speed up your workflow when using Cline regularly. By keeping your hands on the keyboard, you maintain your coding flow while still getting AI assistance exactly when you need it.
+
+## How to Find All Available Commands
+
+To see all Cline commands that can be assigned shortcuts:
+
+1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+2. Type "Cline" to filter the list
+3. Browse the available commands
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/editor-integration.png"
+		alt="Editor Integration Overview"
+	/>
+</Frame>
+
+This helps you discover features you might not have known about and assign shortcuts to the ones you use most frequently.

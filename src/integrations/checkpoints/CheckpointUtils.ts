@@ -1,7 +1,7 @@
-import { mkdir, access, constants } from "fs/promises"
-import * as path from "path"
-import * as vscode from "vscode"
+import { access, constants, mkdir } from "fs/promises"
 import os from "os"
+import * as path from "path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
@@ -18,7 +18,7 @@ import os from "os"
  * @returns Promise<string> The absolute path to the shadow git directory
  * @throws Error if global storage path is invalid
  */
-export async function getShadowGitPath(globalStoragePath: string, taskId: string, cwdHash: string): Promise<string> {
+export async function getShadowGitPath(globalStoragePath: string, _taskId: string, cwdHash: string): Promise<string> {
 	if (!globalStoragePath) {
 		throw new Error("Global storage uri is invalid")
 	}
@@ -45,7 +45,7 @@ export async function getShadowGitPath(globalStoragePath: string, taskId: string
  * @throws Error if no workspace is detected, if in a protected directory, or if no read access
  */
 export async function getWorkingDirectory(): Promise<string> {
-	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	const cwd = await getCwd()
 	if (!cwd) {
 		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
 	}
@@ -60,7 +60,7 @@ export async function getWorkingDirectory(): Promise<string> {
 	}
 
 	const homedir = os.homedir()
-	const desktopPath = path.join(homedir, "Desktop")
+	const desktopPath = getDesktopDir()
 	const documentsPath = path.join(homedir, "Documents")
 	const downloadsPath = path.join(homedir, "Downloads")
 

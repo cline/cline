@@ -1,0 +1,132 @@
+---
+title: "Connecting to a Remote Server"
+description: "The Model Context Protocol (MCP) allows Cline to communicate with external servers that provide additional tools and resources to extend its capabilities. This guide explains how to add and connect to remote MCP servers through the MCP Servers interface."
+---
+
+## Adding and Managing Remote MCP Servers
+
+### Accessing the MCP Servers Interface
+
+To access the MCP Servers interface in Cline:
+
+1. Click on the Cline icon in the VSCode sidebar
+2. Open the menu (⋮) in the top right corner of the Cline panel
+3. Select "MCP Servers" from the dropdown menu
+
+### Understanding the MCP Servers Interface
+
+The MCP Servers interface is divided into three main tabs:
+
+-   **Marketplace**: Discover and install pre-configured MCP servers (if enabled)
+-   **Remote Servers**: Connect to existing MCP servers via URL endpoints
+-   **Installed**: Manage your connected MCP servers
+
+### Adding a Remote MCP Server
+
+The "Remote Servers" tab allows you to connect to any MCP server that's accessible via a URL endpoint:
+
+1. Click on the "Remote Servers" tab in the MCP Servers interface
+2. Fill in the required information:
+    - **Server Name**: Provide a unique, descriptive name for the server
+    - **Server URL**: Enter the complete URL endpoint of the MCP server (e.g., `https://example.com/mcp-sse`)
+3. Click "Add Server" to initiate the connection
+4. Cline will attempt to connect to the server and display the connection status
+
+> **Note**: When connecting to a remote server, ensure you trust the source, as MCP servers can execute code in your environment.
+
+### Remote Server Discovery
+
+If you're looking for MCP servers to connect to, several third-party marketplaces provide directories of available servers with various capabilities.
+
+> **Warning**: The following third-party marketplaces are listed for informational purposes only. Cline does not endorse, verify, or take responsibility for any servers listed on these marketplaces. These servers are cloud-hosted services that process your requests and may have access to data you share with them. Always review privacy policies and terms of use before connecting to third-party services.
+
+#### Composio MCP Integration
+
+[Composio's MCP Marketplace](https://mcp.composio.dev/) provides access to a wide range of third-party servers that support the Model Context Protocol (MCP). These servers expose APIs for services like GitHub, Notion, Slack, and others. Each server includes configuration instructions and built-in authentication support (e.g. OAuth or API keys). To connect, locate the desired service in the marketplace and follow the integration steps provided there.
+
+#### Connecting via Smithery
+
+Smithery is a third-party MCP server marketplace that allows users to discover and connect to a variety of Model Context Protocol (MCP) servers. If you're using an MCP-compatible client (such as Cursor, Claude Desktop, or Cline), you can browse available servers and integrate them directly into your workflow.
+
+To explore available options, visit the Smithery marketplace: [https://smithery.ai](https://smithery.ai)
+
+Please note: Smithery is maintained independently and is not affiliated with our project. Use at your own discretion.
+
+### Managing Installed MCP Servers
+
+Once added, your MCP servers appear in the "Installed" tab where you can:
+
+#### View Server Status
+
+Each server displays its current status:
+
+-   **Green dot**: Connected and ready to use
+-   **Yellow dot**: In the process of connecting
+-   **Red dot**: Disconnected or experiencing errors
+
+#### Configure Server Settings
+
+Click on a server to expand its settings panel:
+
+1. **Tools & Resources**:
+    - View all available tools and resources from the server
+    - Configure auto-approval settings for tools (if enabled)
+2. **Request Timeout**:
+    - Set how long Cline should wait for server responses
+    - Options range from 30 seconds to 1 hour
+3. **Server Management**:
+    - **Restart Server**: Reconnect if the server becomes unresponsive
+    - **Delete Server**: Remove the server from your configuration
+
+#### Enable/Disable Servers
+
+Toggle the switch next to each server to enable or disable it:
+
+-   **Enabled**: Cline can use the server's tools and resources
+-   **Disabled**: The server remains in your configuration but is not active
+
+### Troubleshooting Connection Issues
+
+If a server fails to connect:
+
+1. An error message will be displayed with details about the failure
+2. Check that the server URL is correct and the server is running
+3. Use the "Restart Server" button to attempt reconnection
+4. If problems persist, you can delete the server and try adding it again
+
+### Advanced Configuration
+
+For advanced users, Cline stores MCP server configurations in a JSON file that can be modified:
+
+1. In the "Installed" tab, click "Configure MCP Servers" to access the settings file
+2. The configuration for each server follows this format:
+
+```json
+{
+	"mcpServers": {
+		"exampleServer": {
+			"url": "https://example.com/mcp-sse",
+			"disabled": false,
+			"autoApprove": ["tool1", "tool2"],
+			"timeout": 30
+		}
+	}
+}
+```
+
+Key configuration options:
+
+-   **url**: The endpoint URL (for remote servers)
+-   **disabled**: Whether the server is currently enabled (true/false)
+-   **autoApprove**: List of tool names that don't require confirmation
+-   **timeout**: Maximum time in seconds to wait for server responses
+
+For additional MCP settings, click the "Advanced MCP Settings" link to access VSCode settings.
+
+### Using MCP Server Tools
+
+Once connected, Cline can use the tools and resources provided by the MCP server. When Cline suggests using an MCP tool:
+
+1. A tool approval prompt will appear (unless auto-approved)
+2. Review the tool details and parameters before approving
+3. The tool will execute and return results to Cline

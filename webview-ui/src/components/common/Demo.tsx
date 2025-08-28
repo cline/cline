@@ -21,13 +21,6 @@ import {
 } from "@vscode/webview-ui-toolkit/react"
 
 function Demo() {
-	// function handleHowdyClick() {
-	// 	vscode.postMessage({
-	// 		command: "hello",
-	// 		text: "Hey there partner! 🤠",
-	// 	})
-	// }
-
 	const rowData = [
 		{
 			cell1: "Cell Data",
@@ -93,7 +86,7 @@ function Demo() {
 						</VSCodeButton>
 					</section>
 				</VSCodeTextField>
-				<span slot="end" className="codicon codicon-chevron-right"></span>
+				<span className="codicon codicon-chevron-right" slot="end"></span>
 
 				<span className="flex gap-3">
 					<VSCodeProgressRing />

@@ -1,10 +1,8 @@
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
-import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { BrowserServiceClient } from "../../services/grpc-client"
+import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -13,7 +11,7 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const { browserSettings } = useExtensionState()
+	const { browserSettings, navigateToSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({
@@ -29,7 +27,7 @@ export const BrowserSettingsMenu = () => {
 		;(async () => {
 			try {
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
-				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
 				setConnectionInfo({
 					isConnected: info.isConnected,
@@ -65,17 +63,16 @@ export const BrowserSettingsMenu = () => {
 	}, [showInfoPopover])
 
 	const openBrowserSettings = () => {
-		// First open the settings panel
-		vscode.postMessage({
-			type: "openSettings",
-		})
+		// First open the settings panel using direct navigation
+		navigateToSettings()
 
 		// After a short delay, send a message to scroll to browser settings
-		setTimeout(() => {
-			vscode.postMessage({
-				type: "scrollToSettings",
-				text: "browser-settings-section",
-			})
+		setTimeout(async () => {
+			try {
+				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "browser" }))
+			} catch (error) {
+				console.error("Error scrolling to browser settings:", error)
+			}
 		}, 300) // Give the settings panel time to open
 	}
 
@@ -86,7 +83,7 @@ export const BrowserSettingsMenu = () => {
 		if (!showInfoPopover) {
 			const fetchConnectionInfo = async () => {
 				try {
-					const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+					const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 					setConnectionInfo({
 						isConnected: info.isConnected,
 						isRemote: info.isRemote,
@@ -126,7 +123,7 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,
@@ -152,8 +149,8 @@ export const BrowserSettingsMenu = () => {
 				appearance="icon"
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
-				title="Browser connection info"
-				style={{ marginRight: "4px" }}>
+				style={{ marginRight: "4px" }}
+				title="Browser connection info">
 				<i
 					className={`codicon ${getIconClass()}`}
 					style={{
@@ -164,32 +161,50 @@ export const BrowserSettingsMenu = () => {
 			</VSCodeButton>
 
 			{showInfoPopover && (
-				<InfoPopover ref={popoverRef}>
+				// InfoPopover - Dropdown container with connection details
+				<div
+					className="absolute top-[30px] right-0 z-[100] w-[60dvw] max-w-[250px] rounded p-2.5 shadow-lg"
+					ref={popoverRef}
+					style={{
+						backgroundColor: "var(--vscode-editorWidget-background)",
+						border: "1px solid var(--vscode-widget-border)",
+						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+					}}>
 					<h4 style={{ margin: "0 0 8px 0" }}>Browser Connection</h4>
-					<InfoRow>
-						<InfoLabel>Status:</InfoLabel>
-						<InfoValue
+					{/* InfoRow - Status row container */}
+					<div className="flex flex-wrap whitespace-nowrap mb-1">
+						{/* InfoLabel - Fixed-width label */}
+						<div className="flex-none w-[90px] font-medium">Status:</div>
+						{/* InfoValue - Flexible value container */}
+						<div
+							className="flex-1 break-words"
 							style={{
 								color: connectionInfo.isConnected
 									? "var(--vscode-charts-green)"
 									: "var(--vscode-errorForeground)",
 							}}>
 							{connectionInfo.isConnected ? "Connected" : "Disconnected"}
-						</InfoValue>
-					</InfoRow>
+						</div>
+					</div>
 					{connectionInfo.isConnected && (
-						<InfoRow>
-							<InfoLabel>Type:</InfoLabel>
-							<InfoValue>{connectionInfo.isRemote ? "Remote" : "Local"}</InfoValue>
-						</InfoRow>
+						// InfoRow - Type row container
+						<div className="flex flex-wrap whitespace-nowrap mb-1">
+							{/* InfoLabel - Fixed-width label */}
+							<div className="flex-none w-[90px] font-medium">Type:</div>
+							{/* InfoValue - Flexible value container */}
+							<div className="flex-1 break-words">{connectionInfo.isRemote ? "Remote" : "Local"}</div>
+						</div>
 					)}
 					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
-						<InfoRow>
-							<InfoLabel>Remote Host:</InfoLabel>
-							<InfoValue>{connectionInfo.host}</InfoValue>
-						</InfoRow>
+						// InfoRow - Remote host row container
+						<div className="flex flex-wrap whitespace-nowrap mb-1">
+							{/* InfoLabel - Fixed-width label */}
+							<div className="flex-none w-[90px] font-medium">Remote Host:</div>
+							{/* InfoValue - Flexible value container */}
+							<div className="flex-1 break-words">{connectionInfo.host}</div>
+						</div>
 					)}
-				</InfoPopover>
+				</div>
 			)}
 
 			<VSCodeButton appearance="icon" onClick={openBrowserSettings}>
@@ -198,36 +213,5 @@ export const BrowserSettingsMenu = () => {
 		</div>
 	)
 }
-
-const InfoPopover = styled.div`
-	position: absolute;
-	top: 30px;
-	right: 0;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px;
-	padding: 10px;
-	z-index: 100;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	width: 60dvw;
-	max-width: 250px;
-`
-
-const InfoRow = styled.div`
-	display: flex;
-	margin-bottom: 4px;
-	flex-wrap: wrap;
-	white-space: nowrap;
-`
-
-const InfoLabel = styled.div`
-	flex: 0 0 90px;
-	font-weight: 500;
-`
-
-const InfoValue = styled.div`
-	flex: 1;
-	word-break: break-word;
-`
 
 export default BrowserSettingsMenu

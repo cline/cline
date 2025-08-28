@@ -1,2 +1,4 @@
 demo.gif filter=lfs diff=lfs merge=lfs -text
 assets/docs/demo.gif filter=lfs diff=lfs merge=lfs -text
+
+* text=auto eol=lf

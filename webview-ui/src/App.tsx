@@ -1,129 +1,91 @@
-import { useCallback, useEffect, useState } from "react"
-import { useEvent } from "react-use"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import { useEffect } from "react"
+import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
+import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
-import AccountView from "./components/account/AccountView"
-import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
-import { FirebaseAuthProvider } from "./context/FirebaseAuthContext"
-import { vscode } from "./utils/vscode"
-import McpView from "./components/mcp/configuration/McpConfigurationView"
-import { McpViewTab } from "@shared/mcp"
+import { useClineAuth } from "./context/ClineAuthContext"
+import { useExtensionState } from "./context/ExtensionStateContext"
+import { Providers } from "./Providers"
+import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
-	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()
-	const [showSettings, setShowSettings] = useState(false)
-	const hideSettings = useCallback(() => setShowSettings(false), [])
-	const [showHistory, setShowHistory] = useState(false)
-	const [showMcp, setShowMcp] = useState(false)
-	const [showAccount, setShowAccount] = useState(false)
-	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
+	const {
+		didHydrateState,
+		showWelcome,
+		shouldShowAnnouncement,
+		showMcp,
+		mcpTab,
+		showSettings,
+		showHistory,
+		showAccount,
+		showAnnouncement,
+		setShowAnnouncement,
+		setShouldShowAnnouncement,
+		closeMcpView,
+		navigateToHistory,
+		hideSettings,
+		hideHistory,
+		hideAccount,
+		hideAnnouncement,
+	} = useExtensionState()
 
-	const handleMessage = useCallback((e: MessageEvent) => {
-		const message: ExtensionMessage = e.data
-		switch (message.type) {
-			case "action":
-				switch (message.action!) {
-					case "settingsButtonClicked":
-						setShowSettings(true)
-						setShowHistory(false)
-						setShowMcp(false)
-						setShowAccount(false)
-						break
-					case "historyButtonClicked":
-						setShowSettings(false)
-						setShowHistory(true)
-						setShowMcp(false)
-						setShowAccount(false)
-						break
-					case "mcpButtonClicked":
-						setShowSettings(false)
-						setShowHistory(false)
-						if (message.tab) {
-							setMcpTab(message.tab)
-						}
-						setShowMcp(true)
-						setShowAccount(false)
-						break
-					case "accountButtonClicked":
-						setShowSettings(false)
-						setShowHistory(false)
-						setShowMcp(false)
-						setShowAccount(true)
-						break
-					case "chatButtonClicked":
-						setShowSettings(false)
-						setShowHistory(false)
-						setShowMcp(false)
-						setShowAccount(false)
-						break
-				}
-				break
-		}
-	}, [])
-
-	useEvent("message", handleMessage)
-
-	// useEffect(() => {
-	// 	if (telemetrySetting === "enabled") {
-	// 		posthog.identify(vscMachineId)
-	// 		posthog.opt_in_capturing()
-	// 	} else {
-	// 		posthog.opt_out_capturing()
-	// 	}
-	// }, [telemetrySetting, vscMachineId])
+	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
-			vscode.postMessage({ type: "didShowAnnouncement" })
+
+			// Use the gRPC client instead of direct WebviewMessage
+			UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
+				.then((response: Boolean) => {
+					setShouldShowAnnouncement(response.value)
+				})
+				.catch((error) => {
+					console.error("Failed to acknowledge announcement:", error)
+				})
 		}
-	}, [shouldShowAnnouncement])
+	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
 
 	if (!didHydrateState) {
 		return null
 	}
 
+	if (showWelcome) {
+		return <WelcomeView />
+	}
+
 	return (
-		<>
-			{showWelcome ? (
-				<WelcomeView />
-			) : (
-				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
-					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
-					{showMcp && <McpView initialTab={mcpTab} onDone={() => setShowMcp(false)} />}
-					{showAccount && <AccountView onDone={() => setShowAccount(false)} />}
-					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView
-						showHistoryView={() => {
-							setShowSettings(false)
-							setShowMcp(false)
-							setShowAccount(false)
-							setShowHistory(true)
-						}}
-						isHidden={showSettings || showHistory || showMcp || showAccount}
-						showAnnouncement={showAnnouncement}
-						hideAnnouncement={() => {
-							setShowAnnouncement(false)
-						}}
-					/>
-				</>
+		<div className="flex h-screen w-full flex-col">
+			{showSettings && <SettingsView onDone={hideSettings} />}
+			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showAccount && (
+				<AccountView
+					activeOrganization={activeOrganization}
+					clineUser={clineUser}
+					onDone={hideAccount}
+					organizations={organizations}
+				/>
 			)}
-		</>
+			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+			<ChatView
+				hideAnnouncement={hideAnnouncement}
+				isHidden={showSettings || showHistory || showMcp || showAccount}
+				showAnnouncement={showAnnouncement}
+				showHistoryView={navigateToHistory}
+			/>
+		</div>
 	)
 }
 
 const App = () => {
 	return (
-		<ExtensionStateContextProvider>
-			<FirebaseAuthProvider>
-				<AppContent />
-			</FirebaseAuthProvider>
-		</ExtensionStateContextProvider>
+		<Providers>
+			<AppContent />
+		</Providers>
 	)
 }
 

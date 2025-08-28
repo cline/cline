@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ClineApiReqInfo, ClineMessage } from "../../../shared/ExtensionMessage"
-import { ApiHandler } from "../../../api"
+import { ApiHandler } from "@core/api"
+import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getContextWindowInfo } from "./context-window-utils"
 
 class ContextManager {

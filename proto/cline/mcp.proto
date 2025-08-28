@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+service McpService {
+  rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
+  rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
+  rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
+  rpc downloadMcp(StringRequest) returns (McpDownloadResponse);
+  rpc restartMcpServer(StringRequest) returns (McpServers);
+  rpc deleteMcpServer(StringRequest) returns (McpServers);
+  rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
+  rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
+  rpc openMcpSettings(EmptyRequest) returns (Empty);
+  
+  // Subscribe to MCP marketplace catalog updates
+  rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
+  rpc getLatestMcpServers(Empty) returns (McpServers);
+  
+  // Subscribe to MCP server updates
+  rpc subscribeToMcpServers(EmptyRequest) returns (stream McpServers);
+}
+
+message ToggleMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  bool disabled = 3;
+}
+
+message UpdateMcpTimeoutRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  int32 timeout = 3;
+}
+
+message AddRemoteMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  string server_url = 3;
+}
+
+message ToggleToolAutoApproveRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  repeated string tool_names = 3;
+  bool auto_approve = 4;
+}
+
+message McpTool {
+  string name = 1;
+  optional string description = 2;
+  optional string input_schema = 3;
+  optional bool auto_approve = 4;
+}
+
+message McpResource {
+  string uri = 1;
+  string name = 2;
+  optional string mime_type = 3;
+  optional string description = 4;
+}
+
+message McpResourceTemplate {
+  string uri_template = 1;
+  string name = 2;
+  optional string mime_type = 3;
+  optional string description = 4;
+}
+
+enum McpServerStatus {
+  // Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set. 
+  // To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
+  MCP_SERVER_STATUS_DISCONNECTED = 0; // default
+  MCP_SERVER_STATUS_CONNECTED = 1;
+  MCP_SERVER_STATUS_CONNECTING = 2;
+}
+
+message McpServer {
+  string name = 1;
+  string config = 2;
+  McpServerStatus status = 3;
+  optional string error = 4;
+  repeated McpTool tools = 5;
+  repeated McpResource resources = 6;
+  repeated McpResourceTemplate resource_templates = 7;
+  optional bool disabled = 8;
+  optional int32 timeout = 9;
+}
+
+message McpServers {
+  repeated McpServer mcp_servers = 1;
+}
+
+message McpMarketplaceItem {
+  string mcp_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string codicon_icon = 6;
+  string logo_url = 7;
+  string category = 8;
+  repeated string tags = 9;
+  bool requires_api_key = 10;
+  optional string readme_content = 11;
+  optional string llms_installation_content = 12;
+  bool is_recommended = 13;
+  int32 github_stars = 14;
+  int32 download_count = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  string last_github_sync = 18;
+}
+
+message McpMarketplaceCatalog {
+  repeated McpMarketplaceItem items = 1;
+}
+
+message McpDownloadResponse {
+  string mcp_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string readme_content = 6;
+  string llms_installation_content = 7;
+  bool requires_api_key = 8;
+  optional string error = 9;
+}

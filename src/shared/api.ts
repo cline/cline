@@ -1,7 +1,8 @@
-import type { LanguageModelChatSelector } from "../api/providers/types"
+import type { LanguageModelChatSelector } from "../core/api/providers/types"
 
 export type ApiProvider =
 	| "anthropic"
+	| "claude-code"
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
@@ -14,29 +15,39 @@ export type ApiProvider =
 	| "together"
 	| "deepseek"
 	| "qwen"
+	| "qwen-code"
 	| "doubao"
 	| "mistral"
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "moonshot"
+	| "nebius"
+	| "fireworks"
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "cerebras"
+	| "sapaicore"
+	| "groq"
+	| "huggingface"
+	| "huawei-cloud-maas"
+	| "dify"
+	| "baseten"
+	| "vercel-ai-gateway"
+	| "zai"
 
 export interface ApiHandlerOptions {
-	apiModelId?: string
+	// Global configuration (not mode-specific)
 	apiKey?: string // anthropic
-	clineApiKey?: string
-	taskId?: string // Used to identify the task in API requests
+	clineAccountId?: string
+	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -44,47 +55,130 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
+	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
+	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
-	openAiModelId?: string
-	openAiModelInfo?: OpenAiCompatibleModelInfo
-	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
-	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioMaxTokens?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
-	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
+	requestyBaseUrl?: string
 	togetherApiKey?: string
-	togetherModelId?: string
+	fireworksApiKey?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
+	qwenCodeOauthPath?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
-	azureIdentity?: boolean
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: LanguageModelChatSelector
-	o3MiniReasoningEffort?: string
+	azureIdentity?: boolean
 	qwenApiLine?: string
+	moonshotApiLine?: string
+	moonshotApiKey?: string
+	huggingFaceApiKey?: string
+	nebiusApiKey?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
-	thinkingBudgetTokens?: number
-	reasoningEffort?: string
 	sambanovaApiKey?: string
+	cerebrasApiKey?: string
+	groqApiKey?: string
+	basetenApiKey?: string
+	vercelAiGatewayApiKey?: string
+	requestTimeoutMs?: number
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	sapAiResourceGroup?: string
+	sapAiCoreTokenUrl?: string
+	sapAiCoreBaseUrl?: string
+	sapAiCoreUseOrchestrationMode?: boolean
+	huaweiCloudMaasApiKey?: string
+	difyApiKey?: string
+	difyBaseUrl?: string
+	zaiApiKey?: string
+	zaiApiLine?: string
+	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	// Plan mode configurations
+	planModeApiModelId?: string
+	planModeThinkingBudgetTokens?: number
+	planModeReasoningEffort?: string
+	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	planModeAwsBedrockCustomSelected?: boolean
+	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeOpenRouterModelId?: string
+	planModeOpenRouterModelInfo?: ModelInfo
+	planModeOpenAiModelId?: string
+	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	planModeOllamaModelId?: string
+	planModeLmStudioModelId?: string
+	planModeLiteLlmModelId?: string
+	planModeLiteLlmModelInfo?: LiteLLMModelInfo
+	planModeRequestyModelId?: string
+	planModeRequestyModelInfo?: ModelInfo
+	planModeTogetherModelId?: string
+	planModeFireworksModelId?: string
+	planModeSapAiCoreModelId?: string
+	planModeGroqModelId?: string
+	planModeGroqModelInfo?: ModelInfo
+	planModeBasetenModelId?: string
+	planModeBasetenModelInfo?: ModelInfo
+	planModeHuggingFaceModelId?: string
+	planModeHuggingFaceModelInfo?: ModelInfo
+	planModeHuaweiCloudMaasModelId?: string
+	planModeHuaweiCloudMaasModelInfo?: ModelInfo
+	planModeVercelAiGatewayModelId?: string
+	planModeVercelAiGatewayModelInfo?: ModelInfo
+	// Act mode configurations
+
+	actModeApiModelId?: string
+	actModeThinkingBudgetTokens?: number
+	actModeReasoningEffort?: string
+	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
+	actModeAwsBedrockCustomSelected?: boolean
+	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeOpenRouterModelId?: string
+	actModeOpenRouterModelInfo?: ModelInfo
+	actModeOpenAiModelId?: string
+	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
+	actModeOllamaModelId?: string
+	actModeLmStudioModelId?: string
+	actModeLiteLlmModelId?: string
+	actModeLiteLlmModelInfo?: LiteLLMModelInfo
+	actModeRequestyModelId?: string
+	actModeRequestyModelInfo?: ModelInfo
+	actModeTogetherModelId?: string
+	actModeFireworksModelId?: string
+	actModeSapAiCoreModelId?: string
+	actModeGroqModelId?: string
+	actModeGroqModelInfo?: ModelInfo
+	actModeBasetenModelId?: string
+	actModeBasetenModelInfo?: ModelInfo
+	actModeHuggingFaceModelId?: string
+	actModeHuggingFaceModelInfo?: ModelInfo
+	actModeHuaweiCloudMaasModelId?: string
+	actModeHuaweiCloudMaasModelInfo?: ModelInfo
+	actModeVercelAiGatewayModelId?: string
+	actModeVercelAiGatewayModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+	planModeApiProvider?: ApiProvider
+	actModeApiProvider?: ApiProvider
 	favoritedModelIds?: string[]
 }
 
@@ -99,15 +193,25 @@ export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
-	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number // Keep for non-tiered input models
-	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
 	outputPrice?: number // Keep for non-tiered output models
-	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
+	thinkingConfig?: {
+		maxBudget?: number // Max allowed thinking budget tokens
+		outputPrice?: number // Output price per million tokens when budget > 0
+		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+	}
+	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+	tiers?: {
+		contextWindow: number
+		inputPrice?: number
+		outputPrice?: number
+		cacheWritesPrice?: number
+		cacheReadsPrice?: number
+	}[]
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -115,16 +219,76 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	isR1FormatRequired?: boolean
 }
 
+export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
+export const CLAUDE_SONNET_4_1M_TIERS = [
+	{
+		contextWindow: 200000,
+		inputPrice: 3.0,
+		outputPrice: 15,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	{
+		contextWindow: Number.MAX_SAFE_INTEGER, // storing infinity in vs storage is not possible, it converts to 'null', which causes crash in webview ModelInfoView
+		inputPrice: 6,
+		outputPrice: 22.5,
+		cacheWritesPrice: 7.5,
+		cacheReadsPrice: 0.6,
+	},
+]
+
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
 export const anthropicModels = {
+	"claude-sonnet-4-20250514:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
+	},
+	"claude-sonnet-4-20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"claude-opus-4-1-20250805": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"claude-opus-4-20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
 	"claude-3-7-sonnet-20250219": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -135,7 +299,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
@@ -174,43 +338,135 @@ export const anthropicModels = {
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
 
+// Claude Code
+export type ClaudeCodeModelId = keyof typeof claudeCodeModels
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
+export const claudeCodeModels = {
+	"claude-sonnet-4-20250514": {
+		...anthropicModels["claude-sonnet-4-20250514"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-1-20250805": {
+		...anthropicModels["claude-opus-4-1-20250805"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-20250514": {
+		...anthropicModels["claude-opus-4-20250514"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-7-sonnet-20250219": {
+		...anthropicModels["claude-3-7-sonnet-20250219"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-5-sonnet-20241022": {
+		...anthropicModels["claude-3-5-sonnet-20241022"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-3-5-haiku-20241022": {
+		...anthropicModels["claude-3-5-haiku-20241022"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const bedrockModels = {
+	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
+	},
+	"anthropic.claude-sonnet-4-20250514-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"anthropic.claude-opus-4-20250514-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"anthropic.claude-opus-4-1-20250805-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"amazon.nova-premier-v1:0": {
+		maxTokens: 10_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 12.5,
+	},
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,
 		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
+
+		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 3.2,
+		// cacheWritesPrice: 3.2, // not written
+		cacheReadsPrice: 0.2,
 	},
 	"amazon.nova-lite-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,
 		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
+
+		supportsPromptCache: true,
 		inputPrice: 0.06,
 		outputPrice: 0.24,
+		// cacheWritesPrice: 0.24, // not written
+		cacheReadsPrice: 0.015,
 	},
 	"amazon.nova-micro-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
+
+		supportsPromptCache: true,
 		inputPrice: 0.035,
 		outputPrice: 0.14,
+		// cacheWritesPrice: 0.14, // not written
+		cacheReadsPrice: 0.00875,
 	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -221,7 +477,7 @@ export const bedrockModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -231,10 +487,10 @@ export const bedrockModels = {
 	"anthropic.claude-3-5-haiku-20241022-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 1.0,
-		outputPrice: 5.0,
+		inputPrice: 0.8,
+		outputPrice: 4.0,
 		cacheWritesPrice: 1.0,
 		cacheReadsPrice: 0.08,
 	},
@@ -278,44 +534,111 @@ export const bedrockModels = {
 		inputPrice: 1.35,
 		outputPrice: 5.4,
 	},
+	"openai.gpt-oss-120b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description:
+			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+	},
+	"openai.gpt-oss-20b-1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.07,
+		outputPrice: 0.3,
+		description:
+			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-4" // will always exist in openRouterModels
+export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_4_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
-	supportsComputerUse: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. \n\nClaude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+}
+
+// Cline custom model - sonic (same config as grok-4)
+export const clineMicrowaveAlphaModelInfo: ModelInfo = {
+	contextWindow: 262144,
+	supportsImages: false,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
+	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
+	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
+export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514"
 export const vertexModels = {
+	"claude-sonnet-4@20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"claude-opus-4-1@20250805": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"claude-opus-4@20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
 	"claude-3-7-sonnet@20250219": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		thinkingConfig: {
+			maxBudget: 64000,
+			outputPrice: 15.0,
+		},
 	},
 	"claude-3-5-sonnet-v2@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -362,19 +685,72 @@ export const vertexModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
 	},
+	"mistral-large-2411": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"mistral-small-2503": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"codestral-2501": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+	"llama-4-maverick-17b-128e-instruct-maas": {
+		maxTokens: 128_000,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 1.15,
+	},
+	"llama-4-scout-17b-16e-instruct-maas": {
+		maxTokens: 1_000_000,
+		contextWindow: 10_485_760,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 0.7,
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.025,
+	},
+	"gemini-2.0-flash-lite-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.4,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.075,
+		outputPrice: 0.3,
 	},
 	"gemini-2.0-flash-thinking-exp-1219": {
 		maxTokens: 8192,
 		contextWindow: 32_767,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -383,6 +759,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -394,27 +771,67 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.5-pro-preview-03-25": {
+	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		// inputPrice: 1.25, // Removed
-		// outputPrice: 10, // Removed
-		inputPriceTiers: [
-			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
 		],
-		outputPriceTiers: [
-			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
-		],
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
+	},
+
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -430,9 +847,25 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.0375,
+		tiers: [
+			{
+				contextWindow: 128000,
+				inputPrice: 0.075,
+				outputPrice: 0.3,
+				cacheReadsPrice: 0.01875,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheReadsPrice: 0.0375,
+			},
+		],
 	},
 	"gemini-1.5-flash-exp-0827": {
 		maxTokens: 8192,
@@ -455,8 +888,8 @@ export const vertexModels = {
 		contextWindow: 2_097_152,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 1.25,
+		outputPrice: 5,
 	},
 	"gemini-1.5-pro-exp-0827": {
 		maxTokens: 8192,
@@ -467,6 +900,10 @@ export const vertexModels = {
 		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
+	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
+) as Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
@@ -482,37 +919,70 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.5-pro"
 export const geminiModels = {
-	"gemini-2.5-pro-exp-03-25": {
+	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
+		],
 	},
-	"gemini-2.5-pro-preview-03-25": {
+	"gemini-2.5-flash-lite-preview-06-17": {
+		maxTokens: 64000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		description: "Preview version - may not be available in all regions",
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
+	},
+	"gemini-2.5-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPriceTiers: [
-			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
-		],
-		outputPriceTiers: [
-			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
-		],
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.075,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		cacheWritesPrice: 1.0,
 	},
 	"gemini-2.0-flash-lite-preview-02-05": {
 		maxTokens: 8192,
@@ -558,9 +1028,25 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.15, // Default price (highest tier)
+		outputPrice: 0.6, // Default price (highest tier)
+		cacheReadsPrice: 0.0375,
+		cacheWritesPrice: 1.0,
+		tiers: [
+			{
+				contextWindow: 128000,
+				inputPrice: 0.075,
+				outputPrice: 0.3,
+				cacheReadsPrice: 0.01875,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheReadsPrice: 0.0375,
+			},
+		],
 	},
 	"gemini-1.5-flash-exp-0827": {
 		maxTokens: 8192,
@@ -607,16 +1093,52 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 export const openAiNativeModels = {
+	"gpt-5-2025-08-07": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5-mini-2025-08-07": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 2.0,
+		cacheReadsPrice: 0.025,
+	},
+	"gpt-5-nano-2025-08-07": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.05,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.005,
+	},
+	"gpt-5-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 10.0,
-		outputPrice: 40.0,
-		cacheReadsPrice: 2.5,
+		inputPrice: 2.0,
+		outputPrice: 8.0,
+		cacheReadsPrice: 0.5,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
@@ -717,14 +1239,6 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-	"gpt-4.5-preview": {
-		maxTokens: 16_384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 75,
-		outputPrice: 150,
-	},
 } as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
@@ -739,7 +1253,7 @@ export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
 	"deepseek-chat": {
 		maxTokens: 8_000,
-		contextWindow: 64_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
@@ -749,7 +1263,7 @@ export const deepSeekModels = {
 	},
 	"deepseek-reasoner": {
 		maxTokens: 8_000,
-		contextWindow: 64_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
@@ -759,13 +1273,210 @@ export const deepSeekModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Hugging Face Inference Providers
+// https://huggingface.co/docs/inference-providers/en/index
+export type HuggingFaceModelId = keyof typeof huggingFaceModels
+export const huggingFaceDefaultModelId: HuggingFaceModelId = "moonshotai/Kimi-K2-Instruct"
+export const huggingFaceModels = {
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Large open-weight reasoning model for high-end desktops and data centers, built for complex coding, math, and general AI tasks.",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Medium open-weight reasoning model that runs on most desktops, balancing strong reasoning with broad accessibility.",
+	},
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131_072,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-V3-0324": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
+	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 64_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek's reasoning model's latest version with step-by-step thinking capabilities",
+	},
+	"meta-llama/Llama-3.1-8B-Instruct": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Efficient 8B parameter Llama model for general-purpose tasks.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Qwen
 // https://bailian.console.aliyun.com/
-export type MainlandQwenModelId = keyof typeof mainlandQwenModels
-export type InternationalQwenModelId = keyof typeof internationalQwenModels
-export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
-export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
+// The first model in the list is used as the default model for each region
 export const internationalQwenModels = {
+	"qwen3-coder-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 5,
+	},
+	"qwen3-coder-480b-a35b-instruct": {
+		maxTokens: 65_536,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 7.5,
+	},
+	"qwen3-235b-a22b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheWritesPrice: 2,
+		cacheReadsPrice: 8,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 20,
+		},
+	},
+	"qwen3-32b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheWritesPrice: 2,
+		cacheReadsPrice: 8,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 20,
+		},
+	},
+	"qwen3-30b-a3b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 3,
+		cacheWritesPrice: 0.75,
+		cacheReadsPrice: 3,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 7.5,
+		},
+	},
+	"qwen3-14b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 4,
+		cacheWritesPrice: 1,
+		cacheReadsPrice: 4,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 10,
+		},
+	},
+	"qwen3-8b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 2,
+		cacheWritesPrice: 0.5,
+		cacheReadsPrice: 2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 5,
+		},
+	},
+	"qwen3-4b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 3,
+		},
+	},
+	"qwen3-1.7b": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 30_720,
+			outputPrice: 3,
+		},
+	},
+	"qwen3-0.6b": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 30_720,
+			outputPrice: 3,
+		},
+	},
 	"qwen2.5-coder-32b-instruct": {
 		maxTokens: 8_192,
 		contextWindow: 131_072,
@@ -837,24 +1548,32 @@ export const internationalQwenModels = {
 		cacheReadsPrice: 7,
 	},
 	"qwen-plus-latest": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.8,
 		outputPrice: 2,
 		cacheWritesPrice: 0.8,
-		cacheReadsPrice: 0.2,
+		cacheReadsPrice: 2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 16,
+		},
 	},
 	"qwen-turbo-latest": {
-		maxTokens: 1_000_000,
+		maxTokens: 16_384,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.8,
-		outputPrice: 2,
-		cacheWritesPrice: 0.8,
-		cacheReadsPrice: 2,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 6,
+		},
 	},
 	"qwen-max-latest": {
 		maxTokens: 30_720,
@@ -969,6 +1688,118 @@ export const internationalQwenModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const mainlandQwenModels = {
+	"qwen3-235b-a22b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheWritesPrice: 2,
+		cacheReadsPrice: 8,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 20,
+		},
+	},
+	"qwen3-32b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheWritesPrice: 2,
+		cacheReadsPrice: 8,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 20,
+		},
+	},
+	"qwen3-30b-a3b": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 3,
+		cacheWritesPrice: 0.75,
+		cacheReadsPrice: 3,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 7.5,
+		},
+	},
+	"qwen3-14b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 4,
+		cacheWritesPrice: 1,
+		cacheReadsPrice: 4,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 10,
+		},
+	},
+	"qwen3-8b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 2,
+		cacheWritesPrice: 0.5,
+		cacheReadsPrice: 2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 5,
+		},
+	},
+	"qwen3-4b": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 3,
+		},
+	},
+	"qwen3-1.7b": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 30_720,
+			outputPrice: 3,
+		},
+	},
+	"qwen3-0.6b": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 1.2,
+		thinkingConfig: {
+			maxBudget: 30_720,
+			outputPrice: 3,
+		},
+	},
 	"qwen2.5-coder-32b-instruct": {
 		maxTokens: 8_192,
 		contextWindow: 131_072,
@@ -1040,24 +1871,32 @@ export const mainlandQwenModels = {
 		cacheReadsPrice: 7,
 	},
 	"qwen-plus-latest": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.8,
 		outputPrice: 2,
 		cacheWritesPrice: 0.8,
-		cacheReadsPrice: 0.2,
+		cacheReadsPrice: 2,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 16,
+		},
 	},
 	"qwen-turbo-latest": {
-		maxTokens: 1_000_000,
+		maxTokens: 16_384,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.8,
-		outputPrice: 2,
-		cacheWritesPrice: 0.8,
-		cacheReadsPrice: 2,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 38_912,
+			outputPrice: 6,
+		},
 	},
 	"qwen-max-latest": {
 		maxTokens: 30_720,
@@ -1190,6 +2029,17 @@ export const mainlandQwenModels = {
 		cacheReadsPrice: 4.5,
 	},
 } as const satisfies Record<string, ModelInfo>
+export enum QwenApiRegions {
+	CHINA = "china",
+	INTERNATIONAL = "international",
+}
+export type MainlandQwenModelId = keyof typeof mainlandQwenModels
+export type InternationalQwenModelId = keyof typeof internationalQwenModels
+// Set first model in the list as the default model for each region
+export const internationalQwenDefaultModelId: InternationalQwenModelId = Object.keys(
+	internationalQwenModels,
+)[0] as InternationalQwenModelId
+export const mainlandQwenDefaultModelId: MainlandQwenModelId = Object.keys(mainlandQwenModels)[0] as MainlandQwenModelId
 
 // Doubao
 // https://www.volcengine.com/docs/82379/1298459
@@ -1242,11 +2092,11 @@ export const doubaoModels = {
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "codestral-2501"
+export const mistralDefaultModelId: MistralModelId = "devstral-small-2505"
 export const mistralModels = {
 	"mistral-large-2411": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.0,
@@ -1261,28 +2111,36 @@ export const mistralModels = {
 		outputPrice: 6.0,
 	},
 	"ministral-3b-2410": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.04,
 		outputPrice: 0.04,
 	},
 	"ministral-8b-2410": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.1,
 	},
 	"mistral-small-latest": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.3,
+	},
+	"mistral-medium-latest": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.0,
 	},
 	"mistral-small-2501": {
 		maxTokens: 32_000,
@@ -1293,16 +2151,16 @@ export const mistralModels = {
 		outputPrice: 0.3,
 	},
 	"pixtral-12b-2409": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.15,
 	},
 	"open-mistral-nemo-2407": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
@@ -1324,13 +2182,33 @@ export const mistralModels = {
 		inputPrice: 0.3,
 		outputPrice: 0.9,
 	},
+	"devstral-small-2505": {
+		maxTokens: 128_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"devstral-medium-latest": {
+		maxTokens: 128_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // LiteLLM
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
-export const liteLlmDefaultModelId = "gpt-3.5-turbo"
-export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
+export interface LiteLLMModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -1339,12 +2217,13 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	outputPrice: 0,
 	cacheWritesPrice: 0,
 	cacheReadsPrice: 0,
+	temperature: 0,
 }
 
 // AskSage Models
 // https://docs.asksage.ai/
 export type AskSageModelId = keyof typeof askSageModels
-export const askSageDefaultModelId: AskSageModelId = "claude-35-sonnet"
+export const askSageDefaultModelId: AskSageModelId = "claude-4-sonnet"
 export const askSageDefaultURL: string = "https://api.asksage.ai/server"
 export const askSageModels = {
 	"gpt-4o": {
@@ -1358,6 +2237,14 @@ export const askSageModels = {
 	"gpt-4o-gov": {
 		maxTokens: 4096,
 		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-4.1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1387,18 +2274,234 @@ export const askSageModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"claude-4-opus": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"google-gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 }
+
+// Nebius AI Studio
+// https://docs.nebius.com/studio/inference/models
+export const nebiusModels = {
+	"deepseek-ai/DeepSeek-V3": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
+	"deepseek-ai/DeepSeek-V3-0324-fast": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 6,
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2.4,
+	},
+	"deepseek-ai/DeepSeek-R1-fast": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 6,
+	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 128_000,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2.4,
+	},
+	"meta-llama/Llama-3.3-70B-Instruct-fast": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 0.75,
+	},
+	"Qwen/Qwen2.5-32B-Instruct-fast": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.13,
+		outputPrice: 0.4,
+	},
+	"Qwen/Qwen2.5-Coder-32B-Instruct-fast": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-4B-fast": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.08,
+		outputPrice: 0.24,
+	},
+	"Qwen/Qwen3-30B-A3B-fast": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+	"Qwen/Qwen3-235B-A22B": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 16384, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.5,
+		outputPrice: 2.4,
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 163800, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 1.8,
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766, // Quantization: fp4
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+	},
+	"zai-org/GLM-4.5": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
+	"zai-org/GLM-4.5-Air": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.2,
+	},
+	"deepseek-ai/DeepSeek-R1-0528-fast": {
+		maxTokens: 128000, // Quantization: fp4
+		contextWindow: 164_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 64000, // Quantization: fp8
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+	"Qwen/Qwen3-30B-A3B": {
+		maxTokens: 32000, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-32B-fast": {
+		maxTokens: 16384, // Quantization: fp8
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type NebiusModelId = keyof typeof nebiusModels
+export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
 
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
+export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4": {
+		maxTokens: 8192,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // will have different pricing for long context vs short context
+		cacheReadsPrice: 0.75,
+		outputPrice: 15.0,
+	},
 	"grok-3-beta": {
 		maxTokens: 8192,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		description: "X AI's Grok-3 beta model with 131K context window",
@@ -1407,7 +2510,7 @@ export const xaiModels = {
 		maxTokens: 8192,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		description: "X AI's Grok-3 fast beta model with 131K context window",
@@ -1416,7 +2519,7 @@ export const xaiModels = {
 		maxTokens: 8192,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.3,
 		outputPrice: 0.5,
 		description: "X AI's Grok-3 mini beta model with 131K context window",
@@ -1425,10 +2528,46 @@ export const xaiModels = {
 		maxTokens: 8192,
 		contextWindow: 131072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.6,
 		outputPrice: 4.0,
 		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
+	"grok-3": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok-3 model with 131K context window",
+	},
+	"grok-3-fast": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok-3 fast model with 131K context window",
+	},
+	"grok-3-mini": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "X AI's Grok-3 mini model with 131K context window",
+	},
+	"grok-3-mini-fast": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "X AI's Grok-3 mini fast model with 131K context window",
 	},
 	"grok-2-latest": {
 		maxTokens: 8192,
@@ -1509,85 +2648,85 @@ export const xaiModels = {
 export type SambanovaModelId = keyof typeof sambanovaModels
 export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
 export const sambanovaModels = {
+	"Llama-4-Maverick-17B-128E-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.63,
+		outputPrice: 1.8,
+	},
+	"Llama-4-Scout-17B-16E-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 0.7,
+	},
 	"Meta-Llama-3.3-70B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.6,
+		outputPrice: 1.2,
 	},
 	"DeepSeek-R1-Distill-Llama-70B": {
 		maxTokens: 4096,
-		contextWindow: 32_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.7,
+		outputPrice: 1.4,
 	},
-	"Llama-3.1-Swallow-70B-Instruct-v0.3": {
+	"DeepSeek-R1": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Llama-3.1-Swallow-8B-Instruct-v0.3": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 5.0,
+		outputPrice: 7.0,
 	},
 	"Meta-Llama-3.1-405B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 5.0,
+		outputPrice: 10.0,
 	},
 	"Meta-Llama-3.1-8B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.1,
+		outputPrice: 0.2,
 	},
 	"Meta-Llama-3.2-1B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.04,
+		outputPrice: 0.08,
 	},
-	"Qwen2.5-72B-Instruct": {
+	"Meta-Llama-3.2-3B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.08,
+		outputPrice: 0.16,
+	},
+	"Qwen3-32B": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Qwen2.5-Coder-32B-Instruct": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"QwQ-32B-Preview": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.4,
+		outputPrice: 0.8,
 	},
 	"QwQ-32B": {
 		maxTokens: 4096,
@@ -1599,11 +2738,210 @@ export const sambanovaModels = {
 	},
 	"DeepSeek-V3-0324": {
 		maxTokens: 4096,
-		contextWindow: 8192,
+		contextWindow: 8_000,
 		supportsImages: false,
 		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 4.5,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Cerebras
+// https://inference-docs.cerebras.ai/api-reference/models
+export type CerebrasModelId = keyof typeof cerebrasModels
+export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
+export const cerebrasModels = {
+	"gpt-oss-120b": {
+		maxTokens: 65536,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent general purpose model with 3,000 tokens/s",
+	},
+	"qwen-3-coder-480b-free": {
+		maxTokens: 40000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"SOTA coding model with ~2000 tokens/s ($0 free tier)\n\n• Use this if you don't have a Cerebras subscription\n• 64K context window\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\n\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)",
+	},
+	"qwen-3-coder-480b": {
+		maxTokens: 40000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\n\n• Use this if you have a Cerebras subscription\n• 131K context window with higher rate limits",
+	},
+	"qwen-3-235b-a22b-instruct-2507": {
+		maxTokens: 64000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent model with ~1400 tokens/s",
+	},
+	"llama-3.3-70b": {
+		maxTokens: 64000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Powerful model with ~2600 tokens/s",
+	},
+	"qwen-3-32b": {
+		maxTokens: 64000,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "SOTA coding performance with ~2500 tokens/s",
+	},
+	"qwen-3-235b-a22b-thinking-2507": {
+		maxTokens: 32000,
+		contextWindow: 65000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "SOTA performance with ~1500 tokens/s",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// VERCEL AI GATEWAY MODELS
+export type VercelAIGatewayModelId = string
+
+export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
+export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
+	maxTokens: 64_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+}
+
+// Groq
+// https://console.groq.com/docs/models
+// https://groq.com/pricing/
+export type GroqModelId = keyof typeof groqModels
+export const groqDefaultModelId: GroqModelId = "openai/gpt-oss-120b"
+export const groqModels = {
+	"openai/gpt-oss-120b": {
+		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.75,
+		description:
+			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		description:
+			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+	},
+	// Compound Beta Models - Hybrid architectures optimized for tool use
+	"compound-beta": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description:
+			"Compound model using Llama 4 Scout for core reasoning with Llama 3.3 70B for routing and tool use. Excellent for plan/act workflows.",
+	},
+	"compound-beta-mini": {
+		maxTokens: 8192,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description: "Lightweight compound model for faster inference while maintaining tool use capabilities.",
+	},
+	// DeepSeek Models - Reasoning-optimized
+	"deepseek-r1-distill-llama-70b": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 0.99,
+		description:
+			"DeepSeek R1 reasoning capabilities distilled into Llama 70B architecture. Excellent for complex problem-solving and planning.",
+	},
+	// Llama 4 Models
+	"meta-llama/llama-4-maverick-17b-128e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+		description: "Meta's Llama 4 Maverick 17B model with 128 experts, supports vision and multimodal tasks.",
+	},
+	"meta-llama/llama-4-scout-17b-16e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.34,
+		description: "Meta's Llama 4 Scout 17B model with 16 experts, optimized for fast inference and general tasks.",
+	},
+	// Llama 3.3 Models
+	"llama-3.3-70b-versatile": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.59,
+		outputPrice: 0.79,
+		description: "Meta's latest Llama 3.3 70B model optimized for versatile use cases with excellent performance and speed.",
+	},
+	// Llama 3.1 Models - Fast inference
+	"llama-3.1-8b-instant": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution.",
+	},
+	// Mistral Models
+	"moonshotai/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
-		outputPrice: 1.5,
+		outputPrice: 3.0,
+		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
+		description:
+			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -1614,7 +2952,7 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
-	supportsComputerUse: false,
+
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
@@ -1622,3 +2960,548 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
+
+// SAP AI Core
+export type SapAiCoreModelId = keyof typeof sapAiCoreModels
+export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
+// Pricing is calculated using Capacity Units, not directly in USD
+const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
+export const sapAiCoreModels = {
+	"anthropic--claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-4-opus": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-3.7-sonnet": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-3.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-3-sonnet": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-3-haiku": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-3-opus": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 32767,
+		},
+		description: sapAiCoreModelDescription,
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-4": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-4o-mini": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-4.1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-4.1-nano": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-nano": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"gpt-5-mini": {
+		maxTokens: 128_000,
+		contextWindow: 272_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	o1: {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	o3: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"o3-mini": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"o4-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Moonshot AI Studio
+// https://platform.moonshot.ai/docs/pricing/chat
+export const moonshotModels = {
+	"kimi-k2-0711-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+	},
+	"kimi-k2-turbo-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 10,
+	},
+	"moonshot-v1-128k-vision-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 5,
+	},
+	"kimi-thinking-preview": {
+		maxTokens: 32_000,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 30,
+		outputPrice: 30,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type MoonshotModelId = keyof typeof moonshotModels
+export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
+
+// Huawei Cloud MaaS
+// Dify.ai - No model selection needed, models are configured in Dify workflows
+
+export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
+export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
+export const huaweiCloudMaasModels = {
+	"DeepSeek-V3": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"DeepSeek-R1": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"deepseek-r1-250528": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 8192,
+			outputPrice: 2.2,
+		},
+	},
+	"qwen3-235b-a22b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+	"qwen3-32b": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		thinkingConfig: {
+			maxBudget: 4096,
+			outputPrice: 1.1,
+		},
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Baseten
+// https://baseten.co/products/model-apis/
+export const basetenModels = {
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 131072,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.55,
+		outputPrice: 5.95,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description:
+			"DeepSeek R1 0528 - A state-of-the-art 671B-parameter MoE LLM with o1-style reasoning licensed for commercial use.",
+	},
+	"deepseek-ai/DeepSeek-V3-0324": {
+		maxTokens: 131072,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.77,
+		outputPrice: 0.77,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "DeepSeek V3 0324 - A state-of-the-art 671B-parameter MoE LLM licensed for commercial use.",
+	},
+	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.19,
+		outputPrice: 0.72,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Meta's Llama 4 Maverick - A SOTA mixture-of-experts multi-modal LLM with 400 billion total parameters.",
+	},
+	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.13,
+		outputPrice: 0.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Meta's Llama 4 Scout - A SOTA mixture-of-experts multi-modal LLM with 109 billion total parameters.",
+	},
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Moonshot AI's Kimi K2 - The world's first 1 trillion parameter open source model.",
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 163800,
+		contextWindow: 163800,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description:
+			"Qwen3-235B-A22B-Instruct-2507 is a multilingual, instruction-tuned mixture-of-experts language model based on the Qwen3-235B architecture, with 22B active parameters per forward pass.",
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 163800,
+		contextWindow: 163800,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.7,
+		outputPrice: 1.7,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description:
+			"Qwen3-Coder-480B-A35B-Instruct is a 480B parameter, instruction-tuned, agentic coding model that excels at function calling, tool use, and long-context reasoning over repositories.",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type BasetenModelId = keyof typeof basetenModels
+export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies BasetenModelId
+
+// Z AI
+// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/overview/pricing
+export type internationalZAiModelId = keyof typeof internationalZAiModels
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+	},
+	"glm-4.5-air": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.03,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type mainlandZAiModelId = keyof typeof mainlandZAiModels
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiModels = {
+	"glm-4.5": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.29,
+		outputPrice: 1.14,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.057,
+		description:
+			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.21,
+				outputPrice: 1.0,
+				cacheReadsPrice: 0.043,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+		],
+	},
+	"glm-4.5-air": {
+		maxTokens: 98304, // Quantization: fp8
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.086,
+		outputPrice: 0.57,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.017,
+		description:
+			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.057,
+				outputPrice: 0.43,
+				cacheReadsPrice: 0.011,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.086,
+				outputPrice: 0.57,
+				cacheReadsPrice: 0.017,
+			},
+		],
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Fireworks AI
+export type FireworksModelId = keyof typeof fireworksModels
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2-instruct": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		description:
+			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
+	},
+	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.88,
+		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
+	},
+	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 256000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.45,
+		outputPrice: 1.8,
+		description: "Qwen3's most agentic code model to date.",
+	},
+	"accounts/fireworks/models/deepseek-r1-0528": {
+		maxTokens: 20480,
+		contextWindow: 160000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 8,
+		description:
+			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+	"accounts/fireworks/models/deepseek-v3": {
+		maxTokens: 16384,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.9,
+		outputPrice: 0.9,
+		description:
+			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Qwen Code
+// https://chat.qwen.ai/
+export const qwenCodeModels = {
+	"qwen3-coder-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Plus - High-performance coding model with 1M context window for large codebases",
+	},
+	"qwen3-coder-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Flash - Fast coding model with 1M context window optimized for speed",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type QwenCodeModelId = keyof typeof qwenCodeModels
+export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"

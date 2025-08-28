@@ -1,0 +1,53 @@
+---
+title: "Mistral"
+description: "Learn how to configure and use Mistral AI models, including Codestral, with Cline. Covers API key setup and model selection."
+---
+
+Cline supports accessing models through the Mistral AI API, including both standard Mistral models and the code-specialized Codestral model.
+
+**Website:** [https://mistral.ai/](https://mistral.ai/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to the [Mistral Platform](https://console.mistral.ai/). Create an account or sign in. You may need to go through a verification process.
+2.  **Create an API Key:**
+    -   [La Plateforme API Key](https://console.mistral.ai/api-keys/) and/or
+    -   [Codestral API Key](https://console.mistral.ai/codestral)
+
+### Supported Models
+
+Cline supports the following Mistral models:
+
+-   pixtral-large-2411
+-   ministral-3b-2410
+-   ministral-8b-2410
+-   mistral-small-latest
+-   mistral-medium-latest
+-   mistral-small-2501
+-   pixtral-12b-2409
+-   open-mistral-nemo-2407
+-   open-codestral-mamba
+-   codestral-2501
+-   devstral-small-2505
+
+**Note:** Model availability and specifications may change.
+Refer to the [Mistral AI documentation](https://docs.mistral.ai/api/) and [Mistral Model Overview](https://docs.mistral.ai/getting-started/models/models_overview/) for the most current information.
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Mistral" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Mistral API key into the "Mistral API Key" field if you're using a standard `mistral` model. If you intend to use `codestral-latest`, see the "Using Codestral" section below.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Using Codestral
+
+[Codestral](https://docs.mistral.ai/capabilities/code_generation/) is a model specifically designed for code generation and interaction.
+For Codestral, you can use different endpoints (Default: codestral.mistral.ai).
+If using the La Plateforme API Key for Codestral, change the **Codestral Base Url** to: `https://api.mistral.ai`
+
+To use Codestral with Cline:
+
+1.  **Select "Mistral" as the API Provider in Cline Settings.**
+2.  **Select a Codestral Model** (e.g., `codestral-latest`) from the "Model" dropdown.
+3.  **Enter your Codestral API Key** (from `codestral.mistral.ai`) or your La Plateforme API Key (from `api.mistral.ai`) into the appropriate API key field in Cline.

@@ -1,3 +1,24 @@
 repositories
 
 results/evals.db
+
+diff-edits/cases/
+diff-edits/results/
+
+# Environment variables
+.env
+
+# backwards compatible
+diff_editing/test_cases/
+diff_editing/test_outputs/
+
+*.db
+*.db-wal
+*.db-shm
+
+.cache
+
+# Python bytecode cache
+*__pycache__/
+
+diff-edits/cases.zip

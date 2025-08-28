@@ -11,6 +11,10 @@ on:
                 options:
                     - pre-release
                     - release
+            tag:
+                description: "Enter existing tag to publish (e.g., v3.1.2)"
+                required: true
+                type: string
 
 permissions:
     contents: write
@@ -30,11 +34,13 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.tag }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: "lts/*"
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
@@ -54,14 +60,14 @@ jobs:
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
+              run: npm ci --include=optional
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --include=optional
 
             - name: Install Publishing Tools
-              run: npm install -g vsce ovsx
+              run: npm install -g @vscode/vsce ovsx
 
             - name: Get Version
               id: get_version
@@ -69,28 +75,35 @@ jobs:
                   VERSION=$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Create Git Tag
-              id: create_tag
+            - name: Validate Tag
+              id: validate_tag
               run: |
-                  VERSION=v${{ steps.get_version.outputs.version }}
-                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
-                  echo "Tagging with $VERSION"
-                  git tag "$VERSION"
-                  git push origin "$VERSION"
+                  TAG="${{ github.event.inputs.tag }}"
+                  echo "tag=$TAG" >> $GITHUB_OUTPUT
+                  echo "Using existing tag: $TAG"
+
+                  # Verify the tag exists
+                  if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+                    echo "Error: Tag '$TAG' does not exist in the repository"
+                    exit 1
+                  fi
+
+                  echo "Tag '$TAG' validated successfully"
 
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  CLINE_ENVIRONMENT: production
               run: |
                   # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+                  vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else
-                    npm run publish:marketplace
+                    ovsx publish
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 
@@ -106,7 +119,7 @@ jobs:
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: ${{ steps.create_tag.outputs.tag }}
+                  tag_name: ${{ steps.validate_tag.outputs.tag }}
                   files: "*.vsix"
                   # body: ${{ steps.changelog.outputs.content }}
                   generate_release_notes: true

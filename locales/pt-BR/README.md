@@ -28,7 +28,7 @@
 
 Conheça o Cline: um assistente de IA que pode usar seu **CLI** e **Editor**.
 
-Graças às [habilidades avançadas do Claude 3.7 Sonnet](https://www.anthropic.com/claude/sonnet), o Cline pode lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que permitem criar e editar arquivos, explorar grandes projetos, usar o navegador e executar comandos no terminal (com sua aprovação), ele pode ajudar você de maneiras que vão além da inclusão de código ou suporte técnico. O Cline pode é capaz inclusive de usar o Model Context Protocol (MCP) para criar novas ferramentas e expandir seus próprios recursos. Embora os scripts de IA autônomas tradicionalmente sejam executados em ambientes isolados, esta extensão oferece uma GUI com um humano no circuito para aprovar cada alteração de arquivo e comando de terminal, fornecendo uma maneira segura e acessível de explorar todo o potencial da IA.
+Graças às [habilidades avançadas do Claude 4 Sonnet](https://www.anthropic.com/claude/sonnet), o Cline pode lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que permitem criar e editar arquivos, explorar grandes projetos, usar o navegador e executar comandos no terminal (com sua aprovação), ele pode ajudar você de maneiras que vão além da inclusão de código ou suporte técnico. O Cline pode é capaz inclusive de usar o Model Context Protocol (MCP) para criar novas ferramentas e expandir seus próprios recursos. Embora os scripts de IA autônomas tradicionalmente sejam executados em ambientes isolados, esta extensão oferece uma GUI com um humano no circuito para aprovar cada alteração de arquivo e comando de terminal, fornecendo uma maneira segura e acessível de explorar todo o potencial da IA.
 
 1. Insira sua tarefa e adicione imagens para transformar mockups em aplicativos funcionais ou corrigir erros através de capturas de tela.
 
@@ -83,7 +83,7 @@ Todas as alterações feitas pelo Cline são registradas na Linha do tempo do ar
 
 ### Uso do navegador
 
-Com a nova habilidade de [uso de computador](https://www.anthropic.com/news/3-5-models-and-computer-use) do Claude Sonnet 3.5, Cline pode abrir um navegador, clicar em elementos, digitar texto e rolar, capturando a tela e logs de console. Isso permite depurar de maneira interativa, testes end-to-end e até mesmo uso geral da web. Isso lhe dá autonomia para solucionar erros visuais e problemas em tempo de execução sem precisar copiar e colar logs dos erros.
+Com a nova habilidade de [uso de computador](https://www.anthropic.com/news/3-5-models-and-computer-use) do Claude Sonnet 4, Cline pode abrir um navegador, clicar em elementos, digitar texto e rolar, capturando a tela e logs de console. Isso permite depurar de maneira interativa, testes end-to-end e até mesmo uso geral da web. Isso lhe dá autonomia para solucionar erros visuais e problemas em tempo de execução sem precisar copiar e colar logs dos erros.
 
 Tente pedir a Cline para "testar o aplicativo" e observe enquanto o Cline executa um comando como `npm run dev`, inicia seu servidor de desenvolvimento local em um navegador e executa uma série de testes para confirmar se tudo funciona. [Veja uma demonstração aqui.](https://x.com/sdrzn/status/1850880547825823989)
 

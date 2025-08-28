@@ -1,18 +1,21 @@
-import React, { useState, useRef, forwardRef, useCallback } from "react"
-import Thumbnails from "@/components/common/Thumbnails"
-import { highlightText } from "./TaskHeader"
-import { vscode } from "@/utils/vscode"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
+import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
+import { highlightText } from "./task-header/TaskHeader"
 
 interface UserMessageProps {
 	text?: string
+	files?: string[]
 	images?: string[]
 	messageTs?: number // Timestamp for the message, needed for checkpoint restore
-	sendMessageFromChatRow?: (text: string, images: string[]) => void
+	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, sendMessageFromChatRow }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -35,7 +38,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 		}
 	}, [isEditing])
 
-	const handleRestoreWorkspace = (type: string) => {
+	const handleRestoreWorkspace = async (type: ClineCheckpointRestore) => {
 		const delay = type === "task" ? 500 : 1000 // Delay for task and workspace restore
 		setIsEditing(false)
 
@@ -43,16 +46,21 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			return
 		}
 
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: type,
-			offset: 1,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: type,
+					offset: 1,
+				}),
+			)
 
-		setTimeout(() => {
-			sendMessageFromChatRow?.(editedText, images || [])
-		}, delay)
+			setTimeout(() => {
+				sendMessageFromChatRow?.(editedText, images || [], files || [])
+			}, delay)
+		} catch (err) {
+			console.error("Checkpoint restore error:", err)
+		}
 	}
 
 	const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -71,7 +79,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			setIsEditing(false)
 		} else if (e.key === "Enter" && e.metaKey && !checkpointTrackerErrorMessage) {
 			handleRestoreWorkspace("taskAndWorkspace")
-		} else if (e.key === "Enter" && !e.shiftKey) {
+		} else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
 			e.preventDefault()
 			handleRestoreWorkspace("task")
 		}
@@ -79,6 +87,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 
 	return (
 		<div
+			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				color: "var(--vscode-badge-foreground)",
@@ -86,17 +95,15 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 				padding: "9px",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
-			}}
-			onClick={handleClick}>
+			}}>
 			{isEditing ? (
 				<>
 					<DynamicTextArea
-						ref={textAreaRef}
-						value={editedText}
-						onChange={(e) => setEditedText(e.target.value)}
-						onBlur={(e) => handleBlur(e)}
-						onKeyDown={handleKeyDown}
 						autoFocus
+						onBlur={(e) => handleBlur(e)}
+						onChange={(e) => setEditedText(e.target.value)}
+						onKeyDown={handleKeyDown}
+						ref={textAreaRef}
 						style={{
 							width: "100%",
 							backgroundColor: "var(--vscode-input-background)",
@@ -114,42 +121,47 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 							overflowY: "scroll",
 							scrollbarWidth: "none",
 						}}
+						value={editedText}
 					/>
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
 						{!checkpointTrackerErrorMessage && (
 							<RestoreButton
-								ref={restoreAllButtonRef}
-								type="taskAndWorkspace"
-								label="Restore All"
 								isPrimary={false}
+								label="Restore All"
 								onClick={handleRestoreWorkspace}
+								ref={restoreAllButtonRef}
 								title="Restore both the chat and workspace files to this checkpoint and send your edited message"
+								type="taskAndWorkspace"
 							/>
 						)}
 						<RestoreButton
-							ref={restoreChatButtonRef}
-							type="task"
-							label="Restore Chat"
 							isPrimary={true}
+							label="Restore Chat"
 							onClick={handleRestoreWorkspace}
+							ref={restoreChatButtonRef}
 							title="Restore just the chat to this checkpoint and send your edited message"
+							type="task"
 						/>
 					</div>
 				</>
 			) : (
-				<span style={{ display: "block" }}>{highlightText(editedText || text)}</span>
+				<span className="ph-no-capture" style={{ display: "block" }}>
+					{highlightText(editedText || text)}
+				</span>
 			)}
-			{images && images.length > 0 && <Thumbnails images={images} style={{ marginTop: "8px" }} />}
+			{((images && images.length > 0) || (files && files.length > 0)) && (
+				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
+			)}
 		</div>
 	)
 }
 
 // Reusable button component for restore actions
 interface RestoreButtonProps {
-	type: string
+	type: ClineCheckpointRestore
 	label: string
 	isPrimary: boolean
-	onClick: (type: string) => void
+	onClick: (type: ClineCheckpointRestore) => void
 	title?: string
 }
 
@@ -161,9 +173,8 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 
 	return (
 		<button
-			ref={ref}
 			onClick={handleClick}
-			title={title}
+			ref={ref}
 			style={{
 				backgroundColor: isPrimary
 					? "var(--vscode-button-background)"
@@ -176,7 +187,8 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 				borderRadius: "2px",
 				fontSize: "9px",
 				cursor: "pointer",
-			}}>
+			}}
+			title={title}>
 			{label}
 		</button>
 	)

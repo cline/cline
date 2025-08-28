@@ -1,0 +1,41 @@
+---
+title: "New Task Command"
+sidebarTitle: "/newtask"
+---
+
+`/newtask` is a slash command that works like a perfect developer handoff. It intelligently packages what matters - the overall plan, work accomplished, relevant files, and next steps - into a fresh task with a clean context window. All while leaving behind the noise of tool calls, documentation searches, and implementation details.
+
+It's exactly what you'd do when bringing a new developer onto your project: provide the essential context they need to continue the work without overwhelming them with every keystroke that came before.
+
+#### Using the `/newtask` Slash Command
+
+When your context window is filling up but you're not done with your project:
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/newtask.png"
+		alt="Using the /newtask slash command"
+	/>
+</Frame>
+
+-   Type `/newtask` in the chat input field
+-   Cline will analyze your conversation and propose a distilled version of the context to carry forward
+-   You can refine this proposed context through conversation before committing
+-   Once satisfied, a button appears to create the new task with your refined context
+
+#### Example
+
+I regularly use `/newtask` when working through complex implementations with multiple steps. For instance, if I've completed 3 steps of a 10-step process and my context is already 75% full with documentation snippets, file contents, and detailed discussions.
+
+Rather than losing those insights or starting from scratch, I use `/newtask` to have Cline extract what matters - the key decisions, file changes, and progress so far - without all the noise of individual tool calls and research steps.
+
+I like to think of `/newtask` as a new developer joining the project. I need to give them the full understanding of the work that has been done, awareness of the relevant files, any other context that would be helpful, and where to go next.
+
+#### Inspiration
+
+Here are some popular ways to use `/newtask`:
+
+-   I research complex APIs using the Context7 MCP server, filling my context with documentation. Once I understand the concepts, I use `/newtask` to start fresh with just the essential knowledge needed for implementation.
+-   After identifying the root cause of a tough bug through multiple debugging attempts and file explorations, I use `/newtask` to continue with a clean slate that includes the solution but discards all the failed attempts.
+-   When a client discussion explores multiple approaches and finally settles on one direction, I use `/newtask` to focus solely on implementing the chosen solution.
+-   For complex projects spanning multiple days, I use `/newtask` at logical stopping points to maintain a clean workspace while carrying forward my progress.

@@ -1,52 +1,77 @@
+import { AskResponseRequest } from "@shared/proto/cline/task"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "@/utils/vscode"
-import { Invoke } from "@shared/ExtensionMessage"
+import { useClineAuth } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
-	totalSpent: number
-	totalPromotions: number
+	totalSpent?: number
+	totalPromotions?: number
 	message: string
+	// buyCreditsUrl?: string
 }
 
-const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, totalSpent, totalPromotions, message }) => {
+const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
+	currentBalance = 0,
+	totalSpent = 0,
+	totalPromotions = 0,
+	message = "You have run out of credits.",
+	// buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
+}) => {
+	const { uriScheme } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
+
+	const isPersonal = !activeOrganization?.organizationId
+	const buyCreditsUrl = isPersonal
+		? "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+
+	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
+	const fullPurchaseUrl = new URL(buyCreditsUrl)
+	fullPurchaseUrl.searchParams.set("callback_url", callbackUrl)
+
+	// We have to divide because the balance is stored in microcredits
 	return (
-		<div
-			style={{
-				backgroundColor: "var(--vscode-textBlockQuote-background)",
-				padding: "12px",
-				borderRadius: "4px",
-				marginBottom: "12px",
-			}}>
-			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
-			<div style={{ marginBottom: "12px" }}>
-				<div style={{ color: "var(--vscode-foreground)" }}>
-					Current Balance: <span style={{ fontWeight: "bold" }}>${currentBalance.toFixed(2)}</span>
-				</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: ${totalSpent.toFixed(2)}</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: ${totalPromotions.toFixed(2)}</div>
+		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
+			<div className="mb-3 font-azeret-mono">
+				<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
+				{/* <div style={{ marginBottom: "12px" }}>
+					<div style={{ color: "var(--vscode-foreground)" }}>
+						Current Balance: <span style={{ fontWeight: "bold" }}>{currentBalance.toFixed(2)}</span>
+					</div>
+					<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: {totalSpent.toFixed(2)}</div>
+					<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: {totalPromotions.toFixed(2)}</div>
+				</div> */}
 			</div>
 
 			<VSCodeButtonLink
-				href="https://app.cline.bot/credits/#buy"
+				href={fullPurchaseUrl.toString()}
 				style={{
 					width: "100%",
 					marginBottom: "8px",
 				}}>
-				<span className="codicon codicon-credit-card" style={{ fontSize: "14px", marginRight: "6px" }} />
+				<span className="codicon codicon-credit-card mr-[6px] text-[14px]" />
 				Buy Credits
 			</VSCodeButtonLink>
 
 			<VSCodeButton
-				onClick={() => {
-					vscode.postMessage({
-						type: "invoke",
-						text: "primaryButtonClick" satisfies Invoke,
-					})
-				}}
 				appearance="secondary"
+				onClick={async () => {
+					try {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: "",
+								images: [],
+							}),
+						)
+					} catch (error) {
+						console.error("Error invoking action:", error)
+					}
+				}}
 				style={{
 					width: "100%",
 				}}>

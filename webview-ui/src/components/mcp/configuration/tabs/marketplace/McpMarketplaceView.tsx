@@ -1,27 +1,29 @@
-import { useEffect, useMemo, useState } from "react"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	VSCodeButton,
-	VSCodeProgressRing,
-	VSCodeRadioGroup,
-	VSCodeRadio,
 	VSCodeDropdown,
 	VSCodeOption,
+	VSCodeProgressRing,
+	VSCodeRadio,
+	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { McpMarketplaceItem } from "@shared/mcp"
+import { useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
+import { McpServiceClient } from "@/services/grpc-client"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
+
 const McpMarketplaceView = () => {
-	const { mcpServers } = useExtensionState()
-	const [items, setItems] = useState<McpMarketplaceItem[]>([])
+	const { mcpServers, mcpMarketplaceCatalog, setMcpMarketplaceCatalog, mcpMarketplaceEnabled } = useExtensionState()
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name">("newest")
+	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name" | "downloadCount">("newest")
+
+	const items = mcpMarketplaceCatalog?.items || []
 
 	const categories = useMemo(() => {
 		const uniqueCategories = new Set(items.map((item) => item.category))
@@ -41,8 +43,8 @@ const McpMarketplaceView = () => {
 			})
 			.sort((a, b) => {
 				switch (sortBy) {
-					// case "downloadCount":
-					// 	return b.downloadCount - a.downloadCount
+					case "downloadCount":
+						return b.downloadCount - a.downloadCount
 					case "stars":
 						return b.githubStars - a.githubStars
 					case "name":
@@ -56,33 +58,18 @@ const McpMarketplaceView = () => {
 	}, [items, searchQuery, selectedCategory, sortBy])
 
 	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "mcpMarketplaceCatalog") {
-				if (message.error) {
-					setError(message.error)
-				} else {
-					setItems(message.mcpMarketplaceCatalog?.items || [])
-					setError(null)
-				}
-				setIsLoading(false)
-				setIsRefreshing(false)
-			} else if (message.type === "mcpDownloadDetails") {
-				if (message.error) {
-					setError(message.error)
-				}
-			}
-		}
-
-		window.addEventListener("message", handleMessage)
-
-		// Fetch marketplace catalog
+		// Fetch marketplace catalog on initial load
 		fetchMarketplace()
-
-		return () => {
-			window.removeEventListener("message", handleMessage)
-		}
 	}, [])
+
+	useEffect(() => {
+		// Update loading state when catalog arrives
+		if (mcpMarketplaceCatalog?.items) {
+			setIsLoading(false)
+			setIsRefreshing(false)
+			setError(null)
+		}
+	}, [mcpMarketplaceCatalog])
 
 	const fetchMarketplace = (forceRefresh: boolean = false) => {
 		if (forceRefresh) {
@@ -91,7 +78,19 @@ const McpMarketplaceView = () => {
 			setIsLoading(true)
 		}
 		setError(null)
-		vscode.postMessage({ type: "fetchMcpMarketplace", bool: forceRefresh })
+
+		if (mcpMarketplaceEnabled) {
+			McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
+				.then((response) => {
+					setMcpMarketplaceCatalog(response)
+				})
+				.catch((error) => {
+					console.error("Error refreshing MCP marketplace:", error)
+					setError("Failed to load marketplace data")
+					setIsLoading(false)
+					setIsRefreshing(false)
+				})
+		}
 	}
 
 	if (isLoading || isRefreshing) {
@@ -140,13 +139,13 @@ const McpMarketplaceView = () => {
 			<div style={{ padding: "20px 20px 5px", display: "flex", flexDirection: "column", gap: "16px" }}>
 				{/* Search row */}
 				<VSCodeTextField
-					style={{ width: "100%" }}
+					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
 					placeholder="Search MCPs..."
-					value={searchQuery}
-					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}>
+					style={{ width: "100%" }}
+					value={searchQuery}>
 					<div
-						slot="start"
 						className="codicon codicon-search"
+						slot="start"
 						style={{
 							fontSize: 13,
 							opacity: 0.8,
@@ -154,8 +153,8 @@ const McpMarketplaceView = () => {
 					/>
 					{searchQuery && (
 						<div
-							className="codicon codicon-close"
 							aria-label="Clear search"
+							className="codicon codicon-close"
 							onClick={() => setSearchQuery("")}
 							slot="end"
 							style={{
@@ -193,11 +192,11 @@ const McpMarketplaceView = () => {
 							flex: 1,
 						}}>
 						<VSCodeDropdown
+							onChange={(e) => setSelectedCategory((e.target as HTMLSelectElement).value || null)}
 							style={{
 								width: "100%",
 							}}
-							value={selectedCategory || ""}
-							onChange={(e) => setSelectedCategory((e.target as HTMLSelectElement).value || null)}>
+							value={selectedCategory || ""}>
 							<VSCodeOption value="">All Categories</VSCodeOption>
 							{categories.map((category) => (
 								<VSCodeOption key={category} value={category}>
@@ -225,14 +224,14 @@ const McpMarketplaceView = () => {
 						Sort:
 					</span>
 					<VSCodeRadioGroup
+						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}
 						style={{
 							display: "flex",
 							flexWrap: "wrap",
 							marginTop: "-2.5px",
 						}}
-						value={sortBy}
-						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}>
-						{/* <VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio> */}
+						value={sortBy}>
+						<VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio>
 						<VSCodeRadio value="newest">Newest</VSCodeRadio>
 						<VSCodeRadio value="stars">GitHub Stars</VSCodeRadio>
 						<VSCodeRadio value="name">Name</VSCodeRadio>
@@ -275,7 +274,9 @@ const McpMarketplaceView = () => {
 							: "No MCP servers found in the marketplace"}
 					</div>
 				) : (
-					filteredItems.map((item) => <McpMarketplaceCard key={item.mcpId} item={item} installedServers={mcpServers} />)
+					filteredItems.map((item) => (
+						<McpMarketplaceCard installedServers={mcpServers} item={item} key={item.mcpId} setError={setError} />
+					))
 				)}
 				<McpSubmitCard />
 			</div>

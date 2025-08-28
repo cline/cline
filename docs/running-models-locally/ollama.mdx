@@ -1,0 +1,88 @@
+---
+title: "Ollama"
+description: "A quick guide to setting up Ollama for local AI model execution with Cline."
+---
+
+### 📋 Prerequisites
+
+-   Windows, macOS, or Linux computer
+-   Cline installed in VS Code
+
+### 🚀 Setup Steps
+
+#### 1. Install Ollama
+
+-   Visit [ollama.com](https://ollama.com)
+-   Download and install for your operating system
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(2)%20(1)%20(1).png"
+		alt="Ollama download page"
+	/>
+</Frame>
+
+#### 2. Choose and Download a Model
+
+-   Browse models at [ollama.com/search](https://ollama.com/search)
+-   Select model and copy command:
+
+    ```bash
+    ollama run [model-name]
+    ```
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/ollama-model-grab%20(2).gif"
+		alt="Selecting a model in Ollama"
+	/>
+</Frame>
+
+-   Open your Terminal and run the command:
+
+    -   Example:
+
+        ```bash
+        ollama run llama2
+        ```
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/starting-ollama-terminal%20(2).gif"
+		alt="Running Ollama in terminal"
+	/>
+</Frame>
+
+**✨ Your model is now ready to use within Cline!**
+
+#### 3. Configure Cline
+
+1. Open VS Code
+2. Click Cline settings icon
+3. Select "Ollama" as API provider
+4. Enter configuration:
+    - Base URL: `http://localhost:11434/` (default value, can be left as is)
+    - Select the model from your available options
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/selecting-ollama-model-cline%20(3).gif"
+		alt="Configuring Cline with Ollama"
+	/>
+</Frame>
+
+### ⚠️ Important Notes
+
+-   Start Ollama before using with Cline
+-   Keep Ollama running in background
+-   First model download may take several minutes
+
+### 🔧 Troubleshooting
+
+If Cline can't connect to Ollama:
+
+1. Verify Ollama is running
+2. Check base URL is correct
+3. Ensure model is downloaded
+
+Need more info? Read the [Ollama Docs](https://github.com/ollama/ollama/blob/main/docs/api.md).

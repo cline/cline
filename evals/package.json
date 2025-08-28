@@ -1,0 +1,44 @@
+{
+  "name": "cline-evals",
+  "version": "0.1.0",
+  "description": "Evaluation scripts and tools for Cline",
+  "main": "cli/dist/index.js",
+  "scripts": {
+    "build:cli": "cd cli && tsc",
+    "start:cli": "cd cli && node dist/index.js",
+    "dev:cli": "cd cli && ts-node src/index.ts",
+    "diff-eval": "./diff-edits/run_and_open_dashboard.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cline",
+    "evaluation",
+    "benchmark",
+    "diff-edits"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.8.2",
+    "better-sqlite3": "^11.10.0",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.5.0",
+    "commander": "^9.4.1",
+    "execa": "^5.1.1",
+    "node-fetch": "^2.7.0",
+    "ora": "^5.4.1",
+    "sqlite": "^4.1.2",
+    "tiktoken": "^1.0.21",
+    "uuid": "^9.0.0",
+    "yargs": "^17.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.3",
+    "@types/node": "^18.11.18",
+    "@types/node-fetch": "^2.6.12",
+    "@types/uuid": "^9.0.0",
+    "@types/yargs": "^17.0.19",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.4"
+  }
+}

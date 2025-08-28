@@ -1,11 +1,12 @@
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Int64Request } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useRef, useState } from "react"
-import { useClickAway, useEvent } from "react-use"
+import { useEffect, useRef, useState } from "react"
+import { useClickAway } from "react-use"
 import styled from "styled-components"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckpointOverlayProps {
 	messageTs?: number
@@ -20,6 +21,7 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	const [hasMouseEntered, setHasMouseEntered] = useState(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const tooltipRef = useRef<HTMLDivElement>(null)
+	const { onRelinquishControl } = useExtensionState()
 
 	useClickAway(containerRef, () => {
 		if (showRestoreConfirm) {
@@ -28,47 +30,60 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 		}
 	})
 
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		switch (message.type) {
-			case "relinquishControl": {
-				setCompareDisabled(false)
-				setRestoreTaskDisabled(false)
-				setRestoreWorkspaceDisabled(false)
-				setRestoreBothDisabled(false)
-				setShowRestoreConfirm(false)
-				break
-			}
-		}
-	}, [])
+	// Use the onRelinquishControl hook instead of message event
+	useEffect(() => {
+		return onRelinquishControl(() => {
+			setCompareDisabled(false)
+			setRestoreTaskDisabled(false)
+			setRestoreWorkspaceDisabled(false)
+			setRestoreBothDisabled(false)
+			setShowRestoreConfirm(false)
+		})
+	}, [onRelinquishControl])
 
-	useEvent("message", handleMessage)
-
-	const handleRestoreTask = () => {
+	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "task" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "task",
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore task error:", err)
+			setRestoreTaskDisabled(false)
+		}
 	}
 
-	const handleRestoreWorkspace = () => {
+	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "workspace" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "workspace",
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore workspace error:", err)
+			setRestoreWorkspaceDisabled(false)
+		}
 	}
 
-	const handleRestoreBoth = () => {
+	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "taskAndWorkspace" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: "taskAndWorkspace",
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore both error:", err)
+			setRestoreBothDisabled(false)
+		}
 	}
 
 	const handleMouseEnter = () => {
@@ -106,33 +121,40 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	return (
 		<CheckpointControls onMouseLeave={handleControlsMouseLeave}>
 			<VSCodeButton
-				title="Compare"
 				appearance="secondary"
 				disabled={compareDisabled}
-				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
-				onClick={() => {
+				onClick={async () => {
 					setCompareDisabled(true)
-					vscode.postMessage({
-						type: "checkpointDiff",
-						number: messageTs,
-					})
-				}}>
+					try {
+						await CheckpointsServiceClient.checkpointDiff(
+							Int64Request.create({
+								value: messageTs,
+							}),
+						)
+					} catch (err) {
+						console.error("CheckpointDiff error:", err)
+					} finally {
+						setCompareDisabled(false)
+					}
+				}}
+				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
+				title="Compare">
 				<i className="codicon codicon-diff-multiple" style={{ position: "absolute" }} />
 			</VSCodeButton>
-			<div style={{ position: "relative" }} ref={containerRef}>
+			<div ref={containerRef} style={{ position: "relative" }}>
 				<VSCodeButton
-					title="Restore"
 					appearance="secondary"
+					onClick={() => setShowRestoreConfirm(true)}
 					style={{ cursor: "pointer" }}
-					onClick={() => setShowRestoreConfirm(true)}>
+					title="Restore">
 					<i className="codicon codicon-discard" style={{ position: "absolute" }} />
 				</VSCodeButton>
 				{showRestoreConfirm && (
-					<RestoreConfirmTooltip ref={tooltipRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+					<RestoreConfirmTooltip onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} ref={tooltipRef}>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreBoth}
 								disabled={restoreBothDisabled}
+								onClick={handleRestoreBoth}
 								style={{
 									cursor: restoreBothDisabled ? "wait" : "pointer",
 								}}>
@@ -142,8 +164,8 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreTask}
 								disabled={restoreTaskDisabled}
+								onClick={handleRestoreTask}
 								style={{
 									cursor: restoreTaskDisabled ? "wait" : "pointer",
 								}}>
@@ -153,8 +175,8 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
-								onClick={handleRestoreWorkspace}
 								disabled={restoreWorkspaceDisabled}
+								onClick={handleRestoreWorkspace}
 								style={{
 									cursor: restoreWorkspaceDisabled ? "wait" : "pointer",
 								}}>
