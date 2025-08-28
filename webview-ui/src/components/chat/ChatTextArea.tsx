@@ -45,6 +45,7 @@ import {
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
+import VoiceRecorder from "./VoiceRecorder"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -279,8 +280,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
-			useExtensionState()
+		const {
+			mode,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			dictationSettings,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -317,6 +325,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [isVoiceRecording, setIsVoiceRecording] = useState(false)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1410,6 +1419,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			)
 		}
 
+		const handleSetVoiceRecording = (isRecording: boolean) => {
+			setIsVoiceRecording(isRecording)
+			sendingDisabled = isRecording
+		}
+
 		return (
 			<div>
 				<div
@@ -1601,7 +1615,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 9px 9px",
+							padding: `9px ${dictationSettings?.dictationEnabled ? "48" : "28"}px 9px 9px`,
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1654,6 +1668,43 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								flexDirection: "row",
 								alignItems: "center",
 							}}>
+							{dictationSettings?.dictationEnabled === true && (
+								<VoiceRecorder
+									disabled={sendingDisabled}
+									language={dictationSettings?.dictationLanguage || "en"}
+									onProcessingStateChange={(isProcessing, message) => {
+										if (isProcessing && message) {
+											// Show processing message in input
+											const processingText = inputValue + (inputValue ? " " : "") + `[${message}]`
+											setInputValue(processingText)
+										}
+										// When processing is done, the onTranscription callback will handle the final text
+									}}
+									onRecordingStateChange={handleSetVoiceRecording}
+									onTranscription={(text) => {
+										// Remove any processing text first
+										const processingPattern = /\s*\[Transcribing\.\.\.\]$/
+										const cleanedValue = inputValue.replace(processingPattern, "")
+
+										if (!text) {
+											setInputValue(cleanedValue)
+											return
+										}
+
+										// Append the transcribed text to the cleaned input
+										const newValue = cleanedValue + (cleanedValue ? " " : "") + text
+										setInputValue(newValue)
+										// Focus the textarea and move cursor to end
+										setTimeout(() => {
+											if (textAreaRef.current) {
+												textAreaRef.current.focus()
+												const length = newValue.length
+												textAreaRef.current.setSelectionRange(length, length)
+											}
+										}, 0)
+									}}
+								/>
+							)}
 							{/* <div
 								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 								onClick={() => {
@@ -1666,16 +1717,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontSize: 16.5,
 								}}
 							/> */}
-							<div
-								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
-								data-testid="send-button"
-								onClick={() => {
-									if (!sendingDisabled) {
-										setIsTextAreaFocused(false)
-										onSend()
-									}
-								}}
-								style={{ fontSize: 15 }}></div>
+							{!isVoiceRecording && (
+								<div
+									className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
+									data-testid="send-button"
+									onClick={() => {
+										if (!sendingDisabled) {
+											setIsTextAreaFocused(false)
+											onSend()
+										}
+									}}
+									style={{ fontSize: 15 }}></div>
+							)}
 						</div>
 					</div>
 				</div>

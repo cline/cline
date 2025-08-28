@@ -1,5 +1,7 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import type { ExtensionContext } from "vscode"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { DEFAULT_DICTATION_SETTINGS } from "@/shared/DictationSettings"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
