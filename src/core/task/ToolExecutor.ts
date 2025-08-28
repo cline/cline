@@ -353,13 +353,13 @@ export class ToolExecutor {
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
 		// All tools are now fully self-managed and implement IPartialBlockHandler
 		const result = await this.coordinator.execute(config, block)
+
+		await this.saveCheckpoint()
 		this.pushToolResult(result, block)
 
 		// Handle focus chain updates
 		if (!block.partial && this.focusChainSettings.enabled) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
-
-		await this.saveCheckpoint()
 	}
 }
