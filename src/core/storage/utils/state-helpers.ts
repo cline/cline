@@ -205,84 +205,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	const dictationSettings = context.globalState.get("dictationSettings") as DictationSettings | undefined
 	const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
 	const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
-
-	// Get all secret values
-	const [
-		apiKey,
-		openRouterApiKey,
-		clineAccountId,
-		awsAccessKey,
-		awsSecretKey,
-		awsSessionToken,
-		awsBedrockApiKey,
-		openAiApiKey,
-		geminiApiKey,
-		openAiNativeApiKey,
-		deepSeekApiKey,
-		requestyApiKey,
-		togetherApiKey,
-		qwenApiKey,
-		doubaoApiKey,
-		mistralApiKey,
-		fireworksApiKey,
-		liteLlmApiKey,
-		asksageApiKey,
-		xaiApiKey,
-		sambanovaApiKey,
-		cerebrasApiKey,
-		groqApiKey,
-		moonshotApiKey,
-		nebiusApiKey,
-		huggingFaceApiKey,
-		sapAiCoreClientId,
-		sapAiCoreClientSecret,
-		huaweiCloudMaasApiKey,
-		basetenApiKey,
-		zaiApiKey,
-		ollamaApiKey,
-		vercelAiGatewayApiKey,
-		difyApiKey,
-	] = await Promise.all([
-		context.secrets.get("apiKey") as Promise<string | undefined>,
-		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
-		context.secrets.get("clineAccountId") as Promise<string | undefined>,
-		context.secrets.get("awsAccessKey") as Promise<string | undefined>,
-		context.secrets.get("awsSecretKey") as Promise<string | undefined>,
-		context.secrets.get("awsSessionToken") as Promise<string | undefined>,
-		context.secrets.get("awsBedrockApiKey") as Promise<string | undefined>,
-		context.secrets.get("openAiApiKey") as Promise<string | undefined>,
-		context.secrets.get("geminiApiKey") as Promise<string | undefined>,
-		context.secrets.get("openAiNativeApiKey") as Promise<string | undefined>,
-		context.secrets.get("deepSeekApiKey") as Promise<string | undefined>,
-		context.secrets.get("requestyApiKey") as Promise<string | undefined>,
-		context.secrets.get("togetherApiKey") as Promise<string | undefined>,
-		context.secrets.get("qwenApiKey") as Promise<string | undefined>,
-		context.secrets.get("doubaoApiKey") as Promise<string | undefined>,
-		context.secrets.get("mistralApiKey") as Promise<string | undefined>,
-		context.secrets.get("fireworksApiKey") as Promise<string | undefined>,
-		context.secrets.get("liteLlmApiKey") as Promise<string | undefined>,
-		context.secrets.get("asksageApiKey") as Promise<string | undefined>,
-		context.secrets.get("xaiApiKey") as Promise<string | undefined>,
-		context.secrets.get("sambanovaApiKey") as Promise<string | undefined>,
-		context.secrets.get("cerebrasApiKey") as Promise<string | undefined>,
-		context.secrets.get("groqApiKey") as Promise<string | undefined>,
-		context.secrets.get("moonshotApiKey") as Promise<string | undefined>,
-		context.secrets.get("nebiusApiKey") as Promise<string | undefined>,
-		context.secrets.get("huggingFaceApiKey") as Promise<string | undefined>,
-		context.secrets.get("sapAiCoreClientId") as Promise<string | undefined>,
-		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
-		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
-		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
-		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
-		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
-		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
-		context.secrets.get("difyApiKey") as Promise<string | undefined>,
-	])
-
-	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
-	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
-	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
-	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
+	const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
+	const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
+	const customPrompt = context.globalState.get("customPrompt") as GlobalState["customPrompt"]
 
 	// Get mode-related configurations
 	const mode = context.globalState.get("mode") as Mode | undefined
@@ -498,6 +423,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		preferredLanguage: preferredLanguage || "English",
+		dictationSettings: { ...DEFAULT_DICTATION_SETTINGS, ...dictationSettings },
 		openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 		mode: mode || "act",
 		userInfo,
