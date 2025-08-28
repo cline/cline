@@ -8,6 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FEATURE_FLAGS } from "@/shared/services/feature-flags/feature-flags"
 import { openExternal } from "@/utils/env"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import { WorkOSAuthProvider } from "./providers/WorkOSAuthProvider"
 
 const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
 let authProviders: any[] = []
@@ -19,6 +20,7 @@ export type ServiceConfig = {
 
 const availableAuthProviders = {
 	firebase: FirebaseAuthProvider,
+	workos: WorkOSAuthProvider,
 	// Add other providers here as needed
 }
 
@@ -54,7 +56,7 @@ export class AuthService {
 	protected _config: ServiceConfig
 	protected _authenticated: boolean = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
-	protected _provider: { provider: FirebaseAuthProvider } | null = null
+	protected _provider: { provider: FirebaseAuthProvider | WorkOSAuthProvider } | null = null
 	protected _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
 	protected _controller: Controller
 
@@ -63,7 +65,8 @@ export class AuthService {
 	 * @param controller - Optional reference to the Controller instance.
 	 */
 	protected constructor(controller: Controller) {
-		const providerName = "firebase"
+		// Default to firebase for backward compatibility, but can be changed via environment variable
+		const providerName = process.env.CLINE_AUTH_PROVIDER || "firebase"
 		this._config = { URI: DefaultClineAccountURI }
 
 		// Fetch AuthProviders
@@ -74,6 +77,10 @@ export class AuthService {
 			{
 				name: "firebase",
 				config: clineEnvConfig.firebase,
+			},
+			{
+				name: "workos",
+				config: clineEnvConfig.workos,
 			},
 		]
 
@@ -132,6 +139,20 @@ export class AuthService {
 
 	set authProvider(providerName: string) {
 		this._setProvider(providerName)
+	}
+
+	/**
+	 * Get list of available auth providers
+	 */
+	getAvailableProviders(): string[] {
+		return authProviders.map((provider) => provider.name)
+	}
+
+	/**
+	 * Get current auth provider name
+	 */
+	getCurrentProvider(): string | null {
+		return authProviders.find((provider) => provider.provider === this._provider?.provider)?.name || null
 	}
 
 	async getAuthToken(): Promise<string | null> {
@@ -194,11 +215,17 @@ export class AuthService {
 		const callbackHost = await HostProvider.get().getCallbackUri()
 		const callbackUrl = `${callbackHost}/auth`
 
-		// Use URL object for more graceful query construction
-		const authUrl = new URL(this._config.URI)
-		authUrl.searchParams.set("callback_url", callbackUrl)
+		let authUrlString: string
 
-		const authUrlString = authUrl.toString()
+		// Handle WorkOS provider differently
+		if (this._provider?.provider instanceof WorkOSAuthProvider) {
+			authUrlString = this._provider.provider.getAuthorizationUrl(callbackUrl)
+		} else {
+			// Use URL object for more graceful query construction (Firebase and other providers)
+			const authUrl = new URL(this._config.URI)
+			authUrl.searchParams.set("callback_url", callbackUrl)
+			authUrlString = authUrl.toString()
+		}
 
 		await openExternal(authUrlString)
 		return String.create({ value: authUrlString })

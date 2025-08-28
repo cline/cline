@@ -16,6 +16,10 @@ interface EnvironmentConfig {
 		messagingSenderId?: string
 		appId?: string
 	}
+	workos: {
+		apiKey: string
+		clientId: string
+	}
 }
 
 function getClineEnv(): Environment {
@@ -42,6 +46,10 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 					messagingSenderId: "853479478430",
 					appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
 				},
+				workos: {
+					apiKey: process.env.WORKOS_API_KEY || "",
+					clientId: process.env.WORKOS_CLIENT_ID || "",
+				},
 			}
 		case Environment.local:
 			return {
@@ -52,6 +60,10 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 					apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
 					authDomain: "cline-preview.firebaseapp.com",
 					projectId: "cline-preview",
+				},
+				workos: {
+					apiKey: process.env.WORKOS_API_KEY || "",
+					clientId: process.env.WORKOS_CLIENT_ID || "",
 				},
 			}
 		default:
@@ -66,6 +78,10 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 					storageBucket: "cline-prod.firebasestorage.app",
 					messagingSenderId: "941048379330",
 					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
+				},
+				workos: {
+					apiKey: process.env.WORKOS_API_KEY || "",
+					clientId: process.env.WORKOS_CLIENT_ID || "",
 				},
 			}
 	}
