@@ -33,7 +33,6 @@ export class PostHogClientProvider {
 	 * For exceptions, we only capture those from the Cline extension.
 	 */
 	static eventFilter(event: EventMessage | null) {
-		// Only capture exceptions from the Cline extension
 		if (!event || event?.event !== "$exception") {
 			return event
 		}
