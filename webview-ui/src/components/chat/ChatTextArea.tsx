@@ -1,3 +1,4 @@
+import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
@@ -1439,6 +1440,38 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						// Drag-over styles moved to DynamicTextArea
 						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
 					}}>
+					{isVoiceRecording && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px", // match textarea/hightlight inset
+								pointerEvents: "none",
+								zIndex: 1, // Above textarea but below menus
+								overflow: "hidden", // clip shader to rounded rect
+								borderRadius: 2, // match textarea radius
+							}}>
+							<PulsingBorder
+								bloom={0.8}
+								colorBack={"rgba(0,0,0,0)"}
+								colors={["#ff0080", "#00ffff", "#ffff00", "#ff00ff"]} // Match textarea border radius
+								intensity={0.9}
+								pulse={1}
+								roundness={0.02}
+								scale={1.0}
+								smoke={0.4}
+								smokeSize={0.8}
+								softness={2}
+								speed={1}
+								spotSize={1}
+								spots={1}
+								style={{
+									width: "100%",
+									height: "100%",
+								}}
+								thickness={0.08}
+							/>
+						</div>
+					)}
 					{showDimensionError && (
 						<div
 							style={{
