@@ -128,7 +128,36 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize Roo Code Cloud service.
 	const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebview()
 	authStateChangedHandler = postStateListener
-	settingsUpdatedHandler = postStateListener
+
+	settingsUpdatedHandler = async () => {
+		const userInfo = CloudService.instance.getUserInfo()
+		if (userInfo && CloudService.instance.cloudAPI) {
+			try {
+				const config = await CloudService.instance.cloudAPI.bridgeConfig()
+
+				const isCloudAgent =
+					typeof process.env.ROO_CODE_CLOUD_TOKEN === "string" && process.env.ROO_CODE_CLOUD_TOKEN.length > 0
+
+				const remoteControlEnabled = isCloudAgent
+					? true
+					: (CloudService.instance.getUserSettings()?.settings?.extensionBridgeEnabled ?? false)
+
+				cloudLogger(`[CloudService] Settings updated - remoteControlEnabled = ${remoteControlEnabled}`)
+
+				await BridgeOrchestrator.connectOrDisconnect(userInfo, remoteControlEnabled, {
+					...config,
+					provider,
+					sessionId: vscode.env.sessionId,
+				})
+			} catch (error) {
+				cloudLogger(
+					`[CloudService] Failed to update BridgeOrchestrator on settings change: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}
+
+		postStateListener()
+	}
 
 	userInfoHandler = async ({ userInfo }: { userInfo: CloudUserInfo }) => {
 		postStateListener()
@@ -146,11 +175,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			cloudLogger(`[CloudService] isCloudAgent = ${isCloudAgent}, socketBridgeUrl = ${config.socketBridgeUrl}`)
 
-			await BridgeOrchestrator.connectOrDisconnect(
-				userInfo,
-				isCloudAgent ? true : contextProxy.getValue("remoteControlEnabled"),
-				{ ...config, provider, sessionId: vscode.env.sessionId },
-			)
+			const remoteControlEnabled = isCloudAgent
+				? true
+				: (CloudService.instance.getUserSettings()?.settings?.extensionBridgeEnabled ?? false)
+
+			await BridgeOrchestrator.connectOrDisconnect(userInfo, remoteControlEnabled, {
+				...config,
+				provider,
+				sessionId: vscode.env.sessionId,
+			})
 		} catch (error) {
 			cloudLogger(
 				`[CloudService] Failed to fetch bridgeConfig: ${error instanceof Error ? error.message : String(error)}`,
