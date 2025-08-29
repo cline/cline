@@ -123,8 +123,7 @@ export async function createOpenRouterStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
-	if (model.id.startsWith("gemini")) {
-		// Recommended values from Anthropic
+	if (model.id.startsWith("google")) {
 		frequency_penalty = 0.5
 	}
 
