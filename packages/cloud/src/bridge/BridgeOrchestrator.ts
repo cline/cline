@@ -31,6 +31,8 @@ export interface BridgeOrchestratorOptions {
 export class BridgeOrchestrator {
 	private static instance: BridgeOrchestrator | null = null
 
+	private static pendingTask: TaskLike | null = null
+
 	// Core
 	private readonly userId: string
 	private readonly socketBridgeUrl: string
@@ -116,6 +118,22 @@ export class BridgeOrchestrator {
 		}
 	}
 
+	/**
+	 * @TODO: What if subtasks also get spawned? We'd probably want deferred
+	 * subscriptions for those too.
+	 */
+	public static async subscribeToTask(task: TaskLike): Promise<void> {
+		const instance = BridgeOrchestrator.instance
+
+		if (instance && instance.socketTransport.isConnected()) {
+			console.log(`[BridgeOrchestrator#subscribeToTask] Subscribing to task ${task.taskId}`)
+			await instance.subscribeToTask(task)
+		} else {
+			console.log(`[BridgeOrchestrator#subscribeToTask] Deferring subscription for task ${task.taskId}`)
+			BridgeOrchestrator.pendingTask = task
+		}
+	}
+
 	private constructor(options: BridgeOrchestratorOptions) {
 		this.userId = options.userId
 		this.socketBridgeUrl = options.socketBridgeUrl
@@ -180,12 +198,27 @@ export class BridgeOrchestrator {
 		const socket = this.socketTransport.getSocket()
 
 		if (!socket) {
-			console.error("[BridgeOrchestrator] Socket not available after connect")
+			console.error("[BridgeOrchestrator#handleConnect] Socket not available")
 			return
 		}
 
 		await this.extensionChannel.onConnect(socket)
 		await this.taskChannel.onConnect(socket)
+
+		if (BridgeOrchestrator.pendingTask) {
+			console.log(
+				`[BridgeOrchestrator#handleConnect] Subscribing to task ${BridgeOrchestrator.pendingTask.taskId}`,
+			)
+
+			try {
+				await this.subscribeToTask(BridgeOrchestrator.pendingTask)
+				BridgeOrchestrator.pendingTask = null
+			} catch (error) {
+				console.error(
+					`[BridgeOrchestrator#handleConnect] subscribeToTask() failed: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}
 	}
 
 	private handleDisconnect() {
@@ -261,6 +294,7 @@ export class BridgeOrchestrator {
 		await this.taskChannel.cleanup(this.socketTransport.getSocket())
 		await this.socketTransport.disconnect()
 		BridgeOrchestrator.instance = null
+		BridgeOrchestrator.pendingTask = null
 	}
 
 	public async reconnect(): Promise<void> {

@@ -134,7 +134,7 @@ describe("Task dispose method", () => {
 
 		// Verify dispose was called and logged
 		expect(consoleLogSpy).toHaveBeenCalledWith(
-			expect.stringContaining(`[Task] disposing task ${task.taskId}.${task.instanceId}`),
+			expect.stringContaining(`[Task#dispose] disposing task ${task.taskId}.${task.instanceId}`),
 		)
 
 		// Verify removeAllListeners was called first (before other cleanup)

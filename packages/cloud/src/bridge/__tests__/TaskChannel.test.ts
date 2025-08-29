@@ -299,8 +299,7 @@ describe("TaskChannel", () => {
 
 			// Verify warning was logged
 			expect(warnSpy).toHaveBeenCalledWith(
-				"[TaskChannel] Listeners already exist for task, removing old listeners:",
-				taskId,
+				`[TaskChannel] Listeners already exist for task, removing old listeners for ${taskId}`,
 			)
 
 			// Verify only one set of listeners exists

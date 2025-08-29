@@ -165,6 +165,8 @@ export class ClineProvider
 
 		this.marketplaceManager = new MarketplaceManager(this.context, this.customModesManager)
 
+		// Forward <most> task events to the provider.
+		// We do something fairly similar for the IPC-based API.
 		this.taskCreationCallback = (instance: Task) => {
 			this.emit(RooCodeEventName.TaskCreated, instance)
 
@@ -346,17 +348,17 @@ export class ClineProvider
 		let task = this.clineStack.pop()
 
 		if (task) {
+			task.emit(RooCodeEventName.TaskUnfocused)
+
 			try {
 				// Abort the running task and set isAbandoned to true so
 				// all running promises will exit as well.
 				await task.abortTask(true)
 			} catch (e) {
 				this.log(
-					`[removeClineFromStack] encountered error while aborting task ${task.taskId}.${task.instanceId}: ${e.message}`,
+					`[ClineProvider#removeClineFromStack] abortTask() failed ${task.taskId}.${task.instanceId}: ${e.message}`,
 				)
 			}
-
-			task.emit(RooCodeEventName.TaskUnfocused)
 
 			// Remove event listeners before clearing the reference.
 			const cleanupFunctions = this.taskEventListeners.get(task)
@@ -403,12 +405,6 @@ export class ClineProvider
 		// Resume the last cline instance in the stack (if it exists - this is
 		// the 'parent' calling task).
 		await this.getCurrentTask()?.resumePausedTask(lastMessage)
-	}
-
-	// Clear the current task without treating it as a subtask.
-	// This is used when the user cancels a task that is not a subtask.
-	async clearTask() {
-		await this.removeClineFromStack()
 	}
 
 	resumeTask(taskId: string): void {
@@ -1307,6 +1303,16 @@ export class ClineProvider
 		await this.createTaskWithHistoryItem({ ...historyItem, rootTask, parentTask })
 	}
 
+	// Clear the current task without treating it as a subtask.
+	// This is used when the user cancels a task that is not a subtask.
+	async clearTask() {
+		if (this.clineStack.length > 0) {
+			const task = this.clineStack[this.clineStack.length - 1]
+			console.log(`[clearTask] clearing task ${task.taskId}.${task.instanceId}`)
+			await this.removeClineFromStack()
+		}
+	}
+
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field.
 		await this.updateGlobalState("customInstructions", instructions || undefined)
@@ -1585,6 +1591,7 @@ export class ClineProvider
 			})
 		} catch (error) {
 			console.error("Failed to fetch marketplace data:", error)
+
 			// Send empty data on error to prevent UI from hanging
 			this.postMessageToWebview({
 				type: "marketplaceData",
@@ -2213,24 +2220,23 @@ export class ClineProvider
 		if (bridge) {
 			const currentTask = this.getCurrentTask()
 
-			if (currentTask && !currentTask.bridge) {
+			if (currentTask && !currentTask.enableBridge) {
 				try {
-					currentTask.bridge = bridge
-					await currentTask.bridge.subscribeToTask(currentTask)
+					currentTask.enableBridge = true
+					await BridgeOrchestrator.subscribeToTask(currentTask)
 				} catch (error) {
-					const message = `[ClineProvider#remoteControlEnabled] subscribeToTask failed - ${error instanceof Error ? error.message : String(error)}`
+					const message = `[ClineProvider#remoteControlEnabled] BridgeOrchestrator.subscribeToTask() failed: ${error instanceof Error ? error.message : String(error)}`
 					this.log(message)
 					console.error(message)
 				}
 			}
 		} else {
 			for (const task of this.clineStack) {
-				if (task.bridge) {
+				if (task.enableBridge) {
 					try {
-						await task.bridge.unsubscribeFromTask(task.taskId)
-						task.bridge = null
+						await BridgeOrchestrator.getInstance()?.unsubscribeFromTask(task.taskId)
 					} catch (error) {
-						const message = `[ClineProvider#remoteControlEnabled] unsubscribeFromTask failed - ${error instanceof Error ? error.message : String(error)}`
+						const message = `[ClineProvider#remoteControlEnabled] BridgeOrchestrator#unsubscribeFromTask() failed: ${error instanceof Error ? error.message : String(error)}`
 						this.log(message)
 						console.error(message)
 					}

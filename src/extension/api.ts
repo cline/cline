@@ -253,11 +253,29 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 				this.taskMap.delete(task.taskId)
 			})
 
-			// Optional:
-			// RooCodeEventName.TaskFocused
-			// RooCodeEventName.TaskUnfocused
-			// RooCodeEventName.TaskActive
-			// RooCodeEventName.TaskIdle
+			task.on(RooCodeEventName.TaskFocused, () => {
+				this.emit(RooCodeEventName.TaskFocused, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskUnfocused, () => {
+				this.emit(RooCodeEventName.TaskUnfocused, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskActive, () => {
+				this.emit(RooCodeEventName.TaskActive, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskInteractive, () => {
+				this.emit(RooCodeEventName.TaskInteractive, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskResumable, () => {
+				this.emit(RooCodeEventName.TaskResumable, task.taskId)
+			})
+
+			task.on(RooCodeEventName.TaskIdle, () => {
+				this.emit(RooCodeEventName.TaskIdle, task.taskId)
+			})
 
 			// Subtask Lifecycle
 

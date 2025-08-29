@@ -163,25 +163,27 @@ export class TaskChannel extends BaseChannel<
 	public async unsubscribeFromTask(taskId: string, _socket: Socket): Promise<void> {
 		const task = this.subscribedTasks.get(taskId)
 
+		if (!task) {
+			return
+		}
+
 		await this.publish(TaskSocketEvents.LEAVE, { taskId }, (response: LeaveResponse) => {
 			if (response.success) {
-				console.log(`[TaskChannel#unsubscribeFromTask] unsubscribed from ${taskId}`, response)
+				console.log(`[TaskChannel#unsubscribeFromTask] unsubscribed from ${taskId}`)
 			} else {
 				console.error(`[TaskChannel#unsubscribeFromTask] failed to unsubscribe from ${taskId}`)
 			}
 
 			// If we failed to unsubscribe then something is probably wrong and
 			// we should still discard this task from `subscribedTasks`.
-			if (task) {
-				this.removeTaskListeners(task)
-				this.subscribedTasks.delete(taskId)
-			}
+			this.removeTaskListeners(task)
+			this.subscribedTasks.delete(taskId)
 		})
 	}
 
 	private setupTaskListeners(task: TaskLike): void {
 		if (this.taskListeners.has(task.taskId)) {
-			console.warn("[TaskChannel] Listeners already exist for task, removing old listeners:", task.taskId)
+			console.warn(`[TaskChannel] Listeners already exist for task, removing old listeners for ${task.taskId}`)
 			this.removeTaskListeners(task)
 		}
 

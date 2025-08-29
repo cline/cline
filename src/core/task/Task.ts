@@ -256,7 +256,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Task Bridge
 	enableBridge: boolean
-	bridge: BridgeOrchestrator | null = null
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -1084,14 +1083,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		if (this.enableBridge) {
 			try {
-				this.bridge = this.bridge || BridgeOrchestrator.getInstance()
-
-				if (this.bridge) {
-					await this.bridge.subscribeToTask(this)
-				}
+				await BridgeOrchestrator.subscribeToTask(this)
 			} catch (error) {
 				console.error(
-					`[Task#startTask] subscribeToTask failed - ${error instanceof Error ? error.message : String(error)}`,
+					`[Task#startTask] BridgeOrchestrator.subscribeToTask() failed: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 		}
@@ -1156,14 +1151,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private async resumeTaskFromHistory() {
 		if (this.enableBridge) {
 			try {
-				this.bridge = this.bridge || BridgeOrchestrator.getInstance()
-
-				if (this.bridge) {
-					await this.bridge.subscribeToTask(this)
-				}
+				await BridgeOrchestrator.subscribeToTask(this)
 			} catch (error) {
 				console.error(
-					`[Task#resumeTaskFromHistory] subscribeToTask failed - ${error instanceof Error ? error.message : String(error)}`,
+					`[Task#resumeTaskFromHistory] BridgeOrchestrator.subscribeToTask() failed: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 		}
@@ -1417,10 +1408,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	public dispose(): void {
-		// Disposing task
-		console.log(`[Task] disposing task ${this.taskId}.${this.instanceId}`)
+		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
 
-		// Remove all event listeners to prevent memory leaks
+		// Remove all event listeners to prevent memory leaks.
 		try {
 			this.removeAllListeners()
 		} catch (error) {
@@ -1433,13 +1423,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.pauseInterval = undefined
 		}
 
-		// Unsubscribe from TaskBridge service.
-		if (this.bridge) {
-			this.bridge
-				.unsubscribeFromTask(this.taskId)
-				.catch((error: unknown) => console.error("Error unsubscribing from task bridge:", error))
-
-			this.bridge = null
+		if (this.enableBridge) {
+			BridgeOrchestrator.getInstance()
+				?.unsubscribeFromTask(this.taskId)
+				.catch((error) =>
+					console.error(
+						`[Task#dispose] BridgeOrchestrator#unsubscribeFromTask() failed: ${error instanceof Error ? error.message : String(error)}`,
+					),
+				)
 		}
 
 		// Release any terminals associated with this task.
