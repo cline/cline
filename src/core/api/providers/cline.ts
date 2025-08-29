@@ -72,6 +72,7 @@ export class ClineHandler implements ApiHandler {
 			this.lastGenerationId = undefined
 
 			let didOutputUsage: boolean = false
+			const frequency_penalty: number = 0.5
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -81,6 +82,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
+				frequency_penalty,
 			)
 
 			for await (const chunk of stream) {

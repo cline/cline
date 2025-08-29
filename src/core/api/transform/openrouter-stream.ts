@@ -13,6 +13,7 @@ export async function createOpenRouterStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
+	frequencyPenalty?: number,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -162,6 +163,7 @@ export async function createOpenRouterStream(
 		max_tokens: maxTokens,
 		temperature: temperature,
 		top_p: topP,
+		frequency_penalty: frequencyPenalty,
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
