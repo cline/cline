@@ -17,7 +17,6 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	frequencyPenalty?: number
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -63,7 +62,6 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
-			this.options.frequencyPenalty,
 		)
 
 		let didOutputUsage: boolean = false
