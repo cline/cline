@@ -1,10 +1,10 @@
-import { Controller } from ".."
-import { StringRequest } from "../../../shared/proto/common"
-import { McpDownloadResponse } from "../../../shared/proto/mcp"
 import { McpServer } from "@shared/mcp"
+import { StringRequest } from "@shared/proto/cline/common"
+import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
-import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 import { clineEnvConfig } from "@/config"
+import { Controller } from ".."
+import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Download an MCP server from the marketplace
@@ -66,9 +66,9 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 - Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
-		const { chatSettings } = await controller.getStateToPostToWebview()
-		if (chatSettings.mode === "plan") {
-			await controller.togglePlanActModeWithChatSettings({ mode: "act" })
+		const { mode } = await controller.getStateToPostToWebview()
+		if (mode === "plan") {
+			await controller.togglePlanActMode("act")
 		}
 
 		// Initialize task and show chat view

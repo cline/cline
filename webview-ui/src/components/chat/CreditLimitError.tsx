@@ -1,41 +1,54 @@
-import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import { TaskServiceClient } from "@/services/grpc-client"
-import { AskResponseRequest } from "@shared/proto/task"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
-import { clineEnvConfig } from "@/config"
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { useClineAuth } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
 	totalSpent?: number
 	totalPromotions?: number
 	message: string
-	buyCreditsUrl?: string
+	// buyCreditsUrl?: string
 }
 
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	currentBalance = 0,
 	totalSpent = 0,
 	totalPromotions = 0,
-	message = "You have run out of credit.",
-	buyCreditsUrl = `${clineEnvConfig.appBaseUrl}/dashboard`,
+	message = "You have run out of credits.",
+	// buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 }) => {
+	const { uriScheme } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
+
+	const isPersonal = !activeOrganization?.organizationId
+	const buyCreditsUrl = isPersonal
+		? "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
+		: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
+
+	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
+	const fullPurchaseUrl = new URL(buyCreditsUrl)
+	fullPurchaseUrl.searchParams.set("callback_url", callbackUrl)
+
 	// We have to divide because the balance is stored in microcredits
 	return (
 		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
 			<div className="mb-3 font-azeret-mono">
 				<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
-				<div style={{ marginBottom: "12px" }}>
+				{/* <div style={{ marginBottom: "12px" }}>
 					<div style={{ color: "var(--vscode-foreground)" }}>
 						Current Balance: <span style={{ fontWeight: "bold" }}>{currentBalance.toFixed(2)}</span>
 					</div>
 					<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: {totalSpent.toFixed(2)}</div>
 					<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: {totalPromotions.toFixed(2)}</div>
-				</div>
+				</div> */}
 			</div>
 
 			<VSCodeButtonLink
-				href={buyCreditsUrl}
+				href={fullPurchaseUrl.toString()}
 				style={{
 					width: "100%",
 					marginBottom: "8px",
@@ -45,6 +58,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			</VSCodeButtonLink>
 
 			<VSCodeButton
+				appearance="secondary"
 				onClick={async () => {
 					try {
 						await TaskServiceClient.askResponse(
@@ -58,7 +72,6 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 						console.error("Error invoking action:", error)
 					}
 				}}
-				appearance="secondary"
 				style={{
 					width: "100%",
 				}}>

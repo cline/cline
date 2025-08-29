@@ -3,12 +3,12 @@ import { SelectedResponse, ShowMessageRequest, ShowMessageType } from "@/shared/
 
 const DEFAULT_OPTIONS = { modal: false, items: [] } as const
 
-export async function showMessage(request: ShowMessageRequest): Promise<SelectedResponse | undefined> {
+export async function showMessage(request: ShowMessageRequest): Promise<SelectedResponse> {
 	const { message, type, options } = request
 	const { modal, detail, items } = { ...DEFAULT_OPTIONS, ...options }
 	const option = { modal, detail }
 
-	let selectedOption: string | undefined = undefined
+	let selectedOption: string | undefined
 
 	switch (type) {
 		case ShowMessageType.ERROR:

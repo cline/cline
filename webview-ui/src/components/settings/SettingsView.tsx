@@ -1,21 +1,21 @@
-import HeroTooltip from "@/components/common/HeroTooltip"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest } from "@shared/proto/state"
+import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import HeroTooltip from "@/components/common/HeroTooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
-import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
-import AboutSection from "./sections/AboutSection"
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -103,16 +103,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Track active tab
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 	// Track if we're currently switching modes
-	const [isSwitchingMode, setIsSwitchingMode] = useState(false)
 
-	const { version, chatSettings } = useExtensionState()
+	const { version } = useExtensionState()
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			// Handle tab navigation through targetSection prop instead
 			case "grpc_response":
-				if (message.grpc_response?.message?.action === "scrollToSettings") {
+				if (message.grpc_response?.message?.key === "scrollToSettings") {
 					const tabId = message.grpc_response?.message?.value
 					if (tabId) {
 						console.log("Opening settings tab from GRPC response:", tabId)
@@ -158,34 +157,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}
 
-	const handlePlanActModeChange = async (tab: "plan" | "act") => {
-		// Prevent switching if already in that mode or if currently switching
-		if (tab === chatSettings.mode || isSwitchingMode) {
-			return
-		}
-
-		// All settings save immediately, so we can switch modes directly
-		setIsSwitchingMode(true)
-
-		try {
-			// Perform the mode switch
-			await StateServiceClient.togglePlanActMode(
-				TogglePlanActModeRequest.create({
-					chatSettings: {
-						mode: tab === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-						preferredLanguage: chatSettings.preferredLanguage,
-						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-					},
-				}),
-			)
-		} catch (error) {
-			console.error("Failed to toggle Plan/Act mode:", error)
-		} finally {
-			// Always re-enable mode switching, even on error
-			setIsSwitchingMode(false)
-		}
-	}
-
 	// Update active tab when targetSection changes
 	useEffect(() => {
 		if (targetSection) {
@@ -213,7 +184,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	// Setup resize observer to detect when we should switch to compact mode
 	useEffect(() => {
-		if (!containerRef.current) return
+		if (!containerRef.current) {
+			return
+		}
 
 		const observer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
@@ -242,16 +215,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			</TabHeader>
 
 			{/* Vertical tabs layout */}
-			<div ref={containerRef} className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`}>
+			<div className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`} ref={containerRef}>
 				{/* Tab sidebar */}
 				<TabList
-					value={activeTab}
-					onValueChange={handleTabChange}
 					className={settingsTabList}
-					data-compact={isCompactMode}>
+					data-compact={isCompactMode}
+					onValueChange={handleTabChange}
+					value={activeTab}>
 					{SETTINGS_TABS.map((tab) =>
 						isCompactMode ? (
-							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
+							<HeroTooltip content={tab.tooltipText} key={tab.id} placement="right">
 								<div
 									className={`${
 										activeTab === tab.id
@@ -273,15 +246,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							</HeroTooltip>
 						) : (
 							<TabTrigger
-								key={tab.id}
-								value={tab.id}
 								className={`${
 									activeTab === tab.id
 										? `${settingsTabTrigger} ${settingsTabTriggerActive}`
 										: settingsTabTrigger
 								} focus:ring-0`}
 								data-compact={isCompactMode}
-								data-testid={`tab-${tab.id}`}>
+								data-testid={`tab-${tab.id}`}
+								key={tab.id}
+								value={tab.id}>
 								<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
 									<tab.icon className="w-4 h-4" />
 									<span className="tab-label">{tab.name}</span>
@@ -295,7 +268,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				{(() => {
 					const renderSectionHeader = (tabId: string) => {
 						const tab = SETTINGS_TABS.find((t) => t.id === tabId)
-						if (!tab) return null
+						if (!tab) {
+							return null
+						}
 
 						return (
 							<SectionHeader>
@@ -313,13 +288,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					return (
 						<TabContent className="flex-1 overflow-auto">
 							{/* API Configuration Tab */}
-							{activeTab === "api-config" && (
-								<ApiConfigurationSection
-									isSwitchingMode={isSwitchingMode}
-									handlePlanActModeChange={handlePlanActModeChange}
-									renderSectionHeader={renderSectionHeader}
-								/>
-							)}
+							{activeTab === "api-config" && <ApiConfigurationSection renderSectionHeader={renderSectionHeader} />}
 
 							{/* General Settings Tab */}
 							{activeTab === "general" && <GeneralSettingsSection renderSectionHeader={renderSectionHeader} />}
@@ -340,7 +309,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 							{/* About Tab */}
 							{activeTab === "about" && (
-								<AboutSection version={version} renderSectionHeader={renderSectionHeader} />
+								<AboutSection renderSectionHeader={renderSectionHeader} version={version} />
 							)}
 						</TabContent>
 					)

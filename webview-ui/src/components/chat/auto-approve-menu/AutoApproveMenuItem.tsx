@@ -1,8 +1,8 @@
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import styled from "styled-components"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { ActionMetadata } from "./types"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 interface AutoApproveMenuItemProps {
 	action: ActionMetadata
@@ -14,11 +14,9 @@ interface AutoApproveMenuItemProps {
 	showIcon?: boolean
 }
 
-const CheckboxContainer = styled.div<{
-	isFavorited?: boolean
-	onClick?: (e: MouseEvent) => void
-	onMouseDown?: (e: React.MouseEvent) => void
-}>`
+const CheckboxContainer = styled.div.withConfig({
+	shouldForwardProp: (prop) => !["isFavorited"].includes(prop),
+})<{ isFavorited?: boolean; onClick?: (e: MouseEvent) => void; onMouseDown?: (e: React.MouseEvent) => void }>`
 	display: flex;
 	align-items: center;
 	justify-content: space-between; /* Push content to edges */
@@ -96,17 +94,19 @@ const AutoApproveMenuItem = ({
 						<div className="left-content">
 							{onToggleFavorite && !condensed && (
 								<HeroTooltip
-									delay={500}
-									content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}>
+									content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
+									delay={500}>
 									<span
 										className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-										style={{
-											cursor: "pointer",
-										}}
 										onClick={async (e) => {
 											e.stopPropagation()
-											if (action.id === "enableAll") return
+											if (action.id === "enableAll") {
+												return
+											}
 											await onToggleFavorite?.(action.id)
+										}}
+										style={{
+											cursor: "pointer",
 										}}
 									/>
 								</HeroTooltip>

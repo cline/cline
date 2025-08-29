@@ -35,26 +35,8 @@ First, you'll need to install and authenticate Claude Code on your system:
 <br />
 
 <Accordion title="Windows Setup">
-On Windows, Cline supports integrating with Claude Code through WSL.
-Windows doesn't support long commands, and Claude Code only accepts the system prompt through a flag, which means we can't properly prompt Claude through Claude Code. Anthropic is [working on a workaround to streamline this](https://github.com/anthropics/claude-code/issues/3411).
-
-1. **Make sure you have WSL set-up**. You can follow [this](https://code.visualstudio.com/docs/remote/wsl#_installation) guide to do it.
-
-2. **Open VSCode from WSL** and verify it's properly set-up. You should see an indicator in the bottom left that says "WSL". You can find an image of the indicator [here](https://code.visualstudio.com/docs/remote/wsl#_from-the-wsl-terminal).
-
-3. Install Cline within WSL and make sure it shows the following:
-
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline_wsl_installed_extension.webp"
-		alt="Indicator that an extension is installed on WSL"
-	/>
-</Frame>
-
-4. Clone or [move](https://stackoverflow.com/a/42586455) your project over to WSL
-
-5. Follow the [instructions on how to set up Claude Code normally](#setup), but from the WSL terminal.
-
+	Anthropic introduced full support for Claude Code on Windows. Follow the [instructions on how to set up Claude Code
+	normally](#setup) and make sure you have the latest Claude Code and Cline versions.
 </Accordion>
 
 ### Finding your Claude Code path
@@ -70,6 +52,7 @@ If you're not sure where Claude Code is installed:
 The Claude Code provider supports these models:
 
 -   `claude-sonnet-4-20250514` (Recommended)
+-   `claude-opus-4-1-20250805`
 -   `claude-opus-4-20250514`
 -   `claude-3-7-sonnet-20250219`
 -   `claude-3-5-sonnet-20241022`

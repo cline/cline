@@ -1,10 +1,16 @@
+import { Empty } from "@shared/proto/cline/common"
+import {
+	PlanActMode,
+	McpDisplayMode as ProtoMcpDisplayMode,
+	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
+	UpdateSettingsRequest,
+} from "@shared/proto/cline/state"
+import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { UpdateSettingsRequest } from "../../../shared/proto/state"
-import { updateApiConfiguration } from "../../storage/state"
-import { convertProtoApiConfigurationToApiConfiguration } from "../../../shared/proto-conversions/state/settings-conversion"
-import { convertProtoChatSettingsToChatSettings } from "../../../shared/proto-conversions/state/chat-settings-conversion"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
 
 /**
  * Updates multiple extension settings in a single request
@@ -17,7 +23,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update API configuration
 		if (request.apiConfiguration) {
 			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			await updateApiConfiguration(controller.context, apiConfiguration)
+			controller.stateManager.setApiConfiguration(apiConfiguration)
 
 			if (controller.task) {
 				controller.rebuildApiHandler(apiConfiguration)
@@ -31,60 +37,141 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update plan/act separate models setting
 		if (request.planActSeparateModelsSetting !== undefined) {
-			await controller.context.globalState.update("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
+			controller.stateManager.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
 		}
 
 		// Update checkpoints setting
 		if (request.enableCheckpointsSetting !== undefined) {
-			await controller.context.globalState.update("enableCheckpointsSetting", request.enableCheckpointsSetting)
+			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
 		}
 
 		// Update MCP marketplace setting
 		if (request.mcpMarketplaceEnabled !== undefined) {
-			await controller.context.globalState.update("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
+			controller.stateManager.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
 		}
 
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
-			await controller.context.globalState.update("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
+			controller.stateManager.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
 		}
 
 		// Update MCP display mode setting
 		if (request.mcpDisplayMode !== undefined) {
-			await controller.context.globalState.update("mcpDisplayMode", request.mcpDisplayMode)
+			// Convert proto enum to string type
+			let displayMode: McpDisplayMode
+			switch (request.mcpDisplayMode) {
+				case ProtoMcpDisplayMode.RICH:
+					displayMode = "rich"
+					break
+				case ProtoMcpDisplayMode.PLAIN:
+					displayMode = "plain"
+					break
+				case ProtoMcpDisplayMode.MARKDOWN:
+					displayMode = "markdown"
+					break
+				default:
+					throw new Error(`Invalid MCP display mode value: ${request.mcpDisplayMode}`)
+			}
+			controller.stateManager.setGlobalState("mcpDisplayMode", displayMode)
 		}
 
-		// Update chat settings
-		if (request.chatSettings) {
-			const chatSettings = convertProtoChatSettingsToChatSettings(request.chatSettings)
-
-			// Store mode to global state
-			if (chatSettings.mode !== undefined) {
-				await controller.context.globalState.update("mode", chatSettings.mode)
+		if (request.mode !== undefined) {
+			const mode = request.mode === PlanActMode.PLAN ? "plan" : "act"
+			if (controller.task) {
+				controller.task.updateMode(mode)
 			}
+			controller.stateManager.setGlobalState("mode", mode)
+		}
 
-			// Store chat settings (excluding mode) to global state
-			const { mode, ...globalChatSettings } = chatSettings
-			await controller.context.globalState.update("chatSettings", globalChatSettings)
+		if (request.openaiReasoningEffort !== undefined) {
+			// Convert proto enum to string type
+			let reasoningEffort: OpenaiReasoningEffort
+			switch (request.openaiReasoningEffort) {
+				case ProtoOpenaiReasoningEffort.LOW:
+					reasoningEffort = "low"
+					break
+				case ProtoOpenaiReasoningEffort.MEDIUM:
+					reasoningEffort = "medium"
+					break
+				case ProtoOpenaiReasoningEffort.HIGH:
+					reasoningEffort = "high"
+					break
+				default:
+					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
+			}
 
 			if (controller.task) {
-				controller.task.chatSettings = chatSettings
+				controller.task.openaiReasoningEffort = reasoningEffort
 			}
+
+			controller.stateManager.setGlobalState("openaiReasoningEffort", reasoningEffort)
+		}
+
+		if (request.preferredLanguage !== undefined) {
+			if (controller.task) {
+				controller.task.preferredLanguage = request.preferredLanguage
+			}
+			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
-			await controller.context.globalState.update("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
+			controller.stateManager.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
 		}
 
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
-			await controller.context.globalState.update("terminalReuseEnabled", request.terminalReuseEnabled)
+			controller.stateManager.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
 		}
 
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
-			await controller.context.globalState.update("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+		}
+
+		// Update strict plan mode setting
+		if (request.strictPlanModeEnabled !== undefined) {
+			if (controller.task) {
+				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
+			}
+			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		// Update auto-condense setting
+		if (request.useAutoCondense !== undefined) {
+			if (controller.task) {
+				controller.task.updateUseAutoCondense(request.useAutoCondense)
+			}
+			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
+		// Update focus chain settings
+		if (request.focusChainSettings !== undefined) {
+			const remoteEnabled = controller.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
+			if (remoteEnabled === false) {
+				// No-op when feature flag disabled
+			} else {
+				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
+				const wasEnabled = currentSettings?.enabled ?? false
+				const isEnabled = request.focusChainSettings.enabled
+
+				const focusChainSettings = {
+					enabled: isEnabled,
+					remindClineInterval: request.focusChainSettings.remindClineInterval,
+				}
+				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
+
+				// Capture telemetry when setting changes
+				if (wasEnabled !== isEnabled) {
+					telemetryService.captureFocusChainToggle(isEnabled)
+				}
+			}
+		}
+
+		// Update custom prompt choice
+		if (request.customPrompt !== undefined) {
+			const value = request.customPrompt === "compact" ? "compact" : undefined
+			controller.stateManager.setGlobalState("customPrompt", value)
 		}
 
 		// Post updated state to webview

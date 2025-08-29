@@ -1,18 +1,36 @@
+import { BooleanRequest, EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useState, memo } from "react"
-import ApiOptions from "@/components/settings/ApiOptions"
+import { memo, useEffect, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
-import { AccountServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import ApiOptions from "@/components/settings/ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { validateApiConfiguration } from "@/utils/validate"
 
 const WelcomeView = memo(() => {
+	const { apiConfiguration, mode } = useExtensionState()
+	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
+
+	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
 		)
 	}
+
+	const handleSubmit = async () => {
+		try {
+			await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true }))
+		} catch (error) {
+			console.error("Failed to update API configuration or complete welcome view:", error)
+		}
+	}
+
+	useEffect(() => {
+		setApiErrorMessage(validateApiConfiguration(mode, apiConfiguration))
+	}, [apiConfiguration, mode])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
@@ -23,7 +41,7 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
+					<VSCodeLink className="inline" href="https://www.anthropic.com/claude/sonnet">
 						Claude 4 Sonnet's
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use
@@ -36,20 +54,29 @@ const WelcomeView = memo(() => {
 					3.7 Sonnet.
 				</p>
 
-				<VSCodeButton appearance="primary" onClick={handleLogin} className="w-full mt-1">
+				<VSCodeButton appearance="primary" className="w-full mt-1" onClick={handleLogin}>
 					Get Started for Free
 				</VSCodeButton>
 
 				{!showApiOptions && (
 					<VSCodeButton
 						appearance="secondary"
-						onClick={() => setShowApiOptions(!showApiOptions)}
-						className="mt-2.5 w-full">
+						className="mt-2.5 w-full"
+						onClick={() => setShowApiOptions(!showApiOptions)}>
 						Use your own API key
 					</VSCodeButton>
 				)}
 
-				<div className="mt-4.5">{showApiOptions && <ApiOptions showModelOptions={false} showSubmitButton={true} />}</div>
+				<div className="mt-4.5">
+					{showApiOptions && (
+						<div>
+							<ApiOptions currentMode={mode} showModelOptions={false} />
+							<VSCodeButton className="mt-0.75" disabled={disableLetsGoButton} onClick={handleSubmit}>
+								Let's go!
+							</VSCodeButton>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	)

@@ -1,14 +1,14 @@
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { flip, offset, shift, useFloating } from "@floating-ui/react"
-import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
-import { Int64Request } from "@shared/proto/common"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Int64Request } from "@shared/proto/cline/common"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckmarkControlProps {
 	messageTs?: number
@@ -161,8 +161,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 
 	return (
 		<Container
-			isMenuOpen={showRestoreConfirm}
 			$isCheckedOut={isCheckpointCheckedOut}
+			isMenuOpen={showRestoreConfirm}
 			onMouseEnter={handleControlsMouseEnter}
 			onMouseLeave={handleControlsMouseLeave}>
 			<i
@@ -181,7 +181,6 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 				<CustomButton
 					$isCheckedOut={isCheckpointCheckedOut}
 					disabled={compareDisabled}
-					style={{ cursor: compareDisabled ? "wait" : "pointer" }}
 					onClick={async () => {
 						setCompareDisabled(true)
 						try {
@@ -195,10 +194,11 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 						} finally {
 							setCompareDisabled(false)
 						}
-					}}>
+					}}
+					style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
 					Compare
 				</CustomButton>
-				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 				<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
 					<CustomButton
 						$isCheckedOut={isCheckpointCheckedOut}
@@ -209,17 +209,21 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					{showRestoreConfirm &&
 						createPortal(
 							<RestoreConfirmTooltip
-								ref={refs.setFloating}
-								style={floatingStyles}
 								data-placement={placement}
 								onMouseEnter={handleMouseEnter}
-								onMouseLeave={handleMouseLeave}>
+								onMouseLeave={handleMouseLeave}
+								ref={refs.setFloating}
+								style={floatingStyles}>
 								<RestoreOption>
 									<VSCodeButton
-										onClick={handleRestoreWorkspace}
 										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
+										onClick={handleRestoreWorkspace}
 										style={{
-											cursor: restoreWorkspaceDisabled || isCheckpointCheckedOut ? "wait" : "pointer",
+											cursor: isCheckpointCheckedOut
+												? "not-allowed"
+												: restoreWorkspaceDisabled
+													? "wait"
+													: "pointer",
 											width: "100%",
 											marginBottom: "10px",
 										}}>
@@ -232,8 +236,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
-										onClick={handleRestoreTask}
 										disabled={restoreTaskDisabled}
+										onClick={handleRestoreTask}
 										style={{
 											cursor: restoreTaskDisabled ? "wait" : "pointer",
 											width: "100%",
@@ -245,8 +249,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
-										onClick={handleRestoreBoth}
 										disabled={restoreBothDisabled}
+										onClick={handleRestoreBoth}
 										style={{
 											cursor: restoreBothDisabled ? "wait" : "pointer",
 											width: "100%",
@@ -260,7 +264,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 							document.body,
 						)}
 				</div>
-				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 			</ButtonGroup>
 		</Container>
 	)

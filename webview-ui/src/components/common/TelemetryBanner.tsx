@@ -1,9 +1,9 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
+import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/cline/state"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { memo } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/state"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -35,7 +35,7 @@ const CloseButton = styled.button`
 	}
 `
 
-const ButtonContainer = styled.div`
+const _ButtonContainer = styled.div`
 	display: flex;
 	gap: 8px;
 	width: 100%;
@@ -67,7 +67,7 @@ const TelemetryBanner = () => {
 
 	return (
 		<BannerContainer>
-			<CloseButton onClick={handleClose} aria-label="Close banner and enable telemetry">
+			<CloseButton aria-label="Close banner and enable telemetry" onClick={handleClose}>
 				✕
 			</CloseButton>
 			<div>
@@ -77,8 +77,8 @@ const TelemetryBanner = () => {
 					(and access experimental features)
 				</i>
 				<div style={{ marginTop: 4 }}>
-					Cline collects anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts,
-					or personal information is ever sent.
+					Cline collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or
+					personal information is ever sent.
 					<div style={{ marginTop: 4 }}>
 						You can turn this setting off in{" "}
 						<VSCodeLink href="#" onClick={handleOpenSettings}>

@@ -1,15 +1,14 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { geminiModels, ModelInfo } from "@shared/api"
 import { Fragment, useState } from "react"
-import { ModelInfo, geminiModels } from "@shared/api"
 import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 import {
 	formatPrice,
-	hasThinkingBudget,
-	supportsImages,
-	supportsBrowserUse,
-	supportsPromptCache,
-	formatTokenPrice,
 	formatTokenLimit,
+	formatTokenPrice,
+	hasThinkingBudget,
+	supportsBrowserUse,
+	supportsImages,
+	supportsPromptCache,
 } from "../utils/pricingUtils"
 
 /**
@@ -28,18 +27,20 @@ const formatTiers = (
 			const prevLimit = index > 0 ? arr[index - 1].contextWindow : 0
 			const price = tier[priceType]
 
-			if (price === undefined) return null
+			if (price === undefined) {
+				return null
+			}
 
 			return (
-				<span style={{ paddingLeft: "15px" }} key={index}>
+				<span key={index} style={{ paddingLeft: "15px" }}>
 					{formatPrice(price)}/million tokens (
-					{tier.contextWindow === Number.POSITIVE_INFINITY ? (
+					{tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER ? (
 						<span>
 							{">"} {prevLimit.toLocaleString()}
 						</span>
 					) : (
 						<span>
-							{"<="} {tier.contextWindow.toLocaleString()}
+							{"<="} {tier.contextWindow?.toLocaleString()}
 						</span>
 					)}
 					{" tokens)"}
@@ -151,36 +152,36 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	const infoItems = [
 		modelInfo.description && (
 			<ModelDescriptionMarkdown
+				isExpanded={isDescriptionExpanded}
+				isPopup={isPopup}
 				key="description"
 				markdown={modelInfo.description}
-				isExpanded={isDescriptionExpanded}
 				setIsExpanded={setIsDescriptionExpanded}
-				isPopup={isPopup}
 			/>
 		),
 		<ModelInfoSupportsItem
-			key="supportsImages"
-			isSupported={supportsImages(modelInfo)}
-			supportsLabel="Supports images"
 			doesNotSupportLabel="Does not support images"
+			isSupported={supportsImages(modelInfo)}
+			key="supportsImages"
+			supportsLabel="Supports images"
 		/>,
 		<ModelInfoSupportsItem
-			key="supportsBrowserUse"
-			isSupported={supportsBrowserUse(modelInfo)}
-			supportsLabel="Supports browser use"
 			doesNotSupportLabel="Does not support browser use"
+			isSupported={supportsBrowserUse(modelInfo)}
+			key="supportsBrowserUse"
+			supportsLabel="Supports browser use"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
-				key="supportsPromptCache"
-				isSupported={supportsPromptCache(modelInfo)}
-				supportsLabel="Supports prompt caching"
 				doesNotSupportLabel="Does not support prompt caching"
+				isSupported={supportsPromptCache(modelInfo)}
+				key="supportsPromptCache"
+				supportsLabel="Supports prompt caching"
 			/>
 		),
-		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
-			<span key="maxTokens">
-				<span style={{ fontWeight: 500 }}>Max output:</span> {formatTokenLimit(modelInfo.maxTokens)} tokens
+		modelInfo.contextWindow !== undefined && modelInfo.contextWindow > 0 && (
+			<span key="contextWindow">
+				<span style={{ fontWeight: 500 }}>Context Window:</span> {formatTokenLimit(modelInfo.contextWindow)} tokens
 			</span>
 		),
 		inputPriceElement, // Add the generated input price block

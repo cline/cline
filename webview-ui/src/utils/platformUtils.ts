@@ -34,3 +34,9 @@ export const detectMetaKeyChar = (platform: string) => {
 		return "CMD"
 	}
 }
+
+const userAgent = navigator?.userAgent || ""
+
+export const isChrome = userAgent.indexOf("Chrome") >= 0
+
+export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0

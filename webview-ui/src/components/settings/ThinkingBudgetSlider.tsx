@@ -1,8 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useMemo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
@@ -83,20 +85,23 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 
 interface ThinkingBudgetSliderProps {
 	maxBudget?: number
+	currentMode: Mode
 }
 
-const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const [isEnabled, setIsEnabled] = useState<boolean>((apiConfiguration?.thinkingBudgetTokens || 0) > 0)
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+
+	const [isEnabled, setIsEnabled] = useState<boolean>((modeFields.thinkingBudgetTokens || 0) > 0)
 
 	const maxTokens = useMemo(
 		() =>
-			apiConfiguration?.apiProvider === "gemini"
+			modeFields.apiProvider === "gemini"
 				? geminiModels[geminiDefaultModelId].maxTokens
 				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-		[apiConfiguration?.apiProvider],
+		[modeFields.apiProvider],
 	)
 
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
@@ -108,7 +113,7 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 	}, [maxBudget, maxTokens])
 
 	// Add local state for the slider value
-	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
+	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
@@ -116,7 +121,11 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 	}, [])
 
 	const handleSliderComplete = () => {
-		handleFieldChange("thinkingBudgetTokens", localValue)
+		handleModeFieldChange(
+			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
+			localValue,
+			currentMode,
+		)
 	}
 
 	const handleToggleChange = (event: any) => {
@@ -125,7 +134,7 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 		setIsEnabled(isChecked)
 		setLocalValue(newValue)
 
-		handleFieldChange("thinkingBudgetTokens", newValue)
+		handleModeFieldChange({ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" }, newValue, currentMode)
 	}
 
 	return (
@@ -142,23 +151,23 @@ const ThinkingBudgetSlider = ({ maxBudget }: ThinkingBudgetSliderProps) => {
 						</Label>
 					</LabelContainer>
 					<RangeInput
+						$max={maxSliderValue}
+						$min={DEFAULT_MIN_VALID_TOKENS}
+						$value={localValue}
+						aria-describedby="thinking-budget-description"
+						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-valuemax={maxSliderValue}
+						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
+						aria-valuenow={localValue}
 						id="thinking-budget-slider"
-						type="range"
-						min={DEFAULT_MIN_VALID_TOKENS}
 						max={maxSliderValue}
-						step={1}
-						value={localValue}
+						min={DEFAULT_MIN_VALID_TOKENS}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
-						$value={localValue}
-						$min={DEFAULT_MIN_VALID_TOKENS}
-						$max={maxSliderValue}
-						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
-						aria-valuemax={maxSliderValue}
-						aria-valuenow={localValue}
-						aria-describedby="thinking-budget-description"
+						step={1}
+						type="range"
+						value={localValue}
 					/>
 
 					<Description id="thinking-budget-description">

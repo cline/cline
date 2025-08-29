@@ -1,10 +1,11 @@
-import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
+import { askSageDefaultURL, askSageModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -13,46 +14,53 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface AskSageProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The AskSage provider configuration component
  */
-export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderProps) => {
+export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
 			<ApiKeyField
+				helpText="This key is stored locally and only used to make API requests from this extension."
 				initialValue={apiConfiguration?.asksageApiKey || ""}
 				onChange={(value) => handleFieldChange("asksageApiKey", value)}
 				providerName="AskSage"
-				helpText="This key is stored locally and only used to make API requests from this extension."
 			/>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
 				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
+				placeholder="Enter AskSage API URL..."
 				style={{ width: "100%" }}
-				type="url"
-				placeholder="Enter AskSage API URL...">
+				type="url">
 				<span style={{ fontWeight: 500 }}>AskSage API URL</span>
 			</DebouncedTextField>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={askSageModels}
-						selectedModelId={selectedModelId}
-						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={askSageModels}
+						onChange={(e) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

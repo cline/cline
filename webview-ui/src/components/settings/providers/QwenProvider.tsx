@@ -1,12 +1,14 @@
-import { ApiConfiguration, internationalQwenModels, mainlandQwenModels } from "@shared/api"
+import { internationalQwenModels, mainlandQwenModels, QwenApiRegions } from "@shared/api"
+import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector, DropdownContainer } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DROPDOWN_Z_INDEX } from "../ApiOptions"
+import { ApiKeyField } from "../common/ApiKeyField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const SUPPORTED_THINKING_MODELS = [
@@ -28,20 +30,27 @@ const SUPPORTED_THINKING_MODELS = [
 interface QwenProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
+
+// Turns enum into an array of values for dropdown options
+export const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
 
 /**
  * The Alibaba Qwen provider configuration component
  */
-export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) => {
+export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on API line selection
-	const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+	const qwenModels = useMemo(
+		() => (apiConfiguration?.qwenApiLine === QwenApiRegions.CHINA ? mainlandQwenModels : internationalQwenModels),
+		[apiConfiguration?.qwenApiLine],
+	)
 
 	return (
 		<div>
@@ -51,14 +60,17 @@ export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) =
 				</label>
 				<VSCodeDropdown
 					id="qwen-line-provider"
-					value={apiConfiguration?.qwenApiLine || "china"}
-					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value)}
+					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value as QwenApiRegions)}
 					style={{
 						minWidth: 130,
 						position: "relative",
-					}}>
-					<VSCodeOption value="china">China API</VSCodeOption>
-					<VSCodeOption value="international">International API</VSCodeOption>
+					}}
+					value={apiConfiguration?.qwenApiLine || qwenApiOptions[0]}>
+					{qwenApiOptions.map((line) => (
+						<VSCodeOption key={line} value={line}>
+							{line.charAt(0).toUpperCase() + line.slice(1)} API
+						</VSCodeOption>
+					))}
 				</VSCodeDropdown>
 			</DropdownContainer>
 			<p
@@ -81,18 +93,24 @@ export const QwenProvider = ({ showModelOptions, isPopup }: QwenProviderProps) =
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={qwenModels}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={qwenModels}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

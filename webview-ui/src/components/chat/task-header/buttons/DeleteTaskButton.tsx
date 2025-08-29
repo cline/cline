@@ -1,7 +1,7 @@
+import { StringArrayRequest } from "@shared/proto/cline/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { StringArrayRequest } from "@shared/proto/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const DeleteTaskButton: React.FC<{
 	taskSize: string
@@ -10,8 +10,8 @@ const DeleteTaskButton: React.FC<{
 	<HeroTooltip content="Delete Task">
 		<VSCodeButton
 			appearance="icon"
-			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
 			aria-label="Delete task"
+			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
 			style={{ padding: "0px 0px" }}>
 			<div
 				style={{
