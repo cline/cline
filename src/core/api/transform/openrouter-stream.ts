@@ -111,7 +111,7 @@ export async function createOpenRouterStream(
 
 	let temperature: number | undefined = 0
 	let topP: number | undefined
-	let frequency_penalty: number | undefined = 0.5
+	let frequency_penalty: number | undefined = 0
 	if (
 		model.id.startsWith("deepseek/deepseek-r1") ||
 		model.id === "perplexity/sonar-reasoning" ||
