@@ -12,16 +12,16 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
 
 // Public PostHog key (safe for open source)
 const posthogProdConfig = {
-	apiKey: process?.env?.POSTHOG_PROD_API_KEY,
-	errorTrackingApiKey: process?.env?.POSTHOG_PROD_ERROR_TRACKING_API_KEY,
+	apiKey: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
+	errorTrackingApiKey: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
 	host: "https://data.cline.bot",
 	uiHost: "https://us.posthog.com",
 } satisfies PostHogClientConfig
 
 // Public PostHog key for Development Environment project
 const posthogDevEnvConfig = {
-	apiKey: process?.env?.POSTHOG_DEV_API_KEY,
-	errorTrackingApiKey: process?.env?.POSTHOG_DEV_ERROR_TRACKING_API_KEY,
+	apiKey: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
+	errorTrackingApiKey: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
 	host: "https://data.cline.bot",
 	uiHost: "https://us.i.posthog.com",
 } satisfies PostHogClientConfig
