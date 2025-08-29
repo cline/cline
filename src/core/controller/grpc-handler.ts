@@ -84,12 +84,14 @@ async function handleUnaryRequest(
 		}
 
 		// Record the error
-		// try {
-		// 	const recorder = GrpcRecorder.getInstance()
-		// 	recorder.recordResponse(request.request_id, errorResponse)
-		// } catch (recordError) {
-		// 	console.warn("Failed to record gRPC error:", recordError)
-		// }
+		/*
+		try {
+			const recorder = GrpcRecorder.getInstance()
+			recorder.recordResponse(request.request_id, errorResponse)
+		} catch (recordError) {
+			console.warn("Failed to record gRPC error:", recordError)
+		}
+		*/
 
 		await postMessageToWebview({
 			type: "grpc_response",

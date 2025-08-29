@@ -44,8 +44,12 @@ export class GrpcRecorder {
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
 		const fileName = `grpc-session-${timestamp}-${sessionId}.json`
 
+		// const folderPath = context.globalStorageUri.fsPath
+		const workspaceFolder = process.env.DEV_WORKSPACE_FOLDER ?? process.cwd()
+		const folderPath = path.join(workspaceFolder, "tests", "specs")
+
 		// Create logs directory in extension's global storage
-		const logsDir = path.join(context.globalStorageUri.fsPath, "grpc-logs")
+		const logsDir = path.join(folderPath, "grpc-logs")
 		this.logFilePath = path.join(logsDir, fileName)
 
 		this.sessionLog = {
@@ -82,6 +86,7 @@ export class GrpcRecorder {
 		}
 	}
 
+	// random temporary unique id. it's not universally unique, but enough for testing
 	private generateSessionId(): string {
 		return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 	}

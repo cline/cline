@@ -1,0 +1,135 @@
+{
+	"sessionId": "eus3ouzyh2h2stop2e20t",
+	"startTime": "2025-08-29T14:34:24.655Z",
+	"extensionVersion": "3.26.6",
+	"vscodeVersion": "1.103.2",
+	"platform": "darwin",
+	"entries": [
+		{
+			"timestamp": "2025-08-29T14:34:25.837Z",
+			"sessionId": "eus3ouzyh2h2stop2e20t",
+			"requestId": "1bd08ba9-515f-4a33-811f-6dc72c1e42c8",
+			"service": "cline.UiService",
+			"method": "initializeWebview",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 10
+		},
+		{
+			"timestamp": "2025-08-29T14:34:25.849Z",
+			"sessionId": "eus3ouzyh2h2stop2e20t",
+			"requestId": "0633c057-f4e3-454f-adbb-4c81cc05f7bc",
+			"service": "cline.StateService",
+			"method": "getAvailableTerminalProfiles",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"profiles": [
+						{
+							"id": "default",
+							"name": "Default",
+							"path": "",
+							"description": "Use VSCode's default terminal configuration"
+						},
+						{
+							"id": "zsh",
+							"name": "zsh",
+							"path": "/bin/zsh",
+							"description": "Z shell (default on macOS)"
+						},
+						{
+							"id": "bash",
+							"name": "bash",
+							"path": "/bin/bash",
+							"description": "Bourne Again Shell"
+						}
+					]
+				}
+			},
+			"duration": 0
+		},
+		{
+			"timestamp": "2025-08-29T14:34:25.855Z",
+			"sessionId": "eus3ouzyh2h2stop2e20t",
+			"requestId": "3f8f8214-5255-436f-be6e-5f56d0176e2f",
+			"service": "cline.UiService",
+			"method": "initializeWebview",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 10
+		},
+		{
+			"timestamp": "2025-08-29T14:34:25.866Z",
+			"sessionId": "eus3ouzyh2h2stop2e20t",
+			"requestId": "5478055f-8d9b-4031-a880-7aefd1f42f83",
+			"service": "cline.StateService",
+			"method": "getAvailableTerminalProfiles",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"profiles": [
+						{
+							"id": "default",
+							"name": "Default",
+							"path": "",
+							"description": "Use VSCode's default terminal configuration"
+						},
+						{
+							"id": "zsh",
+							"name": "zsh",
+							"path": "/bin/zsh",
+							"description": "Z shell (default on macOS)"
+						},
+						{
+							"id": "bash",
+							"name": "bash",
+							"path": "/bin/bash",
+							"description": "Bourne Again Shell"
+						}
+					]
+				}
+			},
+			"duration": 0
+		},
+		{
+			"timestamp": "2025-08-29T14:34:28.140Z",
+			"sessionId": "eus3ouzyh2h2stop2e20t",
+			"requestId": "6f908977-d087-420f-a410-e5caa6e2ebf9",
+			"service": "cline.TaskService",
+			"method": "newTask",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"text": "hey",
+					"images": [],
+					"files": []
+				}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 2
+		}
+	]
+}
