@@ -1,4 +1,5 @@
-import { PromptVariant, SystemPromptSection } from "../.."
+import { SystemPromptSection } from "../../templates/placeholders"
+import { PromptVariant } from "../../types"
 
 const XS_EDITING_FILES = `FILE EDITING RULES
 - Default: replace_in_file; write_to_file for new files or full rewrites.

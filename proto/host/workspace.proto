@@ -26,6 +26,9 @@ service WorkspaceService {
 
   // Opens the IDE file explorer panel and selects a file or directory.
   rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
+
+  // Opens and focuses the Cline sidebar panel in the host IDE.
+  rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -86,3 +89,7 @@ message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
+
+// Request/response for opening the Cline sidebar
+message OpenClineSidebarPanelRequest {}
+message OpenClineSidebarPanelResponse {}
