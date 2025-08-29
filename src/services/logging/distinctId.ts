@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from "uuid"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { EmptyRequest } from "@/shared/proto/cline/common"
 import { Logger } from "./Logger"
@@ -19,7 +18,7 @@ let _distinctId = ""
 export async function getMachineId() {
 	try {
 		const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
-		_machineId = response.value || vscode.env.machineId
+		_machineId = response.value
 	} catch (e) {
 		Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
 	}
