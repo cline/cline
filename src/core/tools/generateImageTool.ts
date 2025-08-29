@@ -129,10 +129,8 @@ export async function generateImageTool(
 	// Check if file is write-protected
 	const isWriteProtected = cline.rooProtectedController?.isWriteProtected(relPath) || false
 
-	// Get OpenRouter API key from experimental settings ONLY (no fallback to profile)
-	const apiConfiguration = state?.apiConfiguration
-	const imageGenerationSettings = apiConfiguration?.openRouterImageGenerationSettings
-	const openRouterApiKey = imageGenerationSettings?.openRouterApiKey
+	// Get OpenRouter API key from global settings (experimental image generation)
+	const openRouterApiKey = state?.openRouterImageApiKey
 
 	if (!openRouterApiKey) {
 		await cline.say(
@@ -148,7 +146,7 @@ export async function generateImageTool(
 	}
 
 	// Get selected model from settings or use default
-	const selectedModel = imageGenerationSettings?.selectedModel || IMAGE_GENERATION_MODELS[0]
+	const selectedModel = state?.openRouterImageGenerationSelectedModel || IMAGE_GENERATION_MODELS[0]
 
 	// Determine if the path is outside the workspace
 	const fullPath = path.resolve(cline.cwd, removeClosingTag("path", relPath))

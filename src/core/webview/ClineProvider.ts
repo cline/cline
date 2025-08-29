@@ -1762,6 +1762,8 @@ export class ClineProvider
 			maxDiagnosticMessages,
 			includeTaskHistoryInEnhance,
 			remoteControlEnabled,
+			openRouterImageApiKey,
+			openRouterImageGenerationSelectedModel,
 		} = await this.getState()
 
 		const telemetryKey = process.env.POSTHOG_API_KEY
@@ -1893,6 +1895,8 @@ export class ClineProvider
 			maxDiagnosticMessages: maxDiagnosticMessages ?? 50,
 			includeTaskHistoryInEnhance: includeTaskHistoryInEnhance ?? true,
 			remoteControlEnabled,
+			openRouterImageApiKey,
+			openRouterImageGenerationSelectedModel,
 		}
 	}
 
@@ -2092,6 +2096,9 @@ export class ClineProvider
 					return false
 				}
 			})(),
+			// Add image generation settings
+			openRouterImageApiKey: stateValues.openRouterImageApiKey,
+			openRouterImageGenerationSelectedModel: stateValues.openRouterImageGenerationSelectedModel,
 		}
 	}
 

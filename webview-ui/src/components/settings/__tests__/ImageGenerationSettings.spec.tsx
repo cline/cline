@@ -1,7 +1,5 @@
 import { render, fireEvent } from "@testing-library/react"
 
-import type { ProviderSettings } from "@roo-code/types"
-
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
 // Mock the translation context
@@ -12,14 +10,17 @@ vi.mock("@/i18n/TranslationContext", () => ({
 }))
 
 describe("ImageGenerationSettings", () => {
-	const mockSetApiConfigurationField = vi.fn()
+	const mockSetOpenRouterImageApiKey = vi.fn()
+	const mockSetImageGenerationSelectedModel = vi.fn()
 	const mockOnChange = vi.fn()
 
 	const defaultProps = {
 		enabled: false,
 		onChange: mockOnChange,
-		apiConfiguration: {} as ProviderSettings,
-		setApiConfigurationField: mockSetApiConfigurationField,
+		openRouterImageApiKey: undefined,
+		openRouterImageGenerationSelectedModel: undefined,
+		setOpenRouterImageApiKey: mockSetOpenRouterImageApiKey,
+		setImageGenerationSelectedModel: mockSetImageGenerationSelectedModel,
 	}
 
 	beforeEach(() => {
@@ -27,30 +28,31 @@ describe("ImageGenerationSettings", () => {
 	})
 
 	describe("Initial Mount Behavior", () => {
-		it("should not call setApiConfigurationField on initial mount with empty configuration", () => {
+		it("should not call setter functions on initial mount with empty configuration", () => {
 			render(<ImageGenerationSettings {...defaultProps} />)
 
-			// Should NOT call setApiConfigurationField on initial mount to prevent dirty state
-			expect(mockSetApiConfigurationField).not.toHaveBeenCalled()
+			// Should NOT call setter functions on initial mount to prevent dirty state
+			expect(mockSetOpenRouterImageApiKey).not.toHaveBeenCalled()
+			expect(mockSetImageGenerationSelectedModel).not.toHaveBeenCalled()
 		})
 
-		it("should not call setApiConfigurationField on initial mount with existing configuration", () => {
-			const apiConfiguration = {
-				openRouterImageGenerationSettings: {
-					openRouterApiKey: "existing-key",
-					selectedModel: "google/gemini-2.5-flash-image-preview:free",
-				},
-			} as ProviderSettings
+		it("should not call setter functions on initial mount with existing configuration", () => {
+			render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					openRouterImageApiKey="existing-key"
+					openRouterImageGenerationSelectedModel="google/gemini-2.5-flash-image-preview:free"
+				/>,
+			)
 
-			render(<ImageGenerationSettings {...defaultProps} apiConfiguration={apiConfiguration} />)
-
-			// Should NOT call setApiConfigurationField on initial mount to prevent dirty state
-			expect(mockSetApiConfigurationField).not.toHaveBeenCalled()
+			// Should NOT call setter functions on initial mount to prevent dirty state
+			expect(mockSetOpenRouterImageApiKey).not.toHaveBeenCalled()
+			expect(mockSetImageGenerationSelectedModel).not.toHaveBeenCalled()
 		})
 	})
 
 	describe("User Interaction Behavior", () => {
-		it("should call setApiConfigurationField when user changes API key", async () => {
+		it("should call setimageGenerationSettings when user changes API key", async () => {
 			const { getByPlaceholderText } = render(<ImageGenerationSettings {...defaultProps} enabled={true} />)
 
 			const apiKeyInput = getByPlaceholderText(
@@ -60,15 +62,8 @@ describe("ImageGenerationSettings", () => {
 			// Simulate user typing
 			fireEvent.input(apiKeyInput, { target: { value: "new-api-key" } })
 
-			// Should call setApiConfigurationField with isUserAction=true
-			expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
-				"openRouterImageGenerationSettings",
-				{
-					openRouterApiKey: "new-api-key",
-					selectedModel: "google/gemini-2.5-flash-image-preview",
-				},
-				true, // This should be true for user actions
-			)
+			// Should call setimageGenerationSettings
+			expect(defaultProps.setOpenRouterImageApiKey).toHaveBeenCalledWith("new-api-key")
 		})
 
 		// Note: Testing VSCode dropdown components is complex due to their custom nature

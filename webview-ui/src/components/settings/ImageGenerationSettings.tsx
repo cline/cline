@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from "react"
 import { VSCodeCheckbox, VSCodeTextField, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import type { ProviderSettings } from "@roo-code/types"
 
 interface ImageGenerationSettingsProps {
 	enabled: boolean
 	onChange: (enabled: boolean) => void
-	apiConfiguration: ProviderSettings
-	setApiConfigurationField: <K extends keyof ProviderSettings>(
-		field: K,
-		value: ProviderSettings[K],
-		isUserAction?: boolean,
-	) => void
+	openRouterImageApiKey?: string
+	openRouterImageGenerationSelectedModel?: string
+	setOpenRouterImageApiKey: (apiKey: string) => void
+	setImageGenerationSelectedModel: (model: string) => void
 }
 
 // Hardcoded list of image generation models
@@ -24,43 +21,34 @@ const IMAGE_GENERATION_MODELS = [
 export const ImageGenerationSettings = ({
 	enabled,
 	onChange,
-	apiConfiguration,
-	setApiConfigurationField,
+	openRouterImageApiKey,
+	openRouterImageGenerationSelectedModel,
+	setOpenRouterImageApiKey,
+	setImageGenerationSelectedModel,
 }: ImageGenerationSettingsProps) => {
 	const { t } = useAppTranslation()
 
-	// Get image generation settings from apiConfiguration
-	const imageGenerationSettings = apiConfiguration?.openRouterImageGenerationSettings || {}
-	const [openRouterApiKey, setOpenRouterApiKey] = useState(imageGenerationSettings.openRouterApiKey || "")
+	const [apiKey, setApiKey] = useState(openRouterImageApiKey || "")
 	const [selectedModel, setSelectedModel] = useState(
-		imageGenerationSettings.selectedModel || IMAGE_GENERATION_MODELS[0].value,
+		openRouterImageGenerationSelectedModel || IMAGE_GENERATION_MODELS[0].value,
 	)
 
-	// Update local state when apiConfiguration changes (e.g., when switching profiles)
+	// Update local state when props change (e.g., when switching profiles)
 	useEffect(() => {
-		setOpenRouterApiKey(imageGenerationSettings.openRouterApiKey || "")
-		setSelectedModel(imageGenerationSettings.selectedModel || IMAGE_GENERATION_MODELS[0].value)
-	}, [imageGenerationSettings.openRouterApiKey, imageGenerationSettings.selectedModel])
-
-	// Helper function to update settings
-	const updateSettings = (newApiKey: string, newModel: string) => {
-		const newSettings = {
-			openRouterApiKey: newApiKey,
-			selectedModel: newModel,
-		}
-		setApiConfigurationField("openRouterImageGenerationSettings", newSettings, true)
-	}
+		setApiKey(openRouterImageApiKey || "")
+		setSelectedModel(openRouterImageGenerationSelectedModel || IMAGE_GENERATION_MODELS[0].value)
+	}, [openRouterImageApiKey, openRouterImageGenerationSelectedModel])
 
 	// Handle API key changes
 	const handleApiKeyChange = (value: string) => {
-		setOpenRouterApiKey(value)
-		updateSettings(value, selectedModel)
+		setApiKey(value)
+		setOpenRouterImageApiKey(value)
 	}
 
 	// Handle model selection changes
 	const handleModelChange = (value: string) => {
 		setSelectedModel(value)
-		updateSettings(openRouterApiKey, value)
+		setImageGenerationSelectedModel(value)
 	}
 
 	return (
@@ -84,7 +72,7 @@ export const ImageGenerationSettings = ({
 							{t("settings:experimental.IMAGE_GENERATION.openRouterApiKeyLabel")}
 						</label>
 						<VSCodeTextField
-							value={openRouterApiKey}
+							value={apiKey}
 							onInput={(e: any) => handleApiKeyChange(e.target.value)}
 							placeholder={t("settings:experimental.IMAGE_GENERATION.openRouterApiKeyPlaceholder")}
 							className="w-full"
@@ -123,13 +111,13 @@ export const ImageGenerationSettings = ({
 					</div>
 
 					{/* Status Message */}
-					{enabled && !openRouterApiKey && (
+					{enabled && !apiKey && (
 						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
 							{t("settings:experimental.IMAGE_GENERATION.warningMissingKey")}
 						</div>
 					)}
 
-					{enabled && openRouterApiKey && (
+					{enabled && apiKey && (
 						<div className="p-2 bg-vscode-editorInfo-background text-vscode-editorInfo-foreground rounded text-sm">
 							{t("settings:experimental.IMAGE_GENERATION.successConfigured")}
 						</div>
