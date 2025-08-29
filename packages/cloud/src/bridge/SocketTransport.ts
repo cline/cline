@@ -1,10 +1,10 @@
-import { io, type Socket } from "socket.io-client"
+import { io, type Socket, type SocketOptions, type ManagerOptions } from "socket.io-client"
 
 import { ConnectionState, type RetryConfig } from "@roo-code/types"
 
-export interface SocketConnectionOptions {
+export interface SocketTransportOptions {
 	url: string
-	socketOptions: Record<string, unknown>
+	socketOptions: Partial<ManagerOptions & SocketOptions>
 	onConnect?: () => void | Promise<void>
 	onDisconnect?: (reason: string) => void
 	onReconnect?: (attemptNumber: number) => void | Promise<void>
@@ -16,7 +16,11 @@ export interface SocketConnectionOptions {
 	}
 }
 
-export class SocketConnectionManager {
+/**
+ * Manages the WebSocket transport layer for the bridge system.
+ * Handles connection lifecycle, retries, and reconnection logic.
+ */
+export class SocketTransport {
 	private socket: Socket | null = null
 	private connectionState: ConnectionState = ConnectionState.DISCONNECTED
 	private retryAttempt: number = 0
@@ -31,9 +35,9 @@ export class SocketConnectionManager {
 	}
 
 	private readonly CONNECTION_TIMEOUT = 2_000
-	private readonly options: SocketConnectionOptions
+	private readonly options: SocketTransportOptions
 
-	constructor(options: SocketConnectionOptions, retryConfig?: Partial<RetryConfig>) {
+	constructor(options: SocketTransportOptions, retryConfig?: Partial<RetryConfig>) {
 		this.options = options
 
 		if (retryConfig) {
@@ -43,13 +47,12 @@ export class SocketConnectionManager {
 
 	public async connect(): Promise<void> {
 		if (this.connectionState === ConnectionState.CONNECTED) {
-			console.log(`[SocketConnectionManager] Already connected`)
+			console.log(`[SocketTransport] Already connected`)
 			return
 		}
 
 		if (this.connectionState === ConnectionState.CONNECTING || this.connectionState === ConnectionState.RETRYING) {
-			console.log(`[SocketConnectionManager] Connection attempt already in progress`)
-
+			console.log(`[SocketTransport] Connection attempt already in progress`)
 			return
 		}
 
@@ -63,7 +66,9 @@ export class SocketConnectionManager {
 		try {
 			await this.connectWithRetry()
 		} catch (error) {
-			console.error(`[SocketConnectionManager] Initial connection attempts failed:`, error)
+			console.error(
+				`[SocketTransport] Initial connection attempts failed: ${error instanceof Error ? error.message : String(error)}`,
+			)
 
 			// If we've never connected successfully, we've exhausted our retry attempts
 			// The user will need to manually retry or fix the issue
@@ -79,12 +84,12 @@ export class SocketConnectionManager {
 				this.connectionState = this.retryAttempt === 0 ? ConnectionState.CONNECTING : ConnectionState.RETRYING
 
 				console.log(
-					`[SocketConnectionManager] Connection attempt ${this.retryAttempt + 1} / ${this.retryConfig.maxInitialAttempts}`,
+					`[SocketTransport] Connection attempt ${this.retryAttempt + 1} / ${this.retryConfig.maxInitialAttempts}`,
 				)
 
 				await this.connectSocket()
 
-				console.log(`[SocketConnectionManager] Connected to ${this.options.url}`)
+				console.log(`[SocketTransport] Connected to ${this.options.url}`)
 
 				this.connectionState = ConnectionState.CONNECTED
 				this.retryAttempt = 0
@@ -99,7 +104,7 @@ export class SocketConnectionManager {
 			} catch (error) {
 				this.retryAttempt++
 
-				console.error(`[SocketConnectionManager] Connection attempt ${this.retryAttempt} failed:`, error)
+				console.error(`[SocketTransport] Connection attempt ${this.retryAttempt} failed:`, error)
 
 				if (this.socket) {
 					this.socket.disconnect()
@@ -112,7 +117,7 @@ export class SocketConnectionManager {
 					throw new Error(`Failed to connect after ${this.retryConfig.maxInitialAttempts} attempts`)
 				}
 
-				console.log(`[SocketConnectionManager] Waiting ${delay}ms before retry...`)
+				console.log(`[SocketTransport] Waiting ${delay}ms before retry...`)
 
 				await this.delay(delay)
 
@@ -126,7 +131,7 @@ export class SocketConnectionManager {
 			this.socket = io(this.options.url, this.options.socketOptions)
 
 			const connectionTimeout = setTimeout(() => {
-				console.error(`[SocketConnectionManager] Connection timeout`)
+				console.error(`[SocketTransport] Connection timeout`)
 
 				if (this.connectionState !== ConnectionState.CONNECTED) {
 					this.socket?.disconnect()
@@ -140,12 +145,9 @@ export class SocketConnectionManager {
 				const isReconnection = this.hasConnectedOnce
 
 				// If this is a reconnection (not the first connect), treat it as a
-				// reconnect.
-				// This handles server restarts where 'reconnect' event might not fire.
+				// reconnect. This handles server restarts where 'reconnect' event might not fire.
 				if (isReconnection) {
-					console.log(
-						`[SocketConnectionManager] Treating connect as reconnection (server may have restarted)`,
-					)
+					console.log(`[SocketTransport] Treating connect as reconnection (server may have restarted)`)
 
 					this.connectionState = ConnectionState.CONNECTED
 
@@ -160,7 +162,7 @@ export class SocketConnectionManager {
 			})
 
 			this.socket.on("disconnect", (reason: string) => {
-				console.log(`[SocketConnectionManager] Disconnected (reason: ${reason})`)
+				console.log(`[SocketTransport] Disconnected (reason: ${reason})`)
 
 				this.connectionState = ConnectionState.DISCONNECTED
 
@@ -174,19 +176,19 @@ export class SocketConnectionManager {
 				if (!isManualDisconnect && this.hasConnectedOnce) {
 					// After successful initial connection, rely entirely on Socket.IO's
 					// reconnection.
-					console.log(`[SocketConnectionManager] Socket.IO will handle reconnection (reason: ${reason})`)
+					console.log(`[SocketTransport] Socket.IO will handle reconnection (reason: ${reason})`)
 				}
 			})
 
 			// Listen for reconnection attempts.
 			this.socket.on("reconnect_attempt", (attemptNumber: number) => {
-				console.log(`[SocketConnectionManager] Socket.IO reconnect attempt:`, {
+				console.log(`[SocketTransport] Socket.IO reconnect attempt:`, {
 					attemptNumber,
 				})
 			})
 
 			this.socket.on("reconnect", (attemptNumber: number) => {
-				console.log(`[SocketConnectionManager] Socket reconnected (attempt: ${attemptNumber})`)
+				console.log(`[SocketTransport] Socket reconnected (attempt: ${attemptNumber})`)
 
 				this.connectionState = ConnectionState.CONNECTED
 
@@ -196,11 +198,11 @@ export class SocketConnectionManager {
 			})
 
 			this.socket.on("reconnect_error", (error: Error) => {
-				console.error(`[SocketConnectionManager] Socket.IO reconnect error:`, error)
+				console.error(`[SocketTransport] Socket.IO reconnect error:`, error)
 			})
 
 			this.socket.on("reconnect_failed", () => {
-				console.error(`[SocketConnectionManager] Socket.IO reconnection failed after all attempts`)
+				console.error(`[SocketTransport] Socket.IO reconnection failed after all attempts`)
 
 				this.connectionState = ConnectionState.FAILED
 
@@ -209,7 +211,7 @@ export class SocketConnectionManager {
 			})
 
 			this.socket.on("error", (error) => {
-				console.error(`[SocketConnectionManager] Socket error:`, error)
+				console.error(`[SocketTransport] Socket error:`, error)
 
 				if (this.connectionState !== ConnectionState.CONNECTED) {
 					clearTimeout(connectionTimeout)
@@ -222,7 +224,7 @@ export class SocketConnectionManager {
 			})
 
 			this.socket.on("auth_error", (error) => {
-				console.error(`[SocketConnectionManager] Authentication error:`, error)
+				console.error(`[SocketTransport] Authentication error:`, error)
 				clearTimeout(connectionTimeout)
 				reject(new Error(error.message || "Authentication failed"))
 			})
@@ -235,9 +237,6 @@ export class SocketConnectionManager {
 		})
 	}
 
-	// 1. Custom retry for initial connection attempts.
-	// 2. Socket.IO's built-in reconnection after successful initial connection.
-
 	private clearRetryTimeouts() {
 		if (this.retryTimeout) {
 			clearTimeout(this.retryTimeout)
@@ -246,7 +245,7 @@ export class SocketConnectionManager {
 	}
 
 	public async disconnect(): Promise<void> {
-		console.log(`[SocketConnectionManager] Disconnecting...`)
+		console.log(`[SocketTransport] Disconnecting...`)
 
 		this.clearRetryTimeouts()
 
@@ -258,7 +257,7 @@ export class SocketConnectionManager {
 
 		this.connectionState = ConnectionState.DISCONNECTED
 
-		console.log(`[SocketConnectionManager] Disconnected`)
+		console.log(`[SocketTransport] Disconnected`)
 	}
 
 	public getSocket(): Socket | null {
@@ -275,11 +274,11 @@ export class SocketConnectionManager {
 
 	public async reconnect(): Promise<void> {
 		if (this.connectionState === ConnectionState.CONNECTED) {
-			console.log(`[SocketConnectionManager] Already connected`)
+			console.log(`[SocketTransport] Already connected`)
 			return
 		}
 
-		console.log(`[SocketConnectionManager] Manual reconnection requested`)
+		console.log(`[SocketTransport] Manual reconnection requested`)
 
 		this.hasConnectedOnce = false
 

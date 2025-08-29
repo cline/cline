@@ -35,7 +35,7 @@ import {
 	isResumableAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
-import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
+import { CloudService, BridgeOrchestrator } from "@roo-code/cloud"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
@@ -115,7 +115,7 @@ export type TaskOptions = {
 	apiConfiguration: ProviderSettings
 	enableDiff?: boolean
 	enableCheckpoints?: boolean
-	enableTaskBridge?: boolean
+	enableBridge?: boolean
 	fuzzyMatchThreshold?: number
 	consecutiveMistakeLimit?: number
 	task?: string
@@ -255,8 +255,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	checkpointServiceInitializing = false
 
 	// Task Bridge
-	enableTaskBridge: boolean
-	bridgeService: ExtensionBridgeService | null = null
+	enableBridge: boolean
+	bridge: BridgeOrchestrator | null = null
 
 	// Streaming
 	isWaitingForFirstChunk = false
@@ -280,7 +280,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		apiConfiguration,
 		enableDiff = false,
 		enableCheckpoints = true,
-		enableTaskBridge = false,
+		enableBridge = false,
 		fuzzyMatchThreshold = 1.0,
 		consecutiveMistakeLimit = DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 		task,
@@ -335,7 +335,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.globalStoragePath = provider.context.globalStorageUri.fsPath
 		this.diffViewProvider = new DiffViewProvider(this.cwd, this)
 		this.enableCheckpoints = enableCheckpoints
-		this.enableTaskBridge = enableTaskBridge
+		this.enableBridge = enableBridge
 
 		this.rootTask = rootTask
 		this.parentTask = parentTask
@@ -1082,12 +1082,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Start / Abort / Resume
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
-		if (this.enableTaskBridge) {
+		if (this.enableBridge) {
 			try {
-				this.bridgeService = this.bridgeService || ExtensionBridgeService.getInstance()
+				this.bridge = this.bridge || BridgeOrchestrator.getInstance()
 
-				if (this.bridgeService) {
-					await this.bridgeService.subscribeToTask(this)
+				if (this.bridge) {
+					await this.bridge.subscribeToTask(this)
 				}
 			} catch (error) {
 				console.error(
@@ -1154,14 +1154,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async resumeTaskFromHistory() {
-		// Resuming task from history
-
-		if (this.enableTaskBridge) {
+		if (this.enableBridge) {
 			try {
-				this.bridgeService = this.bridgeService || ExtensionBridgeService.getInstance()
+				this.bridge = this.bridge || BridgeOrchestrator.getInstance()
 
-				if (this.bridgeService) {
-					await this.bridgeService.subscribeToTask(this)
+				if (this.bridge) {
+					await this.bridge.subscribeToTask(this)
 				}
 			} catch (error) {
 				console.error(
@@ -1436,11 +1434,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Unsubscribe from TaskBridge service.
-		if (this.bridgeService) {
-			this.bridgeService
+		if (this.bridge) {
+			this.bridge
 				.unsubscribeFromTask(this.taskId)
 				.catch((error: unknown) => console.error("Error unsubscribing from task bridge:", error))
-			this.bridgeService = null
+
+			this.bridge = null
 		}
 
 		// Release any terminals associated with this task.

@@ -129,6 +129,7 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 	private changeState(newState: AuthState): void {
 		const previousState = this.state
 		this.state = newState
+		this.log(`[auth] changeState: ${previousState} -> ${newState}`)
 		this.emit("auth-state-changed", { state: newState, previousState })
 	}
 
@@ -162,8 +163,6 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 		this.userInfo = null
 
 		this.changeState("logged-out")
-
-		this.log("[auth] Transitioned to logged-out state")
 	}
 
 	private transitionToAttemptingSession(credentials: AuthCredentials): void {
@@ -176,8 +175,6 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 		this.changeState("attempting-session")
 
 		this.timer.start()
-
-		this.log("[auth] Transitioned to attempting-session state")
 	}
 
 	private transitionToInactiveSession(): void {
@@ -185,8 +182,6 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 		this.userInfo = null
 
 		this.changeState("inactive-session")
-
-		this.log("[auth] Transitioned to inactive-session state")
 	}
 
 	/**
@@ -422,7 +417,6 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 
 			if (previousState !== "active-session") {
 				this.changeState("active-session")
-				this.log("[auth] Transitioned to active-session state")
 				this.fetchUserInfo()
 			} else {
 				this.state = "active-session"

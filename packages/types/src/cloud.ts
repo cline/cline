@@ -587,32 +587,49 @@ export type TaskBridgeCommand = z.infer<typeof taskBridgeCommandSchema>
  * ExtensionSocketEvents
  */
 
-export const ExtensionSocketEvents = {
-	CONNECTED: "extension:connected",
+export enum ExtensionSocketEvents {
+	CONNECTED = "extension:connected",
 
-	REGISTER: "extension:register",
-	UNREGISTER: "extension:unregister",
+	REGISTER = "extension:register",
+	UNREGISTER = "extension:unregister",
 
-	HEARTBEAT: "extension:heartbeat",
+	HEARTBEAT = "extension:heartbeat",
 
-	EVENT: "extension:event", // event from extension instance
-	RELAYED_EVENT: "extension:relayed_event", // relay from server
+	EVENT = "extension:event", // event from extension instance
+	RELAYED_EVENT = "extension:relayed_event", // relay from server
 
-	COMMAND: "extension:command", // command from user
-	RELAYED_COMMAND: "extension:relayed_command", // relay from server
-} as const
+	COMMAND = "extension:command", // command from user
+	RELAYED_COMMAND = "extension:relayed_command", // relay from server
+}
 
 /**
  * TaskSocketEvents
  */
 
-export const TaskSocketEvents = {
-	JOIN: "task:join",
-	LEAVE: "task:leave",
+export enum TaskSocketEvents {
+	JOIN = "task:join",
+	LEAVE = "task:leave",
 
-	EVENT: "task:event", // event from extension task
-	RELAYED_EVENT: "task:relayed_event", // relay from server
+	EVENT = "task:event", // event from extension task
+	RELAYED_EVENT = "task:relayed_event", // relay from server
 
-	COMMAND: "task:command", // command from user
-	RELAYED_COMMAND: "task:relayed_command", // relay from server
-} as const
+	COMMAND = "task:command", // command from user
+	RELAYED_COMMAND = "task:relayed_command", // relay from server
+}
+
+/**
+ * `emit()` Response Types
+ */
+
+export type JoinResponse = {
+	success: boolean
+	error?: string
+	taskId?: string
+	timestamp?: string
+}
+
+export type LeaveResponse = {
+	success: boolean
+	taskId?: string
+	timestamp?: string
+}

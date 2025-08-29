@@ -1,0 +1,273 @@
+import crypto from "crypto"
+
+import {
+	type TaskProviderLike,
+	type TaskLike,
+	type CloudUserInfo,
+	type ExtensionBridgeCommand,
+	type TaskBridgeCommand,
+	ConnectionState,
+	ExtensionSocketEvents,
+	TaskSocketEvents,
+} from "@roo-code/types"
+
+import { SocketTransport } from "./SocketTransport.js"
+import { ExtensionChannel } from "./ExtensionChannel.js"
+import { TaskChannel } from "./TaskChannel.js"
+
+export interface BridgeOrchestratorOptions {
+	userId: string
+	socketBridgeUrl: string
+	token: string
+	provider: TaskProviderLike
+	sessionId?: string
+}
+
+/**
+ * Central orchestrator for the extension bridge system.
+ * Coordinates communication between the VSCode extension and web application
+ * through WebSocket connections and manages extension/task channels.
+ */
+export class BridgeOrchestrator {
+	private static instance: BridgeOrchestrator | null = null
+
+	// Core
+	private readonly userId: string
+	private readonly socketBridgeUrl: string
+	private readonly token: string
+	private readonly provider: TaskProviderLike
+	private readonly instanceId: string
+
+	// Components
+	private socketTransport: SocketTransport
+	private extensionChannel: ExtensionChannel
+	private taskChannel: TaskChannel
+
+	// Reconnection
+	private readonly MAX_RECONNECT_ATTEMPTS = Infinity
+	private readonly RECONNECT_DELAY = 1_000
+	private readonly RECONNECT_DELAY_MAX = 30_000
+
+	public static getInstance(): BridgeOrchestrator | null {
+		return BridgeOrchestrator.instance
+	}
+
+	public static isEnabled(user?: CloudUserInfo | null, remoteControlEnabled?: boolean): boolean {
+		return !!(user?.id && user.extensionBridgeEnabled && remoteControlEnabled)
+	}
+
+	public static async connectOrDisconnect(
+		userInfo: CloudUserInfo | null,
+		remoteControlEnabled: boolean | undefined,
+		options: BridgeOrchestratorOptions,
+	): Promise<void> {
+		const isEnabled = BridgeOrchestrator.isEnabled(userInfo, remoteControlEnabled)
+		const instance = BridgeOrchestrator.instance
+
+		if (isEnabled) {
+			if (!instance) {
+				try {
+					console.log(`[BridgeOrchestrator#connectOrDisconnect] Connecting...`)
+					BridgeOrchestrator.instance = new BridgeOrchestrator(options)
+					await BridgeOrchestrator.instance.connect()
+				} catch (error) {
+					console.error(
+						`[BridgeOrchestrator#connectOrDisconnect] connect() failed: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				}
+			} else {
+				if (
+					instance.connectionState === ConnectionState.FAILED ||
+					instance.connectionState === ConnectionState.DISCONNECTED
+				) {
+					console.log(
+						`[BridgeOrchestrator#connectOrDisconnect] Re-connecting... (state: ${instance.connectionState})`,
+					)
+
+					instance.reconnect().catch((error) => {
+						console.error(
+							`[BridgeOrchestrator#connectOrDisconnect] reconnect() failed: ${error instanceof Error ? error.message : String(error)}`,
+						)
+					})
+				} else {
+					console.log(
+						`[BridgeOrchestrator#connectOrDisconnect] Already connected or connecting (state: ${instance.connectionState})`,
+					)
+				}
+			}
+		} else {
+			if (instance) {
+				try {
+					console.log(
+						`[BridgeOrchestrator#connectOrDisconnect] Disconnecting... (state: ${instance.connectionState})`,
+					)
+
+					await instance.disconnect()
+				} catch (error) {
+					console.error(
+						`[BridgeOrchestrator#connectOrDisconnect] disconnect() failed: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				} finally {
+					BridgeOrchestrator.instance = null
+				}
+			} else {
+				console.log(`[BridgeOrchestrator#connectOrDisconnect] Already disconnected`)
+			}
+		}
+	}
+
+	private constructor(options: BridgeOrchestratorOptions) {
+		this.userId = options.userId
+		this.socketBridgeUrl = options.socketBridgeUrl
+		this.token = options.token
+		this.provider = options.provider
+		this.instanceId = options.sessionId || crypto.randomUUID()
+
+		this.socketTransport = new SocketTransport({
+			url: this.socketBridgeUrl,
+			socketOptions: {
+				query: {
+					token: this.token,
+					clientType: "extension",
+					instanceId: this.instanceId,
+				},
+				transports: ["websocket", "polling"],
+				reconnection: true,
+				reconnectionAttempts: this.MAX_RECONNECT_ATTEMPTS,
+				reconnectionDelay: this.RECONNECT_DELAY,
+				reconnectionDelayMax: this.RECONNECT_DELAY_MAX,
+			},
+			onConnect: () => this.handleConnect(),
+			onDisconnect: () => this.handleDisconnect(),
+			onReconnect: () => this.handleReconnect(),
+		})
+
+		this.extensionChannel = new ExtensionChannel(this.instanceId, this.userId, this.provider)
+		this.taskChannel = new TaskChannel(this.instanceId)
+	}
+
+	private setupSocketListeners() {
+		const socket = this.socketTransport.getSocket()
+
+		if (!socket) {
+			console.error("[BridgeOrchestrator] Socket not available")
+			return
+		}
+
+		// Remove any existing listeners first to prevent duplicates.
+		socket.off(ExtensionSocketEvents.RELAYED_COMMAND)
+		socket.off(TaskSocketEvents.RELAYED_COMMAND)
+		socket.off("connected")
+
+		socket.on(ExtensionSocketEvents.RELAYED_COMMAND, (message: ExtensionBridgeCommand) => {
+			console.log(
+				`[BridgeOrchestrator] on(${ExtensionSocketEvents.RELAYED_COMMAND}) -> ${message.type} for ${message.instanceId}`,
+			)
+
+			this.extensionChannel?.handleCommand(message)
+		})
+
+		socket.on(TaskSocketEvents.RELAYED_COMMAND, (message: TaskBridgeCommand) => {
+			console.log(
+				`[BridgeOrchestrator] on(${TaskSocketEvents.RELAYED_COMMAND}) -> ${message.type} for ${message.taskId}`,
+			)
+
+			this.taskChannel.handleCommand(message)
+		})
+	}
+
+	private async handleConnect() {
+		const socket = this.socketTransport.getSocket()
+
+		if (!socket) {
+			console.error("[BridgeOrchestrator] Socket not available after connect")
+			return
+		}
+
+		await this.extensionChannel.onConnect(socket)
+		await this.taskChannel.onConnect(socket)
+	}
+
+	private handleDisconnect() {
+		this.extensionChannel.onDisconnect()
+		this.taskChannel.onDisconnect()
+	}
+
+	private async handleReconnect() {
+		const socket = this.socketTransport.getSocket()
+
+		if (!socket) {
+			console.error("[BridgeOrchestrator] Socket not available after reconnect")
+			return
+		}
+
+		// Re-setup socket listeners to ensure they're properly configured
+		// after automatic reconnection (Socket.IO's built-in reconnection)
+		// The socket.off() calls in setupSocketListeners prevent duplicates
+		this.setupSocketListeners()
+
+		await this.extensionChannel.onReconnect(socket)
+		await this.taskChannel.onReconnect(socket)
+	}
+
+	// Task API
+
+	public async subscribeToTask(task: TaskLike): Promise<void> {
+		const socket = this.socketTransport.getSocket()
+
+		if (!socket || !this.socketTransport.isConnected()) {
+			console.warn("[BridgeOrchestrator] Cannot subscribe to task: not connected. Will retry when connected.")
+			this.taskChannel.addPendingTask(task)
+
+			if (
+				this.connectionState === ConnectionState.DISCONNECTED ||
+				this.connectionState === ConnectionState.FAILED
+			) {
+				await this.connect()
+			}
+
+			return
+		}
+
+		await this.taskChannel.subscribeToTask(task, socket)
+	}
+
+	public async unsubscribeFromTask(taskId: string): Promise<void> {
+		const socket = this.socketTransport.getSocket()
+
+		if (!socket) {
+			return
+		}
+
+		await this.taskChannel.unsubscribeFromTask(taskId, socket)
+	}
+
+	// Shared API
+
+	public get connectionState(): ConnectionState {
+		return this.socketTransport.getConnectionState()
+	}
+
+	private async connect(): Promise<void> {
+		// Populate the app and git properties before registering the instance.
+		await this.provider.getTelemetryProperties()
+
+		await this.socketTransport.connect()
+		this.setupSocketListeners()
+	}
+
+	public async disconnect(): Promise<void> {
+		await this.extensionChannel.cleanup(this.socketTransport.getSocket())
+		await this.taskChannel.cleanup(this.socketTransport.getSocket())
+		await this.socketTransport.disconnect()
+		BridgeOrchestrator.instance = null
+	}
+
+	public async reconnect(): Promise<void> {
+		await this.socketTransport.reconnect()
+
+		// After a manual reconnect, we have a new socket instance
+		// so we need to set up listeners again.
+		this.setupSocketListeners()
+	}
+}

@@ -13,7 +13,7 @@ try {
 }
 
 import type { CloudUserInfo } from "@roo-code/types"
-import { CloudService, ExtensionBridgeService } from "@roo-code/cloud"
+import { CloudService, BridgeOrchestrator } from "@roo-code/cloud"
 import { TelemetryService, PostHogTelemetryClient } from "@roo-code/telemetry"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
@@ -30,7 +30,6 @@ import { CodeIndexManager } from "./services/code-index/manager"
 import { MdmService } from "./services/mdm/MdmService"
 import { migrateSettings } from "./utils/migrateSettings"
 import { autoImportSettings } from "./utils/autoImportSettings"
-import { isRemoteControlEnabled } from "./utils/remoteControl"
 import { API } from "./extension/api"
 
 import {
@@ -147,15 +146,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			cloudLogger(`[CloudService] isCloudAgent = ${isCloudAgent}, socketBridgeUrl = ${config.socketBridgeUrl}`)
 
-			ExtensionBridgeService.handleRemoteControlState(
+			await BridgeOrchestrator.connectOrDisconnect(
 				userInfo,
 				isCloudAgent ? true : contextProxy.getValue("remoteControlEnabled"),
-				{
-					...config,
-					provider,
-					sessionId: vscode.env.sessionId,
-				},
-				cloudLogger,
+				{ ...config, provider, sessionId: vscode.env.sessionId },
 			)
 		} catch (error) {
 			cloudLogger(
@@ -333,10 +327,10 @@ export async function deactivate() {
 		}
 	}
 
-	const bridgeService = ExtensionBridgeService.getInstance()
+	const bridge = BridgeOrchestrator.getInstance()
 
-	if (bridgeService) {
-		await bridgeService.disconnect()
+	if (bridge) {
+		await bridge.disconnect()
 	}
 
 	await McpServerManager.cleanup(extensionContext)

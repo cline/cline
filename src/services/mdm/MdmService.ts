@@ -32,14 +32,13 @@ export class MdmService {
 	public async initialize(): Promise<void> {
 		try {
 			this.mdmConfig = await this.loadMdmConfig()
+
 			if (this.mdmConfig) {
-				this.log("[MDM] Loaded MDM configuration:", this.mdmConfig)
-			} else {
-				this.log("[MDM] No MDM configuration found")
+				this.log(`[MDM] Loaded MDM configuration: ${JSON.stringify(this.mdmConfig)}`)
 			}
 		} catch (error) {
-			this.log("[MDM] Error loading MDM configuration:", error)
-			// Don't throw - extension should work without MDM config
+			this.log(`[MDM] Error loading MDM configuration: ${error instanceof Error ? error.message : String(error)}`)
+			// Don't throw - extension should work without MDM config.
 		}
 	}
 
