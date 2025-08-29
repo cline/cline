@@ -30,6 +30,7 @@ import {
 	type TerminalActionPromptType,
 	type HistoryItem,
 	type CloudUserInfo,
+	type CreateTaskOptions,
 	RooCodeEventName,
 	requestyDefaultModelId,
 	openRouterDefaultModelId,
@@ -37,6 +38,7 @@ import {
 	DEFAULT_TERMINAL_OUTPUT_CHARACTER_LIMIT,
 	DEFAULT_WRITE_DELAY_MS,
 	ORGANIZATION_ALLOW_ALL,
+	DEFAULT_MODES,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService, BridgeOrchestrator, getRooCodeApiUrl } from "@roo-code/cloud"
@@ -70,6 +72,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
+import { OrganizationAllowListViolationError } from "../../utils/errors"
 
 import { setPanel } from "../../activate/registerCommands"
 
@@ -81,7 +84,7 @@ import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/provi
 import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import { Task, TaskOptions } from "../task/Task"
+import { Task } from "../task/Task"
 import { getSystemPromptFilePath } from "../prompts/sections/custom-system-prompt"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
@@ -264,27 +267,29 @@ export class ClineProvider
 	}
 
 	/**
-	 * Synchronize cloud profiles with local profiles
+	 * Synchronize cloud profiles with local profiles.
 	 */
 	private async syncCloudProfiles() {
 		try {
 			const settings = CloudService.instance.getOrganizationSettings()
+
 			if (!settings?.providerProfiles) {
 				return
 			}
 
 			const currentApiConfigName = this.getGlobalState("currentApiConfigName")
+
 			const result = await this.providerSettingsManager.syncCloudProfiles(
 				settings.providerProfiles,
 				currentApiConfigName,
 			)
 
 			if (result.hasChanges) {
-				// Update list
+				// Update list.
 				await this.updateGlobalState("listApiConfigMeta", await this.providerSettingsManager.listConfig())
 
 				if (result.activeProfileChanged && result.activeProfileId) {
-					// Reload full settings for new active profile
+					// Reload full settings for new active profile.
 					const profile = await this.providerSettingsManager.getProfile({
 						id: result.activeProfileId,
 					})
@@ -374,17 +379,6 @@ export class ClineProvider
 		}
 	}
 
-	// returns the current cline object in the stack (the top one)
-	// if the stack is empty, returns undefined
-	getCurrentTask(): Task | undefined {
-		if (this.clineStack.length === 0) {
-			return undefined
-		}
-
-		return this.clineStack[this.clineStack.length - 1]
-	}
-
-	// returns the current clineStack length (how many cline objects are in the stack)
 	getTaskStackSize(): number {
 		return this.clineStack.length
 	}
@@ -405,58 +399,6 @@ export class ClineProvider
 		// Resume the last cline instance in the stack (if it exists - this is
 		// the 'parent' calling task).
 		await this.getCurrentTask()?.resumePausedTask(lastMessage)
-	}
-
-	resumeTask(taskId: string): void {
-		// Use the existing showTaskWithId method which handles both current and historical tasks
-		this.showTaskWithId(taskId).catch((error) => {
-			this.log(`Failed to resume task ${taskId}: ${error.message}`)
-		})
-	}
-
-	getRecentTasks(): string[] {
-		if (this.recentTasksCache) {
-			return this.recentTasksCache
-		}
-
-		const history = this.getGlobalState("taskHistory") ?? []
-		const workspaceTasks: HistoryItem[] = []
-
-		for (const item of history) {
-			if (!item.ts || !item.task || item.workspace !== this.cwd) {
-				continue
-			}
-
-			workspaceTasks.push(item)
-		}
-
-		if (workspaceTasks.length === 0) {
-			this.recentTasksCache = []
-			return this.recentTasksCache
-		}
-
-		workspaceTasks.sort((a, b) => b.ts - a.ts)
-		let recentTaskIds: string[] = []
-
-		if (workspaceTasks.length >= 100) {
-			// If we have at least 100 tasks, return tasks from the last 7 days.
-			const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-
-			for (const item of workspaceTasks) {
-				// Stop when we hit tasks older than 7 days.
-				if (item.ts < sevenDaysAgo) {
-					break
-				}
-
-				recentTaskIds.push(item.id)
-			}
-		} else {
-			// Otherwise, return the most recent 100 tasks (or all if less than 100).
-			recentTaskIds = workspaceTasks.slice(0, Math.min(100, workspaceTasks.length)).map((item) => item.id)
-		}
-
-		this.recentTasksCache = recentTaskIds
-		return this.recentTasksCache
 	}
 
 	/*
@@ -737,82 +679,17 @@ export class ClineProvider
 		await this.removeClineFromStack()
 	}
 
-	// When initializing a new task, (not from history but from a tool command
-	// new_task) there is no need to remove the previous task since the new
-	// task is a subtask of the previous one, and when it finishes it is removed
-	// from the stack and the caller is resumed in this way we can have a chain
-	// of tasks, each one being a sub task of the previous one until the main
-	// task is finished.
-	public async createTask(
-		text?: string,
-		images?: string[],
-		parentTask?: Task,
-		options: Partial<
-			Pick<
-				TaskOptions,
-				| "enableDiff"
-				| "enableCheckpoints"
-				| "fuzzyMatchThreshold"
-				| "consecutiveMistakeLimit"
-				| "experiments"
-				| "initialTodos"
-			>
-		> = {},
-	) {
-		const {
-			apiConfiguration,
-			organizationAllowList,
-			diffEnabled: enableDiff,
-			enableCheckpoints,
-			fuzzyMatchThreshold,
-			experiments,
-			cloudUserInfo,
-			remoteControlEnabled,
-		} = await this.getState()
-
-		if (!ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList)) {
-			throw new OrganizationAllowListViolationError(t("common:errors.violated_organization_allowlist"))
-		}
-
-		const task = new Task({
-			provider: this,
-			apiConfiguration,
-			enableDiff,
-			enableCheckpoints,
-			fuzzyMatchThreshold,
-			consecutiveMistakeLimit: apiConfiguration.consecutiveMistakeLimit,
-			task: text,
-			images,
-			experiments,
-			rootTask: this.clineStack.length > 0 ? this.clineStack[0] : undefined,
-			parentTask,
-			taskNumber: this.clineStack.length + 1,
-			onCreated: this.taskCreationCallback,
-			enableBridge: BridgeOrchestrator.isEnabled(cloudUserInfo, remoteControlEnabled),
-			initialTodos: options.initialTodos,
-			...options,
-		})
-
-		await this.addClineToStack(task)
-
-		this.log(
-			`[createTask] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
-		)
-
-		return task
-	}
-
 	public async createTaskWithHistoryItem(historyItem: HistoryItem & { rootTask?: Task; parentTask?: Task }) {
 		await this.removeClineFromStack()
 
-		// If the history item has a saved mode, restore it and its associated API configuration
+		// If the history item has a saved mode, restore it and its associated API configuration.
 		if (historyItem.mode) {
 			// Validate that the mode still exists
 			const customModes = await this.customModesManager.getCustomModes()
 			const modeExists = getModeBySlug(historyItem.mode, customModes) !== undefined
 
 			if (!modeExists) {
-				// Mode no longer exists, fall back to default mode
+				// Mode no longer exists, fall back to default mode.
 				this.log(
 					`Mode '${historyItem.mode}' from history no longer exists. Falling back to default mode '${defaultModeSlug}'.`,
 				)
@@ -821,14 +698,14 @@ export class ClineProvider
 
 			await this.updateGlobalState("mode", historyItem.mode)
 
-			// Load the saved API config for the restored mode if it exists
+			// Load the saved API config for the restored mode if it exists.
 			const savedConfigId = await this.providerSettingsManager.getModeConfigId(historyItem.mode)
 			const listApiConfig = await this.providerSettingsManager.listConfig()
 
-			// Update listApiConfigMeta first to ensure UI has latest data
+			// Update listApiConfigMeta first to ensure UI has latest data.
 			await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 
-			// If this mode has a saved config, use it
+			// If this mode has a saved config, use it.
 			if (savedConfigId) {
 				const profile = listApiConfig.find(({ id }) => id === savedConfigId)
 
@@ -836,13 +713,13 @@ export class ClineProvider
 					try {
 						await this.activateProviderProfile({ name: profile.name })
 					} catch (error) {
-						// Log the error but continue with task restoration
+						// Log the error but continue with task restoration.
 						this.log(
 							`Failed to restore API configuration for mode '${historyItem.mode}': ${
 								error instanceof Error ? error.message : String(error)
 							}. Continuing with default configuration.`,
 						)
-						// The task will continue with the current/default configuration
+						// The task will continue with the current/default configuration.
 					}
 				}
 			}
@@ -1081,39 +958,39 @@ export class ClineProvider
 			TelemetryService.instance.captureModeSwitch(cline.taskId, newMode)
 			cline.emit(RooCodeEventName.TaskModeSwitched, cline.taskId, newMode)
 
-			// Store the current mode in case we need to rollback
-			const previousMode = (cline as any)._taskMode
-
 			try {
-				// Update the task history with the new mode first
+				// Update the task history with the new mode first.
 				const history = this.getGlobalState("taskHistory") ?? []
 				const taskHistoryItem = history.find((item) => item.id === cline.taskId)
+
 				if (taskHistoryItem) {
 					taskHistoryItem.mode = newMode
 					await this.updateTaskHistory(taskHistoryItem)
 				}
 
-				// Only update the task's mode after successful persistence
+				// Only update the task's mode after successful persistence.
 				;(cline as any)._taskMode = newMode
 			} catch (error) {
-				// If persistence fails, log the error but don't update the in-memory state
+				// If persistence fails, log the error but don't update the in-memory state.
 				this.log(
 					`Failed to persist mode switch for task ${cline.taskId}: ${error instanceof Error ? error.message : String(error)}`,
 				)
 
-				// Optionally, we could emit an event to notify about the failure
-				// This ensures the in-memory state remains consistent with persisted state
+				// Optionally, we could emit an event to notify about the failure.
+				// This ensures the in-memory state remains consistent with persisted state.
 				throw error
 			}
 		}
 
 		await this.updateGlobalState("mode", newMode)
 
-		// Load the saved API config for the new mode if it exists
+		this.emit(RooCodeEventName.ModeChanged, newMode)
+
+		// Load the saved API config for the new mode if it exists.
 		const savedConfigId = await this.providerSettingsManager.getModeConfigId(newMode)
 		const listApiConfig = await this.providerSettingsManager.listConfig()
 
-		// Update listApiConfigMeta first to ensure UI has latest data
+		// Update listApiConfigMeta first to ensure UI has latest data.
 		await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 
 		// If this mode has a saved config, use it.
@@ -1256,60 +1133,9 @@ export class ClineProvider
 		}
 
 		await this.postStateToWebview()
-	}
 
-	// Task Management
-
-	async cancelTask() {
-		const cline = this.getCurrentTask()
-
-		if (!cline) {
-			return
-		}
-
-		console.log(`[cancelTask] cancelling task ${cline.taskId}.${cline.instanceId}`)
-
-		const { historyItem } = await this.getTaskWithId(cline.taskId)
-		// Preserve parent and root task information for history item.
-		const rootTask = cline.rootTask
-		const parentTask = cline.parentTask
-
-		cline.abortTask()
-
-		await pWaitFor(
-			() =>
-				this.getCurrentTask()! === undefined ||
-				this.getCurrentTask()!.isStreaming === false ||
-				this.getCurrentTask()!.didFinishAbortingStream ||
-				// If only the first chunk is processed, then there's no
-				// need to wait for graceful abort (closes edits, browser,
-				// etc).
-				this.getCurrentTask()!.isWaitingForFirstChunk,
-			{
-				timeout: 3_000,
-			},
-		).catch(() => {
-			console.error("Failed to abort task")
-		})
-
-		if (this.getCurrentTask()) {
-			// 'abandoned' will prevent this Cline instance from affecting
-			// future Cline instances. This may happen if its hanging on a
-			// streaming request.
-			this.getCurrentTask()!.abandoned = true
-		}
-
-		// Clears task again, so we need to abortTask manually above.
-		await this.createTaskWithHistoryItem({ ...historyItem, rootTask, parentTask })
-	}
-
-	// Clear the current task without treating it as a subtask.
-	// This is used when the user cancels a task that is not a subtask.
-	async clearTask() {
-		if (this.clineStack.length > 0) {
-			const task = this.clineStack[this.clineStack.length - 1]
-			console.log(`[clearTask] clearing task ${task.taskId}.${task.instanceId}`)
-			await this.removeClineFromStack()
+		if (providerSettings.apiProvider) {
+			this.emit(RooCodeEventName.ProviderProfileChanged, { name, provider: providerSettings.apiProvider })
 		}
 	}
 
@@ -2146,12 +1972,6 @@ export class ClineProvider
 		await this.contextProxy.setValues(values)
 	}
 
-	// cwd
-
-	get cwd() {
-		return getWorkspacePath()
-	}
-
 	// dev
 
 	async resetState() {
@@ -2262,7 +2082,300 @@ export class ClineProvider
 		}
 	}
 
+	/**
+	 * Gets the CodeIndexManager for the current active workspace
+	 * @returns CodeIndexManager instance for the current workspace or the default one
+	 */
+	public getCurrentWorkspaceCodeIndexManager(): CodeIndexManager | undefined {
+		return CodeIndexManager.getInstance(this.context)
+	}
+
+	/**
+	 * Updates the code index status subscription to listen to the current workspace manager
+	 */
+	private updateCodeIndexStatusSubscription(): void {
+		// Get the current workspace manager
+		const currentManager = this.getCurrentWorkspaceCodeIndexManager()
+
+		// If the manager hasn't changed, no need to update subscription
+		if (currentManager === this.currentWorkspaceManager) {
+			return
+		}
+
+		// Dispose the old subscription if it exists
+		if (this.codeIndexStatusSubscription) {
+			this.codeIndexStatusSubscription.dispose()
+			this.codeIndexStatusSubscription = undefined
+		}
+
+		// Update the current workspace manager reference
+		this.currentWorkspaceManager = currentManager
+
+		// Subscribe to the new manager's progress updates if it exists
+		if (currentManager) {
+			this.codeIndexStatusSubscription = currentManager.onProgressUpdate((update: IndexProgressUpdate) => {
+				// Only send updates if this manager is still the current one
+				if (currentManager === this.getCurrentWorkspaceCodeIndexManager()) {
+					// Get the full status from the manager to ensure we have all fields correctly formatted
+					const fullStatus = currentManager.getCurrentStatus()
+					this.postMessageToWebview({
+						type: "indexingStatusUpdate",
+						values: fullStatus,
+					})
+				}
+			})
+
+			if (this.view) {
+				this.webviewDisposables.push(this.codeIndexStatusSubscription)
+			}
+
+			// Send initial status for the current workspace
+			this.postMessageToWebview({
+				type: "indexingStatusUpdate",
+				values: currentManager.getCurrentStatus(),
+			})
+		}
+	}
+
+	/**
+	 * TaskProviderLike, TelemetryPropertiesProvider
+	 */
+
+	public getCurrentTask(): Task | undefined {
+		if (this.clineStack.length === 0) {
+			return undefined
+		}
+
+		return this.clineStack[this.clineStack.length - 1]
+	}
+
+	public getRecentTasks(): string[] {
+		if (this.recentTasksCache) {
+			return this.recentTasksCache
+		}
+
+		const history = this.getGlobalState("taskHistory") ?? []
+		const workspaceTasks: HistoryItem[] = []
+
+		for (const item of history) {
+			if (!item.ts || !item.task || item.workspace !== this.cwd) {
+				continue
+			}
+
+			workspaceTasks.push(item)
+		}
+
+		if (workspaceTasks.length === 0) {
+			this.recentTasksCache = []
+			return this.recentTasksCache
+		}
+
+		workspaceTasks.sort((a, b) => b.ts - a.ts)
+		let recentTaskIds: string[] = []
+
+		if (workspaceTasks.length >= 100) {
+			// If we have at least 100 tasks, return tasks from the last 7 days.
+			const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+
+			for (const item of workspaceTasks) {
+				// Stop when we hit tasks older than 7 days.
+				if (item.ts < sevenDaysAgo) {
+					break
+				}
+
+				recentTaskIds.push(item.id)
+			}
+		} else {
+			// Otherwise, return the most recent 100 tasks (or all if less than 100).
+			recentTaskIds = workspaceTasks.slice(0, Math.min(100, workspaceTasks.length)).map((item) => item.id)
+		}
+
+		this.recentTasksCache = recentTaskIds
+		return this.recentTasksCache
+	}
+
+	// When initializing a new task, (not from history but from a tool command
+	// new_task) there is no need to remove the previous task since the new
+	// task is a subtask of the previous one, and when it finishes it is removed
+	// from the stack and the caller is resumed in this way we can have a chain
+	// of tasks, each one being a sub task of the previous one until the main
+	// task is finished.
+	public async createTask(
+		text?: string,
+		images?: string[],
+		parentTask?: Task,
+		options: CreateTaskOptions = {},
+		configuration: RooCodeSettings = {},
+	): Promise<Task> {
+		if (configuration) {
+			await this.setValues(configuration)
+
+			if (configuration.allowedCommands) {
+				await vscode.workspace
+					.getConfiguration(Package.name)
+					.update("allowedCommands", configuration.allowedCommands, vscode.ConfigurationTarget.Global)
+			}
+
+			if (configuration.deniedCommands) {
+				await vscode.workspace
+					.getConfiguration(Package.name)
+					.update("deniedCommands", configuration.deniedCommands, vscode.ConfigurationTarget.Global)
+			}
+
+			if (configuration.commandExecutionTimeout !== undefined) {
+				await vscode.workspace
+					.getConfiguration(Package.name)
+					.update(
+						"commandExecutionTimeout",
+						configuration.commandExecutionTimeout,
+						vscode.ConfigurationTarget.Global,
+					)
+			}
+
+			if (configuration.currentApiConfigName) {
+				await this.setProviderProfile(configuration.currentApiConfigName)
+			}
+		}
+
+		const {
+			apiConfiguration,
+			organizationAllowList,
+			diffEnabled: enableDiff,
+			enableCheckpoints,
+			fuzzyMatchThreshold,
+			experiments,
+			cloudUserInfo,
+			remoteControlEnabled,
+		} = await this.getState()
+
+		if (!ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList)) {
+			throw new OrganizationAllowListViolationError(t("common:errors.violated_organization_allowlist"))
+		}
+
+		const task = new Task({
+			provider: this,
+			apiConfiguration,
+			enableDiff,
+			enableCheckpoints,
+			fuzzyMatchThreshold,
+			consecutiveMistakeLimit: apiConfiguration.consecutiveMistakeLimit,
+			task: text,
+			images,
+			experiments,
+			rootTask: this.clineStack.length > 0 ? this.clineStack[0] : undefined,
+			parentTask,
+			taskNumber: this.clineStack.length + 1,
+			onCreated: this.taskCreationCallback,
+			enableBridge: BridgeOrchestrator.isEnabled(cloudUserInfo, remoteControlEnabled),
+			initialTodos: options.initialTodos,
+			...options,
+		})
+
+		await this.addClineToStack(task)
+
+		this.log(
+			`[createTask] ${task.parentTask ? "child" : "parent"} task ${task.taskId}.${task.instanceId} instantiated`,
+		)
+
+		return task
+	}
+
+	public async cancelTask(): Promise<void> {
+		const cline = this.getCurrentTask()
+
+		if (!cline) {
+			return
+		}
+
+		console.log(`[cancelTask] cancelling task ${cline.taskId}.${cline.instanceId}`)
+
+		const { historyItem } = await this.getTaskWithId(cline.taskId)
+		// Preserve parent and root task information for history item.
+		const rootTask = cline.rootTask
+		const parentTask = cline.parentTask
+
+		cline.abortTask()
+
+		await pWaitFor(
+			() =>
+				this.getCurrentTask()! === undefined ||
+				this.getCurrentTask()!.isStreaming === false ||
+				this.getCurrentTask()!.didFinishAbortingStream ||
+				// If only the first chunk is processed, then there's no
+				// need to wait for graceful abort (closes edits, browser,
+				// etc).
+				this.getCurrentTask()!.isWaitingForFirstChunk,
+			{
+				timeout: 3_000,
+			},
+		).catch(() => {
+			console.error("Failed to abort task")
+		})
+
+		if (this.getCurrentTask()) {
+			// 'abandoned' will prevent this Cline instance from affecting
+			// future Cline instances. This may happen if its hanging on a
+			// streaming request.
+			this.getCurrentTask()!.abandoned = true
+		}
+
+		// Clears task again, so we need to abortTask manually above.
+		await this.createTaskWithHistoryItem({ ...historyItem, rootTask, parentTask })
+	}
+
+	// Clear the current task without treating it as a subtask.
+	// This is used when the user cancels a task that is not a subtask.
+	public async clearTask(): Promise<void> {
+		if (this.clineStack.length > 0) {
+			const task = this.clineStack[this.clineStack.length - 1]
+			console.log(`[clearTask] clearing task ${task.taskId}.${task.instanceId}`)
+			await this.removeClineFromStack()
+		}
+	}
+
+	public resumeTask(taskId: string): void {
+		// Use the existing showTaskWithId method which handles both current and
+		// historical tasks.
+		this.showTaskWithId(taskId).catch((error) => {
+			this.log(`Failed to resume task ${taskId}: ${error.message}`)
+		})
+	}
+
+	// Modes
+
+	public async getModes(): Promise<{ slug: string; name: string }[]> {
+		return DEFAULT_MODES.map((mode) => ({ slug: mode.slug, name: mode.name }))
+	}
+
+	public async getMode(): Promise<string> {
+		const { mode } = await this.getState()
+		return mode
+	}
+
+	public async setMode(mode: string): Promise<void> {
+		await this.setValues({ mode })
+	}
+
+	// Provider Profiles
+
+	public async getProviderProfiles(): Promise<{ name: string; provider?: string }[]> {
+		const { listApiConfigMeta } = await this.getState()
+		return listApiConfigMeta.map((profile) => ({ name: profile.name, provider: profile.apiProvider }))
+	}
+
+	public async getProviderProfile(): Promise<string> {
+		const { currentApiConfigName } = await this.getState()
+		return currentApiConfigName
+	}
+
+	public async setProviderProfile(name: string): Promise<void> {
+		await this.activateProviderProfile({ name })
+	}
+
+	// Telemetry
+
 	private _appProperties?: StaticAppProperties
+	private _gitProperties?: GitProperties
 
 	private getAppProperties(): StaticAppProperties {
 		if (!this._appProperties) {
@@ -2329,8 +2442,6 @@ export class ClineProvider
 		}
 	}
 
-	private _gitProperties?: GitProperties
-
 	private async getGitProperties(): Promise<GitProperties> {
 		if (!this._gitProperties) {
 			this._gitProperties = await getWorkspaceGitInfo()
@@ -2352,64 +2463,7 @@ export class ClineProvider
 		}
 	}
 
-	/**
-	 * Gets the CodeIndexManager for the current active workspace
-	 * @returns CodeIndexManager instance for the current workspace or the default one
-	 */
-	public getCurrentWorkspaceCodeIndexManager(): CodeIndexManager | undefined {
-		return CodeIndexManager.getInstance(this.context)
-	}
-
-	/**
-	 * Updates the code index status subscription to listen to the current workspace manager
-	 */
-	private updateCodeIndexStatusSubscription(): void {
-		// Get the current workspace manager
-		const currentManager = this.getCurrentWorkspaceCodeIndexManager()
-
-		// If the manager hasn't changed, no need to update subscription
-		if (currentManager === this.currentWorkspaceManager) {
-			return
-		}
-
-		// Dispose the old subscription if it exists
-		if (this.codeIndexStatusSubscription) {
-			this.codeIndexStatusSubscription.dispose()
-			this.codeIndexStatusSubscription = undefined
-		}
-
-		// Update the current workspace manager reference
-		this.currentWorkspaceManager = currentManager
-
-		// Subscribe to the new manager's progress updates if it exists
-		if (currentManager) {
-			this.codeIndexStatusSubscription = currentManager.onProgressUpdate((update: IndexProgressUpdate) => {
-				// Only send updates if this manager is still the current one
-				if (currentManager === this.getCurrentWorkspaceCodeIndexManager()) {
-					// Get the full status from the manager to ensure we have all fields correctly formatted
-					const fullStatus = currentManager.getCurrentStatus()
-					this.postMessageToWebview({
-						type: "indexingStatusUpdate",
-						values: fullStatus,
-					})
-				}
-			})
-
-			if (this.view) {
-				this.webviewDisposables.push(this.codeIndexStatusSubscription)
-			}
-
-			// Send initial status for the current workspace
-			this.postMessageToWebview({
-				type: "indexingStatusUpdate",
-				values: currentManager.getCurrentStatus(),
-			})
-		}
-	}
-}
-
-class OrganizationAllowListViolationError extends Error {
-	constructor(message: string) {
-		super(message)
+	public get cwd() {
+		return getWorkspacePath()
 	}
 }

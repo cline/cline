@@ -73,7 +73,7 @@ export class TaskChannel extends BaseChannel<
 		super(instanceId)
 	}
 
-	public handleCommand(command: TaskBridgeCommand): void {
+	public async handleCommand(command: TaskBridgeCommand): Promise<void> {
 		const task = this.subscribedTasks.get(command.taskId)
 
 		if (!task) {
@@ -87,7 +87,14 @@ export class TaskChannel extends BaseChannel<
 					`[TaskChannel] ${TaskBridgeCommandName.Message} ${command.taskId} -> submitUserMessage()`,
 					command,
 				)
-				task.submitUserMessage(command.payload.text, command.payload.images)
+
+				await task.submitUserMessage(
+					command.payload.text,
+					command.payload.images,
+					command.payload.mode,
+					command.payload.providerProfile,
+				)
+
 				break
 
 			case TaskBridgeCommandName.ApproveAsk:
@@ -95,6 +102,7 @@ export class TaskChannel extends BaseChannel<
 					`[TaskChannel] ${TaskBridgeCommandName.ApproveAsk} ${command.taskId} -> approveAsk()`,
 					command,
 				)
+
 				task.approveAsk(command.payload)
 				break
 

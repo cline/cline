@@ -11,6 +11,7 @@ import {
 	type ProviderSettings,
 	type ProviderSettingsEntry,
 	type TaskEvent,
+	type CreateTaskOptions,
 	RooCodeEventName,
 	TaskCommandName,
 	isSecretStateKey,
@@ -128,46 +129,22 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			provider = this.sidebarProvider
 		}
 
-		if (configuration) {
-			await provider.setValues(configuration)
-
-			if (configuration.allowedCommands) {
-				await vscode.workspace
-					.getConfiguration(Package.name)
-					.update("allowedCommands", configuration.allowedCommands, vscode.ConfigurationTarget.Global)
-			}
-
-			if (configuration.deniedCommands) {
-				await vscode.workspace
-					.getConfiguration(Package.name)
-					.update("deniedCommands", configuration.deniedCommands, vscode.ConfigurationTarget.Global)
-			}
-
-			if (configuration.commandExecutionTimeout !== undefined) {
-				await vscode.workspace
-					.getConfiguration(Package.name)
-					.update(
-						"commandExecutionTimeout",
-						configuration.commandExecutionTimeout,
-						vscode.ConfigurationTarget.Global,
-					)
-			}
-		}
-
 		await provider.removeClineFromStack()
 		await provider.postStateToWebview()
 		await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		await provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
-		const cline = await provider.createTask(text, images, undefined, {
+		const options: CreateTaskOptions = {
 			consecutiveMistakeLimit: Number.MAX_SAFE_INTEGER,
-		})
+		}
 
-		if (!cline) {
+		const task = await provider.createTask(text, images, undefined, options, configuration)
+
+		if (!task) {
 			throw new Error("Failed to create task due to policy restrictions")
 		}
 
-		return cline.taskId
+		return task.taskId
 	}
 
 	public async resumeTask(taskId: string): Promise<void> {

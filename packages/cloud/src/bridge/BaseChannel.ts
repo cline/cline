@@ -83,7 +83,7 @@ export abstract class BaseChannel<TCommand = unknown, TEventName extends string 
 	/**
 	 * Handle incoming commands - must be implemented by subclasses.
 	 */
-	public abstract handleCommand(command: TCommand): void
+	public abstract handleCommand(command: TCommand): Promise<void>
 
 	/**
 	 * Handle connection-specific logic.

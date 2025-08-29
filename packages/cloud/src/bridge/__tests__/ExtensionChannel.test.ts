@@ -53,6 +53,13 @@ describe("ExtensionChannel", () => {
 			postStateToWebview: vi.fn(),
 			postMessageToWebview: vi.fn(),
 			getTelemetryProperties: vi.fn(),
+			getMode: vi.fn().mockResolvedValue("code"),
+			getModes: vi.fn().mockResolvedValue([
+				{ slug: "code", name: "Code", description: "Code mode" },
+				{ slug: "architect", name: "Architect", description: "Architect mode" },
+			]),
+			getProviderProfile: vi.fn().mockResolvedValue("default"),
+			getProviderProfiles: vi.fn().mockResolvedValue([{ name: "default", description: "Default profile" }]),
 			on: vi.fn((event: keyof TaskProviderEvents, listener: (...args: unknown[]) => unknown) => {
 				if (!eventListeners.has(event)) {
 					eventListeners.set(event, new Set())
@@ -184,6 +191,9 @@ describe("ExtensionChannel", () => {
 			// Connect the socket to enable publishing
 			await extensionChannel.onConnect(mockSocket)
 
+			// Clear the mock calls from the connection (which emits a register event)
+			;(mockSocket.emit as any).mockClear()
+
 			// Get a listener that was registered for TaskStarted
 			const taskStartedListeners = eventListeners.get(RooCodeEventName.TaskStarted)
 			expect(taskStartedListeners).toBeDefined()
@@ -192,7 +202,7 @@ describe("ExtensionChannel", () => {
 			// Trigger the listener
 			const listener = Array.from(taskStartedListeners!)[0]
 			if (listener) {
-				listener("test-task-id")
+				await listener("test-task-id")
 			}
 
 			// Verify the event was published to the socket

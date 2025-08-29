@@ -378,6 +378,10 @@ export const extensionInstanceSchema = z.object({
 	task: extensionTaskSchema,
 	taskAsk: clineMessageSchema.optional(),
 	taskHistory: z.array(z.string()),
+	mode: z.string().optional(),
+	modes: z.array(z.object({ slug: z.string(), name: z.string() })).optional(),
+	providerProfile: z.string().optional(),
+	providerProfiles: z.array(z.object({ name: z.string(), provider: z.string().optional() })).optional(),
 })
 
 export type ExtensionInstance = z.infer<typeof extensionInstanceSchema>
@@ -397,6 +401,9 @@ export enum ExtensionBridgeEventName {
 	TaskInteractive = RooCodeEventName.TaskInteractive,
 	TaskResumable = RooCodeEventName.TaskResumable,
 	TaskIdle = RooCodeEventName.TaskIdle,
+
+	ModeChanged = RooCodeEventName.ModeChanged,
+	ProviderProfileChanged = RooCodeEventName.ProviderProfileChanged,
 
 	InstanceRegistered = "instance_registered",
 	InstanceUnregistered = "instance_unregistered",
@@ -469,6 +476,18 @@ export const extensionBridgeEventSchema = z.discriminatedUnion("type", [
 		instance: extensionInstanceSchema,
 		timestamp: z.number(),
 	}),
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.ModeChanged),
+		instance: extensionInstanceSchema,
+		mode: z.string(),
+		timestamp: z.number(),
+	}),
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.ProviderProfileChanged),
+		instance: extensionInstanceSchema,
+		providerProfile: z.object({ name: z.string(), provider: z.string().optional() }),
+		timestamp: z.number(),
+	}),
 ])
 
 export type ExtensionBridgeEvent = z.infer<typeof extensionBridgeEventSchema>
@@ -490,6 +509,8 @@ export const extensionBridgeCommandSchema = z.discriminatedUnion("type", [
 		payload: z.object({
 			text: z.string(),
 			images: z.array(z.string()).optional(),
+			mode: z.string().optional(),
+			providerProfile: z.string().optional(),
 		}),
 		timestamp: z.number(),
 	}),
@@ -502,9 +523,7 @@ export const extensionBridgeCommandSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal(ExtensionBridgeCommandName.ResumeTask),
 		instanceId: z.string(),
-		payload: z.object({
-			taskId: z.string(),
-		}),
+		payload: z.object({ taskId: z.string() }),
 		timestamp: z.number(),
 	}),
 ])
@@ -558,6 +577,8 @@ export const taskBridgeCommandSchema = z.discriminatedUnion("type", [
 		payload: z.object({
 			text: z.string(),
 			images: z.array(z.string()).optional(),
+			mode: z.string().optional(),
+			providerProfile: z.string().optional(),
 		}),
 		timestamp: z.number(),
 	}),

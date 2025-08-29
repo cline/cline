@@ -414,9 +414,11 @@ export const providerSettingsSchema = z.object({
 export type ProviderSettings = z.infer<typeof providerSettingsSchema>
 
 export const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
+
 export const discriminatedProviderSettingsWithIdSchema = providerSettingsSchemaDiscriminated.and(
 	z.object({ id: z.string().optional() }),
 )
+
 export type ProviderSettingsWithId = z.infer<typeof providerSettingsWithIdSchema>
 
 export const PROVIDER_SETTINGS_KEYS = providerSettingsSchema.keyof().options
@@ -454,7 +456,7 @@ export const getApiProtocol = (provider: ProviderName | undefined, modelId?: str
 		return "anthropic"
 	}
 
-	// Vercel AI Gateway uses anthropic protocol for anthropic models
+	// Vercel AI Gateway uses anthropic protocol for anthropic models.
 	if (provider && provider === "vercel-ai-gateway" && modelId && modelId.toLowerCase().startsWith("anthropic/")) {
 		return "anthropic"
 	}

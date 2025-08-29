@@ -36,6 +36,10 @@ export enum RooCodeEventName {
 	TaskTokenUsageUpdated = "taskTokenUsageUpdated",
 	TaskToolFailed = "taskToolFailed",
 
+	// Configuration Changes
+	ModeChanged = "modeChanged",
+	ProviderProfileChanged = "providerProfileChanged",
+
 	// Evals
 	EvalPass = "evalPass",
 	EvalFail = "evalFail",
@@ -81,6 +85,9 @@ export const rooCodeEventsSchema = z.object({
 
 	[RooCodeEventName.TaskToolFailed]: z.tuple([z.string(), toolNamesSchema, z.string()]),
 	[RooCodeEventName.TaskTokenUsageUpdated]: z.tuple([z.string(), tokenUsageSchema]),
+
+	[RooCodeEventName.ModeChanged]: z.tuple([z.string()]),
+	[RooCodeEventName.ProviderProfileChanged]: z.tuple([z.object({ name: z.string(), provider: z.string() })]),
 })
 
 export type RooCodeEvents = z.infer<typeof rooCodeEventsSchema>

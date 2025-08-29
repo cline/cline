@@ -10,6 +10,7 @@ import pWaitFor from "p-wait-for"
 import { serializeError } from "serialize-error"
 
 import {
+	type RooCodeSettings,
 	type TaskLike,
 	type TaskMetadata,
 	type TaskEvents,
@@ -23,6 +24,7 @@ import {
 	type ClineAsk,
 	type ToolProgressStatus,
 	type HistoryItem,
+	type CreateTaskOptions,
 	RooCodeEventName,
 	TelemetryEventName,
 	TaskStatus,
@@ -110,7 +112,7 @@ const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
 
-export type TaskOptions = {
+export interface TaskOptions extends CreateTaskOptions {
 	provider: ClineProvider
 	apiConfiguration: ProviderSettings
 	enableDiff?: boolean
@@ -845,7 +847,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.handleWebviewAskResponse("noButtonClicked", text, images)
 	}
 
-	public submitUserMessage(text: string, images?: string[]): void {
+	public async submitUserMessage(
+		text: string,
+		images?: string[],
+		mode?: string,
+		providerProfile?: string,
+	): Promise<void> {
 		try {
 			text = (text ?? "").trim()
 			images = images ?? []
@@ -857,6 +864,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			const provider = this.providerRef.deref()
 
 			if (provider) {
+				if (mode) {
+					await provider.setMode(mode)
+				}
+
+				if (providerProfile) {
+					await provider.setProviderProfile(providerProfile)
+				}
+
 				provider.postMessageToWebview({ type: "invoke", invoke: "sendMessage", text, images })
 			} else {
 				console.error("[Task#submitUserMessage] Provider reference lost")

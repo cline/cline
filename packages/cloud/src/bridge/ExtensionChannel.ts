@@ -53,10 +53,7 @@ export class ExtensionChannel extends BaseChannel<
 		this.setupListeners()
 	}
 
-	/**
-	 * Handle extension-specific commands from the web app
-	 */
-	public handleCommand(command: ExtensionBridgeCommand): void {
+	public async handleCommand(command: ExtensionBridgeCommand): Promise<void> {
 		if (command.instanceId !== this.instanceId) {
 			console.log(`[ExtensionChannel] command -> instance id mismatch | ${this.instanceId}`, {
 				messageInstanceId: command.instanceId,
@@ -69,13 +66,22 @@ export class ExtensionChannel extends BaseChannel<
 				console.log(`[ExtensionChannel] command -> createTask() | ${command.instanceId}`, {
 					text: command.payload.text?.substring(0, 100) + "...",
 					hasImages: !!command.payload.images,
+					mode: command.payload.mode,
+					providerProfile: command.payload.providerProfile,
 				})
 
-				this.provider.createTask(command.payload.text, command.payload.images)
+				this.provider.createTask(
+					command.payload.text,
+					command.payload.images,
+					undefined, // parentTask
+					undefined, // options
+					{ mode: command.payload.mode, currentApiConfigName: command.payload.providerProfile },
+				)
+
 				break
 			}
 			case ExtensionBridgeCommandName.StopTask: {
-				const instance = this.updateInstance()
+				const instance = await this.updateInstance()
 
 				if (instance.task.taskStatus === TaskStatus.Running) {
 					console.log(`[ExtensionChannel] command -> cancelTask() | ${command.instanceId}`)
@@ -86,6 +92,7 @@ export class ExtensionChannel extends BaseChannel<
 					this.provider.clearTask()
 					this.provider.postStateToWebview()
 				}
+
 				break
 			}
 			case ExtensionBridgeCommandName.ResumeTask: {
@@ -93,7 +100,6 @@ export class ExtensionChannel extends BaseChannel<
 					taskId: command.payload.taskId,
 				})
 
-				// Resume the task from history by taskId
 				this.provider.resumeTask(command.payload.taskId)
 				this.provider.postStateToWebview()
 				break
@@ -122,12 +128,12 @@ export class ExtensionChannel extends BaseChannel<
 	}
 
 	private async registerInstance(_socket: Socket): Promise<void> {
-		const instance = this.updateInstance()
+		const instance = await this.updateInstance()
 		await this.publish(ExtensionSocketEvents.REGISTER, instance)
 	}
 
 	private async unregisterInstance(_socket: Socket): Promise<void> {
-		const instance = this.updateInstance()
+		const instance = await this.updateInstance()
 		await this.publish(ExtensionSocketEvents.UNREGISTER, instance)
 	}
 
@@ -135,7 +141,7 @@ export class ExtensionChannel extends BaseChannel<
 		this.stopHeartbeat()
 
 		this.heartbeatInterval = setInterval(async () => {
-			const instance = this.updateInstance()
+			const instance = await this.updateInstance()
 
 			try {
 				socket.emit(ExtensionSocketEvents.HEARTBEAT, instance)
@@ -172,11 +178,11 @@ export class ExtensionChannel extends BaseChannel<
 		] as const
 
 		eventMapping.forEach(({ from, to }) => {
-			// Create and store the listener function for cleanup/
-			const listener = (..._args: unknown[]) => {
+			// Create and store the listener function for cleanup.
+			const listener = async (..._args: unknown[]) => {
 				this.publish(ExtensionSocketEvents.EVENT, {
 					type: to,
-					instance: this.updateInstance(),
+					instance: await this.updateInstance(),
 					timestamp: Date.now(),
 				})
 			}
@@ -195,9 +201,15 @@ export class ExtensionChannel extends BaseChannel<
 		this.eventListeners.clear()
 	}
 
-	private updateInstance(): ExtensionInstance {
+	private async updateInstance(): Promise<ExtensionInstance> {
 		const task = this.provider?.getCurrentTask()
 		const taskHistory = this.provider?.getRecentTasks() ?? []
+
+		const mode = await this.provider?.getMode()
+		const modes = (await this.provider?.getModes()) ?? []
+
+		const providerProfile = await this.provider?.getProviderProfile()
+		const providerProfiles = (await this.provider?.getProviderProfiles()) ?? []
 
 		this.extensionInstance = {
 			...this.extensionInstance,
@@ -213,6 +225,10 @@ export class ExtensionChannel extends BaseChannel<
 				: { taskId: "", taskStatus: TaskStatus.None },
 			taskAsk: task?.taskAsk,
 			taskHistory,
+			mode,
+			providerProfile,
+			modes,
+			providerProfiles,
 		}
 
 		return this.extensionInstance

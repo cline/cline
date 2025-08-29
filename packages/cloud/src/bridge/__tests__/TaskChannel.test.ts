@@ -333,7 +333,12 @@ describe("TaskChannel", () => {
 
 			taskChannel.handleCommand(command)
 
-			expect(mockTask.submitUserMessage).toHaveBeenCalledWith(command.payload.text, command.payload.images)
+			expect(mockTask.submitUserMessage).toHaveBeenCalledWith(
+				command.payload.text,
+				command.payload.images,
+				undefined,
+				undefined,
+			)
 		})
 
 		it("should handle ApproveAsk command", () => {

@@ -1,38 +1,48 @@
 import { z } from "zod"
 
 import { RooCodeEventName } from "./events.js"
-import { type ClineMessage, type TokenUsage } from "./message.js"
-import { type ToolUsage, type ToolName } from "./tool.js"
+import type { RooCodeSettings } from "./global-settings.js"
+import type { ClineMessage, TokenUsage } from "./message.js"
+import type { ToolUsage, ToolName } from "./tool.js"
 import type { StaticAppProperties, GitProperties, TelemetryProperties } from "./telemetry.js"
+import type { TodoItem } from "./todo.js"
 
 /**
  * TaskProviderLike
  */
 
-export interface TaskProviderState {
-	mode?: string
-}
-
 export interface TaskProviderLike {
-	readonly cwd: string
-	readonly appProperties: StaticAppProperties
-	readonly gitProperties: GitProperties | undefined
-
+	// Tasks
 	getCurrentTask(): TaskLike | undefined
-	getCurrentTaskStack(): string[]
 	getRecentTasks(): string[]
-
-	createTask(text?: string, images?: string[], parentTask?: TaskLike): Promise<TaskLike>
+	createTask(
+		text?: string,
+		images?: string[],
+		parentTask?: TaskLike,
+		options?: CreateTaskOptions,
+		configuration?: RooCodeSettings,
+	): Promise<TaskLike>
 	cancelTask(): Promise<void>
 	clearTask(): Promise<void>
 	resumeTask(taskId: string): void
 
-	getState(): Promise<TaskProviderState>
-	postStateToWebview(): Promise<void>
-	postMessageToWebview(message: unknown): Promise<void>
+	// Modes
+	getModes(): Promise<{ slug: string; name: string }[]>
+	getMode(): Promise<string>
+	setMode(mode: string): Promise<void>
 
+	// Provider Profiles
+	getProviderProfiles(): Promise<{ name: string; provider?: string }[]>
+	getProviderProfile(): Promise<string>
+	setProviderProfile(providerProfile: string): Promise<void>
+
+	// Telemetry
+	readonly appProperties: StaticAppProperties
+	readonly gitProperties: GitProperties | undefined
 	getTelemetryProperties(): Promise<TelemetryProperties>
+	readonly cwd: string
 
+	// Event Emitter
 	on<K extends keyof TaskProviderEvents>(
 		event: K,
 		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
@@ -42,6 +52,9 @@ export interface TaskProviderLike {
 		event: K,
 		listener: (...args: TaskProviderEvents[K]) => void | Promise<void>,
 	): this
+
+	// @TODO: Find a better way to do this.
+	postStateToWebview(): Promise<void>
 }
 
 export type TaskProviderEvents = {
@@ -57,14 +70,23 @@ export type TaskProviderEvents = {
 	[RooCodeEventName.TaskInteractive]: [taskId: string]
 	[RooCodeEventName.TaskResumable]: [taskId: string]
 	[RooCodeEventName.TaskIdle]: [taskId: string]
-
-	// Subtask Lifecycle
 	[RooCodeEventName.TaskSpawned]: [taskId: string]
+	[RooCodeEventName.ModeChanged]: [mode: string]
+	[RooCodeEventName.ProviderProfileChanged]: [config: { name: string; provider?: string }]
 }
 
 /**
  * TaskLike
  */
+
+export interface CreateTaskOptions {
+	enableDiff?: boolean
+	enableCheckpoints?: boolean
+	fuzzyMatchThreshold?: number
+	consecutiveMistakeLimit?: number
+	experiments?: Record<string, boolean>
+	initialTodos?: TodoItem[]
+}
 
 export enum TaskStatus {
 	Running = "running",
@@ -94,7 +116,7 @@ export interface TaskLike {
 
 	approveAsk(options?: { text?: string; images?: string[] }): void
 	denyAsk(options?: { text?: string; images?: string[] }): void
-	submitUserMessage(text: string, images?: string[]): void
+	submitUserMessage(text: string, images?: string[], mode?: string, providerProfile?: string): Promise<void>
 	abortTask(): void
 }
 
