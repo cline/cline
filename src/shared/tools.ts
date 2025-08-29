@@ -66,6 +66,7 @@ export const toolParamNames = [
 	"args",
 	"todos",
 	"prompt",
+	"image",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -167,7 +168,7 @@ export interface SearchAndReplaceToolUse extends ToolUse {
 
 export interface GenerateImageToolUse extends ToolUse {
 	name: "generate_image"
-	params: Partial<Pick<Record<ToolParamName, string>, "prompt" | "path">>
+	params: Partial<Pick<Record<ToolParamName, string>, "prompt" | "path" | "image">>
 }
 
 // Define tool group configuration

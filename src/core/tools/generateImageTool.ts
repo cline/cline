@@ -24,6 +24,7 @@ export async function generateImageTool(
 ) {
 	const prompt: string | undefined = block.params.prompt
 	const relPath: string | undefined = block.params.path
+	const inputImagePath: string | undefined = block.params.image
 
 	// Check if the experiment is enabled
 	const provider = cline.providerRef.deref()
@@ -39,8 +40,7 @@ export async function generateImageTool(
 		return
 	}
 
-	if (block.partial && (!prompt || !relPath)) {
-		// Wait for complete parameters
+	if (block.partial) {
 		return
 	}
 
@@ -64,6 +64,66 @@ export async function generateImageTool(
 		await cline.say("rooignore_error", relPath)
 		pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
 		return
+	}
+
+	// If input image is provided, validate it exists and can be read
+	let inputImageData: string | undefined
+	if (inputImagePath) {
+		const inputImageFullPath = path.resolve(cline.cwd, inputImagePath)
+
+		// Check if input image exists
+		const inputImageExists = await fileExistsAtPath(inputImageFullPath)
+		if (!inputImageExists) {
+			await cline.say("error", `Input image not found: ${getReadablePath(cline.cwd, inputImagePath)}`)
+			pushToolResult(
+				formatResponse.toolError(`Input image not found: ${getReadablePath(cline.cwd, inputImagePath)}`),
+			)
+			return
+		}
+
+		// Validate input image access permissions
+		const inputImageAccessAllowed = cline.rooIgnoreController?.validateAccess(inputImagePath)
+		if (!inputImageAccessAllowed) {
+			await cline.say("rooignore_error", inputImagePath)
+			pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(inputImagePath)))
+			return
+		}
+
+		// Read the input image file
+		try {
+			const imageBuffer = await fs.readFile(inputImageFullPath)
+			const imageExtension = path.extname(inputImageFullPath).toLowerCase().replace(".", "")
+
+			// Validate image format
+			const supportedFormats = ["png", "jpg", "jpeg", "gif", "webp"]
+			if (!supportedFormats.includes(imageExtension)) {
+				await cline.say(
+					"error",
+					`Unsupported image format: ${imageExtension}. Supported formats: ${supportedFormats.join(", ")}`,
+				)
+				pushToolResult(
+					formatResponse.toolError(
+						`Unsupported image format: ${imageExtension}. Supported formats: ${supportedFormats.join(", ")}`,
+					),
+				)
+				return
+			}
+
+			// Convert to base64 data URL
+			const mimeType = imageExtension === "jpg" ? "jpeg" : imageExtension
+			inputImageData = `data:image/${mimeType};base64,${imageBuffer.toString("base64")}`
+		} catch (error) {
+			await cline.say(
+				"error",
+				`Failed to read input image: ${error instanceof Error ? error.message : "Unknown error"}`,
+			)
+			pushToolResult(
+				formatResponse.toolError(
+					`Failed to read input image: ${error instanceof Error ? error.message : "Unknown error"}`,
+				),
+			)
+			return
+		}
 	}
 
 	// Check if file is write-protected
@@ -110,6 +170,7 @@ export async function generateImageTool(
 			const approvalMessage = JSON.stringify({
 				...sharedMessageProps,
 				content: prompt,
+				...(inputImagePath && { inputImage: getReadablePath(cline.cwd, inputImagePath) }),
 			})
 
 			const didApprove = await askApproval("tool", approvalMessage, undefined, isWriteProtected)
@@ -121,8 +182,13 @@ export async function generateImageTool(
 			// Create a temporary OpenRouter handler with minimal options
 			const openRouterHandler = new OpenRouterHandler({} as any)
 
-			// Call the generateImage method with the explicit API key
-			const result = await openRouterHandler.generateImage(prompt, selectedModel, openRouterApiKey)
+			// Call the generateImage method with the explicit API key and optional input image
+			const result = await openRouterHandler.generateImage(
+				prompt,
+				selectedModel,
+				openRouterApiKey,
+				inputImageData,
+			)
 
 			if (!result.success) {
 				await cline.say("error", result.error || "Failed to generate image")

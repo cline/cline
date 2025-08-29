@@ -275,9 +275,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 	 * @param prompt The text prompt for image generation
 	 * @param model The model to use for generation
 	 * @param apiKey The OpenRouter API key (must be explicitly provided)
+	 * @param inputImage Optional base64 encoded input image data URL
 	 * @returns The generated image data and format, or an error
 	 */
-	async generateImage(prompt: string, model: string, apiKey: string): Promise<ImageGenerationResult> {
+	async generateImage(
+		prompt: string,
+		model: string,
+		apiKey: string,
+		inputImage?: string,
+	): Promise<ImageGenerationResult> {
 		if (!apiKey) {
 			return {
 				success: false,
@@ -299,7 +305,20 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 					messages: [
 						{
 							role: "user",
-							content: prompt,
+							content: inputImage
+								? [
+										{
+											type: "text",
+											text: prompt,
+										},
+										{
+											type: "image_url",
+											image_url: {
+												url: inputImage,
+											},
+										},
+									]
+								: prompt,
 						},
 					],
 					modalities: ["image", "text"],
