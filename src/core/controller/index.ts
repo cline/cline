@@ -28,6 +28,7 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
+import { GrpcRecorder } from "./grpc-recorder"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 
@@ -57,6 +58,14 @@ export class Controller {
 		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
 		this.authService = AuthService.getInstance(this)
+
+		// Initialize gRPC recorder for this session
+		try {
+			GrpcRecorder.getInstance(context)
+			console.log("gRPC recorder initialized for session")
+		} catch (error) {
+			console.error("Failed to initialize gRPC recorder:", error)
+		}
 
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.stateManager

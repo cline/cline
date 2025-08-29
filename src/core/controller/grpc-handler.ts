@@ -1,6 +1,7 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import { GrpcRecorder } from "./grpc-recorder"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
@@ -41,28 +42,58 @@ async function handleUnaryRequest(
 	request: GrpcRequest,
 ): Promise<void> {
 	try {
+		// Record the incoming request
+		try {
+			const recorder = GrpcRecorder.getInstance(controller.context)
+			recorder.recordRequest(request)
+		} catch (error) {
+			console.warn("Failed to record gRPC request:", error)
+		}
+
 		// Get the service handler from the config
 		const handler = getHandler(request.service, request.method)
 		// Handle unary request
 		const response = await handler(controller, request.message)
+
+		const grpcResponse = {
+			message: response,
+			request_id: request.request_id,
+		}
+
+		// Record the response
+		try {
+			const recorder = GrpcRecorder.getInstance()
+			recorder.recordResponse(request.request_id, grpcResponse)
+		} catch (error) {
+			console.warn("Failed to record gRPC response:", error)
+		}
+
 		// Send response to the webview
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: {
-				message: response,
-				request_id: request.request_id,
-			},
+			grpc_response: grpcResponse,
 		})
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
+
+		const errorResponse = {
+			error: error instanceof Error ? error.message : String(error),
+			request_id: request.request_id,
+			is_streaming: false,
+		}
+
+		// Record the error
+		// try {
+		// 	const recorder = GrpcRecorder.getInstance()
+		// 	recorder.recordResponse(request.request_id, errorResponse)
+		// } catch (recordError) {
+		// 	console.warn("Failed to record gRPC error:", recordError)
+		// }
+
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: {
-				error: error instanceof Error ? error.message : String(error),
-				request_id: request.request_id,
-				is_streaming: false,
-			},
+			grpc_response: errorResponse,
 		})
 	}
 }
@@ -84,14 +115,24 @@ async function handleStreamingRequest(
 		isLast: boolean = false,
 		sequenceNumber?: number,
 	) => {
+		const grpcResponse = {
+			message: response,
+			request_id: request.request_id,
+			is_streaming: !isLast,
+			sequence_number: sequenceNumber,
+		}
+
+		// // Record the streaming response
+		// try {
+		// 	const recorder = GrpcRecorder.getInstance()
+		// 	recorder.recordResponse(request.request_id, grpcResponse)
+		// } catch (error) {
+		// 	console.warn("Failed to record gRPC streaming response:", error)
+		// }
+
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: {
-				message: response,
-				request_id: request.request_id,
-				is_streaming: !isLast,
-				sequence_number: sequenceNumber,
-			},
+			grpc_response: grpcResponse,
 		})
 	}
 
@@ -107,13 +148,24 @@ async function handleStreamingRequest(
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
+
+		const errorResponse = {
+			error: error instanceof Error ? error.message : String(error),
+			request_id: request.request_id,
+			is_streaming: false,
+		}
+
+		// Record the streaming error
+		try {
+			const recorder = GrpcRecorder.getInstance()
+			recorder.recordResponse(request.request_id, errorResponse)
+		} catch (recordError) {
+			console.warn("Failed to record gRPC streaming error:", recordError)
+		}
+
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: {
-				error: error instanceof Error ? error.message : String(error),
-				request_id: request.request_id,
-				is_streaming: false,
-			},
+			grpc_response: errorResponse,
 		})
 	}
 }

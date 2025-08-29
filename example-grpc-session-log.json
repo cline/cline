@@ -1,0 +1,95 @@
+{
+	"sessionId": "abc123def456ghi789",
+	"startTime": "2025-01-29T14:30:00.000Z",
+	"extensionVersion": "1.0.0",
+	"vscodeVersion": "1.85.0",
+	"platform": "darwin",
+	"entries": [
+		{
+			"timestamp": "2025-01-29T14:30:15.123Z",
+			"sessionId": "abc123def456ghi789",
+			"requestId": "req_001",
+			"service": "UiService",
+			"method": "scrollToSettings",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"value": "browser"
+				}
+			},
+			"response": {
+				"message": {
+					"key": "scrollToSettings",
+					"value": "browser"
+				}
+			},
+			"duration": 45,
+			"status": "completed"
+		},
+		{
+			"timestamp": "2025-01-29T14:30:20.456Z",
+			"sessionId": "abc123def456ghi789",
+			"requestId": "req_002",
+			"service": "TaskService",
+			"method": "createTask",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"task": "Create a simple todo app",
+					"images": [],
+					"files": []
+				}
+			},
+			"response": {
+				"message": {
+					"taskId": "task_12345",
+					"success": true
+				}
+			},
+			"duration": 120,
+			"status": "completed"
+		},
+		{
+			"timestamp": "2025-01-29T14:30:25.789Z",
+			"sessionId": "abc123def456ghi789",
+			"requestId": "req_003",
+			"service": "StateService",
+			"method": "subscribeToState",
+			"isStreaming": true,
+			"request": {
+				"message": {
+					"clientId": "client_001"
+				}
+			},
+			"response": {
+				"message": {
+					"state": {
+						"version": "1.0.0",
+						"currentTaskItem": null,
+						"clineMessages": []
+					}
+				},
+				"isStreaming": true,
+				"sequenceNumber": 1
+			},
+			"duration": 15,
+			"status": "completed"
+		},
+		{
+			"timestamp": "2025-01-29T14:30:30.012Z",
+			"sessionId": "abc123def456ghi789",
+			"requestId": "req_004",
+			"service": "McpService",
+			"method": "getMcpServers",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"response": {
+				"error": "MCP servers not initialized"
+			},
+			"duration": 25,
+			"status": "error"
+		}
+	]
+}
