@@ -4,9 +4,11 @@ import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
+import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class BrowserToolHandler implements IFullyManagedTool {
 	readonly name = "browser_action"
@@ -59,11 +61,6 @@ export class BrowserToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const action: BrowserAction | undefined = block.params.action as BrowserAction
 		const url: string | undefined = block.params.url
 		const coordinate: string | undefined = block.params.coordinate
@@ -75,7 +72,6 @@ export class BrowserToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveMistakeCount++
 			const errorResult = await config.callbacks.sayAndCreateMissingParamError("browser_action", "action")
 			await config.services.browserSession.closeBrowser()
-			await config.callbacks.saveCheckpoint()
 			return errorResult
 		}
 
@@ -88,7 +84,6 @@ export class BrowserToolHandler implements IFullyManagedTool {
 					config.taskState.consecutiveMistakeCount++
 					const errorResult = await config.callbacks.sayAndCreateMissingParamError("browser_action", "url")
 					await config.services.browserSession.closeBrowser()
-					await config.callbacks.saveCheckpoint()
 					return errorResult
 				}
 				config.taskState.consecutiveMistakeCount = 0
@@ -96,21 +91,20 @@ export class BrowserToolHandler implements IFullyManagedTool {
 				// Handle approval flow for launch using callbacks
 				const autoApprover = config.autoApprover || { shouldAutoApproveTool: () => false }
 				if (autoApprover.shouldAutoApproveTool(block.name)) {
+					await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 					await config.callbacks.say("browser_action_launch", url, undefined, undefined, false)
 					config.taskState.consecutiveAutoApprovedRequestsCount++
 				} else {
 					// Show notification for approval if auto approval enabled
-					const { showNotificationForApprovalIfAutoApprovalEnabled } = require("../../utils")
 					showNotificationForApprovalIfAutoApprovalEnabled(
 						`Cline wants to use a browser and launch ${url}`,
 						config.autoApprovalSettings.enabled,
 						config.autoApprovalSettings.enableNotifications,
 					)
-
-					const { response } = await config.callbacks.ask("browser_action_launch", url, false)
-					if (response !== "yesButtonClicked") {
-						await config.callbacks.saveCheckpoint()
-						return formatResponse.toolResult("The user rejected this browser action.")
+					await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
+					const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("browser_action_launch", url, config)
+					if (!didApprove) {
+						return formatResponse.toolDenied()
 					}
 				}
 
@@ -136,7 +130,6 @@ export class BrowserToolHandler implements IFullyManagedTool {
 						config.taskState.consecutiveMistakeCount++
 						const errorResult = await config.callbacks.sayAndCreateMissingParamError("browser_action", "coordinate")
 						await config.services.browserSession.closeBrowser()
-						await config.callbacks.saveCheckpoint()
 						return errorResult
 					}
 				}
@@ -145,7 +138,6 @@ export class BrowserToolHandler implements IFullyManagedTool {
 						config.taskState.consecutiveMistakeCount++
 						const errorResult = await config.callbacks.sayAndCreateMissingParamError("browser_action", "text")
 						await config.services.browserSession.closeBrowser()
-						await config.callbacks.saveCheckpoint()
 						return errorResult
 					}
 				}
@@ -200,14 +192,12 @@ export class BrowserToolHandler implements IFullyManagedTool {
 						browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 					)
 
-					await config.callbacks.saveCheckpoint()
 					return result
 
 				case "close":
 					const closeResult = formatResponse.toolResult(
 						`The browser has been closed. You may now proceed to using other tools.`,
 					)
-					await config.callbacks.saveCheckpoint()
 					return closeResult
 			}
 		} catch (error) {

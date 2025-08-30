@@ -8,6 +8,7 @@ import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WebFetchToolHandler implements IFullyManagedTool {
 	name = "web_fetch"
@@ -35,11 +36,6 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const url: string | undefined = block.params.url
 
@@ -77,12 +73,13 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-				const { response } = await config.callbacks.ask("tool", completeMessage, false)
-				if (response !== "yesButtonClicked") {
-					telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, false)
-					return "The user denied this operation."
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+				if (!didApprove) {
+					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					return formatResponse.toolDenied()
+				} else {
+					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 				}
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, true)
 			}
 
 			// Execute the actual fetch

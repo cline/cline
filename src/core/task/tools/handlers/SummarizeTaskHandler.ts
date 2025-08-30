@@ -19,11 +19,6 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const context: string | undefined = block.params.context
 

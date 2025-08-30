@@ -20,11 +20,6 @@ export class LoadMcpDocumentationHandler implements IToolHandler, IPartialBlockH
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet (though this tool shouldn't have partial blocks)
-		if (block.partial) {
-			return ""
-		}
-
 		// Show loading message at start of execution (self-managed now)
 		await config.callbacks.say("load_mcp_documentation", "", undefined, undefined, false)
 

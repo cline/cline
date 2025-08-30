@@ -305,6 +305,7 @@ export class ToolExecutor {
 
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
+			await this.saveCheckpoint()
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
@@ -351,10 +352,8 @@ export class ToolExecutor {
 	 * Handle complete block execution
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		// All tools are now fully self-managed and implement IPartialBlockHandler
 		const result = await this.coordinator.execute(config, block)
 
-		await this.saveCheckpoint()
 		this.pushToolResult(result, block)
 
 		// Handle focus chain updates
