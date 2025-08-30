@@ -7,7 +7,6 @@ import { ClineRulesToggles } from "@/shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@/shared/FocusChainSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
@@ -203,8 +202,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 	const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
 	const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
-
-	const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
 	const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
 	const customPrompt = context.globalState.get("customPrompt") as GlobalState["customPrompt"]
 
@@ -436,7 +433,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 		defaultTerminalProfile: defaultTerminalProfile ?? "default",
 		globalWorkflowToggles: globalWorkflowToggles || {},
-		mcpMarketplaceCatalog,
 		qwenCodeOauthPath,
 		customPrompt,
 	}

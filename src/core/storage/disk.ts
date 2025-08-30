@@ -23,6 +23,7 @@ export const GlobalFileNames = {
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
+	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 }
 
 export async function getDocumentsPath(): Promise<string> {
