@@ -32,11 +32,6 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const question: string | undefined = block.params.question
 			const optionsRaw: string | undefined = block.params.options

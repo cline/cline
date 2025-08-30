@@ -7,6 +7,7 @@ import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AccessMcpResourceHandler implements IFullyManagedTool {
 	readonly name = "access_mcp_resource"
@@ -47,11 +48,6 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const server_name: string | undefined = block.params.server_name
 		const uri: string | undefined = block.params.uri
 
@@ -101,14 +97,10 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("use_mcp_server", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_mcp_server", completeMessage, config)
+			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+				return formatResponse.toolDenied()
 			} else {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}

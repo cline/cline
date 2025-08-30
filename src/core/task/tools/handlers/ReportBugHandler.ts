@@ -34,11 +34,6 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const title = block.params.title
 		const what_happened = block.params.what_happened
 		const steps_to_reproduce = block.params.steps_to_reproduce

@@ -10,6 +10,7 @@ import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "attempt_completion"
@@ -47,11 +48,6 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const result: string | undefined = block.params.result
 		const command: string | undefined = block.params.command
 
@@ -107,10 +103,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			}
 
 			// complete command message - need to ask for approval
-			const { response } = await config.callbacks.ask("command", command, false)
-			if (response !== "yesButtonClicked") {
-				// User rejected the command
-				return "The user denied the command execution."
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+			if (!didApprove) {
+				return formatResponse.toolDenied()
 			}
 
 			// User approved, execute the command
@@ -135,7 +130,6 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
-		await config.callbacks.saveCheckpoint()
 
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {
