@@ -133,7 +133,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								aria-label="New rule file"
+								aria-label={ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
 								onClick={(e) => {
 									e.stopPropagation()
 									setIsExpanded(true)
