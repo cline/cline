@@ -4,6 +4,7 @@ import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
 import { telemetryService } from "@/services/telemetry"
+import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -27,26 +28,19 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const relPath = block.params.path
 		const regex = block.params.regex
 
-		// Early return if we don't have enough data yet
-		if (!relPath || !regex) {
-			return
-		}
-
-		// Get config access for services
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
 		const filePattern = block.params.file_pattern
-		const searchDescription = `'${regex}'${filePattern ? ` in '${filePattern}'` : ""}`
 
 		const sharedMessageProps = {
 			tool: "searchFiles",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: `Searching for ${searchDescription}`,
+			content: "",
 			regex: uiHelpers.removeClosingTag(block, "regex", regex),
-			filePattern: filePattern ? uiHelpers.removeClosingTag(block, "file_pattern", filePattern) : undefined,
+			filePattern: uiHelpers.removeClosingTag(block, "file_pattern", filePattern),
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
+		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -79,17 +73,22 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 		const absolutePath = path.resolve(config.cwd, relDirPath!)
-
-		// Handle approval flow
-		const searchDescription = `'${regex}'${filePattern ? ` in '${filePattern}'` : ""}`
+		// Execute the actual regex search operation
+		const results = await regexSearchFiles(
+			config.cwd,
+			absolutePath,
+			regex,
+			filePattern,
+			config.services.clineIgnoreController,
+		)
 		const sharedMessageProps = {
 			tool: "searchFiles",
 			path: getReadablePath(config.cwd, relDirPath!),
-			content: `Searching for ${searchDescription}`,
+			content: results,
 			regex: regex,
 			filePattern: filePattern,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
-		}
+		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
@@ -122,15 +121,6 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
-
-		// Execute the actual regex search operation
-		const results = await regexSearchFiles(
-			config.cwd,
-			absolutePath,
-			regex,
-			filePattern,
-			config.services.clineIgnoreController,
-		)
 
 		return results
 	}

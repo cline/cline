@@ -4,6 +4,7 @@ import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
+import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -72,7 +73,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			path: getReadablePath(config.cwd, relPath!),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
-		}
+		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 

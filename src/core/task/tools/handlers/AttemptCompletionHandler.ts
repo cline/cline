@@ -29,21 +29,15 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		const result = block.params.result
 		const command = block.params.command
 
-		if (command) {
-			// the attempt_completion text is done, now we're getting command
-			// Original had complex logic here but most was commented out
-			// For now, we'll keep it simple and not stream command (matching original's disabled approach)
-			// But we can still stream result if we have it
-			if (result) {
-				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
-				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
-			}
-		} else {
-			// no command, still outputting partial result - MATCH ORIGINAL EXACTLY
-			if (result) {
-				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
-				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
-			}
+		if (!command) {
+			// no command, still outputting partial result
+			await uiHelpers.say(
+				"completion_result",
+				uiHelpers.removeClosingTag(block, "result", result),
+				undefined,
+				undefined,
+				block.partial,
+			)
 		}
 	}
 
@@ -54,7 +48,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Validate required parameters
 		if (!result) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: result"
+			return await config.callbacks.sayAndCreateMissingParamError("attempt_completion", "result")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
