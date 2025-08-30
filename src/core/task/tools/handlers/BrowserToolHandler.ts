@@ -112,15 +112,8 @@ export class BrowserToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("browser_action_result", "")
 
 				// Re-make browserSession to make sure latest settings apply
-				const browserSession = config.services.browserSession
-				if (config.context) {
-					await browserSession.dispose()
-					const apiHandlerModel = config.api.getModel()
-					const useWebp = config.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-					config.services.browserSession = new BrowserSession(config.context, config.browserSettings, useWebp)
-				} else {
-					console.warn("no controller context available for browserSession")
-				}
+				// This updates the ToolExecutor browserSession and returns it, for us to modify the local config object accordingly. (Previously we would set config.services.browserSession = new BrowserSession... but this would not update the ToolExecutor.browserSession which is used in subsequent browser tool calls)
+				config.services.browserSession = await config.callbacks.applyLatestBrowserSettings()
 				await config.services.browserSession.launchBrowser()
 				browserActionResult = await config.services.browserSession.navigateToUrl(url)
 			} else {

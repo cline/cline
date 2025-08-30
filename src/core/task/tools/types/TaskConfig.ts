@@ -104,6 +104,8 @@ export interface TaskCallbacks {
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
 	updateTaskHistory: (update: any) => Promise<any[]>
+
+	applyLatestBrowserSettings: () => Promise<BrowserSession>
 }
 
 /**

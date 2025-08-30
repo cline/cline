@@ -12,6 +12,7 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Mode } from "@shared/storage/types"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse, ToolUseName } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -119,6 +120,7 @@ export class ToolExecutor {
 	}
 
 	// Create a properly typed TaskConfig object for handlers
+	// NOTE: modifying this object in the tool handlers is okay since these are all references to the singular ToolExecutor instance's variables. However, be careful modifying this object assuming it will update the ToolExecutor instance, e.g. config.browserSession = ... will not update the ToolExecutor.browserSession instance variable. Use applyLatestBrowserSettings() instead.
 	private asToolConfig(): TaskConfig {
 		const config: TaskConfig = {
 			taskId: this.taskId,
@@ -158,6 +160,7 @@ export class ToolExecutor {
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
 				removeLastPartialMessageIfExistsWithType: this.removeLastPartialMessageIfExistsWithType,
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
+				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 			},
 			coordinator: this.coordinator,
 		}
@@ -220,6 +223,22 @@ export class ToolExecutor {
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
 		await this.execute(block)
+	}
+
+	/**
+	 * Updates the browser settings
+	 */
+	public async applyLatestBrowserSettings() {
+		if (this.context) {
+			await this.browserSession.dispose()
+			const apiHandlerModel = this.api.getModel()
+			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
+		} else {
+			console.warn("no controller context available for browserSession")
+		}
+
+		return this.browserSession
 	}
 
 	/**
