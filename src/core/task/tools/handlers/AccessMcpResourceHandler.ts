@@ -1,6 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { ClineAsk } from "@shared/ExtensionMessage"
+import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
@@ -22,21 +22,16 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 		const server_name = block.params.server_name
 		const uri = block.params.uri
 
-		// Early return if we don't have enough data yet
-		if (!server_name || !uri) {
-			return
-		}
-
 		const partialMessage = JSON.stringify({
 			type: "access_mcp_resource",
 			serverName: uiHelpers.removeClosingTag(block, "server_name", server_name),
 			toolName: undefined,
 			uri: uiHelpers.removeClosingTag(block, "uri", uri),
 			arguments: undefined,
-		})
+		} satisfies ClineAskUseMcpServer)
 
 		// Check if tool should be auto-approved (access_mcp_resource uses general auto-approval)
-		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool("access_mcp_resource")
+		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool(block.name)
 
 		if (shouldAutoApprove) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
@@ -71,10 +66,9 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 			toolName: undefined,
 			uri: uri,
 			arguments: undefined,
-		})
+		} satisfies ClineAskUseMcpServer)
 
-		// access_mcp_resource uses general auto-approval
-		const shouldAutoApprove = config.autoApprovalSettings.actions.useMcp
+		const shouldAutoApprove = config.callbacks.shouldAutoApproveTool(block.name)
 
 		if (shouldAutoApprove) {
 			// Auto-approval flow
@@ -106,32 +100,27 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 			}
 		}
 
-		// Show MCP request started message
 		await config.callbacks.say("mcp_server_request_started")
 
-		try {
-			// Execute the MCP resource access
-			const resourceResult = await config.services.mcpHub.readResource(server_name, uri)
+		// Execute the MCP resource access
+		const resourceResult = await config.services.mcpHub.readResource(server_name, uri)
 
-			// Process the resource result
-			const resourceResultPretty =
-				resourceResult?.contents
-					.map((item: any) => {
-						if (item.text) {
-							return item.text
-						}
-						return ""
-					})
-					.filter(Boolean)
-					.join("\n\n") || "(Empty response)"
+		// Process the resource result
+		const resourceResultPretty =
+			resourceResult?.contents
+				.map((item: any) => {
+					if (item.text) {
+						return item.text
+					}
+					return ""
+				})
+				.filter(Boolean)
+				.join("\n\n") || "(Empty response)"
 
-			// Display result to user
-			await config.callbacks.say("mcp_server_response", resourceResultPretty)
+		// Display result to user
+		await config.callbacks.say("mcp_server_response", resourceResultPretty)
 
-			// Return formatted result
-			return formatResponse.toolResult(resourceResultPretty)
-		} catch (error) {
-			return `Error accessing MCP resource: ${(error as Error)?.message}`
-		}
+		// Return formatted result
+		return formatResponse.toolResult(resourceResultPretty)
 	}
 }

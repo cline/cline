@@ -24,22 +24,16 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const relPath = block.params.path
 
-		// Early return if we don't have enough data yet
-		if (!relPath) {
-			return
-		}
-
 		// Get config access for services
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
 		const recursiveRaw = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
 		const sharedMessageProps = {
 			tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: absolutePath,
+			content: "",
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 		}
 
@@ -70,11 +64,16 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 		const absolutePath = path.resolve(config.cwd, relDirPath!)
 
+		// Execute the actual list files operation
+		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+
+		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
+
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
 			path: getReadablePath(config.cwd, relDirPath!),
-			content: absolutePath,
+			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}
 
@@ -109,11 +108,6 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
-
-		// Execute the actual list files operation
-		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-
-		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
 
 		return result
 	}

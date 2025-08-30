@@ -30,7 +30,7 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 		// Validate required parameters
 		if (!context) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: context"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "context")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

@@ -24,20 +24,13 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const relPath = block.params.path
 
-		// Early return if we don't have enough data yet
-		if (!relPath) {
-			return
-		}
-
-		// Get config access for services
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: absolutePath,
+			content: "",
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 		}
 
@@ -65,12 +58,14 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		// Execute the actual parse source code operation
+		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
 			path: getReadablePath(config.cwd, relDirPath!),
-			content: absolutePath,
+			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}
 
@@ -105,9 +100,6 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
-
-		// Execute the actual parse source code operation
-		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		return result
 	}

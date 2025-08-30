@@ -195,10 +195,7 @@ export class BrowserToolHandler implements IFullyManagedTool {
 			}
 		} catch (error) {
 			await config.services.browserSession.closeBrowser() // if any error occurs, the browser session is terminated
-			return `Error executing browser action: ${(error as Error).message}`
+			throw error
 		}
-
-		// This should never be reached, but TypeScript requires a return
-		return ""
 	}
 }
