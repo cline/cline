@@ -11,6 +11,8 @@ import { ApiStream } from "../transform/stream"
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const _DEFAULT_CACHE_TTL_SECONDS = 900
 
+const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
+
 interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
 	vertexProjectId?: string
@@ -225,31 +227,40 @@ export class GeminiHandler implements ApiHandler {
 			if (error instanceof Error) {
 				apiError = error.message
 
-				if (error instanceof ApiError && error.status === 429) {
-					// The API includes more details in the message
-					// https://github.com/googleapis/js-genai/blob/v1.11.0/src/_api_client.ts#L758
-					const response = this.attemptParse(error.message)
+				if (error instanceof ApiError) {
+					if (error.status === 429) {
+						// The API includes more details in the message
+						// https://github.com/googleapis/js-genai/blob/v1.11.0/src/_api_client.ts#L758
+						const response = this.attemptParse(error.message)
 
-					if (response && response.error) {
-						const responseBody = this.attemptParse(response.error.message)
+						if (response && response.error) {
+							const responseBody = this.attemptParse(response.error.message)
 
-						if (responseBody.error) {
-							const detail = responseBody.error.details?.find(
-								(d: any) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo",
-							)
+							if (responseBody.error) {
+								const detail = responseBody.error.details?.find(
+									(d: any) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo",
+								)
 
-							const detailedError = new RetriableError(
-								apiError,
-								this.parseRetryDelay(detail?.retryDelay) || undefined,
-								{
-									cause: error,
-								},
-							)
-							throw detailedError
+								const detailedError = new RetriableError(
+									apiError,
+									this.parseRetryDelay(detail?.retryDelay) || undefined,
+									{
+										cause: error,
+									},
+								)
+								throw detailedError
+							}
 						}
+
+						throw new RetriableError(apiError, undefined, { cause: error })
 					}
 
-					throw new RetriableError(apiError, undefined, { cause: error })
+					// Fallback in case Gemini throws a rate limit error without a 429 status code
+					// https://github.com/cline/cline/pull/5205#discussion_r2311761559
+					const isRateLimit = rateLimitPatterns.some((pattern) => pattern.test(error.message))
+					if (isRateLimit) {
+						throw new RetriableError(apiError, undefined, { cause: error })
+					}
 				}
 			} else {
 				apiError = String(error)
