@@ -2,12 +2,12 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
@@ -78,7 +78,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
 		} else {
-			const absolutePath = path.resolve(config.cwd, relPath)
+			const absolutePath = resolveWorkspacePath(config.cwd, relPath, "WriteToFileToolHandler.handlePartialBlock")
 			fileExists = await fileExistsAtPath(absolutePath)
 			config.services.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}
@@ -234,7 +234,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Check if file exists
-		const absolutePath = path.resolve(config.cwd, relPath)
+		const absolutePath = resolveWorkspacePath(config.cwd, relPath, "WriteToFileToolHandler.execute")
 		let fileExists: boolean
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
@@ -266,7 +266,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			await setTimeoutPromise(3_500)
 		} else {
 			// Manual approval flow with detailed feedback handling
-			const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`
+			const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFileToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(

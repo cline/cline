@@ -1,8 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { listFiles } from "@services/glob/list-files"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
@@ -32,7 +32,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
+		const absolutePath = resolveWorkspacePath(config.cwd, relPath, "ListFilesToolHandler.handlePartialBlock")
 		const recursiveRaw = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
 		const sharedMessageProps = {
@@ -72,7 +72,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListFilesToolHandler.execute")
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -94,7 +94,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to view directory ${path.basename(absolutePath)}/`
+			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(

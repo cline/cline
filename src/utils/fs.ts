@@ -1,3 +1,4 @@
+import { workspaceResolver } from "@core/workspace"
 import fs from "fs/promises"
 import * as path from "path"
 
@@ -116,7 +117,16 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
 			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
 			.then((entries) => entries.filter((entry) => entry.isFile()))
-			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+			.then((files) =>
+				files.map((file) => {
+					const resolvedPath = workspaceResolver.resolveWorkspacePath(
+						file.parentPath,
+						file.name,
+						"Utils.fs.readDirectory",
+					)
+					return typeof resolvedPath === "string" ? resolvedPath : resolvedPath.absolutePath
+				}),
+			)
 			.then((filePaths) =>
 				filePaths.filter((filePath) => {
 					if (excludedPaths.length === 0) {
