@@ -1,7 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { findLast, parsePartialArrayString } from "@shared/array"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
