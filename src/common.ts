@@ -13,7 +13,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { errorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
-import { getMachineId, setDistinctId } from "./services/logging/distinctId"
+import { initializeDistinctId } from "./services/logging/distinctId"
 import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { telemetryService } from "./services/telemetry"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -26,7 +26,7 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
 	// Set the distinct ID for logging and telemetry
-	setDistinctId(await getMachineId())
+	await initializeDistinctId(context)
 
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance()

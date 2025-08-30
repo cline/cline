@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
+import { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { EmptyRequest } from "@/shared/proto/cline/common"
 import { Logger } from "./Logger"
@@ -12,10 +13,17 @@ const _anonymousId = uuidv4()
 let _machineId = ""
 let _distinctId = ""
 
+export async function initializeDistinctId(context: ExtensionContext) {
+	// NOTE: Backward compatibility in case where cline.distinctId was set in older versions
+	const existingId = context.globalState.get<string>("cline.distinctId")
+	const machineId = await getMachineId()
+	setDistinctId(existingId || machineId)
+}
+
 /*
  * Host-provided UUID when running via HostBridge; fall back to VS Code's machineId
  */
-export async function getMachineId() {
+async function getMachineId() {
 	try {
 		const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
 		_machineId = response.value
