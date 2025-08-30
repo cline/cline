@@ -8,7 +8,6 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { getReadablePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
-import { safeWriteJson } from "../../utils/safeWriteJson"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
 
 // Hardcoded list of image generation models for now
@@ -237,12 +236,18 @@ export async function generateImageTool(
 
 			cline.didEditFile = true
 
-			// Display the generated image in the chat using a text message with the image
-			await cline.say("text", getReadablePath(cline.cwd, finalPath), [result.imageData])
-
 			// Record successful tool usage
 			cline.recordToolUsage("generate_image")
 
+			// Get the webview URI for the image
+			const provider = cline.providerRef.deref()
+			const fullImagePath = path.join(cline.cwd, finalPath)
+
+			// Convert to webview URI if provider is available
+			const imageUri = provider?.convertToWebviewUri?.(fullImagePath) ?? vscode.Uri.file(fullImagePath).toString()
+
+			// Send the image with the webview URI
+			await cline.say("image", JSON.stringify({ imageUri, imagePath: fullImagePath }))
 			pushToolResult(formatResponse.toolResult(getReadablePath(cline.cwd, finalPath)))
 
 			return

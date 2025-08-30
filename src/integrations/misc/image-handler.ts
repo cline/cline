@@ -4,8 +4,46 @@ import * as vscode from "vscode"
 import { getWorkspacePath } from "../../utils/path"
 import { t } from "../../i18n"
 
-export async function openImage(dataUri: string, options?: { values?: { action?: string } }) {
-	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
+export async function openImage(dataUriOrPath: string, options?: { values?: { action?: string } }) {
+	// Check if it's a file path (absolute or relative)
+	const isFilePath =
+		!dataUriOrPath.startsWith("data:") &&
+		!dataUriOrPath.startsWith("http:") &&
+		!dataUriOrPath.startsWith("https:") &&
+		!dataUriOrPath.startsWith("vscode-resource:") &&
+		!dataUriOrPath.startsWith("file+.vscode-resource")
+
+	if (isFilePath) {
+		// Handle file path - open directly in VSCode
+		try {
+			// Resolve the path relative to workspace if needed
+			let filePath = dataUriOrPath
+			if (!path.isAbsolute(filePath)) {
+				const workspacePath = getWorkspacePath()
+				if (workspacePath) {
+					filePath = path.join(workspacePath, filePath)
+				}
+			}
+
+			const fileUri = vscode.Uri.file(filePath)
+
+			// Check if this is a copy action
+			if (options?.values?.action === "copy") {
+				await vscode.env.clipboard.writeText(filePath)
+				vscode.window.showInformationMessage(t("common:info.path_copied_to_clipboard"))
+				return
+			}
+
+			// Open the image file directly
+			await vscode.commands.executeCommand("vscode.open", fileUri)
+		} catch (error) {
+			vscode.window.showErrorMessage(t("common:errors.error_opening_image", { error }))
+		}
+		return
+	}
+
+	// Handle data URI (existing logic)
+	const matches = dataUriOrPath.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
 	if (!matches) {
 		vscode.window.showErrorMessage(t("common:errors.invalid_data_uri"))
 		return

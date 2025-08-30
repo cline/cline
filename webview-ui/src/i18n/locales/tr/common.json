@@ -51,7 +51,8 @@
 	"image": {
 		"tabs": {
 			"view": "Resim"
-		}
+		},
+		"noData": "Resim verisi yok"
 	},
 	"file": {
 		"errors": {

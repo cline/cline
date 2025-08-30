@@ -51,7 +51,8 @@
 	"image": {
 		"tabs": {
 			"view": "Bild"
-		}
+		},
+		"noData": "Keine Bilddaten"
 	},
 	"file": {
 		"errors": {

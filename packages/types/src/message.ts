@@ -146,6 +146,7 @@ export const clineSays = [
 	"api_req_retry_delayed",
 	"api_req_deleted",
 	"text",
+	"image",
 	"reasoning",
 	"completion_result",
 	"user_feedback",
