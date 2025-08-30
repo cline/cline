@@ -1,5 +1,34 @@
 # Changelog
 
+## [3.26.7]
+
+- Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers
+
+## [3.26.6]
+
+- Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option
+- Fix GPT-5 models not respecting auto-compact setting when enabled, improving context window management
+- Fix provider retry attempts not showing proper user feedback during rate limiting scenarios
+- Improve markdown and code block styling to automatically adapt when switching VS Code themes
+
+## [3.26.5]
+
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
+
+## [3.26.4]
+
+- Update nebius ai studio models
+- Update sap provider - support reasoning effort for open ai models
+- Fix Claude 4 image input in SAP AI Core Provider
+
+## [3.26.3]
+
+- Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
+- Add token usage tracking for LM Studio models to better monitor API consumption
+- Add "Use compact prompt" checkbox in LM Studio provider settings
+- Fix "Unexpected API Response" bug with gpt-5
+
 ## [3.26.2]
 
 - Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models

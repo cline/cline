@@ -1,5 +1,5 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
 
 /**
@@ -15,7 +15,7 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 		}
 
 		const modelId = request.value
-		const apiConfiguration = controller.cacheService.getApiConfiguration()
+		const apiConfiguration = controller.stateManager.getApiConfiguration()
 
 		const favoritedModelIds = apiConfiguration.favoritedModelIds || []
 
@@ -29,7 +29,7 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 			...apiConfiguration,
 			favoritedModelIds: updatedFavorites,
 		}
-		controller.cacheService.setApiConfiguration(updatedApiConfiguration)
+		controller.stateManager.setApiConfiguration(updatedApiConfiguration)
 
 		// Capture telemetry for model favorite toggle
 		const isFavorited = !favoritedModelIds.includes(modelId)

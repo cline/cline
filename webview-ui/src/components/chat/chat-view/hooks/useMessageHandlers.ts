@@ -134,8 +134,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								responseType: "yesButtonClicked",
 							}),
 						)
-						clearInputState()
 					}
+					clearInputState()
 					break
 
 				case "reject":

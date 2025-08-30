@@ -6,14 +6,16 @@ import {
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
-import { EmptyRequest } from "./shared/proto/cline/common"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { telemetryService } from "./services/posthog/PostHogClientProvider"
+import { errorService } from "./services/error"
+import { featureFlagsService } from "./services/feature-flags"
+import { initializeDistinctId } from "./services/logging/distinctId"
+import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/telemetry"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
@@ -23,18 +25,11 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  * @returns The webview provider
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+	// Set the distinct ID for logging and telemetry
+	await initializeDistinctId(context)
+
 	// Initialize PostHog client provider
-	let distinctId = context.globalState.get<string>("cline.distinctId")
-	if (!distinctId) {
-		try {
-			const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
-			distinctId = response.value
-		} catch (e) {
-			Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
-			// PostHogProvider will fall back to uuid
-		}
-	}
-	PostHogClientProvider.getInstance(distinctId)
+	PostHogClientProvider.getInstance()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -75,7 +70,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 				const message = previousVersion
 					? `Cline has been updated to v${currentVersion}`
 					: `Welcome to Cline v${currentVersion}`
-				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await HostProvider.workspace.openClineSidebarPanel({})
 				await new Promise((resolve) => setTimeout(resolve, 200))
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
@@ -96,7 +91,9 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  */
 export async function tearDown(): Promise<void> {
 	PostHogClientProvider.getInstance().dispose()
-
+	telemetryService.dispose()
+	errorService.dispose()
+	featureFlagsService.dispose()
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
 }
