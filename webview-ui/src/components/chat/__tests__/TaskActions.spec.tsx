@@ -42,12 +42,12 @@ vi.mock("react-i18next", () => ({
 				"chat:task.connectToCloud": "Connect to Cloud",
 				"chat:task.connectToCloudDescription": "Sign in to Roo Code Cloud to share tasks",
 				"chat:task.sharingDisabledByOrganization": "Sharing disabled by organization",
-				"account:cloudBenefitsTitle": "Connect to Roo Code Cloud",
-				"account:cloudBenefitsSubtitle": "Sign in to Roo Code Cloud to share tasks",
-				"account:cloudBenefitHistory": "Access your task history from anywhere",
-				"account:cloudBenefitSharing": "Share tasks with your team",
-				"account:cloudBenefitMetrics": "Track usage and costs",
-				"account:connect": "Connect",
+				"cloud:cloudBenefitsTitle": "Connect to Roo Code Cloud",
+				"cloud:cloudBenefitsSubtitle": "Sign in to Roo Code Cloud to share tasks",
+				"cloud:cloudBenefitHistory": "Access your task history from anywhere",
+				"cloud:cloudBenefitSharing": "Share tasks with your team",
+				"cloud:cloudBenefitMetrics": "Track usage and costs",
+				"cloud:connect": "Connect",
 			}
 			return translations[key] || key
 		},
@@ -260,7 +260,7 @@ describe("TaskActions", () => {
 			// Verify popover is not open initially
 			expect(screen.queryByText("Share with Organization")).not.toBeInTheDocument()
 
-			// Simulate user becoming authenticated (e.g., from AccountView)
+			// Simulate user becoming authenticated (e.g., from CloudView)
 			mockUseExtensionState.mockReturnValue({
 				sharingEnabled: true,
 				cloudIsAuthenticated: true,

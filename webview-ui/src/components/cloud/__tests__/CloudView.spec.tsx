@@ -1,26 +1,26 @@
 import { render, screen } from "@/utils/test-utils"
 
-import { AccountView } from "../AccountView"
+import { CloudView } from "../CloudView"
 
 // Mock the translation context
 vi.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => {
 			const translations: Record<string, string> = {
-				"account:title": "Account",
+				"cloud:title": "Cloud",
 				"settings:common.done": "Done",
-				"account:signIn": "Connect to Roo Code Cloud",
-				"account:cloudBenefitsTitle": "Connect to Roo Code Cloud",
-				"account:cloudBenefitSharing": "Share tasks with others",
-				"account:cloudBenefitHistory": "Access your task history",
-				"account:cloudBenefitMetrics": "Get a holistic view of your token consumption",
-				"account:logOut": "Log out",
-				"account:connect": "Connect Now",
-				"account:visitCloudWebsite": "Visit Roo Code Cloud",
-				"account:remoteControl": "Roomote Control",
-				"account:remoteControlDescription":
+				"cloud:signIn": "Connect to Roo Code Cloud",
+				"cloud:cloudBenefitsTitle": "Connect to Roo Code Cloud",
+				"cloud:cloudBenefitSharing": "Share tasks with others",
+				"cloud:cloudBenefitHistory": "Access your task history",
+				"cloud:cloudBenefitMetrics": "Get a holistic view of your token consumption",
+				"cloud:logOut": "Log out",
+				"cloud:connect": "Connect Now",
+				"cloud:visitCloudWebsite": "Visit Roo Code Cloud",
+				"cloud:remoteControl": "Roomote Control",
+				"cloud:remoteControlDescription":
 					"Enable following and interacting with tasks in this workspace with Roo Code Cloud",
-				"account:profilePicture": "Profile picture",
+				"cloud:profilePicture": "Profile picture",
 			}
 			return translations[key] || key
 		},
@@ -55,10 +55,10 @@ Object.defineProperty(window, "IMAGES_BASE_URI", {
 	writable: true,
 })
 
-describe("AccountView", () => {
+describe("CloudView", () => {
 	it("should display benefits when user is not authenticated", () => {
 		render(
-			<AccountView
+			<CloudView
 				userInfo={null}
 				isAuthenticated={false}
 				cloudApiUrl="https://app.roocode.com"
@@ -83,7 +83,7 @@ describe("AccountView", () => {
 		}
 
 		render(
-			<AccountView
+			<CloudView
 				userInfo={mockUserInfo}
 				isAuthenticated={true}
 				cloudApiUrl="https://app.roocode.com"
@@ -112,7 +112,7 @@ describe("AccountView", () => {
 		}
 
 		render(
-			<AccountView
+			<CloudView
 				userInfo={mockUserInfo}
 				isAuthenticated={true}
 				cloudApiUrl="https://app.roocode.com"
@@ -136,7 +136,7 @@ describe("AccountView", () => {
 		}
 
 		render(
-			<AccountView
+			<CloudView
 				userInfo={mockUserInfo}
 				isAuthenticated={true}
 				cloudApiUrl="https://app.roocode.com"

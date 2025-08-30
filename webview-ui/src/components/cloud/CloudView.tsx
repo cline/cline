@@ -11,14 +11,14 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch"
 
 import { History, PiggyBank, SquareArrowOutUpRightIcon } from "lucide-react"
 
-type AccountViewProps = {
+type CloudViewProps = {
 	userInfo: CloudUserInfo | null
 	isAuthenticated: boolean
 	cloudApiUrl?: string
 	onDone: () => void
 }
 
-export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: AccountViewProps) => {
+export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: CloudViewProps) => {
 	const { t } = useAppTranslation()
 	const { remoteControlEnabled, setRemoteControlEnabled } = useExtensionState()
 	const wasAuthenticatedRef = useRef(false)
@@ -31,25 +31,30 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 			wasAuthenticatedRef.current = true
 		} else if (wasAuthenticatedRef.current && !isAuthenticated) {
 			// User just logged out successfully
+			// NOTE: Telemetry events use ACCOUNT_* naming for continuity with existing analytics
+			// and to maintain historical data consistency, even though the UI now uses "Cloud" terminology
 			telemetryClient.capture(TelemetryEventName.ACCOUNT_LOGOUT_SUCCESS)
 			wasAuthenticatedRef.current = false
 		}
 	}, [isAuthenticated])
 
 	const handleConnectClick = () => {
-		// Send telemetry for account connect action
+		// Send telemetry for cloud connect action
+		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
 		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
 		vscode.postMessage({ type: "rooCloudSignIn" })
 	}
 
 	const handleLogoutClick = () => {
-		// Send telemetry for account logout action
+		// Send telemetry for cloud logout action
+		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
 		telemetryClient.capture(TelemetryEventName.ACCOUNT_LOGOUT_CLICKED)
 		vscode.postMessage({ type: "rooCloudSignOut" })
 	}
 
 	const handleVisitCloudWebsite = () => {
 		// Send telemetry for cloud website visit
+		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
 		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
 		const cloudUrl = cloudApiUrl || "https://app.roocode.com"
 		vscode.postMessage({ type: "openExternal", url: cloudUrl })
@@ -64,7 +69,7 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 	return (
 		<div className="flex flex-col h-full">
 			<div className="flex justify-between items-center mb-6">
-				<h1 className="text-xl font-medium text-vscode-foreground">{t("account:title")}</h1>
+				<h1 className="text-xl font-medium text-vscode-foreground">{t("cloud:title")}</h1>
 				<VSCodeButton appearance="secondary" onClick={onDone}>
 					{t("settings:common.done")}
 				</VSCodeButton>
@@ -77,7 +82,7 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 								{userInfo?.picture ? (
 									<img
 										src={userInfo.picture}
-										alt={t("account:profilePicture")}
+										alt={t("cloud:profilePicture")}
 										className="w-full h-full object-cover"
 									/>
 								) : (
@@ -114,13 +119,13 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 									checked={remoteControlEnabled}
 									onChange={handleRemoteControlToggle}
 									size="medium"
-									aria-label={t("account:remoteControl")}
+									aria-label={t("cloud:remoteControl")}
 									data-testid="remote-control-toggle"
 								/>
-								<span className="font-medium text-vscode-foreground">{t("account:remoteControl")}</span>
+								<span className="font-medium text-vscode-foreground">{t("cloud:remoteControl")}</span>
 							</div>
 							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
-								{t("account:remoteControlDescription")}
+								{t("cloud:remoteControlDescription")}
 							</div>
 							<hr className="border-vscode-widget-border mb-4" />
 						</div>
@@ -128,10 +133,10 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 
 					<div className="flex flex-col gap-2 mt-4">
 						<VSCodeButton appearance="secondary" onClick={handleVisitCloudWebsite} className="w-full">
-							{t("account:visitCloudWebsite")}
+							{t("cloud:visitCloudWebsite")}
 						</VSCodeButton>
 						<VSCodeButton appearance="secondary" onClick={handleLogoutClick} className="w-full">
-							{t("account:logOut")}
+							{t("cloud:logOut")}
 						</VSCodeButton>
 					</div>
 				</>
@@ -156,27 +161,27 @@ export const AccountView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: 
 
 					<div className="flex flex-col mb-6 text-center">
 						<h2 className="text-xl font-bold text-vscode-foreground mb-2">
-							{t("account:cloudBenefitsTitle")}
+							{t("cloud:cloudBenefitsTitle")}
 						</h2>
 						<ul className="text-vscode-descriptionForeground space-y-3 mx-auto px-8">
 							<li className="flex items-start text-left gap-4">
 								<SquareArrowOutUpRightIcon size="16" className="shrink-0" />
-								{t("account:cloudBenefitSharing")}
+								{t("cloud:cloudBenefitSharing")}
 							</li>
 							<li className="flex items-start text-left gap-4">
 								<History size="16" className="shrink-0" />
-								{t("account:cloudBenefitHistory")}
+								{t("cloud:cloudBenefitHistory")}
 							</li>
 							<li className="flex items-start text-left gap-4">
 								<PiggyBank size="16" className="shrink-0" />
-								{t("account:cloudBenefitMetrics")}
+								{t("cloud:cloudBenefitMetrics")}
 							</li>
 						</ul>
 					</div>
 
 					<div className="flex flex-col items-center gap-4">
 						<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-1/2">
-							{t("account:connect")}
+							{t("cloud:connect")}
 						</VSCodeButton>
 					</div>
 				</>

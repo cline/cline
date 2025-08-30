@@ -245,34 +245,34 @@ export const ShareButton = ({ item, disabled = false, showLabel = false }: Share
 				<DialogContent className="max-w-sm">
 					<DialogHeader className="text-center">
 						<DialogTitle className="text-lg font-medium text-vscode-foreground">
-							{t("account:cloudBenefitsTitle")}
+							{t("cloud:cloudBenefitsTitle")}
 						</DialogTitle>
 					</DialogHeader>
 
 					<div className="flex flex-col space-y-6">
 						<div>
 							<p className="text-md text-vscode-descriptionForeground mb-4">
-								{t("account:cloudBenefitsSubtitle")}
+								{t("cloud:cloudBenefitsSubtitle")}
 							</p>
 							<ul className="text-sm text-vscode-descriptionForeground space-y-2">
 								<li className="flex items-start">
 									<span className="mr-2 text-vscode-foreground">•</span>
-									{t("account:cloudBenefitSharing")}
+									{t("cloud:cloudBenefitSharing")}
 								</li>
 								<li className="flex items-start">
 									<span className="mr-2 text-vscode-foreground">•</span>
-									{t("account:cloudBenefitHistory")}
+									{t("cloud:cloudBenefitHistory")}
 								</li>
 								<li className="flex items-start">
 									<span className="mr-2 text-vscode-foreground">•</span>
-									{t("account:cloudBenefitMetrics")}
+									{t("cloud:cloudBenefitMetrics")}
 								</li>
 							</ul>
 						</div>
 
 						<div className="flex flex-col gap-4">
 							<Button onClick={handleConnectToCloud} className="w-full">
-								{t("account:connect")}
+								{t("cloud:connect")}
 							</Button>
 						</div>
 					</div>

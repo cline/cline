@@ -2028,9 +2028,9 @@ export const webviewMessageHandler = async (
 			await provider.postStateToWebview()
 			break
 		}
-		case "accountButtonClicked": {
-			// Navigate to the account tab.
-			provider.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
+		case "cloudButtonClicked": {
+			// Navigate to the cloud tab.
+			provider.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
 			break
 		}
 		case "rooCloudSignIn": {

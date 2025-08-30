@@ -101,9 +101,9 @@
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "roo-cline.accountButtonClicked",
-				"title": "%command.account.title%",
-				"icon": "$(account)"
+				"command": "roo-cline.cloudButtonClicked",
+				"title": "%command.cloud.title%",
+				"icon": "$(cloud)"
 			},
 			{
 				"command": "roo-cline.settingsButtonClicked",
@@ -234,7 +234,7 @@
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.accountButtonClicked",
+					"command": "roo-cline.cloudButtonClicked",
 					"group": "navigation@4",
 					"when": "view == roo-cline.SidebarProvider"
 				},
@@ -276,7 +276,7 @@
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.accountButtonClicked",
+					"command": "roo-cline.cloudButtonClicked",
 					"group": "navigation@4",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
