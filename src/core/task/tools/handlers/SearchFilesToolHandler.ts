@@ -2,13 +2,16 @@ import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
+import { formatResponse } from "@/core/prompts/responses"
 import { telemetryService } from "@/services/telemetry"
+import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class SearchFilesToolHandler implements IFullyManagedTool {
 	readonly name = "search_files"
@@ -25,26 +28,19 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const relPath = block.params.path
 		const regex = block.params.regex
 
-		// Early return if we don't have enough data yet
-		if (!relPath || !regex) {
-			return
-		}
-
-		// Get config access for services
 		const config = uiHelpers.getConfig()
 
 		// Create and show partial UI message
 		const filePattern = block.params.file_pattern
-		const searchDescription = `'${regex}'${filePattern ? ` in '${filePattern}'` : ""}`
 
 		const sharedMessageProps = {
 			tool: "searchFiles",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: `Searching for ${searchDescription}`,
+			content: "",
 			regex: uiHelpers.removeClosingTag(block, "regex", regex),
-			filePattern: filePattern ? uiHelpers.removeClosingTag(block, "file_pattern", filePattern) : undefined,
+			filePattern: uiHelpers.removeClosingTag(block, "file_pattern", filePattern),
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
-		}
+		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -59,11 +55,6 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const relDirPath: string | undefined = block.params.path
 		const regex: string | undefined = block.params.regex
 		const filePattern: string | undefined = block.params.file_pattern
@@ -82,17 +73,22 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 		const absolutePath = path.resolve(config.cwd, relDirPath!)
-
-		// Handle approval flow
-		const searchDescription = `'${regex}'${filePattern ? ` in '${filePattern}'` : ""}`
+		// Execute the actual regex search operation
+		const results = await regexSearchFiles(
+			config.cwd,
+			absolutePath,
+			regex,
+			filePattern,
+			config.services.clineIgnoreController,
+		)
 		const sharedMessageProps = {
 			tool: "searchFiles",
 			path: getReadablePath(config.cwd, relDirPath!),
-			content: `Searching for ${searchDescription}`,
+			content: results,
 			regex: regex,
 			filePattern: filePattern,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
-		}
+		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
@@ -117,27 +113,14 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("tool", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+				return formatResponse.toolDenied()
 			} else {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
-
-		// Execute the actual regex search operation
-		const results = await regexSearchFiles(
-			config.cwd,
-			absolutePath,
-			regex,
-			filePattern,
-			config.services.clineIgnoreController,
-		)
 
 		return results
 	}

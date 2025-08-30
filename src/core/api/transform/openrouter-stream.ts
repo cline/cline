@@ -111,7 +111,6 @@ export async function createOpenRouterStream(
 
 	let temperature: number | undefined = 0
 	let topP: number | undefined
-	let frequency_penalty: number | undefined = 0
 	if (
 		model.id.startsWith("deepseek/deepseek-r1") ||
 		model.id === "perplexity/sonar-reasoning" ||
@@ -122,9 +121,6 @@ export async function createOpenRouterStream(
 		temperature = 0.7
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-	}
-	if (model.id.startsWith("google")) {
-		frequency_penalty = 0.5
 	}
 
 	let reasoning: { max_tokens: number } | undefined
@@ -166,7 +162,6 @@ export async function createOpenRouterStream(
 		max_tokens: maxTokens,
 		temperature: temperature,
 		top_p: topP,
-		frequency_penalty: frequency_penalty,
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },

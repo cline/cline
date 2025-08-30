@@ -29,16 +29,10 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 			additional_context: uiHelpers.removeClosingTag(block, "additional_context", block.params.additional_context),
 		})
 
-		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "report_bug")
 		await uiHelpers.ask("report_bug" as ClineAsk, partialMessage, block.partial).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const title = block.params.title
 		const what_happened = block.params.what_happened
 		const steps_to_reproduce = block.params.steps_to_reproduce
@@ -48,23 +42,23 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		// Validate required parameters
 		if (!title) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: title"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "title")
 		}
 		if (!what_happened) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: what_happened"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "what_happened")
 		}
 		if (!steps_to_reproduce) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: steps_to_reproduce"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "steps_to_reproduce")
 		}
 		if (!api_request_output) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: api_request_output"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "api_request_output")
 		}
 		if (!additional_context) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: additional_context"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "additional_context")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

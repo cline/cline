@@ -19,18 +19,13 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const context: string | undefined = block.params.context
 
 			// Validate required parameters
 			if (!context) {
 				config.taskState.consecutiveMistakeCount++
-				return "Missing required parameter: context"
+				return await config.callbacks.sayAndCreateMissingParamError("summarize_task", "context")
 			}
 
 			config.taskState.consecutiveMistakeCount = 0

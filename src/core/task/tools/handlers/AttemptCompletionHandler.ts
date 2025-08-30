@@ -10,6 +10,7 @@ import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "attempt_completion"
@@ -28,37 +29,26 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		const result = block.params.result
 		const command = block.params.command
 
-		if (command) {
-			// the attempt_completion text is done, now we're getting command
-			// Original had complex logic here but most was commented out
-			// For now, we'll keep it simple and not stream command (matching original's disabled approach)
-			// But we can still stream result if we have it
-			if (result) {
-				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
-				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
-			}
-		} else {
-			// no command, still outputting partial result - MATCH ORIGINAL EXACTLY
-			if (result) {
-				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
-				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
-			}
+		if (!command) {
+			// no command, still outputting partial result
+			await uiHelpers.say(
+				"completion_result",
+				uiHelpers.removeClosingTag(block, "result", result),
+				undefined,
+				undefined,
+				block.partial,
+			)
 		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const result: string | undefined = block.params.result
 		const command: string | undefined = block.params.command
 
 		// Validate required parameters
 		if (!result) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: result"
+			return await config.callbacks.sayAndCreateMissingParamError("attempt_completion", "result")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
@@ -107,10 +97,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			}
 
 			// complete command message - need to ask for approval
-			const { response } = await config.callbacks.ask("command", command, false)
-			if (response !== "yesButtonClicked") {
-				// User rejected the command
-				return "The user denied the command execution."
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+			if (!didApprove) {
+				return formatResponse.toolDenied()
 			}
 
 			// User approved, execute the command
@@ -129,13 +118,16 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
+		// in case last command was interactive and in partial state, the UI is expecting an ask response. This ends the command ask response, freeing up the UI to proceed with the completion ask.
+		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {
+			await config.callbacks.say("command_output", "")
+		}
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		if (response === "yesButtonClicked") {
 			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
-		await config.callbacks.saveCheckpoint()
 
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {
