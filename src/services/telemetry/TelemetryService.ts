@@ -5,14 +5,9 @@ import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
-import { version as extensionVersion } from "../../../../package.json"
-import type { PostHogClientProvider } from "../PostHogClientProvider"
-
-/**
- * TelemetryService handles telemetry event tracking for the Cline extension
- * Uses PostHog analytics to track user interactions and system events
- * Respects user privacy settings and VSCode's global telemetry configuration
- */
+import { version as extensionVersion } from "../../../package.json"
+import { getDistinctId, setDistinctId } from "../logging/distinctId"
+import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
@@ -26,6 +21,11 @@ type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
  */
 const MAX_ERROR_MESSAGE_LENGTH = 500
 
+/**
+ * TelemetryService handles telemetry event tracking for the Cline extension
+ * Uses an abstracted telemetry provider to support multiple analytics backends
+ * Respects user privacy settings and VSCode's global telemetry configuration
+ */
 export class TelemetryService {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
@@ -131,9 +131,9 @@ export class TelemetryService {
 	 * Constructor that accepts a PostHogClientProvider instance
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	public constructor(private provider: PostHogClientProvider) {
+	public constructor(private provider: ITelemetryProvider) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info("[TelemetryService] Initialized with PostHogClientProvider")
+		console.info("[TelemetryService] Initialized with telemetry provider")
 	}
 
 	/**
@@ -173,7 +173,7 @@ export class TelemetryService {
 			}
 		}
 
-		this.provider.toggleOptIn(didUserOptIn)
+		this.provider.setOptIn(didUserOptIn)
 	}
 
 	private addProperties(properties: any): any {
@@ -191,7 +191,7 @@ export class TelemetryService {
 	public capture(event: { event: string; properties?: unknown }): void {
 		const propertiesWithVersion = this.addProperties(event.properties)
 
-		// Use the provider's log method instead of direct client capture
+		// Use the provider's log method
 		this.provider.log(event.event, propertiesWithVersion)
 	}
 
@@ -206,9 +206,11 @@ export class TelemetryService {
 	 */
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
 		const propertiesWithVersion = this.addProperties({})
-
 		// Use the provider's log method instead of direct client capture
-		this.provider.identifyAccount(userInfo, propertiesWithVersion)
+		this.provider.identifyUser(userInfo, propertiesWithVersion)
+		if (userInfo.id) {
+			setDistinctId(userInfo.id)
+		}
 	}
 
 	// Task events
@@ -890,5 +892,36 @@ export class TelemetryService {
 	public isCategoryEnabled(category: TelemetryCategory): boolean {
 		// Default to true if category has not been explicitly configured
 		return this.telemetryCategoryEnabled.get(category) ?? true
+	}
+
+	/**
+	 * Get the telemetry provider instance
+	 * @returns The current telemetry provider
+	 */
+	public getProvider(): ITelemetryProvider {
+		return this.provider
+	}
+
+	/**
+	 * Check if telemetry is currently enabled
+	 * @returns Boolean indicating whether telemetry is enabled
+	 */
+	public isEnabled(): boolean {
+		return this.provider.isEnabled()
+	}
+
+	/**
+	 * Get current telemetry settings
+	 * @returns Current telemetry settings
+	 */
+	public getSettings() {
+		return this.provider.getSettings()
+	}
+
+	/**
+	 * Clean up resources when the service is disposed
+	 */
+	public async dispose(): Promise<void> {
+		await this.provider.dispose()
 	}
 }

@@ -1,8 +1,9 @@
 # Changelog
 
-## [Unreleased]
 
-- Add support for xAI's new `grok-code-fast-1` model optimized for coding tasks
+## [3.26.7]
+
+- Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers
 
 ## [3.26.6]
 

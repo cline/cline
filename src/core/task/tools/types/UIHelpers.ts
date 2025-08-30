@@ -1,6 +1,6 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolParamName, ToolUse, ToolUseName } from "../../../assistant-message"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import { removeClosingTag } from "../utils/ToolConstants"

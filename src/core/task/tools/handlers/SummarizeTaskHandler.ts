@@ -2,8 +2,8 @@ import type { ToolUse } from "@core/assistant-message"
 import { continuationPrompt } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineSayTool } from "@shared/ExtensionMessage"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -19,11 +19,6 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const context: string | undefined = block.params.context
 

@@ -1,7 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { findLast, parsePartialArrayString } from "@shared/array"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -33,11 +33,6 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const response: string | undefined = block.params.response
 		const optionsRaw: string | undefined = block.params.options
 		const needsMoreExploration: boolean = block.params.needs_more_exploration === "true"
@@ -100,7 +95,6 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			if (text || (images && images.length > 0) || (planResponseFiles && planResponseFiles.length > 0)) {
 				telemetryService.captureOptionsIgnored(config.ulid, options.length, "plan")
 				await config.callbacks.say("user_feedback", text ?? "", images, planResponseFiles)
-				await config.callbacks.saveCheckpoint()
 			}
 		}
 

@@ -1,15 +1,16 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { listFiles } from "@services/glob/list-files"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
 	readonly name = "list_files"
@@ -55,11 +56,6 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const relDirPath: string | undefined = block.params.path
 		const recursiveRaw: string | undefined = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -105,14 +101,10 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("tool", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+				return formatResponse.toolDenied()
 			} else {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}

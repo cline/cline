@@ -1,8 +1,8 @@
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { ClineAsk, ClineAskQuestion } from "@shared/ExtensionMessage"
+import { telemetryService } from "@/services/telemetry"
 import { ToolUse, ToolUseName } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
@@ -32,11 +32,6 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const question: string | undefined = block.params.question
 			const optionsRaw: string | undefined = block.params.options

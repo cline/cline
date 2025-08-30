@@ -1,16 +1,17 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { showSystemNotification } from "@integrations/notifications"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
 import { fixModelHtmlEscaping } from "@utils/string"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = "execute_command"
@@ -49,11 +50,6 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			let command: string | undefined = block.params.command
 			const requiresApprovalRaw: string | undefined = block.params.requires_approval
@@ -86,7 +82,8 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 			let didAutoApprove = false
 
-			// Complex dual approval system for commands
+			// If the model says this command is safe and auto approval for safe commands is true, execute the command
+			// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
 			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(block.name)
 			const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
 				? autoApproveResult
@@ -98,7 +95,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("command", command, undefined, undefined, false)
 				config.taskState.consecutiveAutoApprovedRequestsCount++
 				didAutoApprove = true
-				telemetryService.captureToolUsage(config.ulid, "execute_command", config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 			} else {
 				// Manual approval flow
 				showNotificationForApprovalIfAutoApprovalEnabled(
@@ -107,22 +104,22 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					config.autoApprovalSettings.enableNotifications,
 				)
 
-				const { response } = await config.callbacks.ask(
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
 					"command",
 					command + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
-					false,
+					config,
 				)
-
-				if (response !== "yesButtonClicked") {
-					telemetryService.captureToolUsage(config.ulid, "execute_command", config.api.getModel().id, false, false)
-					return "The user denied this operation."
+				if (!didApprove) {
+					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					return formatResponse.toolDenied()
 				}
-				telemetryService.captureToolUsage(config.ulid, "execute_command", config.api.getModel().id, false, true)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 
 			// Setup timeout notification for long-running auto-approved commands
 			let timeoutId: NodeJS.Timeout | undefined
 			if (didAutoApprove && config.autoApprovalSettings.enableNotifications) {
+				// if the command was auto-approved, and it's long running we need to notify the user after some time has passed without proceeding
 				timeoutId = setTimeout(() => {
 					showSystemNotification({
 						subtitle: "Command is still running",

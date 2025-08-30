@@ -1,12 +1,13 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class UseMcpToolHandler implements IFullyManagedTool {
 	readonly name = "use_mcp_tool"
@@ -43,11 +44,6 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const server_name: string | undefined = block.params.server_name
 		const tool_name: string | undefined = block.params.tool_name
 		const mcp_arguments: string | undefined = block.params.arguments
@@ -108,14 +104,10 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("use_mcp_server", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_mcp_server", completeMessage, config)
+			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+				return formatResponse.toolDenied()
 			} else {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}

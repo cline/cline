@@ -3,12 +3,12 @@ import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import * as path from "path"
+import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -69,7 +69,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				},
 				config.coordinator,
 			)
-			await config.callbacks.saveCheckpoint()
 			return
 		}
 
@@ -160,8 +159,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					await config.services.diffViewProvider.revertChanges()
 					await config.services.diffViewProvider.reset()
 
-					// Save checkpoint after error
-					await config.callbacks.saveCheckpoint()
 					return
 				}
 			} else if (content) {
@@ -199,11 +196,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const relPath: string | undefined = block.params.path
 		const content: string | undefined = block.params.content // for write_to_file and new_rule
 		let diff: string | undefined = block.params.diff // for replace_in_file
@@ -301,7 +293,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						fileContentString,
 					)
 					await config.callbacks.say("user_feedback", text, images, files)
-					await config.callbacks.saveCheckpoint()
 				}
 
 				// Clean up the diff view when operation is rejected
@@ -327,7 +318,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						fileContentString,
 					)
 					await config.callbacks.say("user_feedback", text, images, files)
-					await config.callbacks.saveCheckpoint()
 				}
 
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
@@ -372,9 +362,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 					await config.services.diffViewProvider.revertChanges()
 					await config.services.diffViewProvider.reset()
-
-					// Save checkpoint after error (from original implementation)
-					await config.callbacks.saveCheckpoint()
 
 					// Return detailed error with original content for context
 					return formatResponse.toolError(
