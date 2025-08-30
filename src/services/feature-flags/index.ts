@@ -34,4 +34,9 @@ export function resetFeatureFlagsService(): void {
 	_featureFlagsServiceInstance = null
 }
 
-export const featureFlagsService = getFeatureFlagsService()
+export const featureFlagsService = new Proxy({} as FeatureFlagsService, {
+	get(_target, prop, _receiver) {
+		const service = getFeatureFlagsService()
+		return Reflect.get(service, prop, service)
+	},
+})

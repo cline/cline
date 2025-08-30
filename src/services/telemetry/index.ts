@@ -32,4 +32,9 @@ export function resetTelemetryService(): void {
 	_telemetryServiceInstance = null
 }
 
-export const telemetryService = getTelemetryService()
+export const telemetryService = new Proxy({} as TelemetryService, {
+	get(_target, prop, _receiver) {
+		const service = getTelemetryService()
+		return Reflect.get(service, prop, service)
+	},
+})

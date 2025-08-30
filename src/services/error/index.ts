@@ -29,4 +29,11 @@ export function resetErrorService(): void {
 	_errorServiceInstance = null
 }
 
-export const errorService = getErrorService()
+// Export errorService as a getter that dynamically calls getErrorService()
+// This ensures it always returns the current instance without changing call sites
+export const errorService = new Proxy({} as ErrorService, {
+	get(_target, prop, _receiver) {
+		const service = getErrorService()
+		return Reflect.get(service, prop, service)
+	},
+})
