@@ -1,6 +1,6 @@
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
+import { telemetryService } from "@/services/telemetry"
 import { ToolUse, ToolUseName } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."

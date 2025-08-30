@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { telemetrySetting, distinctId, version, userInfo } = useExtensionState()
+	const { distinctId, version, userInfo } = useExtensionState()
 
 	// NOTE: This is a hack to stop recording webview click events temporarily.
 	// Remove this to re-enable.
@@ -14,10 +14,12 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	const [isActive, setIsActive] = useState(false)
 
 	useEffect(() => {
-		if (isActive || !isTelemetryEnabled) {
+		if (isActive || !isTelemetryEnabled || !posthogConfig.apiKey) {
 			return
 		}
-		posthog.init(posthogConfig.apiKey, {
+		// At this point, we know apiKey is defined due to the check above
+		const apiKey = posthogConfig.apiKey as string
+		posthog.init(apiKey, {
 			api_host: posthogConfig.host,
 			ui_host: posthogConfig.uiHost,
 			disable_session_recording: true,
