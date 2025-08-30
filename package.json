@@ -331,10 +331,6 @@
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			]
-		},
-		"configuration": {
-			"title": "Cline",
-			"properties": {}
 		}
 	},
 	"scripts": {

@@ -173,7 +173,7 @@ export class TelemetryService {
 			}
 		}
 
-		this.provider.toggleOptIn(didUserOptIn)
+		this.provider.toggleClineTelemetry(didUserOptIn)
 	}
 
 	private addProperties(properties: any): any {
