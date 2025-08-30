@@ -66,12 +66,15 @@ export class Controller {
 				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
-				console.error("CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+				console.error(
+					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
+					error,
+				)
 			})
 
 		// Set up persistence error recovery
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("Cache persistence failed, recovering:", error)
+			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
 				await this.stateManager.reInitialize()
 				await this.postStateToWebview()
@@ -80,7 +83,7 @@ export class Controller {
 					message: "Saving settings to storage failed.",
 				})
 			} catch (recoveryError) {
-				console.error("Cache recovery failed:", recoveryError)
+				console.error("[Controller] Cache recovery failed:", recoveryError)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to save settings. Please restart the extension.",

@@ -1,5 +1,6 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import type { ExtensionContext } from "vscode"
+import { writeTaskHistoryToState } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
@@ -46,13 +47,13 @@ export class StateManager {
 			const secrets = await readSecretsFromDisk(this.context)
 			const workspaceState = await readWorkspaceStateFromDisk(this.context)
 
-			// Populate the caches with all extension state fields
+			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
 			this.populateCache(globalState, secrets, workspaceState)
 
 			this.isInitialized = true
 		} catch (error) {
-			console.error("Failed to initialize StateManager:", error)
+			console.error("[StateManager] Failed to initialize:", error)
 			throw error
 		}
 	}
@@ -550,11 +551,11 @@ export class StateManager {
 				this.pendingWorkspaceState.clear()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("Failed to persist pending changes:", error)
+				console.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery
-				this.onPersistenceError?.({ error: error as Error })
+				this.onPersistenceError?.({ error: error })
 			}
 		}, this.PERSISTENCE_DELAY_MS)
 	}
@@ -566,12 +567,15 @@ export class StateManager {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
-					const value = this.globalStateCache[key]
-					return this.context.globalState.update(key, value)
+					if (key === "taskHistory") {
+						// Route task history persistence to file, not VS Code globalState
+						return writeTaskHistoryToState(this.context, this.globalStateCache[key])
+					}
+					return this.context.globalState.update(key, this.globalStateCache[key])
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist global state batch:", error)
+			console.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
