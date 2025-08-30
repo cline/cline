@@ -86,6 +86,19 @@ export const Ollama = ({ apiConfiguration, setApiConfigurationField }: OllamaPro
 				className="w-full">
 				<label className="block font-medium mb-1">{t("settings:providers.ollama.baseUrl")}</label>
 			</VSCodeTextField>
+			{apiConfiguration?.ollamaBaseUrl && (
+				<VSCodeTextField
+					value={apiConfiguration?.ollamaApiKey || ""}
+					type="password"
+					onInput={handleInputChange("ollamaApiKey")}
+					placeholder={t("settings:placeholders.apiKey")}
+					className="w-full">
+					<label className="block font-medium mb-1">{t("settings:providers.ollama.apiKey")}</label>
+					<div className="text-xs text-vscode-descriptionForeground mt-1">
+						{t("settings:providers.ollama.apiKeyHelp")}
+					</div>
+				</VSCodeTextField>
+			)}
 			<VSCodeTextField
 				value={apiConfiguration?.ollamaModelId || ""}
 				onInput={handleInputChange("ollamaModelId")}

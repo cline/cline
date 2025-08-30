@@ -25,10 +25,20 @@ export class OllamaHandler extends BaseProvider implements SingleCompletionHandl
 		super()
 		this.options = options
 
+		// Use the API key if provided (for Ollama cloud or authenticated instances)
+		// Otherwise use "ollama" as a placeholder for local instances
+		const apiKey = this.options.ollamaApiKey || "ollama"
+
+		const headers: Record<string, string> = {}
+		if (this.options.ollamaApiKey) {
+			headers["Authorization"] = `Bearer ${this.options.ollamaApiKey}`
+		}
+
 		this.client = new OpenAI({
 			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
-			apiKey: "ollama",
+			apiKey: apiKey,
 			timeout: getApiRequestTimeout(),
+			defaultHeaders: headers,
 		})
 	}
 

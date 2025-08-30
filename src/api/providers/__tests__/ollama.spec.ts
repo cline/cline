@@ -92,6 +92,17 @@ describe("OllamaHandler", () => {
 			})
 			expect(handlerWithoutUrl).toBeInstanceOf(OllamaHandler)
 		})
+
+		it("should use API key when provided", () => {
+			const handlerWithApiKey = new OllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "https://ollama.com",
+				ollamaApiKey: "test-api-key",
+			})
+			expect(handlerWithApiKey).toBeInstanceOf(OllamaHandler)
+			// The API key will be used in the Authorization header
+		})
 	})
 
 	describe("createMessage", () => {

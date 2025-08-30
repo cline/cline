@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Message, Ollama } from "ollama"
+import { Message, Ollama, type Config as OllamaOptions } from "ollama"
 import { ModelInfo, openAiModelInfoSaneDefaults, DEEP_SEEK_DEFAULT_TEMPERATURE } from "@roo-code/types"
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
@@ -140,10 +140,19 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
-				this.client = new Ollama({
+				const clientOptions: OllamaOptions = {
 					host: this.options.ollamaBaseUrl || "http://localhost:11434",
 					// Note: The ollama npm package handles timeouts internally
-				})
+				}
+
+				// Add API key if provided (for Ollama cloud or authenticated instances)
+				if (this.options.ollamaApiKey) {
+					clientOptions.headers = {
+						Authorization: `Bearer ${this.options.ollamaApiKey}`,
+					}
+				}
+
+				this.client = new Ollama(clientOptions)
 			} catch (error: any) {
 				throw new Error(`Error creating Ollama client: ${error.message}`)
 			}
