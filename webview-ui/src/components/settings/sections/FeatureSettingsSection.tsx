@@ -104,6 +104,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const newValue = e.target.currentValue as OpenaiReasoningEffort
 								handleReasoningEffortChange(newValue)
 							}}>
+							<VSCodeOption value="minimal">Minimal</VSCodeOption>
 							<VSCodeOption value="low">Low</VSCodeOption>
 							<VSCodeOption value="medium">Medium</VSCodeOption>
 							<VSCodeOption value="high">High</VSCodeOption>
