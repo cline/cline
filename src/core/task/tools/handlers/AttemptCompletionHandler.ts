@@ -118,6 +118,10 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
+		// in case last command was interactive and in partial state, the UI is expecting an ask response. This ends the command ask response, freeing up the UI to proceed with the completion ask.
+		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {
+			await config.callbacks.say("command_output", "")
+		}
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		if (response === "yesButtonClicked") {
 			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
