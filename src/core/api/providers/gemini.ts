@@ -22,7 +22,6 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	apiModelId?: string
 	ulid?: string
-	frequencyPenalty?: number
 }
 
 /**
@@ -119,8 +118,6 @@ export class GeminiHandler implements ApiHandler {
 			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
 			temperature: 0,
-			// Set frequency penalty if provided
-			frequencyPenalty: 0.5,
 		}
 
 		// Add thinking config if the model supports it
