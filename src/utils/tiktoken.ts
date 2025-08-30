@@ -24,7 +24,7 @@ export async function tiktoken(content: Anthropic.Messages.ContentBlockParam[]):
 			const text = block.text || ""
 
 			if (text.length > 0) {
-				const tokens = encoder.encode(text)
+				const tokens = encoder.encode(text, undefined, [])
 				totalTokens += tokens.length
 			}
 		} else if (block.type === "image") {

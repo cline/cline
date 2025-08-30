@@ -25,6 +25,15 @@ describe("tiktoken", () => {
 		expect(result).toBe(0)
 	})
 
+	it("should not throw on text content with special tokens", async () => {
+		const content: Anthropic.Messages.ContentBlockParam[] = [
+			{ type: "text", text: "something<|endoftext|>something" },
+		]
+
+		const result = await tiktoken(content)
+		expect(result).toBeGreaterThan(0)
+	})
+
 	it("should handle missing text content", async () => {
 		// Using 'as any' to bypass TypeScript's type checking for this test case
 		// since we're specifically testing how the function handles undefined text
