@@ -2,6 +2,10 @@ import { ApiConfiguration, ApiProvider, BedrockModelId } from "@shared/api"
 import { ApiConfiguration as ProtoApiConfiguration } from "@shared/proto/cline/state"
 
 /**
+ * Domain -> Proto conversions
+ */
+
+/**
  * Converts domain ApiConfiguration objects to proto ApiConfiguration objects
  */
 export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfiguration): ProtoApiConfiguration {
@@ -141,6 +145,10 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		favoritedModelIds: config.favoritedModelIds || [],
 	})
 }
+
+/**
+ * Proto -> Domain conversions
+ */
 
 /**
  * Converts proto ApiConfiguration objects to domain ApiConfiguration objects

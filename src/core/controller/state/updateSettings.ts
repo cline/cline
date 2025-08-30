@@ -1,4 +1,5 @@
 import { buildApiHandler } from "@core/api"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -7,10 +8,9 @@ import {
 	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
 import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
+import { OpenaiReasoningEffort } from "@/shared/storage/types"
+import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { Controller } from ".."
 
 /**
@@ -137,6 +137,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		if (request.dictationSettings !== undefined) {
+			controller.stateManager.setGlobalState("dictationSettings", request.dictationSettings)
 		}
 
 		// Update auto-condense setting

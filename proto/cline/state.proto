@@ -123,9 +123,10 @@ message UpdateSettingsRequest {
   optional string preferred_language = 14;
   optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
-  optional FocusChainSettings focus_chain_settings = 17;
-  optional bool use_auto_condense = 18;
-  optional string custom_prompt = 19;
+  optional DictationSettings dictation_settings = 17;
+  optional FocusChainSettings focus_chain_settings = 18;
+  optional bool use_auto_condense = 19;
+  optional string custom_prompt = 20;
 }
 
 // Complete API Configuration message
@@ -261,6 +262,11 @@ message ApiConfiguration {
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
+}
+
+message DictationSettings {
+  bool dictation_enabled = 1;
+  string dictation_language = 2;
 }
 
 message FocusChainSettings {

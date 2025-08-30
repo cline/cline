@@ -594,6 +594,7 @@ export class Controller {
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
+		const dictationSettings = this.stateManager.getGlobalStateKey("dictationSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
 		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
@@ -653,6 +654,7 @@ export class Controller {
 			platform,
 			autoApprovalSettings,
 			browserSettings,
+			dictationSettings,
 			focusChainSettings,
 			focusChainFeatureFlagEnabled,
 			preferredLanguage,

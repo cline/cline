@@ -19,7 +19,7 @@ import type { PostHogClientProvider } from "../PostHogClientProvider"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
+type TelemetryCategory = "checkpoints" | "browser" | "dictation" | "focus_chain"
 
 /**
  * Maximum length for error messages to prevent excessive data
@@ -31,6 +31,7 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
+		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 	])
 
@@ -119,6 +120,19 @@ export class TelemetryService {
 			BUTTON_CLICKED: "ui.button_clicked",
 			// Tracks when the rules menu button is clicked
 			RULES_MENU_OPENED: "ui.rules_menu_opened",
+		},
+		DICTATION: {
+			// Tracks when voice recording is started
+			RECORDING_STARTED: "voice.recording_started",
+			// Tracks when voice recording is stopped
+			RECORDING_STOPPED: "voice.recording_stopped",
+			// Tracks when voice transcription is started
+			TRANSCRIPTION_STARTED: "voice.transcription_started",
+			// Tracks when voice transcription is completed successfully
+			TRANSCRIPTION_COMPLETED: "voice.transcription_completed",
+			// Tracks when voice transcription fails
+			TRANSCRIPTION_ERROR: "voice.transcription_error",
+			// Tracks when voice feature is enabled or disabled in settings
 		},
 	}
 
@@ -671,6 +685,143 @@ export class TelemetryService {
 			properties: {
 				...args,
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	// Dictation events
+	/**
+	 * Records when voice recording is started
+	 * @param taskId Optional task identifier if recording was started during a task
+	 * @param platform The platform where recording is happening (macOS, Windows, Linux)
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureVoiceRecordingStarted(taskId?: string, platform?: string, collect: boolean = false) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.RECORDING_STARTED,
+			properties: {
+				taskId,
+				platform: platform || process.platform,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice recording is stopped
+	 * @param taskId Optional task identifier if recording was stopped during a task
+	 * @param durationMs Duration of the recording in milliseconds
+	 * @param success Whether the recording was successful
+	 * @param platform The platform where recording happened
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureVoiceRecordingStopped(
+		taskId?: string,
+		durationMs?: number,
+		success?: boolean,
+		platform?: string,
+		collect?: boolean,
+	) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.RECORDING_STOPPED,
+			properties: {
+				taskId,
+				durationMs,
+				success,
+				platform: platform || process.platform,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription is started
+	 * @param taskId Optional task identifier if transcription was started during a task
+	 * @param audioSizeBytes Size of the audio data being transcribed
+	 * @param language Language hint provided for transcription
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureVoiceTranscriptionStarted(taskId?: string, language?: string, collect: boolean = false) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_STARTED,
+			properties: {
+				taskId,
+				language,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription is completed successfully
+	 * @param taskId Optional task identifier if transcription was completed during a task
+	 * @param transcriptionLength Length of the transcribed text
+	 * @param durationMs Time taken for transcription in milliseconds
+	 * @param language Language used for transcription
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureVoiceTranscriptionCompleted(
+		taskId?: string,
+		transcriptionLength?: number,
+		durationMs?: number,
+		language?: string,
+		collect: boolean = false,
+	) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_COMPLETED,
+			properties: {
+				taskId,
+				transcriptionLength,
+				durationMs,
+				language,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription fails
+	 * @param taskId Optional task identifier if transcription failed during a task
+	 * @param errorType Type of error that occurred (e.g., "no_openai_key", "api_error", "network_error")
+	 * @param errorMessage The error message
+	 * @param durationMs Time taken before failure in milliseconds
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureVoiceTranscriptionError(
+		taskId?: string,
+		errorType?: string,
+		errorMessage?: string,
+		durationMs?: number,
+		collect: boolean = false,
+	) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				durationMs,
 				timestamp: new Date().toISOString(),
 			},
 		})
