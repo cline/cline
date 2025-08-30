@@ -27,9 +27,9 @@ export class PostHogClientProvider {
 	}
 
 	protected telemetrySettings: TelemetrySettings = {
-		cline: true,
-		host: true,
-		level: "all",
+		cline: false,
+		host: false,
+		level: "off",
 	}
 
 	public readonly client: PostHog
@@ -48,18 +48,16 @@ export class PostHogClientProvider {
 			this.telemetrySettings.host = isTelemetryEnabled
 		})
 
-		if (vscode?.env?.isTelemetryEnabled === false) {
-			this.telemetrySettings.host = false
-		}
-
-		const config = vscode.workspace.getConfiguration("cline")
-		if (config.get("telemetrySetting") === "disabled") {
-			this.telemetrySettings.cline = false
+		if (vscode?.env?.isTelemetryEnabled === true) {
+			this.telemetrySettings.host = true
 		}
 
 		this.telemetrySettings.level = this.telemetryLevel
 
 		// Initialize services
+		// NOTE:
+		// Cline-level user telemetry opt-in is applied at startup by TelemetryService.updateTelemetryState(...)
+		// which is invoked from initializeWebview after reading `telemetrySetting` from globalStorage via StateManager.
 		this.telemetry = new TelemetryService(this)
 		this.error = new ErrorService(this, this.distinctId)
 		this.featureFlags = new FeatureFlagsService(
@@ -78,10 +76,22 @@ export class PostHogClientProvider {
 			return "off"
 		}
 		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
+		const telemetryLevel = config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
+		// NOTE:
+		// - vscode.env.isTelemetryEnabled is the gate. If it's false (Telemetry Level "off" or host policy),
+		//   we treat telemetry as "off" and send nothing.
+		// - telemetry.telemetryLevel is a filter used only when the gate is true
+		//   (e.g. "error" means send only error events).
+
+		// The relationship between vscode.env.isTelemetryEnabled and telemetry.telemetryLevel is:
+		// If telemetry.telemetryLevel is "off", then vscode.env.isTelemetryEnabled is false. Otherwise, it is true.
+
+		// Cursor only has two levels - "off" and "all", and it is stored under "crashReporting.enabled". So when we fetch the level, it will be "undefined", and so default to "all".
+		// However, this "crashReporting.enabled" affects the value of vscode.env.isTelemetryEnabled, so when toggled to "off", we will still catch the telemetry as having been turned off thorugh the vscode.env.isTelemetryEnabled.
+		return telemetryLevel
 	}
 
-	public toggleOptIn(optIn: boolean): void {
+	public toggleClineTelemetry(optIn: boolean): void {
 		if (optIn && !this.telemetrySettings.cline) {
 			this.client.optIn()
 		}
