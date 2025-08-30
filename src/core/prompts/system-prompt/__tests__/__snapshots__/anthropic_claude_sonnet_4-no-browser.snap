@@ -71,7 +71,6 @@ Parameters:
   ------- SEARCH
   [exact content to find]
   =======
-
   [new content to replace with]
   +++++++ REPLACE
   ```
@@ -334,9 +333,7 @@ Usage:
 <diff>
 ------- SEARCH
 import React from 'react';
-
 =======
-
 import React, { useState } from 'react';
 +++++++ REPLACE
 
@@ -347,15 +344,12 @@ function handleSubmit() {
 }
 
 =======
-
 +++++++ REPLACE
 
 ------- SEARCH
 return (
   <div>
-
 =======
-
 function handleSubmit() {
   saveData();
   setLoading(false);
