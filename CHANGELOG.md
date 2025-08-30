@@ -2,12 +2,7 @@
 
 ## 3.27.0
 
-### Minor Changes
-
 - 190d4a2: support orchestration mode for sap provider
-
-### Patch Changes
-
 - 518e624: fix showing the ai core exisiting models when resource group field is empty (using the default resource group)
 - 45871a9: Fix issue on Account view where balance is fetched twice that cause janky UI
 - 550883d: Fixes an issue where thinking text from litellm was not being passed through to Cline thinking UI
