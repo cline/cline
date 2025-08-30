@@ -97,6 +97,7 @@ export interface TaskCallbacks {
 
 	updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>
 
+	shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean]
 	shouldAutoApproveToolWithPath: (toolName: ToolUseName, path?: string) => Promise<boolean>
 
 	// Additional callbacks for task management

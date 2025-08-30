@@ -32,7 +32,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 
 		// Check if tool should be auto-approved using MCP-specific logic
 		const config = uiHelpers.getConfig()
-		const shouldAutoApprove = this.shouldAutoApproveMcpTool(config, server_name || "", tool_name || "")
+		const shouldAutoApprove = config.callbacks.shouldAutoApproveTool(block.name)
 
 		if (shouldAutoApprove) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
@@ -51,12 +51,12 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 		// Validate required parameters
 		if (!server_name) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: server_name"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "server_name")
 		}
 
 		if (!tool_name) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: tool_name"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "tool_name")
 		}
 
 		// Parse and validate arguments if provided
@@ -66,7 +66,8 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				parsedArguments = JSON.parse(mcp_arguments)
 			} catch (_error) {
 				config.taskState.consecutiveMistakeCount++
-				return `Error: Invalid JSON arguments for ${tool_name} on ${server_name}`
+				await config.callbacks.say("error", `Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
+				return formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name))
 			}
 		}
 
@@ -77,13 +78,14 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			type: "use_mcp_tool",
 			serverName: server_name,
 			toolName: tool_name,
-			uri: undefined,
 			arguments: mcp_arguments,
-		})
+		} satisfies ClineAskUseMcpServer)
 
-		const shouldAutoApprove = this.shouldAutoApproveMcpTool(config, server_name, tool_name)
+		const isToolAutoApproved = config.services.mcpHub.connections
+			?.find((conn: any) => conn.server.name === server_name)
+			?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
 
-		if (shouldAutoApprove) {
+		if (config.callbacks.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
@@ -154,7 +156,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 						.filter(Boolean)
 						.join("\n\n") || "(No response)"
 
-			// Display result to user
+			// webview extracts images from the text response to display in the UI
 			const toolResultToDisplay = toolResultText + toolResultImages?.map((image: any) => `\n\n${image}`).join("")
 			await config.callbacks.say("mcp_server_response", toolResultToDisplay)
 
@@ -169,17 +171,5 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 		} catch (error) {
 			return `Error executing MCP tool: ${(error as Error)?.message}`
 		}
-	}
-
-	/**
-	 * Determine if MCP tool should be auto-approved (moved from ToolApprovalManager)
-	 */
-	private shouldAutoApproveMcpTool(config: TaskConfig, server_name: string, tool_name: string): boolean {
-		// Check if this specific tool is auto-approved on the server
-		const isToolAutoApproved = config.services.mcpHub.connections
-			?.find((conn: any) => conn.server.name === server_name)
-			?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
-
-		return config.autoApprovalSettings.enabled && (isToolAutoApproved ?? false)
 	}
 }

@@ -159,6 +159,7 @@ export class ToolExecutor {
 				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
 				removeLastPartialMessageIfExistsWithType: this.removeLastPartialMessageIfExistsWithType,
+				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 			},

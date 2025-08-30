@@ -25,7 +25,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			path: uiHelpers.removeClosingTag(block, "url", url),
 			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
 			operationIsLocatedInWorkspace: false, // web_fetch is always external
-		}
+		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -55,10 +55,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
-			// Check auto-approval (web_fetch uses simple boolean, not array)
-			const autoApprove = config.autoApprovalSettings.enabled && config.autoApprovalSettings.actions.useBrowser
-
-			if (autoApprove) {
+			if (config.callbacks.shouldAutoApproveTool("web_fetch" as ToolUseName)) {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
