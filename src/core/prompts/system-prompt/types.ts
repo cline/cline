@@ -2,7 +2,7 @@
  * Enhanced type definitions for better type safety and developer experience
  */
 
-import { ApiHandlerModel, ApiProviderInfo } from "@/core/api"
+import { ApiProviderInfo } from "@/core/api"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
