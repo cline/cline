@@ -91,6 +91,10 @@ export class Controller {
 			}
 		}
 
+		this.stateManager.onSyncExternalChange = async () => {
+			await this.postStateToWebview()
+		}
+
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
