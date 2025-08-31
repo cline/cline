@@ -38,6 +38,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
+	const [isProcessingClick, setIsProcessingClick] = useState<boolean>(false)
 
 	const [lastMessage, secondLastMessage] = useMemo(() => {
 		return [messages.at(-1), messages.at(-2)]
@@ -60,6 +61,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		setSendingDisabled(buttonConfig.sendingDisabled)
 		setPrimaryButtonText(buttonConfig.primaryText)
 		setSecondaryButtonText(buttonConfig.secondaryText)
+		// Reset processing state when configuration changes (new message received)
+		setIsProcessingClick(false)
 	}, [lastMessage, mode, setSendingDisabled])
 
 	useEffect(() => {
@@ -69,6 +72,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			setSendingDisabled(buttonConfig.sendingDisabled)
 			setPrimaryButtonText(buttonConfig.primaryText)
 			setSecondaryButtonText(buttonConfig.secondaryText)
+			// Reset processing state when no messages
+			setIsProcessingClick(false)
 		}
 	}, [messages, setSendingDisabled])
 
@@ -104,7 +109,28 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	}
 
 	const shouldShowButtons = primaryButtonText || secondaryButtonText
-	const opacity = shouldShowButtons ? (enableButtons || isStreaming ? 1 : 0.5) : 0
+	const enableAndNotProcessing = enableButtons && !isProcessingClick
+	const opacity = shouldShowButtons ? (enableAndNotProcessing || isStreaming ? 1 : 0.5) : 0
+
+	const handlePrimaryClick = async () => {
+		if (!primaryButtonText) {
+			return
+		}
+		setIsProcessingClick(true)
+		if (primaryButtonText === "Start New Task") {
+			messageHandlers.startNewTask()
+		} else {
+			messageHandlers.handleButtonClick(primaryButtonText, inputValue, selectedImages, selectedFiles)
+		}
+	}
+
+	const handleSecondaryClick = async () => {
+		if (!secondaryButtonText) {
+			return
+		}
+		setIsProcessingClick(true)
+		messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
+	}
 
 	return (
 		<div className="flex px-[15px]" style={{ opacity }}>
@@ -112,14 +138,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				<VSCodeButton
 					appearance="primary"
 					className={`${secondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
-					disabled={!enableButtons}
-					onClick={() => {
-						if (primaryButtonText === "Start New Task") {
-							messageHandlers.startNewTask()
-						} else {
-							messageHandlers.handleButtonClick(primaryButtonText, inputValue, selectedImages, selectedFiles)
-						}
-					}}>
+					disabled={!enableAndNotProcessing}
+					onClick={handlePrimaryClick}>
 					{primaryButtonText}
 				</VSCodeButton>
 			)}
@@ -127,10 +147,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				<VSCodeButton
 					appearance="secondary"
 					className={`${primaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
-					disabled={!enableButtons}
-					onClick={() => {
-						messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
-					}}>
+					disabled={!enableAndNotProcessing}
+					onClick={handleSecondaryClick}>
 					{secondaryButtonText}
 				</VSCodeButton>
 			)}
