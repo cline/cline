@@ -61,13 +61,19 @@ export class BridgeOrchestrator {
 	public static async connectOrDisconnect(
 		userInfo: CloudUserInfo | null,
 		remoteControlEnabled: boolean | undefined,
-		options: BridgeOrchestratorOptions,
+		options?: BridgeOrchestratorOptions,
 	): Promise<void> {
 		const isEnabled = BridgeOrchestrator.isEnabled(userInfo, remoteControlEnabled)
 		const instance = BridgeOrchestrator.instance
 
 		if (isEnabled) {
 			if (!instance) {
+				if (!options) {
+					console.error(
+						`[BridgeOrchestrator#connectOrDisconnect] Cannot connect: options are required for connection`,
+					)
+					return
+				}
 				try {
 					console.log(`[BridgeOrchestrator#connectOrDisconnect] Connecting...`)
 					BridgeOrchestrator.instance = new BridgeOrchestrator(options)
