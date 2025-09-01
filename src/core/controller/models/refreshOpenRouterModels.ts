@@ -189,6 +189,10 @@ export async function refreshOpenRouterModels(
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
 						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
 						break
+					case "x-ai/grok-code-fast-1":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheReadsPrice = 0.02
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
