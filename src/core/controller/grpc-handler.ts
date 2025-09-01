@@ -55,6 +55,8 @@ async function handleUnaryRequest(
 		// Handle unary request
 		const response = await handler(controller, request.message)
 
+		const state = await controller.getStateToPostToWebview()
+
 		const grpcResponse = {
 			message: response,
 			request_id: request.request_id,
@@ -84,14 +86,13 @@ async function handleUnaryRequest(
 		}
 
 		// Record the error
-		/*
+
 		try {
 			const recorder = GrpcRecorder.getInstance()
 			recorder.recordResponse(request.request_id, errorResponse)
 		} catch (recordError) {
 			console.warn("Failed to record gRPC error:", recordError)
 		}
-		*/
 
 		await postMessageToWebview({
 			type: "grpc_response",
@@ -124,13 +125,13 @@ async function handleStreamingRequest(
 			sequence_number: sequenceNumber,
 		}
 
-		// // Record the streaming response
-		// try {
-		// 	const recorder = GrpcRecorder.getInstance()
-		// 	recorder.recordResponse(request.request_id, grpcResponse)
-		// } catch (error) {
-		// 	console.warn("Failed to record gRPC streaming response:", error)
-		// }
+		// Record the streaming response
+		try {
+			const recorder = GrpcRecorder.getInstance()
+			recorder.recordResponse(request.request_id, grpcResponse)
+		} catch (error) {
+			console.warn("Failed to record gRPC streaming response:", error)
+		}
 
 		await postMessageToWebview({
 			type: "grpc_response",

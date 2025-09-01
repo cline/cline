@@ -225,6 +225,7 @@ export class GrpcRecorder {
 		return this.sessionLog.sessionId
 	}
 
+	// TODO: add to the header maybe?
 	public getStats(): { totalRequests: number; pendingRequests: number; completedRequests: number; errorRequests: number } {
 		const totalRequests = this.sessionLog.entries.length
 		const pendingRequests = this.sessionLog.entries.filter((e) => e.status === "pending").length
