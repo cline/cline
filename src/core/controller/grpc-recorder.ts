@@ -42,7 +42,8 @@ export class GrpcRecorder {
 	private constructor() {
 		const sessionId = this.generateSessionId()
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-		const fileName = `jose-grpc-session-${timestamp}-${sessionId}.json`
+		// const fileName = `jose-grpc-session-${timestamp}-${sessionId}.json`
+		const fileName = `e2e-test-name.json`
 
 		// const folderPath = context.globalStorageUri.fsPath
 		const workspaceFolder = process.env.DEV_WORKSPACE_FOLDER ?? process.cwd()
@@ -204,15 +205,15 @@ export class GrpcRecorder {
 	}
 
 	private flushLogAsync(): void {
-		this.flushLog().catch((error) => {
-			console.error("Failed to flush gRPC log:", error)
-		})
-		// Use setImmediate to avoid blocking the main thread
-		// setImmediate(() => {
-		// 	this.flushLog().catch((error) => {
-		// 		console.error("Failed to flush gRPC log:", error)
-		// 	})
+		// this.flushLog().catch((error) => {
+		// 	console.error("Failed to flush gRPC log:", error)
 		// })
+		// Use setImmediate to avoid blocking the main thread
+		setImmediate(() => {
+			this.flushLog().catch((error) => {
+				console.error("Failed to flush gRPC log:", error)
+			})
+		})
 	}
 
 	public async flushLog(): Promise<void> {
