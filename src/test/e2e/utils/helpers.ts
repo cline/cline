@@ -22,9 +22,8 @@ export class E2ETestHelper {
 
 	public static async disposeGrpcRecorder() {
 		try {
-			const { GrpcRecorder } = await import("@core/controller/grpc-recorder")
-			GrpcRecorder.dispose()
-			console.log("gRPC recorder disposed")
+			const { disposeGrpcRecorder } = require("./grpc-recorder-disposal")
+			await disposeGrpcRecorder()
 		} catch (error) {
 			console.error("Failed to dispose gRPC recorder:", error)
 		}
