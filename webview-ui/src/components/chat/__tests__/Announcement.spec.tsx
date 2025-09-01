@@ -3,7 +3,6 @@ import type { ComponentProps } from "react"
 import React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ClineAuthProvider } from "@/context/ClineAuthContext"
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import Announcement from "../Announcement"
 
 // Mock the VSCode webview toolkit
