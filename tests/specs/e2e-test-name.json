@@ -1,12 +1,12 @@
 {
-	"sessionId": "pypw2445yr89tlx1ssj0fi",
-	"startTime": "2025-09-01T13:29:43.284Z",
+	"sessionId": "wj2os78v78i49p4g0ybbqx",
+	"startTime": "2025-09-01T13:30:17.507Z",
 	"platform": "darwin",
 	"entries": [
 		{
-			"timestamp": "2025-09-01T13:29:43.852Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "dd37edd9-119a-4edd-8020-2c20503e7a08",
+			"timestamp": "2025-09-01T13:30:18.071Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "4debb491-5ea8-4079-850b-d80154bcd475",
 			"service": "cline.UiService",
 			"method": "initializeWebview",
 			"isStreaming": false,
@@ -17,12 +17,12 @@
 			"response": {
 				"message": {}
 			},
-			"duration": 2
+			"duration": 1
 		},
 		{
-			"timestamp": "2025-09-01T13:29:43.855Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "512e150e-7b79-4b32-b941-aa22fd3b5eff",
+			"timestamp": "2025-09-01T13:30:18.073Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "5188d4da-2bbc-4264-94ce-ce6e91c2f341",
 			"service": "cline.StateService",
 			"method": "getAvailableTerminalProfiles",
 			"isStreaming": false,
@@ -54,12 +54,12 @@
 					]
 				}
 			},
-			"duration": 0
+			"duration": 1
 		},
 		{
-			"timestamp": "2025-09-01T13:29:43.872Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "9691170e-9993-498b-b6d8-c4367fe6cf84",
+			"timestamp": "2025-09-01T13:30:18.089Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "000b7765-66dc-461e-9210-0de0512b4e45",
 			"service": "cline.UiService",
 			"method": "onDidShowAnnouncement",
 			"isStreaming": false,
@@ -75,9 +75,9 @@
 			"duration": 0
 		},
 		{
-			"timestamp": "2025-09-01T13:29:43.872Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "cee394e6-ce87-44b9-8a2c-43c5512015cf",
+			"timestamp": "2025-09-01T13:30:18.089Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "ddfa08af-8e24-495a-8af0-ff06902e2721",
 			"service": "cline.UiService",
 			"method": "onDidShowAnnouncement",
 			"isStreaming": false,
@@ -90,12 +90,12 @@
 					"value": false
 				}
 			},
-			"duration": 0
+			"duration": 1
 		},
 		{
-			"timestamp": "2025-09-01T13:29:44.241Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "92e90d8a-584f-4325-9836-eddc18e8480c",
+			"timestamp": "2025-09-01T13:30:18.563Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "743c6853-3ae2-455d-be63-b9faf60c5c57",
 			"service": "cline.AccountService",
 			"method": "accountLoginClicked",
 			"isStreaming": false,
@@ -108,12 +108,12 @@
 					"value": "http://localhost:7777/"
 				}
 			},
-			"duration": 752
+			"duration": 722
 		},
 		{
-			"timestamp": "2025-09-01T13:29:44.257Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "3d1b972a-4fad-4a31-b814-7d08aae18bc2",
+			"timestamp": "2025-09-01T13:30:18.573Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "9fdea17c-2d6a-4bc7-9be7-f0a17ae0e08e",
 			"service": "cline.AccountService",
 			"method": "getUserOrganizations",
 			"isStreaming": false,
@@ -139,9 +139,9 @@
 			"duration": 4
 		},
 		{
-			"timestamp": "2025-09-01T13:29:44.502Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "7150555e-c7b2-480f-aad0-f8d1be37fe1f",
+			"timestamp": "2025-09-01T13:30:19.578Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "f8aba694-dc8f-4b07-b820-88f212241010",
 			"service": "cline.TaskService",
 			"method": "newTask",
 			"isStreaming": false,
@@ -159,9 +159,9 @@
 			"duration": 1
 		},
 		{
-			"timestamp": "2025-09-01T13:29:45.686Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "0bb79b6d-e47f-457a-8f68-52ac48a5b4d8",
+			"timestamp": "2025-09-01T13:30:20.780Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "c3076aa6-053a-4d76-a2c5-53fbe807c3f5",
 			"service": "cline.TaskService",
 			"method": "clearTask",
 			"isStreaming": false,
@@ -175,9 +175,9 @@
 			"duration": 1
 		},
 		{
-			"timestamp": "2025-09-01T13:29:45.937Z",
-			"sessionId": "pypw2445yr89tlx1ssj0fi",
-			"requestId": "4d9a8712-bd1f-4b81-9ba7-b449a200d95f",
+			"timestamp": "2025-09-01T13:30:20.943Z",
+			"sessionId": "wj2os78v78i49p4g0ybbqx",
+			"requestId": "05da4e8e-7b19-43aa-884b-92e239415c93",
 			"service": "cline.TaskService",
 			"method": "newTask",
 			"isStreaming": false,
