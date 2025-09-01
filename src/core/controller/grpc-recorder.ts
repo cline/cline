@@ -49,8 +49,8 @@ export class GrpcRecorder {
 		const folderPath = path.join(workspaceFolder, "tests", "specs")
 
 		// Create logs directory in extension's global storage
-		const logsDir = path.join(folderPath, "grpc-logs")
-		this.logFilePath = path.join(logsDir, fileName)
+		//const logsDir = path.join(folderPath, "grpc-logs")
+		this.logFilePath = path.join(folderPath, fileName)
 
 		this.sessionLog = {
 			sessionId,

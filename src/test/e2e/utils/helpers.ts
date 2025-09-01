@@ -20,6 +20,16 @@ export class E2ETestHelper {
 	// Instance properties for caching
 	private cachedFrame: Frame | null = null
 
+	public static async disposeGrpcRecorder() {
+		try {
+			const { GrpcRecorder } = await import("@core/controller/grpc-recorder")
+			GrpcRecorder.dispose()
+			console.log("gRPC recorder disposed")
+		} catch (error) {
+			console.error("Failed to dispose gRPC recorder:", error)
+		}
+	}
+
 	// Path utilities
 	public static escapeToPath(text: string): string {
 		return text.trim().toLowerCase().replaceAll(/\W/g, "_")
@@ -252,6 +262,10 @@ export const e2e = test
 				await use(app)
 			} finally {
 				await app.close()
+
+				// Clean up gRPC recorder
+				await E2ETestHelper.disposeGrpcRecorder()
+
 				// Cleanup in parallel
 				await Promise.allSettled([
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
