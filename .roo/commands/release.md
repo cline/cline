@@ -29,7 +29,7 @@ argument-hint: patch | minor | major
 6. If the generate_image tool is available, create a release image at `releases/[version]-release.png`
     - The image should feature a realistic-looking kangaroo doing something human-like that relates to the main highlight of the release
     - Pass `releases/template.png` as the reference image for aspect ratio and kangaroo style
-    - Add the generated image to .changeset/v[version].md before the list of changes with format: `![X.Y.Z Release - Description](releases/X.Y.Z-release.png)`
+    - Add the generated image to .changeset/v[version].md before the list of changes with format: `![X.Y.Z Release - Description](/releases/X.Y.Z-release.png)`
 7. If a major or minor release:
     - Ask the user what the three most important areas to highlight are in the release
     - Update the English version relevant announcement files and documentation (webview-ui/src/components/chat/Announcement.tsx, README.md, and the `latestAnnouncementId` in src/core/webview/ClineProvider.ts)

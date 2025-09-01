@@ -2,7 +2,7 @@
 
 ## [3.26.3] - 2025-08-29
 
-![3.26.3 Release - Kangaroo Photo Editor](releases/3.26.3-release.png)
+![3.26.3 Release - Kangaroo Photo Editor](/releases/3.26.3-release.png)
 
 - Add optional input image parameter to image generation tool (thanks @roomote!)
 - Refactor: Flatten image generation settings structure (thanks @daniel-lxs!)
@@ -10,7 +10,7 @@
 
 ## [3.26.2] - 2025-08-28
 
-![3.26.2 Release - Kangaroo Digital Artist](releases/3.26.2-release.png)
+![3.26.2 Release - Kangaroo Digital Artist](/releases/3.26.2-release.png)
 
 - feat: Add experimental image generation tool with OpenRouter integration (thanks @daniel-lxs!)
 - Fix: Resolve GPT-5 Responses API issues with condensing and image support (#7334 by @nlbuescher, PR by @daniel-lxs)
@@ -19,7 +19,7 @@
 
 ## [3.26.1] - 2025-08-27
 
-![3.26.1 Release - Kangaroo Network Engineer](releases/3.26.1-release.png)
+![3.26.1 Release - Kangaroo Network Engineer](/releases/3.26.1-release.png)
 
 - Add Vercel AI Gateway provider integration (thanks @joshualipman123!)
 - Add support for Vercel embeddings (thanks @mrubens!)
@@ -31,7 +31,7 @@
 
 ## [3.26.0] - 2025-08-26
 
-![3.26.0 Release - Kangaroo Speed Racer](releases/3.26.0-release.png)
+![3.26.0 Release - Kangaroo Speed Racer](/releases/3.26.0-release.png)
 
 - Sonic -> Grok Code Fast
 - feat: Add Qwen Code CLI API Support with OAuth Authentication (thanks @evinelias and Cline!)
