@@ -1,6 +1,4 @@
-import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserAction, BrowserActionResult, browserActions, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { modelDoesntSupportWebp } from "@utils/model-utils"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
