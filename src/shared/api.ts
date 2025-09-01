@@ -32,6 +32,7 @@ export type ApiProvider =
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
+	| "dify"
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
@@ -104,7 +105,10 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	sapAiCoreUseOrchestrationMode?: boolean
 	huaweiCloudMaasApiKey?: string
+	difyApiKey?: string
+	difyBaseUrl?: string
 	zaiApiKey?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
@@ -3157,6 +3161,8 @@ export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
 
 // Huawei Cloud MaaS
+// Dify.ai - No model selection needed, models are configured in Dify workflows
+
 export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
 export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
 export const huaweiCloudMaasModels = {

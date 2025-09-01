@@ -1,6 +1,6 @@
 import { buildApiHandler } from "@core/api"
 import * as vscode from "vscode"
-import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getWorkingState } from "@/utils/git"
@@ -70,7 +70,9 @@ The commit message should:
 Commit message:`
 
 		// Get the current API configuration
-		const { apiConfiguration } = await readStateFromDisk(context)
+		const stateManager = new StateManager(context)
+		await stateManager.initialize()
+		const apiConfiguration = stateManager.getApiConfiguration()
 		// Set to use Act mode for now by default
 		// TODO: A new mode for commit generation
 		const currentMode = "act"

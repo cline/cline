@@ -22,7 +22,7 @@ export async function refreshBasetenModels(
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
-	const basetenApiKey = controller.cacheService.getSecretKey("basetenApiKey")
+	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
 	const models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
