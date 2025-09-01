@@ -44,7 +44,7 @@ async function handleUnaryRequest(
 	try {
 		// Record the incoming request
 		try {
-			const recorder = GrpcRecorder.getInstance(controller.context)
+			const recorder = GrpcRecorder.getInstance()
 			recorder.recordRequest(request)
 		} catch (error) {
 			console.warn("Failed to record gRPC request:", error)

@@ -1,6 +1,6 @@
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
+// import * as vscode from "vscode"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcRequest } from "@/shared/WebviewMessage"
 
@@ -27,8 +27,8 @@ export interface GrpcLogEntry {
 export interface GrpcSessionLog {
 	sessionId: string
 	startTime: string
-	extensionVersion: string
-	vscodeVersion: string
+	extensionVersion?: string
+	vscodeVersion?: string
 	platform: string
 	entries: GrpcLogEntry[]
 }
@@ -39,10 +39,10 @@ export class GrpcRecorder {
 	private logFilePath: string
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
 
-	private constructor(context: vscode.ExtensionContext) {
+	private constructor() {
 		const sessionId = this.generateSessionId()
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-		const fileName = `grpc-session-${timestamp}-${sessionId}.json`
+		const fileName = `jose-grpc-session-${timestamp}-${sessionId}.json`
 
 		// const folderPath = context.globalStorageUri.fsPath
 		const workspaceFolder = process.env.DEV_WORKSPACE_FOLDER ?? process.cwd()
@@ -55,8 +55,8 @@ export class GrpcRecorder {
 		this.sessionLog = {
 			sessionId,
 			startTime: new Date().toISOString(),
-			extensionVersion: context.extension?.packageJSON?.version ?? "unknown",
-			vscodeVersion: vscode.version,
+			// extensionVersion: context.extension?.packageJSON?.version ?? "unknown",
+			// vscodeVersion: vscode.version,
 			platform: process.platform,
 			entries: [],
 		}
@@ -67,9 +67,9 @@ export class GrpcRecorder {
 		})
 	}
 
-	public static getInstance(context?: vscode.ExtensionContext): GrpcRecorder {
-		if (!GrpcRecorder.instance && context) {
-			GrpcRecorder.instance = new GrpcRecorder(context)
+	public static getInstance(): GrpcRecorder {
+		if (!GrpcRecorder.instance) {
+			GrpcRecorder.instance = new GrpcRecorder()
 		}
 		if (!GrpcRecorder.instance) {
 			throw new Error("GrpcRecorder not initialized. Call getInstance with context first.")
@@ -77,11 +77,14 @@ export class GrpcRecorder {
 		return GrpcRecorder.instance
 	}
 
-	public static dispose(): void {
+	public static async dispose(): Promise<void> {
 		if (GrpcRecorder.instance) {
-			GrpcRecorder.instance.flushLog().catch((error) => {
+			try {
+				await GrpcRecorder.instance.flushLog()
+				console.log("gRPC log flushed successfully on dispose")
+			} catch (error) {
 				console.error("Failed to flush gRPC log on dispose:", error)
-			})
+			}
 			GrpcRecorder.instance = null
 		}
 	}
@@ -201,15 +204,18 @@ export class GrpcRecorder {
 	}
 
 	private flushLogAsync(): void {
-		// Use setImmediate to avoid blocking the main thread
-		setImmediate(() => {
-			this.flushLog().catch((error) => {
-				console.error("Failed to flush gRPC log:", error)
-			})
+		this.flushLog().catch((error) => {
+			console.error("Failed to flush gRPC log:", error)
 		})
+		// Use setImmediate to avoid blocking the main thread
+		// setImmediate(() => {
+		// 	this.flushLog().catch((error) => {
+		// 		console.error("Failed to flush gRPC log:", error)
+		// 	})
+		// })
 	}
 
-	private async flushLog(): Promise<void> {
+	public async flushLog(): Promise<void> {
 		try {
 			await fs.writeFile(this.logFilePath, JSON.stringify(this.sessionLog, null, 2), "utf8")
 		} catch (error) {

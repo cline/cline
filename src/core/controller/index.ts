@@ -61,7 +61,7 @@ export class Controller {
 
 		// Initialize gRPC recorder for this session
 		try {
-			GrpcRecorder.getInstance(context)
+			GrpcRecorder.getInstance()
 			console.log("gRPC recorder initialized for session")
 		} catch (error) {
 			console.error("Failed to initialize gRPC recorder:", error)

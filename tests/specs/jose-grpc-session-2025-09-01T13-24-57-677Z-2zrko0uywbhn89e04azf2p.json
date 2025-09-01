@@ -1,0 +1,198 @@
+{
+	"sessionId": "2zrko0uywbhn89e04azf2p",
+	"startTime": "2025-09-01T13:24:57.677Z",
+	"platform": "darwin",
+	"entries": [
+		{
+			"timestamp": "2025-09-01T13:24:58.262Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "28d3387d-df70-4497-a4bd-86a9a1dff5ed",
+			"service": "cline.UiService",
+			"method": "initializeWebview",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 2
+		},
+		{
+			"timestamp": "2025-09-01T13:24:58.265Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "2b316615-a662-4937-b571-168a4222e1fc",
+			"service": "cline.StateService",
+			"method": "getAvailableTerminalProfiles",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"profiles": [
+						{
+							"id": "default",
+							"name": "Default",
+							"path": "",
+							"description": "Use VSCode's default terminal configuration"
+						},
+						{
+							"id": "zsh",
+							"name": "zsh",
+							"path": "/bin/zsh",
+							"description": "Z shell (default on macOS)"
+						},
+						{
+							"id": "bash",
+							"name": "bash",
+							"path": "/bin/bash",
+							"description": "Bourne Again Shell"
+						}
+					]
+				}
+			},
+			"duration": 0
+		},
+		{
+			"timestamp": "2025-09-01T13:24:58.283Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "6684c145-3069-46a0-9452-0e0959ba105b",
+			"service": "cline.UiService",
+			"method": "onDidShowAnnouncement",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"value": false
+				}
+			},
+			"duration": 0
+		},
+		{
+			"timestamp": "2025-09-01T13:24:58.283Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "5ce1237e-0de4-47e5-be92-73c24e0ebf53",
+			"service": "cline.UiService",
+			"method": "onDidShowAnnouncement",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"value": false
+				}
+			},
+			"duration": 0
+		},
+		{
+			"timestamp": "2025-09-01T13:24:58.570Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "cef0051e-3113-49b5-8454-1477560e156a",
+			"service": "cline.AccountService",
+			"method": "accountLoginClicked",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"value": "http://localhost:7777/"
+				}
+			},
+			"duration": 795
+		},
+		{
+			"timestamp": "2025-09-01T13:24:58.586Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "e7e43314-d463-4b25-9c52-9fb77aa0df86",
+			"service": "cline.AccountService",
+			"method": "getUserOrganizations",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {
+					"organizations": [
+						{
+							"active": false,
+							"memberId": "random-member-id",
+							"name": "Test Organization",
+							"organizationId": "random-org-id",
+							"roles": [
+								"member"
+							]
+						}
+					]
+				}
+			},
+			"duration": 4
+		},
+		{
+			"timestamp": "2025-09-01T13:24:59.099Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "18b86dd8-6075-454f-b61c-2c872650774e",
+			"service": "cline.TaskService",
+			"method": "newTask",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"text": "Hello, Cline!",
+					"images": [],
+					"files": []
+				}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 2
+		},
+		{
+			"timestamp": "2025-09-01T13:25:00.385Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "34031a7d-4fb2-4ba3-abc8-6877660f5a66",
+			"service": "cline.TaskService",
+			"method": "clearTask",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 1
+		},
+		{
+			"timestamp": "2025-09-01T13:25:00.566Z",
+			"sessionId": "2zrko0uywbhn89e04azf2p",
+			"requestId": "443c3b80-2499-4137-a34a-85d0c0f26acd",
+			"service": "cline.TaskService",
+			"method": "newTask",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"text": "edit_request",
+					"images": [],
+					"files": []
+				}
+			},
+			"status": "completed",
+			"response": {
+				"message": {}
+			},
+			"duration": 1
+		}
+	]
+}
