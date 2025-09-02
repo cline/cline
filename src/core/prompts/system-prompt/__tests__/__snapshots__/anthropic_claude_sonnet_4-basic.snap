@@ -30,8 +30,8 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/project
 Parameters:
-- command: (required) The CLI command to execute...
-- requires_approval: (required) A boolean indicating whether...
+- command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
+- requires_approval: (required) A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.
 Usage:
 <execute_command>
 <command>Your command here</command>
@@ -71,7 +71,6 @@ Parameters:
   ------- SEARCH
   [exact content to find]
   =======
-
   [new content to replace with]
   +++++++ REPLACE
   ```
@@ -105,11 +104,13 @@ Parameters:
 - path: (required) The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched.
 - regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
 - file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <search_files>
 <path>Directory path here</path>
 <regex>Your regex pattern here</regex>
 <file_pattern>file pattern here (optional)</file_pattern>
+<task_progress>Checklist here (optional)</task_progress>
 </search_files>
 
 ## list_files
@@ -117,19 +118,23 @@ Description: Request to list files and directories within the specified director
 Parameters:
 - path: (required) The path of the directory to list contents for (relative to the current working directory /test/project)
 - recursive: (optional) Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <list_files>
 <path>Directory path here</path>
 <recursive>true or false (optional)</recursive>
+<task_progress>Checklist here (optional)</task_progress>
 </list_files>
 
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
 - path: (required) The path of the directory (relative to the current working directory /test/project) to list top level source code definitions for.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <list_code_definition_names>
 <path>Directory path here</path>
+<task_progress>Checklist here (optional)</task_progress>
 </list_code_definition_names>
 
 ## browser_action
@@ -139,10 +144,25 @@ Description: Request to interact with a Puppeteer-controlled browser. Every acti
 - The browser window has a resolution of **1280x720** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
 - Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.
 Parameters:
-- action: (required) The action to perform. The available actions are: * launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. - Use with the `url` parameter to provide the URL. - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) * click: Click at a specific x,y coordinate. - Use with the `coordinate` parameter to specify the location. - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. * type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. - Use with the `text` parameter to provide the string to type. * scroll_down: Scroll down the page by one page height. * scroll_up: Scroll up the page by one page height. * close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. - Example: `<action>close</action>`
-- url: (optional) Use this for providing the URL for the `launch` action. * Example: <url>https://example.com</url>
-- coordinate: (optional) The X and Y coordinates for the `click` action. Coordinates should be within the **1280x720** resolution. * Example: <coordinate>450,300</coordinate>
-- text: (optional) Use this for providing the text for the `type` action. * Example: <text>Hello, world!</text>
+- action: (required) The action to perform. The available actions are: 
+	* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. 
+		- Use with the `url` parameter to provide the URL. 
+		- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) 
+	* click: Click at a specific x,y coordinate. 
+		- Use with the `coordinate` parameter to specify the location. 
+		- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. 
+	* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. 
+		- Use with the `text` parameter to provide the string to type. 
+	* scroll_down: Scroll down the page by one page height. 
+	* scroll_up: Scroll up the page by one page height. 
+	* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. 
+	    - Example: `<action>close</action>`
+- url: (optional) Use this for providing the URL for the `launch` action. 
+	* Example: <url>https://example.com</url>
+- coordinate: (optional) The X and Y coordinates for the `click` action. Coordinates should be within the **1280x720** resolution. 
+	* Example: <coordinate>450,300</coordinate>
+- text: (optional) Use this for providing the text for the `type` action. 
+	* Example: <text>Hello, world!</text>
 Usage:
 <browser_action>
 <action>Action to perform (e.g., launch, click, type, scroll_down, scroll_up, close)</action>
@@ -162,9 +182,11 @@ Description: Fetches content from a specified URL and processes into markdown
 - This tool is read-only and does not modify any files
 Parameters:
 - url: (required) The URL to fetch content from
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <web_fetch>
 <url>https://example.com/docs</url>
+<task_progress>Checklist here (optional)</task_progress>
 </web_fetch>
 
 ## use_mcp_tool
@@ -173,28 +195,30 @@ Parameters:
 - server_name: (required) The name of the MCP server providing the tool
 - tool_name: (required) The name of the tool to execute
 - arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-- task_progress: (optional)  A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <use_mcp_tool>
 <server_name>server name here</server_name>
 <tool_name>tool name here</tool_name>
-<arguments>{
+<arguments>
+{
   "param1": "value1",
   "param2": "value2"
-}</arguments>
+}
+</arguments>
 <task_progress>Checklist here (optional)</task_progress>
 </use_mcp_tool>
 
 ## access_mcp_resource
-Description: The name of the MCP server providing the resource.
+Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
 Parameters:
-- server_name: (required) server name here
-- uri: (required) resource URI here
+- server_name: (required) The name of the MCP server providing the resource
+- uri: (required) The URI identifying the specific resource to access
 - task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <access_mcp_resource>
-<server_name></server_name>
-<uri></uri>
+<server_name>server name here</server_name>
+<uri>resource URI here</uri>
 <task_progress>Checklist here (optional)</task_progress>
 </access_mcp_resource>
 
@@ -202,11 +226,13 @@ Usage:
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
-- options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer.
+- options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. IMPORTANT: NEVER include an option to toggle to Act mode, as this would be something you need to direct the user to do manually themselves if needed.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
 <options>Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]</options>
+<task_progress>Checklist here (optional)</task_progress>
 </ask_followup_question>
 
 ## attempt_completion
@@ -225,7 +251,7 @@ Usage:
 </attempt_completion>
 
 ## new_task
-Description:  Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.
+Description: Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.
 Among other important areas of focus, this summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the new task. The user will be presented with a preview of your generated context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
 Parameters:
 - context: (required) The context to preload the new task with. If applicable based on the current task, this should include:
@@ -250,11 +276,15 @@ Usage:
 <plan_mode_respond>
 <response>Your response here</response>
 <needs_more_exploration>true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)</needs_more_exploration>
-<task_progress>Checklist here (optional)</task_progress>
+<task_progress>Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)</task_progress>
 </plan_mode_respond>
 
 ## load_mcp_documentation
 Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with `use_mcp_tool` and `access_mcp_resource`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
+Parameters: None
+Usage:
+<load_mcp_documentation>
+</load_mcp_documentation>
 
 # Tool Use Examples
 
@@ -337,9 +367,7 @@ Description: Load documentation about creating MCP servers. This tool should be 
 <diff>
 ------- SEARCH
 import React from 'react';
-
 =======
-
 import React, { useState } from 'react';
 +++++++ REPLACE
 
@@ -350,15 +378,12 @@ function handleSubmit() {
 }
 
 =======
-
 +++++++ REPLACE
 
 ------- SEARCH
 return (
   <div>
-
 =======
-
 function handleSubmit() {
   saveData();
   setLoading(false);
@@ -396,7 +421,7 @@ return (
 <tool_name>create_issue</tool_name>
 <arguments>
 {
-  "owner": "octocat",
+  "owner": "octocat2",
   "repo": "hello-world",
   "title": "Found a bug",
   "body": "I'm having a problem with this.",

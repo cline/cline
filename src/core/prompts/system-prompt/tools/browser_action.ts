@@ -1,4 +1,3 @@
-import { z } from "zod"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
@@ -19,46 +18,43 @@ const generic: ClineToolSpec = {
 		{
 			name: "action",
 			required: true,
-			instruction:
-				"The action to perform. The available actions are: * launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. - Use with the `url` parameter to provide the URL. - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) * click: Click at a specific x,y coordinate. - Use with the `coordinate` parameter to specify the location. - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. * type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. - Use with the `text` parameter to provide the string to type. * scroll_down: Scroll down the page by one page height. * scroll_up: Scroll up the page by one page height. * close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. - Example: `<action>close</action>`",
+			instruction: `The action to perform. The available actions are: 
+	* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. 
+		- Use with the \`url\` parameter to provide the URL. 
+		- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) 
+	* click: Click at a specific x,y coordinate. 
+		- Use with the \`coordinate\` parameter to specify the location. 
+		- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. 
+	* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. 
+		- Use with the \`text\` parameter to provide the string to type. 
+	* scroll_down: Scroll down the page by one page height. 
+	* scroll_up: Scroll up the page by one page height. 
+	* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. 
+	    - Example: \`<action>close</action>\``,
 			usage: "Action to perform (e.g., launch, click, type, scroll_down, scroll_up, close)",
 		},
 		{
 			name: "url",
 			required: false,
-			instruction: "Use this for providing the URL for the `launch` action. * Example: <url>https://example.com</url>",
+			instruction: `Use this for providing the URL for the \`launch\` action. 
+	* Example: <url>https://example.com</url>`,
 			usage: "URL to launch the browser at (optional)",
 		},
 		{
 			name: "coordinate",
 			required: false,
-			instruction: `The X and Y coordinates for the \`click\` action. Coordinates should be within the **{{BROWSER_VIEWPORT_WIDTH}}x{{BROWSER_VIEWPORT_HEIGHT}}** resolution. * Example: <coordinate>450,300</coordinate>`,
+			instruction: `The X and Y coordinates for the \`click\` action. Coordinates should be within the **{{BROWSER_VIEWPORT_WIDTH}}x{{BROWSER_VIEWPORT_HEIGHT}}** resolution. 
+	* Example: <coordinate>450,300</coordinate>`,
 			usage: "x,y coordinates (optional)",
 		},
 		{
 			name: "text",
 			required: false,
-			instruction: "Use this for providing the text for the `type` action. * Example: <text>Hello, world!</text>",
+			instruction: `Use this for providing the text for the \`type\` action. 
+	* Example: <text>Hello, world!</text>`,
 			usage: "Text to type (optional)",
 		},
 	],
 }
-
-export const browser_action_zod_schema = z.object({
-	action: z
-		.enum(["launch", "click", "type", "scroll_down", "scroll_up", "close"])
-		.describe(
-			"The action to perform. The available actions are: * launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. - Use with the `url` parameter to provide the URL. - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) * click: Click at a specific x,y coordinate. - Use with the `coordinate` parameter to specify the location. - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. * type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. - Use with the `text` parameter to provide the string to type. * scroll_down: Scroll down the page by one page height. * scroll_up: Scroll up the page by one page height. * close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**.",
-		),
-	url: z.string().url().optional().describe("Use this for providing the URL for the `launch` action."),
-	coordinate: z
-		.string()
-		.regex(/^\d+,\d+$/)
-		.optional()
-		.describe(
-			"The X and Y coordinates for the `click` action. Coordinates should be within the **{{BROWSER_VIEWPORT_WIDTH}}x{{BROWSER_VIEWPORT_HEIGHT}}** resolution. * Example: <coordinate>450,300</coordinate>",
-		),
-	text: z.string().max(1000).optional().describe("Use this for providing the text for the `type` action."),
-})
 
 export const browser_action_variants = [generic]

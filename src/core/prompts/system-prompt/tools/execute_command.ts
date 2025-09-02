@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
@@ -11,13 +12,14 @@ const generic: ClineToolSpec = {
 		{
 			name: "command",
 			required: true,
-			instruction: "The CLI command to execute...",
+			instruction: `The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.`,
 			usage: "Your command here",
 		},
 		{
 			name: "requires_approval",
 			required: true,
-			instruction: "A boolean indicating whether...",
+			instruction:
+				"A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.",
 			usage: "true or false",
 		},
 	],
@@ -41,6 +43,7 @@ const gpt = {
 			required: false,
 			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

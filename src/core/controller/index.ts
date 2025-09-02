@@ -21,7 +21,8 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
-import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { getDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
@@ -65,12 +66,15 @@ export class Controller {
 				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
-				console.error("CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+				console.error(
+					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
+					error,
+				)
 			})
 
 		// Set up persistence error recovery
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("Cache persistence failed, recovering:", error)
+			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
 				await this.stateManager.reInitialize()
 				await this.postStateToWebview()
@@ -79,7 +83,7 @@ export class Controller {
 					message: "Saving settings to storage failed.",
 				})
 			} catch (recoveryError) {
-				console.error("Cache recovery failed:", recoveryError)
+				console.error("[Controller] Cache recovery failed:", recoveryError)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to save settings. Please restart the extension.",
@@ -212,7 +216,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
-			useAutoCondense ?? true,
+			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -636,7 +640,7 @@ export class Controller {
 		const latestAnnouncementId = getLatestAnnouncementId(this.context)
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
-		const distinctId = PostHogClientProvider.getInstance().distinctId
+		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
 
