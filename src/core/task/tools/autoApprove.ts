@@ -1,7 +1,7 @@
 import { ToolUseName } from "@core/assistant-message"
+import { resolveWorkspacePath } from "@core/workspace"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import * as path from "path"
-import { getCwd, getDesktopDir } from "@/utils/path"
+import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
@@ -53,9 +53,9 @@ export class AutoApprove {
 	async shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): Promise<boolean> {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = path.normalize(await getCwd(getDesktopDir()))
-			const absolutePath = path.resolve(cwd, autoApproveActionpath)
-			isLocalRead = absolutePath.startsWith(cwd)
+			const cwd = await getCwd(getDesktopDir())
+			const absolutePath = resolveWorkspacePath(cwd, autoApproveActionpath, "AutoApprove.shouldAutoApproveToolWithPath")
+			isLocalRead = isLocatedInPath(cwd, absolutePath)
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false
