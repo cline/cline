@@ -53,7 +53,7 @@ export class AutoApprove {
 	async shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): Promise<boolean> {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = await getCwd(getDesktopDir())
+			const cwd = path.normalize(await getCwd(getDesktopDir()))
 			const absolutePath = path.resolve(cwd, autoApproveActionpath)
 			isLocalRead = absolutePath.startsWith(cwd)
 		} else {
