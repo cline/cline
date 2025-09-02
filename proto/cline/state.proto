@@ -196,6 +196,8 @@ message ApiConfiguration {
   optional string qwen_code_oauth_path = 63;
   optional string dify_api_key = 64;
   optional string dify_base_url = 65;
+  optional string morph_api_key = 66;
+  optional string morph_api_url = 67;
   
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;

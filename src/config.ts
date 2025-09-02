@@ -4,6 +4,9 @@ export enum Environment {
 	local = "local",
 }
 
+export const DEFAULT_MORPH_API_URL = "https://api.morphllm.com/v1"
+export const DEFAULT_MORPH_MODEL = "morph-v3-fast"
+
 interface EnvironmentConfig {
 	appBaseUrl: string
 	apiBaseUrl: string

@@ -26,6 +26,7 @@ import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQues
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
+import { EditFileToolHandler } from "./tools/handlers/EditFileToolHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
@@ -189,6 +190,9 @@ export class ToolExecutor {
 		this.coordinator.register(writeHandler) // registers as "write_to_file"
 		this.coordinator.register(new SharedToolHandler("replace_in_file", writeHandler))
 		this.coordinator.register(new SharedToolHandler("new_rule", writeHandler))
+
+		// Register EditFileToolHandler
+		this.coordinator.register(new EditFileToolHandler(validator))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))

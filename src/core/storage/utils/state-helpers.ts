@@ -50,6 +50,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
 		difyApiKey,
+		// Added Morph API key
+		morphApiKey,
 		authNonce,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
@@ -86,6 +88,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
 		context.secrets.get("difyApiKey") as Promise<string | undefined>,
+		// Added Morph API key retrieval
+		context.secrets.get("morphApiKey") as Promise<string | undefined>,
 		context.secrets.get("authNonce") as Promise<string | undefined>,
 	])
 
@@ -125,6 +129,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
+		// Added Morph API key
+		morphApiKey,
 	}
 }
 
@@ -202,6 +208,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const sapAiResourceGroup = context.globalState.get("sapAiResourceGroup") as string | undefined
 		const claudeCodePath = context.globalState.get("claudeCodePath") as string | undefined
 		const difyBaseUrl = context.globalState.get("difyBaseUrl") as string | undefined
+		// Added Morph API URL
+		const morphApiUrl = context.globalState.get("morphApiUrl") as string | undefined
 		const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 		const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 		const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
@@ -360,6 +368,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			difyBaseUrl,
+			// Added Morph API URL
+			morphApiUrl,
 			sapAiCoreUseOrchestrationMode,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
@@ -506,6 +516,8 @@ export async function resetGlobalState(controller: Controller) {
 		"vercelAiGatewayApiKey",
 		"zaiApiKey",
 		"difyApiKey",
+		// Added Morph API key for reset
+		"morphApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

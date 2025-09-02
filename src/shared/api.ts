@@ -109,6 +109,9 @@ export interface ApiHandlerOptions {
 	huaweiCloudMaasApiKey?: string
 	difyApiKey?: string
 	difyBaseUrl?: string
+	// Added Morph config
+	morphApiKey?: string
+	morphApiUrl?: string
 	zaiApiKey?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void

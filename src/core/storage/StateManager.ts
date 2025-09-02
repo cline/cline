@@ -253,6 +253,8 @@ export class StateManager {
 			huaweiCloudMaasApiKey,
 			difyApiKey,
 			difyBaseUrl,
+			morphApiKey,
+			morphApiUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -423,6 +425,7 @@ export class StateManager {
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			difyBaseUrl,
+			morphApiUrl,
 			qwenCodeOauthPath,
 		})
 
@@ -460,6 +463,7 @@ export class StateManager {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			difyApiKey,
+			morphApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		})
@@ -666,6 +670,7 @@ export class StateManager {
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
 			difyApiKey: this.secretsCache["difyApiKey"],
+			morphApiKey: this.secretsCache["morphApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 
@@ -707,6 +712,7 @@ export class StateManager {
 			claudeCodePath: this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.globalStateCache["difyBaseUrl"],
+			morphApiUrl: this.globalStateCache["morphApiUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.globalStateCache["planModeApiProvider"],

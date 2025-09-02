@@ -16,13 +16,21 @@ interface DebouncedTextFieldProps {
 	id?: string
 	children?: React.ReactNode
 	disabled?: boolean
+	readOnly?: boolean
 }
 
 /**
  * A wrapper around VSCodeTextField that automatically handles debounced input
  * to prevent excessive API calls while typing
  */
-export const DebouncedTextField = ({ initialValue, onChange, children, type, ...otherProps }: DebouncedTextFieldProps) => {
+export const DebouncedTextField = ({
+	initialValue,
+	onChange,
+	children,
+	type,
+	readOnly,
+	...otherProps
+}: DebouncedTextFieldProps) => {
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange)
 
 	return (
@@ -32,6 +40,7 @@ export const DebouncedTextField = ({ initialValue, onChange, children, type, ...
 				const value = e.target.value
 				setLocalValue(type === "url" ? value.trim() : value)
 			}}
+			readOnly={readOnly as any}
 			type={type}
 			value={localValue}>
 			{children}

@@ -102,24 +102,36 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 					currentCharIndex - toolCloseTag.length + 1, // To before the tool closing tag
 				)
 
-				// Check if content parameter needs special handling (write_to_file/new_rule)
-				// This check is important if the closing </content> tag was missed by the parameter parsing logic
+				// Special handling for multi-line content parameters (write_to_file/new_rule/edit_file)
+				// This check ensures correct parsing even if the closing tag was missed by the standard parameter parsing logic
 				// (e.g., if content is empty or parsing logic prioritizes tool close)
-				const contentParamName: ToolParamName = "content"
-				if (
-					currentToolUse.name === "write_to_file" /* || currentToolUse.name === "new_rule" */ &&
-					toolContentSlice.includes(`<${contentParamName}>`)
-				) {
-					const contentStartTag = `<${contentParamName}>`
-					const contentEndTag = `</${contentParamName}>`
-					const contentStart = toolContentSlice.indexOf(contentStartTag)
-					// Use lastIndexOf for robustness against nested tags
-					const contentEnd = toolContentSlice.lastIndexOf(contentEndTag)
 
-					if (contentStart !== -1 && contentEnd !== -1 && contentEnd > contentStart) {
-						const contentValue = toolContentSlice.slice(contentStart + contentStartTag.length, contentEnd).trim()
-						currentToolUse.params[contentParamName] = contentValue
+				const handleSpecialContentParam = (paramName: ToolParamName) => {
+					if (toolContentSlice.includes(`<${paramName}>`)) {
+						const startTag = `<${paramName}>`
+						const endTag = `</${paramName}>`
+						const start = toolContentSlice.indexOf(startTag)
+						// Use lastIndexOf for robustness against potentially nested tags within the content
+						const end = toolContentSlice.lastIndexOf(endTag)
+
+						if (start !== -1 && end !== -1 && end > start) {
+							// Only update if the parameter hasn't already been captured by the primary logic
+							if (currentToolUse!.params[paramName] === undefined) {
+								const value = toolContentSlice.slice(start + startTag.length, end).trim()
+								currentToolUse!.params[paramName] = value
+							}
+						}
 					}
+				}
+
+				if (currentToolUse.name === "write_to_file" /* || currentToolUse.name === "new_rule" */) {
+					handleSpecialContentParam("content")
+				} else if (currentToolUse.name === "edit_file") {
+					handleSpecialContentParam("code_edit")
+					// 'instructions' and 'target_file' are typically handled by the standard logic as they are single-line,
+					// but we include them here as a safeguard against malformed XML.
+					handleSpecialContentParam("instructions")
+					handleSpecialContentParam("target_file")
 				}
 
 				currentToolUse.partial = false // Mark as complete

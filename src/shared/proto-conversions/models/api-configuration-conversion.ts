@@ -414,6 +414,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		zaiApiKey: config.zaiApiKey,
 		difyApiKey: config.difyApiKey,
 		difyBaseUrl: config.difyBaseUrl,
+		// Morph configuration
+		morphApiKey: (config as any).morphApiKey,
+		morphApiUrl: (config as any).morphApiUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -559,6 +562,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		zaiApiKey: protoConfig.zaiApiKey,
 		difyApiKey: protoConfig.difyApiKey,
 		difyBaseUrl: protoConfig.difyBaseUrl,
+		// Morph configuration
+		morphApiKey: (protoConfig as any).morphApiKey,
+		morphApiUrl: (protoConfig as any).morphApiUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:

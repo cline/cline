@@ -6,6 +6,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
+import { ApiKeyField } from "../common/ApiKeyField"
 import Section from "../Section"
 import { syncModeConfigurations } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -56,6 +57,26 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 				) : (
 					<ApiOptions currentMode={mode} showModelOptions={true} />
 				)}
+
+				{/* Code Editing Utilities */}
+				<div className="mt-5">
+					<label className="block text-sm font-medium text-[var(--vscode-foreground)] mb-2">
+						Code Editing Utilities
+					</label>
+					<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+						<ApiKeyField
+							initialValue={(apiConfiguration as any)?.morphApiKey || ""}
+							onChange={(value) => {
+								handleFieldsChange({ morphApiKey: value } as any)
+							}}
+							providerName="Morph"
+						/>
+
+						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							Used by the edit_file tool to apply code edits quickly. Enter your Morph API key.
+						</p>
+					</div>
+				</div>
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
