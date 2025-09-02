@@ -18,6 +18,12 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		createdAt: new Date().toISOString(),
 		organizations: [],
 	}
+	const mockMetadata = {
+		extension_version: "1.2.3",
+		platform: "Test-IDE",
+		platform_version: "9.8.7-abc",
+		is_dev: "",
+	}
 
 	describe("PostHog Provider", () => {
 		it("should create PostHog provider and track events", async () => {
@@ -26,7 +32,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				type: "posthog",
 			})
 
-			const posthogTelemetryService = new TelemetryService(posthogProvider)
+			const posthogTelemetryService = new TelemetryService(posthogProvider, mockMetadata)
 
 			// Test various telemetry methods
 			posthogTelemetryService.captureTaskCreated("task-123", "anthropic")
@@ -48,6 +54,63 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			await posthogProvider.dispose()
 		})
+
+		it("should include correct metadata with telemetry events", async () => {
+			const posthogProvider = TelemetryProviderFactory.createProvider({
+				type: "posthog",
+			})
+
+			// Spy on the provider's log method to verify metadata
+			const logSpy = sinon.spy(posthogProvider, "log")
+			const identifyUserSpy = sinon.spy(posthogProvider, "identifyUser")
+
+			const posthogTelemetryService = new TelemetryService(posthogProvider, mockMetadata)
+
+			// Test that metadata is included in events
+			posthogTelemetryService.captureTaskCreated("task-456", "openai")
+
+			// Verify that metadata is included in the event
+			assert.ok(
+				logSpy.calledWith(
+					"task.created",
+					sinon.match({
+						ulid: "task-456",
+						apiProvider: "openai",
+						extension_version: "1.2.3",
+						platform: "Test-IDE",
+						platform_version: "9.8.7-abc",
+						is_dev: "",
+					}),
+				),
+				"Task created event should include metadata",
+			)
+
+			// Test identify includes metadata
+			posthogTelemetryService.identifyAccount(mockUserInfo)
+
+			assert.ok(
+				identifyUserSpy.calledWith(
+					mockUserInfo,
+					sinon.match({
+						extension_version: "1.2.3",
+						platform: "Test-IDE",
+						platform_version: "9.8.7-abc",
+						is_dev: "",
+					}),
+				),
+				"Identify user should include metadata",
+			)
+
+			// Test direct provider calls don't include metadata
+			posthogProvider.log("direct_event", { custom: "data" })
+			assert.ok(logSpy.calledWith("direct_event", { custom: "data" }), "Direct provider log should not add metadata")
+
+			// Restore spies
+			logSpy.restore()
+			identifyUserSpy.restore()
+
+			await posthogProvider.dispose()
+		})
 	})
 
 	describe("No-Op Provider", () => {
@@ -57,7 +120,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				type: "none",
 			})
 
-			const noOpTelemetryService = new TelemetryService(noOpProvider)
+			const noOpTelemetryService = new TelemetryService(noOpProvider, mockMetadata)
 
 			// Test various telemetry methods - should all be no-ops
 			noOpTelemetryService.captureTaskCreated("task-789", "google")
@@ -126,7 +189,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			)
 
 			// Should handle all operations safely
-			const telemetryService = new TelemetryService(unsupportedProvider)
+			const telemetryService = new TelemetryService(unsupportedProvider, mockMetadata)
 			telemetryService.captureTaskCreated("task-456", "test")
 			telemetryService.identifyAccount(mockUserInfo)
 
@@ -157,7 +220,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const posthogProvider = TelemetryProviderFactory.createProvider({
 				type: "posthog",
 			})
-			let telemetryService = new TelemetryService(posthogProvider)
+			let telemetryService = new TelemetryService(posthogProvider, mockMetadata)
 
 			telemetryService.captureTaskCreated("task-switch-1", "anthropic")
 			console.log("Captured event with PostHog provider")
@@ -168,7 +231,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const noOpProvider = TelemetryProviderFactory.createProvider({
 				type: "none",
 			})
-			telemetryService = new TelemetryService(noOpProvider)
+			telemetryService = new TelemetryService(noOpProvider, mockMetadata)
 
 			telemetryService.captureTaskCreated("task-switch-2", "openai")
 			console.log("Captured event with No-Op provider")

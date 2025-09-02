@@ -8,6 +8,7 @@ import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
+import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
@@ -15,6 +16,17 @@ import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
 type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
+
+export type TelemetryMetadata = {
+	/** The extension or cline-core version. */
+	extension_version: string
+	/** The name of the host IDE or environment e.g. VSCode */
+	platform: string
+	/** The version of the host environment */
+	platform_version: string
+	/** Whether the extension is running in development mode */
+	is_dev: string | undefined
+}
 
 /**
  * Maximum length for error messages to prevent excessive data
@@ -122,16 +134,28 @@ export class TelemetryService {
 		},
 	}
 
-	/** Current version of the extension */
-	private readonly version: string = extensionVersion
-	/** Whether the extension is running in development mode */
-	private readonly isDev = process.env.IS_DEV
+	public static async create(): Promise<TelemetryService> {
+		const provider = TelemetryProviderFactory.createProvider({
+			type: "posthog",
+		})
+		const hostVersion = await HostProvider.env.getHostVersion({})
+		const metadata: TelemetryMetadata = {
+			extension_version: extensionVersion,
+			platform: hostVersion.platform || "unknown",
+			platform_version: hostVersion.version || "unknown",
+			is_dev: process.env.IS_DEV,
+		}
+		return new TelemetryService(provider, metadata)
+	}
 
 	/**
 	 * Constructor that accepts a PostHogClientProvider instance
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	public constructor(private provider: ITelemetryProvider) {
+	constructor(
+		private provider: ITelemetryProvider,
+		private telemetryMetadata: TelemetryMetadata,
+	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 		console.info("[TelemetryService] Initialized with telemetry provider")
 	}
@@ -161,7 +185,9 @@ export class TelemetryService {
 						})
 						.then((response) => {
 							if (response.selectedOption === "Open Settings") {
-								void HostProvider.window.openSettings({ query: "telemetry.telemetryLevel" })
+								void HostProvider.window.openSettings({
+									query: "telemetry.telemetryLevel",
+								})
 							}
 						})
 				} else {
@@ -179,8 +205,7 @@ export class TelemetryService {
 	private addProperties(properties: any): any {
 		return {
 			...properties,
-			extension_version: this.version,
-			is_dev: this.isDev,
+			...this.telemetryMetadata,
 		}
 	}
 
