@@ -25,17 +25,12 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const context: string | undefined = block.params.context
 
 		// Validate required parameters
 		if (!context) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: context"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "context")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

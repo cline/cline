@@ -37,7 +37,8 @@
 				"useYield": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off"
+				"noSwitchDeclarations": "off",
+				"noUnusedImports": "error"
 			},
 			"a11y": "off",
 			"style": {

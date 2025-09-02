@@ -57,9 +57,7 @@ Key: If output doesn’t stream, assume success unless critical; else ask user t
 <diff>
 ------- SEARCH
 console.log('Hi');
-
 =======
-
 console.log('Hello');
 +++++++ REPLACE
 </diff>

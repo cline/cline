@@ -34,7 +34,7 @@ import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
-import { telemetryService } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 /*
