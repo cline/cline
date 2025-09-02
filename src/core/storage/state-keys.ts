@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, BedrockModelId, ModelInfo, type OcaModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
 import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
@@ -83,6 +83,7 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+	ocaBaseUrl: string | undefined
 
 	// Multi-root workspace support
 	workspaceRoots: WorkspaceRoot[] | undefined
@@ -119,6 +120,8 @@ export interface GlobalState {
 	planModeHuggingFaceModelInfo: ModelInfo | undefined
 	planModeHuaweiCloudMaasModelId: string | undefined
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeOcaModelId: string | undefined
+	planModeOcaModelInfo: OcaModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -153,6 +156,8 @@ export interface GlobalState {
 	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeVercelAiGatewayModelId: string | undefined
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeOcaModelId: string | undefined
+	actModeOcaModelInfo: OcaModelInfo | undefined
 }
 
 export interface Secrets {
@@ -191,6 +196,8 @@ export interface Secrets {
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
+	ocaApiKey: string | undefined
+	ocaRefreshToken: string | undefined
 }
 
 export interface LocalState {
