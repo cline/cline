@@ -211,9 +211,13 @@ export class ClineProvider
 		}
 
 		// Initialize Roo Code Cloud profile sync.
-		this.initializeCloudProfileSync().catch((error) => {
-			this.log(`Failed to initialize cloud profile sync: ${error}`)
-		})
+		if (CloudService.hasInstance()) {
+			this.initializeCloudProfileSync().catch((error) => {
+				this.log(`Failed to initialize cloud profile sync: ${error}`)
+			})
+		} else {
+			this.log("CloudService not ready, deferring cloud profile sync")
+		}
 	}
 
 	/**
@@ -300,6 +304,25 @@ export class ClineProvider
 			}
 		} catch (error) {
 			this.log(`Error syncing cloud profiles: ${error}`)
+		}
+	}
+
+	/**
+	 * Initialize cloud profile synchronization when CloudService is ready
+	 * This method is called externally after CloudService has been initialized
+	 */
+	public async initializeCloudProfileSyncWhenReady(): Promise<void> {
+		try {
+			if (CloudService.hasInstance() && CloudService.instance.isAuthenticated()) {
+				await this.syncCloudProfiles()
+			}
+
+			if (CloudService.hasInstance()) {
+				CloudService.instance.off("settings-updated", this.handleCloudSettingsUpdate)
+				CloudService.instance.on("settings-updated", this.handleCloudSettingsUpdate)
+			}
+		} catch (error) {
+			this.log(`Failed to initialize cloud profile sync when ready: ${error}`)
 		}
 	}
 
