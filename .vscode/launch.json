@@ -112,6 +112,39 @@
 				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
 			"program": "cline-core.js"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Debug Test Standalone Core Api Server (test:standalone)",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"cwd": "${workspaceFolder}",
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js",
+				"${workspaceFolder}/dist-standalone/**/*.js"
+			],
+			"preLaunchTask": "compile-standalone",
+			"runtimeExecutable": "npx",
+			"runtimeArgs": [
+				"tsx"
+			],
+			"program": "scripts/test-standalone-core-api-server.ts",
+			"env": {
+				"PROTOBUS_PORT": "26040",
+				"HOSTBRIDGE_PORT": "26041",
+				"WORKSPACE_DIR": "${workspaceFolder}",
+				"IS_DEV": "true",
+				"CLINE_ENVIRONMENT": "local"
+			},
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen"
 		}
 	]
 }

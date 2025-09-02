@@ -35,6 +35,7 @@ async function main(): Promise<void> {
 		process.exit(1)
 	}
 
+	// [TODO]: We can sping up cline-core.ts and host-bridge without creating a new process
 	try {
 		const server = await ClineApiServerMock.startGlobalServer()
 	} catch (error) {
@@ -61,6 +62,9 @@ async function main(): Promise<void> {
 			DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
 			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
+			TEMP_PROFILE: "true",
+			E2E_TEST: "true",
+			CLINE_ENVIRONMENT: "local",
 		},
 		stdio: "inherit",
 	})
