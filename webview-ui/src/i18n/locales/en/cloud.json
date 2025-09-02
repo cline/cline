@@ -12,5 +12,6 @@
 	"cloudBenefitMetrics": "Get a holistic view of your token consumption",
 	"visitCloudWebsite": "Visit Roo Code Cloud",
 	"remoteControl": "Roomote Control",
-	"remoteControlDescription": "Enable following and interacting with tasks in this workspace with Roo Code Cloud"
+	"remoteControlDescription": "Enable following and interacting with tasks in this workspace with Roo Code Cloud",
+	"cloudUrlPillLabel": "Roo Code Cloud URL"
 }

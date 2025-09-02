@@ -13,5 +13,6 @@
 	"cloudBenefitWalkaway": "Theo dõi và điều khiển tác vụ từ bất kỳ đâu với Roomote Control",
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Cho phép theo dõi và tương tác với các tác vụ trong workspace này với Roo Code Cloud",
-	"visitCloudWebsite": "Truy cập Roo Code Cloud"
+	"visitCloudWebsite": "Truy cập Roo Code Cloud",
+	"cloudUrlPillLabel": "URL Roo Code Cloud"
 }

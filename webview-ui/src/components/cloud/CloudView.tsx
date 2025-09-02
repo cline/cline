@@ -11,6 +11,9 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch"
 
 import { History, PiggyBank, SquareArrowOutUpRightIcon } from "lucide-react"
 
+// Define the production URL constant locally to avoid importing from cloud package in tests
+const PRODUCTION_ROO_CODE_API_URL = "https://app.roocode.com"
+
 type CloudViewProps = {
 	userInfo: CloudUserInfo | null
 	isAuthenticated: boolean
@@ -56,8 +59,14 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 		// Send telemetry for cloud website visit
 		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
 		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
-		const cloudUrl = cloudApiUrl || "https://app.roocode.com"
+		const cloudUrl = cloudApiUrl || PRODUCTION_ROO_CODE_API_URL
 		vscode.postMessage({ type: "openExternal", url: cloudUrl })
+	}
+
+	const handleOpenCloudUrl = () => {
+		if (cloudApiUrl) {
+			vscode.postMessage({ type: "openExternal", url: cloudApiUrl })
+		}
 	}
 
 	const handleRemoteControlToggle = () => {
@@ -185,6 +194,18 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 						</VSCodeButton>
 					</div>
 				</>
+			)}
+			{cloudApiUrl && cloudApiUrl !== PRODUCTION_ROO_CODE_API_URL && (
+				<div className="mt-6 flex justify-center">
+					<div className="inline-flex items-center px-3 py-1 gap-1 rounded-full bg-vscode-badge-background/50 text-vscode-badge-foreground text-xs">
+						<span className="text-vscode-foreground/75">{t("cloud:cloudUrlPillLabel")}: </span>
+						<button
+							onClick={handleOpenCloudUrl}
+							className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
+							{cloudApiUrl}
+						</button>
+					</div>
+				</div>
 			)}
 		</div>
 	)

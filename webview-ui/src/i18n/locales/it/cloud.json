@@ -13,5 +13,6 @@
 	"cloudBenefitWalkaway": "Segui e controlla le attività da qualsiasi luogo con Roomote Control",
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Abilita il monitoraggio e l'interazione con le attività in questo workspace con Roo Code Cloud",
-	"visitCloudWebsite": "Visita Roo Code Cloud"
+	"visitCloudWebsite": "Visita Roo Code Cloud",
+	"cloudUrlPillLabel": "URL di Roo Code Cloud"
 }

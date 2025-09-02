@@ -13,5 +13,6 @@
 	"cloudBenefitWalkaway": "使用 Roomote Control 随时随地跟踪和控制任务",
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "允许通过 Roo Code Cloud 跟踪和操作此工作区中的任务",
-	"visitCloudWebsite": "访问 Roo Code Cloud"
+	"visitCloudWebsite": "访问 Roo Code Cloud",
+	"cloudUrlPillLabel": "Roo Code Cloud URL"
 }
