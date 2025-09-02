@@ -956,7 +956,7 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
 	 */
-	public captureTerminalExecution(success: boolean, method: string) {
+	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
