@@ -1493,7 +1493,7 @@ export class Task {
 
 		// Track if buffer gets stuck
 		let bufferStuckTimer: NodeJS.Timeout | null = null
-		const BUFFER_STUCK_TIMEOUT_MS = 30000 // 30 seconds
+		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
 		const flushBuffer = async (force = false) => {
 			if (chunkEnroute || outputBuffer.length === 0) {
@@ -1572,7 +1572,7 @@ export class Task {
 
 		let completed = false
 		let completionTimer: NodeJS.Timeout | null = null
-		const COMPLETION_TIMEOUT_MS = 60000 // 60 seconds
+		const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
 
 		// Start timer to detect if waiting for completion takes too long
 		completionTimer = setTimeout(() => {
