@@ -5,32 +5,39 @@ import { EmptyRequest } from "@/shared/proto/cline/common"
 import { Logger } from "./Logger"
 
 /*
- * Unique identifiers for the current session
- * NOTE: Unchanged throughout session
+ * Unique identifier for the current installation.
  */
-const _anonymousId = uuidv4()
+let _distinctId: string = ""
 
-let _machineId = ""
-let _distinctId = ""
-
-export async function initializeDistinctId(context: ExtensionContext) {
+export async function initializeDistinctId(context: ExtensionContext, uuid: () => string = uuidv4) {
 	// NOTE: Backward compatibility in case where cline.distinctId was set in older versions
 	const existingId = context.globalState.get<string>("cline.distinctId")
 	const machineId = await getMachineId()
-	setDistinctId(existingId || machineId)
+	let distinctId = existingId || machineId
+
+	if (!distinctId) {
+		console.warn("No machine ID found, generating UUID")
+		distinctId = uuid()
+	}
+
+	setDistinctId(distinctId)
+
+	if (process.env.IS_DEV) {
+		console.log("Telemetry distinct ID:", distinctId)
+	}
 }
 
 /*
  * Host-provided UUID when running via HostBridge; fall back to VS Code's machineId
  */
-async function getMachineId() {
+async function getMachineId(): Promise<string | undefined> {
 	try {
 		const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
-		_machineId = response.value
+		return response.value
 	} catch (e) {
 		Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
+		return undefined
 	}
-	return _distinctId || _anonymousId
 }
 
 /*
@@ -38,6 +45,9 @@ async function getMachineId() {
  * This is updated to Cline User ID when authenticated.
  */
 export function setDistinctId(newId: string) {
+	if (_distinctId) {
+		console.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
+	}
 	_distinctId = newId
 }
 
@@ -46,4 +56,9 @@ export function setDistinctId(newId: string) {
  * If authenticated, this will be the Cline User ID.
  * Else, this will be the machine ID, or the anonymous ID as a fallback.
  */
-export const getDistinctId = () => _distinctId || _machineId || _anonymousId
+export function getDistinctId() {
+	if (!_distinctId) {
+		console.error("Telemetry ID is not initialized. Call initializeDistinctId() first.")
+	}
+	return _distinctId
+}
