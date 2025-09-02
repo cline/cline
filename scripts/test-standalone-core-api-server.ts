@@ -28,7 +28,7 @@ async function main(): Promise<void> {
 	const coreFile = path.join(distDir, "cline-core.js")
 
 	if (!fs.existsSync(coreFile)) {
-		console.error("❌ Standalone build not found. Please run: npm run compile-standalone")
+		console.error("Standalone build not found. Please run: npm run compile-standalone")
 		process.exit(1)
 	}
 
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 2000))
 
 	// Start the core service
-	console.log("🎯 Starting Cline Core Service...")
+	console.log("Starting Cline Core Service...")
 	const coreService: ChildProcess = spawn("node", ["cline-core.js"], {
 		cwd: distDir,
 		env: {
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
 	// Handle graceful shutdown
 	const shutdown = (): void => {
-		console.log("\n🛑 Shutting down services...")
+		console.log("\n Shutting down services...")
 		hostbridge.kill()
 		coreService.kill()
 		process.exit(0)
@@ -79,20 +79,20 @@ async function main(): Promise<void> {
 	process.on("SIGTERM", shutdown)
 
 	coreService.on("exit", (code) => {
-		console.log(`💀 Core service exited with code ${code}`)
+		console.log(`Core service exited with code ${code}`)
 		hostbridge.kill()
 		process.exit(code || 0)
 	})
 
 	hostbridge.on("exit", (code) => {
-		console.log(`💀 HostBridge exited with code ${code}`)
+		console.log(`HostBridge exited with code ${code}`)
 		coreService.kill()
 		process.exit(code || 0)
 	})
 
-	console.log("✅ Cline gRPC Server is running!")
-	console.log(`🔗 Connect to: 127.0.0.1:${PROTOBUS_PORT}`)
-	console.log("📋 Press Ctrl+C to stop")
+	console.log("Cline gRPC Server is running!")
+	console.log(`Connect to: 127.0.0.1:${PROTOBUS_PORT}`)
+	console.log("Press Ctrl+C to stop")
 }
 
 if (require.main === module) {
