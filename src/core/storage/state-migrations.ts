@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { ensureRulesDirectoryExists, readTaskHistoryFromState, taskHistoryStateFileExists, writeTaskHistoryToState } from "./disk"
+import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
