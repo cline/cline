@@ -16,9 +16,6 @@ import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
 const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
-// export IS_DEV="true"
-// export CLINE_ENVIRONMENT="local"
-// brew install unp
 
 console.log("🚀 Starting Simple Cline gRPC Server...")
 console.log(`📁 Workspace: ${WORKSPACE_DIR}`)
@@ -65,6 +62,7 @@ async function main(): Promise<void> {
 			TEMP_PROFILE: "true",
 			E2E_TEST: "true",
 			CLINE_ENVIRONMENT: "local",
+			// IS_DEV:"true",
 		},
 		stdio: "inherit",
 	})
