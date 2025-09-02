@@ -23,7 +23,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 	setDistinctId(distinctId)
 
 	if (process.env.IS_DEV) {
-		console.log("Telemetry distinct ID:", distinctId)
+		console.log("Telemetry distinct ID initialized:", distinctId)
 	}
 }
 
@@ -45,7 +45,7 @@ async function getMachineId(): Promise<string | undefined> {
  * This is updated to Cline User ID when authenticated.
  */
 export function setDistinctId(newId: string) {
-	if (_distinctId) {
+	if (_distinctId && _distinctId !== newId) {
 		console.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
 	}
 	_distinctId = newId
