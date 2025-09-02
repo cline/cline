@@ -5,6 +5,11 @@
  *
  * This is a minimal script to run the Cline core gRPC service without
  * the complex installation process. Just run: npx tsx scripts/test-stand-aline-core-api-server.ts
+ *
+ * Along with the cline core will start:
+ * 	1. HostBridge test server
+ *  2. ClineApiServerMock: The cline
+ *  3. AuthServiceMock in case E2E_TEST=="true"
  */
 
 import { ChildProcess, spawn } from "child_process"
@@ -16,6 +21,8 @@ import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
 const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
+const E2E_TEST = process.env.E2E_TEST || "true"
+const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
 
 async function main(): Promise<void> {
 	console.log("Starting Simple Cline gRPC Server...")
@@ -25,33 +32,36 @@ async function main(): Promise<void> {
 
 	// Check if we have the built standalone files
 	const distDir = path.join(__dirname, "..", "dist-standalone")
-	const coreFile = path.join(distDir, "cline-core.js")
+	const clineCoreFile = "cline-core.js"
+	const coreFile = path.join(distDir, clineCoreFile)
 
 	if (!fs.existsSync(coreFile)) {
 		console.error("Standalone build not found. Please run: npm run compile-standalone")
 		process.exit(1)
 	}
 
-	// [TODO]: We can sping up cline-core.ts and host-bridge without creating a new process
+	// Start in-process Cline API server
+	let apiServer: ClineApiServerMock
 	try {
-		const server = await ClineApiServerMock.startGlobalServer()
+		apiServer = await ClineApiServerMock.startGlobalServer()
+		console.log("Cline API Server started in-process")
 	} catch (error) {
-		console.log("coso raro", error)
+		console.error("Failed to start Cline API Server:", error)
+		process.exit(1)
 	}
 
-	// Start hostbridge test server in background
+	// Start hostbridge test server in background.
+	// We keep it as a child process to emulate how extension works right now
 	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		detached: false,
 	})
 
-	// Wait a moment for hostbridge to start
-	await new Promise((resolve) => setTimeout(resolve, 2000))
-
 	// Start the core service
+	// We keep it as a child process to emulate how extension works right now
 	console.log("Starting Cline Core Service...")
-	const coreService: ChildProcess = spawn("node", ["cline-core.js"], {
+	const coreService: ChildProcess = spawn("node", [clineCoreFile], {
 		cwd: distDir,
 		env: {
 			...process.env,
@@ -59,10 +69,8 @@ async function main(): Promise<void> {
 			DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
 			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
-			TEMP_PROFILE: "true",
-			E2E_TEST: "true",
-			CLINE_ENVIRONMENT: "local",
-			// IS_DEV:"true",
+			E2E_TEST: E2E_TEST,
+			CLINE_ENVIRONMENT: CLINE_ENVIRONMENT,
 		},
 		stdio: "inherit",
 	})
@@ -72,6 +80,7 @@ async function main(): Promise<void> {
 		console.log("\n Shutting down services...")
 		hostbridge.kill()
 		coreService.kill()
+
 		process.exit(0)
 	}
 
