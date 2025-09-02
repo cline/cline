@@ -33,7 +33,7 @@ async function main() {
 
 	// Start hostbridge test server in background
 	console.log("🔧 Starting HostBridge test server...")
-	const hostbridge = spawn("node", [path.join(__dirname, "scripts/test-hostbridge-server.ts")], {
+	const hostbridge = spawn("npx", ["tsx", path.join(__dirname, "scripts/test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		detached: false,
 	})
