@@ -17,12 +17,12 @@ const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
 const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
 
-console.log("🚀 Starting Simple Cline gRPC Server...")
-console.log(`📁 Workspace: ${WORKSPACE_DIR}`)
-console.log(`🌐 ProtoBus Port: ${PROTOBUS_PORT}`)
-console.log(`🔍 HostBridge Port: ${HOSTBRIDGE_PORT}`)
-
 async function main(): Promise<void> {
+	console.log("Starting Simple Cline gRPC Server...")
+	console.log(`Workspace: ${WORKSPACE_DIR}`)
+	console.log(`ProtoBus Port: ${PROTOBUS_PORT}`)
+	console.log(`HostBridge Port: ${HOSTBRIDGE_PORT}`)
+
 	// Check if we have the built standalone files
 	const distDir = path.join(__dirname, "..", "dist-standalone")
 	const coreFile = path.join(distDir, "cline-core.js")
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 	}
 
 	// Start hostbridge test server in background
-	console.log("🔧 Starting HostBridge test server...")
+	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		detached: false,
