@@ -27,6 +27,7 @@ export interface GlobalState {
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
+	vertexBaseUrl: string | undefined
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
 	requestyBaseUrl: string | undefined
@@ -182,6 +183,7 @@ export interface Secrets {
 	groqApiKey: string | undefined
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
+	vertexApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
 }

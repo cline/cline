@@ -63,6 +63,8 @@ export interface ApiHandlerOptions {
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexBaseUrl?: string
+	vertexApiKey?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	ollamaBaseUrl?: string
