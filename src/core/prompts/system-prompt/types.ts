@@ -2,7 +2,7 @@
  * Enhanced type definitions for better type safety and developer experience
  */
 
-import { ApiHandlerModel, ApiProviderInfo } from "@/core/api"
+import { ApiProviderInfo } from "@/core/api"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
@@ -238,4 +238,15 @@ export interface VariantSchema {
 	readonly required: readonly string[]
 	readonly optional: readonly string[]
 	readonly validation: Record<string, (value: unknown) => boolean>
+}
+
+/**
+ * Common parameter shared between tools for tracking task progress
+ */
+export const TASK_PROGRESS_PARAMETER = {
+	name: "task_progress",
+	required: false,
+	instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`,
+	usage: "Checklist here (optional)",
+	dependencies: [ClineDefaultTool.TODO],
 }

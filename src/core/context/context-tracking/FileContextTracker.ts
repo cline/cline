@@ -1,10 +1,9 @@
-import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
+import { getTaskMetadata, readTaskHistoryFromState, saveTaskMetadata } from "@core/storage/disk"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import chokidar, { FSWatcher } from "chokidar"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
-import { HistoryItem } from "@/shared/HistoryItem"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 
@@ -286,8 +285,7 @@ export class FileContextTracker {
 	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
 		const startTime = Date.now()
 		try {
-			// eslint-disable-next-line eslint-rules/no-direct-vscode-state-api
-			const taskHistory = (context.globalState.get("taskHistory") as HistoryItem[]) || []
+			const taskHistory = await readTaskHistoryFromState(context)
 			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
 			const allStateKeys = context.workspaceState.keys()
 			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))
@@ -312,7 +310,7 @@ export class FileContextTracker {
 				`FileContextTracker: Processed ${existingTaskIds.size} tasks, found ${pendingWarningKeys.length} pending warnings, ${orphanedPendingContextTasks.length} orphaned, deleted ${orphanedPendingContextTasks.length}, took ${duration}ms`,
 			)
 		} catch (error) {
-			console.error("Error cleaning up orphaned file context warnings:", error)
+			console.error("[FileContextTracker] Error cleaning up orphaned file context warnings:", error)
 		}
 	}
 }

@@ -1,3 +1,4 @@
+import { workspaceResolver } from "@core/workspace"
 import { DifyHandler } from "../../core/api/providers/dify"
 
 /**
@@ -252,14 +253,13 @@ export function createDifyIntegration(
  */
 export async function prepareClineFilesForDify(files: string[]): Promise<Array<{ name: string; content: Buffer }>> {
 	const fs = await import("fs")
-	const path = await import("path")
 
 	const fileData: Array<{ name: string; content: Buffer }> = []
 
 	for (const filePath of files) {
 		try {
 			const content = fs.readFileSync(filePath)
-			const name = path.basename(filePath)
+			const name = workspaceResolver.getBasename(filePath, "DifyIntegration.prepareClineFilesForDify")
 			fileData.push({ name, content })
 		} catch (error) {
 			console.error(`Failed to read file ${filePath}:`, error)

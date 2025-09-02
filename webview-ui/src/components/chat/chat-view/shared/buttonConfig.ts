@@ -11,6 +11,7 @@ export type ButtonActionType =
 	| "new_task" // Start a new task
 	| "cancel" // Cancel streaming
 	| "utility" // Execute utility function (condense, report_bug)
+	| "retry" // Retry the last action
 
 /**
  * Button configuration for different message states
@@ -31,11 +32,11 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: false,
+		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: "Retry",
 		secondaryText: "Start New Task",
-		primaryAction: "approve",
+		primaryAction: "retry",
 		secondaryAction: "new_task",
 	},
 	mistake_limit_reached: {
