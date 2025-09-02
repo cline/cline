@@ -24,7 +24,7 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { AuthService } from "@/services/auth/AuthService"
+import { AuthManager } from "@/services/auth/AuthManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -54,7 +54,7 @@ export class Controller {
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	authService: AuthService
+	authManager: AuthManager
 	readonly stateManager: StateManager
 
 	// NEW: Add workspace manager (optional initially)
@@ -69,13 +69,14 @@ export class Controller {
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
-		this.authService = AuthService.getInstance(this)
+		AuthManager.initialize(this)
+		this.authManager = AuthManager.getInstance()
 
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.stateManager
 			.initialize()
 			.then(() => {
-				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				this.authManager.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
 				console.error(
@@ -165,6 +166,23 @@ export class Controller {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",
+			})
+		}
+	}
+
+	// Oca Auth methods
+	async handleOcaSignOut() {
+		try {
+			this.authManager.ocaAuthService.handleDeauth()
+			await this.postStateToWebview()
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Successfully logged out of OCA",
+			})
+		} catch (_error) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "OCA Logout failed",
 			})
 		}
 	}
@@ -374,7 +392,7 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authManager.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -417,6 +435,57 @@ export class Controller {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
+			})
+			// Even on login failure, we preserve any existing tokens
+			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleOcaAuthCallback(code: string, state: string) {
+		try {
+			await this.authManager.ocaAuthService.handleAuthCallback(code, state)
+
+			const ocaProvider: ApiProvider = "oca"
+
+			// Get current settings to determine how to update providers
+			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+
+			const currentMode = await this.getCurrentMode()
+
+			// Get current API configuration from cache
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+
+			const updatedConfig = { ...currentApiConfiguration }
+
+			if (planActSeparateModelsSetting) {
+				// Only update the current mode's provider
+				if (currentMode === "plan") {
+					updatedConfig.planModeApiProvider = ocaProvider
+				} else {
+					updatedConfig.actModeApiProvider = ocaProvider
+				}
+			} else {
+				// Update both modes to keep them in sync
+				updatedConfig.planModeApiProvider = ocaProvider
+				updatedConfig.actModeApiProvider = ocaProvider
+			}
+
+			// Update the API configuration through cache service
+			this.stateManager.setApiConfiguration(updatedConfig)
+
+			// Mark welcome view as completed since user has successfully logged in
+			this.stateManager.setGlobalState("welcomeViewCompleted", true)
+
+			if (this.task) {
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+			}
+
+			await this.postStateToWebview()
+		} catch (error) {
+			console.error("Failed to handle auth callback:", error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to log in to OCA",
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
@@ -666,7 +735,7 @@ export class Controller {
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const welcomeViewCompleted = Boolean(
-			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
+			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authManager.authService.getInfo()?.user?.uid,
 		)
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")

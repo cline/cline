@@ -1,6 +1,5 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
-import { AuthManager } from "@/services/auth/AuthManager"
 import type { Controller } from "../index"
 
 /**
@@ -9,8 +8,7 @@ import type { Controller } from "../index"
  * @param _request The empty request object
  * @returns Empty response
  */
-export async function accountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
-	await controller.handleSignOut()
-	await AuthManager.getInstance().authService.handleDeauth()
+export async function ocaAccountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
+	await controller.handleOcaSignOut()
 	return Empty.create({})
 }

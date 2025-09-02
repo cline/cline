@@ -1,4 +1,4 @@
-import { AuthService } from "@services/auth/AuthService"
+import { AuthManager } from "@/services/auth/AuthManager"
 import { AuthState, EmptyRequest } from "@/shared/proto/index.cline"
 import { Controller } from ".."
 import { StreamingResponseHandler } from "../grpc-handler"
@@ -9,5 +9,5 @@ export async function subscribeToAuthStatusUpdate(
 	responseStream: StreamingResponseHandler<AuthState>,
 	requestId?: string,
 ): Promise<void> {
-	return AuthService.getInstance().subscribeToAuthStatusUpdate(controller, request, responseStream, requestId)
+	return AuthManager.getInstance().authService.subscribeToAuthStatusUpdate(controller, request, responseStream, requestId)
 }
