@@ -4,7 +4,7 @@
  * Simple Cline gRPC Server
  *
  * This is a minimal script to run the Cline core gRPC service without
- * the complex installation process. Just run: npx tsx scripts/simple-cline-server.ts
+ * the complex installation process. Just run: npx tsx scripts/test-stand-aline-core-api-server.ts
  */
 
 import { ChildProcess, spawn } from "child_process"
