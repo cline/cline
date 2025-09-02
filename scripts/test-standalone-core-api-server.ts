@@ -3,13 +3,16 @@
 /**
  * Simple Cline gRPC Server
  *
- * This is a minimal script to run the Cline core gRPC service without
- * the complex installation process. Just run: npx tsx scripts/test-stand-aline-core-api-server.ts
+ * This script provides a minimal way to run the Cline core gRPC service
+ * without requiring the full installation, while automatically mocking all external services. Simply run:
+ *   npx tsx scripts/test-stand-aline-core-api-server.ts
  *
- * Along with the cline core will start:
- * 	1. HostBridge test server
- *  2. ClineApiServerMock: The cline
- *  3. AuthServiceMock in case E2E_TEST=="true"
+ * The following components are started automatically:
+ *   1. HostBridge test server
+ *   2. ClineApiServerMock (mock implementation of the Cline API)
+ *   3. AuthServiceMock (activated if E2E_TEST="true")
+ *
+ * Ideal for local development, testing, or lightweight E2E scenarios.
  */
 
 import { ChildProcess, spawn } from "child_process"
