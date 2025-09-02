@@ -17,6 +17,8 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexBaseUrl?: string
+	vertexApiKey?: string
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
@@ -63,11 +65,28 @@ export class GeminiHandler implements ApiHandler {
 				const location = this.options.vertexRegion ?? "not-provided"
 
 				try {
-					this.client = new GoogleGenAI({
+					const clientOptions: any = {
 						vertexai: true,
 						project,
 						location,
-					})
+					}
+
+					// Add custom endpoint and API key support
+					if (this.options.vertexBaseUrl || this.options.vertexApiKey) {
+						clientOptions.httpOptions = {}
+
+						if (this.options.vertexBaseUrl) {
+							clientOptions.httpOptions.baseUrl = this.options.vertexBaseUrl
+						}
+
+						if (this.options.vertexApiKey) {
+							clientOptions.httpOptions.headers = {
+								Authorization: `Bearer ${this.options.vertexApiKey}`,
+							}
+						}
+					}
+
+					this.client = new GoogleGenAI(clientOptions)
 				} catch (error) {
 					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
 				}

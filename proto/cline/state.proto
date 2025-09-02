@@ -210,6 +210,8 @@ message ApiConfiguration {
   optional string qwen_code_oauth_path = 63;
   optional string dify_api_key = 64;
   optional string dify_base_url = 65;
+  optional string vertex_base_url = 66;
+  optional string vertex_api_key = 67;
   
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

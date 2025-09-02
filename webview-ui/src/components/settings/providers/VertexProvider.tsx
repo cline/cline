@@ -1,6 +1,7 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -43,6 +44,8 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
 
+	const [vertexEndpointSelected, setVertexEndpointSelected] = useState(!!apiConfiguration?.vertexBaseUrl)
+
 	return (
 		<div
 			style={{
@@ -76,6 +79,49 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeOption value="global">global</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			<DebouncedTextField
+				initialValue={apiConfiguration?.vertexApiKey || ""}
+				onChange={(value) => handleFieldChange("vertexApiKey", value)}
+				placeholder="Enter API key (optional)"
+				style={{ width: "100%" }}
+				type="password">
+				<span style={{ fontWeight: 500 }}>API Key</span>
+			</DebouncedTextField>
+
+			<p
+				style={{
+					fontSize: "11px",
+					marginTop: "2px",
+					marginBottom: "5px",
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				If provided, this API key will be used for authentication instead of Application Default Credentials.
+			</p>
+
+			<div style={{ display: "flex", flexDirection: "column" }}>
+				<VSCodeCheckbox
+					checked={vertexEndpointSelected}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked === true
+						setVertexEndpointSelected(isChecked)
+						if (!isChecked) {
+							handleFieldChange("vertexBaseUrl", "")
+						}
+					}}>
+					Use custom endpoint
+				</VSCodeCheckbox>
+
+				{vertexEndpointSelected && (
+					<DebouncedTextField
+						initialValue={apiConfiguration?.vertexBaseUrl || ""}
+						onChange={(value) => handleFieldChange("vertexBaseUrl", value)}
+						placeholder="Enter custom endpoint URL (e.g., proxy endpoint)"
+						style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+						type="url"
+					/>
+				)}
+			</div>
 
 			<p
 				style={{

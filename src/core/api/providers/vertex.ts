@@ -1,14 +1,36 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { GoogleAuth } from "google-auth-library"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
+// Custom GoogleAuth class that bypasses default authentication for proxy endpoints
+class CustomGoogleAuth extends GoogleAuth {
+	private customToken: string
+
+	constructor(customToken: string) {
+		super()
+		this.customToken = customToken
+	}
+
+	override async getClient() {
+		return {
+			projectId: null,
+			getRequestHeaders: async () => ({
+				Authorization: `Bearer ${this.customToken}`,
+			}),
+		} as any
+	}
+}
+
 interface VertexHandlerOptions extends CommonApiHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexBaseUrl?: string
+	vertexApiKey?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
 	geminiApiKey?: string
@@ -50,11 +72,19 @@ export class VertexHandler implements ApiHandler {
 			}
 			try {
 				// Initialize Anthropic client for Claude models
-				this.clientAnthropic = new AnthropicVertex({
+				const clientOptions: any = {
 					projectId: this.options.vertexProjectId,
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
-				})
+					...(this.options.vertexBaseUrl && { baseURL: this.options.vertexBaseUrl }),
+				}
+
+				// If custom API key is provided, use custom GoogleAuth to bypass default authentication
+				if (this.options.vertexApiKey) {
+					clientOptions.googleAuth = new CustomGoogleAuth(this.options.vertexApiKey)
+				}
+
+				this.clientAnthropic = new AnthropicVertex(clientOptions)
 			} catch (error: any) {
 				throw new Error(`Error creating Vertex AI Anthropic client: ${error.message}`)
 			}

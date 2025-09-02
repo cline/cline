@@ -52,6 +52,7 @@ export interface Settings {
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
+	vertexBaseUrl: string | undefined
 	requestyBaseUrl: string | undefined
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
@@ -198,6 +199,7 @@ export interface Secrets {
 	groqApiKey: string | undefined
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
+	vertexApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
 }

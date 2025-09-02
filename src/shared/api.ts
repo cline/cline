@@ -94,6 +94,8 @@ export interface ApiHandlerOptions {
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexBaseUrl?: string
+	vertexApiKey?: string
 	openAiBaseUrl?: string
 	ollamaBaseUrl?: string
 	ollamaApiOptionsCtxNum?: string

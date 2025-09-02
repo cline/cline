@@ -44,6 +44,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		sapAiCoreClientSecret,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
+		vertexApiKey,
 		zaiApiKey,
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
@@ -80,6 +81,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("sapAiCoreClientSecret") as Promise<string | undefined>,
 		context.secrets.get("huaweiCloudMaasApiKey") as Promise<string | undefined>,
 		context.secrets.get("basetenApiKey") as Promise<string | undefined>,
+		context.secrets.get("vertexApiKey") as Promise<string | undefined>,
 		context.secrets.get("zaiApiKey") as Promise<string | undefined>,
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
@@ -95,6 +97,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
+		vertexApiKey,
 		zaiApiKey,
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
@@ -157,6 +160,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const awsAuthentication = context.globalState.get("awsAuthentication") as string | undefined
 		const vertexProjectId = context.globalState.get("vertexProjectId") as string | undefined
 		const vertexRegion = context.globalState.get("vertexRegion") as string | undefined
+		const vertexBaseUrl = context.globalState.get("vertexBaseUrl") as string | undefined
 		const openAiBaseUrl = context.globalState.get("openAiBaseUrl") as string | undefined
 		const requestyBaseUrl = context.globalState.get("requestyBaseUrl") as string | undefined
 		const openAiHeaders = context.globalState.get("openAiHeaders") as Record<string, string> | undefined
@@ -347,6 +351,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			awsAuthentication,
 			vertexProjectId,
 			vertexRegion,
+			vertexBaseUrl,
 			openAiBaseUrl,
 			requestyBaseUrl,
 			openAiHeaders: openAiHeaders || {},
@@ -519,6 +524,7 @@ export async function resetGlobalState(controller: Controller) {
 		"cerebrasApiKey",
 		"groqApiKey",
 		"basetenApiKey",
+		"vertexApiKey",
 		"moonshotApiKey",
 		"nebiusApiKey",
 		"huggingFaceApiKey",

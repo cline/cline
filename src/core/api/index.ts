@@ -116,6 +116,8 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
+				vertexBaseUrl: options.vertexBaseUrl,
+				vertexApiKey: options.vertexApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
@@ -155,6 +157,8 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
+				vertexBaseUrl: options.vertexBaseUrl,
+				vertexApiKey: options.vertexApiKey,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
 				thinkingBudgetTokens:
