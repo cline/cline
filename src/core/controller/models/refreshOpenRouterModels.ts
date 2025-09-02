@@ -110,6 +110,12 @@ export async function refreshOpenRouterModels(
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4":
+						// NOTE: we artificially restrict the context window to 200k to keep costs low for users, and have a :1m model variant created below for users that want to use the full 1m.
+						modelInfo.contextWindow = 200_000
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 3.75
+						modelInfo.cacheReadsPrice = 0.3
+						break
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":
@@ -182,6 +188,10 @@ export async function refreshOpenRouterModels(
 					case "openai/gpt-5-nano":
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
 						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
+						break
+					case "x-ai/grok-code-fast-1":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheReadsPrice = 0.02
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {

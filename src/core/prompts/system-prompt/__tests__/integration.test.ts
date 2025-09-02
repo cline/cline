@@ -63,7 +63,9 @@ ${differences}
 
 // Helper to compare two strings and return differences
 const compareStrings = (expected: string, actual: string): string | null => {
-	if (expected === actual) return null
+	if (expected === actual) {
+		return null
+	}
 
 	const expectedLines = expected.split("\n")
 	const actualLines = actual.split("\n")
