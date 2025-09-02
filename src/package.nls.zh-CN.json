@@ -38,5 +38,6 @@
 	"settings.enableCodeActions.description": "启用 Roo Code 快速修复",
 	"settings.autoImportSettingsPath.description": "RooCode 配置文件的路径，用于在扩展启动时自动导入。支持绝对路径和相对于主目录的路径（例如 '~/Documents/roo-code-settings.json'）。留空以禁用自动导入。",
 	"settings.useAgentRules.description": "为特定于代理的规则启用 AGENTS.md 文件的加载（请参阅 https://agent-rules.org/）",
-	"settings.apiRequestTimeout.description": "等待 API 响应的最长时间（秒）（0 = 无超时，1-3600秒，默认值：600秒）。对于像 LM Studio 和 Ollama 这样可能需要更多处理时间的本地提供商，建议使用更高的值。"
+	"settings.apiRequestTimeout.description": "等待 API 响应的最长时间（秒）（0 = 无超时，1-3600秒，默认值：600秒）。对于像 LM Studio 和 Ollama 这样可能需要更多处理时间的本地提供商，建议使用更高的值。",
+	"settings.codeIndex.embeddingBatchSize.description": "代码索引期间嵌入操作的批处理大小。根据 API 提供商的限制调整此设置。默认值为 60。"
 }

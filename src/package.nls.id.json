@@ -38,5 +38,6 @@
 	"settings.enableCodeActions.description": "Aktifkan perbaikan cepat Roo Code.",
 	"settings.autoImportSettingsPath.description": "Path ke file konfigurasi RooCode untuk diimpor secara otomatis saat ekstensi dimulai. Mendukung path absolut dan path relatif terhadap direktori home (misalnya '~/Documents/roo-code-settings.json'). Biarkan kosong untuk menonaktifkan impor otomatis.",
 	"settings.useAgentRules.description": "Aktifkan pemuatan file AGENTS.md untuk aturan khusus agen (lihat https://agent-rules.org/)",
-	"settings.apiRequestTimeout.description": "Waktu maksimum dalam detik untuk menunggu respons API (0 = tidak ada batas waktu, 1-3600s, default: 600s). Nilai yang lebih tinggi disarankan untuk penyedia lokal seperti LM Studio dan Ollama yang mungkin memerlukan lebih banyak waktu pemrosesan."
+	"settings.apiRequestTimeout.description": "Waktu maksimum dalam detik untuk menunggu respons API (0 = tidak ada batas waktu, 1-3600s, default: 600s). Nilai yang lebih tinggi disarankan untuk penyedia lokal seperti LM Studio dan Ollama yang mungkin memerlukan lebih banyak waktu pemrosesan.",
+	"settings.codeIndex.embeddingBatchSize.description": "Ukuran batch untuk operasi embedding selama pengindeksan kode. Sesuaikan ini berdasarkan batas penyedia API kamu. Default adalah 60."
 }

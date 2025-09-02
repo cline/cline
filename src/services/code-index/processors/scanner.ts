@@ -29,15 +29,34 @@ import { isPathInIgnoredDirectory } from "../../glob/ignore-utils"
 import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName } from "@roo-code/types"
 import { sanitizeErrorMessage } from "../shared/validation-helpers"
+import { Package } from "../../../shared/package"
 
 export class DirectoryScanner implements IDirectoryScanner {
+	private readonly batchSegmentThreshold: number
+
 	constructor(
 		private readonly embedder: IEmbedder,
 		private readonly qdrantClient: IVectorStore,
 		private readonly codeParser: ICodeParser,
 		private readonly cacheManager: CacheManager,
 		private readonly ignoreInstance: Ignore,
-	) {}
+		batchSegmentThreshold?: number,
+	) {
+		// Get the configurable batch size from VSCode settings, fallback to default
+		// If not provided in constructor, try to get from VSCode settings
+		if (batchSegmentThreshold !== undefined) {
+			this.batchSegmentThreshold = batchSegmentThreshold
+		} else {
+			try {
+				this.batchSegmentThreshold = vscode.workspace
+					.getConfiguration(Package.name)
+					.get<number>("codeIndex.embeddingBatchSize", BATCH_SEGMENT_THRESHOLD)
+			} catch {
+				// In test environment, vscode.workspace might not be available
+				this.batchSegmentThreshold = BATCH_SEGMENT_THRESHOLD
+			}
+		}
+	}
 
 	/**
 	 * Recursively scans a directory for code blocks in supported files.
@@ -153,7 +172,7 @@ export class DirectoryScanner implements IDirectoryScanner {
 									addedBlocksFromFile = true
 
 									// Check if batch threshold is met
-									if (currentBatchBlocks.length >= BATCH_SEGMENT_THRESHOLD) {
+									if (currentBatchBlocks.length >= this.batchSegmentThreshold) {
 										// Wait if we've reached the maximum pending batches
 										while (pendingBatchCount >= MAX_PENDING_BATCHES) {
 											// Wait for at least one batch to complete

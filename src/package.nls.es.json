@@ -38,5 +38,6 @@
 	"settings.enableCodeActions.description": "Habilitar correcciones rápidas de Roo Code.",
 	"settings.autoImportSettingsPath.description": "Ruta a un archivo de configuración de RooCode para importar automáticamente al iniciar la extensión. Admite rutas absolutas y rutas relativas al directorio de inicio (por ejemplo, '~/Documents/roo-code-settings.json'). Dejar vacío para desactivar la importación automática.",
 	"settings.useAgentRules.description": "Habilita la carga de archivos AGENTS.md para reglas específicas del agente (ver https://agent-rules.org/)",
-	"settings.apiRequestTimeout.description": "Tiempo máximo en segundos de espera para las respuestas de la API (0 = sin tiempo de espera, 1-3600s, por defecto: 600s). Se recomiendan valores más altos para proveedores locales como LM Studio y Ollama que puedan necesitar más tiempo de procesamiento."
+	"settings.apiRequestTimeout.description": "Tiempo máximo en segundos de espera para las respuestas de la API (0 = sin tiempo de espera, 1-3600s, por defecto: 600s). Se recomiendan valores más altos para proveedores locales como LM Studio y Ollama que puedan necesitar más tiempo de procesamiento.",
+	"settings.codeIndex.embeddingBatchSize.description": "El tamaño del lote para operaciones de embedding durante la indexación de código. Ajusta esto según los límites de tu proveedor de API. Por defecto es 60."
 }

@@ -38,5 +38,6 @@
 	"settings.enableCodeActions.description": "Roo Codeのクイック修正を有効にする。",
 	"settings.autoImportSettingsPath.description": "拡張機能の起動時に自動的にインポートするRooCode設定ファイルへのパス。絶対パスとホームディレクトリからの相対パスをサポートします（例：'~/Documents/roo-code-settings.json'）。自動インポートを無効にするには、空のままにします。",
 	"settings.useAgentRules.description": "エージェント固有のルールのためにAGENTS.mdファイルの読み込みを有効にします（参照：https://agent-rules.org/）",
-	"settings.apiRequestTimeout.description": "API応答を待機する最大時間（秒）（0 = タイムアウトなし、1-3600秒、デフォルト: 600秒）。LM StudioやOllamaのような、より多くの処理時間を必要とする可能性のあるローカルプロバイダーには、より高い値が推奨されます。"
+	"settings.apiRequestTimeout.description": "API応答を待機する最大時間（秒）（0 = タイムアウトなし、1-3600秒、デフォルト: 600秒）。LM StudioやOllamaのような、より多くの処理時間を必要とする可能性のあるローカルプロバイダーには、より高い値が推奨されます。",
+	"settings.codeIndex.embeddingBatchSize.description": "コードインデックス作成中のエンベディング操作のバッチサイズ。APIプロバイダーの制限に基づいてこれを調整してください。デフォルトは60です。"
 }

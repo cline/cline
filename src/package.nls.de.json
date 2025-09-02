@@ -38,5 +38,6 @@
 	"settings.enableCodeActions.description": "Roo Code Schnelle Problembehebung aktivieren.",
 	"settings.autoImportSettingsPath.description": "Pfad zu einer RooCode-Konfigurationsdatei, die beim Start der Erweiterung automatisch importiert wird. Unterstützt absolute Pfade und Pfade relativ zum Home-Verzeichnis (z.B. '~/Documents/roo-code-settings.json'). Leer lassen, um den automatischen Import zu deaktivieren.",
 	"settings.useAgentRules.description": "Aktiviert das Laden von AGENTS.md-Dateien für agentenspezifische Regeln (siehe https://agent-rules.org/)",
-	"settings.apiRequestTimeout.description": "Maximale Wartezeit in Sekunden auf API-Antworten (0 = kein Timeout, 1-3600s, Standard: 600s). Höhere Werte werden für lokale Anbieter wie LM Studio und Ollama empfohlen, die möglicherweise mehr Verarbeitungszeit benötigen."
+	"settings.apiRequestTimeout.description": "Maximale Wartezeit in Sekunden auf API-Antworten (0 = kein Timeout, 1-3600s, Standard: 600s). Höhere Werte werden für lokale Anbieter wie LM Studio und Ollama empfohlen, die möglicherweise mehr Verarbeitungszeit benötigen.",
+	"settings.codeIndex.embeddingBatchSize.description": "Die Batch-Größe für Embedding-Operationen während der Code-Indexierung. Passe dies an die Limits deines API-Anbieters an. Standard ist 60."
 }
