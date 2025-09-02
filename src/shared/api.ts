@@ -36,6 +36,7 @@ export type ApiProvider =
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
+	| "oca"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -112,6 +113,8 @@ export interface ApiHandlerOptions {
 	zaiApiKey?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	ocaBaseUrl?: string
+
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
@@ -142,6 +145,8 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeVercelAiGatewayModelId?: string
 	planModeVercelAiGatewayModelInfo?: ModelInfo
+	planModeOcaModelId?: string
+	planModeOcaModelInfo?: OcaModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -173,6 +178,8 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeVercelAiGatewayModelId?: string
 	actModeVercelAiGatewayModelInfo?: ModelInfo
+	actModeOcaModelId?: string
+	actModeOcaModelInfo?: OcaModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -216,6 +223,13 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+}
+
+export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
+	modelName: string
+	surveyId?: string
+	banner?: string
+	surveyContent?: string
 }
 
 export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
