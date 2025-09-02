@@ -1,7 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
 import { telemetryService } from "@/services/telemetry"
 import type { ToolResponse } from "../../index"
@@ -57,7 +57,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
 		// Execute the actual parse source code operation
 		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
@@ -81,7 +81,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to analyze code definitions in ${path.basename(absolutePath)}`
+			const notificationMessage = `Cline wants to analyze code definitions in ${getWorkspaceBasename(absolutePath, "ListCodeDefinitionNamesToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(
