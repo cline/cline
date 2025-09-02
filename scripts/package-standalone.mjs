@@ -35,7 +35,7 @@ async function installNodeDependencies() {
 		process.chdir(cwd)
 	}
 
-	// Check for native .node modules.
+	// Check for native .node modules. Block all native modules.
 	const nativeModules = await glob("**/*.node", { cwd: BUILD_DIR, nodir: true })
 	if (nativeModules.length > 0) {
 		console.error("Native node modules cannot be included in the standalone distribution:\n", nativeModules.join("\n"))
