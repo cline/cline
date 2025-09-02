@@ -5,7 +5,10 @@
  *
  * This script provides a minimal way to run the Cline core gRPC service
  * without requiring the full installation, while automatically mocking all external services. Simply run:
- *   npx tsx scripts/test-standalone-core-api-server.ts
+ *
+ *   # One-time setup (generates protobuf files)
+ *	 npm run compile-standalone
+ *   npm run test:sca-server
  *
  * The following components are started automatically:
  *   1. HostBridge test server
