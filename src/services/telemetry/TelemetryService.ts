@@ -6,7 +6,7 @@ import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import { getDistinctId, setDistinctId } from "../logging/distinctId"
+import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 
 /**
