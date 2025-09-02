@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import type { Controller } from "../controller"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -21,6 +22,7 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiNativeHandler } from "./providers/openai-native"
@@ -67,6 +69,7 @@ function createHandlerForProvider(
 	apiProvider: string | undefined,
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
+	controller: Controller,
 ): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
@@ -375,6 +378,20 @@ function createHandlerForProvider(
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
+		case "oca":
+			return new OcaHandler({
+				controller: controller,
+				ocaBaseUrl: options.ocaBaseUrl,
+				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
+				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				ocaUsePromptCache:
+					mode === "plan"
+						? options.planModeOcaModelInfo?.supportsPromptCache
+						: options.actModeOcaModelInfo?.supportsPromptCache,
+				taskId: options.ulid,
+			})
 		default:
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
@@ -387,7 +404,7 @@ function createHandlerForProvider(
 	}
 }
 
-export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
+export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, controller: Controller): ApiHandler {
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
@@ -397,7 +414,7 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 	try {
 		const thinkingBudgetTokens = mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens
 		if (thinkingBudgetTokens && thinkingBudgetTokens > 0) {
-			const handler = createHandlerForProvider(apiProvider, options, mode)
+			const handler = createHandlerForProvider(apiProvider, options, mode, controller)
 
 			const modelInfo = handler.getModel().info
 			if (modelInfo.maxTokens && thinkingBudgetTokens > modelInfo.maxTokens) {
@@ -415,5 +432,5 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 		console.error("buildApiHandler error:", error)
 	}
 
-	return createHandlerForProvider(apiProvider, options, mode)
+	return createHandlerForProvider(apiProvider, options, mode, controller)
 }

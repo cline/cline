@@ -349,7 +349,7 @@ export class Task {
 		}
 
 		// Now that ulid is initialized, we can build the API handler
-		this.api = buildApiHandler(effectiveApiConfiguration, this.mode)
+		this.api = buildApiHandler(effectiveApiConfiguration, this.mode, this.controller)
 
 		// Set ulid on browserSession for telemetry tracking
 		this.browserSession.setUlid(this.ulid)

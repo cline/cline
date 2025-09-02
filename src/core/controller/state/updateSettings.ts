@@ -32,7 +32,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
-				controller.task.api = buildApiHandler({ ...apiConfiguration, ulid: controller.task.ulid }, currentMode)
+				controller.task.api = buildApiHandler(
+					{ ...apiConfiguration, ulid: controller.task.ulid },
+					currentMode,
+					controller,
+				)
 			}
 		}
 

@@ -72,6 +72,7 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
 		difyBaseUrl: config.difyBaseUrl,
 		difyApiKey: config.difyApiKey,
+		ocaBaseUrl: config.ocaBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider,
@@ -106,6 +107,8 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		planModeVercelAiGatewayModelInfo: config.planModeVercelAiGatewayModelInfo
 			? JSON.stringify(config.planModeVercelAiGatewayModelInfo)
 			: undefined,
+		planModeOcaModelId: config.planModeOcaModelId,
+		planModeOcaModelInfo: config.planModeOcaModelInfo ? JSON.stringify(config.planModeOcaModelInfo) : undefined,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider,
@@ -136,6 +139,8 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		actModeVercelAiGatewayModelInfo: config.actModeVercelAiGatewayModelInfo
 			? JSON.stringify(config.actModeVercelAiGatewayModelInfo)
 			: undefined,
+		actModeOcaModelId: config.actModeOcaModelId,
+		actModeOcaModelInfo: config.actModeOcaModelInfo ? JSON.stringify(config.actModeOcaModelInfo) : undefined,
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -212,6 +217,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
 		difyApiKey: protoConfig.difyApiKey,
 		difyBaseUrl: protoConfig.difyBaseUrl,
+		ocaBaseUrl: protoConfig.ocaBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: protoConfig.planModeApiProvider as ApiProvider,
@@ -232,6 +238,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
+		planModeOcaModelId: protoConfig.planModeOcaModelId,
 
 		// Act mode configurations
 		actModeApiProvider: protoConfig.actModeApiProvider as ApiProvider,
@@ -252,6 +259,7 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
+		actModeOcaModelId: protoConfig.actModeOcaModelId,
 
 		// Favorited model IDs
 		favoritedModelIds: protoConfig.favoritedModelIds || [],
@@ -297,6 +305,12 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		}
 		if (protoConfig.actModeVercelAiGatewayModelInfo) {
 			config.actModeVercelAiGatewayModelInfo = JSON.parse(protoConfig.actModeVercelAiGatewayModelInfo)
+		}
+		if (protoConfig.planModeOcaModelInfo) {
+			config.planModeOcaModelInfo = JSON.parse(protoConfig.planModeOcaModelInfo)
+		}
+		if (protoConfig.actModeOcaModelInfo) {
+			config.actModeOcaModelInfo = JSON.parse(protoConfig.actModeOcaModelInfo)
 		}
 	} catch (error) {
 		console.error("Failed to parse complex JSON objects in API configuration:", error)
