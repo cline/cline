@@ -28,7 +28,7 @@ export class FeatureFlagsProviderFactory {
 	 */
 	public static createProvider(config: FeatureFlagsProviderConfig): IFeatureFlagsProvider {
 		switch (config.type) {
-			case "posthog":
+			case "posthog": {
 				// Get the shared PostHog client from PostHogClientProvider
 				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
@@ -36,6 +36,7 @@ export class FeatureFlagsProviderFactory {
 				}
 				// Fall back to NoOp provider if no client is available
 				return new NoOpFeatureFlagsProvider()
+			}
 			default:
 				return new NoOpFeatureFlagsProvider()
 		}

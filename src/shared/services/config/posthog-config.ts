@@ -21,9 +21,11 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
 }
 
 /**
- * NOTE: Ensure that dev environment is only used in CI or local dev, never in production.
+ * NOTE: Ensure that dev environment is not used in production.
+ * process.env.CI will always be true in the CI environment, during both testing and publishing step,
+ * so it is not a reliable indicator of the environment.
  */
-const useDevEnv = !process?.env?.CI && process?.env?.IS_DEV === "true" && process?.env?.CLINE_ENVIRONMENT !== "production"
+const useDevEnv = process?.env?.IS_DEV === "true" && process?.env?.CLINE_ENVIRONMENT !== "production"
 
 /**
  * PostHog configuration for Production Environment.

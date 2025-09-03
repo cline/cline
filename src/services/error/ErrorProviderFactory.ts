@@ -1,5 +1,5 @@
 import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
-import { Logger } from "../logging/Logger"
+import { ClineError } from "./ClineError"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
@@ -27,18 +27,17 @@ export class ErrorProviderFactory {
 	 * @returns IErrorProvider instance
 	 */
 	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
+		const errorTrackingApiKey = config?.config?.errorTrackingApiKey
 		switch (config.type) {
 			case "posthog":
-				if (!!config?.config?.apiKey && !!config?.config?.errorTrackingApiKey) {
-					return new PostHogErrorProvider({
-						apiKey: config.config.apiKey,
-						errorTrackingApiKey: config.config.errorTrackingApiKey,
-						host: config.config.host,
-						uiHost: config.config.uiHost,
-					})
-				}
-				// When
-				return new NoOpErrorProvider()
+				return errorTrackingApiKey
+					? new PostHogErrorProvider({
+							apiKey: errorTrackingApiKey,
+							errorTrackingApiKey: errorTrackingApiKey,
+							host: config.config.host,
+							uiHost: config.config.uiHost,
+						})
+					: new NoOpErrorProvider() // Fallback to no-op provider
 			default:
 				console.error(`Unsupported error provider type: ${config.type}`)
 				return new NoOpErrorProvider()
@@ -63,8 +62,9 @@ export class ErrorProviderFactory {
  * or for testing purposes
  */
 class NoOpErrorProvider implements IErrorProvider {
-	public logException(error: Error, properties?: Record<string, unknown>): void {
-		Logger.error(`[NoOpErrorProvider] ${JSON.stringify(properties)}`, error)
+	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
+		// Use console.error directly to avoid potential infinite recursion through Logger
+		console.error("[NoOpErrorProvider]", error.message || String(error))
 	}
 
 	public logMessage(
@@ -72,7 +72,7 @@ class NoOpErrorProvider implements IErrorProvider {
 		level?: "error" | "warning" | "log" | "debug" | "info",
 		properties?: Record<string, unknown>,
 	): void {
-		Logger.log(`[NoOpErrorProvider] ${level}: ${message} - ${JSON.stringify(properties)}`)
+		console.log("[NoOpErrorProvider]", { message, level, properties })
 	}
 
 	public isEnabled(): boolean {
@@ -88,6 +88,6 @@ class NoOpErrorProvider implements IErrorProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		Logger.info("[NoOpErrorProvider] Disposing")
+		console.info("[NoOpErrorProvider] Disposing")
 	}
 }
