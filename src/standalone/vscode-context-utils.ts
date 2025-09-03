@@ -12,7 +12,7 @@ try {
 	keytar = null
 }
 
-const SERVICE_NAME = "cline-intellij"
+const SERVICE_NAME = "cline"
 
 export class SecretStore implements vscode.SecretStorage {
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
