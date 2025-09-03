@@ -32,10 +32,12 @@ const PUBLIC_POSTHOG_API_KEYS = {
 /**
  * PostHog configuration for Production Environment.
  * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
+ * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
+ * defined in the .github/workflows/publish.yml workflow.
  */
 const POSTHOG_CONFIG_PROD = {
-	apiKey: process?.env?.POSTHOG_API_KEY_PROD || PUBLIC_POSTHOG_API_KEYS.PROD,
-	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY_PROD || PUBLIC_POSTHOG_API_KEYS.PROD,
+	apiKey: process?.env?.POSTHOG_API_KEY || PUBLIC_POSTHOG_API_KEYS.PROD,
+	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY || PUBLIC_POSTHOG_API_KEYS.PROD,
 	host: "https://data.cline.bot",
 	uiHost: "https://us.posthog.com",
 } satisfies PostHogClientConfig
