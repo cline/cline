@@ -222,7 +222,9 @@ export class SocketTransport {
 
 			// This is a custom event fired by the server.
 			this.socket.on("auth_error", (error) => {
-				console.error(`[SocketTransport] on (auth_error):`, error)
+				console.error(
+					`[SocketTransport] on(auth_error): ${error instanceof Error ? error.message : String(error)}`,
+				)
 
 				if (connectionTimeout && this.connectionState !== ConnectionState.CONNECTED) {
 					clearTimeout(connectionTimeout)
@@ -243,6 +245,7 @@ export class SocketTransport {
 
 		if (this.socket) {
 			this.socket.removeAllListeners()
+			this.socket.io.removeAllListeners()
 			this.socket.disconnect()
 			this.socket = null
 		}
