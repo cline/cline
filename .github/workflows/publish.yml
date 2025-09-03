@@ -95,8 +95,8 @@ jobs:
                   if [ -n "${{ secrets.POSTHOG_API_KEY }}" ] && [ -n "${{ secrets.POSTHOG_ERROR_API_KEY }}" ]; then
                     echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> $GITHUB_ENV
                     echo "POSTHOG_ERROR_API_KEY=${{ secrets.POSTHOG_ERROR_API_KEY }}" >> $GITHUB_ENV
-                    echo "PostHog environment variables set from secrets"
-                  else
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY || ''  }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY || ''  }}
                     echo "PostHog secrets not available, will use fallback public keys"
                   fi
 
