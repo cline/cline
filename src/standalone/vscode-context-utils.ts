@@ -1,28 +1,55 @@
 import * as fs from "fs"
 import type { EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableScope } from "vscode"
 import * as vscode from "vscode"
+
+let keytar: any | null = null
+try {
+	// Runtime require to avoid bundling native module and keep VS Code build clean
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	// @ts-ignore
+	keytar = require("keytar")
+} catch {
+	keytar = null
+}
+
+const SERVICE_NAME = "cline-intellij"
+
 export class SecretStore implements vscode.SecretStorage {
-	private data: JsonKeyValueStore<string>
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
+	private readonly jsonStore: JsonKeyValueStore<string>
 
 	constructor(filepath: string) {
-		this.data = new JsonKeyValueStore(filepath)
+		// JSON store always created as fallback, even when keytar is available
+		this.jsonStore = new JsonKeyValueStore<string>(filepath)
 	}
 
 	readonly onDidChange: vscode.Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event
 
 	get(key: string): Thenable<string | undefined> {
-		return Promise.resolve(this.data.get(key))
+		if (keytar) {
+			return keytar.getPassword(SERVICE_NAME, key).then((v: string | null) => (v === null ? undefined : v))
+		}
+		return Promise.resolve(this.jsonStore.get(key))
 	}
 
 	store(key: string, value: string): Thenable<void> {
-		this.data.put(key, value)
+		if (keytar) {
+			return keytar.setPassword(SERVICE_NAME, key, value).then(() => {
+				this._onDidChange.fire({ key })
+			})
+		}
+		this.jsonStore.put(key, value)
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
 
 	delete(key: string): Thenable<void> {
-		this.data.delete(key)
+		if (keytar) {
+			return keytar.deletePassword(SERVICE_NAME, key).then(() => {
+				this._onDidChange.fire({ key })
+			})
+		}
+		this.jsonStore.delete(key)
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
