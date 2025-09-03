@@ -59,20 +59,23 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 class NoOpTelemetryProvider implements ITelemetryProvider {
+	private isOptIn = true
+
 	public log(event: string, properties?: Record<string, unknown>): void {
-		Logger.log(`[${event}] - ${JSON.stringify(properties)}`)
+		Logger.log(`[NoOpTelemetryProvider] ${event}: ${JSON.stringify(properties)}`)
 	}
 
 	public identifyUser(userInfo: any, properties?: Record<string, unknown>): void {
-		Logger.info(`[identifyUser] - ${JSON.stringify(userInfo)} - ${JSON.stringify(properties)}`)
+		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(userInfo)} - ${JSON.stringify(properties)}`)
 	}
 
-	public setOptIn(_optIn: boolean): void {
-		Logger.info(`[setOptIn] - ${_optIn}`)
+	public setOptIn(optIn: boolean): void {
+		Logger.info(`[NoOpTelemetryProvider] setOptIn(${optIn})`)
+		this.isOptIn = optIn
 	}
 
 	public isEnabled(): boolean {
-		return true
+		return this.isOptIn
 	}
 
 	public getSettings() {
@@ -84,6 +87,6 @@ class NoOpTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		Logger.info("Disposing NoOpTelemetryProvider")
+		Logger.info("[NoOpTelemetryProvider] Disposing")
 	}
 }

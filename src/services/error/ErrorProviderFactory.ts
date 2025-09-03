@@ -64,7 +64,7 @@ export class ErrorProviderFactory {
  */
 class NoOpErrorProvider implements IErrorProvider {
 	public logException(error: Error, properties?: Record<string, unknown>): void {
-		Logger.error(`${JSON.stringify(properties)}`, error)
+		Logger.error(`[NoOpErrorProvider] ${JSON.stringify(properties)}`, error)
 	}
 
 	public logMessage(
@@ -72,7 +72,7 @@ class NoOpErrorProvider implements IErrorProvider {
 		level?: "error" | "warning" | "log" | "debug" | "info",
 		properties?: Record<string, unknown>,
 	): void {
-		Logger.log(`[${level}] ${message} - ${JSON.stringify(properties)}`)
+		Logger.log(`[NoOpErrorProvider] ${level}: ${message} - ${JSON.stringify(properties)}`)
 	}
 
 	public isEnabled(): boolean {
@@ -88,6 +88,6 @@ class NoOpErrorProvider implements IErrorProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		Logger.info("Disposing NoOpErrorProvider")
+		Logger.info("[NoOpErrorProvider] Disposing")
 	}
 }

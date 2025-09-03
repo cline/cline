@@ -59,12 +59,12 @@ export class FeatureFlagsProviderFactory {
  */
 class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
 	public async getFeatureFlag(flagName: string): Promise<boolean | string | undefined> {
-		Logger.info(`NoOpFeatureFlagsProvider: getFeatureFlag called with flagName=${flagName}`)
+		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlag called with flagName=${flagName}`)
 		return undefined
 	}
 
 	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
-		Logger.info(`NoOpFeatureFlagsProvider: getFeatureFlagPayload called with flagName=${flagName}`)
+		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlagPayload called with flagName=${flagName}`)
 		return null
 	}
 
@@ -80,6 +80,6 @@ class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		Logger.info("Disposing NoOpFeatureFlagsProvider")
+		Logger.info("[NoOpFeatureFlagsProvider] Disposing")
 	}
 }
