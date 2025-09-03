@@ -91,32 +91,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Run cline-core service",
-			"skipFiles": [
-				"<node_internals>/**"
-			],
-			"sourceMaps": true,
-			"resolveSourceMapLocations": [
-				"${workspaceFolder}/**",
-				"!**/node_modules/**"
-			],
-			"cwd": "${workspaceFolder}/dist-standalone",
-			"outFiles": [
-				"${workspaceFolder}/dist-standalone/**/*.js"
-			],
-			"preLaunchTask": "compile-standalone",
-			"env": {
-				// Turns on grpc debug log.
-				//"GRPC_TRACE": "all",
-				//"GRPC_VERBOSITY": "DEBUG",
-				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
-			},
-			"program": "cline-core.js"
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Debug Test Standalone Core Api Server (test:standalone)",
+			"name": "Debug Test Standalone Core Api Server (test:sca-server)",
 			"skipFiles": [
 				"<node_internals>/**"
 			],
