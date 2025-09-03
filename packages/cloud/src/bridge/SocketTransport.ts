@@ -28,7 +28,7 @@ export class SocketTransport {
 	private hasConnectedOnce: boolean = false
 
 	private readonly retryConfig: RetryConfig = {
-		maxInitialAttempts: 10,
+		maxInitialAttempts: Infinity,
 		initialDelay: 1_000,
 		maxDelay: 15_000,
 		backoffMultiplier: 2,
@@ -67,12 +67,8 @@ export class SocketTransport {
 			await this.connectWithRetry()
 		} catch (error) {
 			console.error(
-				`[SocketTransport] Initial connection attempts failed: ${error instanceof Error ? error.message : String(error)}`,
+				`[SocketTransport] Unexpected error in connection loop: ${error instanceof Error ? error.message : String(error)}`,
 			)
-
-			// If we've never connected successfully, we've exhausted our retry attempts
-			// The user will need to manually retry or fix the issue
-			this.connectionState = ConnectionState.FAILED
 		}
 	}
 
@@ -83,9 +79,7 @@ export class SocketTransport {
 			try {
 				this.connectionState = this.retryAttempt === 0 ? ConnectionState.CONNECTING : ConnectionState.RETRYING
 
-				console.log(
-					`[SocketTransport] Connection attempt ${this.retryAttempt + 1} / ${this.retryConfig.maxInitialAttempts}`,
-				)
+				console.log(`[SocketTransport] Connection attempt ${this.retryAttempt + 1}`)
 
 				await this.connectSocket()
 
@@ -109,12 +103,6 @@ export class SocketTransport {
 				if (this.socket) {
 					this.socket.disconnect()
 					this.socket = null
-				}
-
-				if (this.retryAttempt >= this.retryConfig.maxInitialAttempts) {
-					this.connectionState = ConnectionState.FAILED
-
-					throw new Error(`Failed to connect after ${this.retryConfig.maxInitialAttempts} attempts`)
 				}
 
 				console.log(`[SocketTransport] Waiting ${delay}ms before retry...`)
@@ -204,10 +192,7 @@ export class SocketTransport {
 			this.socket.on("reconnect_failed", () => {
 				console.error(`[SocketTransport] Socket.IO reconnection failed after all attempts`)
 
-				this.connectionState = ConnectionState.FAILED
-
-				// Socket.IO has exhausted its reconnection attempts
-				// The connection is now permanently failed until manual intervention
+				this.connectionState = ConnectionState.RETRYING
 			})
 
 			this.socket.on("error", (error) => {
