@@ -90,21 +90,13 @@ jobs:
 
                   echo "Tag '$TAG' validated successfully"
 
-            - name: Set PostHog Environment Variables
-              run: |
-                  if [ -n "${{ secrets.POSTHOG_API_KEY }}" ] && [ -n "${{ secrets.POSTHOG_ERROR_API_KEY }}" ]; then
-                    echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> $GITHUB_ENV
-                    echo "POSTHOG_ERROR_API_KEY=${{ secrets.POSTHOG_ERROR_API_KEY }}" >> $GITHUB_ENV
-                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY || ''  }}
-                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY || ''  }}
-                    echo "PostHog secrets not available, will use fallback public keys"
-                  fi
-
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
                   CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
               run: |
                   # Required to generate the .vsix
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
