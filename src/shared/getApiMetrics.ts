@@ -61,5 +61,7 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 		}
 	})
 
+	// this is a small change to trigger a PR
+
 	return result
 }
