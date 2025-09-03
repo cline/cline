@@ -220,6 +220,7 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						// GRPC_RECORDER_ENABLED: "true",
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},

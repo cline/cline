@@ -117,7 +117,9 @@ describe("grpc-recorder", () => {
 					status: initialExpectedStatus,
 				})
 
-				recorder.recordResponse(us.request.request_id, us.response)
+				if (us.response) {
+					recorder.recordResponse(us.request.request_id, us.response)
+				}
 				sessionLog = recorder.getSessionLog()
 
 				expect(sessionLog.entries[index].status).equal(us.expectedStatus)

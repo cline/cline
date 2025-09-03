@@ -189,7 +189,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		const recorder: Recorder = GrpcRecorder.getInstance()
 
 		return async (response: ExtensionMessage) => {
-			// Record response if it's a gRPC response
 			if (response?.grpc_response) {
 				try {
 					recorder.recordResponse(response.grpc_response.request_id, response.grpc_response)
@@ -233,6 +232,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			}
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
+					// WIP: consider this calls as well
 					await handleGrpcRequestCancel(postMessageWithRecording, message.grpc_request_cancel)
 				}
 				break
