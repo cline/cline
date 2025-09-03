@@ -192,7 +192,7 @@ export class ToolExecutor {
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
-		this.coordinator.register(new ExecuteCommandToolHandler(validator))
+		this.coordinator.register(new ExecuteCommandToolHandler())
 		this.coordinator.register(new UseMcpToolHandler())
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())

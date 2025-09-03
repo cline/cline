@@ -3,6 +3,14 @@ import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
+interface DifyRequestBody {
+	rating?: "like" | "dislike"
+	user: string
+	auto_generate?: boolean
+	name?: string
+	content?: string
+}
+
 // Dify API Response Types
 export interface DifyFileResponse {
 	id: string
@@ -71,7 +79,6 @@ export class DifyHandler implements ApiHandler {
 	private conversationId: string | null = null
 
 	constructor(options: ApiHandlerOptions) {
-		this.options = options
 		this.apiKey = options.difyApiKey || ""
 		this.baseUrl = options.difyBaseUrl || ""
 
@@ -119,7 +126,7 @@ export class DifyHandler implements ApiHandler {
 				},
 				body: JSON.stringify(requestBody),
 			})
-		} catch (error: any) {
+		} catch (error) {
 			console.error("[DIFY DEBUG] Network error during fetch:", error)
 			const cause = error.cause ? ` | Cause: ${error.cause}` : ""
 			throw new Error(`Dify API network error: ${error.message}${cause}`)
@@ -570,7 +577,7 @@ export class DifyHandler implements ApiHandler {
 		name?: string,
 		autoGenerate: boolean = false,
 	): Promise<DifyConversationResponse> {
-		const body: any = { user, auto_generate: autoGenerate }
+		const body: DifyRequestBody = { user, auto_generate: autoGenerate }
 		if (name) {
 			body.name = name
 		}
@@ -606,7 +613,7 @@ export class DifyHandler implements ApiHandler {
 		content?: string,
 		user: string = "cline-user",
 	): Promise<void> {
-		const body: any = { rating, user }
+		const body: DifyRequestBody = { rating, user }
 		if (content) {
 			body.content = content
 		}
@@ -647,6 +654,5 @@ export class DifyHandler implements ApiHandler {
 	 */
 	resetConversation(): void {
 		this.conversationId = null
-		this.currentTaskId = null
 	}
 }

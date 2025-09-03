@@ -9,7 +9,6 @@ export class DifyHandler implements ApiHandler {
 	private conversationId: string | null = null
 
 	constructor(options: ApiHandlerOptions) {
-		this.options = options
 		this.apiKey = options.difyApiKey || ""
 		this.baseUrl = options.difyBaseUrl || ""
 
@@ -58,7 +57,7 @@ export class DifyHandler implements ApiHandler {
 				},
 				body: JSON.stringify(requestBody),
 			})
-		} catch (error: any) {
+		} catch (error) {
 			console.error("[DIFY DEBUG] Network error during fetch:", error)
 			// Log more detailed error information if available (e.g., from undici)
 			const cause = error.cause ? ` | Cause: ${error.cause}` : ""
