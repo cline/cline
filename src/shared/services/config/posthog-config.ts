@@ -56,5 +56,7 @@ const POSTHOG_CONFIG_DEV = {
 /**
  * NOTE: Ensure that dev environment is only used in CI or local dev, never in production.
  */
-const isDevEnv = Boolean(process?.env?.CI || process?.env?.IS_DEV === "true")
+const isDevEnv = !!process?.env?.CI || process?.env?.IS_DEV === "true"
+console.log("[DEBUG] PostHog configuration process?.env?.CI:", process?.env?.CI)
+console.log("[DEBUG] PostHog configuration:", isDevEnv ? POSTHOG_CONFIG_DEV : POSTHOG_CONFIG_PROD)
 export const posthogConfig = isDevEnv ? POSTHOG_CONFIG_DEV : POSTHOG_CONFIG_PROD
