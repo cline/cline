@@ -38,7 +38,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal
-		if (buttonRef.current && buttonRef.current.contains(e.target as Node)) {
+		if (buttonRef.current?.contains(e.target as Node)) {
 			return
 		}
 		setIsVisible(false)

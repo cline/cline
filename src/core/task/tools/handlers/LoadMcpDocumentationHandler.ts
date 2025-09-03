@@ -8,8 +8,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class LoadMcpDocumentationHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "load_mcp_documentation"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}
@@ -19,7 +17,7 @@ export class LoadMcpDocumentationHandler implements IToolHandler, IPartialBlockH
 		await uiHelpers.say("load_mcp_documentation", "", undefined, undefined, true)
 	}
 
-	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+	async execute(config: TaskConfig, _block: ToolUse): Promise<ToolResponse> {
 		// Show loading message at start of execution (self-managed now)
 		await config.callbacks.say("load_mcp_documentation", "", undefined, undefined, false)
 

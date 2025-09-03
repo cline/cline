@@ -4,7 +4,6 @@ import { ApiHandler } from "../../core/api/index"
 import { ApiStream } from "../../core/api/transform/stream"
 
 export class DifyHandler implements ApiHandler {
-	private options: ApiHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
@@ -236,7 +235,7 @@ export class DifyHandler implements ApiHandler {
 								console.error("[DIFY DEBUG] Direct JSON Error event:", parsed)
 								throw new Error(`Dify API error: ${parsed.message || "Unknown error"}`)
 							}
-						} catch (e) {
+						} catch (_e) {
 							// Not JSON, continue
 							console.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}

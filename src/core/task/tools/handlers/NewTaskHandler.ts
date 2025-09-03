@@ -10,8 +10,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "new_task"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for creating a new task]`
 	}

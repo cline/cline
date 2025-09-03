@@ -747,8 +747,7 @@ export class Task {
 			const lastMessage = clineMessages.at(-1)
 			const lastMessageIndex = clineMessages.length - 1
 
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -872,8 +871,7 @@ export class Task {
 
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -2284,7 +2282,7 @@ export class Task {
 
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-				if (lastMessage && lastMessage.partial) {
+				if (lastMessage?.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk

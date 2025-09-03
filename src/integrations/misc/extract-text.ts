@@ -50,7 +50,7 @@ export async function callTextExtractionFunctions(filePath: string): Promise<str
 			return extractTextFromIPYNB(filePath)
 		case ".xlsx":
 			return extractTextFromExcel(filePath)
-		default:
+		default: {
 			const fileBuffer = await fs.readFile(filePath)
 			if (fileBuffer.byteLength > 20 * 1000 * 1024) {
 				// 20MB limit (20 * 1000 * 1024 bytes, decimal MB)
@@ -58,6 +58,7 @@ export async function callTextExtractionFunctions(filePath: string): Promise<str
 			}
 			const encoding = await detectEncoding(fileBuffer, fileExtension)
 			return iconv.decode(fileBuffer, encoding)
+		}
 	}
 }
 

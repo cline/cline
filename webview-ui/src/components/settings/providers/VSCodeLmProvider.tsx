@@ -25,7 +25,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	const requestVsCodeLmModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
-			if (response && response.models) {
+			if (response?.models) {
 				setVsCodeLmModels(response.models)
 			}
 		} catch (error) {

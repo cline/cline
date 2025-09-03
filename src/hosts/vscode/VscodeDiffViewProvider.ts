@@ -159,7 +159,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return this.activeDiffEditor.document.getText()
 	}
 
-	protected override async saveDocument(): Promise<Boolean> {
+	protected override async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditor) {
 			return false
 		}

@@ -192,7 +192,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}
 
 	const hasInfo = useMemo(() => {
-		return selectedModelInfo && selectedModelInfo.description
+		return selectedModelInfo?.description
 	}, [selectedModelInfo])
 
 	useEffect(() => {

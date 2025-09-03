@@ -173,7 +173,6 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 					return "max_tokens"
 				case "tool_calls":
 					return "tool_use"
-				case "content_filter": // Anthropic doesn't have an exact equivalent
 				default:
 					return null
 			}

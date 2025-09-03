@@ -66,47 +66,43 @@ export class HuggingFaceHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		try {
-			const client = this.ensureClient()
-			const model = this.getModel()
+		const client = this.ensureClient()
+		const model = this.getModel()
 
-			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-				{ role: "system", content: systemPrompt },
-				...convertToOpenAiMessages(messages),
-			]
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAiMessages(messages),
+		]
 
-			const requestParams = {
-				model: model.id,
-				max_tokens: model.info.maxTokens,
-				messages: openAiMessages,
-				stream: true,
-				stream_options: { include_usage: true },
-				temperature: 0,
-			}
+		const requestParams = {
+			model: model.id,
+			max_tokens: model.info.maxTokens,
+			messages: openAiMessages,
+			stream: true,
+			stream_options: { include_usage: true },
+			temperature: 0,
+		}
 
-			const stream = (await client.chat.completions.create(requestParams)) as any
+		const stream = (await client.chat.completions.create(requestParams)) as any
 
-			let _chunkCount = 0
-			let _totalContent = ""
+		let _chunkCount = 0
+		let _totalContent = ""
 
-			for await (const chunk of stream) {
-				_chunkCount++
-				const delta = chunk.choices[0]?.delta
-				if (delta?.content) {
-					_totalContent += delta.content
+		for await (const chunk of stream) {
+			_chunkCount++
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
+				_totalContent += delta.content
 
-					yield {
-						type: "text",
-						text: delta.content,
-					}
-				}
-
-				if (chunk.usage) {
-					yield* this.yieldUsage(model.info, chunk.usage)
+				yield {
+					type: "text",
+					text: delta.content,
 				}
 			}
-		} catch (error: any) {
-			throw error
+
+			if (chunk.usage) {
+				yield* this.yieldUsage(model.info, chunk.usage)
+			}
 		}
 	}
 

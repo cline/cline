@@ -24,8 +24,6 @@ export abstract class DiffViewProvider {
 	private streamedLines: string[] = []
 	private newContent?: string
 
-	constructor() {}
-
 	public async open(relPath: string): Promise<void> {
 		this.isEditing = true
 		this.relPath = relPath
@@ -138,7 +136,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.

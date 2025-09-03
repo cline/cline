@@ -16,7 +16,7 @@ class ContextManager {
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
+			if (previousRequest?.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				const { maxAllowedSize } = getContextWindowInfo(api)

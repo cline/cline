@@ -86,7 +86,6 @@ function convertProtoStatusToMcp(status: McpServerStatus): McpServer["status"] {
 			return "connected"
 		case McpServerStatus.MCP_SERVER_STATUS_CONNECTING:
 			return "connecting"
-		case McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED:
 		default: // Includes UNSPECIFIED if it were present, maps to disconnected
 			return "disconnected"
 	}

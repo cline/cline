@@ -82,40 +82,66 @@ export class VertexHandler implements ApiHandler {
 			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) &&
 			budget_tokens !== 0
 		)
-		let stream
-
-		switch (modelId) {
-			case "claude-sonnet-4@20250514":
-			case "claude-opus-4-1@20250805":
-			case "claude-opus-4@20250514":
-			case "claude-3-7-sonnet@20250219":
-			case "claude-3-5-sonnet-v2@20241022":
-			case "claude-3-5-sonnet@20240620":
-			case "claude-3-5-haiku@20241022":
-			case "claude-3-opus@20240229":
-			case "claude-3-haiku@20240307": {
-				// Find indices of user messages for cache control
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
-				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await clientAnthropic.beta.messages.create(
-					{
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						temperature: reasoningOn ? undefined : 0,
-						system: [
-							{
-								text: systemPrompt,
-								type: "text",
-								cache_control: { type: "ephemeral" },
-							},
-						],
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+		function getStream() {
+			switch (modelId) {
+				case "claude-sonnet-4@20250514":
+				case "claude-opus-4-1@20250805":
+				case "claude-opus-4@20250514":
+				case "claude-3-7-sonnet@20250219":
+				case "claude-3-5-sonnet-v2@20241022":
+				case "claude-3-5-sonnet@20240620":
+				case "claude-3-5-haiku@20241022":
+				case "claude-3-opus@20240229":
+				case "claude-3-haiku@20240307": {
+					// Find indices of user messages for cache control
+					const userMsgIndices = messages.reduce((acc, msg, index) => {
+						if (msg.role === "user") {
+							acc.push(index)
+						}
+						return acc
+					}, [] as number[])
+					const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+					const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+					return clientAnthropic.beta.messages.create(
+						{
+							model: modelId,
+							max_tokens: model.info.maxTokens || 8192,
+							thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+							temperature: reasoningOn ? undefined : 0,
+							system: [
+								{
+									text: systemPrompt,
+									type: "text",
+									cache_control: { type: "ephemeral" },
+								},
+							],
+							messages: messages.map((message, index) => {
+								if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+									return {
+										...message,
+										content:
+											typeof message.content === "string"
+												? [
+														{
+															type: "text",
+															text: message.content,
+															cache_control: {
+																type: "ephemeral",
+															},
+														},
+													]
+												: message.content.map((content, contentIndex) =>
+														contentIndex === message.content.length - 1
+															? {
+																	...content,
+																	cache_control: {
+																		type: "ephemeral",
+																	},
+																}
+															: content,
+													),
+									}
+								}
 								return {
 									...message,
 									content:
@@ -124,76 +150,50 @@ export class VertexHandler implements ApiHandler {
 													{
 														type: "text",
 														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
 													},
 												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
+											: message.content,
 								}
-							}
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [
-												{
-													type: "text",
-													text: message.content,
-												},
-											]
-										: message.content,
-							}
-						}),
-						stream: true,
-					},
-					{
-						headers: {},
-					},
-				)
-				break
-			}
-			default: {
-				stream = await clientAnthropic.beta.messages.create({
-					model: modelId,
-					max_tokens: model.info.maxTokens || 8192,
-					temperature: 0,
-					system: [
-						{
-							text: systemPrompt,
-							type: "text",
+							}),
+							stream: true,
 						},
-					],
-					messages: messages.map((message) => ({
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-										},
-									]
-								: message.content,
-					})),
-					stream: true,
-				})
-				break
+						{
+							headers: {},
+						},
+					)
+				}
+				default: {
+					return clientAnthropic.beta.messages.create({
+						model: modelId,
+						max_tokens: model.info.maxTokens || 8192,
+						temperature: 0,
+						system: [
+							{
+								text: systemPrompt,
+								type: "text",
+							},
+						],
+						messages: messages.map((message) => ({
+							...message,
+							content:
+								typeof message.content === "string"
+									? [
+											{
+												type: "text",
+												text: message.content,
+											},
+										]
+									: message.content,
+						})),
+						stream: true,
+					})
+				}
 			}
 		}
 
-		for await (const chunk of stream) {
+		for await (const chunk of await getStream()) {
 			switch (chunk?.type) {
-				case "message_start":
+				case "message_start": {
 					const usage = chunk.message.usage
 					yield {
 						type: "usage",
@@ -203,6 +203,7 @@ export class VertexHandler implements ApiHandler {
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
+				}
 				case "message_delta":
 					yield {
 						type: "usage",

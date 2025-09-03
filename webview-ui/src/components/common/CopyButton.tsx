@@ -40,7 +40,6 @@ const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>
 		switch (props.$position) {
 			case "bottom-right":
 				return "bottom: 2px; right: 2px;"
-			case "top-right":
 			default:
 				return "top: 5px; right: 5px;"
 		}

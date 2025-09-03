@@ -307,7 +307,7 @@ export const ChatRowContent = memo(
 						),
 						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
 					]
-				case "use_mcp_server":
+				case "use_mcp_server": {
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 					return [
 						isMcpServerResponding ? (
@@ -330,6 +330,7 @@ export const ChatRowContent = memo(
 							MCP server:
 						</span>,
 					]
+				}
 				case "completion_result":
 					return [
 						<span
@@ -444,7 +445,7 @@ export const ChatRowContent = memo(
 							/>
 						</>
 					)
-				case "readFile":
+				case "readFile": {
 					const isImage = isImageFile(tool.path || "")
 					return (
 						<>
@@ -511,6 +512,7 @@ export const ChatRowContent = memo(
 							</div>
 						</>
 					)
+				}
 				case "listFilesTopLevel":
 					return (
 						<>
@@ -1072,7 +1074,7 @@ export const ChatRowContent = memo(
 								text={message.text}
 							/>
 						)
-					case "user_feedback_diff":
+					case "user_feedback_diff": {
 						const tool = JSON.parse(message.text || "{}") as ClineSayTool
 						return (
 							<div
@@ -1088,6 +1090,7 @@ export const ChatRowContent = memo(
 								/>
 							</div>
 						)
+					}
 					case "error":
 						return <ErrorRow errorType="error" message={message} />
 					case "diff_error":
@@ -1111,7 +1114,7 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
-					case "completion_result":
+					case "completion_result": {
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
@@ -1178,6 +1181,7 @@ export const ChatRowContent = memo(
 								)}
 							</>
 						)
+					}
 					case "shell_integration_warning":
 						return (
 							<div
@@ -1323,7 +1327,7 @@ export const ChatRowContent = memo(
 						} else {
 							return null // Don't render anything when we get a completion_result ask without text
 						}
-					case "followup":
+					case "followup": {
 						let question: string | undefined
 						let options: string[] | undefined
 						let selected: string | undefined
@@ -1373,6 +1377,7 @@ export const ChatRowContent = memo(
 								</WithCopyButton>
 							</>
 						)
+					}
 					case "new_task":
 						return (
 							<>

@@ -200,7 +200,7 @@ async function checkProtos() {
 				continue
 			}
 			// Check message fields
-			if (def && def.type && def.type.field) {
+			if (def?.type?.field) {
 				for (const field of def.type.field) {
 					if (int64TypeNames.includes(field.type)) {
 						const name = `${packageName}.${messageName}.${field.name}`

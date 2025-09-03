@@ -420,7 +420,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							setSearchLoading(true)
 
 							// Map ContextMenuOptionType to FileSearchType enum
-							let searchType
+							let searchType: FileSearchType | undefined
 							if (type === ContextMenuOptionType.File) {
 								searchType = FileSearchType.FILE
 							} else if (type === ContextMenuOptionType.Folder) {
@@ -1156,8 +1156,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${liteLlmModelId}`
 				case "requesty":
 					return `${selectedProvider}:${requestyModelId}`
-				case "anthropic":
-				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}

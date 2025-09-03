@@ -1,10 +1,6 @@
 // Mock for @google/genai module to avoid ESM compatibility issues in tests
 
 export class GoogleGenAI {
-	constructor(_options: any) {
-		// Mock constructor
-	}
-
 	models = {
 		generateContentStream: async (_params: any) => {
 			// Mock implementation that returns an async iterator

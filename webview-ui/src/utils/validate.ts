@@ -171,7 +171,7 @@ export function validateModelId(
 		const { apiProvider, openRouterModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 		switch (apiProvider) {
 			case "openrouter":
-			case "cline":
+			case "cline": {
 				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
@@ -181,6 +181,7 @@ export function validateModelId(
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
+			}
 		}
 	}
 	return undefined

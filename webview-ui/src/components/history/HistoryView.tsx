@@ -248,7 +248,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				case "mostRelevant":
 					// NOTE: you must never sort directly on object since it will cause members to be reordered
 					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
-				case "newest":
 				default:
 					return b.ts - a.ts
 			}
@@ -825,7 +824,7 @@ export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassNam
 	}
 
 	return fuseSearchResult
-		.filter(({ matches }) => matches && matches.length)
+		.filter(({ matches }) => matches?.length)
 		.map(({ item, matches }) => {
 			const highlightedItem = { ...item }
 

@@ -389,12 +389,12 @@ ${listInstrunctionsReminder}\n`
 	public async updateFCListFromToolResponse(taskProgress: string | undefined) {
 		try {
 			// Reset the counter if task_progress was provided
-			if (taskProgress && taskProgress.trim()) {
+			if (taskProgress?.trim()) {
 				this.taskState.apiRequestsSinceLastTodoUpdate = 0
 			}
 
 			// If model provides task_progress update, write it to the markdown file
-			if (taskProgress && taskProgress.trim()) {
+			if (taskProgress?.trim()) {
 				const previousList = this.taskState.currentFocusChainChecklist
 				this.taskState.currentFocusChainChecklist = taskProgress.trim()
 				console.debug(

@@ -11,8 +11,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "plan_mode_respond"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

@@ -388,7 +388,6 @@ export function convertO1ResponseToAnthropicMessage(
 					return "max_tokens"
 				case "tool_calls":
 					return "tool_use"
-				case "content_filter": // Anthropic doesn't have an exact equivalent
 				default:
 					return null
 			}

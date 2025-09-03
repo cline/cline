@@ -322,7 +322,7 @@ export function createTestServer(controller: Controller): http.Server {
 						}
 
 						// Get file changes
-						let fileChanges
+						let fileChanges: { created: string[]; modified: string[]; deleted: string[] }
 						try {
 							// Get the workspace path using our helper function
 							const workspacePath = await getCwd()

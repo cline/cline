@@ -28,7 +28,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		// Refresh OpenRouter models from API
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
-			if (response && response.models) {
+			if (response?.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
@@ -74,7 +74,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		})
 
 		refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
-			if (response && response.models) {
+			if (response?.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
@@ -120,7 +120,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		})
 
 		refreshBasetenModels(controller, EmptyRequest.create()).then(async (response) => {
-			if (response && response.models) {
+			if (response?.models) {
 				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
@@ -162,7 +162,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		// Refresh Vercel AI Gateway models from API
 		refreshVercelAiGatewayModels(controller, EmptyRequest.create()).then(async (response) => {
-			if (response && response.models) {
+			if (response?.models) {
 				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")

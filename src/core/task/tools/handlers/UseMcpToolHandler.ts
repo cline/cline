@@ -12,8 +12,6 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class UseMcpToolHandler implements IFullyManagedTool {
 	readonly name = "use_mcp_tool"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.server_name}']`
 	}

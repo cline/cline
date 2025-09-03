@@ -861,7 +861,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		if (item.source.media_type) {
 			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
 			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-			if (formatMatch && formatMatch[1]) {
+			if (formatMatch?.[1]) {
 				const extractedFormat = formatMatch[1]
 				// Ensure format is one of the allowed values
 				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {

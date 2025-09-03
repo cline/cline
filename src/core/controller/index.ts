@@ -482,7 +482,7 @@ export class Controller {
 		let apiKey: string
 		try {
 			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
-			if (response.data && response.data.key) {
+			if (response.data?.key) {
 				apiKey = response.data.key
 			} else {
 				throw new Error("Invalid response from OpenRouter API")

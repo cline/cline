@@ -61,7 +61,7 @@ export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam)
 			return `[Image]`
 		case "document":
 			return `[Document]`
-		case "tool_use":
+		case "tool_use": {
 			let input: string
 			if (typeof block.input === "object" && block.input !== null) {
 				input = Object.entries(block.input)
@@ -71,6 +71,7 @@ export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam)
 				input = String(block.input)
 			}
 			return `[Tool Use: ${block.name}]\n${input}`
+		}
 		case "tool_result":
 			if (typeof block.content === "string") {
 				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content}`

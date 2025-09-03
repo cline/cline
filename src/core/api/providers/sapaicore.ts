@@ -163,7 +163,7 @@ namespace Bedrock {
 		if (item.source.media_type) {
 			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
 			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-			if (formatMatch && formatMatch[1]) {
+			if (formatMatch?.[1]) {
 				const extractedFormat = formatMatch[1]
 				// Ensure format is one of the allowed values
 				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {
@@ -257,7 +257,7 @@ namespace Gemini {
 		}
 
 		// Handle content parts for non-thought text
-		if (data.candidates && data.candidates[0]?.content?.parts) {
+		if (data.candidates?.[0]?.content?.parts) {
 			let nonThoughtText = ""
 			for (const part of data.candidates[0].content.parts) {
 				if (part.text && !part.thought) {
@@ -902,7 +902,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 							if (data.choices && data.choices.length > 0) {
 								const choice = data.choices[0]
-								if (choice.delta && choice.delta.content) {
+								if (choice.delta?.content) {
 									yield {
 										type: "text",
 										text: choice.delta.content,

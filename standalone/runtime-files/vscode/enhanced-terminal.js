@@ -449,7 +449,7 @@ class StandaloneTerminalManager {
 	disposeAll() {
 		// Terminate all processes
 		for (const [_terminalId, process] of this.processes) {
-			if (process && process.terminate) {
+			if (process?.terminate) {
 				process.terminate()
 			}
 		}

@@ -98,7 +98,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						value: apiConfiguration?.ollamaBaseUrl || "",
 					}),
 				)
-				if (response && response.values) {
+				if (response?.values) {
 					setOllamaModels(response.values)
 				}
 			} catch (error) {

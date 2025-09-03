@@ -42,7 +42,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditorId) {
 			return false
 		}

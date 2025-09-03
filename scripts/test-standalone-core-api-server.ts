@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 	}
 
 	try {
-		const apiServer = await ClineApiServerMock.startGlobalServer()
+		const _apiServer = await ClineApiServerMock.startGlobalServer()
 		console.log("Cline API Server started in-process")
 	} catch (error) {
 		console.error("Failed to start Cline API Server:", error)

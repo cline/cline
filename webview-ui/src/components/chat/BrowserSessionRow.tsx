@@ -552,7 +552,7 @@ const BrowserSessionRowContent = memo(
 							</div>
 						)
 
-					case "browser_action":
+					case "browser_action": {
 						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
 						return (
 							<BrowserActionBox
@@ -561,6 +561,7 @@ const BrowserSessionRowContent = memo(
 								text={browserAction.text}
 							/>
 						)
+					}
 
 					default:
 						return null

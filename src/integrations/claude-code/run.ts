@@ -85,7 +85,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 
 		// We rely on the assistant message. If the output was truncated, it's better having a poorly formatted message
 		// from which to extract something, than throwing an error/showing the model didn't return any messages.
-		if (processState.partialData && processState.partialData.startsWith(`{"type":"assistant"`)) {
+		if (processState.partialData?.startsWith(`{"type":"assistant"`)) {
 			yield processState.partialData
 		}
 

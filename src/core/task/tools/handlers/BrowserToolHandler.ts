@@ -174,7 +174,7 @@ export class BrowserToolHandler implements IFullyManagedTool {
 				case "click":
 				case "type":
 				case "scroll_down":
-				case "scroll_up":
+				case "scroll_up": {
 					await config.callbacks.say("browser_action_result", JSON.stringify(browserActionResult))
 					const result = formatResponse.toolResult(
 						`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
@@ -184,12 +184,14 @@ export class BrowserToolHandler implements IFullyManagedTool {
 					)
 
 					return result
+				}
 
-				case "close":
+				case "close": {
 					const closeResult = formatResponse.toolResult(
 						`The browser has been closed. You may now proceed to using other tools.`,
 					)
 					return closeResult
+				}
 			}
 		} catch (error) {
 			await config.services.browserSession.closeBrowser() // if any error occurs, the browser session is terminated

@@ -12,8 +12,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "summarize_task"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

@@ -14,8 +14,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "report_bug"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

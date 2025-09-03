@@ -15,8 +15,6 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = "attempt_completion"
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

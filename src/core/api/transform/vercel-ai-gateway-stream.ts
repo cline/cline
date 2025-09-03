@@ -35,7 +35,7 @@ export async function createVercelAIGatewayStream(
 				// Find the last text part in the message content
 				const lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
-				if (lastTextPart && lastTextPart.text && lastTextPart.text.length > 0) {
+				if (lastTextPart?.text && lastTextPart.text.length > 0) {
 					// @ts-ignore-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}

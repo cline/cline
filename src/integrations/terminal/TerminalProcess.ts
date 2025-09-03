@@ -29,7 +29,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		const returnCurrentTerminalContents = async () => {
 			try {
 				const terminalSnapshot = await getLatestTerminalOutput()
-				if (terminalSnapshot && terminalSnapshot.trim()) {
+				if (terminalSnapshot?.trim()) {
 					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
 					this.emit("line", fallbackMessage)
 				}
@@ -38,7 +38,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 		}
 
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
+		if (terminal.shellIntegration?.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors

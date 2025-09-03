@@ -9,7 +9,6 @@ import { ClineApiServerMock } from "../fixtures/server"
 interface E2ETestDirectories {
 	workspaceDir: string
 	userDataDir: string
-	extensionsDir: string
 }
 
 export class E2ETestHelper {
@@ -184,6 +183,7 @@ export class E2ETestHelper {
  */
 export const e2e = test
 	.extend<{ server: ClineApiServerMock | null }>({
+		// biome-ignore lint/correctness/noEmptyPattern: no dependency
 		server: async ({}, use) => {
 			console.log("=== SERVER FIXTURE CALLED ===")
 			// Start server if it doesn't exist
@@ -198,18 +198,17 @@ export const e2e = test
 		},
 	})
 	.extend<E2ETestDirectories>({
+		// biome-ignore lint/correctness/noEmptyPattern: no dependency
 		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
+		// biome-ignore lint/correctness/noEmptyPattern: no dependency
 		userDataDir: async ({}, use) => {
-			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
-		},
-		extensionsDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
 	.extend<{ openVSCode: () => Promise<ElectronApplication> }>({
-		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
+		openVSCode: async ({ workspaceDir, userDataDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
 			await use(async () => {
@@ -233,7 +232,7 @@ export const e2e = test
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--extensions-dir=${extensionsDir}`,
+						`--extensions-dir=${userDataDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspaceDir,
@@ -245,7 +244,7 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir }, use) => {
+		app: async ({ openVSCode, userDataDir }, use) => {
 			const app = await openVSCode()
 
 			try {
@@ -253,14 +252,12 @@ export const e2e = test
 			} finally {
 				await app.close()
 				// Cleanup in parallel
-				await Promise.allSettled([
-					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
-					E2ETestHelper.rmForRetries(extensionsDir, { recursive: true }),
-				])
+				await Promise.allSettled([E2ETestHelper.rmForRetries(userDataDir, { recursive: true })])
 			}
 		},
 	})
 	.extend<{ helper: E2ETestHelper }>({
+		// biome-ignore lint/correctness/noEmptyPattern: no dependency
 		helper: async ({}, use) => {
 			const helper = new E2ETestHelper()
 			await use(helper)
