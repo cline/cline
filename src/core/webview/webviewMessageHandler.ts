@@ -23,7 +23,12 @@ import { Package } from "../../shared/package"
 import { RouterName, toRouterName, ModelRecord } from "../../shared/api"
 import { MessageEnhancer } from "./messageEnhancer"
 
-import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
+import {
+	type WebviewMessage,
+	type EditQueuedMessagePayload,
+	checkoutDiffPayloadSchema,
+	checkoutRestorePayloadSchema,
+} from "../../shared/WebviewMessage"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { experimentDefault } from "../../shared/experiments"
 import { Terminal } from "../../integrations/terminal/Terminal"
@@ -1412,7 +1417,7 @@ export const webviewMessageHandler = async (
 					const {
 						apiConfiguration,
 						customSupportPrompts,
-						listApiConfigMeta,
+						listApiConfigMeta = [],
 						enhancementApiConfigId,
 						includeTaskHistoryInEnhance,
 					} = state
@@ -2669,6 +2674,27 @@ export const webviewMessageHandler = async (
 		case "showMdmAuthRequiredNotification": {
 			// Show notification that organization requires authentication
 			vscode.window.showWarningMessage(t("common:mdm.info.organization_requires_auth"))
+			break
+		}
+
+		/**
+		 * Chat Message Queue
+		 */
+
+		case "queueMessage": {
+			provider.getCurrentTask()?.messageQueueService.addMessage(message.text ?? "", message.images)
+			break
+		}
+		case "removeQueuedMessage": {
+			provider.getCurrentTask()?.messageQueueService.removeMessage(message.text ?? "")
+			break
+		}
+		case "editQueuedMessage": {
+			if (message.payload) {
+				const { id, text, images } = message.payload as EditQueuedMessagePayload
+				provider.getCurrentTask()?.messageQueueService.updateMessage(id, text, images)
+			}
+
 			break
 		}
 	}

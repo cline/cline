@@ -248,14 +248,11 @@ export type TokenUsage = z.infer<typeof tokenUsageSchema>
  * QueuedMessage
  */
 
-/**
- * Represents a message that is queued to be sent when sending is enabled
- */
-export interface QueuedMessage {
-	/** Unique identifier for the queued message */
-	id: string
-	/** The text content of the message */
-	text: string
-	/** Array of image data URLs attached to the message */
-	images: string[]
-}
+export const queuedMessageSchema = z.object({
+	timestamp: z.number(),
+	id: z.string(),
+	text: z.string(),
+	images: z.array(z.string()).optional(),
+})
+
+export type QueuedMessage = z.infer<typeof queuedMessageSchema>

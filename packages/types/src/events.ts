@@ -31,6 +31,7 @@ export enum RooCodeEventName {
 	Message = "message",
 	TaskModeSwitched = "taskModeSwitched",
 	TaskAskResponded = "taskAskResponded",
+	TaskUserMessage = "taskUserMessage",
 
 	// Task Analytics
 	TaskTokenUsageUpdated = "taskTokenUsageUpdated",
@@ -82,6 +83,7 @@ export const rooCodeEventsSchema = z.object({
 	]),
 	[RooCodeEventName.TaskModeSwitched]: z.tuple([z.string(), z.string()]),
 	[RooCodeEventName.TaskAskResponded]: z.tuple([z.string()]),
+	[RooCodeEventName.TaskUserMessage]: z.tuple([z.string()]),
 
 	[RooCodeEventName.TaskToolFailed]: z.tuple([z.string(), toolNamesSchema, z.string()]),
 	[RooCodeEventName.TaskTokenUsageUpdated]: z.tuple([z.string(), tokenUsageSchema]),

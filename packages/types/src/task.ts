@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { RooCodeEventName } from "./events.js"
 import type { RooCodeSettings } from "./global-settings.js"
-import type { ClineMessage, TokenUsage } from "./message.js"
+import type { ClineMessage, QueuedMessage, TokenUsage } from "./message.js"
 import type { ToolUsage, ToolName } from "./tool.js"
 import type { StaticAppProperties, GitProperties, TelemetryProperties } from "./telemetry.js"
 import type { TodoItem } from "./todo.js"
@@ -59,8 +59,6 @@ export interface TaskProviderLike {
 
 export type TaskProviderEvents = {
 	[RooCodeEventName.TaskCreated]: [task: TaskLike]
-
-	// Proxied from the Task EventEmitter.
 	[RooCodeEventName.TaskStarted]: [taskId: string]
 	[RooCodeEventName.TaskCompleted]: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage]
 	[RooCodeEventName.TaskAborted]: [taskId: string]
@@ -71,6 +69,9 @@ export type TaskProviderEvents = {
 	[RooCodeEventName.TaskResumable]: [taskId: string]
 	[RooCodeEventName.TaskIdle]: [taskId: string]
 	[RooCodeEventName.TaskSpawned]: [taskId: string]
+
+	[RooCodeEventName.TaskUserMessage]: [taskId: string]
+
 	[RooCodeEventName.ModeChanged]: [mode: string]
 	[RooCodeEventName.ProviderProfileChanged]: [config: { name: string; provider?: string }]
 }
@@ -105,11 +106,12 @@ export type TaskMetadata = z.infer<typeof taskMetadataSchema>
 
 export interface TaskLike {
 	readonly taskId: string
-	readonly taskStatus: TaskStatus
-	readonly taskAsk: ClineMessage | undefined
+	readonly rootTask?: TaskLike
 	readonly metadata: TaskMetadata
 
-	readonly rootTask?: TaskLike
+	readonly taskStatus: TaskStatus
+	readonly taskAsk: ClineMessage | undefined
+	readonly queuedMessages: QueuedMessage[]
 
 	on<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 	off<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
@@ -141,6 +143,7 @@ export type TaskEvents = {
 	[RooCodeEventName.Message]: [{ action: "created" | "updated"; message: ClineMessage }]
 	[RooCodeEventName.TaskModeSwitched]: [taskId: string, mode: string]
 	[RooCodeEventName.TaskAskResponded]: []
+	[RooCodeEventName.TaskUserMessage]: [taskId: string]
 
 	// Task Analytics
 	[RooCodeEventName.TaskToolFailed]: [taskId: string, tool: ToolName, error: string]
