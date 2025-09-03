@@ -1,4 +1,13 @@
 import type { Socket } from "socket.io-client"
+import * as vscode from "vscode"
+
+import type { StaticAppProperties, GitProperties } from "@roo-code/types"
+
+export interface BaseChannelOptions {
+	instanceId: string
+	appProperties: StaticAppProperties
+	gitProperties?: GitProperties
+}
 
 /**
  * Abstract base class for communication channels in the bridge system.
@@ -11,9 +20,13 @@ import type { Socket } from "socket.io-client"
 export abstract class BaseChannel<TCommand = unknown, TEventName extends string = string, TEventData = unknown> {
 	protected socket: Socket | null = null
 	protected readonly instanceId: string
+	protected readonly appProperties: StaticAppProperties
+	protected readonly gitProperties?: GitProperties
 
-	constructor(instanceId: string) {
-		this.instanceId = instanceId
+	constructor(options: BaseChannelOptions) {
+		this.instanceId = options.instanceId
+		this.appProperties = options.appProperties
+		this.gitProperties = options.gitProperties
 	}
 
 	/**
@@ -81,9 +94,26 @@ export abstract class BaseChannel<TCommand = unknown, TEventName extends string 
 	}
 
 	/**
-	 * Handle incoming commands - must be implemented by subclasses.
+	 * Handle incoming commands - template method that ensures common functionality
+	 * is executed before subclass-specific logic.
+	 *
+	 * This method should be called by subclasses to handle commands.
+	 * It will execute common functionality and then delegate to the abstract
+	 * handleCommandImplementation method.
 	 */
-	public abstract handleCommand(command: TCommand): Promise<void>
+	public async handleCommand(command: TCommand): Promise<void> {
+		// Common functionality: focus the sidebar.
+		await vscode.commands.executeCommand(`${this.appProperties.appName}.SidebarProvider.focus`)
+
+		// Delegate to subclass-specific implementation.
+		await this.handleCommandImplementation(command)
+	}
+
+	/**
+	 * Handle command-specific logic - must be implemented by subclasses.
+	 * This method is called after common functionality has been executed.
+	 */
+	protected abstract handleCommandImplementation(command: TCommand): Promise<void>
 
 	/**
 	 * Handle connection-specific logic.

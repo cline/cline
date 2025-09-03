@@ -14,7 +14,7 @@ import {
 	TaskSocketEvents,
 } from "@roo-code/types"
 
-import { BaseChannel } from "./BaseChannel.js"
+import { type BaseChannelOptions, BaseChannel } from "./BaseChannel.js"
 
 type TaskEventListener = {
 	[K in keyof TaskEvents]: (...args: TaskEvents[K]) => void | Promise<void>
@@ -25,6 +25,9 @@ type TaskEventMapping = {
 	to: TaskBridgeEventName
 	createPayload: (task: TaskLike, ...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface TaskChannelOptions extends BaseChannelOptions {}
 
 /**
  * Manages task-level communication channels.
@@ -69,11 +72,11 @@ export class TaskChannel extends BaseChannel<
 		},
 	] as const
 
-	constructor(instanceId: string) {
-		super(instanceId)
+	constructor(options: TaskChannelOptions) {
+		super(options)
 	}
 
-	public async handleCommand(command: TaskBridgeCommand): Promise<void> {
+	protected async handleCommandImplementation(command: TaskBridgeCommand): Promise<void> {
 		const task = this.subscribedTasks.get(command.taskId)
 
 		if (!task) {

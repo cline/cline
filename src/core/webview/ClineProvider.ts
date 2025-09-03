@@ -2095,7 +2095,6 @@ export class ClineProvider
 
 	public async remoteControlEnabled(enabled: boolean) {
 		const userInfo = CloudService.instance.getUserInfo()
-
 		const config = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
 
 		if (!config) {

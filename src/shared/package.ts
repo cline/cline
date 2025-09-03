@@ -1,7 +1,3 @@
-/**
- * Package
- */
-
 import { publisher, name, version } from "../package.json"
 
 // These ENV variables can be defined by ESBuild when building the extension

@@ -5,6 +5,7 @@ import type { Socket } from "socket.io-client"
 import {
 	type TaskProviderLike,
 	type TaskProviderEvents,
+	type StaticAppProperties,
 	RooCodeEventName,
 	ExtensionBridgeEventName,
 	ExtensionSocketEvents,
@@ -18,6 +19,15 @@ describe("ExtensionChannel", () => {
 	let extensionChannel: ExtensionChannel
 	const instanceId = "test-instance-123"
 	const userId = "test-user-456"
+
+	const appProperties: StaticAppProperties = {
+		appName: "roo-code",
+		appVersion: "1.0.0",
+		vscodeVersion: "1.0.0",
+		platform: "darwin",
+		editorName: "Roo Code",
+		hostname: "test-host",
+	}
 
 	// Track registered event listeners
 	const eventListeners = new Map<keyof TaskProviderEvents, Set<(...args: unknown[]) => unknown>>()
@@ -80,7 +90,12 @@ describe("ExtensionChannel", () => {
 		} as unknown as TaskProviderLike
 
 		// Create extension channel instance
-		extensionChannel = new ExtensionChannel(instanceId, userId, mockProvider)
+		extensionChannel = new ExtensionChannel({
+			instanceId,
+			appProperties,
+			userId,
+			provider: mockProvider,
+		})
 	})
 
 	afterEach(() => {
@@ -155,7 +170,12 @@ describe("ExtensionChannel", () => {
 
 		it("should not have duplicate listeners after multiple channel creations", () => {
 			// Create a second channel with the same provider
-			const secondChannel = new ExtensionChannel("instance-2", userId, mockProvider)
+			const secondChannel = new ExtensionChannel({
+				instanceId: "instance-2",
+				appProperties,
+				userId,
+				provider: mockProvider,
+			})
 
 			// Each event should have exactly 2 listeners (one from each channel)
 			eventListeners.forEach((listeners) => {
