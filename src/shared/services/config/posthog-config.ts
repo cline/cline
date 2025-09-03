@@ -36,8 +36,8 @@ const PUBLIC_POSTHOG_API_KEYS = {
  * defined in the .github/workflows/publish.yml workflow.
  */
 const POSTHOG_CONFIG_PROD = {
-	apiKey: process?.env?.POSTHOG_API_KEY || PUBLIC_POSTHOG_API_KEYS.PROD,
-	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY || PUBLIC_POSTHOG_API_KEYS.PROD,
+	apiKey: process?.env?.POSTHOG_API_KEY ?? PUBLIC_POSTHOG_API_KEYS.PROD,
+	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY ?? PUBLIC_POSTHOG_API_KEYS.PROD,
 	host: "https://data.cline.bot",
 	uiHost: "https://us.posthog.com",
 } satisfies PostHogClientConfig
@@ -47,8 +47,8 @@ const POSTHOG_CONFIG_PROD = {
  * NOTE: The development environment variables should be retrieved from 1password shared vault.
  */
 const POSTHOG_CONFIG_DEV = {
-	apiKey: process?.env?.POSTHOG_API_KEY_DEV || PUBLIC_POSTHOG_API_KEYS.DEV,
-	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY_DEV || PUBLIC_POSTHOG_API_KEYS.DEV,
+	apiKey: process?.env?.POSTHOG_API_KEY_DEV ?? PUBLIC_POSTHOG_API_KEYS.DEV,
+	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY_DEV ?? PUBLIC_POSTHOG_API_KEYS.DEV,
 	host: "https://data.cline.bot",
 	uiHost: "https://us.i.posthog.com",
 } satisfies PostHogClientConfig
