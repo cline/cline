@@ -21,40 +21,29 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
 }
 
 /**
- * Public PostHog keys for prod and dev (safe for open source).
- * NOTE: Soon to be deprecated and replaced with environment variables.
+ * NOTE: Ensure that dev environment is only used in CI or local dev, never in production.
  */
-const PUBLIC_POSTHOG_API_KEYS = {
-	PROD: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
-	DEV: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
-}
+const useDevEnv = !!process?.env?.CI || process?.env?.IS_DEV === "true"
 
 /**
  * PostHog configuration for Production Environment.
  * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
  * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
  * defined in the .github/workflows/publish.yml workflow.
- */
-const POSTHOG_CONFIG_PROD = {
-	apiKey: process?.env?.POSTHOG_API_KEY ?? PUBLIC_POSTHOG_API_KEYS.PROD,
-	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY ?? PUBLIC_POSTHOG_API_KEYS.PROD,
-	host: "https://data.cline.bot",
-	uiHost: "https://us.posthog.com",
-} satisfies PostHogClientConfig
-
-/**
- * PostHog configuration for Development Environment project
  * NOTE: The development environment variables should be retrieved from 1password shared vault.
  */
-const POSTHOG_CONFIG_DEV = {
-	apiKey: process?.env?.POSTHOG_API_KEY_DEV ?? PUBLIC_POSTHOG_API_KEYS.DEV,
-	errorTrackingApiKey: process?.env?.POSTHOG_ERROR_API_KEY_DEV ?? PUBLIC_POSTHOG_API_KEYS.DEV,
+export const posthogConfig: PostHogClientConfig = {
+	apiKey: process?.env?.TELEMETRY_SERVICE_API_KEY,
+	errorTrackingApiKey: process?.env?.ERROR_SERVICE_API_KEY,
 	host: "https://data.cline.bot",
-	uiHost: "https://us.i.posthog.com",
-} satisfies PostHogClientConfig
+	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
+}
 
-/**
- * NOTE: Ensure that dev environment is only used in CI or local dev, never in production.
- */
-const isDevEnv = !!process?.env?.CI || process?.env?.IS_DEV === "true"
-export const posthogConfig = isDevEnv ? POSTHOG_CONFIG_DEV : POSTHOG_CONFIG_PROD
+export function isPostHogConfigValid(config: PostHogClientConfig): config is PostHogClientValidConfig {
+	return (
+		typeof config.apiKey === "string" &&
+		typeof config.errorTrackingApiKey === "string" &&
+		typeof config.host === "string" &&
+		typeof config.uiHost === "string"
+	)
+}

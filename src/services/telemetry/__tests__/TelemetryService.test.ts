@@ -29,7 +29,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	describe("Telemetry Service", () => {
 		it("should include correct metadata with telemetry events", async () => {
 			const noOpProvider = TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 
 			// Spy on the provider's log method to verify metadata
@@ -112,7 +112,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		it("should create No-Op provider and handle all operations safely", async () => {
 			console.log("\n=== Testing No-Op Provider ===")
 			const noOpProvider = TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 
 			const noOpTelemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
@@ -224,7 +224,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			// Switch to No-Op provider
 			const noOpProvider = TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 			telemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
 

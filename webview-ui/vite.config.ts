@@ -79,18 +79,17 @@ export default defineConfig({
 		},
 	},
 	define: {
-		"process.env": {
-			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
-			IS_DEV: JSON.stringify(process.env.IS_DEV),
-			IS_TEST: JSON.stringify(process.env.IS_TEST),
-			CI: JSON.stringify(process.env.CI),
-			// PostHog environment variables for production
-			POSTHOG_API_KEY: JSON.stringify(process.env.POSTHOG_API_KEY),
-			POSTHOG_ERROR_API_KEY: JSON.stringify(process.env.POSTHOG_ERROR_API_KEY),
-			// PostHog environment variables for development
-			POSTHOG_API_KEY_DEV: JSON.stringify(process.env.POSTHOG_API_KEY_DEV),
-			POSTHOG_ERROR_API_KEY_DEV: JSON.stringify(process.env.POSTHOG_ERROR_API_KEY_DEV),
-		},
+		"process.env": process.env.VITEST
+			? {}
+			: {
+					NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
+					IS_DEV: JSON.stringify(process.env.IS_DEV),
+					IS_TEST: JSON.stringify(process.env.IS_TEST),
+					CI: JSON.stringify(process.env.CI),
+					// PostHog environment variables
+					TELEMETRY_SERVICE_API_KEY: JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
+					ERROR_SERVICE_API_KEY: JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
+				},
 	},
 	resolve: {
 		alias: {

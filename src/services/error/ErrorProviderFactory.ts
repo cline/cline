@@ -1,11 +1,12 @@
-import { PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "../logging/Logger"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 /**
  * Supported error provider types
  */
-export type ErrorProviderType = "posthog" | "none"
+export type ErrorProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for error providers
@@ -28,7 +29,7 @@ export class ErrorProviderFactory {
 	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
 		switch (config.type) {
 			case "posthog":
-				if (config.config.apiKey !== undefined && config.config.errorTrackingApiKey !== undefined) {
+				if (!!config?.config?.apiKey && !!config?.config?.errorTrackingApiKey) {
 					return new PostHogErrorProvider({
 						apiKey: config.config.apiKey,
 						errorTrackingApiKey: config.config.errorTrackingApiKey,
@@ -36,6 +37,7 @@ export class ErrorProviderFactory {
 						uiHost: config.config.uiHost,
 					})
 				}
+				// When
 				return new NoOpErrorProvider()
 			default:
 				console.error(`Unsupported error provider type: ${config.type}`)
@@ -48,8 +50,9 @@ export class ErrorProviderFactory {
 	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
+		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
-			type: "posthog",
+			type: hasValidConfig ? "posthog" : "no-op",
 			config: posthogConfig,
 		}
 	}
@@ -60,31 +63,31 @@ export class ErrorProviderFactory {
  * or for testing purposes
  */
 class NoOpErrorProvider implements IErrorProvider {
-	public logException(_error: Error, _properties?: Record<string, unknown>): void {
-		// No-op
+	public logException(error: Error, properties?: Record<string, unknown>): void {
+		Logger.error(`${JSON.stringify(properties)}`, error)
 	}
 
 	public logMessage(
-		_message: string,
-		_level?: "error" | "warning" | "log" | "debug" | "info",
-		_properties?: Record<string, unknown>,
+		message: string,
+		level?: "error" | "warning" | "log" | "debug" | "info",
+		properties?: Record<string, unknown>,
 	): void {
-		// No-op
+		Logger.log(`[${level}] ${message} - ${JSON.stringify(properties)}`)
 	}
 
 	public isEnabled(): boolean {
-		return false
+		return true
 	}
 
 	public getSettings() {
 		return {
-			enabled: false,
-			hostEnabled: false,
-			level: "off" as const,
+			enabled: true,
+			hostEnabled: true,
+			level: "all" as const,
 		}
 	}
 
 	public async dispose(): Promise<void> {
-		// No-op
+		Logger.info("Disposing NoOpErrorProvider")
 	}
 }
