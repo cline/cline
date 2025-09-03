@@ -150,7 +150,9 @@
 			],
 			"env": {
 				"TS_NODE_PROJECT": "./tsconfig.unit-test.json",
-				"NODE_ENV": "test"
+				"NODE_ENV": "test",
+				"IS_DEV": "true",
+				"CLINE_ENVIRONMENT": "local"
 			},
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "openOnSessionStart"

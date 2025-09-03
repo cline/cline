@@ -43,6 +43,12 @@ export const Uri = {
 	parse: (uri: string) => ({ fsPath: uri, toString: () => uri }),
 }
 
+export const ExtensionMode = {
+	Development: 1,
+	Test: 2,
+	Production: 3,
+}
+
 export const ExtensionContextMock = {}
 export const StatusBarAlignmentMock = { Left: 1, Right: 2 }
 export const ViewColumnMock = { One: 1, Two: 2, Three: 3 }
