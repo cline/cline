@@ -8,7 +8,7 @@ import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
-import InstalledServersView from "./tabs/installed/ConfigureServersView"
+import ConfigureServersView from "./tabs/installed/ConfigureServersView"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 
 type McpViewProps = {
@@ -105,7 +105,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 				<div style={{ width: "100%" }}>
 					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
 					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />}
-					{activeTab === "configure" && <InstalledServersView />}
+					{activeTab === "configure" && <ConfigureServersView />}
 				</div>
 			</div>
 		</div>
