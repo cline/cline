@@ -30,14 +30,11 @@
 			"correctness": {
 				"useExhaustiveDependencies": "off",
 				"noUndeclaredVariables": "off",
-				"noEmptyPattern": "off",
 				"useJsxKeyInIterable": "off",
 				"noInnerDeclarations": "off",
 				"useHookAtTopLevel": "off",
 				"useYield": "off",
 				"noConstructorReturn": "off",
-				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off",
 				"noUnusedImports": "error"
 			},
 			"a11y": "off",
@@ -61,25 +58,18 @@
 				"noUselessElse": "off"
 			},
 			"suspicious": {
-				"noDoubleEquals": "warn",
-				"noImplicitAnyLet": "info",
-				"noThenProperty": "off",
-				"noAsyncPromiseExecutor": "off",
-				"noImportAssign": "off",
-				"noExplicitAny": "off",
-				"noControlCharactersInRegex": "off",
-				"noShadowRestrictedNames": "off",
+				"noThenProperty": "warn",
+				"noAsyncPromiseExecutor": "warn",
+				"noExplicitAny": "warn",
+				"noImportAssign": "warn",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "warn"
+				"noAssignInExpressions": "warn",
+				"noShadowRestrictedNames": "info",
+				"noControlCharactersInRegex": "warn"
 			},
 			"complexity": {
-				"noUselessConstructor": "off",
-				"useOptionalChain": "off",
-				"noBannedTypes": "off",
-				"useLiteralKeys": "off",
-				"noUselessCatch": "off",
-				"noUselessSwitchCase": "off",
-				"noStaticOnlyClass": "off"
+				"useOptionalChain": "info",
+				"useLiteralKeys": "off"
 			},
 			"security": {
 				"noDangerouslySetInnerHtml": "warn"
