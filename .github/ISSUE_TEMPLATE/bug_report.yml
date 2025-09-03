@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Important:** All bug reports must be reproducible using Claude 4 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
+        **Important:** All bug reports must be reproducible using Claude Sonnet 4. Cline uses complex prompts so less capable models may not work as expected.
   - type: dropdown
     id: plugin-type
     attributes:
@@ -51,7 +51,7 @@ body:
       description: What provider and model were you using when the issue occurred?
       placeholder: 'e.g., cline:anthropic/claude-sonnet-4, gemini:gemini-2.5-pro-exp-03-25'
     validations:
-      required: true
+      required: false
   - type: textarea
     id: system-info
     attributes:
