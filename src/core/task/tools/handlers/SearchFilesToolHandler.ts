@@ -1,8 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
+import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ToolResponse } from "../../index"
@@ -72,7 +72,8 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relDirPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "SearchFilesTool.execute")
+
 		// Execute the actual regex search operation
 		const results = await regexSearchFiles(
 			config.cwd,
