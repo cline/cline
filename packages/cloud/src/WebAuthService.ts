@@ -563,11 +563,7 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 			)?.email_address
 		}
 
-		// Check for extension_bridge_enabled in user's public metadata
-		let extensionBridgeEnabled = false
-		if (userData.public_metadata?.extension_bridge_enabled === true) {
-			extensionBridgeEnabled = true
-		}
+		let extensionBridgeEnabled = true
 
 		// Fetch organization info if user is in organization context
 		try {
@@ -583,11 +579,7 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 					if (userMembership) {
 						this.setUserOrganizationInfo(userInfo, userMembership)
 
-						// Check organization public metadata for extension_bridge_enabled
-						// Organization setting takes precedence over user setting
-						if (await this.isExtensionBridgeEnabledForOrganization(storedOrgId)) {
-							extensionBridgeEnabled = true
-						}
+						extensionBridgeEnabled = await this.isExtensionBridgeEnabledForOrganization(storedOrgId)
 
 						this.log("[auth] User in organization context:", {
 							id: userMembership.organization.id,
@@ -608,10 +600,9 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 				if (primaryOrgMembership) {
 					this.setUserOrganizationInfo(userInfo, primaryOrgMembership)
 
-					// Check organization public metadata for extension_bridge_enabled
-					if (await this.isExtensionBridgeEnabledForOrganization(primaryOrgMembership.organization.id)) {
-						extensionBridgeEnabled = true
-					}
+					extensionBridgeEnabled = await this.isExtensionBridgeEnabledForOrganization(
+						primaryOrgMembership.organization.id,
+					)
 
 					this.log("[auth] Legacy credentials: Found organization membership:", {
 						id: primaryOrgMembership.organization.id,
