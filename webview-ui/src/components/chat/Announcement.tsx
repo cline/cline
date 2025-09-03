@@ -80,8 +80,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
+			<b>Cline is now available in JetBrains IDEs!</b>
+			<div style={{ margin: "0.3rem 0" }} />
+			Cline is now officially available for JetBrains IDEs including IntelliJ IDEA, PyCharm, WebStorm, and more! Experience
+			the same powerful AI coding assistant you love in VSCode, now in your favorite JetBrains environment. Get started at:{" "}
+			<a href="https://plugins.jetbrains.com/plugin/26861-cline">JetBrains Marketplace</a>
+			<div style={{ margin: "12px 0" }} />
 			<b>
-				Free <code>grok-code-fast-1</code> Until Sept 10th
+				Plus: Free <code>grok-code-fast-1</code> Until Sept 10th
 			</b>
 			<div style={{ margin: "0.3rem 0" }} />
 			We partnered with xAI to help build this model from the ground up for agentic coding, and so far–community feedback

@@ -1,4 +1,5 @@
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { workspaceResolver } from "@core/workspace"
 import { fileExistsAtPath } from "@utils/fs"
 import * as childProcess from "child_process"
 import * as path from "path"
@@ -63,7 +64,12 @@ const MAX_RESULTS = 300
 
 export async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
 	const checkPath = async (pkgFolder: string) => {
-		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
+		const fullPathResult = workspaceResolver.resolveWorkspacePath(
+			vscodeAppRoot,
+			path.join(pkgFolder, binName),
+			"Services.ripgrep.getBinPath",
+		)
+		const fullPath = typeof fullPathResult === "string" ? fullPathResult : fullPathResult.absolutePath
 		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
 	}
 

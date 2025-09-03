@@ -102,15 +102,8 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "isMac"
-				},
-				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "!isMac"
+					"title": "Cline",
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},

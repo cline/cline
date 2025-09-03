@@ -1,0 +1,135 @@
+---
+title: "Installing Cline for JetBrains (Early Access)"
+description: "Get early access to Cline in your favorite JetBrains IDE with the same powerful AI assistance you know from VSCode."
+---
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/jetbrains-logo.svg"
+		alt="JetBrains logo"
+		style={{ width: "200px", height: "auto", margin: "0 auto 20px auto", display: "block" }}
+	/>
+</Frame>
+
+Cline for JetBrains works almost identically to Cline in VSCode. All the core features work properly: diff editing, using tools, logging in with different providers, MCP servers, Cline rules and workflows, and more.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/jetbrains-demo-hifi.gif"
+		alt="Cline running in JetBrains IDE showing AI assistance"
+	/>
+</Frame>
+
+<Note>Cline for JetBrains is in early access. All core features are functional, with ongoing improvements based on user feedback.</Note>
+
+## Installation
+
+As part of our early access program, Cline for JetBrains is available through direct download before its official marketplace release. You'll need to install it manually from a downloaded file:
+
+### Manual Installation from Disk
+
+1. **Download the Plugin:**
+   - Go to [https://plugins.jetbrains.com/plugin/28247-cline/versions/eap](https://plugins.jetbrains.com/plugin/28247-cline/versions/eap)
+   - Click **Download** to get the `.zip` file
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-jetbrains-marketplace-download.png"
+		alt="JetBrains plugin marketplace showing Cline download page"
+	/>
+</Frame>
+
+2. **Install from Disk:**
+   - Open your JetBrains IDE
+   - Go to **IntelliJ IDEA** (or whichever IDE you are in) → **Settings**
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-jetbrains-settings.png"
+		alt="JetBrains IDE settings dialog"
+	/>
+</Frame>
+
+   - Select **Plugins** from the left sidebar
+   - Click the gear icon ⚙️ and select **Install Plugin from Disk...**
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-jetbrains-install-disk.png"
+		alt="JetBrains IDE settings showing Install Plugin from Disk option"
+	/>
+</Frame>
+
+   - Select the downloaded `.zip` file
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-jetbrains-zip-file.png"
+		alt="File selection dialog showing Cline plugin zip file"
+	/>
+</Frame>
+
+   - Restart your IDE when prompted
+
+## Getting Started with Cline
+
+After installation, you'll find Cline in your IDE:
+
+1. **Open Cline:**
+   - Look for the Cline tool window (usually on the right side)
+   - Or go to **View** → **Tool Windows** → **Cline**
+
+2. **Sign In (optional, BYOK is also available):**
+   - Click **Sign In** in the Cline panel
+   - You'll be taken to [app.cline.bot](https://app.cline.bot) to create your account
+   - No credit card needed to get started with free credits
+
+3. **Start Coding:**
+   - Try this first prompt: "Hey Cline! Can you help me create a simple Hello World program in this project?"
+
+## Key Differences from VSCode
+
+While Cline for JetBrains includes all the same powerful features, there's one important difference to be aware of:
+
+**Terminal Integration:** The terminal inside JetBrains isn't integrated with Cline the same way it is in VSCode. Cline can execute commands, but the output will only appear in the webview if you expand the **Command Output** section.
+
+This means:
+- Commands still run successfully
+- You can see the output by clicking to expand Command Output in the chat
+- Terminal commands work the same way, just with a different display
+
+## What Works
+
+Everything else works exactly like VSCode:
+
+- **Diff Editing:** Cline can read, write, and edit files with the same precision
+- **Tool Usage:** All of Cline's tools (file operations, web browsing, etc.) work identically  
+- **API Providers:** Connect to Anthropic, OpenAI, local models, and more
+- **MCP Servers:** Full support for Model Context Protocol servers
+- **Cline Rules:** Custom instructions and workflows work the same way
+- **@ Mentions:** Reference files, folders, problems, and more
+- **Drag & Drop:** Add files and images to conversations
+
+## Tips for JetBrains Users
+
+- **Project Context:** Cline automatically understands your project structure, just like in VSCode
+- **Language Support:** Cline works with any language your JetBrains IDE supports
+- **Debugging Help:** Share error messages and stack traces directly in the chat
+- **Code Review:** Ask Cline to review your code changes before committing
+
+## Troubleshooting
+
+If you don't see the Cline tool window after installation:
+- Restart your IDE completely
+- Check **View** → **Tool Windows** → **Cline**
+- Ensure the plugin is enabled in **Settings** → **Plugins**
+
+Having other issues? Join our [Discord community](https://discord.gg/cline) for help from the team and other users.
+
+## Next Steps
+
+Now that you have Cline installed, you might want to:
+- Learn about [model selection](/getting-started/model-selection-guide) to choose the best AI provider
+- Explore [@ mentions](/features/at-mentions/overview) to reference files and context efficiently  
+- Set up [Cline rules](/features/cline-rules) for your specific workflow
+- Try [MCP servers](/mcp/mcp-overview) to extend Cline's capabilities
