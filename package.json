@@ -355,6 +355,7 @@
 		"test:integration": "vscode-test",
 		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
+		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e": "playwright install && vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:optimal": "vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
