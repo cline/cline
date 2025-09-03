@@ -83,6 +83,13 @@ export default defineConfig({
 			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
 			IS_DEV: JSON.stringify(process.env.IS_DEV),
 			IS_TEST: JSON.stringify(process.env.IS_TEST),
+			CI: JSON.stringify(process.env.CI),
+			// PostHog environment variables for production
+			POSTHOG_API_KEY: JSON.stringify(process.env.POSTHOG_API_KEY),
+			POSTHOG_ERROR_API_KEY: JSON.stringify(process.env.POSTHOG_ERROR_API_KEY),
+			// PostHog environment variables for development
+			POSTHOG_API_KEY_DEV: JSON.stringify(process.env.POSTHOG_API_KEY_DEV),
+			POSTHOG_ERROR_API_KEY_DEV: JSON.stringify(process.env.POSTHOG_ERROR_API_KEY_DEV),
 		},
 	},
 	resolve: {
