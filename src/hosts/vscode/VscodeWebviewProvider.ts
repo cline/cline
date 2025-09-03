@@ -1,3 +1,4 @@
+import { GrpcRecorder, Recorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 import { WebviewProvider } from "@core/webview"
 import type { Uri } from "vscode"
@@ -5,7 +6,7 @@ import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { WebviewMessage } from "@/shared/WebviewMessage"
+import { type GrpcRequest, WebviewMessage } from "@/shared/WebviewMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*
@@ -180,24 +181,59 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	}
 
 	/**
+	 * Creates a middleware wrapper for recording gRPC requests and responses
+	 */
+	private withRecordingMiddleware(
+		postMessage: (msg: ExtensionMessage) => Thenable<boolean | undefined>,
+	): (msg: ExtensionMessage) => Thenable<boolean | undefined> {
+		const recorder: Recorder = GrpcRecorder.getInstance()
+
+		return async (response: ExtensionMessage) => {
+			// Record response if it's a gRPC response
+			if (response?.grpc_response) {
+				try {
+					recorder.recordResponse(response.grpc_response.request_id, response.grpc_response)
+				} catch (e) {
+					console.warn("Failed to record gRPC response:", e)
+				}
+			}
+			return postMessage(response)
+		}
+	}
+
+	/**
+	 * Records gRPC request with error handling
+	 */
+	private recordRequest(request: GrpcRequest): void {
+		try {
+			const recorder = GrpcRecorder.getInstance()
+			recorder.recordRequest(request)
+		} catch (e) {
+			console.warn("Failed to record gRPC request:", e)
+		}
+	}
+
+	/**
 	 * Sets up an event listener to listen for messages passed from the webview context and
 	 * executes code based on the message that is received.
 	 *
 	 * @param webview A reference to the extension webview
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
-		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
+		// Create recording middleware wrapper
+		const postMessageWithRecording = this.withRecordingMiddleware(this.postMessageToWebview.bind(this))
 
 		switch (message.type) {
 			case "grpc_request": {
 				if (message.grpc_request) {
-					await handleGrpcRequest(this.controller, postMessageToWebview, message.grpc_request)
+					this.recordRequest(message.grpc_request)
+					await handleGrpcRequest(this.controller, postMessageWithRecording, message.grpc_request)
 				}
 				break
 			}
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
-					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
+					await handleGrpcRequestCancel(postMessageWithRecording, message.grpc_request_cancel)
 				}
 				break
 			}

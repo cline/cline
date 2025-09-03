@@ -1,4 +1,4 @@
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
 import { writeFile } from "@utils/fs"
 import fs from "fs/promises"
@@ -7,7 +7,7 @@ import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/gr
 
 class GrpcRecorderNoops implements Recorder {
 	recordRequest(_request: GrpcRequest): void {}
-	recordResponse(_requestId: string, _response: ExtensionMessage["grpc_response"]): void {}
+	recordResponse(_requestId: string, _response: GrpcResponse): void {}
 	recordError(_requestId: string, _error: string): void {}
 	async flushLog(): Promise<void> {}
 	getLogFilePath(): string {
@@ -25,7 +25,7 @@ class GrpcRecorderNoops implements Recorder {
 export interface Recorder {
 	// WIP: maybe we might want to improve this name
 	recordRequest(request: GrpcRequest): void
-	recordResponse(requestId: string, response: ExtensionMessage["grpc_response"]): void
+	recordResponse(requestId: string, response: GrpcResponse): void
 	recordError(requestId: string, error: string): void
 	flushLog(): Promise<void>
 	getLogFilePath(): string
@@ -140,7 +140,7 @@ export class GrpcRecorder implements Recorder {
 		return this.sessionLog
 	}
 
-	public recordResponse(requestId: string, response: ExtensionMessage["grpc_response"]): void {
+	public recordResponse(requestId: string, response: GrpcResponse): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
 		if (!pendingRequest) {
 			console.warn(`No pending request found for response with ID: ${requestId}`)
