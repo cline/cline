@@ -13,23 +13,27 @@ import { t } from "../../i18n"
 const taskSizeCache = new NodeCache({ stdTTL: 30, checkperiod: 5 * 60 })
 
 export type TaskMetadataOptions = {
-	messages: ClineMessage[]
 	taskId: string
+	rootTaskId?: string
+	parentTaskId?: string
 	taskNumber: number
+	messages: ClineMessage[]
 	globalStoragePath: string
 	workspace: string
 	mode?: string
 }
 
 export async function taskMetadata({
-	messages,
-	taskId,
+	taskId: id,
+	rootTaskId,
+	parentTaskId,
 	taskNumber,
+	messages,
 	globalStoragePath,
 	workspace,
 	mode,
 }: TaskMetadataOptions) {
-	const taskDir = await getTaskDirectoryPath(globalStoragePath, taskId)
+	const taskDir = await getTaskDirectoryPath(globalStoragePath, id)
 
 	// Determine message availability upfront
 	const hasMessages = messages && messages.length > 0
@@ -79,9 +83,11 @@ export async function taskMetadata({
 		}
 	}
 
-	// Create historyItem once with pre-calculated values
+	// Create historyItem once with pre-calculated values.
 	const historyItem: HistoryItem = {
-		id: taskId,
+		id,
+		rootTaskId,
+		parentTaskId,
 		number: taskNumber,
 		ts: timestamp,
 		task: hasMessages

@@ -211,13 +211,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			})
 
 			task.on(RooCodeEventName.TaskCompleted, async (_, tokenUsage, toolUsage) => {
-				let isSubtask = false
+				this.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage, {
+					isSubtask: !!task.parentTaskId,
+				})
 
-				if (typeof task.rootTask !== "undefined") {
-					isSubtask = true
-				}
-
-				this.emit(RooCodeEventName.TaskCompleted, task.taskId, tokenUsage, toolUsage, { isSubtask: isSubtask })
 				this.taskMap.delete(task.taskId)
 
 				await this.fileLog(

@@ -6,6 +6,8 @@ import { z } from "zod"
 
 export const historyItemSchema = z.object({
 	id: z.string(),
+	rootTaskId: z.string().optional(),
+	parentTaskId: z.string().optional(),
 	number: z.number(),
 	ts: z.number(),
 	task: z.string(),

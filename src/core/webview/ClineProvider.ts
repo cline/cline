@@ -185,6 +185,9 @@ export class ClineProvider
 			const onTaskResumable = (taskId: string) => this.emit(RooCodeEventName.TaskResumable, taskId)
 			const onTaskIdle = (taskId: string) => this.emit(RooCodeEventName.TaskIdle, taskId)
 			const onTaskUserMessage = (taskId: string) => this.emit(RooCodeEventName.TaskUserMessage, taskId)
+			const onTaskPaused = (taskId: string) => this.emit(RooCodeEventName.TaskPaused, taskId)
+			const onTaskUnpaused = (taskId: string) => this.emit(RooCodeEventName.TaskUnpaused, taskId)
+			const onTaskSpawned = (taskId: string) => this.emit(RooCodeEventName.TaskSpawned, taskId)
 
 			// Attach the listeners.
 			instance.on(RooCodeEventName.TaskStarted, onTaskStarted)
@@ -197,6 +200,9 @@ export class ClineProvider
 			instance.on(RooCodeEventName.TaskResumable, onTaskResumable)
 			instance.on(RooCodeEventName.TaskIdle, onTaskIdle)
 			instance.on(RooCodeEventName.TaskUserMessage, onTaskUserMessage)
+			instance.on(RooCodeEventName.TaskPaused, onTaskPaused)
+			instance.on(RooCodeEventName.TaskUnpaused, onTaskUnpaused)
+			instance.on(RooCodeEventName.TaskSpawned, onTaskSpawned)
 
 			// Store the cleanup functions for later removal.
 			this.taskEventListeners.set(instance, [
@@ -210,6 +216,9 @@ export class ClineProvider
 				() => instance.off(RooCodeEventName.TaskResumable, onTaskResumable),
 				() => instance.off(RooCodeEventName.TaskIdle, onTaskIdle),
 				() => instance.off(RooCodeEventName.TaskUserMessage, onTaskUserMessage),
+				() => instance.off(RooCodeEventName.TaskPaused, onTaskPaused),
+				() => instance.off(RooCodeEventName.TaskUnpaused, onTaskUnpaused),
+				() => instance.off(RooCodeEventName.TaskSpawned, onTaskSpawned),
 			])
 		}
 
@@ -424,7 +433,7 @@ export class ClineProvider
 		await this.removeClineFromStack()
 		// Resume the last cline instance in the stack (if it exists - this is
 		// the 'parent' calling task).
-		await this.getCurrentTask()?.resumePausedTask(lastMessage)
+		await this.getCurrentTask()?.completeSubtask(lastMessage)
 	}
 
 	/*
@@ -986,16 +995,16 @@ export class ClineProvider
 	 * @param newMode The mode to switch to
 	 */
 	public async handleModeSwitch(newMode: Mode) {
-		const cline = this.getCurrentTask()
+		const task = this.getCurrentTask()
 
-		if (cline) {
-			TelemetryService.instance.captureModeSwitch(cline.taskId, newMode)
-			cline.emit(RooCodeEventName.TaskModeSwitched, cline.taskId, newMode)
+		if (task) {
+			TelemetryService.instance.captureModeSwitch(task.taskId, newMode)
+			task.emit(RooCodeEventName.TaskModeSwitched, task.taskId, newMode)
 
 			try {
 				// Update the task history with the new mode first.
 				const history = this.getGlobalState("taskHistory") ?? []
-				const taskHistoryItem = history.find((item) => item.id === cline.taskId)
+				const taskHistoryItem = history.find((item) => item.id === task.taskId)
 
 				if (taskHistoryItem) {
 					taskHistoryItem.mode = newMode
@@ -1003,11 +1012,11 @@ export class ClineProvider
 				}
 
 				// Only update the task's mode after successful persistence.
-				;(cline as any)._taskMode = newMode
+				;(task as any)._taskMode = newMode
 			} catch (error) {
 				// If persistence fails, log the error but don't update the in-memory state.
 				this.log(
-					`Failed to persist mode switch for task ${cline.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+					`Failed to persist mode switch for task ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
 				)
 
 				// Optionally, we could emit an event to notify about the failure.
@@ -2329,20 +2338,21 @@ export class ClineProvider
 	}
 
 	public async cancelTask(): Promise<void> {
-		const cline = this.getCurrentTask()
+		const task = this.getCurrentTask()
 
-		if (!cline) {
+		if (!task) {
 			return
 		}
 
-		console.log(`[cancelTask] cancelling task ${cline.taskId}.${cline.instanceId}`)
+		console.log(`[cancelTask] cancelling task ${task.taskId}.${task.instanceId}`)
 
-		const { historyItem } = await this.getTaskWithId(cline.taskId)
+		const { historyItem } = await this.getTaskWithId(task.taskId)
+
 		// Preserve parent and root task information for history item.
-		const rootTask = cline.rootTask
-		const parentTask = cline.parentTask
+		const rootTask = task.rootTask
+		const parentTask = task.parentTask
 
-		cline.abortTask()
+		task.abortTask()
 
 		await pWaitFor(
 			() =>

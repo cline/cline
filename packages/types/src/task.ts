@@ -68,6 +68,9 @@ export type TaskProviderEvents = {
 	[RooCodeEventName.TaskInteractive]: [taskId: string]
 	[RooCodeEventName.TaskResumable]: [taskId: string]
 	[RooCodeEventName.TaskIdle]: [taskId: string]
+
+	[RooCodeEventName.TaskPaused]: [taskId: string]
+	[RooCodeEventName.TaskUnpaused]: [taskId: string]
 	[RooCodeEventName.TaskSpawned]: [taskId: string]
 
 	[RooCodeEventName.TaskUserMessage]: [taskId: string]
@@ -106,9 +109,10 @@ export type TaskMetadata = z.infer<typeof taskMetadataSchema>
 
 export interface TaskLike {
 	readonly taskId: string
-	readonly rootTask?: TaskLike
+	readonly rootTaskId?: string
+	readonly parentTaskId?: string
+	readonly childTaskId?: string
 	readonly metadata: TaskMetadata
-
 	readonly taskStatus: TaskStatus
 	readonly taskAsk: ClineMessage | undefined
 	readonly queuedMessages: QueuedMessage[]
@@ -135,8 +139,8 @@ export type TaskEvents = {
 	[RooCodeEventName.TaskIdle]: [taskId: string]
 
 	// Subtask Lifecycle
-	[RooCodeEventName.TaskPaused]: []
-	[RooCodeEventName.TaskUnpaused]: []
+	[RooCodeEventName.TaskPaused]: [taskId: string]
+	[RooCodeEventName.TaskUnpaused]: [taskId: string]
 	[RooCodeEventName.TaskSpawned]: [taskId: string]
 
 	// Task Execution

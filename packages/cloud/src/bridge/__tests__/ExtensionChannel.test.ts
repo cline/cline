@@ -101,6 +101,9 @@ describe("ExtensionChannel", () => {
 				RooCodeEventName.TaskInteractive,
 				RooCodeEventName.TaskResumable,
 				RooCodeEventName.TaskIdle,
+				RooCodeEventName.TaskPaused,
+				RooCodeEventName.TaskUnpaused,
+				RooCodeEventName.TaskSpawned,
 				RooCodeEventName.TaskUserMessage,
 			]
 
@@ -231,8 +234,7 @@ describe("ExtensionChannel", () => {
 			}
 
 			// Listeners should still be the same count (not accumulated)
-			const expectedEventCount = 11 // Number of events we listen to (including TaskUserMessage)
-			expect(eventListeners.size).toBe(expectedEventCount)
+			expect(eventListeners.size).toBe(14)
 
 			// Each event should have exactly 1 listener
 			eventListeners.forEach((listeners) => {

@@ -361,6 +361,8 @@ const extensionTaskSchema = z.object({
 	taskStatus: z.nativeEnum(TaskStatus),
 	taskAsk: clineMessageSchema.optional(),
 	queuedMessages: z.array(queuedMessageSchema).optional(),
+	parentTaskId: z.string().optional(),
+	childTaskId: z.string().optional(),
 	...taskMetadataSchema.shape,
 })
 
@@ -403,6 +405,10 @@ export enum ExtensionBridgeEventName {
 	TaskInteractive = RooCodeEventName.TaskInteractive,
 	TaskResumable = RooCodeEventName.TaskResumable,
 	TaskIdle = RooCodeEventName.TaskIdle,
+
+	TaskPaused = RooCodeEventName.TaskPaused,
+	TaskUnpaused = RooCodeEventName.TaskUnpaused,
+	TaskSpawned = RooCodeEventName.TaskSpawned,
 
 	TaskUserMessage = RooCodeEventName.TaskUserMessage,
 
@@ -462,6 +468,22 @@ export const extensionBridgeEventSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal(ExtensionBridgeEventName.TaskIdle),
+		instance: extensionInstanceSchema,
+		timestamp: z.number(),
+	}),
+
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.TaskPaused),
+		instance: extensionInstanceSchema,
+		timestamp: z.number(),
+	}),
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.TaskUnpaused),
+		instance: extensionInstanceSchema,
+		timestamp: z.number(),
+	}),
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.TaskSpawned),
 		instance: extensionInstanceSchema,
 		timestamp: z.number(),
 	}),

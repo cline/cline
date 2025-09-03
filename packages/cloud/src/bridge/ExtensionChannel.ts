@@ -175,6 +175,9 @@ export class ExtensionChannel extends BaseChannel<
 			{ from: RooCodeEventName.TaskInteractive, to: ExtensionBridgeEventName.TaskInteractive },
 			{ from: RooCodeEventName.TaskResumable, to: ExtensionBridgeEventName.TaskResumable },
 			{ from: RooCodeEventName.TaskIdle, to: ExtensionBridgeEventName.TaskIdle },
+			{ from: RooCodeEventName.TaskPaused, to: ExtensionBridgeEventName.TaskPaused },
+			{ from: RooCodeEventName.TaskUnpaused, to: ExtensionBridgeEventName.TaskUnpaused },
+			{ from: RooCodeEventName.TaskSpawned, to: ExtensionBridgeEventName.TaskSpawned },
 			{ from: RooCodeEventName.TaskUserMessage, to: ExtensionBridgeEventName.TaskUserMessage },
 		] as const
 
@@ -223,6 +226,8 @@ export class ExtensionChannel extends BaseChannel<
 						taskStatus: task.taskStatus,
 						taskAsk: task?.taskAsk,
 						queuedMessages: task.queuedMessages,
+						parentTaskId: task.parentTaskId,
+						childTaskId: task.childTaskId,
 						...task.metadata,
 					}
 				: { taskId: "", taskStatus: TaskStatus.None },
