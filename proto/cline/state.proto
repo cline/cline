@@ -8,7 +8,6 @@ service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
   rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
   rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
-  rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
@@ -137,6 +136,7 @@ message UpdateSettingsRequest {
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
   optional BrowserSettingsUpdate browser_settings = 20;
+  optional string default_terminal_profile = 21;
 }
 
 // Complete API Configuration message

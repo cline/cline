@@ -9,7 +9,10 @@ import {
 import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { HostProvider } from "@/hosts/host-provider"
+import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -220,6 +223,45 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (controller.task) {
 				controller.task.browserSettings = newBrowserSettings
 				controller.task.browserSession.browserSettings = newBrowserSettings
+			}
+		}
+
+		// Update default terminal profile
+		if (request.defaultTerminalProfile !== undefined) {
+			const profileId = request.defaultTerminalProfile
+
+			// Update the terminal profile in the state
+			controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
+
+			let closedCount = 0
+			let busyTerminals: TerminalInfo[] = []
+
+			// Update the terminal manager of the current task if it exists
+			if (controller.task) {
+				// Call the updated setDefaultTerminalProfile method that returns closed terminal info
+				const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId)
+				closedCount = result.closedCount
+				busyTerminals = result.busyTerminals
+
+				// Show information message if terminals were closed
+				if (closedCount > 0) {
+					const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message,
+					})
+				}
+
+				// Show warning if there are busy terminals that couldn't be closed
+				if (busyTerminals.length > 0) {
+					const message =
+						`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
+						`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`
+					HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message,
+					})
+				}
 			}
 		}
 
