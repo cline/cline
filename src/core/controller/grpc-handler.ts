@@ -1,7 +1,7 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
-import { GrpcRecorder } from "./grpc-recorder/grpc-recorder"
+import { GrpcRecorder, Recorder } from "./grpc-recorder/grpc-recorder"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
@@ -41,11 +41,11 @@ async function handleUnaryRequest(
 	postMessageToWebview: PostMessageToWebview,
 	request: GrpcRequest,
 ): Promise<void> {
+	const recorder: Recorder = GrpcRecorder.getInstance()
+
 	try {
-		// Record the incoming request
 		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordRequest(request)
+			recorder?.recordRequest(request)
 		} catch (error) {
 			console.warn("Failed to record gRPC request:", error)
 		}
@@ -64,8 +64,7 @@ async function handleUnaryRequest(
 
 		// Record the response
 		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordResponse(request.request_id, grpcResponse)
+			recorder?.recordResponse(request.request_id, grpcResponse)
 		} catch (error) {
 			console.warn("Failed to record gRPC response:", error)
 		}
@@ -85,10 +84,8 @@ async function handleUnaryRequest(
 			is_streaming: false,
 		}
 
-		// Record the error
 		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordResponse(request.request_id, errorResponse)
+			recorder?.recordError(request.request_id, errorResponse.error)
 		} catch (recordError) {
 			console.warn("Failed to record gRPC error:", recordError)
 		}
