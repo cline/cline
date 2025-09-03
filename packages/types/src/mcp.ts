@@ -1,6 +1,16 @@
 import { z } from "zod"
 
 /**
+ * MCP Server Use Types
+ */
+export interface McpServerUse {
+	type: string
+	serverName: string
+	toolName?: string
+	uri?: string
+}
+
+/**
  * McpExecutionStatus
  */
 
