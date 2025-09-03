@@ -27,10 +27,11 @@ export class ErrorProviderFactory {
 	 * @returns IErrorProvider instance
 	 */
 	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
-		const errorTrackingApiKey = config?.config?.errorTrackingApiKey
 		switch (config.type) {
-			case "posthog":
-				return errorTrackingApiKey
+			case "posthog": {
+				const hasValidPostHogConfig = isPostHogConfigValid(config.config)
+				const errorTrackingApiKey = config.config.errorTrackingApiKey
+				return hasValidPostHogConfig && errorTrackingApiKey
 					? new PostHogErrorProvider({
 							apiKey: errorTrackingApiKey,
 							errorTrackingApiKey: errorTrackingApiKey,
@@ -38,8 +39,8 @@ export class ErrorProviderFactory {
 							uiHost: config.config.uiHost,
 						})
 					: new NoOpErrorProvider() // Fallback to no-op provider
+			}
 			default:
-				console.error(`Unsupported error provider type: ${config.type}`)
 				return new NoOpErrorProvider()
 		}
 	}
@@ -49,9 +50,8 @@ export class ErrorProviderFactory {
 	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
-		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
-			type: hasValidConfig ? "posthog" : "no-op",
+			type: "posthog",
 			config: posthogConfig,
 		}
 	}
