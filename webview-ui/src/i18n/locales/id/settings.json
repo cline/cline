@@ -772,6 +772,10 @@
 			"modelSelectionDescription": "Pilih model untuk pembuatan gambar",
 			"warningMissingKey": "⚠️ Kunci API OpenRouter diperlukan untuk pembuatan gambar. Silakan konfigurasi di atas.",
 			"successConfigured": "✓ Pembuatan gambar dikonfigurasi dan siap digunakan"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Aktifkan perintah slash yang dimulai model",
+			"description": "Ketika diaktifkan, Roo dapat menjalankan perintah slash Anda untuk mengeksekusi alur kerja."
 		}
 	},
 	"promptCaching": {

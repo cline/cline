@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Berichten in wachtrij:",
 		"clickToEdit": "Klik om bericht te bewerken"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo wil een slash commando uitvoeren:",
+		"didRun": "Roo heeft een slash commando uitgevoerd:"
 	}
 }

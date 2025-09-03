@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Mensajes en cola:",
 		"clickToEdit": "Haz clic para editar el mensaje"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo quiere ejecutar un comando slash:",
+		"didRun": "Roo ejecutó un comando slash:"
 	}
 }

@@ -791,6 +791,75 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
+			case "runSlashCommand": {
+				const slashCommandInfo = tool
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("play")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? t("chat:slashCommand.wantsToRun")
+									: t("chat:slashCommand.didRun")}
+							</span>
+						</div>
+						<div
+							style={{
+								marginTop: "4px",
+								backgroundColor: "var(--vscode-editor-background)",
+								border: "1px solid var(--vscode-editorGroup-border)",
+								borderRadius: "4px",
+								overflow: "hidden",
+								cursor: "pointer",
+							}}
+							onClick={handleToggleExpand}>
+							<ToolUseBlockHeader
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									padding: "10px 12px",
+								}}>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+									<span style={{ fontWeight: "500", fontSize: "var(--vscode-font-size)" }}>
+										/{slashCommandInfo.command}
+									</span>
+									{slashCommandInfo.source && (
+										<VSCodeBadge style={{ fontSize: "calc(var(--vscode-font-size) - 2px)" }}>
+											{slashCommandInfo.source}
+										</VSCodeBadge>
+									)}
+								</div>
+								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+							</ToolUseBlockHeader>
+							{isExpanded && (slashCommandInfo.args || slashCommandInfo.description) && (
+								<div
+									style={{
+										padding: "12px 16px",
+										borderTop: "1px solid var(--vscode-editorGroup-border)",
+										display: "flex",
+										flexDirection: "column",
+										gap: "8px",
+									}}>
+									{slashCommandInfo.args && (
+										<div>
+											<span style={{ fontWeight: "500" }}>Arguments: </span>
+											<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+												{slashCommandInfo.args}
+											</span>
+										</div>
+									)}
+									{slashCommandInfo.description && (
+										<div style={{ color: "var(--vscode-descriptionForeground)" }}>
+											{slashCommandInfo.description}
+										</div>
+									)}
+								</div>
+							)}
+						</div>
+					</>
+				)
+			}
 			case "generateImage":
 				return (
 					<>
@@ -1159,6 +1228,80 @@ export const ChatRowContent = ({
 					return <CodebaseSearchResultsDisplay results={results} />
 				case "user_edit_todos":
 					return <UpdateTodoListToolBlock userEdited onChange={() => {}} />
+				case "tool" as any:
+					// Handle say tool messages
+					const sayTool = safeJsonParse<ClineSayTool>(message.text)
+					if (!sayTool) return null
+
+					switch (sayTool.tool) {
+						case "runSlashCommand": {
+							const slashCommandInfo = sayTool
+							return (
+								<>
+									<div style={headerStyle}>
+										<span
+											className="codicon codicon-terminal-cmd"
+											style={{
+												color: "var(--vscode-foreground)",
+												marginBottom: "-1.5px",
+											}}></span>
+										<span style={{ fontWeight: "bold" }}>{t("chat:slashCommand.didRun")}</span>
+									</div>
+									<ToolUseBlock>
+										<ToolUseBlockHeader
+											style={{
+												display: "flex",
+												flexDirection: "column",
+												alignItems: "flex-start",
+												gap: "4px",
+												padding: "10px 12px",
+											}}>
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+													width: "100%",
+												}}>
+												<span
+													style={{ fontWeight: "500", fontSize: "var(--vscode-font-size)" }}>
+													/{slashCommandInfo.command}
+												</span>
+												{slashCommandInfo.args && (
+													<span
+														style={{
+															color: "var(--vscode-descriptionForeground)",
+															fontSize: "var(--vscode-font-size)",
+														}}>
+														{slashCommandInfo.args}
+													</span>
+												)}
+											</div>
+											{slashCommandInfo.description && (
+												<div
+													style={{
+														color: "var(--vscode-descriptionForeground)",
+														fontSize: "calc(var(--vscode-font-size) - 1px)",
+													}}>
+													{slashCommandInfo.description}
+												</div>
+											)}
+											{slashCommandInfo.source && (
+												<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+													<VSCodeBadge
+														style={{ fontSize: "calc(var(--vscode-font-size) - 2px)" }}>
+														{slashCommandInfo.source}
+													</VSCodeBadge>
+												</div>
+											)}
+										</ToolUseBlockHeader>
+									</ToolUseBlock>
+								</>
+							)
+						}
+						default:
+							return null
+					}
 				case "image":
 					// Parse the JSON to get imageUri and imagePath
 					const imageInfo = safeJsonParse<{ imageUri: string; imagePath: string }>(message.text || "{}")

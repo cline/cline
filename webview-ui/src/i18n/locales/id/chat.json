@@ -397,5 +397,9 @@
 	"queuedMessages": {
 		"title": "Pesan Antrian:",
 		"clickToEdit": "Klik untuk mengedit pesan"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo ingin menjalankan perintah slash:",
+		"didRun": "Roo telah menjalankan perintah slash:"
 	}
 }

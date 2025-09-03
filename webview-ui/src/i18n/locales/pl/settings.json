@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "Wybierz model do generowania obrazów",
 			"warningMissingKey": "⚠️ Klucz API OpenRouter jest wymagany do generowania obrazów. Skonfiguruj go powyżej.",
 			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane i gotowe do użycia"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Włącz polecenia slash inicjowane przez model",
+			"description": "Gdy włączone, Roo może uruchamiać twoje polecenia slash w celu wykonywania przepływów pracy."
 		}
 	},
 	"promptCaching": {

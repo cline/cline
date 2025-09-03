@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "佇列中的訊息：",
 		"clickToEdit": "點選以編輯訊息"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo 想要執行斜線指令:",
+		"didRun": "Roo 執行了斜線指令:"
 	}
 }

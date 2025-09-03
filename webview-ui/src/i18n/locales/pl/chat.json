@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Wiadomości w kolejce:",
 		"clickToEdit": "Kliknij, aby edytować wiadomość"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo chce uruchomić komendę slash:",
+		"didRun": "Roo uruchomił komendę slash:"
 	}
 }

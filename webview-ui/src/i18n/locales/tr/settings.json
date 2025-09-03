@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "Görüntü üretimi için kullanılacak modeli seçin",
 			"warningMissingKey": "⚠️ Görüntü üretimi için OpenRouter API anahtarı gereklidir. Lütfen yukarıda yapılandırın.",
 			"successConfigured": "✓ Görüntü üretimi yapılandırılmış ve kullanıma hazır"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Model tarafından başlatılan slash komutlarını etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo iş akışlarını yürütmek için slash komutlarınızı çalıştırabilir."
 		}
 	},
 	"promptCaching": {

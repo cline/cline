@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Warteschlange Nachrichten:",
 		"clickToEdit": "Klicken zum Bearbeiten der Nachricht"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo möchte einen Slash-Befehl ausführen:",
+		"didRun": "Roo hat einen Slash-Befehl ausgeführt:"
 	}
 }

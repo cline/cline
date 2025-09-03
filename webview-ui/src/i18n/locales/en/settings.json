@@ -741,6 +741,10 @@
 			"modelSelectionDescription": "Select the model to use for image generation",
 			"warningMissingKey": "⚠️ OpenRouter API key is required for image generation. Please configure it above.",
 			"successConfigured": "✓ Image generation is configured and ready to use"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Roo can run your slash commands to execute workflows."
 		}
 	},
 	"promptCaching": {

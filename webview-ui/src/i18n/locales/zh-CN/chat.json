@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "队列消息:",
 		"clickToEdit": "点击编辑消息"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo 想要运行斜杠命令:",
+		"didRun": "Roo 运行了斜杠命令:"
 	}
 }

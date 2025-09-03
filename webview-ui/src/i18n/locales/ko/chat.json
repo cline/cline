@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "대기열 메시지:",
 		"clickToEdit": "클릭하여 메시지 편집"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo가 슬래시 명령어를 실행하려고 합니다:",
+		"didRun": "Roo가 슬래시 명령어를 실행했습니다:"
 	}
 }

@@ -381,6 +381,10 @@
 			"confirm": "Delete"
 		}
 	},
+	"slashCommand": {
+		"wantsToRun": "Roo wants to run a slash command:",
+		"didRun": "Roo ran a slash command:"
+	},
 	"queuedMessages": {
 		"title": "Queued Messages:",
 		"clickToEdit": "Click to edit message"

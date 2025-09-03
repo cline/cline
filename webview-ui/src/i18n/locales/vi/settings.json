@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "Chọn mô hình để sử dụng cho việc tạo hình ảnh",
 			"warningMissingKey": "⚠️ Khóa API OpenRouter là bắt buộc để tạo hình ảnh. Vui lòng cấu hình ở trên.",
 			"successConfigured": "✓ Tạo hình ảnh đã được cấu hình và sẵn sàng sử dụng"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Bật lệnh slash do mô hình khởi tạo",
+			"description": "Khi được bật, Roo có thể chạy các lệnh slash của bạn để thực hiện các quy trình làm việc."
 		}
 	},
 	"promptCaching": {

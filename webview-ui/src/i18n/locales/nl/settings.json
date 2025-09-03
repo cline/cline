@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "Selecteer het model voor afbeeldingsgeneratie",
 			"warningMissingKey": "⚠️ OpenRouter API-sleutel is vereist voor afbeeldingsgeneratie. Configureer deze hierboven.",
 			"successConfigured": "✓ Afbeeldingsgeneratie is geconfigureerd en klaar voor gebruik"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Model-geïnitieerde slash-commando's inschakelen",
+			"description": "Wanneer ingeschakeld, kan Roo je slash-commando's uitvoeren om workflows uit te voeren."
 		}
 	},
 	"promptCaching": {

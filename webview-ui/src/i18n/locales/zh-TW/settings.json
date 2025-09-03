@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "選擇用於圖像生成的模型",
 			"warningMissingKey": "⚠️ 圖像生成需要 OpenRouter API 金鑰。請在上方設定。",
 			"successConfigured": "✓ 圖像生成已設定完成並準備使用"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "啟用模型啟動的斜線命令",
+			"description": "啟用時，Roo 可以執行您的斜線命令來執行工作流程。"
 		}
 	},
 	"promptCaching": {

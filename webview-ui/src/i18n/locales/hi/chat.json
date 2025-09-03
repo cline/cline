@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "कतार में संदेश:",
 		"clickToEdit": "संदेश संपादित करने के लिए क्लिक करें"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo एक स्लैश कमांड चलाना चाहता है:",
+		"didRun": "Roo ने एक स्लैश कमांड चलाया:"
 	}
 }

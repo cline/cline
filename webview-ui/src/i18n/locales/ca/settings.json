@@ -742,6 +742,10 @@
 			"modelSelectionDescription": "Selecciona el model per a la generació d'imatges",
 			"warningMissingKey": "⚠️ La clau API d'OpenRouter és necessària per a la generació d'imatges. Si us plau, configura-la a dalt.",
 			"successConfigured": "✓ La generació d'imatges està configurada i llesta per utilitzar"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Habilitar comandes de barra diagonal iniciades pel model",
+			"description": "Quan està habilitat, Roo pot executar les vostres comandes de barra diagonal per executar fluxos de treball."
 		}
 	},
 	"promptCaching": {

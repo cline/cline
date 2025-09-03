@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Tin nhắn trong hàng đợi:",
 		"clickToEdit": "Nhấp để chỉnh sửa tin nhắn"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo muốn chạy lệnh slash:",
+		"didRun": "Roo đã chạy lệnh slash:"
 	}
 }

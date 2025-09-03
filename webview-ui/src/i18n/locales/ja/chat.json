@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "キューメッセージ:",
 		"clickToEdit": "クリックしてメッセージを編集"
+	},
+	"slashCommand": {
+		"wantsToRun": "Rooはスラッシュコマンドを実行したい:",
+		"didRun": "Rooはスラッシュコマンドを実行しました:"
 	}
 }

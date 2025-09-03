@@ -742,6 +742,10 @@
 			"modelSelectionDescription": "Selecciona el modelo para la generación de imágenes",
 			"warningMissingKey": "⚠️ La clave API de OpenRouter es requerida para la generación de imágenes. Por favor, configúrala arriba.",
 			"successConfigured": "✓ La generación de imágenes está configurada y lista para usar"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "Habilitar comandos slash iniciados por el modelo",
+			"description": "Cuando está habilitado, Roo puede ejecutar tus comandos slash para ejecutar flujos de trabajo."
 		}
 	},
 	"promptCaching": {

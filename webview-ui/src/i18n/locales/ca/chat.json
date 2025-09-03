@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Missatges en cua:",
 		"clickToEdit": "Feu clic per editar el missatge"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo vol executar una comanda slash:",
+		"didRun": "Roo ha executat una comanda slash:"
 	}
 }

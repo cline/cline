@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Messages en file d'attente :",
 		"clickToEdit": "Cliquez pour modifier le message"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo veut exécuter une commande slash:",
+		"didRun": "Roo a exécuté une commande slash:"
 	}
 }

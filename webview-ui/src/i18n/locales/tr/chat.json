@@ -391,5 +391,9 @@
 	"queuedMessages": {
 		"title": "Sıradaki Mesajlar:",
 		"clickToEdit": "Mesajı düzenlemek için tıkla"
+	},
+	"slashCommand": {
+		"wantsToRun": "Roo bir slash komutu çalıştırmak istiyor:",
+		"didRun": "Roo bir slash komutu çalıştırdı:"
 	}
 }

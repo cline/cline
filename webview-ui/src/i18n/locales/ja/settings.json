@@ -743,6 +743,10 @@
 			"modelSelectionDescription": "画像生成に使用するモデルを選択",
 			"warningMissingKey": "⚠️ 画像生成にはOpenRouter APIキーが必要です。上記で設定してください。",
 			"successConfigured": "✓ 画像生成が設定され、使用準備完了です"
+		},
+		"RUN_SLASH_COMMAND": {
+			"name": "モデル開始スラッシュコマンドを有効にする",
+			"description": "有効にすると、Rooがワークフローを実行するためにあなたのスラッシュコマンドを実行できます。"
 		}
 	},
 	"promptCaching": {
