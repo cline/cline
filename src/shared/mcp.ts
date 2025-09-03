@@ -111,4 +111,4 @@ export interface McpDownloadResponse {
 	requiresApiKey: boolean
 }
 
-export type McpViewTab = "marketplace" | "addRemote" | "installed"
+export type McpViewTab = "marketplace" | "addRemote" | "configure"
