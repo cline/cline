@@ -14,7 +14,7 @@ body:
       options:
         - VSCode Extension
         - JetBrains Plugin
-      default: VSCode Extension
+      default: 0
     validations:
       required: true
   - type: input
