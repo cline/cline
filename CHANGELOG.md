@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.27.0]
+
+- Fix `grok-code-fast-1` model information
+- Add call to action for trying free `grok-code-fast-1` in Announcement banner
+
+## [3.26.7]
+
+- Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers
+
+## [3.26.6]
+
+- Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option
+- Fix GPT-5 models not respecting auto-compact setting when enabled, improving context window management
+- Fix provider retry attempts not showing proper user feedback during rate limiting scenarios
+- Improve markdown and code block styling to automatically adapt when switching VS Code themes
+
 ## [3.26.5]
 
 - fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view

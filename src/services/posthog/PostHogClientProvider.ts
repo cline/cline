@@ -1,149 +1,66 @@
-import { PostHog } from "posthog-node"
-import { v4 as uuidv4 } from "uuid"
-import * as vscode from "vscode"
+import { EventMessage, PostHog } from "posthog-node"
 import { posthogConfig } from "../../shared/services/config/posthog-config"
-import type { ClineAccountUserInfo } from "../auth/AuthService"
-import { ErrorService } from "../error/ErrorService"
-import { FeatureFlagsService } from "./feature-flags/FeatureFlagsService"
-import { TelemetryService } from "./telemetry/TelemetryService"
-
-// Prefer host-provided UUID when running via HostBridge; fall back to VS Code's machineId, then a random UUID
-const ENV_ID = process?.env?.UUID ?? vscode?.env?.machineId ?? uuidv4()
-
-interface TelemetrySettings {
-	cline: boolean
-	host: boolean
-	level?: "all" | "off" | "error" | "crash"
-}
 
 export class PostHogClientProvider {
 	private static _instance: PostHogClientProvider | null = null
 
-	public static getInstance(id?: string): PostHogClientProvider {
+	public static getInstance(): PostHogClientProvider {
 		if (!PostHogClientProvider._instance) {
-			PostHogClientProvider._instance = new PostHogClientProvider(id)
+			PostHogClientProvider._instance = new PostHogClientProvider()
 		}
 		return PostHogClientProvider._instance
 	}
 
-	protected telemetrySettings: TelemetrySettings = {
-		cline: true,
-		host: true,
-		level: "all",
+	public static getClient(): PostHog | null {
+		return PostHogClientProvider.getInstance().client
 	}
 
-	public readonly client: PostHog
+	private readonly client: PostHog | null
 
-	public readonly featureFlags: FeatureFlagsService
-	public readonly telemetry: TelemetryService
-	public readonly error: ErrorService
-
-	private constructor(public distinctId = ENV_ID) {
+	private constructor() {
 		// Initialize PostHog client
-		this.client = new PostHog(posthogConfig.apiKey, {
-			host: posthogConfig.host,
-		})
-
-		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-			this.telemetrySettings.host = isTelemetryEnabled
-		})
-
-		if (vscode?.env?.isTelemetryEnabled === false) {
-			this.telemetrySettings.host = false
-		}
-
-		const config = vscode.workspace.getConfiguration("cline")
-		if (config.get("telemetrySetting") === "disabled") {
-			this.telemetrySettings.cline = false
-		}
-
-		this.telemetrySettings.level = this.telemetryLevel
-
-		// Initialize services
-		this.telemetry = new TelemetryService(this)
-		this.error = new ErrorService(this, this.distinctId)
-		this.featureFlags = new FeatureFlagsService(
-			(flag: string) => this.client.getFeatureFlag(flag, this.distinctId),
-			(flag: string) => this.client.getFeatureFlagPayload(flag, this.distinctId),
-		)
-	}
-
-	private get isTelemetryEnabled(): boolean {
-		return this.telemetrySettings.cline && this.telemetrySettings.host
-	}
-
-	/** Whether telemetry is currently enabled based on user and VSCode settings */
-	private get telemetryLevel(): TelemetrySettings["level"] {
-		if (!vscode?.env?.isTelemetryEnabled) {
-			return "off"
-		}
-		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
-	}
-
-	public toggleOptIn(optIn: boolean): void {
-		if (optIn && !this.telemetrySettings.cline) {
-			this.client.optIn()
-		}
-		if (!optIn && this.telemetrySettings.cline) {
-			this.client.optOut()
-		}
-		this.telemetrySettings.cline = optIn
+		this.client = posthogConfig.apiKey
+			? new PostHog(posthogConfig.apiKey, {
+					host: posthogConfig.host,
+					enableExceptionAutocapture: false, // This is only enabled for error services
+					before_send: (event) => PostHogClientProvider.eventFilter(event),
+				})
+			: null
 	}
 
 	/**
-	 * Identifies the accounts user
-	 * If userInfo is provided, it will use that to identify the user.
-	 * Otherwise, it will use the DISTINCT_ID as the distinct ID.
-	 * @param userInfo The user's information
+	 * Filters PostHog events before they are sent.
+	 * For exceptions, we only capture those from the Cline extension.
 	 */
-	public identifyAccount(userInfo?: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
-		if (!this.isTelemetryEnabled) {
-			return
+	static eventFilter(event: EventMessage | null) {
+		if (!event || event?.event !== "$exception") {
+			return event
 		}
-		if (userInfo && userInfo?.id !== this.distinctId) {
-			this.client.identify({
-				distinctId: userInfo.id,
-				properties: {
-					uuid: userInfo.id,
-					email: userInfo.email,
-					name: userInfo.displayName,
-					...properties,
-					alias: this.distinctId,
-				},
-			})
-			this.distinctId = userInfo.id
+		const exceptionList = event.properties?.["$exception_list"]
+		if (!exceptionList?.length) {
+			return null
 		}
-	}
-
-	public log(event: string, properties?: Record<string, unknown>): void {
-		if (!this.isTelemetryEnabled || this.telemetryLevel === "off") {
-			return
-		}
-		// Filter events based on telemetry level
-		if (this.telemetryLevel === "error") {
-			if (!event.includes("error")) {
-				return
+		// Check if any exception is from Cline
+		for (let i = 0; i < exceptionList.length; i++) {
+			const stacktrace = exceptionList[i].stacktrace
+			// Fast check: error message contains "cline"
+			if (stacktrace?.value?.toLowerCase().includes("cline")) {
+				return event
+			}
+			// Check stack frames for Cline extension path
+			const frames = stacktrace?.frames
+			if (frames?.length) {
+				for (let j = 0; j < frames.length; j++) {
+					if (frames[j]?.filename?.includes("saoudrizwan")) {
+						return event
+					}
+				}
 			}
 		}
-
-		this.client.capture({
-			distinctId: this.distinctId,
-			event,
-			properties,
-		})
+		return null
 	}
 
-	public dispose(): void {
-		this.client.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
+	public async dispose(): Promise<void> {
+		await this.client?.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
 	}
 }
-
-const getFeatureFlagsService = (): FeatureFlagsService => PostHogClientProvider.getInstance().featureFlags
-const getErrorService = (): ErrorService => PostHogClientProvider.getInstance().error
-const getTelemetryService = (): TelemetryService => PostHogClientProvider.getInstance().telemetry
-
-// Service accessors
-export const featureFlagsService = getFeatureFlagsService()
-export const errorService = getErrorService()
-export const telemetryService = getTelemetryService()

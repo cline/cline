@@ -10,6 +10,7 @@ export interface SapAiCoreModelPickerProps {
 	selectedModelId: string
 	onModelChange: (modelId: string) => void
 	placeholder?: string
+	useOrchestrationMode?: boolean
 }
 
 interface CategorizedModel {
@@ -23,6 +24,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 	selectedModelId,
 	onModelChange,
 	placeholder = "Select a model...",
+	useOrchestrationMode = false,
 }) => {
 	const handleModelChange = (event: any) => {
 		const newModelId = event.target.value
@@ -67,40 +69,53 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			</VSCodeOption>,
 		)
 
-		// Add deployed models section
-		if (categorizedModels.deployed.length > 0) {
-			// Add section separator (disabled option)
-			options.push(
-				<VSCodeOption disabled key="deployed-header" value="">
-					── Deployed Models ──
-				</VSCodeOption>,
-			)
-
-			categorizedModels.deployed.forEach((model) => {
+		if (useOrchestrationMode) {
+			// Orchestration mode: Show all supported models in one flat list (no separators)
+			const allSupportedModels = Object.keys(sapAiCoreModels)
+			allSupportedModels.forEach((modelId) => {
 				options.push(
-					<VSCodeOption key={model.id} value={model.id}>
-						{model.id}
+					<VSCodeOption key={modelId} value={modelId}>
+						{modelId}
 					</VSCodeOption>,
 				)
 			})
-		}
-
-		// Add supported but not deployed models section
-		if (categorizedModels.supported.length > 0) {
-			// Add section separator (disabled option)
-			options.push(
-				<VSCodeOption disabled key="supported-header" value="">
-					── Not Deployed Models ──
-				</VSCodeOption>,
-			)
-
-			categorizedModels.supported.forEach((model) => {
+		} else {
+			// Non-orchestration mode: Show sectioned layout with separators
+			// Add deployed models section
+			if (categorizedModels.deployed.length > 0) {
+				// Add section separator (disabled option)
 				options.push(
-					<VSCodeOption key={model.id} style={{ opacity: 0.6 }} value={model.id}>
-						{model.id}
+					<VSCodeOption disabled key="deployed-header" value="">
+						── Deployed Models ──
 					</VSCodeOption>,
 				)
-			})
+
+				categorizedModels.deployed.forEach((model) => {
+					options.push(
+						<VSCodeOption key={model.id} value={model.id}>
+							{model.id}
+						</VSCodeOption>,
+					)
+				})
+			}
+
+			// Add supported but not deployed models section
+			if (categorizedModels.supported.length > 0) {
+				// Add section separator (disabled option)
+				options.push(
+					<VSCodeOption disabled key="supported-header" value="">
+						── Not Deployed Models ──
+					</VSCodeOption>,
+				)
+
+				categorizedModels.supported.forEach((model) => {
+					options.push(
+						<VSCodeOption key={model.id} style={{ opacity: 0.6 }} value={model.id}>
+							{model.id}
+						</VSCodeOption>,
+					)
+				})
+			}
 		}
 
 		return options
@@ -113,6 +128,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			</label>
 			<VSCodeDropdown
 				id="sap-ai-core-model-dropdown"
+				key={`sap-ai-core-dropdown-${useOrchestrationMode}`}
 				onChange={handleModelChange}
 				style={{ width: "100%" }}
 				value={selectedModelId}>

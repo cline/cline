@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "together"
 	| "deepseek"
 	| "qwen"
+	| "qwen-code"
 	| "doubao"
 	| "mistral"
 	| "vscode-lm"
@@ -31,6 +32,7 @@ export type ApiProvider =
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
+	| "dify"
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
@@ -80,6 +82,7 @@ export interface ApiHandlerOptions {
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
+	qwenCodeOauthPath?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
@@ -102,7 +105,10 @@ export interface ApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
+	sapAiCoreUseOrchestrationMode?: boolean
 	huaweiCloudMaasApiKey?: string
+	difyApiKey?: string
+	difyBaseUrl?: string
 	zaiApiKey?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
@@ -3159,6 +3165,8 @@ export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
 
 // Huawei Cloud MaaS
+// Dify.ai - No model selection needed, models are configured in Dify workflows
+
 export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
 export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
 export const huaweiCloudMaasModels = {
@@ -3471,3 +3479,32 @@ export const fireworksModels = {
 			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Qwen Code
+// https://chat.qwen.ai/
+export const qwenCodeModels = {
+	"qwen3-coder-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Plus - High-performance coding model with 1M context window for large codebases",
+	},
+	"qwen3-coder-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Flash - Fast coding model with 1M context window optimized for speed",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type QwenCodeModelId = keyof typeof qwenCodeModels
+export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"

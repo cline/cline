@@ -1,8 +1,8 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { ensureRulesDirectoryExists } from "./disk"
-import { readStateFromDisk } from "./utils/state-helpers"
+import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -63,6 +63,27 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 			console.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
 		}
+	}
+}
+
+export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
+	try {
+		// If the old taskHistory vs code global state is undefined, do nothing
+		const vscodeGlobalStateTaskHistory = await context.globalState.get("taskHistory")
+		if (vscodeGlobalStateTaskHistory === undefined) {
+			return
+		}
+		// Read legacy from VS Code globalState, default to []
+		console.log("[Storage Migration] taskHistory from vscode global state: ", vscodeGlobalStateTaskHistory)
+		// Always create the file, even when empty
+		await writeTaskHistoryToState(context, Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : [])
+		// Don't remove the old taskHistory yet, while this version is not in production, for better dev experience.
+		// This is because the old version of the code (still in prod) is still reading taskHistory from the vs code global state, so it will appear as if all the user's tasks have been deleted.
+		// await context.globalState.update("taskHistory", undefined)
+		console.log("[Storage Migration] taskHistory file in new location: ", await readTaskHistoryFromState(context))
+		console.log("[Storage Migration] old vscode global state: ", await context.globalState.get("taskHistory"))
+	} catch (error) {
+		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
 }
 
@@ -512,8 +533,9 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			console.log("Migrating welcomeViewCompleted setting...")
 
 			// Get all extension state to check for existing API keys
-			const extensionState = await readStateFromDisk(context)
-			const config = extensionState.apiConfiguration
+			const stateManager = new StateManager(context)
+			await stateManager.initialize()
+			const config = stateManager.getApiConfiguration()
 
 			// This is the original logic used for checking is the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
@@ -545,6 +567,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.xaiApiKey,
 						config.sambanovaApiKey,
 						config.sapAiCoreClientId,
+						config.difyApiKey,
 					].some((key) => key !== undefined)
 				: false
 
