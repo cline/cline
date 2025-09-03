@@ -187,6 +187,7 @@ export class ExtensionChannel extends BaseChannel<
 			{ from: RooCodeEventName.TaskUnpaused, to: ExtensionBridgeEventName.TaskUnpaused },
 			{ from: RooCodeEventName.TaskSpawned, to: ExtensionBridgeEventName.TaskSpawned },
 			{ from: RooCodeEventName.TaskUserMessage, to: ExtensionBridgeEventName.TaskUserMessage },
+			{ from: RooCodeEventName.TaskTokenUsageUpdated, to: ExtensionBridgeEventName.TaskTokenUsageUpdated },
 		] as const
 
 		eventMapping.forEach(({ from, to }) => {
@@ -229,11 +230,12 @@ export class ExtensionChannel extends BaseChannel<
 			task: task
 				? {
 						taskId: task.taskId,
+						parentTaskId: task.parentTaskId,
+						childTaskId: task.childTaskId,
 						taskStatus: task.taskStatus,
 						taskAsk: task?.taskAsk,
 						queuedMessages: task.queuedMessages,
-						parentTaskId: task.parentTaskId,
-						childTaskId: task.childTaskId,
+						tokenUsage: task.tokenUsage,
 						...task.metadata,
 					}
 				: { taskId: "", taskStatus: TaskStatus.None },

@@ -7,7 +7,7 @@ import { TaskStatus, taskMetadataSchema } from "./task.js"
 import { globalSettingsSchema } from "./global-settings.js"
 import { providerSettingsWithIdSchema } from "./provider-settings.js"
 import { mcpMarketplaceItemSchema } from "./marketplace.js"
-import { clineMessageSchema, queuedMessageSchema } from "./message.js"
+import { clineMessageSchema, queuedMessageSchema, tokenUsageSchema } from "./message.js"
 import { staticAppPropertiesSchema, gitPropertiesSchema } from "./telemetry.js"
 
 /**
@@ -363,6 +363,7 @@ const extensionTaskSchema = z.object({
 	queuedMessages: z.array(queuedMessageSchema).optional(),
 	parentTaskId: z.string().optional(),
 	childTaskId: z.string().optional(),
+	tokenUsage: tokenUsageSchema.optional(),
 	...taskMetadataSchema.shape,
 })
 
@@ -411,6 +412,8 @@ export enum ExtensionBridgeEventName {
 	TaskSpawned = RooCodeEventName.TaskSpawned,
 
 	TaskUserMessage = RooCodeEventName.TaskUserMessage,
+
+	TaskTokenUsageUpdated = RooCodeEventName.TaskTokenUsageUpdated,
 
 	ModeChanged = RooCodeEventName.ModeChanged,
 	ProviderProfileChanged = RooCodeEventName.ProviderProfileChanged,
@@ -490,6 +493,12 @@ export const extensionBridgeEventSchema = z.discriminatedUnion("type", [
 
 	z.object({
 		type: z.literal(ExtensionBridgeEventName.TaskUserMessage),
+		instance: extensionInstanceSchema,
+		timestamp: z.number(),
+	}),
+
+	z.object({
+		type: z.literal(ExtensionBridgeEventName.TaskTokenUsageUpdated),
 		instance: extensionInstanceSchema,
 		timestamp: z.number(),
 	}),

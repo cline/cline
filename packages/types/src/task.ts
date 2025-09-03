@@ -75,6 +75,8 @@ export type TaskProviderEvents = {
 
 	[RooCodeEventName.TaskUserMessage]: [taskId: string]
 
+	[RooCodeEventName.TaskTokenUsageUpdated]: [taskId: string, tokenUsage: TokenUsage]
+
 	[RooCodeEventName.ModeChanged]: [mode: string]
 	[RooCodeEventName.ProviderProfileChanged]: [config: { name: string; provider?: string }]
 }
@@ -116,6 +118,7 @@ export interface TaskLike {
 	readonly taskStatus: TaskStatus
 	readonly taskAsk: ClineMessage | undefined
 	readonly queuedMessages: QueuedMessage[]
+	readonly tokenUsage: TokenUsage | undefined
 
 	on<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this
 	off<K extends keyof TaskEvents>(event: K, listener: (...args: TaskEvents[K]) => void | Promise<void>): this

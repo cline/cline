@@ -50,7 +50,7 @@ import { combineApiRequests } from "../../shared/combineApiRequests"
 import { combineCommandSequences } from "../../shared/combineCommandSequences"
 import { t } from "../../i18n"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "../../shared/ExtensionMessage"
-import { getApiMetrics } from "../../shared/getApiMetrics"
+import { getApiMetrics, hasTokenUsageChanged } from "../../shared/getApiMetrics"
 import { ClineAskResponse } from "../../shared/WebviewMessage"
 import { defaultModeSlug } from "../../shared/modes"
 import { DiffStrategy } from "../../shared/tools"
@@ -291,6 +291,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	assistantMessageParser: AssistantMessageParser
 	private lastUsedInstructions?: string
 	private skipPrevResponseIdOnce: boolean = false
+
+	// Token Usage Cache
+	private tokenUsageSnapshot?: TokenUsage
+	private tokenUsageSnapshotAt?: number
 
 	constructor({
 		provider,
@@ -669,7 +673,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode.
 			})
 
-			this.emit(RooCodeEventName.TaskTokenUsageUpdated, this.taskId, tokenUsage)
+			if (hasTokenUsageChanged(tokenUsage, this.tokenUsageSnapshot)) {
+				this.emit(RooCodeEventName.TaskTokenUsageUpdated, this.taskId, tokenUsage)
+				this.tokenUsageSnapshot = undefined
+				this.tokenUsageSnapshotAt = undefined
+			}
 
 			await this.providerRef.deref()?.updateTaskHistory(historyItem)
 		} catch (error) {
@@ -960,6 +968,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const { contextTokens: prevContextTokens } = this.getTokenUsage()
+
 		const {
 			messages,
 			summary,
@@ -2378,11 +2387,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const { contextTokens } = this.getTokenUsage()
 		const modelInfo = this.api.getModel().info
+
 		const maxTokens = getModelMaxOutputTokens({
 			modelId: this.api.getModel().id,
 			model: modelInfo,
 			settings: this.apiConfiguration,
 		})
+
 		const contextWindow = modelInfo.contextWindow
 
 		// Get the current profile ID using the helper method
@@ -2826,6 +2837,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public get queuedMessages(): QueuedMessage[] {
 		return this.messageQueueService.messages
+	}
+
+	public get tokenUsage(): TokenUsage | undefined {
+		if (this.tokenUsageSnapshot && this.tokenUsageSnapshotAt) {
+			return this.tokenUsageSnapshot
+		}
+
+		this.tokenUsageSnapshot = this.getTokenUsage()
+		this.tokenUsageSnapshotAt = this.clineMessages.at(-1)?.ts
+
+		return this.tokenUsageSnapshot
 	}
 
 	public get cwd() {

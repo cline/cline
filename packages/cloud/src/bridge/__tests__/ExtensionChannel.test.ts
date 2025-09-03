@@ -120,6 +120,7 @@ describe("ExtensionChannel", () => {
 				RooCodeEventName.TaskUnpaused,
 				RooCodeEventName.TaskSpawned,
 				RooCodeEventName.TaskUserMessage,
+				RooCodeEventName.TaskTokenUsageUpdated,
 			]
 
 			// Check that on() was called for each event
@@ -254,7 +255,7 @@ describe("ExtensionChannel", () => {
 			}
 
 			// Listeners should still be the same count (not accumulated)
-			expect(eventListeners.size).toBe(14)
+			expect(eventListeners.size).toBe(15)
 
 			// Each event should have exactly 1 listener
 			eventListeners.forEach((listeners) => {
