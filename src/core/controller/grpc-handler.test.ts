@@ -412,9 +412,5 @@ describe("grpc-handler", () => {
 				expect(mockPostMessageToWebview.callCount).to.equal(4)
 			})
 		})
-
-		describe("Recording requests", () => {
-			it("[WIP to add test name]", async () => {})
-		})
 	})
 })

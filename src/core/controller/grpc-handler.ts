@@ -46,8 +46,6 @@ async function handleUnaryRequest(
 		// Handle unary request
 		const response = await handler(controller, request.message)
 
-		const state = await controller.getStateToPostToWebview()
-
 		const grpcResponse = {
 			message: response,
 			request_id: request.request_id,
