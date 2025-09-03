@@ -70,7 +70,8 @@
 				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "warn"
+				"noAssignInExpressions": "warn",
+				"noUnknownAtRules": "off"
 			},
 			"complexity": {
 				"noUselessConstructor": "off",

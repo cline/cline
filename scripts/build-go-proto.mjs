@@ -82,7 +82,9 @@ function checkToolsInPath() {
 
 	if (missingTools.length > 0) {
 		console.log(chalk.yellow("Warning: Some Go protobuf tools are not in your PATH:"))
-		missingTools.forEach((tool) => console.log(chalk.yellow(`  - ${tool}`)))
+		missingTools.forEach((tool) => {
+			console.log(chalk.yellow(`  - ${tool}`))
+		})
 		console.log()
 		console.log(chalk.cyan("To fix this, add your Go bin directory to your PATH:"))
 

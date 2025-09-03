@@ -118,6 +118,15 @@ export interface ApiHandlerOptions {
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
 	zaiApiLine?: string
+
+	// Mode-specific rate limit configs
+	planModeRateLimitRpm?: number
+	planModeRateLimitTpm?: number
+	planModeRateLimitNearThreshold?: number
+	actModeRateLimitRpm?: number
+	actModeRateLimitTpm?: number
+	actModeRateLimitNearThreshold?: number
+
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	ocaMode?: string
@@ -196,6 +205,7 @@ export type ApiConfiguration = ApiHandlerOptions &
 	ApiHandlerSecrets & {
 		planModeApiProvider?: ApiProvider
 		actModeApiProvider?: ApiProvider
+		favoritedModelIds?: string[]
 	}
 
 // Models
