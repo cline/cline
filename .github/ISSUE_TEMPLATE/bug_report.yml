@@ -6,6 +6,25 @@ body:
       attributes:
           value: |
               **Important:** All bug reports must be reproducible using Claude 4 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
+    - type: dropdown
+      id: plugin-type
+      attributes:
+          label: Plugin Type
+          description: Which plugin are you reporting a bug for?
+          options:
+              - VSCode Extension
+              - JetBrains Plugin
+          default: VSCode Extension
+      validations:
+          required: true
+    - type: input
+      id: cline-version
+      attributes:
+          label: Cline Version
+          description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
+          placeholder: "e.g., 1.2.3"
+      validations:
+          required: true
     - type: textarea
       id: what-happened
       attributes:
@@ -25,18 +44,12 @@ body:
               3.
       validations:
           required: false
-    - type: textarea
-      id: logs
-      attributes:
-          label: Relevant API REQUEST output
-          description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
-          render: shell
     - type: input
       id: provider-model
       attributes:
           label: Provider/Model
           description: What provider and model were you using when the issue occurred?
-          placeholder: "e.g., cline:anthropic/claude-3.7-sonnet, gemini:gemini-2.5-pro-exp-03-25"
+          placeholder: "e.g., cline:anthropic/claude-sonnet-4, gemini:gemini-2.5-pro-exp-03-25"
       validations:
           required: true
     - type: textarea
@@ -53,12 +66,4 @@ body:
               GPU: NVIDIA GeForce RTX 3070
               RAM: 32GB DDR4
       validations:
-          required: true
-    - type: input
-      id: cline-version
-      attributes:
-          label: Cline Version
-          description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
-          placeholder: "e.g., 1.2.3"
-      validations:
-          required: true
+          required: false
