@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+// Hook Management Service
+service HookService {
+  // Execute a hook with the given payload
+  rpc executeHook(HookExecutionRequest) returns (HookExecutionResponse);
+}
+
+// Hook execution request
+message HookExecutionRequest {
+  Metadata metadata = 1;
+  string hook_name = 2;
+  HookInfo hook_info = 3;
+}
+
+// Hook execution response
+message HookExecutionResponse {
+  HookResult result = 1;
+}
+
+// Main hook payload structure
+message HookInfo {
+  string hook_name = 1;
+  string timestamp = 2;
+  string task_id = 3;
+  string workspace_root = 4;
+  HookData data = 5;
+}
+
+// Hook data union
+message HookData {
+  oneof data_type {
+    TaskStartData task_start = 1;
+    TaskCompleteData task_complete = 2;
+    UserPromptSubmitData user_prompt_submit = 3;
+  }
+}
+
+// TaskStart - When a new task begins
+message TaskStartData {
+  string task = 1;                 // The task description
+  int32 images = 2;                // Count of images in the task
+  int32 files = 3;                 // Count of files in the task
+  Mode mode = 4;                   // Current mode (plan/act)
+  string cwd = 5;                  // Current working directory
+}
+
+// TaskComplete - When attempt_completion succeeds
+message TaskCompleteData {
+  string result = 1;               // The completion result
+  optional string command = 2;     // Optional command to showcase result
+  int64 duration = 3;              // Task duration in milliseconds
+  int32 tools_used = 4;            // Number of tools used
+  int32 api_requests_count = 5;    // Number of API requests made
+}
+
+// UserPromptSubmit - When user submits a message
+message UserPromptSubmitData {
+  MessageType message_type = 1;    // Type of message submitted
+  int64 text_length = 2;           // Length of text content
+  int32 image_count = 3;           // Number of images attached
+  int32 file_count = 4;            // Number of files attached
+  Mode mode = 5;                   // Current mode when submitted
+}
+
+// Enums for type safety
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_PLAN = 1;
+  MODE_ACT = 2;
+}
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_INITIAL_TASK = 1;
+  MESSAGE_TYPE_FOLLOW_UP = 2;
+  MESSAGE_TYPE_FEEDBACK = 3;
+}
+
+// Hook execution result
+message HookResult {
+  bool success = 1;
+  int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
+  int64 execution_time = 5;        // milliseconds
+  optional string context = 6;     // optional context returned by hook
+}
