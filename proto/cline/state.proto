@@ -106,6 +106,16 @@ message TelemetrySettingRequest {
   TelemetrySettingEnum setting = 2;
 }
 
+// Browser settings for UpdateSettingsRequest
+message BrowserSettingsUpdate {
+  optional Viewport viewport = 1;
+  optional string remote_browser_host = 2;
+  optional bool remote_browser_enabled = 3;
+  optional string chrome_executable_path = 4;
+  optional bool disable_tool_use = 5;
+  optional string custom_args = 6;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -126,6 +136,7 @@ message UpdateSettingsRequest {
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
+  optional BrowserSettingsUpdate browser_settings = 20;
 }
 
 // Complete API Configuration message
@@ -266,6 +277,11 @@ message UpdateTerminalConnectionTimeoutRequest {
 message FocusChainSettings {
   bool enabled = 1;
   int32 remind_cline_interval = 2;
+}
+
+message Viewport {
+  int32 width = 1;
+  int32 height = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {
