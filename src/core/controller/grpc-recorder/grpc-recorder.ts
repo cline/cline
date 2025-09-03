@@ -1,38 +1,12 @@
-import * as fs from "fs/promises"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { GrpcRequest } from "@shared/WebviewMessage"
+import { writeFile } from "@utils/fs"
+import fs from "fs/promises"
 import * as path from "path"
-// import * as vscode from "vscode"
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { GrpcRequest } from "@/shared/WebviewMessage"
+import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
 
-export interface GrpcLogEntry {
-	timestamp: string
-	sessionId: string
-	requestId: string
-	service: string
-	method: string
-	isStreaming: boolean
-	request: {
-		message: any
-	}
-	response?: {
-		message?: any
-		error?: string
-		isStreaming?: boolean
-		sequenceNumber?: number
-	}
-	duration?: number
-	status: "pending" | "completed" | "error"
-}
-
-export interface GrpcSessionLog {
-	sessionId: string
-	startTime: string
-	extensionVersion?: string
-	vscodeVersion?: string
-	platform: string
-	entries: GrpcLogEntry[]
-}
-
+// WIP: probably we should consider adding a noops in case is disable [check if noops pattern works at TS or there is something else]
+// WIP: to refactor in different classes
 export class GrpcRecorder {
 	private static instance: GrpcRecorder | null = null
 	private sessionLog: GrpcSessionLog
@@ -56,9 +30,6 @@ export class GrpcRecorder {
 		this.sessionLog = {
 			sessionId,
 			startTime: new Date().toISOString(),
-			// extensionVersion: context.extension?.packageJSON?.version ?? "unknown",
-			// vscodeVersion: vscode.version,
-			platform: process.platform,
 			entries: [],
 		}
 
@@ -101,7 +72,7 @@ export class GrpcRecorder {
 			await fs.mkdir(path.dirname(this.logFilePath), { recursive: true })
 
 			// Write initial session log
-			await fs.writeFile(this.logFilePath, JSON.stringify(this.sessionLog, null, 2), "utf8")
+			await writeFile(this.logFilePath, JSON.stringify(this.sessionLog, null, 2), "utf8")
 
 			console.log(`gRPC session log initialized: ${this.logFilePath}`)
 		} catch (error) {
@@ -111,7 +82,6 @@ export class GrpcRecorder {
 
 	public recordRequest(request: GrpcRequest): void {
 		const entry: GrpcLogEntry = {
-			timestamp: new Date().toISOString(),
 			sessionId: this.sessionLog.sessionId,
 			requestId: request.request_id,
 			service: request.service,
@@ -131,6 +101,10 @@ export class GrpcRecorder {
 
 		this.sessionLog.entries.push(entry)
 		this.flushLogAsync()
+	}
+
+	public getSessionLog(): GrpcSessionLog {
+		return this.sessionLog
 	}
 
 	public recordResponse(requestId: string, response: ExtensionMessage["grpc_response"]): void {
@@ -158,6 +132,8 @@ export class GrpcRecorder {
 			this.pendingRequests.delete(requestId)
 		}
 
+		this.sessionLog.stats = this.getStats()
+
 		this.flushLogAsync()
 	}
 
@@ -184,6 +160,7 @@ export class GrpcRecorder {
 		if (!message) return message
 
 		try {
+			// WIP: this should be extracted into a new class +
 			// Create a deep copy and remove any potential circular references
 			return JSON.parse(
 				JSON.stringify(message, (key, value) => {
@@ -218,7 +195,7 @@ export class GrpcRecorder {
 
 	public async flushLog(): Promise<void> {
 		try {
-			await fs.writeFile(this.logFilePath, JSON.stringify(this.sessionLog, null, 2), "utf8")
+			await writeFile(this.logFilePath, JSON.stringify(this.sessionLog, null, 2), "utf8")
 		} catch (error) {
 			console.error("Failed to write gRPC log to file:", error)
 		}
@@ -232,8 +209,7 @@ export class GrpcRecorder {
 		return this.sessionLog.sessionId
 	}
 
-	// TODO: add to the header maybe?
-	public getStats(): { totalRequests: number; pendingRequests: number; completedRequests: number; errorRequests: number } {
+	public getStats(): SessionStats {
 		const totalRequests = this.sessionLog.entries.length
 		const pendingRequests = this.sessionLog.entries.filter((e) => e.status === "pending").length
 		const completedRequests = this.sessionLog.entries.filter((e) => e.status === "completed").length

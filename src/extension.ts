@@ -534,7 +534,7 @@ export async function deactivate() {
 
 	// Clean up gRPC recorder
 	try {
-		const { GrpcRecorder } = await import("./core/controller/grpc-recorder")
+		const { GrpcRecorder } = await import("./core/controller/grpc-recorder/grpc-recorder")
 		await GrpcRecorder.dispose()
 		console.log("gRPC recorder disposed")
 	} catch (error) {

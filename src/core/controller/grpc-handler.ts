@@ -1,7 +1,7 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
-import { GrpcRecorder } from "./grpc-recorder"
+import { GrpcRecorder } from "./grpc-recorder/grpc-recorder"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
@@ -86,7 +86,6 @@ async function handleUnaryRequest(
 		}
 
 		// Record the error
-
 		try {
 			const recorder = GrpcRecorder.getInstance()
 			recorder.recordResponse(request.request_id, errorResponse)
@@ -125,14 +124,6 @@ async function handleStreamingRequest(
 			sequence_number: sequenceNumber,
 		}
 
-		// Record the streaming response
-		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordResponse(request.request_id, grpcResponse)
-		} catch (error) {
-			console.warn("Failed to record gRPC streaming response:", error)
-		}
-
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: grpcResponse,
@@ -156,14 +147,6 @@ async function handleStreamingRequest(
 			error: error instanceof Error ? error.message : String(error),
 			request_id: request.request_id,
 			is_streaming: false,
-		}
-
-		// Record the streaming error
-		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordResponse(request.request_id, errorResponse)
-		} catch (recordError) {
-			console.warn("Failed to record gRPC streaming error:", recordError)
 		}
 
 		await postMessageToWebview({

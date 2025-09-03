@@ -29,7 +29,7 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
-import { GrpcRecorder } from "./grpc-recorder"
+import { GrpcRecorder } from "./grpc-recorder/grpc-recorder"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 
