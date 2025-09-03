@@ -2,6 +2,7 @@ import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as os from "os"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
@@ -24,6 +25,11 @@ export type TelemetryMetadata = {
 	platform: string
 	/** The version of the host environment */
 	platform_version: string
+	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
+	os_type: string
+	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
+	 * This is the value returned by os.version() */
+	os_version: string
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
 }
@@ -143,6 +149,8 @@ export class TelemetryService {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
+			os_type: os.platform(),
+			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
 		}
 		return new TelemetryService(provider, metadata)
