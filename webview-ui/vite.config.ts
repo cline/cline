@@ -79,17 +79,29 @@ export default defineConfig({
 		},
 	},
 	define: {
-		"process.env": process.env.VITEST
-			? {}
-			: {
-					NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
-					IS_DEV: JSON.stringify(process.env.IS_DEV),
-					IS_TEST: JSON.stringify(process.env.IS_TEST),
-					CI: JSON.stringify(process.env.CI),
-					// PostHog environment variables
-					TELEMETRY_SERVICE_API_KEY: JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
-					ERROR_SERVICE_API_KEY: JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
-				},
+		"process.env": {
+			NODE_ENV: JSON.stringify(process?.env?.IS_DEV ? "development" : "production"),
+			CLINE_ENVIRONMENT: JSON.stringify(process?.env?.CLINE_ENVIRONMENT ?? "production"),
+			IS_DEV: JSON.stringify(process?.env?.IS_DEV === "true"),
+			IS_TEST: JSON.stringify(process?.env?.IS_TEST === "true"),
+			CI: JSON.stringify(process?.env?.CI === "true"),
+			// PostHog environment variables
+			TELEMETRY_SERVICE_API_KEY: JSON.stringify(process?.env?.TELEMETRY_SERVICE_API_KEY ?? undefined),
+			ERROR_SERVICE_API_KEY: JSON.stringify(process?.env?.ERROR_SERVICE_API_KEY ?? undefined),
+		},
+		// Define process itself to handle optional chaining like process?.env?.CI
+		process: JSON.stringify({
+			env: {
+				NODE_ENV: process?.env?.IS_DEV ? "development" : "production",
+				CLINE_ENVIRONMENT: process?.env?.CLINE_ENVIRONMENT ?? "production",
+				IS_DEV: process?.env?.IS_DEV === "true",
+				IS_TEST: process?.env?.IS_TEST === "true",
+				CI: process?.env?.CI === "true",
+				// PostHog environment variables
+				TELEMETRY_SERVICE_API_KEY: process?.env?.TELEMETRY_SERVICE_API_KEY ?? undefined,
+				ERROR_SERVICE_API_KEY: process?.env?.ERROR_SERVICE_API_KEY ?? undefined,
+			},
+		}),
 	},
 	resolve: {
 		alias: {

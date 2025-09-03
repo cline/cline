@@ -6,10 +6,41 @@
 
 import * as assert from "assert"
 import * as sinon from "sinon"
+import { HostProvider } from "@/hosts/host-provider"
+import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { TelemetryProviderFactory, type TelemetryProviderType } from "../TelemetryProviderFactory"
 import { TelemetryService } from "../TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
+	// Setup and teardown for HostProvider mocking
+	before(() => {
+		// Mock HostProvider if not already initialized
+		if (!HostProvider.isInitialized()) {
+			const mockWebviewCreator = () => ({}) as any
+			const mockDiffCreator = () => ({}) as any
+			const mockHostBridge = {
+				envClient: {
+					getHostVersion: sinon.stub().resolves({
+						platform: "Test-IDE",
+						version: "9.8.7-abc",
+					}),
+				},
+				watchServiceClient: {},
+				workspaceClient: {},
+				windowClient: {},
+				diffClient: {},
+			} as any
+			const mockLogToChannel = sinon.stub()
+			const mockGetCallbackUri = sinon.stub().resolves("test://callback")
+
+			HostProvider.initialize(mockWebviewCreator, mockDiffCreator, mockHostBridge, mockLogToChannel, mockGetCallbackUri)
+		}
+	})
+
+	after(() => {
+		// Reset HostProvider after tests
+		HostProvider.reset()
+	})
 	const MOCK_USER_INFO = {
 		id: "test-user-123",
 		email: "test@example.com",
@@ -197,6 +228,9 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 	describe("Factory Configuration", () => {
 		it("should return default configuration", () => {
+			// Mock PostHog config validation to return true for this test
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+
 			const defaultConfig = TelemetryProviderFactory.getDefaultConfig()
 
 			assert.deepStrictEqual(
@@ -206,6 +240,9 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				},
 				"Should return PostHog as default configuration",
 			)
+
+			// Restore the stub
+			isPostHogConfigValidStub.restore()
 		})
 
 		it("should handle provider switching seamlessly", async () => {

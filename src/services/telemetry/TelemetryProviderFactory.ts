@@ -59,7 +59,7 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 class NoOpTelemetryProvider implements ITelemetryProvider {
-	private isOptIn = true
+	public isOptIn = true
 
 	public log(event: string, properties?: Record<string, unknown>): void {
 		Logger.log(`[NoOpTelemetryProvider] ${event}: ${JSON.stringify(properties)}`)
@@ -75,14 +75,14 @@ class NoOpTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return this.isOptIn
+		return false
 	}
 
 	public getSettings() {
 		return {
-			extensionEnabled: true,
-			hostEnabled: true,
-			level: "all" as const,
+			extensionEnabled: false,
+			hostEnabled: false,
+			level: "off" as const,
 		}
 	}
 
