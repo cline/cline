@@ -5,41 +5,63 @@ import fs from "fs/promises"
 import * as path from "path"
 import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
 
-// WIP: probably we should consider adding a noops in case is disable [check if noops pattern works at TS or there is something else]
-// WIP: to refactor in different classes
-export class GrpcRecorder {
-	private static instance: GrpcRecorder | null = null
+class GrpcRecorderNoops implements Recorder {
+	recordRequest(_request: GrpcRequest): void {}
+	recordResponse(_requestId: string, _response: ExtensionMessage["grpc_response"]): void {}
+	recordError(_requestId: string, _error: string): void {}
+	async flushLog(): Promise<void> {}
+	getLogFilePath(): string {
+		return ""
+	}
+	getSessionLog(): GrpcSessionLog {
+		return {
+			sessionId: "",
+			startTime: "",
+			entries: [],
+		}
+	}
+}
+
+export interface Recorder {
+	// WIP: maybe we might want to improve this name
+	recordRequest(request: GrpcRequest): void
+	recordResponse(requestId: string, response: ExtensionMessage["grpc_response"]): void
+	recordError(requestId: string, error: string): void
+	flushLog(): Promise<void>
+	getLogFilePath(): string
+	getSessionLog(): GrpcSessionLog
+}
+
+// WIP: to refactor in different classes, just to reduce responsability here
+export class GrpcRecorder implements Recorder {
+	private static instance: Recorder | null = null
 	private sessionLog: GrpcSessionLog
 	private logFilePath: string
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
 
 	private constructor() {
-		const sessionId = this.generateSessionId()
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-		// const fileName = `jose-grpc-session-${timestamp}-${sessionId}.json`
-		const fileName = `e2e-test-name.json`
-
-		// const folderPath = context.globalStorageUri.fsPath
+		const fileName = this.getFileName()
 		const workspaceFolder = process.env.DEV_WORKSPACE_FOLDER ?? process.cwd()
 		const folderPath = path.join(workspaceFolder, "tests", "specs")
 
-		// Create logs directory in extension's global storage
-		//const logsDir = path.join(folderPath, "grpc-logs")
 		this.logFilePath = path.join(folderPath, fileName)
 
 		this.sessionLog = {
-			sessionId,
+			sessionId: this.generateSessionId(),
 			startTime: new Date().toISOString(),
 			entries: [],
 		}
 
-		// Ensure logs directory exists and create initial log file
 		this.initializeLogFile().catch((error) => {
 			console.error("Failed to initialize gRPC log file:", error)
 		})
 	}
 
-	public static getInstance(): GrpcRecorder {
+	public static getInstance(): Recorder {
+		const enabled = process.env.GRPC_RECORDER_ENABLED === "true"
+		if (!enabled) {
+			GrpcRecorder.instance = new GrpcRecorderNoops()
+		}
 		if (!GrpcRecorder.instance) {
 			GrpcRecorder.instance = new GrpcRecorder()
 		}
@@ -64,6 +86,17 @@ export class GrpcRecorder {
 	// random temporary unique id. it's not universally unique, but enough for testing
 	private generateSessionId(): string {
 		return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+	}
+
+	private getFileName(): string {
+		const envFileName = process.env.GRPC_RECORDER_FILE_NAME
+		if (envFileName && envFileName.trim().length > 0) {
+			return `${envFileName}.json`
+		}
+
+		const sessionId = this.generateSessionId()
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+		return `grpc-recorded-session-${timestamp}-${sessionId}.json`
 	}
 
 	private async initializeLogFile(): Promise<void> {
@@ -163,7 +196,7 @@ export class GrpcRecorder {
 			// WIP: this should be extracted into a new class +
 			// Create a deep copy and remove any potential circular references
 			return JSON.parse(
-				JSON.stringify(message, (key, value) => {
+				JSON.stringify(message, (_key, value) => {
 					// Filter out functions, symbols, and other non-serializable values
 					if (typeof value === "function" || typeof value === "symbol") {
 						return "[Function/Symbol]"
