@@ -1,5 +1,4 @@
 export interface GrpcLogEntry {
-	sessionId: string
 	requestId: string
 	service: string
 	method: string
@@ -25,7 +24,6 @@ export interface SessionStats {
 }
 
 export interface GrpcSessionLog {
-	sessionId: string
 	startTime: string
 	stats?: SessionStats
 	entries: GrpcLogEntry[]

@@ -1,0 +1,40 @@
+import { writeFile } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
+import { GrpcSessionLog } from "@/core/controller/grpc-recorder/types"
+
+const LOG_FILE_PREFIX = "grpc_recorded_session"
+
+export class LogFileHandler {
+	private logFilePath: string
+
+	constructor() {
+		const fileName = this.getFileName()
+		const workspaceFolder = process.env.DEV_WORKSPACE_FOLDER ?? process.cwd()
+		const folderPath = path.join(workspaceFolder, "tests", "specs")
+		this.logFilePath = path.join(folderPath, fileName)
+	}
+
+	public getFilePath(): string {
+		return this.logFilePath
+	}
+
+	private getFileName(): string {
+		const envFileName = process.env.GRPC_RECORDER_FILE_NAME
+		if (envFileName && envFileName.trim().length > 0) {
+			return `${LOG_FILE_PREFIX}_${envFileName}.json`
+		}
+
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+		return `${LOG_FILE_PREFIX}_${timestamp}.json`
+	}
+
+	public async initialize(initialData: GrpcSessionLog): Promise<void> {
+		await fs.mkdir(path.dirname(this.logFilePath), { recursive: true })
+		await writeFile(this.logFilePath, JSON.stringify(initialData, null, 2), "utf8")
+	}
+
+	public async write(sessionLog: GrpcSessionLog): Promise<void> {
+		await writeFile(this.logFilePath, JSON.stringify(sessionLog, null, 2), "utf8")
+	}
+}

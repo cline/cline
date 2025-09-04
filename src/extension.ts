@@ -532,15 +532,6 @@ export async function deactivate() {
 	// Clean up test mode
 	cleanupTestMode()
 
-	// Clean up gRPC recorder
-	try {
-		const { GrpcRecorder } = await import("./core/controller/grpc-recorder/grpc-recorder")
-		await GrpcRecorder.dispose()
-		console.log("gRPC recorder disposed")
-	} catch (error) {
-		console.error("Failed to dispose gRPC recorder:", error)
-	}
-
 	Logger.log("Cline extension deactivated")
 }
 

@@ -1,4 +1,4 @@
-import { GrpcRecorder, Recorder } from "@core/controller/grpc-recorder/grpc-recorder"
+import { GrpcRecorder, IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 import { WebviewProvider } from "@core/webview"
 import type { Uri } from "vscode"
@@ -186,7 +186,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	private withRecordingMiddleware(
 		postMessage: (msg: ExtensionMessage) => Thenable<boolean | undefined>,
 	): (msg: ExtensionMessage) => Thenable<boolean | undefined> {
-		const recorder: Recorder = GrpcRecorder.getInstance()
+		const recorder: IRecorder = GrpcRecorder.getInstance()
 
 		return async (response: ExtensionMessage) => {
 			if (response?.grpc_response) {
