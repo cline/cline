@@ -45,30 +45,24 @@ async function handleUnaryRequest(
 		const handler = getHandler(request.service, request.method)
 		// Handle unary request
 		const response = await handler(controller, request.message)
-
-		const grpcResponse = {
-			message: response,
-			request_id: request.request_id,
-		}
-
 		// Send response to the webview
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: grpcResponse,
+			grpc_response: {
+				message: response,
+				request_id: request.request_id,
+			},
 		})
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
-
-		const errorResponse = {
-			error: error instanceof Error ? error.message : String(error),
-			request_id: request.request_id,
-			is_streaming: false,
-		}
-
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: errorResponse,
+			grpc_response: {
+				error: error instanceof Error ? error.message : String(error),
+				request_id: request.request_id,
+				is_streaming: false,
+			},
 		})
 	}
 }
@@ -90,16 +84,14 @@ async function handleStreamingRequest(
 		isLast: boolean = false,
 		sequenceNumber?: number,
 	) => {
-		const grpcResponse = {
-			message: response,
-			request_id: request.request_id,
-			is_streaming: !isLast,
-			sequence_number: sequenceNumber,
-		}
-
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: grpcResponse,
+			grpc_response: {
+				message: response,
+				request_id: request.request_id,
+				is_streaming: !isLast,
+				sequence_number: sequenceNumber,
+			},
 		})
 	}
 
@@ -115,16 +107,13 @@ async function handleStreamingRequest(
 	} catch (error) {
 		// Send error response
 		console.log("Protobus error:", error)
-
-		const errorResponse = {
-			error: error instanceof Error ? error.message : String(error),
-			request_id: request.request_id,
-			is_streaming: false,
-		}
-
 		await postMessageToWebview({
 			type: "grpc_response",
-			grpc_response: errorResponse,
+			grpc_response: {
+				error: error instanceof Error ? error.message : String(error),
+				request_id: request.request_id,
+				is_streaming: false,
+			},
 		})
 	}
 }
