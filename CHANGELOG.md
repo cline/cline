@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## [3.26.6] - 2025-09-03
+
+![3.26.6 Release - Bug Fixes and Tool Improvements](/releases/3.26.6-release.png)
+
+- Add experimental run_slash_command tool to let the model initiate slash commands (thanks @app/roomote!)
+- Fix: use askApproval wrapper in insert_content and search_and_replace tools (#7648 by @hannesrudolph, PR by @app/roomote)
+- Add Kimi K2 Turbo model configuration to moonshotModels (thanks @wangxiaolong100!)
+- Fix: preserve scroll position when switching tabs in settings (thanks @DC-Dancao!)
+
 ## [3.26.5] - 2025-09-03
 
 ![3.26.5 Release - Enhanced AI Thinking Capabilities](/releases/3.26.5-release.png)
