@@ -69,44 +69,36 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
 	try {
-		// Get data from both locations
+		// Get data from old location
 		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
-		const newLocationData = await readTaskHistoryFromState(context)
 
-		// Normalize old location data to array
+		// Normalize old location data to array (empty array if undefined/null/not-array)
 		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
 
-		console.log(
-			"[Storage Migration] taskHistory from old location (vscode global state length): ",
-			vscodeGlobalStateTaskHistory?.length,
-		)
-		console.log("[Storage Migration] taskHistory from new location (length): ", newLocationData?.length)
 		// Early return if no migration needed
 		if (oldLocationData.length === 0) {
 			console.log("[Storage Migration] No task history to migrate")
 			return
 		}
-		// Case 1: New location is empty (non-existent or empty array)
+
+		let finalData: HistoryItem[]
+		let migrationAction: string
+
+		const newLocationData = await readTaskHistoryFromState(context)
 		if (newLocationData.length === 0) {
-			if (oldLocationData.length > 0) {
-				// Write old location data to new location
-				await writeTaskHistoryToState(context, oldLocationData)
-				// Clear old location
-				await context.globalState.update("taskHistory", undefined)
-				console.log("[Storage Migration] Migrated task history from old location to new location")
-			} else {
-				console.log("[Storage Migration] No task history to migrate")
-			}
-		}
-		// Case 2: New location has data AND old location has data
-		else if (oldLocationData.length > 0) {
-			// Append old location data (more recent) to new location data - follows same appending pattern as updateTaskHistory
-			const mergedData = [...newLocationData, ...oldLocationData]
-			await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
-			console.log("[Storage Migration] Merged task history from old and new locations")
+			// Move old data to new location
+			finalData = oldLocationData
+			migrationAction = "Migrated task history from old location to new location"
 		} else {
-			console.log("[Storage Migration] New location has data, old location is empty - no migration needed")
+			// Merge old data (more recent) with new data
+			finalData = [...newLocationData, ...oldLocationData]
+			migrationAction = "Merged task history from old and new locations"
 		}
+
+		// Perform migration operations concurrently
+		await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
+
+		console.log(`[Storage Migration] ${migrationAction}`)
 	} catch (error) {
 		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
