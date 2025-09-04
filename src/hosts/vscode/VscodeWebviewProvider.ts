@@ -222,6 +222,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Create recording middleware wrapper
 		const postMessageWithRecording = this.withRecordingMiddleware(this.postMessageToWebview.bind(this))
 
+		// WIP: probably we might want to consider WebviewMessage instead
 		switch (message.type) {
 			case "grpc_request": {
 				if (message.grpc_request) {
