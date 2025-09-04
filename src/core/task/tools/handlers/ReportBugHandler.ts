@@ -6,12 +6,14 @@ import { ClineAsk } from "@shared/ExtensionMessage"
 import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import * as os from "os"
 import * as vscode from "vscode"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
+	readonly id = ClineDefaultTool.REPORT_BUG
 	readonly name = "report_bug"
 
 	constructor() {}
@@ -29,7 +31,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 			additional_context: uiHelpers.removeClosingTag(block, "additional_context", block.params.additional_context),
 		})
 
-		await uiHelpers.ask("report_bug" as ClineAsk, partialMessage, block.partial).catch(() => {})
+		await uiHelpers.ask(this.id as ClineAsk, partialMessage, block.partial).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -94,7 +96,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 			cline_version: clineVersion,
 		})
 
-		const { text, images, files: reportBugFiles } = await config.callbacks.ask("report_bug", bugReportData, false)
+		const { text, images, files: reportBugFiles } = await config.callbacks.ask(this.id, bugReportData, false)
 
 		// If the user provided a response, treat it as feedback
 		if (text || (images && images.length > 0) || (reportBugFiles && reportBugFiles.length > 0)) {

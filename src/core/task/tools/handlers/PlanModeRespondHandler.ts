@@ -3,12 +3,14 @@ import { formatResponse } from "@core/prompts/responses"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { telemetryService } from "@/services/telemetry"
 import { ClinePlanModeResponse } from "@/shared/ExtensionMessage"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
+	readonly id = ClineDefaultTool.PLAN_MODE
 	readonly name = "plan_mode_respond"
 
 	constructor() {}
@@ -29,7 +31,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			options: parsePartialArrayString(uiHelpers.removeClosingTag(block, "options", optionsRaw)),
 		} satisfies ClinePlanModeResponse
 
-		await uiHelpers.ask("plan_mode_respond", JSON.stringify(sharedMessage), true).catch(() => {})
+		await uiHelpers.ask(this.id, JSON.stringify(sharedMessage), true).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -64,11 +66,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 		}
 
 		// Ask for user response
-		let {
-			text,
-			images,
-			files: planResponseFiles,
-		} = await config.callbacks.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
+		let { text, images, files: planResponseFiles } = await config.callbacks.ask(this.id, JSON.stringify(sharedMessage), false)
 
 		config.taskState.isAwaitingPlanResponse = false
 
@@ -82,7 +80,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			telemetryService.captureOptionSelected(config.ulid, options.length, "plan")
 			// Valid option selected, don't show user message in UI
 			// Update last plan message with selected option
-			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === "plan_mode_respond")
+			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.id)
 			if (lastPlanMessage) {
 				lastPlanMessage.text = JSON.stringify({
 					...sharedMessage,
