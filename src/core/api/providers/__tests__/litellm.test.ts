@@ -4,6 +4,15 @@ import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"
 import sinon from "sinon"
 
+const fakeClient = {
+	chat: {
+		completions: {
+			create: sinon.stub(),
+		},
+	},
+	baseURL: "fake",
+}
+
 describe("LiteLlmHandler", () => {
 	const originalFetch = global.fetch
 	const mockFetch = sinon.stub()
@@ -19,18 +28,24 @@ describe("LiteLlmHandler", () => {
 	}
 
 	let handler: LiteLlmHandler
-	let fakeClient: any
 
 	const mockHandlerChat = () => {
-		// Create a fresh fakeClient for each test to avoid stub state pollution
-		fakeClient = {
-			chat: {
-				completions: {
-					create: sinon.stub(),
-				},
-			},
-			baseURL: "fake",
-		}
+		sinon.stub(handler, "ensureClient" as any).returns(fakeClient)
+	}
+
+	const initializeHandler = (model: string) => {
+		handler = new LiteLlmHandler({
+			liteLlmApiKey: "test-api-key",
+			liteLlmBaseUrl: "http://localhost:4000",
+			liteLlmUsePromptCache: true,
+			liteLlmModelId: model,
+		})
+
+		mockHandlerChat()
+	}
+
+	beforeEach(() => {
+		global.fetch = mockFetch
 
 		// Configure the stub to return a stream that closes immediately with usage data
 		fakeClient.chat.completions.create.resolves(
@@ -49,23 +64,6 @@ describe("LiteLlmHandler", () => {
 				},
 			]),
 		)
-
-		sinon.stub(handler, "ensureClient" as any).returns(fakeClient)
-	}
-
-	const initializeHandler = (model: string) => {
-		handler = new LiteLlmHandler({
-			liteLlmApiKey: "test-api-key",
-			liteLlmBaseUrl: "http://localhost:4000",
-			liteLlmUsePromptCache: true,
-			liteLlmModelId: model,
-		})
-
-		mockHandlerChat()
-	}
-
-	beforeEach(() => {
-		global.fetch = mockFetch
 	})
 
 	afterEach(() => {

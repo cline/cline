@@ -41,6 +41,4 @@ e2e("Diff editor", async ({ page, sidebar, helper }) => {
 	)
 	await diffEditor.click()
 	await expect(diffEditor).toBeVisible()
-
-	await page.close()
 })
