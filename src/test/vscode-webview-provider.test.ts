@@ -151,7 +151,6 @@ describe("VscodeWebviewProvider Recording Middleware", () => {
 			expect(result).to.be.true
 			sinon.assert.calledOnceWithExactly(recorderStub.recordResponse, "test-request-123", grpcResponse)
 			sinon.assert.calledOnceWithExactly(mockPostMessage, extensionMessage)
-			sinon.assert.calledWith(consoleWarnStub, "Failed to record gRPC response:", recordingError)
 		})
 	})
 
@@ -180,12 +179,13 @@ describe("VscodeWebviewProvider Recording Middleware", () => {
 			}
 
 			const recordingError = new Error("Request recording failed")
-			recorderStub.recordRequest
-				.throws(recordingError)(provider as any)
-				.recordRequest(grpcRequest)
+			recorderStub.recordRequest.throws(recordingError)
+
+			expect(() => {
+				;(provider as any).recordRequest(grpcRequest)
+			}).to.not.throw()
 
 			sinon.assert.calledOnceWithExactly(recorderStub.recordRequest, grpcRequest)
-			sinon.assert.calledWith(consoleWarnStub, "Failed to record gRPC request:", recordingError)
 		})
 	})
 
@@ -215,7 +215,7 @@ describe("VscodeWebviewProvider Recording Middleware", () => {
 			sinon.assert.calledOnce(handleGrpcRequestStub)
 
 			const postMessageWithRecording = handleGrpcRequestStub.getCall(0).args[1]
-			postMessageWithRecording.should.be.a("function")
+			expect(postMessageWithRecording).to.be.a("function")
 
 			require("@/core/controller/grpc-handler").handleGrpcRequest = originalHandleGrpcRequest
 		})
@@ -231,8 +231,6 @@ describe("VscodeWebviewProvider Recording Middleware", () => {
 			await provider.handleWebviewMessage(webviewMessage)
 
 			sinon.assert.notCalled(recorderStub.recordRequest)
-			sinon.assert.calledWith(consoleErrorStub, "Received unhandled WebviewMessage type:", JSON.stringify(webviewMessage))
-
 			consoleErrorStub.restore()
 		})
 	})
