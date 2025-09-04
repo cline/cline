@@ -70,7 +70,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
 	try {
 		// Get data from both locations
-		const vscodeGlobalStateTaskHistory = (await context.globalState.get("taskHistory")) as HistoryItem[] | undefined
+		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
 		const newLocationData = await readTaskHistoryFromState(context)
 
 		// Normalize old location data to array
