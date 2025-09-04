@@ -9,6 +9,13 @@ export {
 	type TelemetryProviderType,
 } from "./TelemetryProviderFactory"
 
+// Export the enums for terminal telemetry
+export {
+	TerminalHangStage,
+	TerminalOutputFailureReason,
+	TerminalUserInterventionAction,
+} from "./TelemetryService"
+
 // Create a singleton instance for easy access throughout the application
 import { TelemetryService } from "./TelemetryService"
 

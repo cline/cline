@@ -77,7 +77,9 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		console.log("[Storage Migration] taskHistory from vscode global state: ", vscodeGlobalStateTaskHistory)
 		// Always create the file, even when empty
 		await writeTaskHistoryToState(context, Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : [])
-		await context.globalState.update("taskHistory", undefined)
+		// Don't remove the old taskHistory yet, while this version is not in production, for better dev experience.
+		// This is because the old version of the code (still in prod) is still reading taskHistory from the vs code global state, so it will appear as if all the user's tasks have been deleted.
+		// await context.globalState.update("taskHistory", undefined)
 		console.log("[Storage Migration] taskHistory file in new location: ", await readTaskHistoryFromState(context))
 		console.log("[Storage Migration] old vscode global state: ", await context.globalState.get("taskHistory"))
 	} catch (error) {

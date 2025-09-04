@@ -2,6 +2,7 @@ import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as os from "os"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
@@ -17,6 +18,33 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  */
 type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
 
+/**
+ * Enum for terminal output failure reasons
+ */
+export enum TerminalOutputFailureReason {
+	TIMEOUT = "timeout",
+	NO_SHELL_INTEGRATION = "no_shell_integration",
+	CLIPBOARD_FAILED = "clipboard_failed",
+}
+
+/**
+ * Enum for terminal user intervention actions
+ */
+export enum TerminalUserInterventionAction {
+	PROCESS_WHILE_RUNNING = "process_while_running",
+	MANUAL_PASTE = "manual_paste",
+	CANCELLED = "cancelled",
+}
+
+/**
+ * Enum for terminal hang stages
+ */
+export enum TerminalHangStage {
+	WAITING_FOR_COMPLETION = "waiting_for_completion",
+	BUFFER_STUCK = "buffer_stuck",
+	STREAM_TIMEOUT = "stream_timeout",
+}
+
 export type TelemetryMetadata = {
 	/** The extension or cline-core version. */
 	extension_version: string
@@ -24,6 +52,11 @@ export type TelemetryMetadata = {
 	platform: string
 	/** The version of the host environment */
 	platform_version: string
+	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
+	os_type: string
+	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
+	 * This is the value returned by os.version() */
+	os_version: string
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
 }
@@ -120,6 +153,11 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
+			// Terminal execution telemetry events
+			TERMINAL_EXECUTION: "task.terminal_execution",
+			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
+			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
+			TERMINAL_HANG: "task.terminal_hang",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -143,6 +181,8 @@ export class TelemetryService {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
+			os_type: os.platform(),
+			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
 		}
 		return new TelemetryService(provider, metadata)
@@ -906,6 +946,62 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
 			properties: {},
+		})
+	}
+
+	// Terminal telemetry methods
+
+	/**
+	 * Records terminal command execution outcomes
+	 * @param success Whether the command output was successfully captured
+	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 */
+	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
+			properties: {
+				success,
+				method,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal output capture fails
+	 * @param reason The reason for failure
+	 */
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
+			properties: {
+				reason,
+			},
+		})
+	}
+
+	/**
+	 * Records when user has to intervene with terminal execution
+	 * @param action The user action
+	 */
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
+			properties: {
+				action,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal execution hangs or gets stuck
+	 * @param stage Where the hang occurred
+	 */
+	public captureTerminalHang(stage: TerminalHangStage) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
+			properties: {
+				stage,
+			},
 		})
 	}
 
