@@ -105,7 +105,6 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 			console.log("[Storage Migration] New location has data, old location is empty - no migration needed")
 		}
 
-		console.log("[Storage Migration] Final task history:", await readTaskHistoryFromState(context))
 	} catch (error) {
 		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
