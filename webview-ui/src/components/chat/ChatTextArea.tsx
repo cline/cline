@@ -296,7 +296,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
-		const slashCommandsQueryRef = useRef(slashCommandsQuery)
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
@@ -488,7 +487,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleSlashCommandsSelect = useCallback(
 			(command: SlashCommand) => {
 				setShowSlashCommandsMenu(false)
-				const queryLength = slashCommandsQueryRef.current.length
+				const queryLength = slashCommandsQuery.length
 				setSlashCommandsQuery("")
 
 				if (textAreaRef.current) {
@@ -761,11 +760,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const slashIndex = newValue.indexOf("/")
 					const query = newValue.slice(slashIndex + 1, newCursorPosition)
 					setSlashCommandsQuery(query)
-					slashCommandsQueryRef.current = query
 					setSelectedSlashCommandsIndex(0)
 				} else {
 					setSlashCommandsQuery("")
-					slashCommandsQueryRef.current = ""
 					setSelectedSlashCommandsIndex(0)
 				}
 
