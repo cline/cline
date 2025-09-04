@@ -23,6 +23,15 @@ export interface IRecorder {
 	getSessionLog(): GrpcSessionLog
 }
 
+/**
+ * Default implementation of a gRPC recorder.
+ *
+ * Responsibilities:
+ * - Records requests, responses, and errors.
+ * - Tracks request/response lifecycle, including duration and status.
+ * - Maintains a session log of all recorded entries.
+ * - Persists logs asynchronously through a file handler.
+ */
 export class GrpcRecorder implements IRecorder {
 	private sessionLog: GrpcSessionLog
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
@@ -42,6 +51,15 @@ export class GrpcRecorder implements IRecorder {
 		return new GrpcRecorderBuilder()
 	}
 
+	/**
+	 * Records a gRPC request.
+	 *
+	 * - Stores the request as a "pending" log entry.
+	 * - Tracks the request start time for later duration calculation.
+	 * - Persists the log asynchronously.
+	 *
+	 * @param request - The incoming gRPC request.
+	 */
 	public recordRequest(request: GrpcRequest): void {
 		const entry: GrpcLogEntry = {
 			requestId: request.request_id,
@@ -67,6 +85,18 @@ export class GrpcRecorder implements IRecorder {
 		return this.sessionLog
 	}
 
+	/**
+	 * Records a gRPC response for a given request.
+	 *
+	 * - Looks up the pending request entry.
+	 * - Updates the entry with response data, status, and duration.
+	 * - Removes the request from pending if it's not streaming.
+	 * - Recomputes session stats.
+	 * - Persists the log asynchronously.
+	 *
+	 * @param requestId - The ID of the request being responded to.
+	 * @param response - The corresponding gRPC response.
+	 */
 	public recordResponse(requestId: string, response: GrpcResponse): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
 		if (!pendingRequest) {
@@ -95,6 +125,17 @@ export class GrpcRecorder implements IRecorder {
 		this.flushLogAsync()
 	}
 
+	/**
+	 * Records an error for a given request.
+	 *
+	 * - Marks the request as failed.
+	 * - Records the error message and request duration.
+	 * - Removes it from the pending requests.
+	 * - Persists the log asynchronously.
+	 *
+	 * @param requestId - The ID of the request that errored.
+	 * @param error - Error message.
+	 */
 	public recordError(requestId: string, error: string): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
 		if (!pendingRequest) {
