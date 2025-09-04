@@ -17,10 +17,15 @@ const SERVICE_NAME = "cline"
 export class SecretStore implements vscode.SecretStorage {
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
 	private readonly jsonStore: JsonKeyValueStore<string>
+	private readonly jsonFilePath: string
 
 	constructor(filepath: string) {
 		// JSON store always created as fallback, even when keytar is available
 		this.jsonStore = new JsonKeyValueStore<string>(filepath)
+		this.jsonFilePath = filepath
+		if (keytar) {
+			void this.migrateSecretsToKeytarIfNeeded()
+		}
 	}
 
 	readonly onDidChange: vscode.Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event
@@ -53,8 +58,35 @@ export class SecretStore implements vscode.SecretStorage {
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
-}
 
+	private async migrateSecretsToKeytarIfNeeded(): Promise<void> {
+		try {
+			// Skip if keytar already has secrets or no JSON file exists
+			const existingSecrets = await keytar!.findCredentials(SERVICE_NAME)
+			if (existingSecrets?.length > 0 || !fs.existsSync(this.jsonFilePath)) return
+
+			const data = JSON.parse(fs.readFileSync(this.jsonFilePath, "utf-8"))
+			const secrets = Object.entries(data || {}).filter(([, v]) => typeof v === "string" && v.length > 0)
+
+			if (secrets.length === 0) return fs.unlinkSync(this.jsonFilePath)
+
+			const migrated = new Set<string>()
+			await Promise.all(
+				secrets.map(async ([k, v]) => {
+					try {
+						await keytar!.setPassword(SERVICE_NAME, k, v as string)
+						migrated.add(k)
+					} catch {}
+				}),
+			)
+
+			const remaining = Object.fromEntries(Object.entries(data).filter(([k]) => !migrated.has(k)))
+			Object.keys(remaining).length
+				? fs.writeFileSync(this.jsonFilePath, JSON.stringify(remaining, null, 2))
+				: fs.unlinkSync(this.jsonFilePath)
+		} catch {}
+	}
+}
 // Create a class that implements Memento interface with the required setKeysForSync method
 export class MementoStore implements vscode.Memento {
 	private data: JsonKeyValueStore<any>
