@@ -450,6 +450,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				setShowContextMenu(false)
 				setSelectedType(null)
+				const queryLength = searchQuery.length
+				setSearchQuery("")
+
 				if (textAreaRef.current) {
 					let insertValue = value || ""
 					if (type === ContextMenuOptionType.URL) {
@@ -464,7 +467,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					}
 
-					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					const { newValue, mentionIndex } = insertMention(
+						textAreaRef.current.value,
+						cursorPosition,
+						insertValue,
+						queryLength,
+					)
 
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
@@ -481,7 +489,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, cursorPosition],
+			[setInputValue, cursorPosition, searchQuery],
 		)
 
 		const handleSlashCommandsSelect = useCallback(
@@ -557,6 +565,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						// event.preventDefault()
 						setSelectedType(null)
 						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
+						setSearchQuery("")
 						return
 					}
 
