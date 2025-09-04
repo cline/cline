@@ -2,8 +2,9 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { ClineAsk, ClineAskQuestion } from "@shared/ExtensionMessage"
+import { ClineDefaultTool } from "@shared/tools"
 import { telemetryService } from "@/services/telemetry"
-import { ToolUse, ToolUseName } from "../../../assistant-message"
+import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -11,8 +12,8 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlockHandler {
-	name = "ask_followup_question"
-	supportedTools: ToolUseName[] = ["ask_followup_question"]
+	name = ClineDefaultTool.ASK
+	supportedTools: ClineDefaultTool[] = [ClineDefaultTool.ASK]
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.question}']`
