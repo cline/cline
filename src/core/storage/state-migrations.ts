@@ -95,8 +95,9 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 			migrationAction = "Merged task history from old and new locations"
 		}
 
-		// Perform migration operations concurrently
-		await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
+		// Perform migration operations sequentially - only clear old data if write succeeds
+		await writeTaskHistoryToState(context, finalData)
+		void context.globalState.update("taskHistory", undefined)
 
 		console.log(`[Storage Migration] ${migrationAction}`)
 	} catch (error) {
