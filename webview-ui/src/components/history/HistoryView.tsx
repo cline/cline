@@ -393,7 +393,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							/>
 						</VSCodeRadioGroup>
 
-						<div className="flex justify-end gap-1">
+						<div className="flex justify-end gap-2.5">
 							<VSCodeButton onClick={() => handleBatchHistorySelect(true)}>Select All</VSCodeButton>
 							<VSCodeButton onClick={() => handleBatchHistorySelect(false)}>Select None</VSCodeButton>
 						</div>
