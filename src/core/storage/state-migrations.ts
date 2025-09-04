@@ -76,8 +76,8 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		// Normalize old location data to array
 		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
 
-		console.log("[Storage Migration] taskHistory from old location (vscode global state): ", vscodeGlobalStateTaskHistory)
-		console.log("[Storage Migration] taskHistory from new location (file): ", newLocationData)
+		console.log("[Storage Migration] taskHistory from old location (vscode global state): ", vscodeGlobalStateTaskHistory?.length)
+		console.log("[Storage Migration] taskHistory from new location (file): ", newLocationData?.length)
 
 		// Case 1: New location is empty (non-existent or empty array)
 		if (newLocationData.length === 0) {
