@@ -99,9 +99,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		else if (oldLocationData.length > 0) {
 			// Append old location data (more recent) to new location data - follows same appending pattern as updateTaskHistory
 			const mergedData = [...newLocationData, ...oldLocationData]
-			await writeTaskHistoryToState(context, mergedData)
-			// Clear old location
-			await context.globalState.update("taskHistory", undefined)
+	await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
 			console.log("[Storage Migration] Merged task history from old and new locations")
 		} else {
 			console.log("[Storage Migration] New location has data, old location is empty - no migration needed")
