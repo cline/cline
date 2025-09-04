@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo hat versucht, {{toolName}} mit einem ungültigen JSON-Argument zu verwenden. Wiederhole...",
 		"refresh_after_disable": "Fehler beim Aktualisieren der MCP-Verbindungen nach dem Deaktivieren",
 		"refresh_after_enable": "Fehler beim Aktualisieren der MCP-Verbindungen nach dem Aktivieren",
-		"disconnect_servers_partial": "Fehler beim Trennen von {{count}} MCP-Server(n). Überprüfe die Ausgabe für Details."
+		"disconnect_servers_partial": "Fehler beim Trennen von {{count}} MCP-Server(n). Überprüfe die Ausgabe für Details.",
+		"toolNotFound": "Tool '{{toolName}}' existiert nicht auf Server '{{serverName}}'. Verfügbare Tools: {{availableTools}}",
+		"serverNotFound": "MCP-Server '{{serverName}}' ist nicht konfiguriert. Verfügbare Server: {{availableServers}}",
+		"toolDisabled": "Tool '{{toolName}}' auf Server '{{serverName}}' ist deaktiviert. Verfügbare aktivierte Tools: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "MCP-Server {{serverName}} wird neu gestartet...",

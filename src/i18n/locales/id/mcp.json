@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo mencoba menggunakan {{toolName}} dengan argumen JSON yang tidak valid. Mencoba lagi...",
 		"refresh_after_disable": "Gagal me-refresh koneksi MCP setelah menonaktifkan",
 		"refresh_after_enable": "Gagal me-refresh koneksi MCP setelah mengaktifkan",
-		"disconnect_servers_partial": "Gagal memutus koneksi {{count}} server MCP. Periksa output untuk detailnya."
+		"disconnect_servers_partial": "Gagal memutus koneksi {{count}} server MCP. Periksa output untuk detailnya.",
+		"toolNotFound": "Tool '{{toolName}}' tidak ada di server '{{serverName}}'. Tool yang tersedia: {{availableTools}}",
+		"serverNotFound": "Server MCP '{{serverName}}' tidak dikonfigurasi. Server yang tersedia: {{availableServers}}",
+		"toolDisabled": "Tool '{{toolName}}' di server '{{serverName}}' dinonaktifkan. Tool aktif yang tersedia: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Merestart server MCP {{serverName}}...",

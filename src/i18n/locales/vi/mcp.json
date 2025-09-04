@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo đã cố gắng sử dụng {{toolName}} với tham số JSON không hợp lệ. Đang thử lại...",
 		"refresh_after_disable": "Không thể làm mới kết nối MCP sau khi vô hiệu hóa",
 		"refresh_after_enable": "Không thể làm mới kết nối MCP sau khi kích hoạt",
-		"disconnect_servers_partial": "Không thể ngắt kết nối {{count}} máy chủ MCP. Kiểm tra đầu ra để biết chi tiết."
+		"disconnect_servers_partial": "Không thể ngắt kết nối {{count}} máy chủ MCP. Kiểm tra đầu ra để biết chi tiết.",
+		"toolNotFound": "Công cụ '{{toolName}}' không tồn tại trên máy chủ '{{serverName}}'. Công cụ có sẵn: {{availableTools}}",
+		"serverNotFound": "Máy chủ MCP '{{serverName}}' chưa được cấu hình. Máy chủ có sẵn: {{availableServers}}",
+		"toolDisabled": "Công cụ '{{toolName}}' trên máy chủ '{{serverName}}' đã bị vô hiệu hóa. Công cụ đã kích hoạt có sẵn: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Đang khởi động lại máy chủ MCP {{serverName}}...",

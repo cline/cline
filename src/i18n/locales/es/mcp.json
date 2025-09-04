@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo intentó usar {{toolName}} con un argumento JSON no válido. Reintentando...",
 		"refresh_after_disable": "Error al actualizar las conexiones MCP después de desactivar",
 		"refresh_after_enable": "Error al actualizar las conexiones MCP después de activar",
-		"disconnect_servers_partial": "Error al desconectar {{count}} servidor(es) MCP. Revisa la salida para más detalles."
+		"disconnect_servers_partial": "Error al desconectar {{count}} servidor(es) MCP. Revisa la salida para más detalles.",
+		"toolNotFound": "La herramienta '{{toolName}}' no existe en el servidor '{{serverName}}'. Herramientas disponibles: {{availableTools}}",
+		"serverNotFound": "El servidor MCP '{{serverName}}' no está configurado. Servidores disponibles: {{availableServers}}",
+		"toolDisabled": "La herramienta '{{toolName}}' del servidor '{{serverName}}' está desactivada. Herramientas activadas disponibles: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Reiniciando el servidor MCP {{serverName}}...",

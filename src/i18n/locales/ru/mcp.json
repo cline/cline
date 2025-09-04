@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo попытался использовать {{toolName}} с недопустимым JSON-аргументом. Повторная попытка...",
 		"refresh_after_disable": "Не удалось обновить соединения MCP после отключения",
 		"refresh_after_enable": "Не удалось обновить соединения MCP после включения",
-		"disconnect_servers_partial": "Не удалось отключить {{count}} MCP сервер(ов). Проверьте вывод для получения подробностей."
+		"disconnect_servers_partial": "Не удалось отключить {{count}} MCP сервер(ов). Проверьте вывод для получения подробностей.",
+		"toolNotFound": "Инструмент '{{toolName}}' не существует на сервере '{{serverName}}'. Доступные инструменты: {{availableTools}}",
+		"serverNotFound": "MCP сервер '{{serverName}}' не настроен. Доступные серверы: {{availableServers}}",
+		"toolDisabled": "Инструмент '{{toolName}}' на сервере '{{serverName}}' отключен. Доступные включенные инструменты: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Перезапуск сервера MCP {{serverName}}...",

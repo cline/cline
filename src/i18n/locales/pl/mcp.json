@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo próbował użyć {{toolName}} z nieprawidłowym argumentem JSON. Ponawianie...",
 		"refresh_after_disable": "Nie udało się odświeżyć połączeń MCP po wyłączeniu",
 		"refresh_after_enable": "Nie udało się odświeżyć połączeń MCP po włączeniu",
-		"disconnect_servers_partial": "Nie udało się odłączyć {{count}} serwera(ów) MCP. Sprawdź dane wyjściowe, aby uzyskać szczegóły."
+		"disconnect_servers_partial": "Nie udało się odłączyć {{count}} serwera(ów) MCP. Sprawdź dane wyjściowe, aby uzyskać szczegóły.",
+		"toolNotFound": "Narzędzie '{{toolName}}' nie istnieje na serwerze '{{serverName}}'. Dostępne narzędzia: {{availableTools}}",
+		"serverNotFound": "Serwer MCP '{{serverName}}' nie jest skonfigurowany. Dostępne serwery: {{availableServers}}",
+		"toolDisabled": "Narzędzie '{{toolName}}' na serwerze '{{serverName}}' jest wyłączone. Dostępne włączone narzędzia: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Ponowne uruchamianie serwera MCP {{serverName}}...",

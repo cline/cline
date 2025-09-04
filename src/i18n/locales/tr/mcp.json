@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo, {{toolName}} aracını geçersiz bir JSON argümanıyla kullanmaya çalıştı. Tekrar deneniyor...",
 		"refresh_after_disable": "Devre dışı bıraktıktan sonra MCP bağlantıları yenilenemedi",
 		"refresh_after_enable": "Etkinleştirdikten sonra MCP bağlantıları yenilenemedi",
-		"disconnect_servers_partial": "{{count}} MCP sunucusu bağlantısı kesilemedi. Ayrıntılar için çıktıyı kontrol edin."
+		"disconnect_servers_partial": "{{count}} MCP sunucusu bağlantısı kesilemedi. Ayrıntılar için çıktıyı kontrol edin.",
+		"toolNotFound": "Araç '{{toolName}}' sunucu '{{serverName}}' üzerinde mevcut değil. Mevcut araçlar: {{availableTools}}",
+		"serverNotFound": "MCP sunucusu '{{serverName}}' yapılandırılmamış. Mevcut sunucular: {{availableServers}}",
+		"toolDisabled": "Sunucu '{{serverName}}' üzerindeki araç '{{toolName}}' devre dışı. Mevcut etkin araçlar: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP sunucusu yeniden başlatılıyor...",

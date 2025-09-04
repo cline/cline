@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo ने {{toolName}} को अमान्य JSON आर्गुमेंट के साथ उपयोग करने की कोशिश की। फिर से कोशिश कर रहा है...",
 		"refresh_after_disable": "अक्षम करने के बाद MCP कनेक्शन रीफ्रेश करने में विफल",
 		"refresh_after_enable": "सक्षम करने के बाद MCP कनेक्शन रीफ्रेश करने में विफल",
-		"disconnect_servers_partial": "{{count}} MCP सर्वर डिस्कनेक्ट करने में विफल। विवरण के लिए आउटपुट देखें।"
+		"disconnect_servers_partial": "{{count}} MCP सर्वर डिस्कनेक्ट करने में विफल। विवरण के लिए आउटपुट देखें।",
+		"toolNotFound": "टूल '{{toolName}}' सर्वर '{{serverName}}' पर मौजूद नहीं है। उपलब्ध टूल: {{availableTools}}",
+		"serverNotFound": "MCP सर्वर '{{serverName}}' कॉन्फ़िगर नहीं है। उपलब्ध सर्वर: {{availableServers}}",
+		"toolDisabled": "सर्वर '{{serverName}}' पर टूल '{{toolName}}' अक्षम है। उपलब्ध सक्षम टूल: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",

@@ -81,6 +81,112 @@ async function validateParams(
 	}
 }
 
+async function validateToolExists(
+	cline: Task,
+	serverName: string,
+	toolName: string,
+	pushToolResult: PushToolResult,
+): Promise<{ isValid: boolean; availableTools?: string[] }> {
+	try {
+		// Get the MCP hub to access server information
+		const provider = cline.providerRef.deref()
+		const mcpHub = provider?.getMcpHub()
+
+		if (!mcpHub) {
+			// If we can't get the MCP hub, we can't validate, so proceed with caution
+			return { isValid: true }
+		}
+
+		// Get all servers to find the specific one
+		const servers = mcpHub.getAllServers()
+		const server = servers.find((s) => s.name === serverName)
+
+		if (!server) {
+			// Fail fast when server is unknown
+			const availableServersArray = servers.map((s) => s.name)
+			const availableServers =
+				availableServersArray.length > 0 ? availableServersArray.join(", ") : "No servers available"
+
+			cline.consecutiveMistakeCount++
+			cline.recordToolError("use_mcp_tool")
+			await cline.say("error", t("mcp:errors.serverNotFound", { serverName, availableServers }))
+
+			pushToolResult(formatResponse.unknownMcpServerError(serverName, availableServersArray))
+			return { isValid: false, availableTools: [] }
+		}
+
+		// Check if the server has tools defined
+		if (!server.tools || server.tools.length === 0) {
+			// No tools available on this server
+			cline.consecutiveMistakeCount++
+			cline.recordToolError("use_mcp_tool")
+			await cline.say(
+				"error",
+				t("mcp:errors.toolNotFound", {
+					toolName,
+					serverName,
+					availableTools: "No tools available",
+				}),
+			)
+
+			pushToolResult(formatResponse.unknownMcpToolError(serverName, toolName, []))
+			return { isValid: false, availableTools: [] }
+		}
+
+		// Check if the requested tool exists
+		const tool = server.tools.find((tool) => tool.name === toolName)
+
+		if (!tool) {
+			// Tool not found - provide list of available tools
+			const availableToolNames = server.tools.map((tool) => tool.name)
+
+			cline.consecutiveMistakeCount++
+			cline.recordToolError("use_mcp_tool")
+			await cline.say(
+				"error",
+				t("mcp:errors.toolNotFound", {
+					toolName,
+					serverName,
+					availableTools: availableToolNames.join(", "),
+				}),
+			)
+
+			pushToolResult(formatResponse.unknownMcpToolError(serverName, toolName, availableToolNames))
+			return { isValid: false, availableTools: availableToolNames }
+		}
+
+		// Check if the tool is disabled (enabledForPrompt is false)
+		if (tool.enabledForPrompt === false) {
+			// Tool is disabled - only show enabled tools
+			const enabledTools = server.tools.filter((t) => t.enabledForPrompt !== false)
+			const enabledToolNames = enabledTools.map((t) => t.name)
+
+			cline.consecutiveMistakeCount++
+			cline.recordToolError("use_mcp_tool")
+			await cline.say(
+				"error",
+				t("mcp:errors.toolDisabled", {
+					toolName,
+					serverName,
+					availableTools:
+						enabledToolNames.length > 0 ? enabledToolNames.join(", ") : "No enabled tools available",
+				}),
+			)
+
+			pushToolResult(formatResponse.unknownMcpToolError(serverName, toolName, enabledToolNames))
+			return { isValid: false, availableTools: enabledToolNames }
+		}
+
+		// Tool exists and is enabled
+		return { isValid: true, availableTools: server.tools.map((tool) => tool.name) }
+	} catch (error) {
+		// If there's an error during validation, log it but don't block the tool execution
+		// The actual tool call might still fail with a proper error
+		console.error("Error validating MCP tool existence:", error)
+		return { isValid: true }
+	}
+}
+
 async function sendExecutionStatus(cline: Task, status: McpExecutionStatus): Promise<void> {
 	const clineProvider = await cline.providerRef.deref()
 	clineProvider?.postMessageToWebview({
@@ -192,6 +298,12 @@ export async function useMcpToolTool(
 		}
 
 		const { serverName, toolName, parsedArguments } = validation
+
+		// Validate that the tool exists on the server
+		const toolValidation = await validateToolExists(cline, serverName, toolName, pushToolResult)
+		if (!toolValidation.isValid) {
+			return
+		}
 
 		// Reset mistake count on successful validation
 		cline.consecutiveMistakeCount = 0

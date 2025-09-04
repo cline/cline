@@ -8,7 +8,10 @@
 		"invalidJsonArgument": "Roo ha intentat utilitzar {{toolName}} amb un argument JSON no vàlid. Tornant a intentar...",
 		"refresh_after_disable": "Ha fallat l'actualització de les connexions MCP després de desactivar",
 		"refresh_after_enable": "Ha fallat l'actualització de les connexions MCP després d'activar",
-		"disconnect_servers_partial": "Ha fallat la desconnexió de {{count}} servidor(s) MCP. Comprova la sortida per més detalls."
+		"disconnect_servers_partial": "Ha fallat la desconnexió de {{count}} servidor(s) MCP. Comprova la sortida per més detalls.",
+		"toolNotFound": "L'eina '{{toolName}}' no existeix al servidor '{{serverName}}'. Eines disponibles: {{availableTools}}",
+		"serverNotFound": "El servidor MCP '{{serverName}}' no està configurat. Servidors disponibles: {{availableServers}}",
+		"toolDisabled": "L'eina '{{toolName}}' del servidor '{{serverName}}' està desactivada. Eines activades disponibles: {{availableTools}}"
 	},
 	"info": {
 		"server_restarting": "Reiniciant el servidor MCP {{serverName}}...",
