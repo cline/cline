@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { before, describe, it } from "mocha"
-import { LogFileHandler } from "./log-file-handler"
+import { LogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
 
 describe("log-file-handler", () => {
 	let logHandler: LogFileHandler

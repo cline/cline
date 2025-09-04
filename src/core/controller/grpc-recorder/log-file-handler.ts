@@ -15,6 +15,13 @@ export interface ILogFileHandler {
 	write(sessionLog: GrpcSessionLog): Promise<void>
 }
 
+/**
+ * Default implementation of `ILogFileHandler` that persists logs to disk.
+ *
+ * - Creates a log file inside the workspace `tests/specs` folder.
+ * - Uses a timestamped filename by default, unless overridden by an env var.
+ * - Saves logs in JSON format.
+ */
 export class LogFileHandler implements ILogFileHandler {
 	private logFilePath: string
 
@@ -30,7 +37,7 @@ export class LogFileHandler implements ILogFileHandler {
 	}
 
 	public getFileName(): string {
-		const envFileName = process.env.GRPC_RECORDER_FILE_NAME
+		const envFileName = path.basename(process.env.GRPC_RECORDER_FILE_NAME || "").replace(/[^a-zA-Z0-9-_]/g, "_")
 		if (envFileName && envFileName.trim().length > 0) {
 			return `${LOG_FILE_PREFIX}_${envFileName}.json`
 		}
