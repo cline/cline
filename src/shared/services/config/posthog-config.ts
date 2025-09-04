@@ -25,7 +25,7 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
  * process.env.CI will always be true in the CI environment, during both testing and publishing step,
  * so it is not a reliable indicator of the environment.
  */
-const useDevEnv = process?.env?.IS_DEV === "true" && process?.env?.CLINE_ENVIRONMENT !== "production"
+const useDevEnv = process?.env?.IS_DEV === "true" || process?.env?.CLINE_ENVIRONMENT === "local"
 
 /**
  * PostHog configuration for Production Environment.
@@ -41,7 +41,13 @@ export const posthogConfig: PostHogClientConfig = {
 	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
 }
 
+const isTestEnv = process?.env?.E2E_TEST === "true" || process?.env?.IS_TEST === "true"
+
 export function isPostHogConfigValid(config: PostHogClientConfig): config is PostHogClientValidConfig {
+	// Allow invalid config in test environment to enable mocking and stubbing
+	if (isTestEnv) {
+		return false
+	}
 	return (
 		typeof config.apiKey === "string" &&
 		typeof config.errorTrackingApiKey === "string" &&
