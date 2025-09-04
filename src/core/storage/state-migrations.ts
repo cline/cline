@@ -78,7 +78,11 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 
 		console.log("[Storage Migration] taskHistory from old location (vscode global state): ", vscodeGlobalStateTaskHistory?.length)
 		console.log("[Storage Migration] taskHistory from new location (file): ", newLocationData?.length)
-
+		// Early return if no migration needed
+		if (oldLocationData.length === 0) {
+			console.log("[Storage Migration] No task history to migrate")
+			return
+		}
 		// Case 1: New location is empty (non-existent or empty array)
 		if (newLocationData.length === 0) {
 			if (oldLocationData.length > 0) {
