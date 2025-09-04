@@ -74,7 +74,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
 	tokensOut,
-	doesModelSupportPromptCache,
 	cacheWrites,
 	cacheReads,
 	totalCost,
@@ -763,28 +762,26 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<span>
 										{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 										{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
-											<>
-												<button
-													className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
-													onClick={() => {
-														// First open the settings panel using direct navigation
-														navigateToSettings()
+											<button
+												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
+												onClick={() => {
+													// First open the settings panel using direct navigation
+													navigateToSettings()
 
-														// After a short delay, send a message to scroll to settings
-														setTimeout(async () => {
-															try {
-																await UiServiceClient.scrollToSettings(
-																	StringRequest.create({ value: "features" }),
-																)
-															} catch (error) {
-																console.error("Error scrolling to checkpoint settings:", error)
-															}
-														}, 300)
-													}}
-													style={{ fontSize: "inherit" }}>
-													disabling checkpoints.
-												</button>
-											</>
+													// After a short delay, send a message to scroll to settings
+													setTimeout(async () => {
+														try {
+															await UiServiceClient.scrollToSettings(
+																StringRequest.create({ value: "features" }),
+															)
+														} catch (error) {
+															console.error("Error scrolling to checkpoint settings:", error)
+														}
+													}, 300)
+												}}
+												style={{ fontSize: "inherit" }}>
+												disabling checkpoints.
+											</button>
 										)}
 										{checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
@@ -854,7 +851,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 			return (
 				<span
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
-					key={index}
+					key={part}
 					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
 					style={{ cursor: "pointer" }}>
 					@{part}

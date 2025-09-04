@@ -32,7 +32,6 @@ import {
 	getSavedClineMessages,
 } from "@core/storage/disk"
 import { createTaskCheckpointManager, TaskCheckpointManager } from "@integrations/checkpoints"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -51,12 +50,11 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
@@ -80,7 +78,6 @@ import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
-import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
@@ -697,10 +694,6 @@ export class Task {
 
 	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
-	}
-
-	private async checkLatestTaskCompletionHasNewChanges(): Promise<boolean> {
-		return this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false)
 	}
 
 	// Task lifecycle
