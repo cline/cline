@@ -27,7 +27,9 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
 	// Set the distinct ID for logging and telemetry
-	await initializeDistinctId(context)
+	const distinctId = await initializeDistinctId(context)
+
+	context.globalState.update("distinctId", distinctId)
 
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance()

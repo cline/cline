@@ -25,6 +25,8 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 	if (process.env.IS_DEV) {
 		console.log("Telemetry distinct ID initialized:", distinctId)
 	}
+
+	return distinctId
 }
 
 /*
