@@ -76,8 +76,11 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		// Normalize old location data to array
 		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
 
-		console.log("[Storage Migration] taskHistory from old location (vscode global state): ", vscodeGlobalStateTaskHistory?.length)
-		console.log("[Storage Migration] taskHistory from new location (file): ", newLocationData?.length)
+		console.log(
+			"[Storage Migration] taskHistory from old location (vscode global state length): ",
+			vscodeGlobalStateTaskHistory?.length,
+		)
+		console.log("[Storage Migration] taskHistory from new location (length): ", newLocationData?.length)
 		// Early return if no migration needed
 		if (oldLocationData.length === 0) {
 			console.log("[Storage Migration] No task history to migrate")
@@ -99,12 +102,11 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		else if (oldLocationData.length > 0) {
 			// Append old location data (more recent) to new location data - follows same appending pattern as updateTaskHistory
 			const mergedData = [...newLocationData, ...oldLocationData]
-	await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
+			await Promise.all([writeTaskHistoryToState(context, finalData), context.globalState.update("taskHistory", undefined)])
 			console.log("[Storage Migration] Merged task history from old and new locations")
 		} else {
 			console.log("[Storage Migration] New location has data, old location is empty - no migration needed")
 		}
-
 	} catch (error) {
 		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
