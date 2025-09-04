@@ -1,8 +1,8 @@
 import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
+import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
 import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
-import { GrpcRecorderBuilder } from "./grpc-recorder.builder"
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
