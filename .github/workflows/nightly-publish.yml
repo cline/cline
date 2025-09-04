@@ -1,0 +1,89 @@
+name: Nightly Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (default: main)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+jobs:
+  publish-nightly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'main' }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      # Cache root dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache root dependencies
+        uses: actions/cache@v4
+        id: root-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache webview-ui dependencies
+        uses: actions/cache@v4
+        id: webview-cache
+        with:
+          path: webview-ui/node_modules
+          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+      - name: Install root dependencies
+        if: steps.root-cache.outputs.cache-hit != 'true'
+        run: npm ci --include=optional
+
+      - name: Install webview-ui dependencies
+        if: steps.webview-cache.outputs.cache-hit != 'true'
+        run: cd webview-ui && npm ci --include=optional
+
+      - name: Install Publishing Tool
+        run: npm install -g @vscode/vsce
+
+      # Forge a strictly increasing nightly patch version (monotonic)
+      - name: Compute Nightly patch number
+        id: nightly_version
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: echo "patch=$(( 6000 + ${RUN_NUMBER} ))" >> $GITHUB_OUTPUT
+
+      - name: Patch package.json for Nightly
+        env:
+          NIGHTLY_PATCH: ${{ steps.nightly_version.outputs.patch }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const pkgPath = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const [maj, min] = (pkg.version || '0.0.0').split('.');
+          pkg.name = 'cline-nightly';
+          pkg.displayName = 'Cline Nightly';
+          pkg.preview = true;
+          pkg.version = `${maj}.${min}.${process.env.NIGHTLY_PATCH}`;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+          console.log(`🔖 Nightly ID: ${pkg.publisher}.${pkg.name}`);
+          console.log(`🔖 Nightly version: ${pkg.version}`);
+          EOF
+
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          CLINE_ENVIRONMENT: nightly
+        # vsce will invoke "vscode:prepublish" which builds the extension (webview + bundle)
+        run: vsce publish --allow-package-secrets sendgrid
