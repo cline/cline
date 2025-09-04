@@ -39,6 +39,7 @@ import {
 	RooHandler,
 	FeatherlessHandler,
 	VercelAiGatewayHandler,
+	DeepInfraHandler,
 } from "./providers"
 import { NativeOllamaHandler } from "./providers/native-ollama"
 
@@ -138,6 +139,8 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 			return new XAIHandler(options)
 		case "groq":
 			return new GroqHandler(options)
+		case "deepinfra":
+			return new DeepInfraHandler(options)
 		case "huggingface":
 			return new HuggingFaceHandler(options)
 		case "chutes":
