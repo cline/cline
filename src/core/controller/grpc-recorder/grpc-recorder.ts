@@ -1,9 +1,10 @@
 import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
-import { LogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
+import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
 import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
+import { GrpcRecorderBuilder } from "./grpc-recorder.builder"
 
-class GrpcRecorderNoops implements IRecorder {
+export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
 	recordResponse(_requestId: string, _response: GrpcResponse): void {}
 	recordError(_requestId: string, _error: string): void {}
@@ -22,13 +23,11 @@ export interface IRecorder {
 	getSessionLog(): GrpcSessionLog
 }
 
-// WIP: to refactor in different classes, just to reduce responsability here
 export class GrpcRecorder implements IRecorder {
-	private static instance: IRecorder | null = null
 	private sessionLog: GrpcSessionLog
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
 
-	private constructor(private fileHandler: LogFileHandler) {
+	constructor(private fileHandler: ILogFileHandler) {
 		this.sessionLog = {
 			startTime: new Date().toISOString(),
 			entries: [],
@@ -39,25 +38,8 @@ export class GrpcRecorder implements IRecorder {
 		})
 	}
 
-	public static getInstance(): IRecorder {
-		const enabled = process.env.GRPC_RECORDER_ENABLED === "true"
-		if (!enabled) {
-			GrpcRecorder.instance = new GrpcRecorderNoops()
-		}
-		if (!GrpcRecorder.instance) {
-			GrpcRecorder.instance = new GrpcRecorder(new LogFileHandler())
-		}
-		if (!GrpcRecorder.instance) {
-			throw new Error("GrpcRecorder not initialized. Call getInstance with context first.")
-		}
-		return GrpcRecorder.instance
-	}
-
-	public static async dispose(): Promise<void> {
-		if (!GrpcRecorder.instance) {
-			return
-		}
-		GrpcRecorder.instance = null
+	public static builder(): GrpcRecorderBuilder {
+		return new GrpcRecorderBuilder()
 	}
 
 	public recordRequest(request: GrpcRequest): void {
@@ -72,7 +54,6 @@ export class GrpcRecorder implements IRecorder {
 			status: "pending",
 		}
 
-		// Store pending request for duration calculation
 		this.pendingRequests.set(request.request_id, {
 			entry,
 			startTime: Date.now(),
@@ -109,7 +90,6 @@ export class GrpcRecorder implements IRecorder {
 			this.pendingRequests.delete(requestId)
 		}
 
-		// WIP: to add as {stats,...}
 		this.sessionLog.stats = this.getStats()
 
 		this.flushLogAsync()

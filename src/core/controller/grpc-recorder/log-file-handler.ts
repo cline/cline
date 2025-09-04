@@ -5,7 +5,17 @@ import { GrpcSessionLog } from "@/core/controller/grpc-recorder/types"
 
 const LOG_FILE_PREFIX = "grpc_recorded_session"
 
-export class LogFileHandler {
+export class LogFileHandlerNoops implements ILogFileHandler {
+	async initialize(_initialData: GrpcSessionLog): Promise<void> {}
+	async write(_sessionLog: GrpcSessionLog): Promise<void> {}
+}
+
+export interface ILogFileHandler {
+	initialize(initialData: GrpcSessionLog): Promise<void>
+	write(sessionLog: GrpcSessionLog): Promise<void>
+}
+
+export class LogFileHandler implements ILogFileHandler {
 	private logFilePath: string
 
 	constructor() {
@@ -19,7 +29,7 @@ export class LogFileHandler {
 		return this.logFilePath
 	}
 
-	private getFileName(): string {
+	public getFileName(): string {
 		const envFileName = process.env.GRPC_RECORDER_FILE_NAME
 		if (envFileName && envFileName.trim().length > 0) {
 			return `${LOG_FILE_PREFIX}_${envFileName}.json`

@@ -4,6 +4,7 @@ import { WebviewProvider } from "@core/webview"
 import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
+import { LogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { type GrpcRequest, WebviewMessage } from "@/shared/WebviewMessage"
@@ -22,9 +23,15 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 	private webview?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
+	private recorder: IRecorder
 
 	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
 		super(context, providerType)
+
+		this.recorder = GrpcRecorder.builder()
+			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true")
+			.withLogFileHandler(new LogFileHandler())
+			.build()
 	}
 
 	override getWebviewUri(uri: Uri) {
@@ -186,12 +193,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	private withRecordingMiddleware(
 		postMessage: (msg: ExtensionMessage) => Thenable<boolean | undefined>,
 	): (msg: ExtensionMessage) => Thenable<boolean | undefined> {
-		const recorder: IRecorder = GrpcRecorder.getInstance()
-
 		return async (response: ExtensionMessage) => {
 			if (response?.grpc_response) {
 				try {
-					recorder.recordResponse(response.grpc_response.request_id, response.grpc_response)
+					this.recorder.recordResponse(response.grpc_response.request_id, response.grpc_response)
 				} catch (e) {
 					console.warn("Failed to record gRPC response:", e)
 				}
@@ -205,8 +210,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 */
 	private recordRequest(request: GrpcRequest): void {
 		try {
-			const recorder = GrpcRecorder.getInstance()
-			recorder.recordRequest(request)
+			this.recorder.recordRequest(request)
 		} catch (e) {
 			console.warn("Failed to record gRPC request:", e)
 		}

@@ -3,7 +3,6 @@ import "should"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-
 import { GrpcRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeWebviewProvider } from "@/hosts/vscode/VscodeWebviewProvider"
@@ -71,14 +70,20 @@ describe("VscodeWebviewProvider Recording Middleware", () => {
 			getLogFilePath: sinon.stub(),
 			getSessionLog: sinon.stub(),
 		}
+		const builderStub = {
+			enableIf: sinon.stub().returnsThis(),
+			withLogFileHandler: sinon.stub().returnsThis(),
+			build: sinon.stub().returns(recorderStub),
+		}
 
-		sinon.stub(GrpcRecorder, "getInstance").returns(recorderStub)
+		sinon.stub(GrpcRecorder, "builder").returns(builderStub as any)
 
 		consoleWarnStub = sinon.stub(console, "warn")
 
 		setVscodeHostProviderMock()
 
 		provider = new VscodeWebviewProvider(mockContext, WebviewProviderType.SIDEBAR)
+		expect((provider as any).recorder).to.equal(recorderStub)
 
 		mockWebview.postMessage.reset()
 		mockWebview.onDidReceiveMessage.reset()

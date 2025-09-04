@@ -1,50 +1,16 @@
 import { GrpcRecorder, IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { expect } from "chai"
-import * as fs from "fs/promises"
-import { afterEach, before, describe, it } from "mocha"
-import * as os from "os"
-import path from "path"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcRequest } from "@/shared/WebviewMessage"
 
 describe("grpc-recorder", () => {
-	let originalEnv: NodeJS.ProcessEnv
 	let recorder: IRecorder
-	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
 
-	// weird, we should have beforeAll
 	before(async () => {
-		originalEnv = { ...process.env }
-
-		// WIP: we should avoid doing this, this can affect other tests
-		process.env.DEV_WORKSPACE_FOLDER = tmpDir
-		process.env.GRPC_RECORDER_ENABLED = "true"
-
-		// Ensure the directory structure exists
-		const testsDir = path.join(tmpDir, "tests", "specs")
-		await fs.mkdir(testsDir, { recursive: true })
-
-		recorder = GrpcRecorder.getInstance()
-		// expect(recorder.getLogFilePath()).contain("T/cline-test-")
-		// expect(recorder.getLogFilePath()).contain("grpc-recorded-session-")
+		recorder = GrpcRecorder.builder().enableIf(true).build()
 	})
 
-	after(async () => {
-		try {
-			await fs.rm(tmpDir, { recursive: true, force: true })
-		} catch {
-			// Ignore cleanup errors
-		}
-	})
-
-	afterEach(() => {
-		process.env = { ...originalEnv }
-	})
-
-	// WIP: refactor test
 	describe("GrpcRecorder", () => {
-		it("check whether is enabled or not", async () => {})
-
 		it("matches multiple request, response and stats", async () => {
 			interface UseCase {
 				request: GrpcRequest
@@ -135,25 +101,6 @@ describe("grpc-recorder", () => {
 				completedRequests: 2,
 				errorRequests: 1,
 			})
-
-			/*
-			await recorder.flushLog()
-
-			const logFilePath = recorder.getLogFilePath()
-			let fileExists = false
-			try {
-				await fs.access(logFilePath)
-				fileExists = true
-			} catch (error) {
-				// WIP: maybe fail the test here?
-			}
-			expect(fileExists).to.be.true
-
-			const fileContent = await fs.readFile(logFilePath, "utf8")
-			const parsedContent = JSON.parse(fileContent)
-
-			expect(parsedContent.entries).to.be.length(3)
-			*/
 		})
 	})
 })
