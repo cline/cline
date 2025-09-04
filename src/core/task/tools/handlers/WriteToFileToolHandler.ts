@@ -49,7 +49,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		const config = uiHelpers.getConfig()
 
-		// Creates file if it doesn't exist, and opens editor to stream content in. We don't want to handle this in the try/catch below since the error handler for it resets the diff view. And since that diff view reset fails, that error was being displayed instead of the appropriate error message about e.g. a missing file.
+		// Creates file if it doesn't exist, and opens editor to stream content in. We don't want to handle this in the try/catch below since the error handler for it resets the diff view, which wouldn't be open if this failed.
 		const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
 		if (!result) {
 			return
