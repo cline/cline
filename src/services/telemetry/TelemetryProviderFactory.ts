@@ -33,10 +33,7 @@ export class TelemetryProviderFactory {
 					return new PostHogTelemetryProvider(sharedClient)
 				}
 				return new NoOpTelemetryProvider()
-			case "none":
-				return new NoOpTelemetryProvider()
 			default:
-				console.error(`Unsupported telemetry provider type: ${config.type}`)
 				return new NoOpTelemetryProvider()
 		}
 	}

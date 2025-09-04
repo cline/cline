@@ -26,5 +26,14 @@ const posthogDevEnvConfig = {
 	uiHost: "https://us.i.posthog.com",
 } satisfies PostHogClientConfig
 
-// NOTE: Ensure that dev environment is used when process.env.IS_DEV is "true"
-export const posthogConfig = process.env.IS_DEV === "true" ? posthogDevEnvConfig : posthogProdConfig
+const posthogTestEnvConfig = {
+	...posthogDevEnvConfig,
+	apiKey: undefined,
+	errorTrackingApiKey: undefined,
+} satisfies PostHogClientConfig
+
+const isTestEnv = process.env.IS_TEST === "true" || process.env.E2E_TEST
+const isDevEnv = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
+
+// NOTE: Ensure the correct config is used based on environment
+export const posthogConfig = isTestEnv ? posthogTestEnvConfig : isDevEnv ? posthogDevEnvConfig : posthogProdConfig
