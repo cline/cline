@@ -89,19 +89,3 @@ jobs:
             - name: Run integration tests
               working-directory: apps/vscode-e2e
               run: xvfb-run -a pnpm test:ci
-
-    notify-slack-on-failure:
-        runs-on: ubuntu-latest
-        needs: [check-translations, knip, compile, unit-test, integration-test]
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(needs.*.result, 'failure') }}
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Send Slack notification on failure
-              uses: ./.github/actions/slack-notify
-              with:
-                  webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-                  channel: "#ci"
-                  workflow-name: "Code QA"
-                  failed-jobs: ${{ toJSON(needs) }}
