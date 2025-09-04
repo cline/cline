@@ -2743,6 +2743,14 @@ export const sambanovaModels = {
 		inputPrice: 3.0,
 		outputPrice: 4.5,
 	},
+	"DeepSeek-V3.1": {
+		maxTokens: 7168,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 4.5,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Cerebras
