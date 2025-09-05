@@ -16,7 +16,8 @@
  * 6. Restores the original package.json
  *
  * Usage:
- *   node scripts/nightly-publish.mjs
+ *   npm run publish:marketplace:nightly
+ *   npm run publish:marketplace:nightly -- --dry-run
  *
  * Environment variables:
  *   VSCE_PAT  - Personal Access Token for VS Code Marketplace
@@ -354,7 +355,7 @@ if (showHelp) {
 Nightly publish script for VS Code extension
 
 Usage:
-  node scripts/nightly-publish.mjs [options]
+  npm run publish:marketplace:nightly [options]
 
 Options:
   --dry-run, -n    Run without actually publishing (package only)
@@ -365,9 +366,9 @@ Environment variables:
   OVSX_PAT         Personal Access Token for OpenVSX Registry
 
 Examples:
-  node scripts/nightly-publish.mjs                    # Full publish
-  node scripts/nightly-publish.mjs --dry-run          # Package only
-  VSCE_PAT="token" node scripts/nightly-publish.mjs   # Publish to VS Code only
+  npm run publish:marketplace:nightly                    # Full publish
+  npm run publish:marketplace:nightly  -- --dry-run      # Package only
+  VSCE_PAT="token" npm run publish:marketplace:nightly   # Publish to VS Code only
 `)
 	process.exit(0)
 }
