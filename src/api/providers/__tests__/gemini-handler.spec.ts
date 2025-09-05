@@ -85,7 +85,7 @@ describe("GeminiHandler backend support", () => {
 							groundingMetadata: {
 								groundingChunks: [
 									{ web: null }, // Missing URI
-									{ web: { uri: "https://example.com" } }, // Valid
+									{ web: { uri: "https://example.com", title: "Example Site" } }, // Valid
 									{}, // Missing web property entirely
 								],
 							},
@@ -105,13 +105,20 @@ describe("GeminiHandler backend support", () => {
 				messages.push(chunk)
 			}
 
-			// Should only include valid citations
-			const sourceMessage = messages.find((m) => m.type === "text" && m.text?.includes("[2]"))
-			expect(sourceMessage).toBeDefined()
-			if (sourceMessage && "text" in sourceMessage) {
-				expect(sourceMessage.text).toContain("https://example.com")
-				expect(sourceMessage.text).not.toContain("[1]")
-				expect(sourceMessage.text).not.toContain("[3]")
+			// Should have the text response
+			const textMessage = messages.find((m) => m.type === "text")
+			expect(textMessage).toBeDefined()
+			if (textMessage && "text" in textMessage) {
+				expect(textMessage.text).toBe("test response")
+			}
+
+			// Should have grounding chunk with only valid sources
+			const groundingMessage = messages.find((m) => m.type === "grounding")
+			expect(groundingMessage).toBeDefined()
+			if (groundingMessage && "sources" in groundingMessage) {
+				expect(groundingMessage.sources).toHaveLength(1)
+				expect(groundingMessage.sources[0].url).toBe("https://example.com")
+				expect(groundingMessage.sources[0].title).toBe("Example Site")
 			}
 		})
 
