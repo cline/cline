@@ -145,7 +145,7 @@ function createIsIgnored(standaloneIgnores) {
 	let allIgnore = [...defaultIgnore, ...expandedIgnore, ...standaloneIgnores]
 
 	// Map files need to be included in the debug build. Remove .map ignores when IS_DEBUG_BUILD is set
-	if (process.env.IS_DEBUG_BUILD) {
+	if (process.env.IS_DEBUG_BUILD == "true") {
 		allIgnore = allIgnore.filter((pattern) => !pattern.endsWith(".map"))
 		console.log("Debug build: Including .map files in package")
 	}
