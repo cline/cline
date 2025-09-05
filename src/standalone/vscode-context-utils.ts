@@ -8,7 +8,8 @@ try {
 	// eslint-disable-next-line @typescript-eslint/no-var-requires
 	// @ts-ignore
 	keytar = require("keytar")
-} catch {
+} catch (err) {
+	console.warn("[cline] Failed to load keytar; falling back to JSON secret store.", err)
 	keytar = null
 }
 
@@ -66,25 +67,38 @@ export class SecretStore implements vscode.SecretStorage {
 			if (existingSecrets?.length > 0 || !fs.existsSync(this.jsonFilePath)) return
 
 			const data = JSON.parse(fs.readFileSync(this.jsonFilePath, "utf-8"))
-			const secrets = Object.entries(data || {}).filter(([, v]) => typeof v === "string" && v.length > 0)
+			const secrets = Object.entries(data || {}).filter(([, v]) => typeof v === "string" && (v as string).length > 0)
 
-			if (secrets.length === 0) return fs.unlinkSync(this.jsonFilePath)
+			if (secrets.length === 0) {
+				fs.unlinkSync(this.jsonFilePath)
+				return
+			}
 
-			const migrated = new Set<string>()
-			await Promise.all(
-				secrets.map(async ([k, v]) => {
-					try {
-						await keytar!.setPassword(SERVICE_NAME, k, v as string)
-						migrated.add(k)
-					} catch {}
-				}),
-			)
+			const migratedKeys: string[] = []
+			for (const [k, v] of secrets) {
+				try {
+					await keytar!.setPassword(SERVICE_NAME, k, v as string)
+					migratedKeys.push(k)
+				} catch (err) {
+					console.warn(`[cline] Failed to migrate secret for key "${k}" to keytar. Rolling back.`, err)
+					// Roll back any migrated keys, keep JSON intact
+					await Promise.all(
+						migratedKeys.map(async (mk) => {
+							try {
+								await keytar!.deletePassword(SERVICE_NAME, mk)
+							} catch (rollbackErr) {
+								console.warn(`[cline] Failed to rollback migrated key "${mk}" from keytar.`, rollbackErr)
+							}
+						}),
+					)
+					return
+				}
+			}
 
-			const remaining = Object.fromEntries(Object.entries(data).filter(([k]) => !migrated.has(k)))
-			Object.keys(remaining).length
-				? fs.writeFileSync(this.jsonFilePath, JSON.stringify(remaining, null, 2))
-				: fs.unlinkSync(this.jsonFilePath)
-		} catch {}
+			fs.unlinkSync(this.jsonFilePath)
+		} catch (err) {
+			console.warn("[cline] Secret migration to keytar failed. Keeping JSON store.", err)
+		}
 	}
 }
 // Create a class that implements Memento interface with the required setKeysForSync method
