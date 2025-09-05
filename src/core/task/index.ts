@@ -247,6 +247,20 @@ export class Task {
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
+		// Initialize focus chain manager only if enabled
+		if (this.focusChainSettings.enabled) {
+			this.FocusChainManager = new FocusChainManager({
+				taskId: this.taskId,
+				taskState: this.taskState,
+				mode: this.mode,
+				context: this.getContext(),
+				stateManager: this.stateManager,
+				postStateToWebview: this.postStateToWebview,
+				say: this.say.bind(this),
+				focusChainSettings: this.focusChainSettings,
+			})
+		}
+
 		// Initialize checkpoint manager
 		try {
 			this.checkpointManager = createTaskCheckpointManager(
