@@ -1,4 +1,3 @@
-import { workspaceResolver } from "@core/workspace"
 import fs from "fs/promises"
 import * as path from "path"
 
