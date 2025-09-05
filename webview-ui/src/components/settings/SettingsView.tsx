@@ -1,7 +1,7 @@
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { debounce } from "lodash"
+import debounce from "lodash/debounce"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
@@ -98,17 +98,6 @@ type SettingsViewProps = {
 	targetSection?: string
 }
 
-// Memoized tab content mapping for better performance
-const TAB_CONTENT_MAP = {
-	"api-config": ApiConfigurationSection,
-	general: GeneralSettingsSection,
-	features: FeatureSettingsSection,
-	browser: BrowserSettingsSection,
-	terminal: TerminalSettingsSection,
-	about: AboutSection,
-	debug: DebugSection,
-} as const
-
 // Helper to render section header - moved outside component for better performance
 const renderSectionHeader = (tabId: string) => {
 	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
@@ -127,6 +116,20 @@ const renderSectionHeader = (tabId: string) => {
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
+	// Memoize to avoid recreation
+	const TAB_CONTENT_MAP = useMemo(
+		() => ({
+			"api-config": ApiConfigurationSection,
+			general: GeneralSettingsSection,
+			features: FeatureSettingsSection,
+			browser: BrowserSettingsSection,
+			terminal: TerminalSettingsSection,
+			about: AboutSection,
+			debug: DebugSection,
+		}),
+		[],
+	) // Empty deps - these imports never change
+
 	const { version, telemetrySetting } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
