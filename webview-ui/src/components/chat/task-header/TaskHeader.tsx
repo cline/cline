@@ -851,7 +851,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 			return (
 				<span
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
-					key={part}
+					key={`mention-${Math.floor(index / 2)}`}
 					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
 					style={{ cursor: "pointer" }}>
 					@{part}
