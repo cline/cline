@@ -7,7 +7,6 @@ import { isBinaryFile } from "isbinaryfile"
 import { mentionRegexGlobal, commandRegexGlobal, unescapeSpaces } from "../../shared/context-mentions"
 
 import { getCommitInfo, getWorkingState } from "../../utils/git"
-import { getWorkspacePath } from "../../utils/path"
 
 import { openFile } from "../../integrations/misc/open-file"
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
@@ -49,13 +48,8 @@ function getUrlErrorMessage(error: unknown): string {
 	return t("common:errors.url_fetch_failed", { error: errorMessage })
 }
 
-export async function openMention(mention?: string): Promise<void> {
+export async function openMention(cwd: string, mention?: string): Promise<void> {
 	if (!mention) {
-		return
-	}
-
-	const cwd = getWorkspacePath()
-	if (!cwd) {
 		return
 	}
 

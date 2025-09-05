@@ -30,7 +30,7 @@ import {
 	McpToolCallResponse,
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
-import { arePathsEqual } from "../../utils/path"
+import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 import { injectVariables } from "../../utils/config"
 
 // Discriminated union for connection states
@@ -349,7 +349,7 @@ export class McpHub {
 			return
 		}
 
-		const workspaceFolder = vscode.workspace.workspaceFolders[0]
+		const workspaceFolder = this.providerRef.deref()?.cwd ?? getWorkspacePath()
 		const projectMcpPattern = new vscode.RelativePattern(workspaceFolder, ".roo/mcp.json")
 
 		// Create a file system watcher for the project MCP file pattern
@@ -551,12 +551,8 @@ export class McpHub {
 
 	// Get project-level MCP configuration path
 	private async getProjectMcpPath(): Promise<string | null> {
-		if (!vscode.workspace.workspaceFolders?.length) {
-			return null
-		}
-
-		const workspaceFolder = vscode.workspace.workspaceFolders[0]
-		const projectMcpDir = path.join(workspaceFolder.uri.fsPath, ".roo")
+		const workspacePath = this.providerRef.deref()?.cwd ?? getWorkspacePath()
+		const projectMcpDir = path.join(workspacePath, ".roo")
 		const projectMcpPath = path.join(projectMcpDir, "mcp.json")
 
 		try {

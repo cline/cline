@@ -17,6 +17,7 @@ export class QdrantVectorStore implements IVectorStore {
 	private client: QdrantClient
 	private readonly collectionName: string
 	private readonly qdrantUrl: string = "http://localhost:6333"
+	private readonly workspacePath: string
 
 	/**
 	 * Creates a new Qdrant vector store
@@ -29,6 +30,7 @@ export class QdrantVectorStore implements IVectorStore {
 
 		// Store the resolved URL for our property
 		this.qdrantUrl = parsedUrl
+		this.workspacePath = workspacePath
 
 		try {
 			const urlObj = new URL(parsedUrl)
@@ -457,7 +459,7 @@ export class QdrantVectorStore implements IVectorStore {
 				return
 			}
 
-			const workspaceRoot = getWorkspacePath()
+			const workspaceRoot = this.workspacePath
 
 			// Build filters using pathSegments to match the indexed fields
 			const filters = filePaths.map((filePath) => {

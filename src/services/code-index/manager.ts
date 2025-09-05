@@ -1,5 +1,4 @@
 import * as vscode from "vscode"
-import { getWorkspacePath } from "../../utils/path"
 import { ContextProxy } from "../../core/config/ContextProxy"
 import { VectorStoreSearchResult } from "./interfaces"
 import { IndexingState } from "./interfaces/manager"
@@ -133,7 +132,7 @@ export class CodeIndexManager {
 		}
 
 		// 3. Check if workspace is available
-		const workspacePath = getWorkspacePath()
+		const workspacePath = this.workspacePath
 		if (!workspacePath) {
 			this._stateManager.setSystemState("Standby", "No workspace folder open")
 			return { requiresRestart }
@@ -306,7 +305,7 @@ export class CodeIndexManager {
 		)
 
 		const ignoreInstance = ignore()
-		const workspacePath = getWorkspacePath()
+		const workspacePath = this.workspacePath
 
 		if (!workspacePath) {
 			this._stateManager.setSystemState("Standby", "")

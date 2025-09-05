@@ -17,7 +17,7 @@ class WorkspaceTracker {
 	private resetTimer: NodeJS.Timeout | null = null
 
 	get cwd() {
-		return getWorkspacePath()
+		return this.providerRef?.deref()?.cwd ?? getWorkspacePath()
 	}
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
