@@ -14,10 +14,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
-	readonly id = ClineDefaultTool.ATTEMPT
-	readonly name = "attempt_completion"
-
-	constructor() {}
+	readonly name = ClineDefaultTool.ATTEMPT
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -50,7 +47,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Validate required parameters
 		if (!result) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("attempt_completion", "result")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "result")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

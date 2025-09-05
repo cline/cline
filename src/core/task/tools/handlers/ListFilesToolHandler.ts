@@ -14,8 +14,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
-	readonly id = ClineDefaultTool.LIST_FILES
-	readonly name = "list_files"
+	readonly name = ClineDefaultTool.LIST_FILES
 
 	constructor(private validator: ToolValidator) {}
 
@@ -60,7 +59,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

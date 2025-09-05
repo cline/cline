@@ -12,9 +12,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlockHandler {
-	id = ClineDefaultTool.ASK
-	name = ClineDefaultTool.ASK
-	supportedTools: ClineDefaultTool[] = [ClineDefaultTool.ASK]
+	readonly name = ClineDefaultTool.ASK
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.question}']`
@@ -38,7 +36,7 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 		// Validate required parameter
 		if (!question) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("ask_followup_question", "question")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "question")
 		}
 		config.taskState.consecutiveMistakeCount = 0
 

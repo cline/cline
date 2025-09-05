@@ -15,8 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
-	readonly id = ClineDefaultTool.BASH
-	readonly name = "execute_command"
+	readonly name = ClineDefaultTool.BASH
 
 	constructor(_validator: ToolValidator) {}
 
@@ -28,7 +27,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const command = block.params.command
 
 		// Check if this should be auto-approved to determine UI flow
-		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool(this.id)
+		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool(this.name)
 
 		if (shouldAutoApprove) {
 			// For auto-approved commands, we can't partially stream a say prematurely
@@ -50,12 +49,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		// Validate required parameters
 		if (!command) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "command")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "command")
 		}
 
 		if (!requiresApprovalRaw) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "requires_approval")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "requires_approval")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

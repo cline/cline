@@ -11,8 +11,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler {
-	readonly id = ClineDefaultTool.SUMMARIZE_TASK
-	readonly name = "summarize_task"
+	readonly name = ClineDefaultTool.SUMMARIZE_TASK
 
 	constructor() {}
 
@@ -27,7 +26,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// Validate required parameters
 			if (!context) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError(this.id, "context")
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "context")
 			}
 
 			config.taskState.consecutiveMistakeCount = 0

@@ -10,8 +10,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
-	readonly id = ClineDefaultTool.PLAN_MODE
-	readonly name = "plan_mode_respond"
+	readonly name = ClineDefaultTool.PLAN_MODE
 
 	constructor() {}
 
@@ -31,7 +30,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			options: parsePartialArrayString(uiHelpers.removeClosingTag(block, "options", optionsRaw)),
 		} satisfies ClinePlanModeResponse
 
-		await uiHelpers.ask(this.id, JSON.stringify(sharedMessage), true).catch(() => {})
+		await uiHelpers.ask(this.name, JSON.stringify(sharedMessage), true).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -66,7 +65,11 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 		}
 
 		// Ask for user response
-		let { text, images, files: planResponseFiles } = await config.callbacks.ask(this.id, JSON.stringify(sharedMessage), false)
+		let {
+			text,
+			images,
+			files: planResponseFiles,
+		} = await config.callbacks.ask(this.name, JSON.stringify(sharedMessage), false)
 
 		config.taskState.isAwaitingPlanResponse = false
 
@@ -80,7 +83,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			telemetryService.captureOptionSelected(config.ulid, options.length, "plan")
 			// Valid option selected, don't show user message in UI
 			// Update last plan message with selected option
-			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.id)
+			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.name)
 			if (lastPlanMessage) {
 				lastPlanMessage.text = JSON.stringify({
 					...sharedMessage,

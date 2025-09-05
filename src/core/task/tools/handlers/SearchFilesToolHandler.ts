@@ -15,8 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class SearchFilesToolHandler implements IFullyManagedTool {
-	readonly id = ClineDefaultTool.SEARCH
-	readonly name = "search_files"
+	readonly name = ClineDefaultTool.SEARCH
 
 	constructor(private validator: ToolValidator) {}
 
@@ -65,12 +64,12 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		if (!regex) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "regex")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "regex")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

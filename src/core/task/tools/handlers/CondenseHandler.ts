@@ -11,8 +11,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
-	readonly id = ClineDefaultTool.CONDENSE
-	readonly name = "condense"
+	readonly name = ClineDefaultTool.CONDENSE
 
 	constructor() {}
 

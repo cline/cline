@@ -187,9 +187,9 @@ export class ToolExecutor {
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file"
-		this.coordinator.register(new SharedToolHandler("replace_in_file", writeHandler))
-		this.coordinator.register(new SharedToolHandler("new_rule", writeHandler))
+		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))

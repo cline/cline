@@ -5,8 +5,7 @@ import type { TaskConfig } from "./types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "./types/UIHelpers"
 
 export interface IToolHandler {
-	readonly id: ClineDefaultTool
-	readonly name: string
+	readonly name: ClineDefaultTool
 	execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse>
 	getDescription(block: ToolUse): string
 }
@@ -25,8 +24,7 @@ export interface IFullyManagedTool extends IToolHandler, IPartialBlockHandler {
  */
 export class SharedToolHandler implements IFullyManagedTool {
 	constructor(
-		public readonly id: ClineDefaultTool,
-		public readonly name: string,
+		public readonly name: ClineDefaultTool,
 		private baseHandler: IFullyManagedTool,
 	) {}
 

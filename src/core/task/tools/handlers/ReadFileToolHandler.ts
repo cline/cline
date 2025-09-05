@@ -15,8 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ReadFileToolHandler implements IFullyManagedTool {
-	readonly id = ClineDefaultTool.FILE_READ
-	readonly name = "read_file"
+	readonly name = ClineDefaultTool.FILE_READ
 
 	constructor(private validator: ToolValidator) {}
 
@@ -56,7 +55,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		// Check clineignore access

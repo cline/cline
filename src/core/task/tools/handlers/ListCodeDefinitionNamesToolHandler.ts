@@ -14,8 +14,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
-	readonly id = ClineDefaultTool.LIST_CODE_DEF
-	readonly name = "list_code_definition_names"
+	readonly name = ClineDefaultTool.LIST_CODE_DEF
 
 	constructor(private validator: ToolValidator) {}
 
@@ -55,7 +54,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.id, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
