@@ -49,21 +49,21 @@ const WelcomeView = () => {
 
 	return (
 		<Tab>
-			<TabContent className="flex flex-col gap-5 p-16">
+			<TabContent className="flex flex-col gap-4 p-6">
 				<RooHero />
-				<h2 className="mt-0 mb-0">{t("welcome:greeting")}</h2>
+				<h2 className="mt-0 mb-4 text-xl text-center">{t("welcome:greeting")}</h2>
 
-				<div className="font-bold">
-					<p>
+				<div className="text-base text-vscode-foreground py-2 px-2 mb-4">
+					<p className="mb-3 leading-relaxed">
 						<Trans i18nKey="welcome:introduction" />
 					</p>
-					<p>
+					<p className="mb-0 leading-relaxed">
 						<Trans i18nKey="welcome:chooseProvider" />
 					</p>
 				</div>
 
 				<div className="mb-4">
-					<p className="font-bold mt-0">{t("welcome:startRouter")}</p>
+					<p className="text-sm font-medium mt-4 mb-3">{t("welcome:startRouter")}</p>
 
 					<div>
 						{/* Define the providers */}
@@ -94,10 +94,10 @@ const WelcomeView = () => {
 								<a
 									key={index}
 									href={provider.authUrl}
-									className="flex-1 border border-vscode-panel-border hover:bg-secondary rounded-lg py-4 px-6 mb-2 flex flex-row gap-4 cursor-pointer transition-all no-underline text-inherit"
+									className="flex-1 border border-vscode-panel-border hover:bg-secondary rounded-md py-3 px-4 mb-2 flex flex-row gap-3 cursor-pointer transition-all no-underline text-inherit"
 									target="_blank"
 									rel="noopener noreferrer">
-									<div className="w-10 h-10">
+									<div className="w-8 h-8 flex-shrink-0">
 										<img
 											src={`${imagesBaseUri}/${provider.slug}.png`}
 											alt={provider.name}
@@ -105,13 +105,15 @@ const WelcomeView = () => {
 										/>
 									</div>
 									<div>
-										<div className="font-bold text-vscode-foreground">{provider.name}</div>
+										<div className="text-sm font-medium text-vscode-foreground">
+											{provider.name}
+										</div>
 										<div>
 											<div className="text-xs text-vscode-descriptionForeground">
 												{provider.description}
 											</div>
 											{provider.incentive && (
-												<div className="text-xs font-bold">{provider.incentive}</div>
+												<div className="text-xs mt-1">{provider.incentive}</div>
 											)}
 										</div>
 									</div>
@@ -120,7 +122,7 @@ const WelcomeView = () => {
 						})()}
 					</div>
 
-					<p className="font-bold mt-8 mb-6">{t("welcome:startCustom")}</p>
+					<p className="text-sm font-medium mt-6 mb-3">{t("welcome:startCustom")}</p>
 					<ApiOptions
 						fromWelcomeView
 						apiConfiguration={apiConfiguration || {}}
@@ -131,8 +133,8 @@ const WelcomeView = () => {
 					/>
 				</div>
 			</TabContent>
-			<div className="sticky bottom-0 bg-vscode-sideBar-background p-5">
-				<div className="flex flex-col gap-1">
+			<div className="sticky bottom-0 bg-vscode-sideBar-background p-4 border-t border-vscode-panel-border">
+				<div className="flex flex-col gap-2">
 					<div className="flex justify-end">
 						<VSCodeLink
 							href="#"
