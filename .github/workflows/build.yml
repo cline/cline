@@ -5,6 +5,12 @@ on:
         branches:
             - main
 
+permissions:
+    contents: write
+    packages: write
+    checks: write
+    pull-requests: write
+
 jobs:
     test:
         uses: ./.github/workflows/test.yml
