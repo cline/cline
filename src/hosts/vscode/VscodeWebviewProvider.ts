@@ -29,7 +29,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		super(context, providerType)
 
 		this.recorder = GrpcRecorder.builder()
-			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true")
+			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true" && process.env.CLINE_ENVIRONMENT === "local")
 			.withLogFileHandler(new LogFileHandler())
 			.build()
 	}
@@ -226,7 +226,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Create recording middleware wrapper
 		const postMessageWithRecording = this.withRecordingMiddleware(this.postMessageToWebview.bind(this))
 
-		// WIP: probably we might want to consider WebviewMessage instead
 		switch (message.type) {
 			case "grpc_request": {
 				if (message.grpc_request) {
@@ -237,7 +236,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			}
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
-					// WIP: consider this calls as well
 					await handleGrpcRequestCancel(postMessageWithRecording, message.grpc_request_cancel)
 				}
 				break
