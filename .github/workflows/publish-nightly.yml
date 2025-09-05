@@ -23,8 +23,6 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
-              with:
-                  ref: ${{ github.event.inputs.tag }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
