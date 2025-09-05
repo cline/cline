@@ -113,20 +113,20 @@ const SHELL_PATHS = {
 } as const
 
 interface MacTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type MacTerminalProfiles = Record<string, MacTerminalProfile>
 
 interface WindowsTerminalProfile {
-	path?: string
+	path?: string | string[]
 	source?: "PowerShell" | "WSL"
 }
 
 type WindowsTerminalProfiles = Record<string, WindowsTerminalProfile>
 
 interface LinuxTerminalProfile {
-	path?: string
+	path?: string | string[]
 }
 
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
@@ -172,6 +172,18 @@ function getLinuxTerminalConfig() {
 // 2) Platform-Specific VS Code Shell Retrieval
 // -----------------------------------------------------
 
+/**
+ * Normalizes a path that can be either a string or an array of strings.
+ * If it's an array, returns the first element. Otherwise returns the string.
+ */
+function normalizeShellPath(path: string | string[] | undefined): string | null {
+	if (!path) return null
+	if (Array.isArray(path)) {
+		return path.length > 0 ? path[0] : null
+	}
+	return path
+}
+
 /** Attempts to retrieve a shell path from VS Code config on Windows. */
 function getWindowsShellFromVSCode(): string | null {
 	const { defaultProfileName, profiles } = getWindowsTerminalConfig()
@@ -185,9 +197,10 @@ function getWindowsShellFromVSCode(): string | null {
 	// In testing it was found these typically do not have a path, and this
 	// implementation manages to deductively get the correct version of PowerShell
 	if (defaultProfileName.toLowerCase().includes("powershell")) {
-		if (profile?.path) {
+		const normalizedPath = normalizeShellPath(profile?.path)
+		if (normalizedPath) {
 			// If there's an explicit PowerShell path, return that
-			return profile.path
+			return normalizedPath
 		} else if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
 			return SHELL_PATHS.POWERSHELL_7
@@ -197,8 +210,9 @@ function getWindowsShellFromVSCode(): string | null {
 	}
 
 	// If there's a specific path, return that immediately
-	if (profile?.path) {
-		return profile.path
+	const normalizedPath = normalizeShellPath(profile?.path)
+	if (normalizedPath) {
+		return normalizedPath
 	}
 
 	// If the profile indicates WSL
@@ -218,7 +232,7 @@ function getMacShellFromVSCode(): string | null {
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return normalizeShellPath(profile?.path)
 }
 
 /** Attempts to retrieve a shell path from VS Code config on Linux. */
@@ -229,7 +243,7 @@ function getLinuxShellFromVSCode(): string | null {
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+	return normalizeShellPath(profile?.path)
 }
 
 // -----------------------------------------------------
