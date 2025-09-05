@@ -27,6 +27,9 @@
 			"@/*": [
 				"src/*"
 			],
+			"@api/*": [
+				"src/core/api/*"
+			],
 			"@core/*": [
 				"src/core/*"
 			],

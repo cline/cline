@@ -5,10 +5,10 @@
  * model families and context configurations using snapshot testing.
  *
  * Usage:
- * - Run tests normally: `npm test` or `yarn test`
+ * - Run tests normally: `npm run test:unit -- --update-snapshots`
  *   Tests will fail if generated prompts don't match existing snapshots
  *
- * - Update snapshots: `npm test -- --update-snapshots` or `yarn test --update-snapshots`
+ * - Update snapshots: `npm run test:unit -- --update-snapshots`
  *   This will regenerate all snapshot files with current prompt output
  *
  * When tests fail:
@@ -48,9 +48,7 @@ ${differences}
    - ❌ Unexpected changes (bugs, regressions)
 
 3. 🔄 If changes are correct, update snapshots:
-   npm test -- --update-snapshots
-   # or
-   yarn test --update-snapshots
+   npm run test:unit -- --update-snapshots
 
 4. 🐛 If changes are unintentional, investigate:
    - Check recent changes to prompt generation logic
@@ -80,15 +78,19 @@ const compareStrings = (expected: string, actual: string): string | null => {
 			if (differences.length < 10) {
 				// Limit to first 10 differences for readability
 				differences.push(`Line ${i + 1}:`)
-				if (expectedLine)
+				if (expectedLine) {
 					differences.push(`  - Expected: ${expectedLine.substring(0, 100)}${expectedLine.length > 100 ? "..." : ""}`)
-				if (actualLine)
+				}
+				if (actualLine) {
 					differences.push(`  + Actual:   ${actualLine.substring(0, 100)}${actualLine.length > 100 ? "..." : ""}`)
+				}
 			}
 		}
 	}
 
-	if (differences.length === 0) return null
+	if (differences.length === 0) {
+		return null
+	}
 
 	const summary = [
 		`Expected length: ${expected.length} characters`,

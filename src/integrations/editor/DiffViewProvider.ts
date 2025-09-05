@@ -1,10 +1,10 @@
 import { formatResponse } from "@core/prompts/responses"
+import { workspaceResolver } from "@core/workspace"
 import { createDirectoriesForFile } from "@utils/fs"
 import { getCwd } from "@utils/path"
 import * as diff from "diff"
 import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
@@ -29,7 +29,9 @@ export abstract class DiffViewProvider {
 	public async open(relPath: string): Promise<void> {
 		this.isEditing = true
 		this.relPath = relPath
-		this.absolutePath = path.resolve(await getCwd(), relPath)
+		const cwd = await getCwd()
+		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
+		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
 		const fileExists = this.editType === "modify"
 
 		// if the file is already open, ensure it's not dirty before getting its contents

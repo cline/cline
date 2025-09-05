@@ -1,8 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ToolResponse } from "../../index"
@@ -65,7 +65,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -87,7 +87,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to read ${path.basename(absolutePath)}`
+			const notificationMessage = `Cline wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(
