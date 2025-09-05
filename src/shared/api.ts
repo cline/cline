@@ -3139,12 +3139,9 @@ export const moonshotModels = {
 		maxTokens: 16384,
 		contextWindow: 262144,
 		supportsImages: false,
-		supportsPromptCache: true,
+		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
-		cacheReadsPrice: 0.15,
-		description:
-			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
 	},
 	"kimi-k2-0711-preview": {
 		maxTokens: 32_000,
