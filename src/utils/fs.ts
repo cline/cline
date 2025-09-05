@@ -141,7 +141,7 @@ async function readDirectoryRecursiveHelper(
 			continue
 		}
 
-		const fullPath = path.resolve(dirPath, entry.name)
+		const fullPath = path.join(dirPath, entry.name)
 
 		if (entry.isFile()) {
 			// Check if this file should be excluded
