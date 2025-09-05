@@ -121,7 +121,7 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 
 		return filePaths
 	} catch (error) {
-		throw new Error(`Error reading directory at ${directoryPath}: ${error}`)
+		throw new Error(`Error reading directory at ${directoryPath}: ${error instanceof Error ? error.message : error}`)
 	}
 }
 
