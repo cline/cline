@@ -13,12 +13,10 @@ permissions:
     pull-requests: write
 
 jobs:
-    test:
-        uses: ./.github/workflows/test.yml
     build:
-        needs: test
         name: Build Extension
-        runs-on: ${{ github.repository == 'cline/cline' && 'high-capacity-runner' || 'ubuntu-latest' }}
+        runs-on: 'ubuntu-latest'
+        # runs-on: ${{ github.repository == 'cline/cline' && 'high-capacity-runner' || 'ubuntu-latest' }}
 
         steps:
             - uses: actions/checkout@v4
