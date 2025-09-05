@@ -13,6 +13,7 @@ export type ApiProvider =
 	| "openai-native"
 	| "requesty"
 	| "together"
+	| "synthetic"
 	| "deepseek"
 	| "qwen"
 	| "qwen-code"
@@ -78,6 +79,7 @@ export interface ApiHandlerOptions {
 	requestyApiKey?: string
 	requestyBaseUrl?: string
 	togetherApiKey?: string
+	syntheticApiKey?: string
 	fireworksApiKey?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
@@ -130,6 +132,7 @@ export interface ApiHandlerOptions {
 	planModeRequestyModelId?: string
 	planModeRequestyModelInfo?: ModelInfo
 	planModeTogetherModelId?: string
+	planModeSyntheticModelId?: string
 	planModeFireworksModelId?: string
 	planModeSapAiCoreModelId?: string
 	planModeGroqModelId?: string
@@ -161,6 +164,7 @@ export interface ApiHandlerOptions {
 	actModeRequestyModelId?: string
 	actModeRequestyModelInfo?: ModelInfo
 	actModeTogetherModelId?: string
+	actModeSyntheticModelId?: string
 	actModeFireworksModelId?: string
 	actModeSapAiCoreModelId?: string
 	actModeGroqModelId?: string
@@ -3449,6 +3453,34 @@ export const mainlandZAiModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Synthetic.new
+export type SyntheticModelId = keyof typeof syntheticModels
+export const syntheticDefaultModelId: SyntheticModelId = "hf:zai-org/GLM-4.5"
+export const syntheticModels = {
+	"hf:zai-org/GLM-4.5": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description:
+			"A hybrid reasoning model: it thinks for hard problems, and is fast for simpler problems. One of the strongest agentic coding models. 128k-token context.",
+	},
+	"hf:moonshotai/Kimi-K2-Instruct-0905": {
+		maxTokens: 16384,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description:
+			"The latest variant of Moonshot's strong coding agent model. Subjectively good taste in frontend UI. 256k-token context.",
+	},
+	"hf:Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "The largest Qwen3 coding model. Great for one-shot coding performance. 256k-token context.",
+	},
+}
 // Fireworks AI
 export type FireworksModelId = keyof typeof fireworksModels
 export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"

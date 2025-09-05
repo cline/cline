@@ -312,6 +312,7 @@ export class StateManager {
 			difyApiKey,
 			difyBaseUrl,
 			vercelAiGatewayApiKey,
+			syntheticApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
 			// Plan mode configurations
@@ -343,6 +344,7 @@ export class StateManager {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeSyntheticModelId,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
 			// Act mode configurations
@@ -374,6 +376,7 @@ export class StateManager {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
+			actModeSyntheticModelId,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
 		} = apiConfiguration
@@ -409,6 +412,7 @@ export class StateManager {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
+			planModeSyntheticModelId,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
 
@@ -432,6 +436,7 @@ export class StateManager {
 			actModeRequestyModelInfo,
 			actModeTogetherModelId,
 			actModeFireworksModelId,
+			actModeSyntheticModelId,
 			actModeSapAiCoreModelId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
@@ -519,6 +524,7 @@ export class StateManager {
 			huaweiCloudMaasApiKey,
 			difyApiKey,
 			vercelAiGatewayApiKey,
+			syntheticApiKey,
 			zaiApiKey,
 		})
 	}
@@ -730,6 +736,7 @@ export class StateManager {
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
+			syntheticApiKey: this.secretsCache["syntheticApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 
 			// Global state
@@ -800,6 +807,7 @@ export class StateManager {
 			planModeHuggingFaceModelInfo: this.globalStateCache["planModeHuggingFaceModelInfo"],
 			planModeHuaweiCloudMaasModelId: this.globalStateCache["planModeHuaweiCloudMaasModelId"],
 			planModeHuaweiCloudMaasModelInfo: this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
+			planModeSyntheticModelId: this.globalStateCache["planModeSyntheticModelId"],
 			planModeVercelAiGatewayModelId: this.globalStateCache["planModeVercelAiGatewayModelId"],
 			planModeVercelAiGatewayModelInfo: this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 
@@ -832,6 +840,7 @@ export class StateManager {
 			actModeHuggingFaceModelInfo: this.globalStateCache["actModeHuggingFaceModelInfo"],
 			actModeHuaweiCloudMaasModelId: this.globalStateCache["actModeHuaweiCloudMaasModelId"],
 			actModeHuaweiCloudMaasModelInfo: this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
+			actModeSyntheticModelId: this.globalStateCache["actModeSyntheticModelId"],
 			actModeVercelAiGatewayModelId: this.globalStateCache["actModeVercelAiGatewayModelId"],
 			actModeVercelAiGatewayModelInfo: this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 		}

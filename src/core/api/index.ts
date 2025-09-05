@@ -30,6 +30,7 @@ import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
 import { SapAiCoreHandler } from "./providers/sapaicore"
+import { SyntheticHandler } from "./providers/synthetic"
 import { TogetherHandler } from "./providers/together"
 import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
@@ -197,6 +198,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				togetherApiKey: options.togetherApiKey,
 				togetherModelId: mode === "plan" ? options.planModeTogetherModelId : options.actModeTogetherModelId,
+			})
+		case "synthetic":
+			return new SyntheticHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				syntheticApiKey: options.syntheticApiKey,
+				syntheticModelId: mode === "plan" ? options.planModeSyntheticModelId : options.actModeSyntheticModelId,
 			})
 		case "qwen":
 			return new QwenHandler({

@@ -142,8 +142,10 @@ export interface GlobalState {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeSyntheticModelId: string | undefined
 	planModeVercelAiGatewayModelId: string | undefined
 	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeSyntheticModelId: string | undefined
 	actModeVercelAiGatewayModelId: string | undefined
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 }
@@ -183,6 +185,7 @@ export interface Secrets {
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
+	syntheticApiKey: string | undefined
 	difyApiKey: string | undefined
 }
 
