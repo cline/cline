@@ -70,7 +70,7 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { errorService } from "@/services/error"
-import { telemetryService } from "@/services/telemetry"
+import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -1491,6 +1491,10 @@ export class Task {
 		let chunkTimer: NodeJS.Timeout | null = null
 		let chunkEnroute = false
 
+		// Track if buffer gets stuck
+		let bufferStuckTimer: NodeJS.Timeout | null = null
+		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
+
 		const flushBuffer = async (force = false) => {
 			if (chunkEnroute || outputBuffer.length === 0) {
 				if (force && !chunkEnroute && outputBuffer.length > 0) {
@@ -1503,9 +1507,18 @@ export class Task {
 			outputBuffer = []
 			outputBufferSize = 0
 			chunkEnroute = true
+
+			// Start timer to detect if buffer gets stuck
+			bufferStuckTimer = setTimeout(() => {
+				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+				bufferStuckTimer = null
+			}, BUFFER_STUCK_TIMEOUT_MS)
+
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
+					// Track when user clicks "Process while Running"
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
 					// proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
@@ -1517,7 +1530,13 @@ export class Task {
 				process.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
+				telemetryService.captureTerminalHang(TerminalHangStage.STREAM_TIMEOUT)
 			} finally {
+				// Clear the stuck timer
+				if (bufferStuckTimer) {
+					clearTimeout(bufferStuckTimer)
+					bufferStuckTimer = null
+				}
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
 				if (outputBuffer.length > 0) {
@@ -1552,8 +1571,24 @@ export class Task {
 		})
 
 		let completed = false
+		let completionTimer: NodeJS.Timeout | null = null
+		const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
+
+		// Start timer to detect if waiting for completion takes too long
+		completionTimer = setTimeout(() => {
+			if (!completed) {
+				telemetryService.captureTerminalHang(TerminalHangStage.WAITING_FOR_COMPLETION)
+				completionTimer = null
+			}
+		}, COMPLETION_TIMEOUT_MS)
+
 		process.once("completed", async () => {
 			completed = true
+			// Clear the completion timer
+			if (completionTimer) {
+				clearTimeout(completionTimer)
+				completionTimer = null
+			}
 			// Flush any remaining buffered output
 			if (!didContinue && outputBuffer.length > 0) {
 				if (chunkTimer) {
@@ -1569,6 +1604,12 @@ export class Task {
 		})
 
 		await process
+
+		// Clear timer if process completes normally
+		if (completionTimer) {
+			clearTimeout(completionTimer)
+			completionTimer = null
+		}
 
 		// Wait for a short delay to ensure all messages are sent to the webview
 		// This delay allows time for non-awaited promises to be created and

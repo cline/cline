@@ -31,7 +31,7 @@ const TS_PROTO_OPTIONS = [
 	"esModuleInterop=true",
 	"outputServices=generic-definitions", // output generic ServiceDefinitions
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
-	"useOptionals=messages", // Message fields are optional, scalars are not.
+	"useOptionals=none", // scalar and message fields are required unless they are marked as optional.
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
 

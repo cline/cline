@@ -91,6 +91,10 @@ export class Controller {
 			}
 		}
 
+		this.stateManager.onSyncExternalChange = async () => {
+			await this.postStateToWebview()
+		}
+
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
@@ -195,10 +199,19 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-		// Apply remote feature flag gate to focus chain settings
+		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
+		let focusChainEnabled: boolean
+		if (focusChainSettings?.enabled === false) {
+			focusChainEnabled = false
+		} else if (focusChainFeatureFlagEnabled === false) {
+			focusChainEnabled = false
+		} else {
+			focusChainEnabled = Boolean(focusChainSettings?.enabled)
+		}
+
 		const effectiveFocusChainSettings = {
 			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
-			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
+			enabled: focusChainEnabled,
 		}
 
 		this.task = new Task(
