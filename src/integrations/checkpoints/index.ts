@@ -608,6 +608,7 @@ export class TaskCheckpointManager {
 						`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
 						errorMessage,
 					)
+					await this.setcheckpointManagerErrorMessage(errorMessage)
 					return false
 				}
 			}
