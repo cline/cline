@@ -230,6 +230,106 @@ describe("AwsBedrockHandler", () => {
 		cacheReadsPrice: 0.3,
 	}
 
+	// Global region behavior tests
+	describe("getModelId: global", () => {
+		it("should prefix non-custom model with global. when awsRegion is global (cross-region off)", async () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+				awsRegion: "global",
+				awsUseCrossRegionInference: false,
+				actModeAwsBedrockCustomSelected: false,
+			} as any)
+
+			const modelId = await handler.getModelId()
+			modelId.should.equal("global.anthropic.claude-3-7-sonnet-20250219-v1:0")
+		})
+
+		it("should prefix non-custom model with global. when awsRegion is global (cross-region on)", async () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+				awsRegion: "global",
+				awsUseCrossRegionInference: true, // should be ignored because global takes precedence
+				actModeAwsBedrockCustomSelected: false,
+			} as any)
+
+			const modelId = await handler.getModelId()
+			modelId.should.equal("global.anthropic.claude-3-7-sonnet-20250219-v1:0")
+		})
+
+		it("should not prefix custom ARN/ID when awsRegion is global", async () => {
+			const customArn =
+				"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd"
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				apiModelId: customArn,
+				awsRegion: "global",
+				awsUseCrossRegionInference: true,
+				actModeAwsBedrockCustomSelected: true,
+			} as any)
+
+			const modelId = await handler.getModelId()
+			modelId.should.equal(customArn)
+		})
+
+		it('should include ":1m" suffix after the global. prefix when selected', async () => {
+			const oneMillionCtxId = "anthropic.claude-sonnet-4-20250514-v1:0:1m"
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				apiModelId: oneMillionCtxId,
+				awsRegion: "global",
+				actModeAwsBedrockCustomSelected: false,
+			} as any)
+
+			const modelId = await handler.getModelId()
+			modelId.should.equal(`global.${oneMillionCtxId}`)
+		})
+	})
+
+	describe("getRegion behavior", () => {
+		it("should return us-east-1 when awsRegion is global", () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				awsRegion: "global",
+			} as any)
+
+			// Access private method for testing using bracket notation
+			const region = handler["getRegion"]()
+			region.should.equal("us-east-1")
+		})
+
+		it("should return the actual region when awsRegion is not global", () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				awsRegion: "eu-west-1",
+			} as any)
+
+			const region = handler["getRegion"]()
+			region.should.equal("eu-west-1")
+		})
+
+		it("should return default region when awsRegion is undefined", () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				awsRegion: undefined,
+			} as any)
+
+			const region = handler["getRegion"]()
+			region.should.equal("us-east-1")
+		})
+
+		it("should return default region when awsRegion is empty string", () => {
+			const handler = new AwsBedrockHandler({
+				...(mockOptions as any),
+				awsRegion: "",
+			} as any)
+
+			const region = handler["getRegion"]()
+			region.should.equal("us-east-1")
+		})
+	})
+
 	describe("executeConverseStream", () => {
 		let handler: AwsBedrockHandler
 

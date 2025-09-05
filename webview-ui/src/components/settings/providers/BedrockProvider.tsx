@@ -101,10 +101,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				</label>
 				<VSCodeDropdown
 					id="aws-region-dropdown"
-					onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
+					onChange={(e: any) => {
+						const value = e.target.value
+						handleFieldChange("awsRegion", value)
+						// When Global is selected, disable cross-region inference to prevent conflicts
+						if (value === "global" && apiConfiguration?.awsUseCrossRegionInference) {
+							handleFieldChange("awsUseCrossRegionInference", false)
+						}
+					}}
 					style={{ width: "100%" }}
 					value={apiConfiguration?.awsRegion || ""}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
+					<VSCodeOption value="global">global</VSCodeOption>
 					{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
 					<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
 					<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
@@ -160,6 +168,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 				<VSCodeCheckbox
 					checked={apiConfiguration?.awsUseCrossRegionInference || false}
+					disabled={apiConfiguration?.awsRegion === "global"}
 					onChange={(e: any) => {
 						const isChecked = e.target.checked === true
 
@@ -168,6 +177,16 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					Use cross-region inference
 				</VSCodeCheckbox>
 
+				{apiConfiguration?.awsRegion === "global" && (
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "3px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Using Global region. Cross-region inference is disabled.
+					</p>
+				)}
 				{selectedModelInfo.supportsPromptCache && (
 					<VSCodeCheckbox
 						checked={apiConfiguration?.awsBedrockUsePromptCache || false}
