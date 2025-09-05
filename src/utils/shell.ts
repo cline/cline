@@ -1,5 +1,97 @@
 import * as vscode from "vscode"
 import { userInfo } from "os"
+import * as path from "path"
+
+// Security: Allowlist of approved shell executables to prevent arbitrary command execution
+const SHELL_ALLOWLIST = new Set<string>([
+	// Windows PowerShell variants
+	"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+	"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+	"C:\\Program Files\\PowerShell\\6\\pwsh.exe",
+	"C:\\Program Files\\PowerShell\\5\\pwsh.exe",
+
+	// Windows Command Prompt
+	"C:\\Windows\\System32\\cmd.exe",
+
+	// Windows WSL
+	"C:\\Windows\\System32\\wsl.exe",
+
+	// Git Bash on Windows
+	"C:\\Program Files\\Git\\bin\\bash.exe",
+	"C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+	"C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+	"C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe",
+
+	// MSYS2/MinGW/Cygwin on Windows
+	"C:\\msys64\\usr\\bin\\bash.exe",
+	"C:\\msys32\\usr\\bin\\bash.exe",
+	"C:\\MinGW\\msys\\1.0\\bin\\bash.exe",
+	"C:\\cygwin64\\bin\\bash.exe",
+	"C:\\cygwin\\bin\\bash.exe",
+
+	// Unix/Linux/macOS - Bourne-compatible shells
+	"/bin/sh",
+	"/usr/bin/sh",
+	"/bin/bash",
+	"/usr/bin/bash",
+	"/usr/local/bin/bash",
+	"/opt/homebrew/bin/bash",
+	"/opt/local/bin/bash",
+
+	// Z Shell
+	"/bin/zsh",
+	"/usr/bin/zsh",
+	"/usr/local/bin/zsh",
+	"/opt/homebrew/bin/zsh",
+	"/opt/local/bin/zsh",
+
+	// Dash
+	"/bin/dash",
+	"/usr/bin/dash",
+
+	// Ash
+	"/bin/ash",
+	"/usr/bin/ash",
+
+	// C Shells
+	"/bin/csh",
+	"/usr/bin/csh",
+	"/bin/tcsh",
+	"/usr/bin/tcsh",
+	"/usr/local/bin/tcsh",
+
+	// Korn Shells
+	"/bin/ksh",
+	"/usr/bin/ksh",
+	"/bin/ksh93",
+	"/usr/bin/ksh93",
+	"/bin/mksh",
+	"/usr/bin/mksh",
+	"/bin/pdksh",
+	"/usr/bin/pdksh",
+
+	// Fish Shell
+	"/usr/bin/fish",
+	"/usr/local/bin/fish",
+	"/opt/homebrew/bin/fish",
+	"/opt/local/bin/fish",
+
+	// Modern shells
+	"/usr/bin/elvish",
+	"/usr/local/bin/elvish",
+	"/usr/bin/xonsh",
+	"/usr/local/bin/xonsh",
+	"/usr/bin/nu",
+	"/usr/local/bin/nu",
+	"/usr/bin/nushell",
+	"/usr/local/bin/nushell",
+	"/usr/bin/ion",
+	"/usr/local/bin/ion",
+
+	// BusyBox
+	"/bin/busybox",
+	"/usr/bin/busybox",
+])
 
 const SHELL_PATHS = {
 	// Windows paths
@@ -179,49 +271,86 @@ function getShellFromEnv(): string | null {
 }
 
 // -----------------------------------------------------
-// 4) Publicly Exposed Shell Getter
+// 4) Shell Validation Functions
+// -----------------------------------------------------
+
+/**
+ * Validates if a shell path is in the allowlist to prevent arbitrary command execution
+ */
+function isShellAllowed(shellPath: string): boolean {
+	if (!shellPath) return false
+
+	const normalizedPath = path.normalize(shellPath)
+
+	// Direct lookup first
+	if (SHELL_ALLOWLIST.has(normalizedPath)) {
+		return true
+	}
+
+	// On Windows, try case-insensitive comparison
+	if (process.platform === "win32") {
+		const lowerPath = normalizedPath.toLowerCase()
+		for (const allowedPath of SHELL_ALLOWLIST) {
+			if (allowedPath.toLowerCase() === lowerPath) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+/**
+ * Returns a safe fallback shell based on the platform
+ */
+function getSafeFallbackShell(): string {
+	if (process.platform === "win32") {
+		return SHELL_PATHS.CMD
+	} else if (process.platform === "darwin") {
+		return SHELL_PATHS.MAC_DEFAULT
+	} else {
+		return SHELL_PATHS.LINUX_DEFAULT
+	}
+}
+
+// -----------------------------------------------------
+// 5) Publicly Exposed Shell Getter
 // -----------------------------------------------------
 
 export function getShell(): string {
+	let shell: string | null = null
+
 	// 1. Check VS Code config first.
 	if (process.platform === "win32") {
 		// Special logic for Windows
-		const windowsShell = getWindowsShellFromVSCode()
-		if (windowsShell) {
-			return windowsShell
-		}
+		shell = getWindowsShellFromVSCode()
 	} else if (process.platform === "darwin") {
 		// macOS from VS Code
-		const macShell = getMacShellFromVSCode()
-		if (macShell) {
-			return macShell
-		}
+		shell = getMacShellFromVSCode()
 	} else if (process.platform === "linux") {
 		// Linux from VS Code
-		const linuxShell = getLinuxShellFromVSCode()
-		if (linuxShell) {
-			return linuxShell
-		}
+		shell = getLinuxShellFromVSCode()
 	}
 
 	// 2. If no shell from VS Code, try userInfo()
-	const userInfoShell = getShellFromUserInfo()
-	if (userInfoShell) {
-		return userInfoShell
+	if (!shell) {
+		shell = getShellFromUserInfo()
 	}
 
 	// 3. If still nothing, try environment variable
-	const envShell = getShellFromEnv()
-	if (envShell) {
-		return envShell
+	if (!shell) {
+		shell = getShellFromEnv()
 	}
 
 	// 4. Finally, fall back to a default
-	if (process.platform === "win32") {
-		// On Windows, if we got here, we have no config, no COMSPEC, and one very messed up operating system.
-		// Use CMD as a last resort
-		return SHELL_PATHS.CMD
+	if (!shell) {
+		shell = getSafeFallbackShell()
 	}
-	// On macOS/Linux, fallback to a POSIX shell - This is the behavior of our old shell detection method.
-	return SHELL_PATHS.FALLBACK
+
+	// 5. Validate the shell against allowlist
+	if (!isShellAllowed(shell)) {
+		shell = getSafeFallbackShell()
+	}
+
+	return shell
 }

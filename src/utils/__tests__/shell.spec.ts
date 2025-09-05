@@ -7,6 +7,15 @@ vi.mock("os", () => ({
 	userInfo: vi.fn(() => ({ shell: null })),
 }))
 
+// Mock path module for testing
+vi.mock("path", async () => {
+	const actual = await vi.importActual("path")
+	return {
+		...actual,
+		normalize: vi.fn((p: string) => p),
+	}
+})
+
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string
 	let originalEnv: NodeJS.ProcessEnv
@@ -106,18 +115,25 @@ describe("Shell Detection Tests", () => {
 			expect(getShell()).toBe("C:\\Windows\\System32\\cmd.exe")
 		})
 
-		it("respects userInfo() if no VS Code config is available", () => {
+		it("respects userInfo() if no VS Code config is available and shell is allowed", () => {
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			vi.mocked(userInfo).mockReturnValue({ shell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" } as any)
+
+			expect(getShell()).toBe("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("falls back to safe shell when userInfo() returns non-allowlisted shell", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
 			vi.mocked(userInfo).mockReturnValue({ shell: "C:\\Custom\\PowerShell.exe" } as any)
 
-			expect(getShell()).toBe("C:\\Custom\\PowerShell.exe")
+			expect(getShell()).toBe("C:\\Windows\\System32\\cmd.exe")
 		})
 
-		it("respects an odd COMSPEC if no userInfo shell is available", () => {
+		it("falls back to safe shell when COMSPEC is non-allowlisted", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
 			process.env.COMSPEC = "D:\\CustomCmd\\cmd.exe"
 
-			expect(getShell()).toBe("D:\\CustomCmd\\cmd.exe")
+			expect(getShell()).toBe("C:\\Windows\\System32\\cmd.exe")
 		})
 	})
 
@@ -191,10 +207,10 @@ describe("Shell Detection Tests", () => {
 	// Unknown Platform & Error Handling
 	// --------------------------------------------------------------------------
 	describe("Unknown Platform / Error Handling", () => {
-		it("falls back to /bin/sh for unknown platforms", () => {
+		it("falls back to /bin/bash for unknown platforms", () => {
 			Object.defineProperty(process, "platform", { value: "sunos" })
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			expect(getShell()).toBe("/bin/sh")
+			expect(getShell()).toBe("/bin/bash")
 		})
 
 		it("handles VS Code config errors gracefully, falling back to userInfo shell if present", () => {
@@ -226,6 +242,92 @@ describe("Shell Detection Tests", () => {
 			})
 			delete process.env.SHELL
 			expect(getShell()).toBe("/bin/bash")
+		})
+	})
+
+	// --------------------------------------------------------------------------
+	// Shell Validation Tests
+	// --------------------------------------------------------------------------
+	describe("Shell Validation", () => {
+		it("should allow common Windows shells", () => {
+			Object.defineProperty(process, "platform", { value: "win32" })
+			mockVsCodeConfig("windows", "PowerShell", {
+				PowerShell: { path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
+			})
+			expect(getShell()).toBe("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("should allow common Unix shells", () => {
+			Object.defineProperty(process, "platform", { value: "linux" })
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: "/usr/bin/fish" },
+			})
+			expect(getShell()).toBe("/usr/bin/fish")
+		})
+
+		it("should handle case-insensitive matching on Windows", () => {
+			Object.defineProperty(process, "platform", { value: "win32" })
+			mockVsCodeConfig("windows", "PowerShell", {
+				PowerShell: { path: "c:\\windows\\system32\\cmd.exe" },
+			})
+			expect(getShell()).toBe("c:\\windows\\system32\\cmd.exe")
+		})
+
+		it("should reject unknown shells and use fallback", () => {
+			Object.defineProperty(process, "platform", { value: "linux" })
+			mockVsCodeConfig("linux", "CustomProfile", {
+				CustomProfile: { path: "/usr/bin/malicious-shell" },
+			})
+			expect(getShell()).toBe("/bin/bash")
+		})
+
+		it("should validate shells from VS Code config", () => {
+			Object.defineProperty(process, "platform", { value: "darwin" })
+			mockVsCodeConfig("osx", "MyCustomShell", {
+				MyCustomShell: { path: "/usr/local/bin/custom-shell" },
+			})
+
+			const result = getShell()
+			expect(result).toBe("/bin/zsh") // macOS fallback
+		})
+
+		it("should validate shells from userInfo", () => {
+			Object.defineProperty(process, "platform", { value: "linux" })
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			vi.mocked(userInfo).mockReturnValue({ shell: "/usr/bin/evil-shell" } as any)
+
+			const result = getShell()
+			expect(result).toBe("/bin/bash") // Linux fallback
+		})
+
+		it("should validate shells from environment variables", () => {
+			Object.defineProperty(process, "platform", { value: "linux" })
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			vi.mocked(userInfo).mockReturnValue({ shell: null } as any)
+			process.env.SHELL = "/opt/custom/shell"
+
+			const result = getShell()
+			expect(result).toBe("/bin/bash") // Linux fallback
+		})
+
+		it("should handle WSL bash correctly", () => {
+			Object.defineProperty(process, "platform", { value: "win32" })
+			mockVsCodeConfig("windows", "WSL", {
+				WSL: { source: "WSL" },
+			})
+
+			const result = getShell()
+			expect(result).toBe("/bin/bash") // Should be allowed
+		})
+
+		it("should handle empty or null shell paths", () => {
+			Object.defineProperty(process, "platform", { value: "linux" })
+			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
+			vi.mocked(userInfo).mockReturnValue({ shell: "" } as any)
+			delete process.env.SHELL
+
+			const result = getShell()
+			expect(result).toBe("/bin/bash") // Should fall back to safe default
 		})
 	})
 })
