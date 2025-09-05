@@ -202,10 +202,12 @@ export async function readTaskHistoryFromState(context: vscode.ExtensionContext)
 		const filePath = await getTaskHistoryStateFilePath(context)
 		if (await fileExistsAtPath(filePath)) {
 			const contents = await fs.readFile(filePath, "utf8")
-			if (contents.trim() === "") {
-				return []
+			try {
+				return JSON.parse(contents)
+			} catch (error) {
+				console.error("[Disk] Failed to parse task history, it is malformed:", error)
+				throw error
 			}
-			return JSON.parse(contents)
 		}
 		return []
 	} catch (error) {
