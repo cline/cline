@@ -294,4 +294,66 @@ describe("MoonshotHandler", () => {
 			expect(result.cacheReadTokens).toBeUndefined()
 		})
 	})
+
+	describe("addMaxTokensIfNeeded", () => {
+		it("should always add max_tokens regardless of includeMaxTokens option", () => {
+			// Create a test subclass to access the protected method
+			class TestMoonshotHandler extends MoonshotHandler {
+				public testAddMaxTokensIfNeeded(requestOptions: any, modelInfo: any) {
+					this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+				}
+			}
+
+			const testHandler = new TestMoonshotHandler(mockOptions)
+			const requestOptions: any = {}
+			const modelInfo = {
+				maxTokens: 32_000,
+			}
+
+			// Test with includeMaxTokens set to false - should still add max tokens
+			testHandler.testAddMaxTokensIfNeeded(requestOptions, modelInfo)
+
+			expect(requestOptions.max_tokens).toBe(32_000)
+		})
+
+		it("should use modelMaxTokens when provided", () => {
+			class TestMoonshotHandler extends MoonshotHandler {
+				public testAddMaxTokensIfNeeded(requestOptions: any, modelInfo: any) {
+					this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+				}
+			}
+
+			const customMaxTokens = 5000
+			const testHandler = new TestMoonshotHandler({
+				...mockOptions,
+				modelMaxTokens: customMaxTokens,
+			})
+			const requestOptions: any = {}
+			const modelInfo = {
+				maxTokens: 32_000,
+			}
+
+			testHandler.testAddMaxTokensIfNeeded(requestOptions, modelInfo)
+
+			expect(requestOptions.max_tokens).toBe(customMaxTokens)
+		})
+
+		it("should fall back to modelInfo.maxTokens when modelMaxTokens is not provided", () => {
+			class TestMoonshotHandler extends MoonshotHandler {
+				public testAddMaxTokensIfNeeded(requestOptions: any, modelInfo: any) {
+					this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+				}
+			}
+
+			const testHandler = new TestMoonshotHandler(mockOptions)
+			const requestOptions: any = {}
+			const modelInfo = {
+				maxTokens: 16_000,
+			}
+
+			testHandler.testAddMaxTokensIfNeeded(requestOptions, modelInfo)
+
+			expect(requestOptions.max_tokens).toBe(16_000)
+		})
+	})
 })

@@ -1,4 +1,5 @@
-import { moonshotModels, moonshotDefaultModelId } from "@roo-code/types"
+import OpenAI from "openai"
+import { moonshotModels, moonshotDefaultModelId, type ModelInfo } from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
 
@@ -35,5 +36,16 @@ export class MoonshotHandler extends OpenAiHandler {
 			cacheWriteTokens: 0,
 			cacheReadTokens: usage?.cached_tokens,
 		}
+	}
+
+	// Override to always include max_tokens for Moonshot (not max_completion_tokens)
+	protected override addMaxTokensIfNeeded(
+		requestOptions:
+			| OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
+			| OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+		modelInfo: ModelInfo,
+	): void {
+		// Moonshot uses max_tokens instead of max_completion_tokens
+		requestOptions.max_tokens = this.options.modelMaxTokens || modelInfo.maxTokens
 	}
 }

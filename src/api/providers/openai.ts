@@ -435,7 +435,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 	 * Note: max_tokens is deprecated in favor of max_completion_tokens as per OpenAI documentation
 	 * O3 family models handle max_tokens separately in handleO3FamilyMessage
 	 */
-	private addMaxTokensIfNeeded(
+	protected addMaxTokensIfNeeded(
 		requestOptions:
 			| OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
 			| OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
