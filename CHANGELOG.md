@@ -1,6 +1,20 @@
 # Roo Code Changelog
 
-## [3.26.7] - 2025-09-05
+## [3.27.0] - 2025-09-05
+
+![3.27.0 Release - Bug Fixes and Improvements](/releases/3.27.0-release.png)
+
+- Add: User message editing and deletion functionality (thanks @NaccOll!)
+- Add: Kimi K2-0905 model support in Chutes provider (#7700 by @pwilkin, PR by @app/roomote)
+- Fix: Prevent stack overflow in codebase indexing for large projects (#7588 by @StarTrai1, PR by @daniel-lxs)
+- Fix: Resolve race condition in Gemini Grounding Sources by improving code design (#6372 by @daniel-lxs, PR by @HahaBill)
+- Fix: Preserve conversation context by retrying with full conversation on invalid previous_response_id (thanks @daniel-lxs!)
+- Fix: Identify MCP and slash command config path in multiple folder workspaces (#6720 by @kfuglsang, PR by @NaccOll)
+- Fix: Handle array paths from VSCode terminal profiles correctly (#7695 by @Amosvcc, PR by @app/roomote)
+- Fix: Improve WelcomeView styling and readability (thanks @daniel-lxs!)
+- Fix: Resolve CI e2e test ETIMEDOUT errors when downloading VS Code (thanks @daniel-lxs!)
+
+## [3.26.7] - 2025-09-04
 
 ![3.26.7 Release - OpenAI Service Tiers](/releases/3.26.7-release.png)
 
