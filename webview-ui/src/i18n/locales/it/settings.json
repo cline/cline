@@ -859,5 +859,19 @@
 	"includeMaxOutputTokensDescription": "Invia il parametro dei token di output massimi nelle richieste API. Alcuni provider potrebbero non supportarlo.",
 	"limitMaxTokensDescription": "Limita il numero massimo di token nella risposta",
 	"maxOutputTokensLabel": "Token di output massimi",
-	"maxTokensGenerateDescription": "Token massimi da generare nella risposta"
+	"maxTokensGenerateDescription": "Token massimi da generare nella risposta",
+	"serviceTier": {
+		"label": "Livello di servizio",
+		"tooltip": "Per un'elaborazione più rapida delle richieste API, prova il livello di servizio di elaborazione prioritaria. Per prezzi più bassi con una latenza maggiore, prova il livello di elaborazione flessibile.",
+		"standard": "Standard",
+		"flex": "Flessibile",
+		"priority": "Priorità",
+		"pricingTableTitle": "Prezzi per livello di servizio (prezzo per 1 milione di token)",
+		"columns": {
+			"tier": "Livello",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Letture cache"
+		}
+	}
 }

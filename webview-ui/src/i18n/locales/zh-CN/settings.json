@@ -859,5 +859,19 @@
 	"includeMaxOutputTokensDescription": "在 API 请求中发送最大输出 Token 参数。某些提供商可能不支持此功能。",
 	"limitMaxTokensDescription": "限制响应中的最大 Token 数量",
 	"maxOutputTokensLabel": "最大输出 Token 数",
-	"maxTokensGenerateDescription": "响应中生成的最大 Token 数"
+	"maxTokensGenerateDescription": "响应中生成的最大 Token 数",
+	"serviceTier": {
+		"label": "服务等级",
+		"tooltip": "为加快API请求处理速度，请尝试优先处理服务等级。为获得更低价格但延迟较高，请尝试灵活处理等级。",
+		"standard": "标准",
+		"flex": "灵活",
+		"priority": "优先",
+		"pricingTableTitle": "按服务等级定价 (每百万Token价格)",
+		"columns": {
+			"tier": "等级",
+			"input": "输入",
+			"output": "输出",
+			"cacheReads": "缓存读取"
+		}
+	}
 }

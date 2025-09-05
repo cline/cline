@@ -11,6 +11,7 @@ import {
 	type ReasoningEffort,
 	type VerbosityLevel,
 	type ReasoningEffortWithMinimal,
+	type ServiceTier,
 } from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
@@ -36,6 +37,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	private lastResponseId: string | undefined
 	private responseIdPromise: Promise<string | undefined> | undefined
 	private responseIdResolver: ((value: string | undefined) => void) | undefined
+	// Resolved service tier from Responses API (actual tier used by OpenAI)
+	private lastServiceTier: ServiceTier | undefined
 
 	// Event types handled by the shared event processor to avoid duplication
 	private readonly coreHandledEventTypes = new Set<string>([
@@ -90,10 +93,15 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		const cacheReadTokens =
 			usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? usage.cached_tokens ?? cachedFromDetails ?? 0
 
+		// Resolve effective tier: prefer actual tier from response; otherwise requested tier
+		const effectiveTier =
+			this.lastServiceTier || (this.options.openAiNativeServiceTier as ServiceTier | undefined) || undefined
+		const effectiveInfo = this.applyServiceTierPricing(model.info, effectiveTier)
+
 		// Pass total input tokens directly to calculateApiCostOpenAI
 		// The function handles subtracting both cache reads and writes internally (see shared/cost.ts:46)
 		const totalCost = calculateApiCostOpenAI(
-			model.info,
+			effectiveInfo,
 			totalInputTokens,
 			totalOutputTokens,
 			cacheWriteTokens,
@@ -146,6 +154,9 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
+		// Reset resolved tier for this request; will be set from response if present
+		this.lastServiceTier = undefined
+
 		// Use Responses API for ALL models
 		const { verbosity, reasoning } = this.getModel()
 
@@ -233,7 +244,12 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			previous_response_id?: string
 			store?: boolean
 			instructions?: string
+			service_tier?: ServiceTier
 		}
+
+		// Validate requested tier against model support; if not supported, omit.
+		const requestedTier = (this.options.openAiNativeServiceTier as ServiceTier | undefined) || undefined
+		const allowedTierNames = new Set(model.info.tiers?.map((t) => t.name).filter(Boolean) || [])
 
 		const body: Gpt5RequestBody = {
 			model: model.id,
@@ -262,6 +278,11 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			// Use the per-request reserved output computed by Roo (params.maxTokens from getModelParams).
 			...(model.maxTokens ? { max_output_tokens: model.maxTokens } : {}),
 			...(requestPreviousResponseId && { previous_response_id: requestPreviousResponseId }),
+			// Include tier when selected and supported by the model, or when explicitly "default"
+			...(requestedTier &&
+				(requestedTier === "default" || allowedTierNames.has(requestedTier)) && {
+					service_tier: requestedTier,
+				}),
 		}
 
 		// Include text.verbosity only when the model explicitly supports it
@@ -636,6 +657,10 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 							if (parsed.response?.id) {
 								this.resolveResponseId(parsed.response.id)
 							}
+							// Capture resolved service tier if present
+							if (parsed.response?.service_tier) {
+								this.lastServiceTier = parsed.response.service_tier as ServiceTier
+							}
 
 							// Delegate standard event types to the shared processor to avoid duplication
 							if (parsed?.type && this.coreHandledEventTypes.has(parsed.type)) {
@@ -927,6 +952,10 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 								if (parsed.response?.id) {
 									this.resolveResponseId(parsed.response.id)
 								}
+								// Capture resolved service tier if present
+								if (parsed.response?.service_tier) {
+									this.lastServiceTier = parsed.response.service_tier as ServiceTier
+								}
 
 								// Check if the done event contains the complete output (as a fallback)
 								if (
@@ -1051,6 +1080,10 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		if (event?.response?.id) {
 			this.resolveResponseId(event.response.id)
 		}
+		// Capture resolved service tier when available
+		if (event?.response?.service_tier) {
+			this.lastServiceTier = event.response.service_tier as ServiceTier
+		}
 
 		// Handle known streaming text deltas
 		if (event?.type === "response.text.delta" || event?.type === "response.output_text.delta") {
@@ -1141,6 +1174,26 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		return info.reasoningEffort as ReasoningEffortWithMinimal | undefined
 	}
 
+	/**
+	 * Returns a shallow-cloned ModelInfo with pricing overridden for the given tier, if available.
+	 * If no tier or no overrides exist, the original ModelInfo is returned.
+	 */
+	private applyServiceTierPricing(info: ModelInfo, tier?: ServiceTier): ModelInfo {
+		if (!tier || tier === "default") return info
+
+		// Find the tier with matching name in the tiers array
+		const tierInfo = info.tiers?.find((t) => t.name === tier)
+		if (!tierInfo) return info
+
+		return {
+			...info,
+			inputPrice: tierInfo.inputPrice ?? info.inputPrice,
+			outputPrice: tierInfo.outputPrice ?? info.outputPrice,
+			cacheReadsPrice: tierInfo.cacheReadsPrice ?? info.cacheReadsPrice,
+			cacheWritesPrice: tierInfo.cacheWritesPrice ?? info.cacheWritesPrice,
+		}
+	}
+
 	// Removed isResponsesApiModel method as ALL models now use the Responses API
 
 	override getModel() {
@@ -1212,6 +1265,13 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 				],
 				stream: false, // Non-streaming for completePrompt
 				store: false, // Don't store prompt completions
+			}
+
+			// Include service tier if selected and supported
+			const requestedTier = (this.options.openAiNativeServiceTier as ServiceTier | undefined) || undefined
+			const allowedTierNames = new Set(model.info.tiers?.map((t) => t.name).filter(Boolean) || [])
+			if (requestedTier && (requestedTier === "default" || allowedTierNames.has(requestedTier))) {
+				requestBody.service_tier = requestedTier
 			}
 
 			// Add reasoning if supported

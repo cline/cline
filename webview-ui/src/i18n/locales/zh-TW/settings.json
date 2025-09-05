@@ -859,5 +859,19 @@
 	"includeMaxOutputTokensDescription": "在 API 請求中傳送最大輸出 Token 參數。某些提供商可能不支援此功能。",
 	"limitMaxTokensDescription": "限制回應中的最大 Token 數量",
 	"maxOutputTokensLabel": "最大輸出 Token 數",
-	"maxTokensGenerateDescription": "回應中產生的最大 Token 數"
+	"maxTokensGenerateDescription": "回應中產生的最大 Token 數",
+	"serviceTier": {
+		"label": "服務層級",
+		"tooltip": "若需更快的 API 請求處理，請嘗試優先處理服務層級。若需較低價格但延遲較高，請嘗試彈性處理層級。",
+		"standard": "標準",
+		"flex": "彈性",
+		"priority": "優先",
+		"pricingTableTitle": "按服務層級定價（每百萬 Token 價格）",
+		"columns": {
+			"tier": "層級",
+			"input": "輸入",
+			"output": "輸出",
+			"cacheReads": "快取讀取"
+		}
+	}
 }

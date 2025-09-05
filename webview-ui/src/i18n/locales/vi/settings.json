@@ -859,5 +859,19 @@
 	"includeMaxOutputTokensDescription": "Gửi tham số token đầu ra tối đa trong các yêu cầu API. Một số nhà cung cấp có thể không hỗ trợ điều này.",
 	"limitMaxTokensDescription": "Giới hạn số lượng token tối đa trong phản hồi",
 	"maxOutputTokensLabel": "Token đầu ra tối đa",
-	"maxTokensGenerateDescription": "Token tối đa để tạo trong phản hồi"
+	"maxTokensGenerateDescription": "Token tối đa để tạo trong phản hồi",
+	"serviceTier": {
+		"label": "Cấp độ dịch vụ",
+		"tooltip": "Để xử lý các yêu cầu API nhanh hơn, hãy thử cấp độ dịch vụ xử lý ưu tiên. Để có giá thấp hơn với độ trễ cao hơn, hãy thử cấp độ xử lý linh hoạt.",
+		"standard": "Tiêu chuẩn",
+		"flex": "Linh hoạt",
+		"priority": "Ưu tiên",
+		"pricingTableTitle": "Giá theo cấp độ dịch vụ (giá mỗi 1 triệu token)",
+		"columns": {
+			"tier": "Cấp độ",
+			"input": "Đầu vào",
+			"output": "Đầu ra",
+			"cacheReads": "Lượt đọc bộ nhớ đệm"
+		}
+	}
 }
