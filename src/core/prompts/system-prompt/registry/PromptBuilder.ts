@@ -164,7 +164,7 @@ export class PromptBuilder {
 		const description = [`Description: ${config.description}`]
 
 		if (!config.parameters?.length) {
-			return [title, description.join("\n")].join("\n")
+			config.parameters = []
 		}
 
 		// Clone parameters to avoid mutating original
@@ -197,7 +197,7 @@ export class PromptBuilder {
 
 	private static buildParametersSection(params: any[]): string {
 		if (!params.length) {
-			return ""
+			return "Parameters: None"
 		}
 
 		const paramList = params.map((p) => {
