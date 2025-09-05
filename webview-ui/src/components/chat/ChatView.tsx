@@ -859,10 +859,19 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		// Remove the 500-message limit to prevent array index shifting
 		// Virtuoso is designed to efficiently handle large lists through virtualization
 		const newVisibleMessages = modifiedMessages.filter((message) => {
-			// Filter out checkpoint_saved messages that are associated with user messages
-			if (message.say === "checkpoint_saved" && message.text) {
-				// Use O(1) Set lookup instead of O(n) array search
-				if (userMessageCheckpointHashes.has(message.text)) {
+			// Filter out checkpoint_saved messages that should be suppressed
+			if (message.say === "checkpoint_saved") {
+				// Check if this checkpoint has the suppressMessage flag set
+				if (
+					message.checkpoint &&
+					typeof message.checkpoint === "object" &&
+					"suppressMessage" in message.checkpoint &&
+					message.checkpoint.suppressMessage
+				) {
+					return false
+				}
+				// Also filter out checkpoint messages associated with user messages (legacy behavior)
+				if (message.text && userMessageCheckpointHashes.has(message.text)) {
 					return false
 				}
 			}

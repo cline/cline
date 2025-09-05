@@ -28,6 +28,7 @@ export interface CheckpointEventMap {
 		fromHash: string
 		toHash: string
 		duration: number
+		suppressMessage?: boolean
 	}
 	restore: { type: "restore"; commitHash: string; duration: number }
 	error: { type: "error"; error: Error }

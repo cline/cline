@@ -890,6 +890,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.askResponseText = text
 		this.askResponseImages = images
 
+		// Create a checkpoint whenever the user sends a message.
+		// Use allowEmpty=true to ensure a checkpoint is recorded even if there are no file changes.
+		// Suppress the checkpoint_saved chat row for this particular checkpoint to keep the timeline clean.
+		if (askResponse === "messageResponse") {
+			void this.checkpointSave(false, true)
+		}
+
 		// Mark the last follow-up question as answered
 		if (askResponse === "messageResponse" || askResponse === "yesButtonClicked") {
 			// Find the last unanswered follow-up message using findLastIndex
@@ -2774,8 +2781,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	// Checkpoints
 
-	public async checkpointSave(force: boolean = false) {
-		return checkpointSave(this, force)
+	public async checkpointSave(force: boolean = false, suppressMessage: boolean = false) {
+		return checkpointSave(this, force, suppressMessage)
 	}
 
 	public async checkpointRestore(options: CheckpointRestoreOptions) {

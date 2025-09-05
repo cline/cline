@@ -131,13 +131,26 @@ async function checkGitInstallation(
 			task.checkpointServiceInitializing = false
 		})
 
-		service.on("checkpoint", ({ fromHash: from, toHash: to }) => {
+		service.on("checkpoint", ({ fromHash: from, toHash: to, suppressMessage }) => {
 			try {
-				provider?.postMessageToWebview({ type: "currentCheckpointUpdated", text: to })
+				// Always update the current checkpoint hash in the webview, including the suppress flag
+				provider?.postMessageToWebview({
+					type: "currentCheckpointUpdated",
+					text: to,
+					suppressMessage: !!suppressMessage,
+				})
 
-				task.say("checkpoint_saved", to, undefined, undefined, { from, to }, undefined, {
-					isNonInteractive: true,
-				}).catch((err) => {
+				// Always create the chat message but include the suppress flag in the payload
+				// so the chatview can choose not to render it while keeping it in history.
+				task.say(
+					"checkpoint_saved",
+					to,
+					undefined,
+					undefined,
+					{ from, to, suppressMessage: !!suppressMessage },
+					undefined,
+					{ isNonInteractive: true },
+				).catch((err) => {
 					log("[Task#getCheckpointService] caught unexpected error in say('checkpoint_saved')")
 					console.error(err)
 				})
@@ -164,7 +177,7 @@ async function checkGitInstallation(
 	}
 }
 
-export async function checkpointSave(task: Task, force = false) {
+export async function checkpointSave(task: Task, force = false, suppressMessage = false) {
 	const service = await getCheckpointService(task)
 
 	if (!service) {
@@ -174,10 +187,12 @@ export async function checkpointSave(task: Task, force = false) {
 	TelemetryService.instance.captureCheckpointCreated(task.taskId)
 
 	// Start the checkpoint process in the background.
-	return service.saveCheckpoint(`Task: ${task.taskId}, Time: ${Date.now()}`, { allowEmpty: force }).catch((err) => {
-		console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
-		task.enableCheckpoints = false
-	})
+	return service
+		.saveCheckpoint(`Task: ${task.taskId}, Time: ${Date.now()}`, { allowEmpty: force, suppressMessage })
+		.catch((err) => {
+			console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
+			task.enableCheckpoints = false
+		})
 }
 
 export type CheckpointRestoreOptions = {

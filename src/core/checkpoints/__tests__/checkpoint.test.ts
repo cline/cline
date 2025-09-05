@@ -111,7 +111,7 @@ describe("Checkpoint functionality", () => {
 			// saveCheckpoint should have been called
 			expect(mockCheckpointService.saveCheckpoint).toHaveBeenCalledWith(
 				expect.stringContaining("Task: test-task-id"),
-				{ allowEmpty: true },
+				{ allowEmpty: true, suppressMessage: false },
 			)
 
 			// Result should contain the commit hash
