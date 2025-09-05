@@ -86,6 +86,38 @@ jobs:
             - name: Create .env.local file
               working-directory: apps/vscode-e2e
               run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local
+            - name: Set VS Code test version
+              run: echo "VSCODE_VERSION=1.101.2" >> $GITHUB_ENV
+            - name: Cache VS Code test runtime
+              uses: actions/cache@v4
+              with:
+                  path: apps/vscode-e2e/.vscode-test
+                  key: ${{ runner.os }}-vscode-test-${{ env.VSCODE_VERSION }}
+            - name: Pre-download VS Code test runtime with retry
+              working-directory: apps/vscode-e2e
+              run: |
+                  for attempt in 1 2 3; do
+                    echo "Download attempt $attempt of 3..."
+                    node -e "
+                    const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
+                    downloadAndUnzipVSCode({ version: process.env.VSCODE_VERSION || '1.101.2' })
+                      .then(() => {
+                        console.log('✅ VS Code test runtime downloaded successfully');
+                        process.exit(0);
+                      })
+                      .catch(err => {
+                        console.error('❌ Failed to download VS Code (attempt $attempt):', err);
+                        process.exit(1);
+                      });
+                    " && break || {
+                      if [ $attempt -eq 3 ]; then
+                        echo "All download attempts failed"
+                        exit 1
+                      fi
+                      echo "Retrying in 5 seconds..."
+                      sleep 5
+                    }
+                  done
             - name: Run integration tests
               working-directory: apps/vscode-e2e
               run: xvfb-run -a pnpm test:ci

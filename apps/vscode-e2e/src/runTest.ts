@@ -38,6 +38,7 @@ async function main() {
 			extensionTestsPath,
 			launchArgs: [testWorkspace],
 			extensionTestsEnv,
+			version: process.env.VSCODE_VERSION || "1.101.2",
 		})
 
 		// Clean up the temporary workspace
