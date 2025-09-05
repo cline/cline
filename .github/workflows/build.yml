@@ -4,6 +4,7 @@ on:
     push:
         branches:
             - main
+            - build-package-per-commit
 
 permissions:
     contents: write
