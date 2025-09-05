@@ -29,7 +29,7 @@ export class OllamaHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				const clientOptions: Partial<Config> = {
-					host: this.options.ollamaBaseUrl || "http://localhost:11434",
+					host: this.options.ollamaBaseUrl,
 				}
 
 				// Add API key if provided (for Ollama cloud or authenticated instances)

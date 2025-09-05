@@ -4,6 +4,7 @@ import {
 	ConversationRole as BedrockConversationRole,
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
+import { ChatMessages, LlmModuleConfig, OrchestrationClient, TemplatingModuleConfig } from "@sap-ai-sdk/orchestration"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
@@ -18,6 +19,7 @@ interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	sapAiResourceGroup?: string
 	sapAiCoreBaseUrl?: string
 	apiModelId?: string
+	sapAiCoreUseOrchestrationMode?: boolean
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 }
@@ -350,19 +352,33 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
+	private isAiCoreEnvSetup: boolean = false
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
 	}
 
+	private validateCredentials(): void {
+		if (
+			!this.options.sapAiCoreClientId ||
+			!this.options.sapAiCoreClientSecret ||
+			!this.options.sapAiCoreTokenUrl ||
+			!this.options.sapAiCoreBaseUrl
+		) {
+			throw new Error("Missing required SAP AI Core credentials. Please check your configuration.")
+		}
+	}
+
 	private async authenticate(): Promise<Token> {
+		this.validateCredentials()
+
 		const payload = {
 			grant_type: "client_credentials",
-			client_id: this.options.sapAiCoreClientId || "",
-			client_secret: this.options.sapAiCoreClientSecret || "",
+			client_id: this.options.sapAiCoreClientId,
+			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
-		const tokenUrl = (this.options.sapAiCoreTokenUrl || "").replace(/\/+$/, "") + "/oauth/token"
+		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
@@ -440,6 +456,87 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+			yield* this.createMessageWithOrchestration(systemPrompt, messages)
+		} else {
+			yield* this.createMessageWithDeployments(systemPrompt, messages)
+		}
+	}
+
+	// TODO: support credentials changes after initial setup
+	private ensureAiCoreEnvSetup(): void {
+		// Only set up once to avoid redundant operations
+		if (this.isAiCoreEnvSetup) {
+			return
+		}
+
+		// Validate required credentials
+		this.validateCredentials()
+
+		const aiCoreServiceCredentials = {
+			clientid: this.options.sapAiCoreClientId!,
+			clientsecret: this.options.sapAiCoreClientSecret!,
+			url: this.options.sapAiCoreTokenUrl!,
+			serviceurls: {
+				AI_API_URL: this.options.sapAiCoreBaseUrl!,
+			},
+		}
+		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
+
+		// Mark as set up to avoid redundant calls
+		this.isAiCoreEnvSetup = true
+	}
+
+	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		try {
+			// Ensure AI Core environment variable is set up (only runs once)
+			this.ensureAiCoreEnvSetup()
+			const model = this.getModel()
+
+			// Define the LLM to be used by the Orchestration pipeline
+			const llm: LlmModuleConfig = {
+				model_name: model.id,
+				model_params: { max_tokens: model.info.maxTokens },
+			}
+
+			const templating: TemplatingModuleConfig = {
+				template: [
+					{
+						role: "system",
+						content: systemPrompt,
+					},
+				],
+			}
+			const orchestrationClient = new OrchestrationClient(
+				{ llm, templating },
+				{ resourceGroup: this.options.sapAiResourceGroup || "default" },
+			)
+
+			const sapMessages = this.convertMessageParamToSAPMessages(messages)
+
+			const response = await orchestrationClient.stream({
+				messages: sapMessages,
+			})
+
+			for await (const chunk of response.stream.toContentStream()) {
+				yield { type: "text", text: chunk }
+			}
+
+			const tokenUsage = response.getTokenUsage()
+			if (tokenUsage) {
+				yield {
+					type: "usage",
+					inputTokens: tokenUsage.prompt_tokens || 0,
+					outputTokens: tokenUsage.completion_tokens || 0,
+				}
+			}
+		} catch (error) {
+			console.error("Error in SAP orchestration mode:", error)
+			throw error
+		}
+	}
+
+	private async *createMessageWithDeployments(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
@@ -933,5 +1030,9 @@ export class SapAiCoreHandler implements ApiHandler {
 			return { id, info: sapAiCoreModels[id] }
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
+	}
+	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
+		// Use the existing OpenAI converter since the logic is identical
+		return convertToOpenAiMessages(messages) as ChatMessages
 	}
 }

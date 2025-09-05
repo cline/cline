@@ -1,7 +1,8 @@
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { featureFlagsService, telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { featureFlagsService } from "@/services/feature-flags"
+import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
@@ -29,8 +30,8 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -44,7 +45,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 							...apiConfiguration,
 							[modelInfoField]: response.models[modelId],
 						}
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -65,7 +66,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				}
@@ -75,8 +76,8 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		refreshGroqModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -90,7 +91,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 							...apiConfiguration,
 							[modelInfoField]: response.models[modelId],
 						}
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -111,7 +112,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				}
@@ -121,8 +122,8 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		refreshBasetenModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
 
 				const currentMode = await controller.getCurrentMode()
 
@@ -133,7 +134,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					const modelId = apiConfiguration[modelIdField]
 
 					if (modelId && response.models[modelId]) {
-						controller.cacheService.setGlobalState(modelInfoField, response.models[modelId])
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -143,12 +144,12 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
-						controller.cacheService.setGlobalState("planModeBasetenModelInfo", response.models[planModelId])
+						controller.stateManager.setGlobalState("planModeBasetenModelInfo", response.models[planModelId])
 					}
 
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
-						controller.cacheService.setGlobalState("actModeBasetenModelInfo", response.models[actModelId])
+						controller.stateManager.setGlobalState("actModeBasetenModelInfo", response.models[actModelId])
 					}
 
 					// Post state update if we updated any model info
@@ -163,8 +164,8 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		refreshVercelAiGatewayModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = controller.cacheService.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.cacheService.getGlobalStateKey("planActSeparateModelsSetting")
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -180,7 +181,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 							...apiConfiguration,
 							[modelInfoField]: response.models[modelId],
 						}
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				} else {
@@ -201,7 +202,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.cacheService.setApiConfiguration(updatedConfig)
+						controller.stateManager.setApiConfiguration(updatedConfig)
 						await controller.postStateToWebview()
 					}
 				}
@@ -214,7 +215,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Prefetch marketplace and OpenRouter models
 
 		// Send stored MCP marketplace catalog if available
-		const mcpMarketplaceCatalog = controller.cacheService.getGlobalStateKey("mcpMarketplaceCatalog")
+		const mcpMarketplaceCatalog = controller.stateManager.getGlobalStateKey("mcpMarketplaceCatalog")
 
 		if (mcpMarketplaceCatalog) {
 			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog as McpMarketplaceCatalog)
@@ -234,7 +235,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		featureFlagsService
 			.getFocusChainEnabled()
 			.then(async (enabled: boolean) => {
-				controller.cacheService.setGlobalState("focusChainFeatureFlagEnabled", enabled)
+				controller.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
 				await controller.postStateToWebview()
 			})
 			.catch((err: any) => console.error("Failed to refresh focus chain remote flag on webview init", err))

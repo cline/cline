@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo, openRouterClaudeSonnet41mModelId } from "@shared/api"
 import OpenAI from "openai"
-import { isGPT5ModelFamily } from "../../prompts/system-prompt/utils"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 
@@ -152,17 +151,6 @@ export async function createOpenRouterStream(
 			}
 	}
 
-	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-	let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
-	// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
-	if (model.id === "deepseek/deepseek-chat") {
-		shouldApplyMiddleOutTransform = true
-	}
-
-	if (isGPT5ModelFamily(model.id)) {
-		shouldApplyMiddleOutTransform = false
-	}
-
 	// hardcoded provider sorting for kimi-k2
 	const isKimiK2 = model.id === "moonshotai/kimi-k2"
 	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
@@ -176,7 +164,6 @@ export async function createOpenRouterStream(
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
-		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),

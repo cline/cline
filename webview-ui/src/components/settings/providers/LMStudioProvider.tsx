@@ -1,14 +1,14 @@
 import type { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
+import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { updateSetting } from "../utils/settingsHandlers"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -37,13 +37,12 @@ interface LMStudioApiModel {
  * The LM Studio provider configuration component
  */
 export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
-	const { apiConfiguration, customPrompt } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
-	const [isCompactPromptEnabled, setIsCompactPromptEnabled] = useState<boolean>(customPrompt === "compact")
 
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === lmStudioModelId),
@@ -53,11 +52,6 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		() => apiConfiguration?.lmStudioBaseUrl || "http://localhost:1234",
 		[apiConfiguration?.lmStudioBaseUrl],
 	)
-
-	const toggleCompactPrompt = useCallback((isChecked: boolean) => {
-		setIsCompactPromptEnabled(isChecked)
-		updateSetting("customPrompt", isChecked ? "compact" : "")
-	}, [])
 
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
@@ -157,16 +151,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
 
-			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
-				Use compact prompt
-			</VSCodeCheckbox>
-			<div className="text-xs text-description">
-				A system prompt optimized for smaller context window (e.g. 8k or less).
-				<div className="text-error flex align-middle">
-					<i className="codicon codicon-x" />
-					Does not support Mcp and Focus Chain
-				</div>
-			</div>
+			<UseCustomPromptCheckbox providerId="lmstudio" />
 
 			<div className="text-xs text-description">
 				LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their

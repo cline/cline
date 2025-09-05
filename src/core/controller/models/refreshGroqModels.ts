@@ -5,7 +5,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { telemetryService } from "@/services/telemetry"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 
@@ -18,7 +18,7 @@ import { Controller } from ".."
 export async function refreshGroqModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
 
-	const groqApiKey = controller.cacheService.getSecretKey("groqApiKey")
+	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
