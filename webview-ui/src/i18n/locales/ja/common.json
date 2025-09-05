@@ -72,7 +72,13 @@
 		"deleteWarning": "このメッセージを削除すると、会話内の後続のメッセージもすべて削除されます。続行しますか？",
 		"editMessage": "メッセージを編集",
 		"editWarning": "このメッセージを編集すると、会話内の後続のメッセージもすべて削除されます。続行しますか？",
-		"proceed": "続行"
+		"editQuestionWithCheckpoint": "このメッセージを編集すると、会話内の後続のメッセージもすべて削除されます。このチェックポイントまでのすべての変更も元に戻しますか？",
+		"deleteQuestionWithCheckpoint": "このメッセージを削除すると、会話内の後続のメッセージもすべて削除されます。このチェックポイントまでのすべての変更も元に戻しますか？",
+		"editOnly": "いいえ、メッセージのみ編集",
+		"deleteOnly": "いいえ、メッセージのみ削除",
+		"restoreToCheckpoint": "はい、チェックポイントを復元",
+		"proceed": "続行",
+		"dontShowAgain": "今後表示しない"
 	},
 	"time_ago": {
 		"just_now": "たった今",

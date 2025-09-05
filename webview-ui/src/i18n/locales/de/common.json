@@ -72,7 +72,13 @@
 		"deleteWarning": "Das Löschen dieser Nachricht wird alle nachfolgenden Nachrichten in der Unterhaltung löschen. Möchtest du fortfahren?",
 		"editMessage": "Nachricht bearbeiten",
 		"editWarning": "Das Bearbeiten dieser Nachricht wird alle nachfolgenden Nachrichten in der Unterhaltung löschen. Möchtest du fortfahren?",
-		"proceed": "Fortfahren"
+		"editQuestionWithCheckpoint": "Das Bearbeiten dieser Nachricht wird alle späteren Nachrichten in der Unterhaltung löschen. Möchtest du auch alle Änderungen bis zu diesem Checkpoint rückgängig machen?",
+		"deleteQuestionWithCheckpoint": "Das Löschen dieser Nachricht wird alle späteren Nachrichten in der Unterhaltung löschen. Möchtest du auch alle Änderungen bis zu diesem Checkpoint rückgängig machen?",
+		"editOnly": "Nein, nur Nachricht bearbeiten",
+		"deleteOnly": "Nein, nur Nachricht löschen",
+		"restoreToCheckpoint": "Ja, Checkpoint wiederherstellen",
+		"proceed": "Fortfahren",
+		"dontShowAgain": "Nicht mehr anzeigen"
 	},
 	"time_ago": {
 		"just_now": "gerade eben",

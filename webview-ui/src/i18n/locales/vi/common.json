@@ -72,7 +72,13 @@
 		"deleteWarning": "Xóa tin nhắn này sẽ xóa tất cả các tin nhắn tiếp theo trong cuộc trò chuyện. Bạn có muốn tiếp tục không?",
 		"editMessage": "Chỉnh Sửa Tin Nhắn",
 		"editWarning": "Chỉnh sửa tin nhắn này sẽ xóa tất cả các tin nhắn tiếp theo trong cuộc trò chuyện. Bạn có muốn tiếp tục không?",
-		"proceed": "Tiếp Tục"
+		"editQuestionWithCheckpoint": "Chỉnh sửa tin nhắn này sẽ xóa tất cả các tin nhắn sau đó trong cuộc trò chuyện. Bạn có muốn hoàn tác tất cả các thay đổi về checkpoint này không?",
+		"deleteQuestionWithCheckpoint": "Xóa tin nhắn này sẽ xóa tất cả các tin nhắn sau đó trong cuộc trò chuyện. Bạn có muốn hoàn tác tất cả các thay đổi về checkpoint này không?",
+		"editOnly": "Không, chỉ chỉnh sửa tin nhắn",
+		"deleteOnly": "Không, chỉ xóa tin nhắn",
+		"restoreToCheckpoint": "Có, khôi phục checkpoint",
+		"proceed": "Tiếp Tục",
+		"dontShowAgain": "Không hiển thị lại"
 	},
 	"time_ago": {
 		"just_now": "vừa xong",

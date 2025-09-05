@@ -72,7 +72,13 @@
 		"deleteWarning": "Deleting this message will delete all subsequent messages in the conversation. Do you want to proceed?",
 		"editMessage": "Edit Message",
 		"editWarning": "Editing this message will delete all subsequent messages in the conversation. Do you want to proceed?",
-		"proceed": "Proceed"
+		"editQuestionWithCheckpoint": "Editing this message will delete all later messages in the conversation. Do you also want to undo all changes back to this checkpoint?",
+		"deleteQuestionWithCheckpoint": "Deleting this message will delete all later messages in the conversation. Do you also want to undo all changes back to this checkpoint?",
+		"editOnly": "No, edit message only",
+		"deleteOnly": "No, delete message only",
+		"restoreToCheckpoint": "Yes, restore the checkpoint",
+		"proceed": "Proceed",
+		"dontShowAgain": "Don't show this again"
 	},
 	"time_ago": {
 		"just_now": "just now",

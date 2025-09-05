@@ -72,7 +72,13 @@
 		"deleteWarning": "Supprimer ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
 		"editMessage": "Modifier le message",
 		"editWarning": "Modifier ce message supprimera tous les messages suivants dans la conversation. Voulez-vous continuer ?",
-		"proceed": "Continuer"
+		"editQuestionWithCheckpoint": "Modifier ce message supprimera tous les messages ultérieurs dans la conversation. Voulez-vous aussi annuler tous les changements jusqu'à ce point de contrôle ?",
+		"deleteQuestionWithCheckpoint": "Supprimer ce message supprimera tous les messages ultérieurs dans la conversation. Voulez-vous aussi annuler tous les changements jusqu'à ce point de contrôle ?",
+		"editOnly": "Non, modifier le message seulement",
+		"deleteOnly": "Non, supprimer le message seulement",
+		"restoreToCheckpoint": "Oui, restaurer le point de contrôle",
+		"proceed": "Continuer",
+		"dontShowAgain": "Ne plus afficher ceci"
 	},
 	"time_ago": {
 		"just_now": "à l'instant",

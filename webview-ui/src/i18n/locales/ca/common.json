@@ -72,7 +72,13 @@
 		"deleteWarning": "Eliminar aquest missatge eliminarà tots els missatges posteriors de la conversa. Vols continuar?",
 		"editMessage": "Editar missatge",
 		"editWarning": "Editar aquest missatge eliminarà tots els missatges posteriors de la conversa. Vols continuar?",
-		"proceed": "Continuar"
+		"editQuestionWithCheckpoint": "Editar aquest missatge eliminarà tots els missatges posteriors de la conversa. També vols desfer tots els canvis fins a aquest punt de control?",
+		"deleteQuestionWithCheckpoint": "Eliminar aquest missatge eliminarà tots els missatges posteriors de la conversa. També vols desfer tots els canvis fins a aquest punt de control?",
+		"editOnly": "No, només editar el missatge",
+		"deleteOnly": "No, només eliminar el missatge",
+		"restoreToCheckpoint": "Sí, restaurar el punt de control",
+		"proceed": "Continuar",
+		"dontShowAgain": "No tornis a mostrar això"
 	},
 	"time_ago": {
 		"just_now": "ara mateix",

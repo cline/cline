@@ -72,7 +72,13 @@
 		"deleteWarning": "이 메시지를 삭제하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
 		"editMessage": "메시지 편집",
 		"editWarning": "이 메시지를 편집하면 대화의 모든 후속 메시지가 삭제됩니다. 계속하시겠습니까?",
-		"proceed": "계속"
+		"editQuestionWithCheckpoint": "이 메시지를 편집하면 대화의 모든 후속 메시지가 삭제됩니다. 이 체크포인트까지의 모든 변경사항도 되돌리시겠습니까?",
+		"deleteQuestionWithCheckpoint": "이 메시지를 삭제하면 대화의 모든 후속 메시지가 삭제됩니다. 이 체크포인트까지의 모든 변경사항도 되돌리시겠습니까?",
+		"editOnly": "아니요, 메시지만 편집",
+		"deleteOnly": "아니요, 메시지만 삭제",
+		"restoreToCheckpoint": "예, 체크포인트 복원",
+		"proceed": "계속",
+		"dontShowAgain": "다시 표시하지 않음"
 	},
 	"time_ago": {
 		"just_now": "방금",

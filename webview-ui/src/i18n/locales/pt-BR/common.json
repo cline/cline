@@ -72,7 +72,13 @@
 		"deleteWarning": "Excluir esta mensagem irá excluir todas as mensagens subsequentes na conversa. Deseja prosseguir?",
 		"editMessage": "Editar Mensagem",
 		"editWarning": "Editar esta mensagem irá excluir todas as mensagens subsequentes na conversa. Deseja prosseguir?",
-		"proceed": "Prosseguir"
+		"editQuestionWithCheckpoint": "Editar esta mensagem irá excluir todas as mensagens posteriores na conversa. Você também deseja desfazer todas as alterações até este checkpoint?",
+		"deleteQuestionWithCheckpoint": "Excluir esta mensagem irá excluir todas as mensagens posteriores na conversa. Você também deseja desfazer todas as alterações até este checkpoint?",
+		"editOnly": "Não, apenas editar a mensagem",
+		"deleteOnly": "Não, apenas excluir a mensagem",
+		"restoreToCheckpoint": "Sim, restaurar o checkpoint",
+		"proceed": "Prosseguir",
+		"dontShowAgain": "Não mostrar novamente"
 	},
 	"time_ago": {
 		"just_now": "agora mesmo",

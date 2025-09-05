@@ -71,8 +71,14 @@
 		"deleteMessage": "刪除訊息",
 		"deleteWarning": "刪除此訊息將會刪除對話中所有後續的訊息。您要繼續嗎？",
 		"editMessage": "編輯訊息",
-		"editWarning": "編輯此訊息將會刪除對話中所有後續的訊息。您要繼續嗎？",
-		"proceed": "繼續"
+		"editWarning": "編輯此訊息將刪除對話中的所有後續訊息。是否繼續？",
+		"editQuestionWithCheckpoint": "編輯此訊息將刪除對話中的所有後續訊息。是否同時將所有變更撤銷到此存檔點？",
+		"deleteQuestionWithCheckpoint": "刪除此訊息將刪除對話中的所有後續訊息。是否同時將所有變更撤銷到此存檔點？",
+		"editOnly": "否，僅編輯訊息",
+		"deleteOnly": "否，僅刪除訊息",
+		"restoreToCheckpoint": "是，恢復存檔點",
+		"proceed": "繼續",
+		"dontShowAgain": "不再顯示"
 	},
 	"time_ago": {
 		"just_now": "剛剛",
