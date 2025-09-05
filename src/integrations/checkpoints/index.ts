@@ -318,7 +318,7 @@ export class TaskCheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore offsetcheckpoint: " + errorMessage,
+								message: "Failed to restore offset checkpoint: " + errorMessage,
 							})
 							didWorkspaceRestoreFail = true
 						}
