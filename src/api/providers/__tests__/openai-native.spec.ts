@@ -859,6 +859,208 @@ describe("OpenAiNativeHandler", () => {
 			expect(secondCallBody.previous_response_id).toBe("resp_789")
 		})
 
+		it("should retry with full conversation when previous_response_id fails", async () => {
+			// This test verifies the fix for context loss bug when previous_response_id becomes invalid
+			const mockFetch = vitest
+				.fn()
+				// First call: fails with 400 error about invalid previous_response_id
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 400,
+					text: async () => JSON.stringify({ error: { message: "Previous response not found" } }),
+				})
+				// Second call (retry): succeeds
+				.mockResolvedValueOnce({
+					ok: true,
+					body: new ReadableStream({
+						start(controller) {
+							controller.enqueue(
+								new TextEncoder().encode(
+									'data: {"type":"response.output_item.added","item":{"type":"text","text":"Retry successful"}}\n\n',
+								),
+							)
+							controller.enqueue(
+								new TextEncoder().encode(
+									'data: {"type":"response.done","response":{"id":"resp_new","usage":{"prompt_tokens":100,"completion_tokens":2}}}\n\n',
+								),
+							)
+							controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+							controller.close()
+						},
+					}),
+				})
+			global.fetch = mockFetch as any
+
+			// Mock SDK to fail
+			mockResponsesCreate.mockRejectedValue(new Error("SDK not available"))
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+			})
+
+			// Prepare a multi-turn conversation
+			const conversationMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "What is 2+2?" },
+				{ role: "assistant", content: "2+2 equals 4." },
+				{ role: "user", content: "What about 3+3?" },
+				{ role: "assistant", content: "3+3 equals 6." },
+				{ role: "user", content: "And 4+4?" }, // Latest message
+			]
+
+			// Call with a previous_response_id that will fail
+			const stream = handler.createMessage(systemPrompt, conversationMessages, {
+				taskId: "test-task",
+				previousResponseId: "resp_invalid",
+			})
+
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify we got the successful response
+			const textChunks = chunks.filter((c) => c.type === "text")
+			expect(textChunks).toHaveLength(1)
+			expect(textChunks[0].text).toBe("Retry successful")
+
+			// Verify two requests were made
+			expect(mockFetch).toHaveBeenCalledTimes(2)
+
+			// First request: includes previous_response_id and only latest message
+			const firstCallBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+			expect(firstCallBody.previous_response_id).toBe("resp_invalid")
+			expect(firstCallBody.input).toEqual([
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "And 4+4?" }],
+				},
+			])
+
+			// Second request (retry): NO previous_response_id, but FULL conversation history
+			const secondCallBody = JSON.parse(mockFetch.mock.calls[1][1].body)
+			expect(secondCallBody.previous_response_id).toBeUndefined()
+			expect(secondCallBody.instructions).toBe(systemPrompt)
+			// Should include the FULL conversation history
+			expect(secondCallBody.input).toEqual([
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "What is 2+2?" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "output_text", text: "2+2 equals 4." }],
+				},
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "What about 3+3?" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "output_text", text: "3+3 equals 6." }],
+				},
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "And 4+4?" }],
+				},
+			])
+		})
+
+		it("should retry with full conversation when SDK returns 400 for invalid previous_response_id", async () => {
+			// Test the SDK path (executeRequest method) for handling invalid previous_response_id
+
+			// Mock SDK to return an async iterable that we can control
+			const createMockStream = (chunks: any[]) => {
+				return {
+					async *[Symbol.asyncIterator]() {
+						for (const chunk of chunks) {
+							yield chunk
+						}
+					},
+				}
+			}
+
+			// First call: SDK throws 400 error
+			mockResponsesCreate
+				.mockRejectedValueOnce({
+					status: 400,
+					message: "Previous response resp_invalid not found",
+				})
+				// Second call (retry): SDK succeeds with async iterable
+				.mockResolvedValueOnce(
+					createMockStream([
+						{ type: "response.text.delta", delta: "Context" },
+						{ type: "response.text.delta", delta: " preserved!" },
+						{
+							type: "response.done",
+							response: { id: "resp_new", usage: { prompt_tokens: 150, completion_tokens: 2 } },
+						},
+					]),
+				)
+
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5-2025-08-07",
+			})
+
+			// Prepare a conversation with context
+			const conversationMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Remember the number 42" },
+				{ role: "assistant", content: "I'll remember 42." },
+				{ role: "user", content: "What number did I ask you to remember?" },
+			]
+
+			// Call with a previous_response_id that will fail
+			const stream = handler.createMessage(systemPrompt, conversationMessages, {
+				taskId: "test-task",
+				previousResponseId: "resp_invalid",
+			})
+
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Verify we got the successful response
+			const textChunks = chunks.filter((c) => c.type === "text")
+			expect(textChunks).toHaveLength(2)
+			expect(textChunks[0].text).toBe("Context")
+			expect(textChunks[1].text).toBe(" preserved!")
+
+			// Verify two SDK calls were made
+			expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+			// First SDK call: includes previous_response_id and only latest message
+			const firstCallBody = mockResponsesCreate.mock.calls[0][0]
+			expect(firstCallBody.previous_response_id).toBe("resp_invalid")
+			expect(firstCallBody.input).toEqual([
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "What number did I ask you to remember?" }],
+				},
+			])
+
+			// Second SDK call (retry): NO previous_response_id, but FULL conversation history
+			const secondCallBody = mockResponsesCreate.mock.calls[1][0]
+			expect(secondCallBody.previous_response_id).toBeUndefined()
+			expect(secondCallBody.instructions).toBe(systemPrompt)
+			// Should include the FULL conversation history to preserve context
+			expect(secondCallBody.input).toEqual([
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "Remember the number 42" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "output_text", text: "I'll remember 42." }],
+				},
+				{
+					role: "user",
+					content: [{ type: "input_text", text: "What number did I ask you to remember?" }],
+				},
+			])
+		})
+
 		it("should only send latest message when using previous_response_id", async () => {
 			// Mock fetch for Responses API
 			const mockFetch = vitest
