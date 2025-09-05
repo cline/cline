@@ -2,6 +2,7 @@ import type { ModelInfo } from "../model.js"
 
 export type FireworksModelId =
 	| "accounts/fireworks/models/kimi-k2-instruct"
+	| "accounts/fireworks/models/kimi-k2-instruct-0905"
 	| "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
 	| "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"
 	| "accounts/fireworks/models/deepseek-r1-0528"
@@ -12,9 +13,20 @@ export type FireworksModelId =
 	| "accounts/fireworks/models/gpt-oss-20b"
 	| "accounts/fireworks/models/gpt-oss-120b"
 
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
 
 export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2-instruct-0905": {
+		maxTokens: 16384,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.15,
+		description:
+			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+	},
 	"accounts/fireworks/models/kimi-k2-instruct": {
 		maxTokens: 16384,
 		contextWindow: 128000,
