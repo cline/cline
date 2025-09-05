@@ -50,16 +50,20 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		// For non-recursive, use the existing approach
 		const files = await listFilesWithRipgrep(rgPath, dirPath, false, limit)
 		const ignoreInstance = await createIgnoreInstance(dirPath)
-		const directories = await listFilteredDirectories(dirPath, false, ignoreInstance)
+		// Calculate remaining limit for directories
+		const remainingLimit = Math.max(0, limit - files.length)
+		const directories = await listFilteredDirectories(dirPath, false, ignoreInstance, remainingLimit)
 		return formatAndCombineResults(files, directories, limit)
 	}
 
 	// For recursive mode, use the original approach but ensure first-level directories are included
 	const files = await listFilesWithRipgrep(rgPath, dirPath, true, limit)
 	const ignoreInstance = await createIgnoreInstance(dirPath)
-	const directories = await listFilteredDirectories(dirPath, true, ignoreInstance)
+	// Calculate remaining limit for directories
+	const remainingLimit = Math.max(0, limit - files.length)
+	const directories = await listFilteredDirectories(dirPath, true, ignoreInstance, remainingLimit)
 
-	// Combine and check if we hit the limit
+	// Combine and check if we hit the limits
 	const [results, limitReached] = formatAndCombineResults(files, directories, limit)
 
 	// If we hit the limit, ensure all first-level directories are included
@@ -384,9 +388,12 @@ async function listFilteredDirectories(
 	dirPath: string,
 	recursive: boolean,
 	ignoreInstance: ReturnType<typeof ignore>,
+	limit?: number,
 ): Promise<string[]> {
 	const absolutePath = path.resolve(dirPath)
 	const directories: string[] = []
+	let dirCount = 0
+	const effectiveLimit = limit ?? Number.MAX_SAFE_INTEGER
 
 	// For environment details generation, we don't want to treat the root as a "target"
 	// if we're doing a general recursive scan, as this would include hidden directories
@@ -401,13 +408,23 @@ async function listFilteredDirectories(
 		ignoreInstance,
 	}
 
-	async function scanDirectory(currentPath: string, context: ScanContext): Promise<void> {
+	async function scanDirectory(currentPath: string, context: ScanContext): Promise<boolean> {
+		// Check if we've reached the limit
+		if (dirCount >= effectiveLimit) {
+			return true // Signal that limit was reached
+		}
+
 		try {
 			// List all entries in the current directory
 			const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
 
 			// Filter for directories only, excluding symbolic links to prevent circular traversal
 			for (const entry of entries) {
+				// Check limit before processing each directory
+				if (dirCount >= effectiveLimit) {
+					return true
+				}
+
 				if (entry.isDirectory() && !entry.isSymbolicLink()) {
 					const dirName = entry.name
 					const fullDirPath = path.join(currentPath, dirName)
@@ -425,6 +442,12 @@ async function listFilteredDirectories(
 						// fullDirPath is already absolute since it's built with path.join from absolutePath
 						const formattedPath = fullDirPath.endsWith("/") ? fullDirPath : `${fullDirPath}/`
 						directories.push(formattedPath)
+						dirCount++
+
+						// Check if we've reached the limit after adding
+						if (dirCount >= effectiveLimit) {
+							return true
+						}
 					}
 
 					// If recursive mode and not a ignored directory, scan subdirectories
@@ -461,7 +484,10 @@ async function listFilteredDirectories(
 							isTargetDir: false,
 							insideExplicitHiddenTarget: newInsideExplicitHiddenTarget,
 						}
-						await scanDirectory(fullDirPath, newContext)
+						const limitReached = await scanDirectory(fullDirPath, newContext)
+						if (limitReached) {
+							return true
+						}
 					}
 				}
 			}
@@ -469,6 +495,8 @@ async function listFilteredDirectories(
 			// Continue if we can't read a directory
 			console.warn(`Could not read directory ${currentPath}: ${err}`)
 		}
+
+		return false // Limit not reached
 	}
 
 	// Start scanning from the root directory
