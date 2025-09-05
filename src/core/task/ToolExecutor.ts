@@ -10,10 +10,11 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Mode } from "@shared/storage/types"
+import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
-import { ToolUse, ToolUseName } from "../assistant-message"
+import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
@@ -51,12 +52,12 @@ export class ToolExecutor {
 	private coordinator: ToolExecutorCoordinator
 
 	// Auto-approval methods using the AutoApprove class
-	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+	private shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}
 
 	private async shouldAutoApproveToolWithPath(
-		blockname: ToolUseName,
+		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
@@ -106,7 +107,7 @@ export class ToolExecutor {
 			files?: string[]
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
-		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
+		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
@@ -186,9 +187,9 @@ export class ToolExecutor {
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file"
-		this.coordinator.register(new SharedToolHandler("replace_in_file", writeHandler))
-		this.coordinator.register(new SharedToolHandler("new_rule", writeHandler))
+		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
@@ -272,7 +273,11 @@ export class ToolExecutor {
 	/**
 	 * Tools that are restricted in plan mode and can only be used in act mode
 	 */
-	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ToolUseName[] = ["write_to_file", "replace_in_file", "new_rule"]
+	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ClineDefaultTool[] = [
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.NEW_RULE,
+	]
 
 	/**
 	 * Execute a tool through the coordinator if it's registered
@@ -337,7 +342,7 @@ export class ToolExecutor {
 	/**
 	 * Check if a tool is restricted in plan mode
 	 */
-	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
 		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 

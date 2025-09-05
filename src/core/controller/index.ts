@@ -26,6 +26,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { PromptRegistry } from "../prompts/system-prompt"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
@@ -53,7 +54,7 @@ export class Controller {
 		id: string,
 	) {
 		this.id = id
-
+		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
