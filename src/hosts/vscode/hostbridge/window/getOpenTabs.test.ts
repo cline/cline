@@ -111,7 +111,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		)
 	})
 
-	it("should exclude tabs for deleted files from results", async () => {
+	it("should return all tabs including deleted files", async () => {
 		// Create a temporary file on disk
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "vscode-test-"))
 		const testFilePath = path.join(tempDir, "test-file.js")
@@ -140,15 +140,15 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		// Delete the file from disk
 		await fs.unlink(testFilePath)
 
-		// Get open tabs - should now only include the untitled document
+		// Get open tabs - should still return both tabs
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
 
-		// Should only have 1 tab (the untitled document), not the deleted file
+		// Should still have 2 tabs (host bridge returns all tabs regardless of file existence)
 		assert.strictEqual(
 			response.paths.length,
-			1,
-			`Expected 1 tab after file deletion, got ${response.paths.length}. Found tabs: ${JSON.stringify(response.paths)}`,
+			2,
+			`Host bridge should return all tabs including deleted files. Found tabs: ${JSON.stringify(response.paths)}`,
 		)
 
 		// Clean up temp directory

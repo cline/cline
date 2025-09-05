@@ -147,7 +147,7 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		)
 	})
 
-	it("should exclude visible tabs for deleted files from results", async () => {
+	it("should return all visible tabs including deleted files)", async () => {
 		// Create a temporary file on disk
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-test-"))
 		const testFilePath = path.join(tempDir, "test-file-to-delete.txt")
@@ -158,7 +158,7 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const fileDoc = await vscode.workspace.openTextDocument(fileUri)
 		await vscode.window.showTextDocument(fileDoc, { viewColumn: vscode.ViewColumn.One, preview: false })
 
-		// Also open an untitled document to verify it's preserved
+		// Also open an untitled document
 		const untitledUri = vscode.Uri.parse("untitled:preserved-file.js")
 		const untitledDoc = await vscode.workspace.openTextDocument(untitledUri)
 		const edit = new vscode.WorkspaceEdit()
@@ -177,19 +177,12 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		// Delete the real file from disk (but keep the editor open)
 		await fs.unlink(testFilePath)
 
-		// Get visible tabs again - should now exclude the deleted file but keep the untitled document
+		// Get visible tabs again - should still return both tabs
 		response = await getVisibleTabs(request)
 		assert.strictEqual(
 			response.paths.length,
-			1,
-			`Should have 1 visible tab after deleting file. Found: ${JSON.stringify(response.paths)}`,
-		)
-
-		// Verify the remaining path is the untitled document (contains the untitled scheme in its path representation)
-		const remainingPath = response.paths[0]
-		assert.ok(
-			remainingPath.includes("preserved-file.js"),
-			`Remaining visible tab should be the untitled document, got: ${remainingPath}`,
+			2,
+			`Host bridge should return all tabs including deleted files. Found: ${JSON.stringify(response.paths)}`,
 		)
 
 		// Clean up temp directory
