@@ -198,7 +198,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
 
-		if (isOminiModel || (isAnthropicModelId(modelId) && reasoningOn)) {
+		if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
 			temperature = undefined // OAI omni and Anthropic extended thinking mode doesn't support temperature
 		}
 
