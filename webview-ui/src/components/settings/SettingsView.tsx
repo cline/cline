@@ -1,6 +1,7 @@
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { debounce } from "lodash"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
@@ -123,15 +124,6 @@ const renderSectionHeader = (tabId: string) => {
 			</div>
 		</SectionHeader>
 	)
-}
-
-// Debounce helper for resize observer
-const debounce = <T extends (...args: any[]) => void>(fn: T, delay: number): T => {
-	let timeoutId: NodeJS.Timeout
-	return ((...args) => {
-		clearTimeout(timeoutId)
-		timeoutId = setTimeout(() => fn(...args), delay)
-	}) as T
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
