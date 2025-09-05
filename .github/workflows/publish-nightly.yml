@@ -2,7 +2,7 @@ name: "Publish Nightly Release"
 
 on:
   schedule:
-    - cron: "0 0 * * *" # Daily at 00:00 UTC
+    - cron: '0 12 * * *'  # 4 AM PST (UTC-8) = 12 UTC
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,14 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
+            - name: Check for recent commits
+              run: |
+                if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
+                  echo "No commits in last 24 hours, exiting"
+                  exit 0
+                fi
+                echo "Found recent commits, proceeding with build"
+                
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
