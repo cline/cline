@@ -2,29 +2,37 @@ import { v4 as uuidv4 } from "uuid"
 import { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { EmptyRequest } from "@/shared/proto/cline/common"
-import { Logger } from "./Logger"
 
 /*
  * Unique identifier for the current installation.
  */
 let _distinctId: string = ""
 
+/**
+ * Some environments don't return a value for the machine ID. For these situations we generated
+ * a unique ID and store it locally.
+ */
+export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
+
 export async function initializeDistinctId(context: ExtensionContext, uuid: () => string = uuidv4) {
-	// NOTE: Backward compatibility in case where cline.distinctId was set in older versions
-	const existingId = context.globalState.get<string>("cline.distinctId")
-	const machineId = await getMachineId()
-	let distinctId = existingId || machineId
+	// Try to read the ID from storage.
+	let distinctId = context.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
 
 	if (!distinctId) {
-		console.warn("No machine ID found, generating UUID")
-		distinctId = uuid()
+		// Get the ID from the host environment.
+		distinctId = await getMachineId()
+	}
+	if (!distinctId) {
+		// Fallback to generating a unique ID and keeping in global storage.
+		console.warn("No machine ID found for telemetry, generating UUID")
+		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
+		distinctId = "cl-" + uuid()
+		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
 	}
 
 	setDistinctId(distinctId)
 
-	if (process.env.IS_DEV) {
-		console.log("Telemetry distinct ID initialized:", distinctId)
-	}
+	console.log("Telemetry distinct ID initialized:", distinctId)
 }
 
 /*
@@ -34,8 +42,8 @@ async function getMachineId(): Promise<string | undefined> {
 	try {
 		const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
 		return response.value
-	} catch (e) {
-		Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
+	} catch (error) {
+		console.log("Failed to get machine ID", error)
 		return undefined
 	}
 }
