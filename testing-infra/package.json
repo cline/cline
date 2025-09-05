@@ -1,0 +1,21 @@
+{
+	"name": "testing-infra",
+	"version": "0.1.0",
+	"main": "dist/runner.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "ts-node harness/runner.ts",
+		"test": "npm run build && node dist/runner.js"
+	},
+	"dependencies": {
+		"@grpc/grpc-js": "^1.9.3",
+		"@grpc/proto-loader": "^0.7.10",
+		"axios": "^1.6.7",
+		"js-yaml": "^4.1.0",
+		"uuid": "^9.0.1"
+	},
+	"devDependencies": {
+		"ts-node": "^10.9.1",
+		"typescript": "^5.3.3"
+	}
+}
