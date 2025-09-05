@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Il provider Roo richiede l'autenticazione cloud. Accedi a Roo Code Cloud."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "La chiave API contiene caratteri non validi."
 		}
 	},
 	"warnings": {

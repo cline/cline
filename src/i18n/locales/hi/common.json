@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Roo प्रदाता को क्लाउड प्रमाणीकरण की आवश्यकता है। कृपया Roo Code Cloud में साइन इन करें।"
+		},
+		"api": {
+			"invalidKeyInvalidChars": "API कुंजी में अमान्य वर्ण हैं।"
 		}
 	},
 	"warnings": {

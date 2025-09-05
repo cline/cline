@@ -107,6 +107,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "O provedor Roo requer autenticação na nuvem. Faça login no Roo Code Cloud."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "A chave API contém caracteres inválidos."
 		}
 	},
 	"warnings": {

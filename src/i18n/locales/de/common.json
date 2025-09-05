@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Roo-Anbieter erfordert Cloud-Authentifizierung. Bitte melde dich bei Roo Code Cloud an."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "API-Schlüssel enthält ungültige Zeichen."
 		}
 	},
 	"warnings": {

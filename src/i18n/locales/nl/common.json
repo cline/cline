@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Roo provider vereist cloud authenticatie. Log in bij Roo Code Cloud."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "API-sleutel bevat ongeldige karakters."
 		}
 	},
 	"warnings": {

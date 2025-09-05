@@ -16,6 +16,7 @@ import { getModels } from "./fetchers/modelCache"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { toRequestyServiceUrl } from "../../shared/utils/requesty"
+import { handleOpenAIError } from "./utils/openai-error-handler"
 
 // Requesty usage includes an extra field for Anthropic use cases.
 // Safely cast the prompt token details section to the appropriate structure.
@@ -42,6 +43,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 	protected models: ModelRecord = {}
 	private client: OpenAI
 	private baseURL: string
+	private readonly providerName = "Requesty"
 
 	constructor(options: ApiHandlerOptions) {
 		super()
@@ -49,9 +51,11 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		this.options = options
 		this.baseURL = toRequestyServiceUrl(options.requestyBaseUrl)
 
+		const apiKey = this.options.requestyApiKey ?? "not-provided"
+
 		this.client = new OpenAI({
 			baseURL: this.baseURL,
-			apiKey: this.options.requestyApiKey ?? "not-provided",
+			apiKey: apiKey,
 			defaultHeaders: DEFAULT_HEADERS,
 		})
 	}
@@ -126,7 +130,12 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			requesty: { trace_id: metadata?.taskId, extra: { mode: metadata?.mode } },
 		}
 
-		const stream = await this.client.chat.completions.create(completionParams)
+		let stream
+		try {
+			stream = await this.client.chat.completions.create(completionParams)
+		} catch (error) {
+			throw handleOpenAIError(error, this.providerName)
+		}
 		let lastUsage: any = undefined
 
 		for await (const chunk of stream) {
@@ -162,7 +171,12 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			temperature: temperature,
 		}
 
-		const response: OpenAI.Chat.ChatCompletion = await this.client.chat.completions.create(completionParams)
+		let response: OpenAI.Chat.ChatCompletion
+		try {
+			response = await this.client.chat.completions.create(completionParams)
+		} catch (error) {
+			throw handleOpenAIError(error, this.providerName)
+		}
 		return response.choices[0]?.message.content || ""
 	}
 }

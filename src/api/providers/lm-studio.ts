@@ -15,18 +15,23 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { getModels, getModelsFromCache } from "./fetchers/modelCache"
 import { getApiRequestTimeout } from "./utils/timeout-config"
+import { handleOpenAIError } from "./utils/openai-error-handler"
 
 export class LmStudioHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 	private client: OpenAI
+	private readonly providerName = "LM Studio"
 
 	constructor(options: ApiHandlerOptions) {
 		super()
 		this.options = options
 
+		// LM Studio uses "noop" as a placeholder API key
+		const apiKey = "noop"
+
 		this.client = new OpenAI({
 			baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
-			apiKey: "noop",
+			apiKey: apiKey,
 			timeout: getApiRequestTimeout(),
 		})
 	}
@@ -88,7 +93,12 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 				params.draft_model = this.options.lmStudioDraftModelId
 			}
 
-			const results = await this.client.chat.completions.create(params)
+			let results
+			try {
+				results = await this.client.chat.completions.create(params)
+			} catch (error) {
+				throw handleOpenAIError(error, this.providerName)
+			}
 
 			const matcher = new XmlMatcher(
 				"think",
@@ -164,7 +174,12 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 				params.draft_model = this.options.lmStudioDraftModelId
 			}
 
-			const response = await this.client.chat.completions.create(params)
+			let response
+			try {
+				response = await this.client.chat.completions.create(params)
+			} catch (error) {
+				throw handleOpenAIError(error, this.providerName)
+			}
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			throw new Error(

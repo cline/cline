@@ -103,6 +103,9 @@
 		"roo": {
 			"authenticationRequired": "Roo 提供者需要雲端認證。請登入 Roo Code Cloud。"
 		},
+		"api": {
+			"invalidKeyInvalidChars": "API 金鑰包含無效字元。"
+		},
 		"mode_import_failed": "匯入模式失敗：{{error}}"
 	},
 	"warnings": {

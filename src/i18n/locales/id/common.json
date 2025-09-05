@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Penyedia Roo memerlukan autentikasi cloud. Silakan masuk ke Roo Code Cloud."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "Kunci API mengandung karakter tidak valid."
 		}
 	},
 	"warnings": {

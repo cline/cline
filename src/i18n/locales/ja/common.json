@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Rooプロバイダーはクラウド認証が必要です。Roo Code Cloudにサインインしてください。"
+		},
+		"api": {
+			"invalidKeyInvalidChars": "APIキーに無効な文字が含まれています。"
 		}
 	},
 	"warnings": {

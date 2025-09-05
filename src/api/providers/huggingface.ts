@@ -8,11 +8,13 @@ import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from ".
 import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
 import { getHuggingFaceModels, getCachedHuggingFaceModels } from "./fetchers/huggingface"
+import { handleOpenAIError } from "./utils/openai-error-handler"
 
 export class HuggingFaceHandler extends BaseProvider implements SingleCompletionHandler {
 	private client: OpenAI
 	private options: ApiHandlerOptions
 	private modelCache: ModelRecord | null = null
+	private readonly providerName = "HuggingFace"
 
 	constructor(options: ApiHandlerOptions) {
 		super()
@@ -64,7 +66,12 @@ export class HuggingFaceHandler extends BaseProvider implements SingleCompletion
 			params.max_tokens = this.options.modelMaxTokens
 		}
 
-		const stream = await this.client.chat.completions.create(params)
+		let stream
+		try {
+			stream = await this.client.chat.completions.create(params)
+		} catch (error) {
+			throw handleOpenAIError(error, this.providerName)
+		}
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -97,11 +104,7 @@ export class HuggingFaceHandler extends BaseProvider implements SingleCompletion
 
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
-			if (error instanceof Error) {
-				throw new Error(`Hugging Face completion error: ${error.message}`)
-			}
-
-			throw error
+			throw handleOpenAIError(error, this.providerName)
 		}
 	}
 

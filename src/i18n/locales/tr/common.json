@@ -103,6 +103,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Roo sağlayıcısı bulut kimlik doğrulaması gerektirir. Lütfen Roo Code Cloud'a giriş yapın."
+		},
+		"api": {
+			"invalidKeyInvalidChars": "API anahtarı geçersiz karakterler içeriyor."
 		}
 	},
 	"warnings": {

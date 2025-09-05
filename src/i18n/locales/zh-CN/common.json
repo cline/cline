@@ -108,6 +108,9 @@
 		},
 		"roo": {
 			"authenticationRequired": "Roo 提供商需要云认证。请登录 Roo Code Cloud。"
+		},
+		"api": {
+			"invalidKeyInvalidChars": "API 密钥包含无效字符。"
 		}
 	},
 	"warnings": {
