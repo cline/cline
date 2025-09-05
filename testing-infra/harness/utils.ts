@@ -9,7 +9,7 @@ export function pretty(obj: any): string {
 	return JSON.stringify(obj, null, 2)
 }
 
-export function compareGolden(actual: any, expected: any): { success: boolean; diffs: string[] } {
+export function compareResponse(actual: any, expected: any): { success: boolean; diffs: string[] } {
 	const diffs: string[] = []
 	const expectedStr = JSON.stringify(expected, null, 2)
 	const actualStr = JSON.stringify(actual, null, 2)

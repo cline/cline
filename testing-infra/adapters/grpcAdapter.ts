@@ -6,11 +6,10 @@ export class GrpcAdapter {
 	private clients: Record<string, any> = {}
 
 	constructor(address: string) {
-		// Import credentials from the main project's grpc package to avoid version mismatch
+		// WIP: to review the import credentials from the main project's grpc package to avoid version mismatch
 		const { credentials } = require("../../node_modules/@grpc/grpc-js")
 
 		this.clients["cline.AccountService"] = new AccountServiceClient(address, credentials.createInsecure())
-
 		this.clients["cline.TaskService"] = new TaskServiceClient(address, credentials.createInsecure())
 	}
 
@@ -27,11 +26,13 @@ export class GrpcAdapter {
 				throw new Error(`Method ${method} not found on service ${service}`)
 			}
 
-			// Wrap in promise
 			const fnAsync = promisify(fn)
-			const response = await fnAsync(request)
+			const response = await fnAsync(request.message)
 			return response.toObject ? response.toObject() : response
-		} catch (error) {}
+		} catch (error) {
+			console.error("[Error] Grpc request failed with:", error)
+			throw error
+		}
 	}
 
 	/**

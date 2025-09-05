@@ -1,6 +1,6 @@
 import path from "path"
 import { GrpcAdapter } from "../adapters/grpcAdapter"
-import { compareGolden, loadJson } from "./utils"
+import { compareResponse, loadJson } from "./utils"
 
 interface Entry {
 	requestId: string
@@ -16,47 +16,28 @@ interface SpecFile {
 	entries: Entry[]
 }
 
-async function runSpec(specPath: string, goldenPath?: string) {
+async function runSpec(specPath: string) {
 	const spec: SpecFile = loadJson(specPath)
-
-	// Example: assume extension core runs on localhost:26040
 	const grpcAdapter = new GrpcAdapter("localhost:26040")
-
-	const actualResponses: any[] = []
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
 		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
-		actualResponses.push(response)
-	}
 
-	if (goldenPath) {
-		const golden = loadJson(goldenPath)
-		const { success, diffs } = compareGolden({ responses: actualResponses }, golden)
+		const { success, diffs } = compareResponse(response, entry?.response?.message)
 		if (!success) {
-			console.error("❌ Golden mismatch!")
+			console.error("❌ Response mismatch!")
 			console.error(diffs.join("\n"))
 			process.exit(1)
 		}
-		console.log("✅ Golden matched!")
-	} else {
-		console.log("No golden file provided, printing actual responses:")
-		console.log(JSON.stringify({ responses: actualResponses }, null, 2))
+		console.log("✅ Response matched!")
 	}
 }
 
 async function main() {
 	const specPath = process.argv[2]
-	const goldenPath = process.argv[3]
-	if (!specPath) {
-		console.error("Usage: ts-node runner.ts <specPath> [goldenPath]")
-		process.exit(1)
-	}
-
 	const fullSpecPath = path.resolve(specPath)
-	const fullGoldenPath = goldenPath ? path.resolve(goldenPath) : undefined
-
-	await runSpec(fullSpecPath, fullGoldenPath)
+	await runSpec(fullSpecPath)
 }
 
 main()
