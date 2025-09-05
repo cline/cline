@@ -30,6 +30,7 @@ export type ChutesModelId =
 	| "zai-org/GLM-4.5-Air"
 	| "zai-org/GLM-4.5-FP8"
 	| "moonshotai/Kimi-K2-Instruct-75k"
+	| "moonshotai/Kimi-K2-Instruct-0905"
 	| "Qwen/Qwen3-235B-A22B-Thinking-2507"
 
 export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1-0528"
@@ -288,6 +289,15 @@ export const chutesModels = {
 		inputPrice: 0.1481,
 		outputPrice: 0.5926,
 		description: "Moonshot AI Kimi K2 Instruct model with 75k context window.",
+	},
+	"moonshotai/Kimi-K2-Instruct-0905": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1999,
+		outputPrice: 0.8001,
+		description: "Moonshot AI Kimi K2 Instruct 0905 model with 256k context window.",
 	},
 	"Qwen/Qwen3-235B-A22B-Thinking-2507": {
 		maxTokens: 32768,
