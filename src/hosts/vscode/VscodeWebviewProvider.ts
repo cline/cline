@@ -186,16 +186,18 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @param webview A reference to the extension webview
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
+		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
+
 		switch (message.type) {
 			case "grpc_request": {
 				if (message.grpc_request) {
-					await handleGrpcRequest(this.controller, this.postMessageToWebview.bind(this), message.grpc_request)
+					await handleGrpcRequest(this.controller, postMessageToWebview, message.grpc_request)
 				}
 				break
 			}
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
-					await handleGrpcRequestCancel(this.postMessageToWebview.bind(this), message.grpc_request_cancel)
+					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
 				}
 				break
 			}
