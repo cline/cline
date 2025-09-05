@@ -149,7 +149,7 @@ describe("MoonshotHandler", () => {
 			expect(model.id).toBe(mockOptions.apiModelId)
 			expect(model.info).toBeDefined()
 			expect(model.info.maxTokens).toBe(32_000)
-			expect(model.info.contextWindow).toBe(131_072)
+			expect(model.info.contextWindow).toBe(262_144)
 			expect(model.info.supportsImages).toBe(false)
 			expect(model.info.supportsPromptCache).toBe(true) // Should be true now
 		})
