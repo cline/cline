@@ -105,7 +105,7 @@ const OS_GENERATED_FILES = [
 
 /**
  * Recursively reads a directory and returns an array of absolute file paths.
- * Uses manual recursion for compatibility across OS and Node.js versions.
+ * Uses manual recursion because the `recursive: true` option in `fs.readdir` is not reliably supported on Windows or in certain Node.js versions.
  *
  * @param directoryPath - The path to the directory to read.
  * @param excludedPaths - Nested array of paths to ignore.
