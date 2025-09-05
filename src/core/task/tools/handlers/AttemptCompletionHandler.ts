@@ -96,6 +96,11 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.saveCheckpoint(true)
 			}
 
+			// Attempt completion is a special tool where we want to update the focus chain list before the user provides response
+			if (!block.partial && config.focusChainSettings.enabled) {
+				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
+			}
+
 			// complete command message - need to ask for approval
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
 			if (!didApprove) {
@@ -122,6 +127,11 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {
 			await config.callbacks.say("command_output", "")
 		}
+
+		if (!block.partial && config.focusChainSettings.enabled) {
+			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
+		}
+
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		if (response === "yesButtonClicked") {
 			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
