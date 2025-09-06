@@ -2,12 +2,14 @@ import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import * as os from "os"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
-import { getDistinctId, setDistinctId } from "../logging/distinctId"
+import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
+import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
@@ -15,6 +17,49 @@ import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
 type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
+
+/**
+ * Enum for terminal output failure reasons
+ */
+export enum TerminalOutputFailureReason {
+	TIMEOUT = "timeout",
+	NO_SHELL_INTEGRATION = "no_shell_integration",
+	CLIPBOARD_FAILED = "clipboard_failed",
+}
+
+/**
+ * Enum for terminal user intervention actions
+ */
+export enum TerminalUserInterventionAction {
+	PROCESS_WHILE_RUNNING = "process_while_running",
+	MANUAL_PASTE = "manual_paste",
+	CANCELLED = "cancelled",
+}
+
+/**
+ * Enum for terminal hang stages
+ */
+export enum TerminalHangStage {
+	WAITING_FOR_COMPLETION = "waiting_for_completion",
+	BUFFER_STUCK = "buffer_stuck",
+	STREAM_TIMEOUT = "stream_timeout",
+}
+
+export type TelemetryMetadata = {
+	/** The extension or cline-core version. */
+	extension_version: string
+	/** The name of the host IDE or environment e.g. VSCode */
+	platform: string
+	/** The version of the host environment */
+	platform_version: string
+	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
+	os_type: string
+	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
+	 * This is the value returned by os.version() */
+	os_version: string
+	/** Whether the extension is running in development mode */
+	is_dev: string | undefined
+}
 
 /**
  * Maximum length for error messages to prevent excessive data
@@ -108,6 +153,11 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
+			// Terminal execution telemetry events
+			TERMINAL_EXECUTION: "task.terminal_execution",
+			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
+			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
+			TERMINAL_HANG: "task.terminal_hang",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -122,16 +172,30 @@ export class TelemetryService {
 		},
 	}
 
-	/** Current version of the extension */
-	private readonly version: string = extensionVersion
-	/** Whether the extension is running in development mode */
-	private readonly isDev = process.env.IS_DEV
+	public static async create(): Promise<TelemetryService> {
+		const provider = TelemetryProviderFactory.createProvider({
+			type: "posthog",
+		})
+		const hostVersion = await HostProvider.env.getHostVersion({})
+		const metadata: TelemetryMetadata = {
+			extension_version: extensionVersion,
+			platform: hostVersion.platform || "unknown",
+			platform_version: hostVersion.version || "unknown",
+			os_type: os.platform(),
+			os_version: os.version(),
+			is_dev: process.env.IS_DEV,
+		}
+		return new TelemetryService(provider, metadata)
+	}
 
 	/**
 	 * Constructor that accepts a PostHogClientProvider instance
 	 * @param provider PostHogClientProvider instance for sending analytics events
 	 */
-	public constructor(private provider: ITelemetryProvider) {
+	constructor(
+		private provider: ITelemetryProvider,
+		private telemetryMetadata: TelemetryMetadata,
+	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 		console.info("[TelemetryService] Initialized with telemetry provider")
 	}
@@ -161,7 +225,9 @@ export class TelemetryService {
 						})
 						.then((response) => {
 							if (response.selectedOption === "Open Settings") {
-								void HostProvider.window.openSettings({ query: "telemetry.telemetryLevel" })
+								void HostProvider.window.openSettings({
+									query: "telemetry.telemetryLevel",
+								})
 							}
 						})
 				} else {
@@ -179,8 +245,7 @@ export class TelemetryService {
 	private addProperties(properties: any): any {
 		return {
 			...properties,
-			extension_version: this.version,
-			is_dev: this.isDev,
+			...this.telemetryMetadata,
 		}
 	}
 
@@ -881,6 +946,62 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
 			properties: {},
+		})
+	}
+
+	// Terminal telemetry methods
+
+	/**
+	 * Records terminal command execution outcomes
+	 * @param success Whether the command output was successfully captured
+	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 */
+	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
+			properties: {
+				success,
+				method,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal output capture fails
+	 * @param reason The reason for failure
+	 */
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
+			properties: {
+				reason,
+			},
+		})
+	}
+
+	/**
+	 * Records when user has to intervene with terminal execution
+	 * @param action The user action
+	 */
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
+			properties: {
+				action,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal execution hangs or gets stuck
+	 * @param stage Where the hang occurred
+	 */
+	public captureTerminalHang(stage: TerminalHangStage) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
+			properties: {
+				stage,
+			},
 		})
 	}
 

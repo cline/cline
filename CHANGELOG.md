@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.27.1]
+
+- Add new Kimi K2 model to groq and moonshot providers
+
+## [3.27.0]
+
+- Fix `grok-code-fast-1` model information
+- Add call to action for trying free `grok-code-fast-1` in Announcement banner
+
 ## [3.26.7]
 
 - Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers

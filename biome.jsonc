@@ -37,7 +37,8 @@
 				"useYield": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off"
+				"noSwitchDeclarations": "off",
+				"noUnusedImports": "error"
 			},
 			"a11y": "off",
 			"style": {
@@ -147,6 +148,7 @@
 				"!src/core/storage/FileContextTracker.ts",
 				"!src/core/context/context-tracking/FileContextTracker.ts",
 				"!src/common.ts",
+				"!src/services/logging/distinctId.ts",
 				"!src/core/storage/utils/state-helpers.ts",
 				"!src/extension.ts"
 			],

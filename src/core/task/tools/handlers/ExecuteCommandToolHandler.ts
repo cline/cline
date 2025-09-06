@@ -5,6 +5,7 @@ import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
 import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -14,7 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
-	readonly name = "execute_command"
+	readonly name = ClineDefaultTool.BASH
 
 	constructor(_validator: ToolValidator) {}
 
@@ -26,7 +27,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const command = block.params.command
 
 		// Check if this should be auto-approved to determine UI flow
-		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool("execute_command")
+		const shouldAutoApprove = uiHelpers.shouldAutoApproveTool(this.name)
 
 		if (shouldAutoApprove) {
 			// For auto-approved commands, we can't partially stream a say prematurely
@@ -48,12 +49,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		// Validate required parameters
 		if (!command) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("execute_command", "command")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "command")
 		}
 
 		if (!requiresApprovalRaw) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("execute_command", "requires_approval")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "requires_approval")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

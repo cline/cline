@@ -201,7 +201,11 @@ export async function readTaskHistoryFromState(context: vscode.ExtensionContext)
 	try {
 		const filePath = await getTaskHistoryStateFilePath(context)
 		if (await fileExistsAtPath(filePath)) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
+			const contents = await fs.readFile(filePath, "utf8")
+			if (contents.trim() === "") {
+				return []
+			}
+			return JSON.parse(contents)
 		}
 		return []
 	} catch (error) {

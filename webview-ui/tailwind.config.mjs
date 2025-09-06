@@ -77,6 +77,11 @@ export default {
 					foreground: "var(--vscode-badge-foreground)",
 					background: "var(--vscode-badge-background)",
 				},
+				banner: {
+					background: "var(--vscode-banner-background)",
+					foreground: "var(--vscode-banner-foreground)",
+					icon: "var(--vscode-banner-iconForeground)",
+				},
 				error: "var(--vscode-errorForeground)",
 				description: "var(--vscode-descriptionForeground)",
 			},

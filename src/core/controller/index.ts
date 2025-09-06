@@ -26,6 +26,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { PromptRegistry } from "../prompts/system-prompt"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
@@ -53,7 +54,7 @@ export class Controller {
 		id: string,
 	) {
 		this.id = id
-
+		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
@@ -89,6 +90,10 @@ export class Controller {
 					message: "Failed to save settings. Please restart the extension.",
 				})
 			}
+		}
+
+		this.stateManager.onSyncExternalChange = async () => {
+			await this.postStateToWebview()
 		}
 
 		this.mcpHub = new McpHub(
@@ -195,10 +200,19 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-		// Apply remote feature flag gate to focus chain settings
+		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
+		let focusChainEnabled: boolean
+		if (focusChainSettings?.enabled === false) {
+			focusChainEnabled = false
+		} else if (focusChainFeatureFlagEnabled === false) {
+			focusChainEnabled = false
+		} else {
+			focusChainEnabled = Boolean(focusChainSettings?.enabled)
+		}
+
 		const effectiveFocusChainSettings = {
 			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
-			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
+			enabled: focusChainEnabled,
 		}
 
 		this.task = new Task(
@@ -629,8 +643,8 @@ export class Controller {
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
@@ -649,12 +663,9 @@ export class Controller {
 			apiConfiguration,
 			uriScheme,
 			currentTaskItem,
-			checkpointTrackerErrorMessage,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
-			taskHistory: processedTaskHistory,
-			shouldShowAnnouncement,
-			platform,
+			checkpointManagerErrorMessage,
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
@@ -685,6 +696,9 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			customPrompt,
+			taskHistory: processedTaskHistory,
+			platform,
+			shouldShowAnnouncement,
 		}
 	}
 

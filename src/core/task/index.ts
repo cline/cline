@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { parseAssistantMessageV2, ToolUseName } from "@core/assistant-message"
+import { parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -19,7 +19,6 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
-import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { summarizeTask } from "@core/prompts/contextManagement"
@@ -32,7 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { createTaskCheckpointManager, TaskCheckpointManager } from "@integrations/checkpoints"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -51,12 +50,12 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { ClineDefaultTool } from "@shared/tools"
+import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
@@ -70,7 +69,7 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { errorService } from "@/services/error"
-import { telemetryService } from "@/services/telemetry"
+import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -80,7 +79,6 @@ import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
-import { showChangedFilesDiff } from "./multifile-diff"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { updateApiReqMsg } from "./utils"
@@ -112,7 +110,7 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	private checkpointTracker?: CheckpointTracker
+	public checkpointManager?: TaskCheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
@@ -227,8 +225,8 @@ export class Task {
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			if (historyItem.checkpointTrackerErrorMessage) {
-				this.taskState.checkpointTrackerErrorMessage = historyItem.checkpointTrackerErrorMessage
+			if (historyItem.checkpointManagerErrorMessage) {
+				this.taskState.checkpointManagerErrorMessage = historyItem.checkpointManagerErrorMessage
 			}
 		} else if (task || images || files) {
 			this.taskId = Date.now().toString()
@@ -262,6 +260,44 @@ export class Task {
 				say: this.say.bind(this),
 				focusChainSettings: this.focusChainSettings,
 			})
+		}
+
+		// Initialize checkpoint manager
+		try {
+			this.checkpointManager = createTaskCheckpointManager(
+				{
+					taskId: this.taskId,
+				},
+				{
+					enableCheckpoints: enableCheckpointsSetting,
+				},
+				{
+					context: controller.context,
+					diffViewProvider: this.diffViewProvider,
+					messageStateHandler: this.messageStateHandler,
+					fileContextTracker: this.fileContextTracker,
+					taskState: this.taskState,
+				},
+				{
+					updateTaskHistory: this.updateTaskHistory,
+					say: this.say.bind(this),
+					cancelTask: this.cancelTask,
+					postStateToWebview: this.postStateToWebview,
+				},
+				{
+					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				},
+			)
+		} catch (error) {
+			console.error("Failed to initialize checkpoint manager:", error)
+			if (enableCheckpointsSetting) {
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Failed to initialize checkpoint manager: ${errorMessage}`,
+				})
+			}
 		}
 
 		// Prepare effective API configuration
@@ -364,11 +400,11 @@ export class Task {
 			strictPlanModeEnabled,
 			this.say.bind(this),
 			this.ask.bind(this),
-			this.saveCheckpoint.bind(this),
+			this.saveCheckpointCallback.bind(this),
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
-			this.doesLatestTaskCompletionHaveNewChanges.bind(this),
+			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 		)
 	}
@@ -417,310 +453,6 @@ export class Task {
 		if (maxRequestsChanged) {
 			this.taskState.consecutiveAutoApprovedRequestsCount = 0
 		}
-	}
-
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
-		// Find the last message before messageIndex that has a lastCheckpointHash
-		const lastHashIndex = findLastIndex(clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
-		const message = clineMessages[messageIndex]
-		const lastMessageWithHash = clineMessages[lastHashIndex]
-
-		if (!message) {
-			console.error("Message not found", clineMessages)
-			return
-		}
-
-		let didWorkspaceRestoreFail = false
-
-		switch (restoreType) {
-			case "task":
-				break
-			case "taskAndWorkspace":
-			case "workspace":
-				if (!this.enableCheckpoints) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Checkpoints are disabled in settings.",
-					})
-					didWorkspaceRestoreFail = true
-					break
-				}
-
-				if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-					try {
-						this.checkpointTracker = await CheckpointTracker.create(
-							this.taskId,
-							this.controller.context.globalStorageUri.fsPath,
-							this.enableCheckpoints,
-						)
-						this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						console.error("Failed to initialize checkpoint tracker:", errorMessage)
-						this.taskState.checkpointTrackerErrorMessage = errorMessage
-						await this.postStateToWebview()
-						HostProvider.window.showMessage({
-							type: ShowMessageType.ERROR,
-							message: errorMessage,
-						})
-						didWorkspaceRestoreFail = true
-					}
-				}
-				if (message.lastCheckpointHash && this.checkpointTracker) {
-					try {
-						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						HostProvider.window.showMessage({
-							type: ShowMessageType.ERROR,
-							message: "Failed to restore checkpoint: " + errorMessage,
-						})
-						didWorkspaceRestoreFail = true
-					}
-				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
-					try {
-						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						HostProvider.window.showMessage({
-							type: ShowMessageType.ERROR,
-							message: "Failed to restore offsetcheckpoint: " + errorMessage,
-						})
-						didWorkspaceRestoreFail = true
-					}
-				} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
-					// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
-					console.warn(`Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint`)
-					try {
-						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						HostProvider.window.showMessage({
-							type: ShowMessageType.ERROR,
-							message: "Failed to restore checkpoint: " + errorMessage,
-						})
-						didWorkspaceRestoreFail = true
-					}
-				} else {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Failed to restore checkpoint",
-					})
-				}
-				break
-		}
-
-		if (!didWorkspaceRestoreFail) {
-			switch (restoreType) {
-				case "task":
-				case "taskAndWorkspace": {
-					this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
-					const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
-					const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
-					await this.messageStateHandler.overwriteApiConversationHistory(newConversationHistory)
-
-					// update the context history state
-					await this.contextManager.truncateContextHistory(
-						message.ts,
-						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-					)
-
-					// aggregate deleted api reqs info so we don't lose costs/tokens
-					const clineMessages = this.messageStateHandler.getClineMessages()
-					const deletedMessages = clineMessages.slice(messageIndex + 1)
-					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
-
-					// Detect files edited after this message timestamp for file context warning
-					// Only needed for task-only restores when a user edits a message or restores the task context, but not the files.
-					if (restoreType === "task") {
-						const filesEditedAfterMessage = await this.fileContextTracker.detectFilesEditedAfterMessage(
-							messageTs,
-							deletedMessages,
-						)
-						if (filesEditedAfterMessage.length > 0) {
-							await this.fileContextTracker.storePendingFileContextWarning(filesEditedAfterMessage)
-						}
-					}
-
-					const newClineMessages = clineMessages.slice(0, messageIndex + 1)
-					await this.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
-
-					await this.say(
-						"deleted_api_reqs",
-						JSON.stringify({
-							tokensIn: deletedApiReqsMetrics.totalTokensIn,
-							tokensOut: deletedApiReqsMetrics.totalTokensOut,
-							cacheWrites: deletedApiReqsMetrics.totalCacheWrites,
-							cacheReads: deletedApiReqsMetrics.totalCacheReads,
-							cost: deletedApiReqsMetrics.totalCost,
-						} satisfies ClineApiReqInfo),
-					)
-					break
-				}
-				case "workspace":
-					break
-			}
-
-			switch (restoreType) {
-				case "task":
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "Task messages have been restored to the checkpoint",
-					})
-					break
-				case "workspace":
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "Workspace files have been restored to the checkpoint",
-					})
-					break
-				case "taskAndWorkspace":
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: "Task and workspace have been restored to the checkpoint",
-					})
-					break
-			}
-
-			if (restoreType !== "task") {
-				// Set isCheckpointCheckedOut flag on the message
-				// Find all checkpoint messages before this one
-				const checkpointMessages = this.messageStateHandler
-					.getClineMessages()
-					.filter((m) => m.say === "checkpoint_created")
-				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
-
-				// Set isCheckpointCheckedOut to false for all checkpoint messages
-				checkpointMessages.forEach((m, i) => {
-					m.isCheckpointCheckedOut = i === currentMessageIndex
-				})
-			}
-
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-
-			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
-		} else {
-			sendRelinquishControlEvent()
-		}
-	}
-
-	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
-		try {
-			if (!this.enableCheckpoints) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: "Checkpoints are disabled in settings. Cannot show diff.",
-				})
-				return
-			}
-			// TODO: handle if this is called from outside original workspace, in which case we need to
-			// show user error message we can't show diff outside of workspace?
-			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-				try {
-					this.checkpointTracker = await CheckpointTracker.create(
-						this.taskId,
-						this.controller.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
-					)
-					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-				} catch (error) {
-					console.error("Failed to initialize checkpoint tracker:", error)
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					this.taskState.checkpointTrackerErrorMessage = errorMessage
-					await this.postStateToWebview()
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: errorMessage,
-					})
-					return
-				}
-			}
-			if (!this.checkpointTracker) {
-				return
-			}
-
-			showChangedFilesDiff(
-				this.messageStateHandler,
-				this.checkpointTracker,
-				messageTs,
-				seeNewChangesSinceLastTaskCompletion,
-			)
-		} finally {
-			sendRelinquishControlEvent()
-		}
-	}
-
-	async doesLatestTaskCompletionHaveNewChanges() {
-		if (!this.enableCheckpoints) {
-			return false
-		}
-
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
-		const message = clineMessages[messageIndex]
-		if (!message) {
-			console.error("Completion message not found")
-			return false
-		}
-		const hash = message.lastCheckpointHash
-		if (!hash) {
-			console.error("No checkpoint hash found")
-			return false
-		}
-
-		if (this.enableCheckpoints && !this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controller.context.globalStorageUri.fsPath,
-					this.enableCheckpoints,
-				)
-				this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				return false
-			}
-		}
-
-		// Get last task completed
-		const lastTaskCompletedMessage = findLast(
-			this.messageStateHandler.getClineMessages().slice(0, messageIndex),
-			(m) => m.say === "completion_result",
-		)
-
-		try {
-			// Get last task completed
-			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-			// if undefined, then we get diff from beginning of git
-			// if (!lastTaskCompletedMessage) {
-			// 	console.error("No previous task completion message found")
-			// 	return
-			// }
-			// This value *should* always exist
-			const firstCheckpointMessageCheckpointHash = this.messageStateHandler
-				.getClineMessages()
-				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
-
-			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-			if (!previousCheckpointHash) {
-				return false
-			}
-
-			// Get count of changed files between current state and commit
-			const changedFilesCount = (await this.checkpointTracker?.getDiffCount(previousCheckpointHash, hash)) || 0
-			if (changedFilesCount > 0) {
-				return true
-			}
-		} catch (error) {
-			console.error("Failed to get diff set:", error)
-			return false
-		}
-
-		return false
 	}
 
 	// Communicate with webview
@@ -865,7 +597,13 @@ export class Task {
 		this.taskState.askResponseFiles = files
 	}
 
-	async say(type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean): Promise<undefined> {
+	async say(
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	): Promise<number | undefined> {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -883,6 +621,7 @@ export class Task {
 					lastMessage.partial = partial
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
+					return undefined
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
@@ -897,6 +636,7 @@ export class Task {
 						partial,
 					})
 					await this.postStateToWebview()
+					return sayTs
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -914,6 +654,7 @@ export class Task {
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+					return undefined
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
@@ -927,6 +668,7 @@ export class Task {
 						files,
 					})
 					await this.postStateToWebview()
+					return sayTs
 				}
 			}
 		} else {
@@ -942,10 +684,11 @@ export class Task {
 				files,
 			})
 			await this.postStateToWebview()
+			return sayTs
 		}
 	}
 
-	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
+	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
 			`Cline tried to use ${toolName}${
@@ -962,6 +705,10 @@ export class Task {
 			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		}
+	}
+
+	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
+		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
 	}
 
 	// Task lifecycle
@@ -1014,12 +761,6 @@ export class Task {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
-		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
-		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
-		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
-		// if (!doesShadowGitExist) {
-		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
-		// }
 
 		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
@@ -1077,9 +818,7 @@ export class Task {
 		let responseFiles: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images, files)
-			if (!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")) {
-				await this.saveCheckpoint()
-			}
+			await this.checkpointManager?.saveCheckpoint()
 			responseText = text
 			responseImages = images
 			responseFiles = files
@@ -1244,147 +983,6 @@ export class Task {
 		}
 	}
 
-	// Checkpoints
-
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		if (
-			!this.enableCheckpoints ||
-			this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
-		) {
-			// If checkpoints are disabled or previously encountered a timeout error, do nothing.
-			return
-		}
-		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.messageStateHandler.getClineMessages().forEach((message) => {
-			if (message.say === "checkpoint_created") {
-				message.isCheckpointCheckedOut = false
-			}
-		})
-
-		if (!isAttemptCompletionMessage) {
-			// ensure we aren't creating a duplicate checkpoint
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			if (lastMessage?.say === "checkpoint_created") {
-				return
-			}
-
-			// Initialize checkpoint tracker if it doesn't exist
-			if (!this.checkpointTracker && !this.taskState.checkpointTrackerErrorMessage) {
-				try {
-					this.checkpointTracker = await CheckpointTracker.create(
-						this.taskId,
-						this.controller.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
-					)
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error("Failed to initialize checkpoint tracker:", errorMessage)
-					this.taskState.checkpointTrackerErrorMessage = errorMessage
-					await this.postStateToWebview()
-					return
-				}
-			}
-
-			// Create a checkpoint commit and update clineMessages with a commitHash
-			if (this.checkpointTracker) {
-				// We are letting this run in a non-blocking way so that the UI doesn't freeze when creating checkpoints.
-				// We show that a checkpoint is created in the chatview, then in the background run the git operation (which can take multiple seconds for large shadow git repos), and once that's been completed update the previous checkpoint message with the newly created hash to be associated with.
-				// NOTE: the attempt completion flow is different in that it requires the latest checkpoint hash to be present before determining if it can present the 'see new changes' button. In ToolExecutor, when we call saveCheckpoint(true), we must make sure that the checkpoint hash is present in the last completion_result message before returning, since it is always followed by a addNewChangesFlagToLastCompletionResultMessage(), which calls doesLatestTaskCompletionHaveNewChanges() that uses the latest message hash to determine if there any changes since the last attempt_completion checkpoint.
-				await this.say("checkpoint_created")
-				this.checkpointTracker.commit().then(async (commitHash) => {
-					if (commitHash) {
-						const lastCheckpointMessageIndex = findLastIndex(
-							this.messageStateHandler.getClineMessages(),
-							(m) => m.say === "checkpoint_created",
-						)
-						if (lastCheckpointMessageIndex !== -1) {
-							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-								lastCheckpointHash: commitHash,
-							})
-						}
-					}
-				})
-			} // silently fails for now
-
-			//
-		} else {
-			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-			// Check if checkpoint tracker exists, if not, create it. Skip if there was a previous checkpoints initialization timeout error.
-			if (
-				!this.checkpointTracker &&
-				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
-			) {
-				try {
-					this.checkpointTracker = await CheckpointTracker.create(
-						this.taskId,
-						this.controller.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
-					)
-					this.messageStateHandler.setCheckpointTracker(this.checkpointTracker)
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error("Failed to initialize checkpoint tracker for attempt completion:", errorMessage)
-					return
-				}
-			}
-
-			if (
-				this.checkpointTracker &&
-				!this.taskState.checkpointTrackerErrorMessage?.includes("Checkpoints initialization timed out.")
-			) {
-				const commitHash = await this.checkpointTracker.commit()
-
-				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-				const lastCompletionResultMessage = findLast(
-					this.messageStateHandler.getClineMessages(),
-					(m) => m.say === "completion_result" || m.ask === "completion_result",
-				)
-				if (lastCompletionResultMessage) {
-					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-				}
-			} else {
-				console.error("Checkpoint tracker does not exist and could not be initialized for attempt completion")
-			}
-		}
-
-		// if (commitHash) {
-
-		// Previously we checkpointed every message, but this is excessive and unnecessary.
-		// // Start from the end and work backwards until we find a tool use or another message with a hash
-		// for (let i = this.clineMessages.length - 1; i >= 0; i--) {
-		// 	const message = this.clineMessages[i]
-		// 	if (message.lastCheckpointHash) {
-		// 		// Found a message with a hash, so we can stop
-		// 		break
-		// 	}
-		// 	// Update this message with a hash
-		// 	message.lastCheckpointHash = commitHash
-
-		// 	// We only care about adding the hash to the last tool use (we don't want to add this hash to every prior message ie for tasks pre-checkpoint)
-		// 	const isToolUse =
-		// 		message.say === "tool" ||
-		// 		message.ask === "tool" ||
-		// 		message.say === "command" ||
-		// 		message.ask === "command" ||
-		// 		message.say === "completion_result" ||
-		// 		message.ask === "completion_result" ||
-		// 		message.ask === "followup" ||
-		// 		message.say === "use_mcp_server" ||
-		// 		message.ask === "use_mcp_server" ||
-		// 		message.say === "browser_action" ||
-		// 		message.say === "browser_action_launch" ||
-		// 		message.ask === "browser_action_launch"
-
-		// 	if (isToolUse) {
-		// 		break
-		// 	}
-		// }
-		// // Save the updated messages
-		// await this.saveClineMessagesAndUpdateHistory()
-		// }
-	}
-
 	// Tools
 
 	/**
@@ -1491,6 +1089,10 @@ export class Task {
 		let chunkTimer: NodeJS.Timeout | null = null
 		let chunkEnroute = false
 
+		// Track if buffer gets stuck
+		let bufferStuckTimer: NodeJS.Timeout | null = null
+		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
+
 		const flushBuffer = async (force = false) => {
 			if (chunkEnroute || outputBuffer.length === 0) {
 				if (force && !chunkEnroute && outputBuffer.length > 0) {
@@ -1503,9 +1105,18 @@ export class Task {
 			outputBuffer = []
 			outputBufferSize = 0
 			chunkEnroute = true
+
+			// Start timer to detect if buffer gets stuck
+			bufferStuckTimer = setTimeout(() => {
+				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+				bufferStuckTimer = null
+			}, BUFFER_STUCK_TIMEOUT_MS)
+
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
+					// Track when user clicks "Process while Running"
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
 					// proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
@@ -1517,7 +1128,13 @@ export class Task {
 				process.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
+				telemetryService.captureTerminalHang(TerminalHangStage.STREAM_TIMEOUT)
 			} finally {
+				// Clear the stuck timer
+				if (bufferStuckTimer) {
+					clearTimeout(bufferStuckTimer)
+					bufferStuckTimer = null
+				}
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
 				if (outputBuffer.length > 0) {
@@ -1552,8 +1169,24 @@ export class Task {
 		})
 
 		let completed = false
+		let completionTimer: NodeJS.Timeout | null = null
+		const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
+
+		// Start timer to detect if waiting for completion takes too long
+		completionTimer = setTimeout(() => {
+			if (!completed) {
+				telemetryService.captureTerminalHang(TerminalHangStage.WAITING_FOR_COMPLETION)
+				completionTimer = null
+			}
+		}, COMPLETION_TIMEOUT_MS)
+
 		process.once("completed", async () => {
 			completed = true
+			// Clear the completion timer
+			if (completionTimer) {
+				clearTimeout(completionTimer)
+				completionTimer = null
+			}
 			// Flush any remaining buffered output
 			if (!didContinue && outputBuffer.length > 0) {
 				if (chunkTimer) {
@@ -1570,6 +1203,12 @@ export class Task {
 
 		await process
 
+		// Clear timer if process completes normally
+		if (completionTimer) {
+			clearTimeout(completionTimer)
+			completionTimer = null
+		}
+
 		// Wait for a short delay to ensure all messages are sent to the webview
 		// This delay allows time for non-awaited promises to be created and
 		// for their associated messages to be sent to the webview, maintaining
@@ -1581,7 +1220,7 @@ export class Task {
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
-			await this.saveCheckpoint()
+			await this.checkpointManager?.saveCheckpoint()
 
 			let fileContentString = ""
 			if (userFeedback.files && userFeedback.files.length > 0) {
@@ -1973,6 +1612,9 @@ export class Task {
 					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
+				// Display the user's message in the chat UI
+				await this.say("user_feedback", text, images, files)
+
 				// This userContent is for the *next* API call.
 				const feedbackUserContent: UserContent = []
 				feedbackUserContent.push({
@@ -2063,63 +1705,34 @@ export class Task {
 			}),
 		)
 
-		// Initialize checkpoint tracker first if enabled and it's the first request
+		// Initialize checkpointManager first if enabled and it's the first request
 		if (
 			isFirstRequest &&
 			this.enableCheckpoints &&
-			!this.checkpointTracker &&
-			!this.taskState.checkpointTrackerErrorMessage
+			this.checkpointManager && // TODO REVIEW: may be able to implement a replacement for the 15s timer
+			!this.taskState.checkpointManagerErrorMessage
 		) {
 			try {
-				// Warning Timer - If checkpoints take a while to to initialize, show a warning message
-				let checkpointsWarningTimer: NodeJS.Timeout | null = null
-				let checkpointsWarningShown = false
-
-				checkpointsWarningTimer = setTimeout(async () => {
-					if (!checkpointsWarningShown) {
-						checkpointsWarningShown = true
-						this.taskState.checkpointTrackerErrorMessage =
-							"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints."
-						await this.postStateToWebview()
-					}
-				}, 7_000)
-
-				// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
-				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(
-						this.taskId,
-						this.controller.context.globalStorageUri.fsPath,
-						this.enableCheckpoints,
-					),
-					{
-						milliseconds: 15_000,
-						message:
-							"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-					},
-				)
-				if (checkpointsWarningTimer) {
-					clearTimeout(checkpointsWarningTimer)
-					checkpointsWarningTimer = null
-				}
+				await pTimeout(this.checkpointManager.checkpointTrackerCheckAndInit(), {
+					milliseconds: 15_000,
+					message:
+						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+				})
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-
-				// If the error was a timeout, we disabled all checkpoint operations for the rest of the task
-				if (errorMessage.includes("Checkpoints taking too long to initialize")) {
-					this.taskState.checkpointTrackerErrorMessage =
-						"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints."
-					await this.postStateToWebview()
-				} else {
-					this.taskState.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
-				}
+				console.error("Failed to initialize checkpoint manager:", errorMessage)
+				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Checkpoint initialization timed out: ${errorMessage}`,
+				})
 			}
 		}
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.enableCheckpoints && this.checkpointTracker) {
-			const commitHash = await this.checkpointTracker.commit() // Actual commit
+		if (isFirstRequest && this.enableCheckpoints && this.checkpointManager) {
+			const commitHash = await this.checkpointManager.commit() // Actual commit
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
@@ -2136,11 +1749,11 @@ export class Task {
 		} else if (
 			isFirstRequest &&
 			this.enableCheckpoints &&
-			!this.checkpointTracker &&
-			this.taskState.checkpointTrackerErrorMessage
+			!this.checkpointManager &&
+			this.taskState.checkpointManagerErrorMessage
 		) {
 			// Checkpoints are enabled, but tracker failed to initialize.
-			// checkpointTrackerErrorMessage is already set and will be part of the state.
+			// checkpointManagerErrorMessage is already set and will be part of the state.
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 

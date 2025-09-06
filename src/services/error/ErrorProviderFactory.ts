@@ -1,4 +1,4 @@
-import { PostHogClientConfig, PostHogClientValidConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
