@@ -34,7 +34,7 @@ async function main() {
 		await packageAllBinaryDeps()
 		await removeHostBinaryModules()
 	} else {
-		console.log(`Building package for ${os.platform}-${os.arch}...`)
+		console.log(`Building package for ${os.platform()}-${os.arch()}...`)
 	}
 	await zipDistribution()
 }
