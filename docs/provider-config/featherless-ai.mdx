@@ -1,0 +1,84 @@
+---
+title: "Featherless AI"
+description: "Learn how to configure and use Featherless AI's inference platform with Cline. Featherless provides access to over 11,900+ open source models, including Llama, Mistral, DeepSeek, Qwen, and more."
+---
+
+Featherless AI is a serverless AI inference platform. Their goal is to make all AI models available for serverless inference and they’ve started with large language models (e.g. Qwen, Llama, Mistral, DeepSeek, RWKV). They provide inference via API to a continually expanding library of open-weight models, including the most popular models for role-playing, creative writing, coding assistance, and more.
+**Website:** [https://featherless.ai/](https://featherless.ai/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [Featherless AI](https://featherless.ai/) and create an account or sign in.
+2.  **Navigate to API Keys:** Access the API keys section in your dashboard.
+3.  **Create a Key:** Generate a new API key. Give it a descriptive name (e.g., "Cline").
+4.  **Copy the Key:** Copy the API key immediately. Store it securely.
+
+### Supported Models
+
+Featherless AI supports a wide variety of models across different categories. Popular models include:
+
+**Text Generation Models:**
+-   Qwen 3 Coder
+-   Qwen 2.5 series
+-   Llama 3.1, 3.2, 3.3 series (8B, 70B)
+-   Gemma 2 & 3 series
+-   DeepSeek models with reasoning capabilities
+-   Mistral 3 series
+-   Kimi K2
+-   Code Llama models for programming tasks
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Featherless" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Featherless API key into the "Featherless API Key" field.
+4.  **Enter Model ID:** Specify the model you want to use (e.g., "moonshotai/Kimi-K2-Instruct").
+5.  **Configure Tokens:** Optionally set max completion tokens and context window size.
+
+### Pricing Structure
+
+Featherless AI offers **flat pricing with unlimited tokens** - a unique approach in the AI inference market. Unlike token-based pricing models, their subscription plans provide predictable costs:
+
+#### Feather Basic - $10/month
+- Access to models up to 15B parameters
+- Up to 2 concurrent connections
+- Up to 16K context window
+- Regular processing speed
+- **Unlimited tokens**
+
+#### Feather Premium - $25/month
+- Access to **any model with no size limit**
+- Includes premium models like DeepSeek and Kimi-K2
+- Up to 4 concurrent connections
+- Up to 16K context window
+- Regular processing speed
+- **Unlimited tokens**
+
+#### Feather Scale - $75/month per unit
+- Business plan that scales to arbitrarily many concurrent connections
+- Each scale unit provides:
+  - 8 concurrent requests to models ≤15B, OR
+  - 4 concurrent requests to models ≤34B, OR  
+  - 2 concurrent requests to models ≤72B, OR
+  - A linear combination of the above
+- Private, secure, and anonymous usage with no logs
+- **Unlimited tokens**
+- Note: DeepSeek and Kimi K2 currently excluded from Scale plan
+
+### What Makes Featherless Unique
+
+#### Largest Model Catalog
+- **11,900+ open source models** - the largest AI inference access available
+- Continually expanding library including cutting-edge models
+- Instant deployment at scale for fine-tuning, testing, and production
+
+#### Innovative AI Research
+Featherless AI is not just an inference provider but an AI research lab pioneering:
+- **World's largest AI model without transformer attention** at 1,000x cheaper inference
+- **95%+ cost reduction** in AI architecture validation for 70B class models (from $5M to $50k)
+- **World's most reliable AI agent** for web tasks, outperforming Gemini, Claude 4, and GPT-4o
+- **10x+ inference cost reduction** across all AI models
+
+### Enterprise Solutions
+
+For enterprise customers, Featherless offers the ability to run your own model catalog in your cloud infrastructure with reduced GPU costs. This provides additional security, control, and cost optimization for large-scale deployments. 
