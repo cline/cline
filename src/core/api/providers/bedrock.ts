@@ -130,8 +130,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// This baseModelId is used to indicate the capabilities of the model.
 		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
 		// Otherwise, baseModelId will be the same as modelId.
-		const baseModelId =
-			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
+		const baseModelId = (this.isCustomSelected() ? this.getCustomBaseModelId() : modelId) || modelId
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
@@ -161,8 +160,8 @@ export class AwsBedrockHandler implements ApiHandler {
 			return { id, info: bedrockModels[id] }
 		}
 
-		const customSelected = this.options.awsBedrockCustomSelected
-		const baseModel = this.options.awsBedrockCustomModelBaseId
+		const customSelected = this.isCustomSelected()
+		const baseModel = this.getCustomBaseModelId()
 
 		// Handle custom models
 		if (customSelected && modelId) {
@@ -232,9 +231,24 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Gets the AWS region to use, with fallback to default
+	 * When "global" is selected, returns the default physical region since AWS SDK doesn't accept "global" as a region
 	 */
 	private getRegion(): string {
+		if (this.options.awsRegion === "global") {
+			return AwsBedrockHandler.DEFAULT_REGION // "us-east-1"
+		}
 		return this.options.awsRegion || AwsBedrockHandler.DEFAULT_REGION
+	}
+
+	// Bridge for option names across modes (actMode vs generic)
+	private isCustomSelected(): boolean {
+		return Boolean(this.options.awsBedrockCustomSelected ?? (this.options as any).actModeAwsBedrockCustomSelected)
+	}
+
+	private getCustomBaseModelId(): BedrockModelId | undefined {
+		return (this.options.awsBedrockCustomModelBaseId ?? (this.options as any).actModeAwsBedrockCustomModelBaseId) as
+			| BedrockModelId
+			| undefined
 	}
 
 	/**
@@ -270,7 +284,20 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * For custom models, returns the raw model ID without any encoding.
 	 */
 	async getModelId(): Promise<string> {
-		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
+		// If a full ARN or namespace-style custom ID is provided, always pass it through unchanged
+		const raw = this.options.apiModelId || ""
+		if (raw.startsWith("arn:aws:bedrock:") || raw.includes("/")) {
+			return raw
+		}
+
+		const customSelected = this.isCustomSelected()
+
+		// Global region: prefix non-custom model IDs with "global."
+		if (!customSelected && this.options.awsRegion === "global") {
+			return `global.${this.getModel().id}`
+		}
+		// Cross-region inference: apply region group prefix for non-custom models
+		if (!customSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
@@ -719,9 +746,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
-			const baseModelId =
-				(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
-				this.getModel().id
+			const baseModelId = (this.isCustomSelected() ? this.getCustomBaseModelId() : this.getModel().id) || this.getModel().id
 			const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
 
 			return {
@@ -775,9 +800,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const baseModelId =
-			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
-			this.getModel().id
+		const baseModelId = (this.isCustomSelected() ? this.getCustomBaseModelId() : this.getModel().id) || this.getModel().id
 		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
 
 		// Prepare request for Anthropic model using Converse API
@@ -877,8 +900,8 @@ export class AwsBedrockHandler implements ApiHandler {
 				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
 			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+				// Use as-is when data is already a Uint8Array/Buffer (Buffer extends Uint8Array)
+				imageData = new Uint8Array(item.source.data as Uint8Array)
 			} else {
 				throw new Error("Unsupported image data format")
 			}
