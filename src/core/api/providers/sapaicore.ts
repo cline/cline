@@ -21,13 +21,10 @@ interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	sapAiCoreUseOrchestrationMode?: boolean
 	thinkingBudgetTokens?: number
+	deploymentId?: string
 	reasoningEffort?: string
 }
 
-interface Deployment {
-	id: string
-	name: string
-}
 interface Token {
 	access_token: string
 	expires_in: number
@@ -351,7 +348,6 @@ namespace Gemini {
 export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
-	private deployments?: Deployment[]
 	private isAiCoreEnvSetup: boolean = false
 
 	constructor(options: SapAiCoreHandlerOptions) {
@@ -392,67 +388,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			this.token = await this.authenticate()
 		}
 		return this.token.access_token
-	}
-
-	private async getAiCoreDeployments(): Promise<Deployment[]> {
-		if (this.options.sapAiCoreClientSecret === "") {
-			return [{ id: "notconfigured", name: "ai-core-not-configured" }]
-		}
-
-		const token = await this.getToken()
-		const headers = {
-			Authorization: `Bearer ${token}`,
-			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
-			"Content-Type": "application/json",
-			"AI-Client-Type": "Cline",
-		}
-
-		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
-
-		try {
-			const response = await axios.get(url, { headers })
-			const deployments = response.data.resources
-
-			return deployments
-				.filter((deployment: any) => deployment.targetStatus === "RUNNING")
-				.map((deployment: any) => {
-					const model = deployment.details?.resources?.backend_details?.model
-					if (!model?.name || !model?.version) {
-						return null // Skip this row
-					}
-					return {
-						id: deployment.id,
-						name: `${model.name}:${model.version}`,
-					}
-				})
-				.filter((deployment: any) => deployment !== null)
-		} catch (error) {
-			console.error("Error fetching deployments:", error)
-			throw new Error("Failed to fetch deployments")
-		}
-	}
-
-	private async getDeploymentForModel(modelId: string): Promise<string> {
-		// If deployments are not fetched yet or the model is not found in the fetched deployments, fetch deployments
-		if (!this.deployments || !this.hasDeploymentForModel(modelId)) {
-			this.deployments = await this.getAiCoreDeployments()
-		}
-
-		const deployment = this.deployments.find((d) => {
-			const deploymentBaseName = d.name.split(":")[0].toLowerCase()
-			const modelBaseName = modelId.split(":")[0].toLowerCase()
-			return deploymentBaseName === modelBaseName
-		})
-
-		if (!deployment) {
-			throw new Error(`No running deployment found for model ${modelId}`)
-		}
-
-		return deployment.id
-	}
-
-	private hasDeploymentForModel(modelId: string): boolean {
-		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
@@ -546,7 +481,11 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		const model = this.getModel()
-		const deploymentId = await this.getDeploymentForModel(model.id)
+		const deploymentId = this.options.deploymentId
+
+		if (!deploymentId) {
+			throw new Error(`No running deployment found for model ${model.id}`)
+		}
 
 		const anthropicModels = [
 			"anthropic--claude-4-sonnet",

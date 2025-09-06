@@ -108,9 +108,16 @@ message SapAiCoreModelsRequest {
   string resource_group = 6;
 }
 
+// SAP AI Core model with deployment information
+message SapAiCoreModelDeployment {
+  string model_name = 1;
+  string deployment_id = 2;
+}
+
+
 // Response for SAP AI Core models with orchestration availability
 message SapAiCoreModelsResponse {
-  repeated string model_names = 1;
+  repeated SapAiCoreModelDeployment deployments = 1;
   bool orchestration_available = 2;
 }
 
@@ -291,16 +298,18 @@ message ModelsApiConfiguration {
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
   optional string plan_mode_sap_ai_core_model_id = 119;
-  optional string plan_mode_groq_model_id = 120;
-  optional OpenRouterModelInfo plan_mode_groq_model_info = 121;
-  optional string plan_mode_hugging_face_model_id = 122;
-  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 123;
-  optional string plan_mode_huawei_cloud_maas_model_id = 124;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 125; 
-  optional string plan_mode_baseten_model_id = 126;
-  optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
-  optional string plan_mode_vercel_ai_gateway_model_id = 128;
-  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 129;
+  optional string plan_mode_sap_ai_core_deployment_id = 120;
+  optional string plan_mode_groq_model_id = 121;
+  optional OpenRouterModelInfo plan_mode_groq_model_info = 122;
+  optional string plan_mode_hugging_face_model_id = 123;
+  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
+  optional string plan_mode_huawei_cloud_maas_model_id = 125;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126; 
+  optional string plan_mode_baseten_model_id = 127;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
+  optional string plan_mode_vercel_ai_gateway_model_id = 129;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
+
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -323,16 +332,18 @@ message ModelsApiConfiguration {
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
-  optional string act_mode_groq_model_id = 220;
-  optional OpenRouterModelInfo act_mode_groq_model_info = 221;
-  optional string act_mode_hugging_face_model_id = 222;
-  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 223;
-  optional string act_mode_huawei_cloud_maas_model_id = 224;
-  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 225;
-  optional string act_mode_baseten_model_id = 226;
-  optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
-  optional string act_mode_vercel_ai_gateway_model_id = 228;
-  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 229;
+  optional string act_mode_sap_ai_core_deployment_id = 220;
+  optional string act_mode_groq_model_id = 221;
+  optional OpenRouterModelInfo act_mode_groq_model_info = 222;
+  optional string act_mode_hugging_face_model_id = 223;
+  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 224;
+  optional string act_mode_huawei_cloud_maas_model_id = 225;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 226;
+  optional string act_mode_baseten_model_id = 227;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
+  optional string act_mode_vercel_ai_gateway_model_id = 229;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
+
 
   repeated string favorited_model_ids = 300;
 }
