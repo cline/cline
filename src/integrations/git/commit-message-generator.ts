@@ -7,60 +7,68 @@ import { getWorkingState } from "@/utils/git"
 import { getCwd } from "@/utils/path"
 
 /**
- * Git commit message generator module
+ * Git commit message generator class
  */
-export const GitCommitGenerator = {
-	generate,
-	abort,
-}
+export class GitCommitGenerator {
+	private commitGenerationAbortController: AbortController | undefined
 
-let commitGenerationAbortController: AbortController | undefined
+	/**
+	 * Generates a commit message based on the current git diff
+	 * @param context VSCode extension context
+	 * @param scm Source control instance
+	 */
+	async generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl): Promise<void> {
+		const cwd = await getCwd()
+		if (!context || !cwd) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "No workspace folder open",
+			})
+			return
+		}
 
-async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
-	const cwd = await getCwd()
-	if (!context || !cwd) {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: "No workspace folder open",
-		})
-		return
+		const gitDiff = await getWorkingState(cwd)
+		if (gitDiff === "No changes in working directory") {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "No changes in workspace for commit message",
+			})
+			return
+		}
+
+		const inputBox = scm?.inputBox
+		if (!inputBox) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Git extension not found or no repositories available",
+			})
+			return
+		}
+
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.SourceControl,
+				title: "Generating commit message...",
+				cancellable: true,
+			},
+			() => this.performCommitGeneration(context, gitDiff, inputBox),
+		)
 	}
 
-	const gitDiff = await getWorkingState(cwd)
-	if (gitDiff === "No changes in working directory") {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.INFORMATION,
-			message: "No changes in workspace for commit message",
-		})
-		return
-	}
+	/**
+	 * Performs the actual commit message generation
+	 * @param context VSCode extension context
+	 * @param gitDiff The git diff to generate a message for
+	 * @param inputBox The SCM input box to populate
+	 */
+	private async performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any): Promise<void> {
+		try {
+			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
-	const inputBox = scm?.inputBox
-	if (!inputBox) {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: "Git extension not found or no repositories available",
-		})
-		return
-	}
+			const truncatedDiff =
+				gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
 
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.SourceControl,
-			title: "Generating commit message...",
-			cancellable: true,
-		},
-		() => performCommitGeneration(context, gitDiff, inputBox),
-	)
-}
-
-async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
-	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
-
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
-
-		const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+			const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
 ${truncatedDiff}
 The commit message should:
 1. Start with a short summary (50-72 characters)
@@ -69,53 +77,62 @@ The commit message should:
 4. Be clear and descriptive
 Commit message:`
 
-		// Get the current API configuration
-		const stateManager = new StateManager(context)
-		await stateManager.initialize()
-		const apiConfiguration = stateManager.getApiConfiguration()
-		// Set to use Act mode for now by default
-		// TODO: A new mode for commit generation
-		const currentMode = "act"
+			// Get the current API configuration
+			const stateManager = new StateManager(context)
+			await stateManager.initialize()
+			const apiConfiguration = stateManager.getApiConfiguration()
+			// Set to use Act mode for now by default
+			// TODO: A new mode for commit generation
+			const currentMode = "act"
 
-		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+			// Build the API handler
+			const apiHandler = buildApiHandler(apiConfiguration, currentMode)
 
-		// Create a system prompt
-		const systemPrompt =
-			"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+			// Create a system prompt
+			const systemPrompt =
+				"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
 
-		// Create a message for the API
-		const messages = [{ role: "user" as const, content: prompt }]
+			// Create a message for the API
+			const messages = [{ role: "user" as const, content: prompt }]
 
-		commitGenerationAbortController = new AbortController()
-		const stream = apiHandler.createMessage(systemPrompt, messages)
+			this.commitGenerationAbortController = new AbortController()
+			const stream = apiHandler.createMessage(systemPrompt, messages)
 
-		let response = ""
-		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
-			if (chunk.type === "text") {
-				response += chunk.text
-				inputBox.value = extractCommitMessage(response)
+			let response = ""
+			for await (const chunk of stream) {
+				this.commitGenerationAbortController.signal.throwIfAborted()
+				if (chunk.type === "text") {
+					response += chunk.text
+					inputBox.value = extractCommitMessage(response)
+				}
 			}
-		}
 
-		if (!inputBox.value) {
-			throw new Error("empty API response")
+			if (!inputBox.value) {
+				throw new Error("empty API response")
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to generate commit message: ${errorMessage}`,
+			})
+		} finally {
+			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: `Failed to generate commit message: ${errorMessage}`,
-		})
-	} finally {
+	}
+
+	/**
+	 * Aborts the current commit message generation
+	 */
+	abort(): void {
+		this.commitGenerationAbortController?.abort()
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 	}
-}
 
-function abort() {
-	commitGenerationAbortController?.abort()
-	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	dispose(): void {
+		this.commitGenerationAbortController?.abort()
+		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	}
 }
 
 /**

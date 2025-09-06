@@ -481,12 +481,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	// Register the generateGitCommitMessage command handler
+	const commitGenerator = new GitCommitGenerator()
 	context.subscriptions.push(
+		commitGenerator,
 		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (scm) => {
-			await GitCommitGenerator?.generate?.(context, scm)
+			await commitGenerator.generate(context, scm)
 		}),
 		vscode.commands.registerCommand("cline.abortGitCommitMessage", () => {
-			GitCommitGenerator?.abort?.()
+			commitGenerator.abort()
 		}),
 	)
 
