@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.28.0
+
+- a3b4ad5: Sync taskHistory across Cline instances so that it will update for all Cline instances when one instance creates, adds to, or deletes a task.
+- 190d4a2: support orchestration mode for sap provider
+- 518e624: fix showing the ai core exisiting models when resource group field is empty (using the default resource group)
+- e5f8c04: Reset account view on sign out
+- 45871a9: Fix issue on Account view where balance is fetched twice that cause janky UI
+- 550883d: Fixes an issue where thinking text from litellm was not being passed through to Cline thinking UI
+- 1ab3de8: Fix Ollama connection issue to default endpoint at port 11434
+- cdc2489: Optimized Cline for GPT-5 model family with an aligned system prompt
+- 971ac0f: REfactoring Tool Executor
+- 31161f8: Add search functionality to API provider dropdown
+- 3ed4d55: Adding telemetry for terminal command issue
+- b176319: Remove disabled approve / reject buttons from UI.
+- 291287c: Adding a grpc recording class with its builder
+- 3f341d9: Fixed minor bug where entering slash commands would result in the following word being removed from the chat text area
+- d69fb10: Fix issue where editor panel gets reset to chat view on each chat input focus event
+- 5af6e8d: Exclude dependency folders for deep-planning prompt
+- 64a8096: Sambanova provider: add DeepSeek-V3.1
+- 4d5ab59: Add "Use custom prompt" option to Ollama provider
+- cb1bda9: add free grok-coder-free model to cline provider
+- 5e8102e: Adding a new standalone core api server script for local and integration testing purposes
+- 213591a: Fix AutoApproveModal overflowing issue
+- e3bc5f0: Setup Raw Structure for implementing multi-workspace support with WorkspaceRoot
+- d4ba4fd: Dify.ai api integration
+- 35f0873: Improve Gemini Rate Limit handling
+- 4628eca: fix: Support Anthropic Caching when using LiteLLM
+- ca1e008: Prompt changes for deep-planning in windows/powershell
+
 ## [3.27.1]
 
 - Add new Kimi K2 model to groq and moonshot providers
