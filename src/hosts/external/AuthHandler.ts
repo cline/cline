@@ -2,6 +2,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
+import { WebviewProvider } from "@/core/webview"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 
@@ -162,7 +163,8 @@ export class AuthHandler {
 			const uri = SharedUriHandler.convertHttpUrlToUri(fullUrl)
 
 			// Use SharedUriHandler directly - it handles all validation and processing
-			const success = await SharedUriHandler.handleUri(uri)
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			const success = await SharedUriHandler.handleUri(uri, visibleWebview)
 
 			if (success) {
 				this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
