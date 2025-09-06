@@ -1,6 +1,8 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import { GrpcRecorder, IRecorder } from "./grpc-recorder/grpc-recorder"
+import { LogFileHandler } from "./grpc-recorder/log-file-handler"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
@@ -15,6 +17,49 @@ export type StreamingResponseHandler<TResponse> = (
 
 export type PostMessageToWebview = (message: ExtensionMessage) => Thenable<boolean | undefined>
 
+// Initialize the recorder as a singleton
+let recorder: IRecorder | null = null
+
+/**
+ * Gets or creates the GrpcRecorder instance
+ */
+function getRecorder(): IRecorder {
+	if (!recorder) {
+		recorder = GrpcRecorder.builder()
+			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true" && process.env.CLINE_ENVIRONMENT === "local")
+			.withLogFileHandler(new LogFileHandler())
+			.build()
+	}
+	return recorder
+}
+
+/**
+ * Creates a middleware wrapper for recording gRPC requests and responses
+ */
+function withRecordingMiddleware(postMessage: PostMessageToWebview): PostMessageToWebview {
+	return async (response: ExtensionMessage) => {
+		if (response?.grpc_response) {
+			try {
+				getRecorder().recordResponse(response.grpc_response.request_id, response.grpc_response)
+			} catch (e) {
+				console.warn("Failed to record gRPC response:", e)
+			}
+		}
+		return postMessage(response)
+	}
+}
+
+/**
+ * Records gRPC request with error handling
+ */
+function recordRequest(request: GrpcRequest): void {
+	try {
+		getRecorder().recordRequest(request)
+	} catch (e) {
+		console.warn("Failed to record gRPC request:", e)
+	}
+}
+
 /**
  * Handles a gRPC request from the webview.
  */
@@ -23,10 +68,15 @@ export async function handleGrpcRequest(
 	postMessageToWebview: PostMessageToWebview,
 	request: GrpcRequest,
 ): Promise<void> {
+	recordRequest(request)
+
+	// Create recording middleware wrapper
+	const postMessageWithRecording = withRecordingMiddleware(postMessageToWebview)
+
 	if (request.is_streaming) {
-		await handleStreamingRequest(controller, postMessageToWebview, request)
+		await handleStreamingRequest(controller, postMessageWithRecording, request)
 	} else {
-		await handleUnaryRequest(controller, postMessageToWebview, request)
+		await handleUnaryRequest(controller, postMessageWithRecording, request)
 	}
 }
 
