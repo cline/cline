@@ -41,8 +41,7 @@ const ToDoListHeader = memo<{
 					</span>
 				</div>
 				<span
-					className={`codicon codicon-chevron-${isTodoExpanded ? "down" : "right"}`}
-					style={{ color: "var(--vscode-charts-green)" }}
+					className={`codicon codicon-chevron-${isTodoExpanded ? "down" : "right"} text-[var(--vscode-charts-green)]`}
 				/>
 			</div>
 		)
@@ -58,7 +57,7 @@ const ToDoListHeader = memo<{
 
 			<div className="flex items-center justify-between gap-2 relative z-10 p-1.5">
 				<div className="flex items-center gap-2 flex-1 min-w-0 relative">
-					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-[1px] px-[6px] rounded-[10px]">
+					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-0.5 px-1.5 rounded-[10px]">
 						{todoInfo.currentIndex}/{todoInfo.totalCount}
 					</span>
 					{todoInfo.currentTodo && (

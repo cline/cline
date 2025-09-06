@@ -238,40 +238,24 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 p-2.5">
 				<div className="flex justify-between items-center">
 					<div className="flex items-center cursor-pointer select-none flex-grow min-w-0" onClick={toggleTaskExpanded}>
-						<div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+						<div className="flex items-center shrink-0">
 							<span className={`codicon codicon-chevron-${expandedState.task ? "down" : "right"}`} />
 						</div>
-						<div
-							style={{
-								marginLeft: 6,
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								flexGrow: 1,
-								minWidth: 0,
-							}}>
+						<div className="ml-1.5 whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
 							{expandedState.task ? (
 								<ActionButtons />
 							) : (
-								<span className="ph-no-capture" style={{ marginLeft: 4 }}>
-									{highlightText(task.text, false)}
-								</span>
+								<span className="ph-no-capture ml-1">{highlightText(task.text, false)}</span>
 							)}
 						</div>
 					</div>
 
 					{isCostAvailable && (
 						<div
+							className="ml-2.5 px-1 py-0.5 rounded-full text-[11px] font-medium inline-block shrink-0"
 							style={{
-								marginLeft: 10,
 								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
 								color: "var(--vscode-badge-background)",
-								padding: "2px 4px",
-								borderRadius: "500px",
-								fontSize: "11px",
-								fontWeight: 500,
-								display: "inline-block",
-								flexShrink: 0,
 							}}>
 							${totalCost?.toFixed(4)}
 						</div>
@@ -368,9 +352,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 						{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
 							<button
-								className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
-								onClick={handleCheckpointSettingsClick}
-								style={{ fontSize: "inherit" }}>
+								className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit text-[inherit]"
+								onClick={handleCheckpointSettingsClick}>
 								disabling checkpoints.
 							</button>
 						)}
@@ -378,11 +361,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<>
 								{" "}
 								<a
-									href="https://github.com/cline/cline/wiki/Installing-Git-for-Checkpoints"
-									style={{
-										color: "inherit",
-										textDecoration: "underline",
-									}}>
+									className="text-inherit underline"
+									href="https://github.com/cline/cline/wiki/Installing-Git-for-Checkpoints">
 									See here for instructions.
 								</a>
 							</>
@@ -433,10 +413,9 @@ export const highlightMentions = (text: string, withShadow = true) => {
 			// Mention
 			result.push(
 				<span
-					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
+					className={`${withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} cursor-pointer`}
 					key={`mention-${Math.floor(i / 2)}`}
-					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: parts[i] }))}
-					style={{ cursor: "pointer" }}>
+					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: parts[i] }))}>
 					@{parts[i]}
 				</span>,
 			)
