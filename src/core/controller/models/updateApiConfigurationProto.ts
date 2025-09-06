@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -28,8 +27,7 @@ export async function updateApiConfigurationProto(
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			const currentMode = await controller.getCurrentMode()
-			controller.task.api = buildApiHandler({ ...appApiConfiguration, ulid: controller.task.ulid }, currentMode)
+			controller.rebuildApiHandler(appApiConfiguration)
 		}
 
 		// Post updated state to webview

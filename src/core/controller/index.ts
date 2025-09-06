@@ -4,7 +4,7 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
-import { ApiProvider, ModelInfo } from "@shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -111,6 +111,17 @@ export class Controller {
 
 	async getCurrentMode(): Promise<Mode> {
 		return this.stateManager.getGlobalStateKey("mode")
+	}
+
+	rebuildApiHandler(newConfig: ApiConfiguration) {
+		if (this.task) {
+			const currentMode = this.stateManager.getGlobalStateKey("mode")
+			const effectiveConfig = {
+				...newConfig,
+				ulid: this.task.ulid,
+			}
+			this.task.api = buildApiHandler(effectiveConfig, currentMode)
+		}
 	}
 
 	/*
@@ -364,9 +375,8 @@ export class Controller {
 			this.stateManager.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+				this.rebuildApiHandler(updatedConfig)
 			}
-
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
@@ -494,7 +504,6 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = await this.getCurrentMode()
 
 		// Update API configuration through cache service
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -508,7 +517,7 @@ export class Controller {
 
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+			this.rebuildApiHandler(updatedConfig)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
