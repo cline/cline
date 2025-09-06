@@ -1,4 +1,3 @@
-import { workspaceResolver } from "@core/workspace"
 import fs from "fs/promises"
 import * as path from "path"
 
@@ -105,6 +104,7 @@ const OS_GENERATED_FILES = [
 
 /**
  * Recursively reads a directory and returns an array of absolute file paths.
+ * Uses manual recursion because the `recursive: true` option in `fs.readdir` is not reliably supported on Windows or in certain Node.js versions.
  *
  * @param directoryPath - The path to the directory to read.
  * @param excludedPaths - Nested array of paths to ignore.
@@ -113,39 +113,62 @@ const OS_GENERATED_FILES = [
  */
 export const readDirectory = async (directoryPath: string, excludedPaths: string[][] = []) => {
 	try {
-		const filePaths = await fs
-			.readdir(directoryPath, { withFileTypes: true, recursive: true })
-			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
-			.then((entries) => entries.filter((entry) => entry.isFile()))
-			.then((files) =>
-				files.map((file) => {
-					const resolvedPath = workspaceResolver.resolveWorkspacePath(
-						file.parentPath,
-						file.name,
-						"Utils.fs.readDirectory",
-					)
-					return typeof resolvedPath === "string" ? resolvedPath : resolvedPath.absolutePath
-				}),
-			)
-			.then((filePaths) =>
-				filePaths.filter((filePath) => {
-					if (excludedPaths.length === 0) {
-						return true
-					}
+		const filePaths: string[] = []
 
-					for (const excludedPathList of excludedPaths) {
-						const pathToSearchFor = path.sep + excludedPathList.join(path.sep) + path.sep
-						if (filePath.includes(pathToSearchFor)) {
-							return false
-						}
-					}
-
-					return true
-				}),
-			)
+		// Manual recursive directory traversal for compatibility
+		await readDirectoryRecursiveHelper(directoryPath, filePaths, excludedPaths)
 
 		return filePaths
-	} catch {
-		throw new Error(`Error reading directory at ${directoryPath}`)
+	} catch (error) {
+		throw new Error(`Error reading directory at ${directoryPath}: ${error instanceof Error ? error.message : error}`)
 	}
+}
+
+/**
+ * Helper function for manual recursive directory traversal
+ */
+async function readDirectoryRecursiveHelper(
+	dirPath: string,
+	filePaths: string[],
+	excludedPaths: string[][]
+): Promise<void> {
+	const entries = await fs.readdir(dirPath, { withFileTypes: true })
+
+	for (const entry of entries) {
+		// Skip OS-generated files
+		if (OS_GENERATED_FILES.includes(entry.name)) {
+			continue
+		}
+
+		const fullPath = path.join(dirPath, entry.name)
+
+		if (entry.isFile()) {
+			// Check if this file should be excluded
+			if (shouldExcludePath(fullPath, excludedPaths)) {
+				continue
+			}
+			filePaths.push(fullPath)
+		} else if (entry.isDirectory()) {
+			// Recursively read subdirectories
+			await readDirectoryRecursiveHelper(fullPath, filePaths, excludedPaths)
+		}
+	}
+}
+
+/**
+ * Check if a file path should be excluded based on excludedPaths
+ */
+function shouldExcludePath(filePath: string, excludedPaths: string[][]): boolean {
+	if (excludedPaths.length === 0) {
+		return false
+	}
+
+	for (const excludedPathList of excludedPaths) {
+		const pathToSearchFor = path.sep + excludedPathList.join(path.sep) + path.sep
+		if (filePath.includes(pathToSearchFor)) {
+			return true
+		}
+	}
+
+	return false
 }
