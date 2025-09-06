@@ -1,6 +1,9 @@
 import { strict as assert } from "assert"
+import * as fs from "fs/promises"
 import { afterEach, beforeEach, describe, it } from "mocha"
+import * as os from "os"
 import pWaitFor from "p-wait-for"
+import * as path from "path"
 import * as vscode from "vscode"
 import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
@@ -106,5 +109,49 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			3,
 			`Expected 3 open tabs, got ${response.paths.length}. Found: ${JSON.stringify(response.paths)}`,
 		)
+	})
+
+	it("should return all tabs including deleted files", async () => {
+		// Create a temporary file on disk
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "vscode-test-"))
+		const testFilePath = path.join(tempDir, "test-file.js")
+		await fs.writeFile(testFilePath, "console.log('test file');")
+
+		// Open the file as a tab
+		const document = await vscode.workspace.openTextDocument(testFilePath)
+		await vscode.window.showTextDocument(document, { preview: false })
+
+		// Also open an untitled document
+		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
+
+		// Wait for tabs to be created
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.length === 2
+			},
+			{
+				timeout: 4000,
+				interval: 50,
+			},
+		)
+
+		// Delete the file from disk
+		await fs.unlink(testFilePath)
+
+		// Get open tabs - should still return both tabs
+		const request = GetOpenTabsRequest.create({})
+		const response = await getOpenTabs(request)
+
+		// Should still have 2 tabs (host bridge returns all tabs regardless of file existence)
+		assert.strictEqual(
+			response.paths.length,
+			2,
+			`Host bridge should return all tabs including deleted files. Found tabs: ${JSON.stringify(response.paths)}`,
+		)
+
+		// Clean up temp directory
+		await fs.rmdir(tempDir, { recursive: true })
 	})
 })
