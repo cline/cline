@@ -447,6 +447,11 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
+		// Plan mode rate limit configs
+		planModeRateLimitRpm: config.planModeRateLimitRpm,
+		planModeRateLimitTpm: config.planModeRateLimitTpm,
+		planModeRateLimitNearThreshold: config.planModeRateLimitNearThreshold,
+
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
 		actModeApiModelId: config.actModeApiModelId,
@@ -478,6 +483,11 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+
+		// Act mode rate limit configs
+		actModeRateLimitRpm: config.actModeRateLimitRpm,
+		actModeRateLimitTpm: config.actModeRateLimitTpm,
+		actModeRateLimitNearThreshold: config.actModeRateLimitNearThreshold,
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -595,6 +605,11 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
+		// Plan mode rate limit configs
+		planModeRateLimitRpm: protoConfig.planModeRateLimitRpm,
+		planModeRateLimitTpm: protoConfig.planModeRateLimitTpm,
+		planModeRateLimitNearThreshold: protoConfig.planModeRateLimitNearThreshold,
+
 		// Act mode configurations
 		actModeApiProvider:
 			protoConfig.actModeApiProvider !== undefined ? convertProtoToApiProvider(protoConfig.actModeApiProvider) : undefined,
@@ -627,6 +642,11 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+
+		// Act mode rate limit configs
+		actModeRateLimitRpm: protoConfig.actModeRateLimitRpm,
+		actModeRateLimitTpm: protoConfig.actModeRateLimitTpm,
+		actModeRateLimitNearThreshold: protoConfig.actModeRateLimitNearThreshold,
 
 		// Favorited model IDs
 		favoritedModelIds:

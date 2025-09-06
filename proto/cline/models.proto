@@ -302,6 +302,11 @@ message ModelsApiConfiguration {
   optional string plan_mode_vercel_ai_gateway_model_id = 128;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 129;
 
+  // Plan mode rate limit configs
+  optional int64 plan_mode_rate_limit_rpm = 130;
+  optional int64 plan_mode_rate_limit_tpm = 131;
+  optional double plan_mode_rate_limit_near_threshold = 132;
+
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
@@ -333,6 +338,11 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
   optional string act_mode_vercel_ai_gateway_model_id = 228;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 229;
+
+  // Act mode rate limit configs
+  optional int64 act_mode_rate_limit_rpm = 230;
+  optional int64 act_mode_rate_limit_tpm = 231;
+  optional double act_mode_rate_limit_near_threshold = 232;
 
   repeated string favorited_model_ids = 300;
 }

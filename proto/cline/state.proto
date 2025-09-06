@@ -234,6 +234,10 @@ message ApiConfiguration {
   optional string plan_mode_huawei_cloud_maas_model_info = 121;
   optional string plan_mode_vercel_ai_gateway_model_id = 122;
   optional string plan_mode_vercel_ai_gateway_model_info = 123;
+  // Plan mode rate limit configs
+  optional int32 plan_mode_rate_limit_rpm = 124;
+  optional int32 plan_mode_rate_limit_tpm = 125;
+  optional float plan_mode_rate_limit_near_threshold = 126;
   
   // Act mode configurations
   optional string act_mode_api_provider = 200;
@@ -260,6 +264,10 @@ message ApiConfiguration {
   optional string act_mode_huawei_cloud_maas_model_info = 221;
   optional string act_mode_vercel_ai_gateway_model_id = 222;
   optional string act_mode_vercel_ai_gateway_model_info = 223;
+  // Act mode rate limit configs
+  optional int32 act_mode_rate_limit_rpm = 224;
+  optional int32 act_mode_rate_limit_tpm = 225;
+  optional float act_mode_rate_limit_near_threshold = 226;
   
   // Favorited model IDs
   repeated string favorited_model_ids = 300;
