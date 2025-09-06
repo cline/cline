@@ -38,8 +38,18 @@ async function installNodeDependencies() {
 	// Check for native .node modules.
 	const nativeModules = await glob("**/*.node", { cwd: BUILD_DIR, nodir: true })
 	if (nativeModules.length > 0) {
-		console.error("Native node modules cannot be included in the standalone distribution:\n", nativeModules.join("\n"))
-		process.exit(1)
+		const allowedNativeModules = ["keytar.node"]
+		const blockedModules = nativeModules.filter((mod) => !allowedNativeModules.some((allowed) => mod.includes(allowed)))
+
+		if (blockedModules.length > 0) {
+			console.error(
+				"Blocked native node modules cannot be included in the standalone distribution:\n",
+				blockedModules.join("\n"),
+			)
+			process.exit(1)
+		}
+
+		console.log("Allowed native modules included:", nativeModules.join(", "))
 	}
 }
 
