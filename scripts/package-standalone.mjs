@@ -99,7 +99,7 @@ async function packageAllBinaryDeps() {
 async function removeHostBinaryModules() {
 	for (const module of SUPPORTED_BINARY_MODULES) {
 		console.log(`Cleaning up host version of ${module}`)
-		rmrf(path.join(BUILD_DIR, "node_modules", module))
+		await rmrf(path.join(BUILD_DIR, "node_modules", module))
 	}
 }
 
