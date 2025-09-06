@@ -1,3 +1,4 @@
+import { WorkspaceRoot } from "@core/workspace"
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
@@ -551,6 +552,55 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.workspaceStateCache[key]
+	}
+
+	// NEW: Add workspace root state management methods
+	private readonly WORKSPACE_ROOTS_KEY = "workspaceRoots"
+	private readonly PRIMARY_ROOT_INDEX_KEY = "primaryRootIndex"
+
+	/**
+	 * Get workspace roots from global state
+	 */
+	getWorkspaceRoots(): WorkspaceRoot[] | undefined {
+		return this.getGlobalStateKey(this.WORKSPACE_ROOTS_KEY as keyof GlobalState) as WorkspaceRoot[] | undefined
+	}
+
+	/**
+	 * Set workspace roots in global state
+	 */
+	setWorkspaceRoots(roots: WorkspaceRoot[]): void {
+		this.setGlobalState(this.WORKSPACE_ROOTS_KEY as keyof GlobalState, roots as any)
+	}
+
+	/**
+	 * Get primary root index from global state
+	 */
+	getPrimaryRootIndex(): number {
+		return (this.getGlobalStateKey(this.PRIMARY_ROOT_INDEX_KEY as keyof GlobalState) as number) ?? 0
+	}
+
+	/**
+	 * Set primary root index in global state
+	 */
+	setPrimaryRootIndex(index: number): void {
+		this.setGlobalState(this.PRIMARY_ROOT_INDEX_KEY as keyof GlobalState, index as any)
+	}
+
+	/**
+	 * Check if multi-root workspace feature is enabled
+	 */
+	isMultiRootEnabled(): boolean {
+		// Feature flag - defaults to false
+		// return (this.getGlobalStateKey("multiRootEnabled" as keyof GlobalState) as boolean) ?? false
+		// For now, always return false to disable multi-root support by default
+		return false
+	}
+
+	/**
+	 * Enable or disable multi-root workspace feature
+	 */
+	setMultiRootEnabled(enabled: boolean): void {
+		this.setGlobalState("multiRootEnabled" as keyof GlobalState, enabled as any)
 	}
 
 	/**

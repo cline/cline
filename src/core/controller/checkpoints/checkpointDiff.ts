@@ -3,7 +3,8 @@ import { Controller } from ".."
 
 export async function checkpointDiff(controller: Controller, request: Int64Request): Promise<Empty> {
 	if (request.value) {
-		await controller.task?.checkpointManager?.presentMultifileDiff(request.value, false)
+		const mgr = controller.task?.checkpointManager
+		await mgr?.presentMultifileDiff?.(request.value, false) // preserve `this`
 	}
 	return Empty.create()
 }

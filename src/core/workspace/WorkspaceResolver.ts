@@ -5,7 +5,6 @@
  * Phase 1+: Will handle multi-root path resolution
  */
 
-import { Logger } from "@services/logging/Logger"
 import * as path from "path"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"
 import { WorkspaceRoot } from "./WorkspaceRoot"
@@ -81,7 +80,7 @@ export class WorkspaceResolver {
 			this.trackUsage(context, relativePath)
 
 			if (this.traceEnabled) {
-				Logger.debug(`[MULTI-ROOT-TRACE] ${context}: resolving "${relativePath}" against "${cwd}"`)
+				console.debug(`[MULTI-ROOT-TRACE] ${context}: resolving "${relativePath}" against "${cwd}"`)
 			}
 		}
 
@@ -241,7 +240,7 @@ export class WorkspaceResolver {
 		const result = path.basename(filePath)
 
 		if (this.traceEnabled) {
-			Logger.debug(`[MULTI-ROOT-TRACE] ${context}: getting basename for "${filePath}"`)
+			console.debug(`[MULTI-ROOT-TRACE] ${context}: getting basename for "${filePath}"`)
 		}
 
 		return result
