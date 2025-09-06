@@ -2,13 +2,8 @@
 
 ## 3.28.0
 
-### Minor Changes
-
 - a3b4ad5: Sync taskHistory across Cline instances so that it will update for all Cline instances when one instance creates, adds to, or deletes a task.
 - 190d4a2: support orchestration mode for sap provider
-
-### Patch Changes
-
 - 518e624: fix showing the ai core exisiting models when resource group field is empty (using the default resource group)
 - e5f8c04: Reset account view on sign out
 - 45871a9: Fix issue on Account view where balance is fetched twice that cause janky UI
