@@ -49,6 +49,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		vercelAiGatewayApiKey,
 		difyApiKey,
 		authNonce,
+		syntheticApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
 		context.secrets.get("openRouterApiKey") as Promise<string | undefined>,
@@ -85,6 +86,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
 		context.secrets.get("difyApiKey") as Promise<string | undefined>,
 		context.secrets.get("authNonce") as Promise<string | undefined>,
+		context.secrets.get("syntheticApiKey") as Promise<string | undefined>,
 	])
 
 	return {
@@ -123,6 +125,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
+		syntheticApiKey,
 	}
 }
 
@@ -253,6 +256,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeVercelAiGatewayModelInfo = context.globalState.get("planModeVercelAiGatewayModelInfo") as
 			| ModelInfo
 			| undefined
+		const planModeSyntheticModelId = context.globalState.get("planModeSyntheticModelId") as string | undefined
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get("actModeApiProvider") as ApiProvider | undefined
 		const actModeApiModelId = context.globalState.get("actModeApiModelId") as string | undefined
@@ -292,6 +296,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeVercelAiGatewayModelInfo = context.globalState.get("actModeVercelAiGatewayModelInfo") as
 			| ModelInfo
 			| undefined
+		const actModeSyntheticModelId = context.globalState.get("actModeSyntheticModelId") as string | undefined
 		const sapAiCoreUseOrchestrationMode = context.globalState.get("sapAiCoreUseOrchestrationMode") as boolean | undefined
 
 		let apiProvider: ApiProvider
@@ -390,6 +395,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeSyntheticModelId,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -421,6 +427,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeSyntheticModelId,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,

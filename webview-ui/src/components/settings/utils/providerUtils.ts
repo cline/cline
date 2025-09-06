@@ -56,6 +56,8 @@ import {
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
+	syntheticDefaultModelId,
+	syntheticModels,
 	vercelAiGatewayDefaultModelId,
 	vercelAiGatewayDefaultModelInfo,
 	vertexDefaultModelId,
@@ -345,6 +347,17 @@ export function normalizeApiConfiguration(
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
 						: fireworksModels[fireworksDefaultModelId],
 			}
+		case "synthetic":
+			const syntheticModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeSyntheticModelId : apiConfiguration?.actModeSyntheticModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: syntheticModelId || syntheticDefaultModelId,
+				selectedModelInfo:
+					syntheticModelId && syntheticModelId in syntheticModels
+						? syntheticModels[syntheticModelId as keyof typeof syntheticModels]
+						: syntheticModels[syntheticDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -408,6 +421,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		apiModelId: mode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId,
 
 		// Provider-specific model IDs
+		syntheticModelId: mode === "plan" ? apiConfiguration.planModeSyntheticModelId : apiConfiguration.actModeSyntheticModelId,
 		togetherModelId: mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
 		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
@@ -568,6 +582,11 @@ export async function syncModeConfigurations(
 		case "together":
 			updates.planModeTogetherModelId = sourceFields.togetherModelId
 			updates.actModeTogetherModelId = sourceFields.togetherModelId
+			break
+
+		case "synthetic":
+			updates.planModeSyntheticModelId = sourceFields.syntheticModelId
+			updates.actModeSyntheticModelId = sourceFields.syntheticModelId
 			break
 
 		case "fireworks":

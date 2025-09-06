@@ -149,6 +149,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "synthetic":
+				if (!apiConfiguration.syntheticApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "dify":
 				if (!apiConfiguration.difyBaseUrl) {
 					return "You must provide a valid Base URL or choose a different provider."

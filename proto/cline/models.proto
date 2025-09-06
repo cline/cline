@@ -157,6 +157,7 @@ enum ApiProvider {
   VERCEL_AI_GATEWAY = 32;
   QWEN_CODE = 33;
   DIFY = 34;
+  SYNTHETIC = 35;
 }
 
 // Model info for OpenAI-compatible models
@@ -269,6 +270,7 @@ message ModelsApiConfiguration {
   optional string qwen_code_oauth_path = 70;
   optional string dify_api_key = 71;
   optional string dify_base_url = 72;
+  optional string synthetic_api_key = 73;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -301,6 +303,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 127;
   optional string plan_mode_vercel_ai_gateway_model_id = 128;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 129;
+  optional string plan_mode_synthetic_model_id = 130;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -333,6 +336,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_baseten_model_info = 227;
   optional string act_mode_vercel_ai_gateway_model_id = 228;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 229;
+  optional string act_mode_synthetic_model_id = 230;
 
   repeated string favorited_model_ids = 300;
 }
