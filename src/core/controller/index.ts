@@ -21,6 +21,7 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -160,6 +161,33 @@ export class Controller {
 		}
 	}
 
+	// Oca Auth methods
+	async handleOcaSignOut() {
+		try {
+			OcaAuthService.getInstance().handleDeauth(this)
+
+			// Update API providers through cache service
+			const apiConfiguration = this.stateManager.getApiConfiguration()
+			const updatedConfig = {
+				...apiConfiguration,
+				planModeApiProvider: "openrouter" as ApiProvider,
+				actModeApiProvider: "openrouter" as ApiProvider,
+			}
+			this.stateManager.setApiConfiguration(updatedConfig)
+
+			await this.postStateToWebview()
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Successfully logged out of Oca",
+			})
+		} catch (_error) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Oca Logout failed",
+			})
+		}
+	}
+
 	async setUserInfo(info?: UserInfo) {
 		this.stateManager.setGlobalState("userInfo", info)
 	}
@@ -271,7 +299,7 @@ export class Controller {
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
 			const apiConfiguration = this.stateManager.getApiConfiguration()
-			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo, this)
 		}
 
 		await this.postStateToWebview()
@@ -364,7 +392,58 @@ export class Controller {
 			this.stateManager.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode, this)
+			}
+
+			await this.postStateToWebview()
+		} catch (error) {
+			console.error("Failed to handle auth callback:", error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to log in to Cline",
+			})
+			// Even on login failure, we preserve any existing tokens
+			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleOcaAuthCallback(code: string, state: string) {
+		try {
+			await OcaAuthService.getInstance().handleAuthCallback(this, code, state)
+
+			const ocaProvider: ApiProvider = "oca"
+
+			// Get current settings to determine how to update providers
+			const planActSeparateModelsSetting = this.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+
+			const currentMode = await this.getCurrentMode()
+
+			// Get current API configuration from cache
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+
+			const updatedConfig = { ...currentApiConfiguration }
+
+			if (planActSeparateModelsSetting) {
+				// Only update the current mode's provider
+				if (currentMode === "plan") {
+					updatedConfig.planModeApiProvider = ocaProvider
+				} else {
+					updatedConfig.actModeApiProvider = ocaProvider
+				}
+			} else {
+				// Update both modes to keep them in sync
+				updatedConfig.planModeApiProvider = ocaProvider
+				updatedConfig.actModeApiProvider = ocaProvider
+			}
+
+			// Update the API configuration through cache service
+			this.stateManager.setApiConfiguration(updatedConfig)
+
+			// Mark welcome view as completed since user has successfully logged in
+			this.stateManager.setGlobalState("welcomeViewCompleted", true)
+
+			if (this.task) {
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode, this)
 			}
 
 			await this.postStateToWebview()
@@ -508,7 +587,7 @@ export class Controller {
 
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode, this)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
