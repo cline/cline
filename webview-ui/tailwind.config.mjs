@@ -85,6 +85,7 @@ export default {
 				lg: "calc(1.5 * var(--vscode-font-size))",
 				md: "calc(1.25 * var(--vscode-font-size))",
 				sm: "var(--vscode-font-size)",
+				xs: "calc(0.75 * var(--vscode-font-size))",
 			},
 		},
 	},
