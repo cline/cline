@@ -4,7 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient, UiServiceClient } from "@/services/grpc-client"
 import ServersToggleList from "./ServersToggleList"
 
-const InstalledServersView = () => {
+const ConfigureServersView = () => {
 	const { mcpServers: servers, navigateToSettings } = useExtensionState()
 
 	return (
@@ -71,4 +71,4 @@ const InstalledServersView = () => {
 	)
 }
 
-export default InstalledServersView
+export default ConfigureServersView

@@ -94,7 +94,7 @@ const ServersToggleModal: React.FC = () => {
 							appearance="icon"
 							onClick={() => {
 								setIsVisible(false)
-								navigateToMcp("installed")
+								navigateToMcp("configure")
 							}}>
 							<span className="codicon codicon-gear text-[10px]"></span>
 						</VSCodeButton>
