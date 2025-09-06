@@ -6,7 +6,7 @@ import { TaskServiceClient } from "@/services/grpc-client"
 const DeleteTaskButton: React.FC<{
 	taskSize: string
 	taskId?: string
-}> = ({ taskSize, taskId }) => (
+}> = ({ taskId }) => (
 	<HeroTooltip content="Delete Task">
 		<VSCodeButton
 			appearance="icon"
@@ -23,7 +23,6 @@ const DeleteTaskButton: React.FC<{
 					opacity: 0.6,
 				}}>
 				<i className={`codicon codicon-trash`} />
-				{taskSize}
 			</div>
 		</VSCodeButton>
 	</HeroTooltip>

@@ -8,6 +8,7 @@ interface HeroTooltipProps {
 	delay?: number
 	closeDelay?: number
 	placement?: "top" | "bottom" | "left" | "right"
+	showArrow?: boolean
 }
 
 /**
@@ -18,6 +19,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 	content,
 	children,
 	className,
+	showArrow = false,
 	delay = 0,
 	closeDelay = 500,
 	placement = "top",
@@ -50,7 +52,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 			disableAnimation={true}
 			isDisabled={false}
 			placement={placement} // Disable animation for immediate appearance/disappearance
-			showArrow={false}>
+			showArrow={showArrow}>
 			{children}
 		</Tooltip>
 	)
