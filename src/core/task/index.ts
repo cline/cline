@@ -1612,6 +1612,9 @@ export class Task {
 					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
+				// Display the user's message in the chat UI
+				await this.say("user_feedback", text, images, files)
+
 				// This userContent is for the *next* API call.
 				const feedbackUserContent: UserContent = []
 				feedbackUserContent.push({

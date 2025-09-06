@@ -169,7 +169,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "proceed":
 					if (hasContent) {
-						await handleSendMessage(trimmedInput || "", images || [], files || [])
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
