@@ -1072,7 +1072,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, changeModeDelay)
 		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
-		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+		let planActShortcut = "Meta+Shift+a"
+		const platformLower = platform?.toLowerCase?.() || ""
+		if (platformLower.includes("win")) {
+			planActShortcut = "Control+Shift+a"
+		} else if (platformLower.includes("linux")) {
+			planActShortcut = "Alt+Shift+a"
+		}
+		useShortcut(planActShortcut, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first
