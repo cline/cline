@@ -129,15 +129,13 @@ export function Evals({
 						<TableRow key={run.id}>
 							<TableCell title={run.model?.description}>
 								<div className="font-sans">{run.label}</div>
-								<div className="text-xs opacity-50">
-									{formatTokens(run.modelInfo?.contextWindow ?? 0)}
-								</div>
+								<div className="text-xs opacity-50">{formatTokens(run.modelInfo?.contextWindow)}</div>
 							</TableCell>
 							<TableCell className="border-r">
 								<div className="flex flex-row gap-2">
-									<div>{formatCurrency(run.modelInfo?.inputPrice ?? 0)}</div>
+									<div>{formatCurrency(run.modelInfo?.inputPrice)}</div>
 									<div className="opacity-25">/</div>
-									<div>{formatCurrency(run.modelInfo?.outputPrice ?? 0)}</div>
+									<div>{formatCurrency(run.modelInfo?.outputPrice)}</div>
 								</div>
 							</TableCell>
 							<TableCell className="font-mono">{formatDuration(run.taskMetrics.duration)}</TableCell>
