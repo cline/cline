@@ -3161,7 +3161,7 @@ export const moonshotModels = {
 	},
 	"kimi-k2-turbo-preview": {
 		maxTokens: 32_000,
-		contextWindow: 131_072,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.4,
