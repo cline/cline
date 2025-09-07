@@ -12,6 +12,7 @@ import { rmrf } from "./file-utils.mjs"
 
 const BUILD_DIR = "dist-standalone"
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
+const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 
 // This should match the node version packaged with the JetBrains plugin.
 const TARGET_NODE_VERSION = "22.15.0"
@@ -107,10 +108,13 @@ async function zipDistribution() {
 	// Zip the build directory (excluding any pre-existing output zip).
 	const zipPath = path.join(BUILD_DIR, "standalone.zip")
 	const output = fs.createWriteStream(zipPath)
-	const archive = archiver("zip", { zlib: { level: 3 } })
+	const startTime = Date.now()
+	const archive = archiver("zip", { zlib: { level: 6 } })
 
 	output.on("close", () => {
-		console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB)`)
+		const endTime = Date.now()
+		const duration = (endTime - startTime) / 1000
+		console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB) in ${duration.toFixed(2)} seconds`)
 	})
 	archive.on("warning", (err) => {
 		console.warn(`Warning: ${err}`)
@@ -205,7 +209,7 @@ function createIsIgnored(standaloneIgnores) {
 	let allIgnore = [...defaultIgnore, ...expandedIgnore, ...standaloneIgnores]
 
 	// Map files need to be included in the debug build. Remove .map ignores when IS_DEBUG_BUILD is set
-	if (process.env.IS_DEBUG_BUILD == "true") {
+	if (IS_DEBUG_BUILD) {
 		allIgnore = allIgnore.filter((pattern) => !pattern.endsWith(".map"))
 		console.log("Debug build: Including .map files in package")
 	}
