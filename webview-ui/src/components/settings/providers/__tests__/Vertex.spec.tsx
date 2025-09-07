@@ -74,6 +74,7 @@ describe("Vertex", () => {
 				{ value: "us-east1", label: "us-east1" },
 				{ value: "us-east4", label: "us-east4" },
 				{ value: "us-east5", label: "us-east5" },
+				{ value: "us-south1", label: "us-south1" },
 				{ value: "us-west1", label: "us-west1" },
 				{ value: "us-west2", label: "us-west2" },
 				{ value: "us-west3", label: "us-west3" },
