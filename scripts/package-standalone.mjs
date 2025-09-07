@@ -17,11 +17,10 @@ const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 // This should match the node version packaged with the JetBrains plugin.
 const TARGET_NODE_VERSION = "22.15.0"
 const TARGET_PLATFORMS = [
-	{ platform: "win32", arch: "x64" },
-	{ platform: "darwin", arch: "x64" },
-	{ platform: "darwin", arch: "arm64" },
-	{ platform: "linux", arch: "x64" },
-	{ platform: "linux", arch: "arm64" },
+	{ platform: "win32", arch: "x64", targetDir: "win-x64" },
+	{ platform: "darwin", arch: "x64", targetDir: "darwin-x64" },
+	{ platform: "darwin", arch: "arm64", targetDir: "darwin-arm64" },
+	{ platform: "linux", arch: "x64", targetDir: "linux-x64" },
 ]
 const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 
@@ -33,7 +32,6 @@ async function main() {
 	if (UNIVERSAL_BUILD) {
 		console.log("Building universal package for all platforms...")
 		await packageAllBinaryDeps()
-		await removeHostBinaryModules()
 	} else {
 		console.log(`Building package for ${os.platform()}-${os.arch()}...`)
 	}
@@ -62,6 +60,7 @@ async function installNodeDependencies() {
  * When cline-core is installed, the installer should use the correct module for the current platform.
  */
 async function packageAllBinaryDeps() {
+	// Check for native .node modules.
 	const allNativeModules = await glob("**/*.node", { cwd: path.join(BUILD_DIR, "node_modules"), nodir: true })
 	const isAllowed = (path) => SUPPORTED_BINARY_MODULES.some((allowed) => path.includes(allowed))
 	const blocked = allNativeModules.filter((x) => !isAllowed(x))
@@ -74,33 +73,29 @@ async function packageAllBinaryDeps() {
 		process.exit(1)
 	}
 
-	for (const { platform, arch } of TARGET_PLATFORMS) {
-		console.log(`Installing packages for ${platform}-${arch}...`)
-		const binaryDir = `${BUILD_DIR}/binaries/${platform}-${arch}/node_modules`
-		fs.mkdirSync(binaryDir, { recursive: true })
+	for (const module of SUPPORTED_BINARY_MODULES) {
+		console.log(`Installing binaries for ${module}...`)
+		const src = path.join(BUILD_DIR, "node_modules", module)
 
-		for (const module of SUPPORTED_BINARY_MODULES) {
-			const src = path.join(BUILD_DIR, "node_modules", module)
+		for (const { platform, arch, targetDir } of TARGET_PLATFORMS) {
+			const binaryDir = `${BUILD_DIR}/binaries/${targetDir}/node_modules`
+			fs.mkdirSync(binaryDir, { recursive: true })
+
+			// Copy the module from the build dir
 			const dest = path.join(binaryDir, module)
 			await cpr(src, dest)
 
+			// Download the binary libs
 			const v = IS_VERBOSE ? "--verbose" : ""
 			const cmd = `npx prebuild-install --platform=${platform} --arch=${arch} --target=${TARGET_NODE_VERSION} ${v}`
 			log_verbose(`${module}: ${cmd}`)
 			execSync(cmd, { cwd: dest, stdio: "inherit" })
 			log_verbose("")
 		}
-	}
-}
-
-/**
- * Remove modules with binary dependencies that were installed directly into node_modules.
- * For universal builds, cline-core needs to use the module from the appropriate binary directory.
- */
-async function removeHostBinaryModules() {
-	for (const module of SUPPORTED_BINARY_MODULES) {
-		console.log(`Cleaning up host version of ${module}`)
-		await rmrf(path.join(BUILD_DIR, "node_modules", module))
+		// Remove the original module with the host platform binaries installed directly into node_modules.
+		log_verbose(`Cleaning up host version of ${module}`)
+		await rmrf(src)
+		log_verbose("")
 	}
 }
 
