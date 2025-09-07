@@ -49,7 +49,7 @@ export const getOpenRouterModels = async (): Promise<OpenRouterModelRecord> => {
 
 	return result.data.data
 		.filter((rawModel) => {
-			// Skip image generation models (models that output images)
+			// Skip image generation models (models that output images).
 			return !rawModel.architecture?.output_modalities?.includes("image")
 		})
 		.sort((a, b) => a.name.localeCompare(b.name))

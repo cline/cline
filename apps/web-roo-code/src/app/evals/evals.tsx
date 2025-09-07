@@ -1,59 +1,33 @@
 "use client"
 
 import { useMemo } from "react"
-import { ScatterChart, Scatter, XAxis, YAxis, Label, Customized, Cross } from "recharts"
-
-import type { TaskMetrics, Run } from "@roo-code/evals"
 
 import { formatTokens, formatCurrency, formatDuration, formatScore } from "@/lib"
 import { useOpenRouterModels } from "@/lib/hooks"
-import {
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
-	ChartConfig,
-	ChartLegend,
-	ChartLegendContent,
-	Table,
-	TableBody,
-	TableCaption,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui"
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 
-export function Evals({
-	runs,
-}: {
-	runs: (Run & {
-		label: string
-		score: number
-		languageScores?: Record<"go" | "java" | "javascript" | "python" | "rust", number>
-		taskMetrics: TaskMetrics
-		modelId?: string
-	})[]
-}) {
+import type { EvalRun } from "./types"
+import { Plot } from "./plot"
+
+export function Evals({ runs }: { runs: EvalRun[] }) {
 	const { data: openRouterModels } = useOpenRouterModels()
 
-	const tableData = useMemo(
+	const tableData: (EvalRun & { label: string; cost: number })[] = useMemo(
 		() =>
-			runs.map((run) => ({
-				...run,
-				label: run.description || run.model,
-				score: run.score,
-				cost: run.taskMetrics.cost,
-				model: openRouterModels?.[run.modelId ?? ""],
-				modelInfo: openRouterModels?.[run.modelId ?? ""]?.modelInfo,
-			})),
+			runs.map((run) => {
+				const openRouterModelInfo = openRouterModels?.[run.modelId ?? ""]?.modelInfo
+
+				return {
+					...run,
+					label: run.name || run.description || run.model,
+					cost: run.taskMetrics.cost,
+					description: run.description ?? openRouterModelInfo?.description ?? null,
+					contextWindow: run.contextWindow ?? openRouterModelInfo?.contextWindow ?? null,
+					inputPrice: run.inputPrice ?? openRouterModelInfo?.inputPrice ?? null,
+					outputPrice: run.outputPrice ?? openRouterModelInfo?.outputPrice ?? null,
+				}
+			}),
 		[runs, openRouterModels],
-	)
-
-	const chartData = useMemo(() => tableData.filter(({ cost }) => cost < 100), [tableData])
-
-	const chartConfig = useMemo(
-		() => chartData.reduce((acc, run) => ({ ...acc, [run.label]: run }), {} as ChartConfig),
-		[chartData],
 	)
 
 	return (
@@ -127,15 +101,15 @@ export function Evals({
 				<TableBody className="font-mono">
 					{tableData.map((run) => (
 						<TableRow key={run.id}>
-							<TableCell title={run.model?.description}>
+							<TableCell title={run.description ?? undefined}>
 								<div className="font-sans">{run.label}</div>
-								<div className="text-xs opacity-50">{formatTokens(run.modelInfo?.contextWindow)}</div>
+								<div className="text-xs opacity-50">{formatTokens(run.contextWindow)}</div>
 							</TableCell>
 							<TableCell className="border-r">
 								<div className="flex flex-row gap-2">
-									<div>{formatCurrency(run.modelInfo?.inputPrice)}</div>
+									<div>{formatCurrency(run.inputPrice)}</div>
 									<div className="opacity-25">/</div>
-									<div>{formatCurrency(run.modelInfo?.outputPrice)}</div>
+									<div>{formatCurrency(run.outputPrice)}</div>
 								</div>
 							</TableCell>
 							<TableCell className="font-mono">{formatDuration(run.taskMetrics.duration)}</TableCell>
@@ -167,58 +141,9 @@ export function Evals({
 					))}
 				</TableBody>
 				<TableCaption>
-					<div className="pb-4 font-medium">Cost Versus Score</div>
-					<ChartContainer config={chartConfig} className="h-[500px] w-full">
-						<ScatterChart margin={{ top: 0, right: 0, bottom: 0, left: 20 }}>
-							<XAxis
-								type="number"
-								dataKey="cost"
-								name="Cost"
-								domain={[
-									(dataMin: number) => Math.round((dataMin - 5) / 5) * 5,
-									(dataMax: number) => Math.round((dataMax + 5) / 5) * 5,
-								]}
-								tickFormatter={(value) => formatCurrency(value)}>
-								<Label value="Cost" position="bottom" offset={0} />
-							</XAxis>
-							<YAxis
-								type="number"
-								dataKey="score"
-								name="Score"
-								domain={[
-									(dataMin: number) => Math.max(0, Math.round((dataMin - 5) / 5) * 5),
-									(dataMax: number) => Math.min(100, Math.round((dataMax + 5) / 5) * 5),
-								]}
-								tickFormatter={(value) => `${value}%`}>
-								<Label value="Score" angle={-90} position="left" dy={-15} />
-							</YAxis>
-							<ChartTooltip content={<ChartTooltipContent labelKey="label" hideIndicator />} />
-							<Customized component={renderQuadrant} />
-							{chartData.map((d, i) => (
-								<Scatter key={d.label} name={d.label} data={[d]} fill={`hsl(var(--chart-${i + 1}))`} />
-							))}
-							<ChartLegend content={<ChartLegendContent />} />
-						</ScatterChart>
-					</ChartContainer>
-					<div className="py-4 text-xs opacity-50">
-						(Note: Very expensive models are excluded from the scatter plot.)
-					</div>
+					<Plot tableData={tableData} />
 				</TableCaption>
 			</Table>
 		</div>
 	)
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const renderQuadrant = (props: any) => (
-	<Cross
-		width={props.width}
-		height={props.height}
-		x={props.width / 2 + 35}
-		y={props.height / 2 - 15}
-		top={0}
-		left={0}
-		stroke="currentColor"
-		opacity={0.1}
-	/>
-)

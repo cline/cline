@@ -15,6 +15,8 @@
 		"drizzle-kit:production": "dotenvx run -f .env.production -- tsx node_modules/drizzle-kit/bin.cjs",
 		"db:generate": "pnpm drizzle-kit generate",
 		"db:migrate": "pnpm drizzle-kit migrate",
+		"db:test:migrate": "pnpm drizzle-kit:test migrate",
+		"db:production:migrate": "pnpm drizzle-kit:production migrate",
 		"db:push": "pnpm drizzle-kit push",
 		"db:test:push": "pnpm drizzle-kit:test push",
 		"db:production:push": "pnpm drizzle-kit:production push",

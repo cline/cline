@@ -1,0 +1,453 @@
+{
+	"id": "3d2b8423-6170-4cb2-9f62-1c86756da97a",
+	"prevId": "43b197c4-ff4f-48c1-908b-a330e66a162d",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.runs": {
+			"name": "runs",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true,
+					"identity": {
+						"type": "always",
+						"name": "runs_id_seq",
+						"schema": "public",
+						"increment": "1",
+						"startWith": "1",
+						"minValue": "1",
+						"maxValue": "2147483647",
+						"cache": "1",
+						"cycle": false
+					}
+				},
+				"task_metrics_id": {
+					"name": "task_metrics_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"model": {
+					"name": "model",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"contextWindow": {
+					"name": "contextWindow",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"inputPrice": {
+					"name": "inputPrice",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"outputPrice": {
+					"name": "outputPrice",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cacheWritesPrice": {
+					"name": "cacheWritesPrice",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cacheReadsPrice": {
+					"name": "cacheReadsPrice",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"settings": {
+					"name": "settings",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pid": {
+					"name": "pid",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"socket_path": {
+					"name": "socket_path",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"concurrency": {
+					"name": "concurrency",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 2
+				},
+				"timeout": {
+					"name": "timeout",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 5
+				},
+				"passed": {
+					"name": "passed",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"failed": {
+					"name": "failed",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"runs_task_metrics_id_taskMetrics_id_fk": {
+					"name": "runs_task_metrics_id_taskMetrics_id_fk",
+					"tableFrom": "runs",
+					"tableTo": "taskMetrics",
+					"columnsFrom": ["task_metrics_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.taskMetrics": {
+			"name": "taskMetrics",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true,
+					"identity": {
+						"type": "always",
+						"name": "taskMetrics_id_seq",
+						"schema": "public",
+						"increment": "1",
+						"startWith": "1",
+						"minValue": "1",
+						"maxValue": "2147483647",
+						"cache": "1",
+						"cycle": false
+					}
+				},
+				"tokens_in": {
+					"name": "tokens_in",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"tokens_out": {
+					"name": "tokens_out",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"tokens_context": {
+					"name": "tokens_context",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"cache_writes": {
+					"name": "cache_writes",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"cache_reads": {
+					"name": "cache_reads",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"cost": {
+					"name": "cost",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"duration": {
+					"name": "duration",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"tool_usage": {
+					"name": "tool_usage",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.tasks": {
+			"name": "tasks",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true,
+					"identity": {
+						"type": "always",
+						"name": "tasks_id_seq",
+						"schema": "public",
+						"increment": "1",
+						"startWith": "1",
+						"minValue": "1",
+						"maxValue": "2147483647",
+						"cache": "1",
+						"cycle": false
+					}
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"task_metrics_id": {
+					"name": "task_metrics_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"language": {
+					"name": "language",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"exercise": {
+					"name": "exercise",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"passed": {
+					"name": "passed",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"finished_at": {
+					"name": "finished_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"tasks_language_exercise_idx": {
+					"name": "tasks_language_exercise_idx",
+					"columns": [
+						{
+							"expression": "run_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "language",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "exercise",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"tasks_run_id_runs_id_fk": {
+					"name": "tasks_run_id_runs_id_fk",
+					"tableFrom": "tasks",
+					"tableTo": "runs",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"tasks_task_metrics_id_taskMetrics_id_fk": {
+					"name": "tasks_task_metrics_id_taskMetrics_id_fk",
+					"tableFrom": "tasks",
+					"tableTo": "taskMetrics",
+					"columnsFrom": ["task_metrics_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.toolErrors": {
+			"name": "toolErrors",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "integer",
+					"primaryKey": true,
+					"notNull": true,
+					"identity": {
+						"type": "always",
+						"name": "toolErrors_id_seq",
+						"schema": "public",
+						"increment": "1",
+						"startWith": "1",
+						"minValue": "1",
+						"maxValue": "2147483647",
+						"cache": "1",
+						"cycle": false
+					}
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"task_id": {
+					"name": "task_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tool_name": {
+					"name": "tool_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"error": {
+					"name": "error",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"toolErrors_run_id_runs_id_fk": {
+					"name": "toolErrors_run_id_runs_id_fk",
+					"tableFrom": "toolErrors",
+					"tableTo": "runs",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"toolErrors_task_id_tasks_id_fk": {
+					"name": "toolErrors_task_id_tasks_id_fk",
+					"tableFrom": "toolErrors",
+					"tableTo": "tasks",
+					"columnsFrom": ["task_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

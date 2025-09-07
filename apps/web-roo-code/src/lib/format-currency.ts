@@ -7,6 +7,7 @@ export const formatCurrency = (amount: number | null | undefined) => {
 	if (amount === null || amount === undefined) {
 		return "-"
 	}
+
 	return formatter.format(amount)
 }
 

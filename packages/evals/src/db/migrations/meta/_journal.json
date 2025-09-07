@@ -15,6 +15,13 @@
 			"when": 1753198630651,
 			"tag": "0001_lowly_captain_flint",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1757191027855,
+			"tag": "0002_bouncy_blazing_skull",
+			"breakpoints": true
 		}
 	]
 }
