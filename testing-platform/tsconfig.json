@@ -9,7 +9,7 @@
 		"moduleResolution": "node",
 		"resolveJsonModule": true,
 		"allowSyntheticDefaultImports": true,
-		"baseUrl": ".",
+		"baseUrl": "./",
 		"paths": {
 			"@grpc/grpc-js": [
 				"../node_modules/@grpc/grpc-js"
@@ -19,9 +19,6 @@
 			],
 			"@cline-grpc/*": [
 				"../src/generated/grpc-js/cline/*"
-			],
-			"@host-grpc/*": [
-				"../src/generated/grpc-js/host/*"
 			],
 			"@harness/*": [
 				"harness/*"

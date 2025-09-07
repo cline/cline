@@ -4,15 +4,10 @@
 	"main": "dist/runner.js",
 	"scripts": {
 		"build": "tsc",
-		"start:dev": "ts-node harness/runner.ts",
+		"start:dev": "ts-node index.ts",
 		"start": "npm run build && node dist/runner.js"
 	},
-	"dependencies": {
-		"@grpc/grpc-js": "^1.9.3",
-		"@grpc/proto-loader": "^0.7.10",
-		"js-yaml": "^4.1.0",
-		"uuid": "^9.0.1"
-	},
+	"dependencies": {},
 	"devDependencies": {
 		"ts-node": "^10.9.1",
 		"typescript": "^5.3.3"

@@ -1,13 +1,14 @@
+import { ServiceClients } from "@adapters/grpcAdapter"
+
 interface Entry {
 	requestId: string
-	service: string
+	service: keyof ServiceClients
 	method: string
 	request: any
 	response?: any
-	status: string // WIP: huh?
+	status: string
 }
 
-interface SpecFile {
-	startTime: string
+export interface SpecFile {
 	entries: Entry[]
 }
