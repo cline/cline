@@ -1,24 +1,12 @@
+import { GrpcAdapter } from "@adapters/grpcAdapter"
+import { compareResponse, loadJson } from "@harness/utils"
 import path from "path"
-import { GrpcAdapter } from "../adapters/grpcAdapter"
-import { compareResponse, loadJson } from "./utils"
 
-interface Entry {
-	requestId: string
-	service: string
-	method: string
-	request: any
-	response?: any
-	status: string
-}
-
-interface SpecFile {
-	startTime: string
-	entries: Entry[]
-}
+const STANDALONE_GRPC_SERVER_PORT = process.env.HOSTBRIDGE_PORT || "26040"
 
 async function runSpec(specPath: string) {
 	const spec: SpecFile = loadJson(specPath)
-	const grpcAdapter = new GrpcAdapter("localhost:26040")
+	const grpcAdapter = new GrpcAdapter(`localhost:${STANDALONE_GRPC_SERVER_PORT}`)
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
@@ -26,11 +14,11 @@ async function runSpec(specPath: string) {
 
 		const { success, diffs } = compareResponse(response, entry?.response?.message)
 		if (!success) {
-			console.error("❌ Response mismatch!")
+			console.error("❌ Response mismatch! RequestID: %s", entry.requestId)
 			console.error(diffs.join("\n"))
 			process.exit(1)
 		}
-		console.log("✅ Response matched!")
+		console.log("✅ Response matched! RequestID: %s", entry.requestId)
 	}
 }
 
