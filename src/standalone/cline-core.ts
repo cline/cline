@@ -2,7 +2,6 @@ import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvid
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { WebviewProviderType } from "@shared/webview/types"
-import Database from "better-sqlite3"
 import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
@@ -15,8 +14,6 @@ import { extensionContext } from "./vscode-context"
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
-	const db = new Database("/tmp/db.sql")
-	console.log("sjfsjf created DBBBBBBBBB: ", db)
 	try {
 		await waitForHostBridgeReady()
 		log("HostBridge is serving; continuing startup")
