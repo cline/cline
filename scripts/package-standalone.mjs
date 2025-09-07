@@ -11,6 +11,7 @@ import path from "path"
 import { rmrf } from "./file-utils.mjs"
 
 const BUILD_DIR = "dist-standalone"
+const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 
@@ -41,6 +42,7 @@ async function main() {
 async function installNodeDependencies() {
 	// Clean modules from any previous builds
 	await rmrf(path.join(BUILD_DIR, "node_modules"))
+	await rmrf(path.join(BINARIES_DIR))
 
 	await cpr(RUNTIME_DEPS_DIR, BUILD_DIR)
 
@@ -76,9 +78,13 @@ async function packageAllBinaryDeps() {
 	for (const module of SUPPORTED_BINARY_MODULES) {
 		console.log(`Installing binaries for ${module}...`)
 		const src = path.join(BUILD_DIR, "node_modules", module)
+		if (!fs.existsSync(src)) {
+			console.warn(`Warning: Trying to install binaries for the module '${module}', but it is not being used by cline.`)
+			continue
+		}
 
 		for (const { platform, arch, targetDir } of TARGET_PLATFORMS) {
-			const binaryDir = `${BUILD_DIR}/binaries/${targetDir}/node_modules`
+			const binaryDir = `${BINARIES_DIR}/${targetDir}/node_modules`
 			fs.mkdirSync(binaryDir, { recursive: true })
 
 			// Copy the module from the build dir
