@@ -2,13 +2,14 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -19,21 +20,12 @@ import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
-	readonly name = "write_to_file" // This handler supports write_to_file, replace_in_file, and new_rule
+	readonly name = ClineDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
 
 	constructor(private validator: ToolValidator) {}
 
 	getDescription(block: ToolUse): string {
-		switch (block.name) {
-			case "write_to_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "replace_in_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "new_rule":
-				return `[${block.name} for '${block.params.path}']`
-			default:
-				return `[${block.name} for '${block.params.path}']`
-		}
+		return `[${block.name} for '${block.params.path}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
@@ -49,12 +41,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		const config = uiHelpers.getConfig()
 
-		try {
-			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
-			if (!result) {
-				return
-			}
+		// Creates file if it doesn't exist, and opens editor to stream content in. We don't want to handle this in the try/catch below since the error handler for it resets the diff view, which wouldn't be open if this failed.
+		const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
+		if (!result) {
+			return
+		}
 
+		try {
 			const { relPath, fileExists, diff, content, newContent } = result
 
 			// Create and show partial UI message
@@ -176,7 +169,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await setTimeoutPromise(3_500)
 			} else {
 				// Manual approval flow with detailed feedback handling
-				const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`
+				const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFile.notification")}`
 
 				// Show notification
 				showNotificationForApprovalIfAutoApprovalEnabled(
@@ -331,7 +324,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
 		} else {
-			const absolutePath = path.resolve(config.cwd, relPath)
+			const absolutePath = resolveWorkspacePath(
+				config.cwd,
+				relPath,
+				"WriteToFileToolHandler.validateAndPrepareFileOperation",
+			)
 			fileExists = await fileExistsAtPath(absolutePath)
 			config.services.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}

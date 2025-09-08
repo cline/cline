@@ -1,5 +1,9 @@
+import { workspaceResolver } from "@core/workspace"
 import fs from "fs/promises"
 import * as path from "path"
+import { HostProvider } from "@/hosts/host-provider"
+
+const IS_WINDOWS = /^win/.test(process.platform)
 
 /**
  * Asynchronously creates all non-existing subdirectories for a given file path
@@ -116,7 +120,16 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
 			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
 			.then((entries) => entries.filter((entry) => entry.isFile()))
-			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+			.then((files) =>
+				files.map((file) => {
+					const resolvedPath = workspaceResolver.resolveWorkspacePath(
+						file.parentPath,
+						file.name,
+						"Utils.fs.readDirectory",
+					)
+					return typeof resolvedPath === "string" ? resolvedPath : resolvedPath.absolutePath
+				}),
+			)
 			.then((filePaths) =>
 				filePaths.filter((filePath) => {
 					if (excludedPaths.length === 0) {
@@ -138,4 +151,14 @@ export const readDirectory = async (directoryPath: string, excludedPaths: string
 	} catch {
 		throw new Error(`Error reading directory at ${directoryPath}`)
 	}
+}
+
+export async function getBinaryLocation(name: string): Promise<string> {
+	const binName = IS_WINDOWS ? `${name}.exe` : name
+	const location = await HostProvider.get().getBinaryLocation(binName)
+
+	if (!(await fileExistsAtPath(location))) {
+		throw new Error(`Could not find binary ${name} at: ${location}`)
+	}
+	return location
 }
