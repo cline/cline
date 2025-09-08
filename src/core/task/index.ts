@@ -1273,6 +1273,14 @@ export class Task {
 		return { model, providerId, customPrompt }
 	}
 
+	private getApiRequestIdSafe(): string | undefined {
+		const apiLike = this.api as Partial<{
+			getLastRequestId: () => string | undefined
+			lastGenerationId?: string
+		}>
+		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
@@ -2148,10 +2156,7 @@ export class Task {
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				const { model, providerId } = this.getCurrentProviderInfo()
-				const reqId =
-					(typeof (this.api as any)?.getLastRequestId === "function"
-						? (this.api as any).getLastRequestId()
-						: undefined) || (this.api as any)?.lastGenerationId
+				const reqId = this.getApiRequestIdSafe()
 
 				// Minimal diagnostics: structured log and telemetry
 				console.error("[EmptyAssistantMessage]", {
