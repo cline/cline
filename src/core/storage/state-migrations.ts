@@ -80,7 +80,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 
 		// Make sure that the data is an array, return if not since it's malformed
 		if (!Array.isArray(oldLocationData)) {
-			console.log("[Storage Migration] Task history is malformed, skipping migration")
+			console.error("[Storage Migration] Task history is malformed, skipping migration")
 			return
 		}
 
