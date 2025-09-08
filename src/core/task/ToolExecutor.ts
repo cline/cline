@@ -247,6 +247,7 @@ export class ToolExecutor {
 	 * Handles errors during tool execution
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
+		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 

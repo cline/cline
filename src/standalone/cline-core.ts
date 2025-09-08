@@ -45,7 +45,7 @@ function setupHostProvider() {
 	const getCallbackUri = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUri()
 	}
-	const getBinaryLocation = async (name: string): Promise<string> => path.join(".", name)
+	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
 	HostProvider.initialize(
 		createWebview,
