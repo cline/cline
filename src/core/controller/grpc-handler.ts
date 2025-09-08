@@ -1,8 +1,7 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
-import { GrpcRecorder, IRecorder } from "./grpc-recorder/grpc-recorder"
-import { LogFileHandler } from "./grpc-recorder/log-file-handler"
+import { GrpcRecorderBuilder } from "./grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
@@ -17,22 +16,6 @@ export type StreamingResponseHandler<TResponse> = (
 
 export type PostMessageToWebview = (message: ExtensionMessage) => Thenable<boolean | undefined>
 
-// Initialize the recorder as a singleton
-let recorder: IRecorder | null = null
-
-/**
- * Gets or creates the GrpcRecorder instance
- */
-export function getRecorder(): IRecorder {
-	if (!recorder) {
-		recorder = GrpcRecorder.builder()
-			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true" && process.env.CLINE_ENVIRONMENT === "local")
-			.withLogFileHandler(new LogFileHandler())
-			.build()
-	}
-	return recorder
-}
-
 /**
  * Creates a middleware wrapper for recording gRPC requests and responses
  */
@@ -40,7 +23,10 @@ function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: 
 	return async (response: ExtensionMessage) => {
 		if (response?.grpc_response) {
 			try {
-				getRecorder().recordResponse(response.grpc_response.request_id, response.grpc_response, controller)
+				GrpcRecorderBuilder.getRecorder(controller).recordResponse(
+					response.grpc_response.request_id,
+					response.grpc_response,
+				)
 			} catch (e) {
 				console.warn("Failed to record gRPC response:", e)
 			}
@@ -52,9 +38,9 @@ function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: 
 /**
  * Records gRPC request with error handling
  */
-function recordRequest(request: GrpcRequest): void {
+function recordRequest(request: GrpcRequest, controller: Controller): void {
 	try {
-		getRecorder().recordRequest(request)
+		GrpcRecorderBuilder.getRecorder(controller).recordRequest(request)
 	} catch (e) {
 		console.warn("Failed to record gRPC request:", e)
 	}
@@ -68,7 +54,7 @@ export async function handleGrpcRequest(
 	postMessageToWebview: PostMessageToWebview,
 	request: GrpcRequest,
 ): Promise<void> {
-	recordRequest(request)
+	recordRequest(request, controller)
 
 	// Create recording middleware wrapper
 	const postMessageWithRecording = withRecordingMiddleware(postMessageToWebview, controller)

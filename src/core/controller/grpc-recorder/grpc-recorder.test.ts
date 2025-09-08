@@ -86,11 +86,9 @@ describe("grpc-recorder", () => {
 					status: initialExpectedStatus,
 				})
 
-				/*
 				if (us.response) {
 					recorder.recordResponse(us.request.request_id, us.response)
 				}
-					*/
 
 				sessionLog = recorder.getSessionLog()
 

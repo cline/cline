@@ -2,6 +2,7 @@ import { GrpcPostRecordHook, GrpcRequestFilter } from "@core/controller/grpc-rec
 import { GrpcRecorder, GrpcRecorderNoops, IRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { LogFileHandler, LogFileHandlerNoops } from "@/core/controller/grpc-recorder/log-file-handler"
 import { testHooks } from "@/core/controller/grpc-recorder/test-hooks"
+import { Controller } from ".."
 
 /**
  * A builder class for constructing a gRPC recorder instance.
@@ -36,7 +37,23 @@ export class GrpcRecorderBuilder {
 		return this
 	}
 
-	public build(): IRecorder {
+	// Initialize the recorder as a singleton
+	private static recorder: IRecorder
+
+	/**
+	 * Gets or creates the GrpcRecorder instance
+	 */
+	static getRecorder(controller: Controller): IRecorder {
+		if (!GrpcRecorderBuilder.recorder) {
+			GrpcRecorderBuilder.recorder = GrpcRecorder.builder()
+				.enableIf(process.env.GRPC_RECORDER_ENABLED === "true" && process.env.CLINE_ENVIRONMENT === "local")
+				.withLogFileHandler(new LogFileHandler())
+				.build(controller)
+		}
+		return GrpcRecorderBuilder.recorder
+	}
+
+	public build(controller?: Controller): IRecorder {
 		if (!this.enabled) {
 			return new GrpcRecorderNoops()
 		}
@@ -46,7 +63,7 @@ export class GrpcRecorderBuilder {
 			filters = filters.concat(this.filters)
 		}
 
-		let hooks: GrpcPostRecordHook[] = hooksFromEnv()
+		let hooks: GrpcPostRecordHook[] = hooksFromEnv(controller)
 		if (this.hooks.length > 0) {
 			hooks = hooks.concat(this.hooks)
 		}
@@ -74,11 +91,11 @@ function testFilters(): GrpcRequestFilter[] {
 	return [(req) => req.is_streaming, (req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service)]
 }
 
-function hooksFromEnv(): GrpcPostRecordHook[] {
+function hooksFromEnv(controller?: Controller): GrpcPostRecordHook[] {
 	const hooks: GrpcPostRecordHook[] = []
 
-	if (process.env.GRPC_RECORDER_TESTS_FILTERS_ENABLED === "true") {
-		hooks.push(...testHooks())
+	if (controller && process.env.GRPC_RECORDER_TESTS_FILTERS_ENABLED === "true") {
+		hooks.push(...testHooks(controller))
 	}
 
 	return hooks

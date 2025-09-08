@@ -34,7 +34,6 @@ describe("GrpcRecorderBuilder", () => {
 				is_streaming: false,
 			})
 
-			/*
 			recorder.recordResponse("test-id", {
 				request_id: "test-id",
 				message: {},
@@ -46,7 +45,6 @@ describe("GrpcRecorderBuilder", () => {
 			sessionLog.should.have.property("startTime").which.is.a.String()
 			sessionLog.should.have.property("entries").which.is.an.Array()
 			sessionLog.entries.should.have.length(0)
-			*/
 		})
 	})
 })

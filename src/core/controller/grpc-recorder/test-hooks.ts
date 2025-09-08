@@ -1,14 +1,15 @@
-import { getRecorder } from "@/core/controller/grpc-handler"
 import { getLatestState } from "@/core/controller/state/getLatestState"
+import { Controller } from ".."
+import { GrpcRecorderBuilder } from "./grpc-recorder.builder"
 import { GrpcPostRecordHook } from "./types"
 
-export function testHooks(): GrpcPostRecordHook[] {
+export function testHooks(controller: Controller): GrpcPostRecordHook[] {
 	return [
-		async (entry, controller) => {
+		async (entry) => {
 			const requestId = entry.requestId
 
 			// Record synthetic "getLatestState" request
-			getRecorder().recordRequest(
+			GrpcRecorderBuilder.getRecorder(controller).recordRequest(
 				{
 					service: "cline.StateService",
 					method: "getLatestState",
@@ -21,14 +22,10 @@ export function testHooks(): GrpcPostRecordHook[] {
 
 			const state = await getLatestState(controller, {})
 
-			getRecorder().recordResponse(
-				requestId,
-				{
-					request_id: requestId,
-					message: state,
-				},
-				controller,
-			)
+			GrpcRecorderBuilder.getRecorder(controller).recordResponse(requestId, {
+				request_id: requestId,
+				message: state,
+			})
 		},
 	]
 }
