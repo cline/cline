@@ -43,7 +43,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 			{
 				onResponse: (event) => {
 					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
-					console.log("Host telemetry settings changed to:", hostEnabled)
 					this.errorSettings.hostEnabled = hostEnabled
 				},
 			},
