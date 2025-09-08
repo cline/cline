@@ -2,6 +2,7 @@ import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvid
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { WebviewProviderType } from "@shared/webview/types"
+import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
@@ -44,8 +45,16 @@ function setupHostProvider() {
 	const getCallbackUri = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUri()
 	}
+	const getBinaryLocation = async (name: string): Promise<string> => path.join(".", name)
 
-	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log, getCallbackUri)
+	HostProvider.initialize(
+		createWebview,
+		createDiffView,
+		new ExternalHostBridgeClientManager(),
+		log,
+		getCallbackUri,
+		getBinaryLocation,
+	)
 }
 
 /**
