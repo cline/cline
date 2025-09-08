@@ -2149,8 +2149,9 @@ export class Task {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				const { model, providerId } = this.getCurrentProviderInfo()
 				const reqId =
-					(this.api as any)?.lastGenerationId ||
-					(typeof (this.api as any)?.getLastRequestId === "function" ? (this.api as any).getLastRequestId() : undefined)
+					(typeof (this.api as any)?.getLastRequestId === "function"
+						? (this.api as any).getLastRequestId()
+						: undefined) || (this.api as any)?.lastGenerationId
 
 				// Minimal diagnostics: structured log and telemetry
 				console.error("[EmptyAssistantMessage]", {
