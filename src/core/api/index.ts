@@ -37,6 +37,7 @@ import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
+import { clampThinkingBudget } from "./utils/thinkingBudgetValidation"
 
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
@@ -63,7 +64,7 @@ export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }
 
-function createHandlerForProvider(
+export function createHandlerForProvider(
 	apiProvider: string | undefined,
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
@@ -400,12 +401,12 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 			const handler = createHandlerForProvider(apiProvider, options, mode)
 
 			const modelInfo = handler.getModel().info
-			if (modelInfo.maxTokens && thinkingBudgetTokens > modelInfo.maxTokens) {
-				const clippedValue = modelInfo.maxTokens - 1
+			const clampedValue = clampThinkingBudget(thinkingBudgetTokens, modelInfo)
+			if (clampedValue !== thinkingBudgetTokens) {
 				if (mode === "plan") {
-					options.planModeThinkingBudgetTokens = clippedValue
+					options.planModeThinkingBudgetTokens = clampedValue
 				} else {
-					options.actModeThinkingBudgetTokens = clippedValue
+					options.actModeThinkingBudgetTokens = clampedValue
 				}
 			} else {
 				return handler // don't rebuild unless its necessary

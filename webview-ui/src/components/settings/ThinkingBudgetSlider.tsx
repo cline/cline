@@ -1,7 +1,7 @@
 import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "./utils/providerUtils"
@@ -114,6 +114,16 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
+
+	// Sync local state with backend values when they change
+	useEffect(() => {
+		const backendValue = modeFields.thinkingBudgetTokens || 0
+
+		if (backendValue !== localValue) {
+			setLocalValue(backendValue)
+			setIsEnabled(backendValue > 0)
+		}
+	}, [modeFields.thinkingBudgetTokens, currentMode])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
