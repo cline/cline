@@ -7,7 +7,10 @@ describe("grpc-recorder", () => {
 	let recorder: IRecorder
 
 	before(async () => {
-		recorder = GrpcRecorder.builder().enableIf(true).build()
+		recorder = GrpcRecorder.builder()
+			.withFilters((req: GrpcRequest) => req.service === "the-unwanted-service")
+			.enableIf(true)
+			.build()
 	})
 
 	describe("GrpcRecorder", () => {
@@ -73,7 +76,7 @@ describe("grpc-recorder", () => {
 				recorder.recordRequest(us.request)
 
 				let sessionLog = recorder.getSessionLog()
-				expect(sessionLog.entries).length(index + 1)
+				expect(sessionLog.entries).length(index + 1, `unexpected request_id: ${us.request.request_id}`)
 
 				expect(sessionLog.entries[index]).to.include({
 					service: us.request.service,
@@ -101,6 +104,48 @@ describe("grpc-recorder", () => {
 				completedRequests: 2,
 				errorRequests: 1,
 			})
+
+			recorder.recordRequest({
+				service: "the-unwanted-service",
+				method: "the-method",
+				message: "the-message",
+				request_id: "request-id-1",
+				is_streaming: false,
+			})
+
+			// we expect to filter out this unwanted request
+			expect(sessionLog.entries).length(3)
+		})
+
+		it("using default filtering should filter out unwanted requests", async () => {
+			const customRecorder = GrpcRecorder.builder()
+				.withFilters(
+					(req) => req.is_streaming,
+					(req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service),
+				)
+				.enableIf(true)
+				.build()
+			const unwantedServices = ["cline.UiService", "cline.McpService", "cline.WebService"]
+			unwantedServices.forEach((us) => {
+				customRecorder.recordRequest({
+					service: us,
+					method: "the-method",
+					message: "the-message",
+					request_id: "request-id-1",
+					is_streaming: false,
+				})
+			})
+			let sessionLog = customRecorder.getSessionLog()
+			expect(sessionLog.entries).length(0)
+			customRecorder.recordRequest({
+				service: "streaming-request",
+				method: "the-method",
+				message: "the-message",
+				request_id: "request-id-1",
+				is_streaming: true,
+			})
+			sessionLog = customRecorder.getSessionLog()
+			expect(sessionLog.entries).length(0)
 		})
 	})
 })
