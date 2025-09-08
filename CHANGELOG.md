@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.27.1]
+
+- Add new Kimi K2 model to groq and moonshot providers
+
 ## [3.27.0]
 
 - Fix `grok-code-fast-1` model information

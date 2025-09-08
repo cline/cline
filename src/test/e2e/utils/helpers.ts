@@ -35,6 +35,22 @@ export class E2ETestHelper {
 		return label ? path.join(testDir, label) : testDir
 	}
 
+	/**
+	 * Generates a filename for gRPC recorder logs based on test information
+	 * @param testTitle The title of the test
+	 * @param projectName The name of the test project (optional)
+	 * @returns A sanitized filename suitable for gRPC recorder logs
+	 */
+	public static generateTestFileName(testTitle: string, projectName?: string): string {
+		// Create a base name from the test title
+		const baseName = E2ETestHelper.escapeToPath(testTitle)
+
+		// Add project name if provided and different from default
+		const projectSuffix = projectName && projectName !== "e2e tests" ? `_${E2ETestHelper.escapeToPath(projectName)}` : ""
+
+		return `${baseName}${projectSuffix}`
+	}
+
 	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 5000): Promise<void> {
 		let delay = 10
 		const start = Date.now()
@@ -220,6 +236,8 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
+						// GRPC_RECORDER_ENABLED: "true",
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},

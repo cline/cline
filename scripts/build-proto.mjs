@@ -10,7 +10,6 @@ import * as path from "path"
 import { rmrf } from "./file-utils.mjs"
 import { main as generateHostBridgeClient } from "./generate-host-bridge-client.mjs"
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
-import { loadProtoDescriptorSet } from "./proto-utils.mjs"
 
 const require = createRequire(import.meta.url)
 const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
@@ -31,14 +30,13 @@ const TS_PROTO_OPTIONS = [
 	"esModuleInterop=true",
 	"outputServices=generic-definitions", // output generic ServiceDefinitions
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
-	"useOptionals=messages", // Message fields are optional, scalars are not.
+	"useOptionals=none", // scalar and message fields are required unless they are marked as optional.
 	"useDate=false", // Timestamp fields will not be automatically converted to Date.
 ]
 
 async function main() {
 	await cleanup()
 	await compileProtos()
-	await checkProtos()
 	await generateProtoBusSetup()
 	await generateHostBridgeClient()
 }
@@ -184,51 +182,6 @@ function checkAppleSiliconCompatibility() {
 		} catch (_error) {
 			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
 		}
-	}
-}
-
-const int64TypeNames = ["TYPE_INT64", "TYPE_UINT64", "TYPE_SINT64", "TYPE_FIXED64", "TYPE_SFIXED64"]
-
-async function checkProtos() {
-	const proto = await loadProtoDescriptorSet()
-	const int64Fields = []
-
-	for (const [packageName, packageDef] of Object.entries(proto)) {
-		for (const [messageName, def] of Object.entries(packageDef)) {
-			// Skip service definitions
-			if (def && typeof def === "object" && "service" in def) {
-				continue
-			}
-			// Check message fields
-			if (def && def.type && def.type.field) {
-				for (const field of def.type.field) {
-					if (int64TypeNames.includes(field.type)) {
-						const name = `${packageName}.${messageName}.${field.name}`
-						int64Fields.push({
-							name: name,
-							type: field.type,
-						})
-					}
-				}
-			}
-		}
-	}
-
-	if (int64Fields.length > 0) {
-		console.log(chalk.yellow(`\nWarning: Found ${int64Fields.length} fields using 64-bit integer types`))
-		for (const field of int64Fields) {
-			const typeNames = {
-				TYPE_INT64: "int64",
-				TYPE_UINT64: "uint64",
-				TYPE_SINT64: "sint64",
-				TYPE_FIXED64: "fixed64",
-				TYPE_SFIXED64: "sfixed64",
-			}
-			log_verbose(chalk.yellow(`  - ${field.name} (${typeNames[field.type]})`))
-		}
-		log_verbose(chalk.yellow("\nWARNING: 64-bit integer fields detected in proto definitions"))
-		log_verbose(chalk.yellow("JavaScript cannot safely represent integers larger than 2^53-1 (Number.MAX_SAFE_INTEGER)."))
-		log_verbose(chalk.yellow("Consider using string representation for large numbers or implementing BigInt support.\n"))
 	}
 }
 
