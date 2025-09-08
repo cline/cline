@@ -519,7 +519,7 @@ export class TaskCheckpointManager {
 				leftContent: file.before,
 				rightContent: file.after,
 			}))
-			HostProvider.diff.openMultiFileDiff({ title, diffs })
+			await HostProvider.diff.openMultiFileDiff({ title, diffs })
 
 			relinquishButton()
 		} catch (error) {
