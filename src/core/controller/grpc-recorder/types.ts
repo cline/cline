@@ -1,5 +1,7 @@
 import { GrpcRequest } from "@/shared/WebviewMessage"
 
+export type GrpcPostRecordHook = (entry: GrpcLogEntry, controller?: any) => Promise<void> | void
+
 export type GrpcRequestFilter = (request: GrpcRequest) => boolean
 
 export interface GrpcLogEntry {
@@ -18,6 +20,7 @@ export interface GrpcLogEntry {
 	}
 	duration?: number
 	status: "pending" | "completed" | "error"
+	meta?: { synthetic?: boolean }
 }
 
 export interface SessionStats {

@@ -23,7 +23,7 @@ let recorder: IRecorder | null = null
 /**
  * Gets or creates the GrpcRecorder instance
  */
-function getRecorder(): IRecorder {
+export function getRecorder(): IRecorder {
 	if (!recorder) {
 		recorder = GrpcRecorder.builder()
 			.enableIf(process.env.GRPC_RECORDER_ENABLED === "true" && process.env.CLINE_ENVIRONMENT === "local")
@@ -36,11 +36,11 @@ function getRecorder(): IRecorder {
 /**
  * Creates a middleware wrapper for recording gRPC requests and responses
  */
-function withRecordingMiddleware(postMessage: PostMessageToWebview): PostMessageToWebview {
+function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: Controller): PostMessageToWebview {
 	return async (response: ExtensionMessage) => {
 		if (response?.grpc_response) {
 			try {
-				getRecorder().recordResponse(response.grpc_response.request_id, response.grpc_response)
+				getRecorder().recordResponse(response.grpc_response.request_id, response.grpc_response, controller)
 			} catch (e) {
 				console.warn("Failed to record gRPC response:", e)
 			}
@@ -71,7 +71,7 @@ export async function handleGrpcRequest(
 	recordRequest(request)
 
 	// Create recording middleware wrapper
-	const postMessageWithRecording = withRecordingMiddleware(postMessageToWebview)
+	const postMessageWithRecording = withRecordingMiddleware(postMessageToWebview, controller)
 
 	if (request.is_streaming) {
 		await handleStreamingRequest(controller, postMessageWithRecording, request)

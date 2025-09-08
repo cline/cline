@@ -1,6 +1,7 @@
-import { GrpcRequestFilter } from "@core/controller/grpc-recorder/types"
+import { GrpcPostRecordHook, GrpcRequestFilter } from "@core/controller/grpc-recorder/types"
 import { GrpcRecorder, GrpcRecorderNoops, IRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { LogFileHandler, LogFileHandlerNoops } from "@/core/controller/grpc-recorder/log-file-handler"
+import { testHooks } from "@/core/controller/grpc-recorder/test-hooks"
 
 /**
  * A builder class for constructing a gRPC recorder instance.
@@ -13,6 +14,7 @@ export class GrpcRecorderBuilder {
 	private fileHandler: LogFileHandler | null = null
 	private enabled: boolean = true
 	private filters: GrpcRequestFilter[] = []
+	private hooks: GrpcPostRecordHook[] = []
 
 	public withLogFileHandler(handler: LogFileHandler): this {
 		this.fileHandler = handler
@@ -29,6 +31,11 @@ export class GrpcRecorderBuilder {
 		return this
 	}
 
+	public withPostRecordHooks(...hooks: GrpcPostRecordHook[]): this {
+		this.hooks.push(...hooks)
+		return this
+	}
+
 	public build(): IRecorder {
 		if (!this.enabled) {
 			return new GrpcRecorderNoops()
@@ -39,8 +46,13 @@ export class GrpcRecorderBuilder {
 			filters = filters.concat(this.filters)
 		}
 
+		let hooks: GrpcPostRecordHook[] = hooksFromEnv()
+		if (this.hooks.length > 0) {
+			hooks = hooks.concat(this.hooks)
+		}
+
 		const handler = this.fileHandler ?? new LogFileHandlerNoops()
-		return new GrpcRecorder(handler, filters)
+		return new GrpcRecorder(handler, filters, hooks)
 	}
 }
 
@@ -60,4 +72,14 @@ function testFilters(): GrpcRequestFilter[] {
 	 * that record more than expected.
 	 */
 	return [(req) => req.is_streaming, (req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service)]
+}
+
+function hooksFromEnv(): GrpcPostRecordHook[] {
+	const hooks: GrpcPostRecordHook[] = []
+
+	if (process.env.GRPC_RECORDER_TESTS_FILTERS_ENABLED === "true") {
+		hooks.push(...testHooks())
+	}
+
+	return hooks
 }

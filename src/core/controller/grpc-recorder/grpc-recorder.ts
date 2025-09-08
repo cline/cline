@@ -2,11 +2,18 @@ import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import { GrpcLogEntry, GrpcRequestFilter, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
+import {
+	GrpcLogEntry,
+	GrpcPostRecordHook,
+	GrpcRequestFilter,
+	GrpcSessionLog,
+	SessionStats,
+} from "@/core/controller/grpc-recorder/types"
+import { Controller } from ".."
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
-	recordResponse(_requestId: string, _response: GrpcResponse): void {}
+	recordResponse(_requestId: string, _response: GrpcResponse, controller: Controller): void {}
 	recordError(_requestId: string, _error: string): void {}
 	getSessionLog(): GrpcSessionLog {
 		return {
@@ -17,8 +24,8 @@ export class GrpcRecorderNoops implements IRecorder {
 }
 
 export interface IRecorder {
-	recordRequest(request: GrpcRequest): void
-	recordResponse(requestId: string, response: GrpcResponse): void
+	recordRequest(request: GrpcRequest, synthetic?: boolean): void
+	recordResponse(requestId: string, response: GrpcResponse, controller: Controller): void
 	recordError(requestId: string, error: string): void
 	getSessionLog(): GrpcSessionLog
 }
@@ -39,6 +46,7 @@ export class GrpcRecorder implements IRecorder {
 	constructor(
 		private fileHandler: ILogFileHandler,
 		private requestFilters: GrpcRequestFilter[] = [],
+		private postRecordHooks: GrpcPostRecordHook[] = [],
 	) {
 		this.sessionLog = {
 			startTime: new Date().toISOString(),
@@ -63,7 +71,7 @@ export class GrpcRecorder implements IRecorder {
 	 *
 	 * @param request - The incoming gRPC request.
 	 */
-	public recordRequest(request: GrpcRequest): void {
+	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
 		if (this.shouldFilter(request)) {
 			return
 		}
@@ -77,6 +85,7 @@ export class GrpcRecorder implements IRecorder {
 				message: request.message,
 			},
 			status: "pending",
+			meta: { synthetic },
 		}
 
 		this.pendingRequests.set(request.request_id, {
@@ -104,8 +113,9 @@ export class GrpcRecorder implements IRecorder {
 	 * @param requestId - The ID of the request being responded to.
 	 * @param response - The corresponding gRPC response.
 	 */
-	public recordResponse(requestId: string, response: GrpcResponse): void {
+	public recordResponse(requestId: string, response: GrpcResponse, controller: Controller): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
+
 		if (!pendingRequest) {
 			console.warn(`No pending request found for response with ID: ${requestId}`)
 			return
@@ -130,6 +140,15 @@ export class GrpcRecorder implements IRecorder {
 		this.sessionLog.stats = this.getStats()
 
 		this.flushLogAsync()
+
+		this.runHooks(entry, controller).catch((e) => console.error("Post-record hook failed:", e))
+	}
+
+	private async runHooks(entry: GrpcLogEntry, controller: Controller): Promise<void> {
+		if (entry.meta?.synthetic) return
+		for (const hook of this.postRecordHooks) {
+			await hook(entry, controller)
+		}
 	}
 
 	/**
