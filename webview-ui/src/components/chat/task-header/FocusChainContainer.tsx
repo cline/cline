@@ -34,15 +34,13 @@ const ToDoListHeader = memo<{
 	// Completed state - simplified rendering
 	if (todoInfo.isCompleted) {
 		return (
-			<div className="flex align-center justify-between gap-2 bg-[var(--vscode-textLink-foreground)] w-full h-full">
+			<div className="relative flex items-center justify-between z-10 p-2">
 				<div className="flex align-center gap-1">
-					<span className="font-bold text-[var(--vscode-charts-green)]">
-						All {todoInfo.totalCount} steps completed!
+					<span className="font-semibold text-[var(--vscode-charts-green)]">
+						All {todoInfo.totalCount} steps are completed!
 					</span>
 				</div>
-				<span
-					className={`codicon codicon-chevron-${isTodoExpanded ? "down" : "right"} text-[var(--vscode-charts-green)]`}
-				/>
+				<div className={`codicon codicon-chevron-${isTodoExpanded ? "down" : "right"}`} />
 			</div>
 		)
 	}
@@ -51,12 +49,12 @@ const ToDoListHeader = memo<{
 	return (
 		<div className="relative w-full h-full">
 			<div
-				className="absolute top-0 left-0 h-full bg-[var(--vscode-textLink-foreground)] opacity-15 rounded-[3px] transition-[width] duration-300 ease-in-out pointer-events-none"
+				className="absolute top-0 left-0 h-full opacity-15 rounded-[3px] transition-[width] duration-300 ease-in-out pointer-events-none"
 				style={{ width: `${todoInfo.progressPercentage}%` }}
 			/>
 
-			<div className="flex items-center justify-between gap-2 relative z-10 p-1.5">
-				<div className="flex items-center gap-2 flex-1 min-w-0 relative">
+			<div className="flex items-center justify-between gap-2 z-10 p-1.5">
+				<div className="flex items-center gap-2 flex-1 min-w-0">
 					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-0.5 px-1.5 rounded-[10px]">
 						{todoInfo.currentIndex}/{todoInfo.totalCount}
 					</span>

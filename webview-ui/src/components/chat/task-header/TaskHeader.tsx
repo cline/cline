@@ -39,7 +39,6 @@ interface TaskHeaderProps {
 const CONTEXT_WINDOW_ACTIONS = [
 	{ title: "Smol", command: "/smol" },
 	{ title: "Compact", command: "/compact" },
-	{ title: "Edit Thread", command: "/edit", type: "primary" as const },
 ]
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
