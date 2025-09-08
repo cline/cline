@@ -73,7 +73,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 
 		// Derive system information values algorithmically
 		const operatingSystem = os.platform() + " " + os.release()
-		const clineVersion = vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
+		const clineVersion = config.context.extension.packageJSON.version || "Unknown"
 		const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 		const currentMode = config.mode
 		const apiConfig = config.services.stateManager.getApiConfiguration()
