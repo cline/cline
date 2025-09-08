@@ -20,7 +20,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 	private errorSettings: ErrorSettings
 	// Does not accept shared client
 	private readonly isSharedClient = false
-	private disposables: vscode.Disposable[] = []
 
 	constructor(clientConfig: PostHogClientValidConfig) {
 		// Use shared PostHog client if provided, otherwise create a new one
@@ -38,12 +37,17 @@ export class PostHogErrorProvider implements IErrorProvider {
 	}
 
 	public async initialize(): Promise<PostHogErrorProvider> {
-		// Listen for VS Code telemetry changes
-		this.disposables.push(
-			vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-				this.errorSettings.hostEnabled = isTelemetryEnabled
-			}),
+		// Listen for host telemetry changes
+		HostProvider.env.subscribeToTelemetrySettings(
+			{},
+			{
+				onResponse: (event) => {
+					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
+					this.errorSettings.hostEnabled = hostEnabled
+				},
+			},
 		)
+
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			this.errorSettings.hostEnabled = false
@@ -144,8 +148,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		// Dispose of all disposables
-		this.disposables.forEach((disposable) => disposable.dispose())
 		// Only shut down the client if it's not shared (we own it)
 		if (!this.isSharedClient) {
 			await this.client.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))

@@ -39,10 +39,16 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 	public async initialize(): Promise<PostHogTelemetryProvider> {
-		// Listen for VS Code telemetry changes
-		vscode.env.onDidChangeTelemetryEnabled((isTelemetryEnabled) => {
-			this.telemetrySettings.hostEnabled = isTelemetryEnabled
-		})
+		// Listen for host telemetry changes
+		HostProvider.env.subscribeToTelemetrySettings(
+			{},
+			{
+				onResponse: (event) => {
+					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
+					this.telemetrySettings.hostEnabled = hostEnabled
+				},
+			},
+		)
 
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
 		if (hostSettings.isEnabled === Setting.DISABLED) {
