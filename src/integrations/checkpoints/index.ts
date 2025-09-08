@@ -14,7 +14,6 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { DIFF_VIEW_URI_SCHEME } from "@/hosts/vscode/VscodeDiffViewProvider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskState } from "../../core/task/TaskState"
@@ -514,19 +513,14 @@ export class TaskCheckpointManager {
 			}
 
 			// Open multi-diff editor
-			await vscode.commands.executeCommand(
-				"vscode.changes",
-				seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot",
-				changedFiles.map((file) => [
-					vscode.Uri.file(file.absolutePath),
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
-						query: Buffer.from(file.before ?? "").toString("base64"),
-					}),
-					vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${file.relativePath}`).with({
-						query: Buffer.from(file.after ?? "").toString("base64"),
-					}),
-				]),
-			)
+			const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"
+			const diffs = changedFiles.map((file) => ({
+				filePath: file.absolutePath,
+				leftContent: file.before,
+				rightContent: file.after,
+			}))
+			await HostProvider.diff.openMultiFileDiff({ title, diffs })
+
 			relinquishButton()
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
