@@ -56,13 +56,20 @@ export class ClineHandler implements ApiHandler {
 						"X-Cline-Version": extensionVersion,
 					},
 					// Capture real HTTP request ID from initial streaming response headers
-					fetch: async (input: any, init?: any) => {
-						const resp = await fetch(input as any, init as any)
+					fetch: async (...args: Parameters<typeof fetch>): Promise<Awaited<ReturnType<typeof fetch>>> => {
+						const [input, init] = args
+						const resp = await fetch(input, init)
 						try {
-							const url: string =
-								typeof input === "string" ? input : input && typeof input.url === "string" ? input.url : ""
+							let urlStr = ""
+							if (typeof input === "string") {
+								urlStr = input
+							} else if (input instanceof URL) {
+								urlStr = input.toString()
+							} else if (typeof (input as { url?: unknown }).url === "string") {
+								urlStr = (input as { url: string }).url
+							}
 							// Only record for chat completions (the primary streaming request)
-							if (url.includes("/chat/completions")) {
+							if (urlStr.includes("/chat/completions")) {
 								const rid = resp.headers.get("x-request-id") || resp.headers.get("request-id")
 								if (rid) {
 									this.lastRequestId = rid
@@ -71,7 +78,7 @@ export class ClineHandler implements ApiHandler {
 						} catch {
 							// ignore header capture errors
 						}
-						return resp as any
+						return resp
 					},
 				})
 			} catch (error: any) {
