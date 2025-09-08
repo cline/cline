@@ -1128,7 +1128,6 @@ export class Task {
 				process.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
-				telemetryService.captureTerminalHang(TerminalHangStage.STREAM_TIMEOUT)
 			} finally {
 				// Clear the stuck timer
 				if (bufferStuckTimer) {
