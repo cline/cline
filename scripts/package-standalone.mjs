@@ -23,7 +23,9 @@ const TARGET_PLATFORMS = [
 	{ platform: "darwin", arch: "arm64", targetDir: "darwin-arm64" },
 	{ platform: "linux", arch: "x64", targetDir: "linux-x64" },
 ]
-const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
+// Split native modules into required (must prebuild) and optional (never fail build)
+const REQUIRED_BINARY_MODULES = ["better-sqlite3"]
+const OPTIONAL_BINARY_MODULES = ["keytar"]
 
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
@@ -64,8 +66,9 @@ async function installNodeDependencies() {
 async function packageAllBinaryDeps() {
 	// Check for native .node modules.
 	const allNativeModules = await glob("**/*.node", { cwd: path.join(BUILD_DIR, "node_modules"), nodir: true })
-	const isAllowed = (path) => SUPPORTED_BINARY_MODULES.some((allowed) => path.includes(allowed))
-	const blocked = allNativeModules.filter((x) => !isAllowed(x))
+	const isRequired = (modulePath) => REQUIRED_BINARY_MODULES.some((moduleName) => modulePath.includes(moduleName))
+	const isOptional = (modulePath) => OPTIONAL_BINARY_MODULES.some((moduleName) => modulePath.includes(moduleName))
+	const blocked = allNativeModules.filter((modulePath) => !isRequired(modulePath) && !isOptional(modulePath))
 
 	if (blocked.length > 0) {
 		console.error(`Error: Native node modules cannot be included in the standalone distribution:\n\n${blocked.join("\n")}`)
@@ -75,7 +78,8 @@ async function packageAllBinaryDeps() {
 		process.exit(1)
 	}
 
-	for (const module of SUPPORTED_BINARY_MODULES) {
+	// Prebuild only required native modules
+	for (const module of REQUIRED_BINARY_MODULES) {
 		console.log(`Installing binaries for ${module}...`)
 		const src = path.join(BUILD_DIR, "node_modules", module)
 		if (!fs.existsSync(src)) {
@@ -102,6 +106,16 @@ async function packageAllBinaryDeps() {
 		log_verbose(`Cleaning up host version of ${module}`)
 		await rmrf(src)
 		log_verbose("")
+	}
+
+	// On universal builds, avoid shipping host-only optional native modules
+	if (UNIVERSAL_BUILD) {
+		for (const module of OPTIONAL_BINARY_MODULES) {
+			const modPath = path.join(BUILD_DIR, "node_modules", module)
+			if (fs.existsSync(modPath)) {
+				await rmrf(modPath)
+			}
+		}
 	}
 }
 
