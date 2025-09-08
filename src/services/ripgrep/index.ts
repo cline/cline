@@ -111,7 +111,7 @@ export async function regexSearchFiles(
 	try {
 		output = await execRipgrep(args)
 	} catch (error) {
-		throw Error("Error calling ripgrep", error)
+		throw Error("Error calling ripgrep", { cause: error })
 	}
 	const results: SearchResult[] = []
 	let currentResult: Partial<SearchResult> | null = null
