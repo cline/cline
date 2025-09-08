@@ -7,7 +7,7 @@ import { compareResponse, loadJson } from "@harness/utils"
 import fs from "fs"
 import path from "path"
 
-const STANDALONE_GRPC_SERVER_PORT = process.env.HOSTBRIDGE_PORT || "26040"
+const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 
 async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 	const spec: SpecFile = loadJson(specPath)
