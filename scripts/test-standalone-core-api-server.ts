@@ -28,7 +28,9 @@
  * Ideal for local development, testing, or lightweight E2E scenarios.
  */
 
-import { ChildProcess, spawn } from "child_process"
+import { mkdtempSync, rmSync } from "node:fs"
+import * as os from "node:os"
+import { ChildProcess, execSync, spawn } from "child_process"
 import * as fs from "fs"
 import * as path from "path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
@@ -81,6 +83,29 @@ async function main(): Promise<void> {
 		detached: false,
 	})
 
+	// Create temporary directories like e2e tests
+	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	const extensionsDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+
+	console.log(`Temp user data dir: ${userDataDir}`)
+	console.log(`Temp extensions dir: ${extensionsDir}`)
+
+	// Extract standalone.zip to the extensions directory
+	const standaloneZipPath = path.join(distDir, "standalone.zip")
+	if (fs.existsSync(standaloneZipPath)) {
+		console.log("Extracting standalone.zip to extensions directory...")
+		try {
+			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+			console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
+		} catch (error) {
+			console.error("Failed to extract standalone.zip:", error)
+			process.exit(1)
+		}
+	} else {
+		console.warn(`standalone.zip not found at: ${standaloneZipPath}`)
+		console.warn("Proceeding without extraction - this may cause issues if the core service expects extracted files")
+	}
+
 	// Start the core service
 	// We run it as a child process to emulate how the extension currently operates
 	console.log("Starting Cline Core Service...")
@@ -94,16 +119,29 @@ async function main(): Promise<void> {
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
 			E2E_TEST: E2E_TEST,
 			CLINE_ENVIRONMENT: CLINE_ENVIRONMENT,
+			// Add these environment variables
+			CLINE_DIR: userDataDir,
+			INSTALL_DIR: extensionsDir,
 		},
 		stdio: "inherit",
 	})
 
 	// Handle graceful shutdown
 	const shutdown = async (): Promise<void> => {
-		console.log("\n Shutting down services...")
+		console.log("\n Shutting down services...", userDataDir, extensionsDir)
 		hostbridge.kill()
 		coreService.kill()
 		await ClineApiServerMock.stopGlobalServer()
+
+		// Cleanup temp directories
+		try {
+			rmSync(userDataDir, { recursive: true, force: true })
+			rmSync(extensionsDir, { recursive: true, force: true })
+			console.log("Cleaned up temporary directories")
+		} catch (error) {
+			console.warn("Failed to cleanup temp directories:", error)
+		}
+
 		process.exit(0)
 	}
 

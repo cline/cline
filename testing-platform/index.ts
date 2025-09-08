@@ -2,6 +2,7 @@
 import "tsconfig-paths/register"
 
 import { GrpcAdapter } from "@adapters/grpcAdapter"
+import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
 import { SpecFile } from "@harness/types"
 import { compareResponse, loadJson } from "@harness/utils"
 import fs from "fs"
@@ -16,7 +17,7 @@ async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
 		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
-		const { success, diffs } = compareResponse(response, entry?.response?.message)
+		const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
 		if (!success) {
 			console.error("❌ Response mismatch! RequestID: %s", entry.requestId)
 			console.error(diffs.join("\n"))

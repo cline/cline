@@ -1,0 +1,14 @@
+export const NON_DETERMINISTIC_FIELDS = [
+	"stateJson.distinctId",
+	"stateJson.apiConfiguration.actModeApiProvider",
+	"stateJson.apiConfiguration.planModeApiProvider",
+	"stateJson.shouldShowAnnouncement",
+	"stateJson.welcomeViewCompleted",
+	"stateJson.focusChainFeatureFlagEnabled",
+	"stateJson.clineMessages",
+	"stateJson.taskHistory.cwdOnTaskInitialization",
+	"stateJson.taskHistory.id",
+	"stateJson.taskHistory.size",
+	"stateJson.taskHistory.ts",
+	"stateJson.taskHistory.ulid",
+]
