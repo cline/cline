@@ -2147,10 +2147,31 @@ export class Task {
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				await this.say(
-					"error",
-					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-				)
+				const { model, providerId } = this.getCurrentProviderInfo()
+				const reqId =
+					(this.api as any)?.lastGenerationId ||
+					(typeof (this.api as any)?.getLastRequestId === "function" ? (this.api as any).getLastRequestId() : undefined)
+
+				// Minimal diagnostics: structured log and telemetry
+				console.error("[EmptyAssistantMessage]", {
+					ulid: this.ulid,
+					providerId,
+					modelId: model.id,
+					requestId: reqId,
+				})
+				telemetryService.captureProviderApiError({
+					ulid: this.ulid,
+					model: model.id,
+					provider: providerId,
+					errorMessage: "empty_assistant_message",
+					requestId: reqId,
+				})
+
+				const baseErrorMessage =
+					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
+				const errorText = reqId ? `${baseErrorMessage} (reqId: ${reqId})` : baseErrorMessage
+
+				await this.say("error", errorText)
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [
