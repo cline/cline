@@ -14,10 +14,14 @@ let _errorServiceInstance: ErrorService | null = null
  * @param distinctId Optional distinct ID for the error provider
  * @returns ErrorService instance
  */
-export function getErrorService(): ErrorService {
+export async function getErrorService(): Promise<ErrorService> {
 	if (!_errorServiceInstance) {
-		const provider = ErrorProviderFactory.createProvider(ErrorProviderFactory.getDefaultConfig())
+		console.warn("CREATING ERROR SERVICE... sjfsjf")
+
+		const provider = await ErrorProviderFactory.createProvider(ErrorProviderFactory.getDefaultConfig())
+		console.warn("CREATED ERROR PROVIDER sjfsjf")
 		_errorServiceInstance = new ErrorService(provider)
+		console.warn("CREATED ErrorService is set sjfsjf")
 	}
 	return _errorServiceInstance
 }
@@ -33,7 +37,14 @@ export function resetErrorService(): void {
 // This ensures it always returns the current instance without changing call sites
 export const errorService = new Proxy({} as ErrorService, {
 	get(_target, prop, _receiver) {
-		const service = getErrorService()
-		return Reflect.get(service, prop, service)
+		// Return a function that will call the method on the actual service
+		return async (...args: any[]) => {
+			const service: ErrorService = await getErrorService()
+			const method = Reflect.get(service, prop, service)
+			if (typeof method === "function") {
+				return method.apply(service, args)
+			}
+			return method
+		}
 	},
 })
