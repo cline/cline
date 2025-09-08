@@ -6,7 +6,6 @@
     script.type = 'text/javascript';
     script.id = 'hs-script-loader';
     script.async = true;
-    script.defer = true;
     script.src = '//js-na2.hs-scripts.com/243656267.js';
     
     // Append the script to the document head
