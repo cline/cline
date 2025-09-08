@@ -41,7 +41,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	readonly id: string
-	private disposables: vscode.Disposable[] = []
 	task?: Task
 
 	mcpHub: McpHub
@@ -120,12 +119,6 @@ export class Controller {
 	*/
 	async dispose() {
 		await this.clearTask()
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
