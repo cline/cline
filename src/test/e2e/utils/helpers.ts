@@ -8,8 +8,13 @@ import { ClineApiServerMock } from "../fixtures/server"
 
 interface E2ETestDirectories {
 	workspaceDir: string
+	multiRootWorkspaceDir: string
 	userDataDir: string
 	extensionsDir: string
+}
+
+export interface WorkspaceType {
+	workspace: "single" | "multi"
 }
 
 export class E2ETestHelper {
@@ -217,6 +222,10 @@ export const e2e = test
 		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
+		multiRootWorkspaceDir: async ({}, use) => {
+			// DOCS: https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces
+			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "test.code-workspace"))
+		},
 		userDataDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
@@ -224,11 +233,14 @@ export const e2e = test
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
-	.extend<{ openVSCode: () => Promise<ElectronApplication> }>({
-		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
+	.extend<WorkspaceType>({
+		workspace: "single",
+	})
+	.extend<{ openVSCode: (workspace: string) => Promise<ElectronApplication> }>({
+		openVSCode: async ({ userDataDir, extensionsDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
-			await use(async () => {
+			await use(async (workspace: string) => {
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -238,7 +250,6 @@ export const e2e = test
 						CLINE_ENVIRONMENT: "local",
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
-						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},
@@ -255,7 +266,7 @@ export const e2e = test
 						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
-						workspaceDir,
+						workspace,
 					],
 				})
 				await E2ETestHelper.waitUntil(() => app.windows().length > 0)
@@ -264,8 +275,8 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir }, use) => {
-			const app = await openVSCode()
+		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceDir, multiRootWorkspaceDir }, use) => {
+			const app = await openVSCode(workspaceDir)
 
 			try {
 				await use(app)
@@ -298,6 +309,10 @@ export const e2e = test
 			await use(sidebar)
 		},
 	})
+
+export const e2eMultiRoot = e2e.extend<WorkspaceType>({
+	workspace: "multi",
+})
 
 // Backward compatibility exports
 export const getResultsDir = E2ETestHelper.getResultsDir

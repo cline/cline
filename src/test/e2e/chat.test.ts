@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
-import { e2e } from "./utils/helpers"
+import { e2e, e2eMultiRoot } from "./utils/helpers"
 
-e2e("Chat - can send messages and switch between modes", async ({ helper, page, sidebar }) => {
+e2e("Chat - can send messages and switch between modes", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -48,7 +48,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, page, 
 	await expect(sidebar.getByText("API Request Failed")).toBeVisible()
 })
 
-e2e("Chat - slash commands preserve following text", async ({ helper, page, sidebar }) => {
+e2e("Chat - slash commands preserve following text", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -68,7 +68,7 @@ e2e("Chat - slash commands preserve following text", async ({ helper, page, side
 	await expect(inputbox).toHaveValue("/newtask following text should be preserved")
 })
 
-e2e("Chat - @ mentions preserve following text", async ({ helper, page, sidebar }) => {
+e2e("Chat - @ mentions preserve following text", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -88,7 +88,7 @@ e2e("Chat - @ mentions preserve following text", async ({ helper, page, sidebar 
 	await expect(inputbox).toHaveValue("@problems following text should be preserved")
 })
 
-e2e("Chat - partial slash command completion preserves text", async ({ helper, page, sidebar }) => {
+e2e("Chat - partial slash command completion preserves text", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -108,7 +108,7 @@ e2e("Chat - partial slash command completion preserves text", async ({ helper, p
 	await expect(inputbox).toHaveValue("/newtask some important text after")
 })
 
-e2e("Chat - partial @ mention completion preserves text", async ({ helper, page, sidebar }) => {
+e2eMultiRoot("Chat - partial @ mention completion preserves text", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
