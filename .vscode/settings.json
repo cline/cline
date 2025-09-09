@@ -23,10 +23,9 @@
 	"biome.enabled": true,
 	"editor.defaultFormatter": "biomejs.biome",
 	"editor.codeActionsOnSave": {
-		"source.fixAll": "always",
+		"source.fixAll.biome": "explicit",
+		"source.removeUnused.biome": "always",
 		"source.removeUnusedImports": "always",
-		"source.organizeImports.biome": "explicit",
-		"source.fixAll.biome": "always",
-		"source.removeUnused.biome": "always"
+		"source.organizeImports.biome": "always"
 	}
 }
