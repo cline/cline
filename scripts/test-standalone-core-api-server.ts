@@ -68,7 +68,7 @@ async function main(): Promise<void> {
 	}
 
 	try {
-		const apiServer = await ClineApiServerMock.startGlobalServer()
+		await ClineApiServerMock.startGlobalServer()
 		console.log("Cline API Server started in-process")
 	} catch (error) {
 		console.error("Failed to start Cline API Server:", error)
@@ -92,18 +92,18 @@ async function main(): Promise<void> {
 
 	// Extract standalone.zip to the extensions directory
 	const standaloneZipPath = path.join(distDir, "standalone.zip")
-	if (fs.existsSync(standaloneZipPath)) {
-		console.log("Extracting standalone.zip to extensions directory...")
-		try {
-			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
-			console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
-		} catch (error) {
-			console.error("Failed to extract standalone.zip:", error)
-			process.exit(1)
-		}
-	} else {
-		console.warn(`standalone.zip not found at: ${standaloneZipPath}`)
-		console.warn("Proceeding without extraction - this may cause issues if the core service expects extracted files")
+	if (!fs.existsSync(standaloneZipPath)) {
+		console.error(`standalone.zip not found at: ${standaloneZipPath}`)
+		process.exit(1)
+	}
+
+	console.log("Extracting standalone.zip to extensions directory...")
+	try {
+		execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
+	} catch (error) {
+		console.error("Failed to extract standalone.zip:", error)
+		process.exit(1)
 	}
 
 	// Start the core service
@@ -119,7 +119,6 @@ async function main(): Promise<void> {
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
 			E2E_TEST: E2E_TEST,
 			CLINE_ENVIRONMENT: CLINE_ENVIRONMENT,
-			// Add these environment variables
 			CLINE_DIR: userDataDir,
 			INSTALL_DIR: extensionsDir,
 		},
