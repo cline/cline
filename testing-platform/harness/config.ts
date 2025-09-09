@@ -11,4 +11,13 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.taskHistory.size",
 	"stateJson.taskHistory.ts",
 	"stateJson.taskHistory.ulid",
+	"stateJson.taskHistory.cacheWrites",
+	"stateJson.taskHistory.cacheReads",
+	"stateJson.taskHistory.tokensIn",
+	"stateJson.taskHistory.tokensOut",
+	"stateJson.taskHistory.totalCost",
+	"stateJson.currentTaskItem.cwdOnTaskInitialization",
+	"stateJson.currentTaskItem.id",
+	"stateJson.currentTaskItem.ts",
+	"stateJson.currentTaskItem.ulid",
 ]

@@ -15,6 +15,7 @@ async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
+		await new Promise((resolve) => setTimeout(resolve, 50))
 		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
 		const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
