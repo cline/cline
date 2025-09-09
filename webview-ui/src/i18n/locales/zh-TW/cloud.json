@@ -14,5 +14,9 @@
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "允許透過 Roo Code Cloud 追蹤和操作此工作區中的工作",
 	"visitCloudWebsite": "造訪 Roo Code Cloud",
-	"cloudUrlPillLabel": "Roo Code Cloud URL"
+	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"authWaiting": "等待身份驗證完成...",
+	"havingTrouble": "遇到問題？",
+	"pasteCallbackUrl": "從瀏覽器複製重新導向 URL 並貼上到這裡：",
+	"startOver": "重新開始"
 }

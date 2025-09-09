@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "La clave API contiene caracteres inválidos."
-		}
+		},
+		"manual_url_empty": "Por favor, introduce una URL de callback válida",
+		"manual_url_no_query": "URL de callback inválida: faltan parámetros de consulta",
+		"manual_url_missing_params": "URL de callback inválida: faltan parámetros requeridos (code y state)",
+		"manual_url_auth_failed": "Autenticación manual por URL falló",
+		"manual_url_auth_error": "Error de autenticación"
 	},
 	"warnings": {
 		"no_terminal_content": "No hay contenido de terminal seleccionado",

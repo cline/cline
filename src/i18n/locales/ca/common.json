@@ -110,6 +110,11 @@
 		"api": {
 			"invalidKeyInvalidChars": "La clau API conté caràcters no vàlids."
 		},
+		"manual_url_empty": "Si us plau, introdueix una URL de callback vàlida",
+		"manual_url_no_query": "URL de callback no vàlida: falten paràmetres de consulta",
+		"manual_url_missing_params": "URL de callback no vàlida: falten paràmetres requerits (code i state)",
+		"manual_url_auth_failed": "Autenticació manual per URL ha fallat",
+		"manual_url_auth_error": "Autenticació fallida",
 		"mode_import_failed": "Ha fallat la importació del mode: {{error}}"
 	},
 	"warnings": {
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "La teva organització requereix autenticació de Roo Code Cloud. Si us plau, inicia sessió per continuar.",
 			"organization_mismatch": "Has d'estar autenticat amb el compte de Roo Code Cloud de la teva organització.",
+			"manual_url_empty": "Si us plau, introdueix una URL de callback vàlida",
+			"manual_url_no_query": "URL de callback no vàlida: falten paràmetres de consulta",
+			"manual_url_missing_params": "URL de callback no vàlida: falten paràmetres requerits (code i state)",
+			"manual_url_auth_failed": "Autenticació manual per URL ha fallat",
+			"manual_url_auth_error": "Autenticació fallida",
 			"verification_failed": "No s'ha pogut verificar l'autenticació de l'organització."
 		},
 		"info": {

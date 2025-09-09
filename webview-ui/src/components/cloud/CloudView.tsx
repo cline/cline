@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useRef, useState } from "react"
+import { VSCodeButton, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import { type CloudUserInfo, TelemetryEventName } from "@roo-code/types"
 
@@ -25,6 +25,13 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 	const { t } = useAppTranslation()
 	const { remoteControlEnabled, setRemoteControlEnabled } = useExtensionState()
 	const wasAuthenticatedRef = useRef(false)
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const manualUrlInputRef = useRef<HTMLInputElement | null>(null)
+
+	// Manual URL entry state
+	const [authInProgress, setAuthInProgress] = useState(false)
+	const [showManualEntry, setShowManualEntry] = useState(false)
+	const [manualUrl, setManualUrl] = useState("")
 
 	const rooLogoUri = (window as any).IMAGES_BASE_URI + "/roo-logo.svg"
 
@@ -32,6 +39,13 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 	useEffect(() => {
 		if (isAuthenticated) {
 			wasAuthenticatedRef.current = true
+			// Clear auth in progress state when authentication succeeds
+			setAuthInProgress(false)
+			setShowManualEntry(false)
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+				timeoutRef.current = null
+			}
 		} else if (wasAuthenticatedRef.current && !isAuthenticated) {
 			// User just logged out successfully
 			// NOTE: Telemetry events use ACCOUNT_* naming for continuity with existing analytics
@@ -41,11 +55,64 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 		}
 	}, [isAuthenticated])
 
+	// Focus the manual URL input when it becomes visible
+	useEffect(() => {
+		if (showManualEntry && manualUrlInputRef.current) {
+			// Small delay to ensure the DOM is ready
+			setTimeout(() => {
+				manualUrlInputRef.current?.focus()
+			}, 50)
+		}
+	}, [showManualEntry])
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+		}
+	}, [])
+
 	const handleConnectClick = () => {
 		// Send telemetry for cloud connect action
 		// NOTE: Using ACCOUNT_* telemetry events for backward compatibility with analytics
 		telemetryClient.capture(TelemetryEventName.ACCOUNT_CONNECT_CLICKED)
 		vscode.postMessage({ type: "rooCloudSignIn" })
+
+		// Start auth in progress state - show "Having trouble?" immediately for debugging
+		setAuthInProgress(true)
+	}
+
+	const handleManualUrlChange = (e: any) => {
+		const url = e.target.value
+		setManualUrl(url)
+
+		// Auto-trigger authentication when a complete URL is pasted (with slight delay to ensure full paste is processed)
+		setTimeout(() => {
+			if (url.trim() && url.includes("://") && url.includes("/auth/clerk/callback")) {
+				vscode.postMessage({ type: "rooCloudManualUrl", text: url.trim() })
+			}
+		}, 100)
+	}
+
+	const handleKeyDown = (e: any) => {
+		if (e.key === "Enter") {
+			const url = manualUrl.trim()
+			if (url && url.includes("://") && url.includes("/auth/clerk/callback")) {
+				vscode.postMessage({ type: "rooCloudManualUrl", text: url })
+			}
+		}
+	}
+
+	const handleShowManualEntry = () => {
+		setShowManualEntry(true)
+	}
+
+	const handleReset = () => {
+		setAuthInProgress(false)
+		setShowManualEntry(false)
+		setManualUrl("")
 	}
 
 	const handleLogoutClick = () => {
@@ -189,9 +256,51 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 					</div>
 
 					<div className="flex flex-col items-center gap-4">
-						<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-1/2">
-							{t("cloud:connect")}
-						</VSCodeButton>
+						{!authInProgress && (
+							<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-1/2">
+								{t("cloud:connect")}
+							</VSCodeButton>
+						)}
+
+						{/* Manual entry section */}
+						{authInProgress && !showManualEntry && (
+							// Timeout message with "Having trouble?" link
+							<div className="flex flex-col items-center gap-1">
+								<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground">
+									<VSCodeProgressRing className="size-3 text-vscode-foreground" />
+									{t("cloud:authWaiting")}
+								</div>
+								{!showManualEntry && (
+									<button
+										onClick={handleShowManualEntry}
+										className="text-sm text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
+										{t("cloud:havingTrouble")}
+									</button>
+								)}
+							</div>
+						)}
+
+						{showManualEntry && (
+							// Manual URL entry form
+							<div className="space-y-2 text-center border-border/50 border-t px-2 pt-8 mt-3">
+								<p className="text-xs text-vscode-descriptionForeground">
+									{t("cloud:pasteCallbackUrl")}
+								</p>
+								<VSCodeTextField
+									ref={manualUrlInputRef as any}
+									value={manualUrl}
+									onChange={handleManualUrlChange}
+									onKeyDown={handleKeyDown}
+									placeholder="vscode://RooVeterinaryInc.roo-cline/auth/clerk/callback?state=..."
+									className="w-full"
+								/>
+								<button
+									onClick={handleReset}
+									className="text-sm text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
+									{t("cloud:startOver")}
+								</button>
+							</div>
+						)}
 					</div>
 				</>
 			)}

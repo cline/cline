@@ -14,5 +14,9 @@
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Cho phép theo dõi và tương tác với các tác vụ trong workspace này với Roo Code Cloud",
 	"visitCloudWebsite": "Truy cập Roo Code Cloud",
-	"cloudUrlPillLabel": "URL Roo Code Cloud"
+	"cloudUrlPillLabel": "URL Roo Code Cloud",
+	"authWaiting": "Đang chờ hoàn tất xác thực...",
+	"havingTrouble": "Gặp vấn đề?",
+	"pasteCallbackUrl": "Sao chép URL redirect từ trình duyệt và dán vào đây:",
+	"startOver": "Bắt đầu lại"
 }

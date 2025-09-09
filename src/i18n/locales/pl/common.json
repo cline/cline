@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "Klucz API zawiera nieprawidłowe znaki."
-		}
+		},
+		"manual_url_empty": "Wprowadź prawidłowy URL callback",
+		"manual_url_no_query": "Nieprawidłowy URL callback: brak parametrów zapytania",
+		"manual_url_missing_params": "Nieprawidłowy URL callback: brak wymaganych parametrów (code i state)",
+		"manual_url_auth_failed": "Ręczne uwierzytelnienie URL nie powiodło się",
+		"manual_url_auth_error": "Uwierzytelnienie nie powiodło się"
 	},
 	"warnings": {
 		"no_terminal_content": "Nie wybrano zawartości terminala",
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "Twoja organizacja wymaga uwierzytelnienia Roo Code Cloud. Zaloguj się, aby kontynuować.",
 			"organization_mismatch": "Musisz być uwierzytelniony kontem Roo Code Cloud swojej organizacji.",
+			"manual_url_empty": "Wprowadź prawidłowy URL callback",
+			"manual_url_no_query": "Nieprawidłowy URL callback: brak parametrów zapytania",
+			"manual_url_missing_params": "Nieprawidłowy URL callback: brak wymaganych parametrów (code i state)",
+			"manual_url_auth_failed": "Ręczne uwierzytelnienie URL nie powiodło się",
+			"manual_url_auth_error": "Uwierzytelnienie nie powiodło się",
 			"verification_failed": "Nie można zweryfikować uwierzytelnienia organizacji."
 		},
 		"info": {

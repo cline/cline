@@ -14,5 +14,9 @@
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Позволяет отслеживать и взаимодействовать с задачами в этом рабочем пространстве с Roo Code Cloud",
 	"visitCloudWebsite": "Посетить Roo Code Cloud",
-	"cloudUrlPillLabel": "URL Roo Code Cloud"
+	"cloudUrlPillLabel": "URL Roo Code Cloud",
+	"authWaiting": "Ожидание завершения аутентификации...",
+	"havingTrouble": "Проблемы?",
+	"pasteCallbackUrl": "Скопируй URL перенаправления из браузера и вставь его сюда:",
+	"startOver": "Начать заново"
 }

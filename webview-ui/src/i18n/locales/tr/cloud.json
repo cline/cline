@@ -14,5 +14,9 @@
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Bu çalışma alanındaki görevleri Roo Code Cloud ile takip etme ve etkileşim kurma imkanı sağlar",
 	"visitCloudWebsite": "Roo Code Cloud'u ziyaret et",
-	"cloudUrlPillLabel": "Roo Code Cloud URL'si"
+	"cloudUrlPillLabel": "Roo Code Cloud URL'si",
+	"authWaiting": "Kimlik doğrulama tamamlanması bekleniyor...",
+	"havingTrouble": "Sorun yaşıyor musun?",
+	"pasteCallbackUrl": "Tarayıcından redirect URL'sini kopyala ve buraya yapıştır:",
+	"startOver": "Baştan başla"
 }

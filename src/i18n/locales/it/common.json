@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "La chiave API contiene caratteri non validi."
-		}
+		},
+		"manual_url_empty": "Inserisci un URL di callback valido",
+		"manual_url_no_query": "URL di callback non valido: parametri di query mancanti",
+		"manual_url_missing_params": "URL di callback non valido: parametri richiesti mancanti (code e state)",
+		"manual_url_auth_failed": "Autenticazione manuale tramite URL fallita",
+		"manual_url_auth_error": "Autenticazione fallita"
 	},
 	"warnings": {
 		"no_terminal_content": "Nessun contenuto del terminale selezionato",
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "La tua organizzazione richiede l'autenticazione Roo Code Cloud. Accedi per continuare.",
 			"organization_mismatch": "Devi essere autenticato con l'account Roo Code Cloud della tua organizzazione.",
+			"manual_url_empty": "Inserisci un URL di callback valido",
+			"manual_url_no_query": "URL di callback non valido: parametri di query mancanti",
+			"manual_url_missing_params": "URL di callback non valido: parametri richiesti mancanti (code e state)",
+			"manual_url_auth_failed": "Autenticazione manuale tramite URL fallita",
+			"manual_url_auth_error": "Autenticazione fallita",
 			"verification_failed": "Impossibile verificare l'autenticazione dell'organizzazione."
 		},
 		"info": {

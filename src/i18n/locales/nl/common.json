@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "API-sleutel bevat ongeldige karakters."
-		}
+		},
+		"manual_url_empty": "Voer een geldige callback-URL in",
+		"manual_url_no_query": "Ongeldige callback-URL: query-parameters ontbreken",
+		"manual_url_missing_params": "Ongeldige callback-URL: vereiste parameters ontbreken (code en state)",
+		"manual_url_auth_failed": "Handmatige URL-authenticatie mislukt",
+		"manual_url_auth_error": "Authenticatie mislukt"
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "Je organisatie vereist Roo Code Cloud-authenticatie. Log in om door te gaan.",
 			"organization_mismatch": "Je moet geauthenticeerd zijn met het Roo Code Cloud-account van je organisatie.",
+			"manual_url_empty": "Voer een geldige callback-URL in",
+			"manual_url_no_query": "Ongeldige callback-URL: query-parameters ontbreken",
+			"manual_url_missing_params": "Ongeldige callback-URL: vereiste parameters ontbreken (code en state)",
+			"manual_url_auth_failed": "Handmatige URL-authenticatie mislukt",
+			"manual_url_auth_error": "Authenticatie mislukt",
 			"verification_failed": "Kan organisatie-authenticatie niet verifiëren."
 		},
 		"info": {

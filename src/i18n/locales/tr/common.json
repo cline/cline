@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "API anahtarı geçersiz karakterler içeriyor."
-		}
+		},
+		"manual_url_empty": "Lütfen geçerli bir callback URL'si girin",
+		"manual_url_no_query": "Geçersiz callback URL'si: sorgu parametreleri eksik",
+		"manual_url_missing_params": "Geçersiz callback URL'si: gerekli parametreler eksik (code ve state)",
+		"manual_url_auth_failed": "Manuel URL kimlik doğrulama başarısız",
+		"manual_url_auth_error": "Kimlik doğrulama başarısız"
 	},
 	"warnings": {
 		"no_terminal_content": "Seçili terminal içeriği yok",
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "Kuruluşunuz Roo Code Cloud kimlik doğrulaması gerektiriyor. Devam etmek için giriş yapın.",
 			"organization_mismatch": "Kuruluşunuzun Roo Code Cloud hesabıyla kimlik doğrulaması yapmalısınız.",
+			"manual_url_empty": "Lütfen geçerli bir callback URL'si girin",
+			"manual_url_no_query": "Geçersiz callback URL'si: sorgu parametreleri eksik",
+			"manual_url_missing_params": "Geçersiz callback URL'si: gerekli parametreler eksik (code ve state)",
+			"manual_url_auth_failed": "Manuel URL kimlik doğrulama başarısız",
+			"manual_url_auth_error": "Kimlik doğrulama başarısız",
 			"verification_failed": "Kuruluş kimlik doğrulaması doğrulanamıyor."
 		},
 		"info": {

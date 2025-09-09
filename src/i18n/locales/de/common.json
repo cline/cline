@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "API-Schlüssel enthält ungültige Zeichen."
-		}
+		},
+		"manual_url_empty": "Bitte gib eine gültige Callback-URL ein",
+		"manual_url_no_query": "Ungültige Callback-URL: Query-Parameter fehlen",
+		"manual_url_missing_params": "Ungültige Callback-URL: erforderliche Parameter (code und state) fehlen",
+		"manual_url_auth_failed": "Manuelle URL-Authentifizierung fehlgeschlagen",
+		"manual_url_auth_error": "Authentifizierung fehlgeschlagen"
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",

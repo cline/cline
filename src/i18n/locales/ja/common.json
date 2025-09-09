@@ -106,7 +106,12 @@
 		},
 		"api": {
 			"invalidKeyInvalidChars": "APIキーに無効な文字が含まれています。"
-		}
+		},
+		"manual_url_empty": "有効なコールバック URL を入力してください",
+		"manual_url_no_query": "無効なコールバック URL：クエリパラメータがありません",
+		"manual_url_missing_params": "無効なコールバック URL：必要なパラメータ（code と state）がありません",
+		"manual_url_auth_failed": "手動 URL 認証が失敗しました",
+		"manual_url_auth_error": "認証に失敗しました"
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -193,6 +198,11 @@
 		"errors": {
 			"cloud_auth_required": "あなたの組織では Roo Code Cloud 認証が必要です。続行するにはサインインしてください。",
 			"organization_mismatch": "組織の Roo Code Cloud アカウントで認証する必要があります。",
+			"manual_url_empty": "有効なコールバック URL を入力してください",
+			"manual_url_no_query": "無効なコールバック URL：クエリパラメータがありません",
+			"manual_url_missing_params": "無効なコールバック URL：必要なパラメータ（code と state）がありません",
+			"manual_url_auth_failed": "手動 URL 認証が失敗しました",
+			"manual_url_auth_error": "認証に失敗しました",
 			"verification_failed": "組織認証の確認ができませんでした。"
 		},
 		"info": {

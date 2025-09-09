@@ -2251,6 +2251,48 @@ export const webviewMessageHandler = async (
 
 			break
 		}
+		case "rooCloudManualUrl": {
+			try {
+				if (!message.text) {
+					vscode.window.showErrorMessage(t("common:errors.manual_url_empty"))
+					break
+				}
+
+				// Parse the callback URL to extract parameters
+				const callbackUrl = message.text.trim()
+				const uri = vscode.Uri.parse(callbackUrl)
+
+				if (!uri.query) {
+					throw new Error(t("common:errors.manual_url_no_query"))
+				}
+
+				const query = new URLSearchParams(uri.query)
+				const code = query.get("code")
+				const state = query.get("state")
+				const organizationId = query.get("organizationId")
+
+				if (!code || !state) {
+					throw new Error(t("common:errors.manual_url_missing_params"))
+				}
+
+				// Reuse the existing authentication flow
+				await CloudService.instance.handleAuthCallback(
+					code,
+					state,
+					organizationId === "null" ? null : organizationId,
+				)
+
+				await provider.postStateToWebview()
+			} catch (error) {
+				provider.log(`ManualUrl#handleAuthCallback failed: ${error}`)
+				const errorMessage = error instanceof Error ? error.message : t("common:errors.manual_url_auth_failed")
+
+				// Show error message through VS Code UI
+				vscode.window.showErrorMessage(`${t("common:errors.manual_url_auth_error")}: ${errorMessage}`)
+			}
+
+			break
+		}
 
 		case "saveCodeIndexSettingsAtomic": {
 			if (!message.codeIndexSettings) {
