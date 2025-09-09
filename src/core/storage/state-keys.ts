@@ -83,6 +83,7 @@ export interface GlobalState {
 	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+	autoCondenseThreshold: number | undefined // percentage 0-100
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider

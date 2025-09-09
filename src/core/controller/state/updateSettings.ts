@@ -265,6 +265,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.autoCondenseThreshold !== undefined) {
+			const threshold = Math.min(0, Math.max(1, request.autoCondenseThreshold / 100)) // Clamp to 0-1 range
+			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

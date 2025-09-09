@@ -71,6 +71,7 @@ export interface ExtensionState {
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
+	autoCondenseThreshold?: number // percentage 0-100
 }
 
 export interface ClineMessage {

@@ -1,4 +1,3 @@
-import { Tooltip } from "@heroui/react"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
@@ -10,21 +9,18 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber as _formatLargeNumber, formatSize } from "@/utils/format"
+import { formatSize } from "@/utils/format"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 import { CheckpointError } from "./CheckpointError"
+import ContextWindowProgressBar from "./ContextWindowDetails"
 import { FocusChain } from "./FocusChain"
 import TaskTimeline from "./TaskTimeline"
+import { formatTokenNumber } from "./util"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
-
-function formatLargeNumber(num = 0): string {
-	return _formatLargeNumber(num)
-}
-
 interface TaskHeaderProps {
 	task: ClineMessage
 	tokensIn: number
@@ -40,11 +36,6 @@ interface TaskHeaderProps {
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
-const CONTEXT_WINDOW_ACTIONS = [
-	{ title: "Smol", command: "/smol" },
-	{ title: "Compact", command: "/compact" },
-]
-
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
@@ -58,15 +49,20 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onScrollToMessage,
 	onSendMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointManagerErrorMessage, clineMessages, navigateToSettings, mode } =
-		useExtensionState()
+	const {
+		apiConfiguration,
+		currentTaskItem,
+		checkpointManagerErrorMessage,
+		clineMessages,
+		navigateToSettings,
+		useAutoCondense,
+		autoCondenseThreshold,
+		mode,
+	} = useExtensionState()
 
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
-
-	// TODO: Persist this in settings
-	const [autoCompactMarker, setAutoCompactMarker] = useState(75)
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
@@ -85,8 +81,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			modeFields.openAiModelInfo?.outputPrice) ||
 		(modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio")
 
-	const usagePercentage = contextWindow ? ((lastApiReqTotalTokens || 0) / contextWindow) * 100 : 0
-
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => {
 		setIsTaskExpanded((prev) => {
@@ -99,13 +93,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const toggleTextExpanded = useCallback(() => {
 		setIsTextExpanded((prev) => !prev)
-	}, [])
-
-	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-		const rect = event.currentTarget.getBoundingClientRect()
-		const clickX = event.clientX - rect.left
-		const percentage = Math.max(0, Math.min(100, (clickX / rect.width) * 100))
-		setAutoCompactMarker(percentage)
 	}, [])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
@@ -150,34 +137,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		setShowSeeMore(isOverflowing)
 	}, [task.text, windowHeight, isTaskExpanded, isTextExpanded])
 
-	// Context window buttons component
-	const ContextWindowButtons = () => (
-		<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
-			<header className="flex justify-between gap-3">
-				<div>Context Window</div>
-				<div className="text-muted-foreground">
-					{formatLargeNumber(lastApiReqTotalTokens)} of {formatLargeNumber(contextWindow)} used
-				</div>
-			</header>
-			<div className="flex items-center gap-2 justify-evenly">
-				{CONTEXT_WINDOW_ACTIONS.map((action) => (
-					<VSCodeButton
-						appearance="secondary"
-						className="rounded-sm grow cursor-pointer"
-						key={action.command}
-						onClick={(e) => {
-							e.preventDefault()
-							e.stopPropagation()
-							onSendMessage?.(action.command, [], [])
-						}}
-						type="button">
-						{action.title}
-					</VSCodeButton>
-				))}
-			</div>
-		</div>
-	)
-
 	const contextTokenDetails = useMemo(
 		() =>
 			[
@@ -196,42 +155,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			].filter((item) => item.value),
 		[tokensIn, tokensOut, cacheWrites, cacheReads],
 	)
-
-	// Context window component
-	const ContextWindow = () => {
-		if (!contextWindow) {
-			return null
-		}
-
-		return (
-			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
-				<div className="flex items-center gap-2 flex-[1] whitespace-nowrap">
-					<HeroTooltip content="Current tokens used in this request">
-						<span className="cursor-pointer">{formatLargeNumber(lastApiReqTotalTokens)}</span>
-					</HeroTooltip>
-					<div className="flex items-center gap-1 flex-[1]">
-						<Tooltip closeDelay={100} content={<ContextWindowButtons />} placement="bottom" showArrow={true}>
-							<div
-								className="relative cursor-pointer flex-[1] h-1.5 border-[var(--vscode-charts-green)]/20 border-1 rounded overflow-hidden"
-								onClick={handleContextWindowBarClick}>
-								<div
-									className="h-full w-full bg-[var(--vscode-charts-green)]"
-									style={{ width: `${usagePercentage}%` }}
-								/>
-								<div
-									className="absolute top-0 bottom-0 h-full w-1 bg-[var(--vscode-charts-yellow)] cursor-pointer"
-									style={{ left: `${autoCompactMarker}%` }}
-								/>
-							</div>
-						</Tooltip>
-						<HeroTooltip content="Maximum context window size for this model">
-							<span className="cursor-pointer">{formatLargeNumber(contextWindow)}</span>
-						</HeroTooltip>
-					</div>
-				</div>
-			</div>
-		)
-	}
 
 	return (
 		<div className="px-2.5 py-3 flex flex-col gap-2">
@@ -294,7 +217,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<Thumbnails files={task.files ?? []} images={task.images ?? []} />
 						)}
 
-						<div className="flex flex-col gap-1">
+						<div className="flex flex-col">
 							<div className="flex items-center justify-between flex-wrap gap-2">
 								<div className="flex items-center flex-wrap gap-1 text-sm">
 									<div className="font-semibold">Tokens:</div>
@@ -302,7 +225,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										<HeroTooltip content={item.title}>
 											<span className="flex items-center gap-0.5 cursor-pointer">
 												<i className={`codicon ${item.icon} font-semibold`} />
-												{formatLargeNumber(item.value)}
+												{formatTokenNumber(item.value)}
 											</span>
 										</HeroTooltip>
 									))}
@@ -311,16 +234,23 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<div className="opacity-80">{formatSize(currentTaskItem?.size)}</div>
 								</HeroTooltip>
 							</div>
-
-							<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
-
-							<ContextWindow />
+							<ContextWindowProgressBar
+								autoCondenseThreshold={autoCondenseThreshold}
+								contextWindow={contextWindow}
+								key={currentTaskItem?.id}
+								lastApiReqTotalTokens={lastApiReqTotalTokens}
+								onSendMessage={onSendMessage}
+								useAutoCondense={useAutoCondense || false}
+							/>
 						</div>
 					</div>
 				)}
+				<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 			</div>
+
 			{/* Display Focus Chain To-Do List */}
 			<FocusChain currentTaskItemId={currentTaskItem?.id} lastProgressMessageText={lastProgressMessageText} />
+
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
