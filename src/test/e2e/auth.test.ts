@@ -2,7 +2,7 @@ import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
 // Test for setting up API keys
-e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
+e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ sidebar }) => {
 	// Use the page object to interact with editor outside the sidebar
 	// Verify initial state
 	await expect(sidebar.getByRole("button", { name: "Get Started for Free" })).toBeVisible()
@@ -49,10 +49,17 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await expect(chatInputBox).toBeVisible()
 
 	// Verify the help improve banner is visible and can be closed.
-	const helpBanner = sidebar.getByText("Help Improve Cline")
-	await expect(helpBanner).toBeVisible()
-	await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
-	await expect(helpBanner).not.toBeVisible()
+	const telemetryBanner = sidebar.getByText("Help Improve Cline")
+	await expect(telemetryBanner).toBeVisible()
+	await sidebar.getByText("settings").click() // Click on the settings link in the banner
+	await expect(sidebar.getByText("General Settings")).toBeVisible() // Default view should be set to General tab
+	await sidebar.getByTestId("tab-api-config").click()
+	await expect(sidebar.locator("h4").getByText("API Configuration")).toBeVisible()
+	await sidebar.getByTestId("tab-about").click()
+	await expect(sidebar.getByRole("heading", { name: "About" }).locator("div").first()).toBeVisible()
+
+	// Exit the Settings view by clicking the Done button
+	await sidebar.getByRole("button", { name: "Done" }).click()
 
 	// Verify the release banner is visible for new installs and can be closed.
 	const releaseBanner = sidebar.getByRole("heading", {
@@ -61,10 +68,5 @@ e2e("Auth - can set up API keys", async ({ page, sidebar }) => {
 	await expect(releaseBanner).toBeVisible()
 	await sidebar.getByTestId("close-button").locator("span").first().click()
 	await expect(releaseBanner).not.toBeVisible()
-
-	// Sidebar menu should now be visible
-	// await expect(sidebar.getByRole("button", { name: "Account", exact: true })).toBeVisible()
-
-	// await sidebar.getByRole("button", { name: "Settings" }).click()
-	// await expect(sidebar.getByRole("button", { name: "Done" })).toBeVisible()
+	await expect(telemetryBanner).not.toBeVisible()
 })

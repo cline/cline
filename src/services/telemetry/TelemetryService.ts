@@ -5,6 +5,7 @@ import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -17,6 +18,33 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
 type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
+
+/**
+ * Enum for terminal output failure reasons
+ */
+export enum TerminalOutputFailureReason {
+	TIMEOUT = "timeout",
+	NO_SHELL_INTEGRATION = "no_shell_integration",
+	CLIPBOARD_FAILED = "clipboard_failed",
+}
+
+/**
+ * Enum for terminal user intervention actions
+ */
+export enum TerminalUserInterventionAction {
+	PROCESS_WHILE_RUNNING = "process_while_running",
+	MANUAL_PASTE = "manual_paste",
+	CANCELLED = "cancelled",
+}
+
+/**
+ * Enum for terminal hang stages
+ */
+export enum TerminalHangStage {
+	WAITING_FOR_COMPLETION = "waiting_for_completion",
+	BUFFER_STUCK = "buffer_stuck",
+	STREAM_TIMEOUT = "stream_timeout",
+}
 
 export type TelemetryMetadata = {
 	/** The extension or cline-core version. */
@@ -126,6 +154,11 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
+			// Terminal execution telemetry events
+			TERMINAL_EXECUTION: "task.terminal_execution",
+			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
+			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
+			TERMINAL_HANG: "task.terminal_hang",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -141,7 +174,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = TelemetryProviderFactory.createProvider({
+		const provider = await TelemetryProviderFactory.createProvider({
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
@@ -177,7 +210,8 @@ export class TelemetryService {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
 		// We only enable telemetry if global vscode telemetry is enabled
-		if (!vscode.env.isTelemetryEnabled) {
+		const telemetrySettings = await HostProvider.env.getTelemetrySettings({})
+		if (telemetrySettings.isEnabled === Setting.DISABLED) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
 				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
@@ -914,6 +948,62 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
 			properties: {},
+		})
+	}
+
+	// Terminal telemetry methods
+
+	/**
+	 * Records terminal command execution outcomes
+	 * @param success Whether the command output was successfully captured
+	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 */
+	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
+			properties: {
+				success,
+				method,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal output capture fails
+	 * @param reason The reason for failure
+	 */
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
+			properties: {
+				reason,
+			},
+		})
+	}
+
+	/**
+	 * Records when user has to intervene with terminal execution
+	 * @param action The user action
+	 */
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
+			properties: {
+				action,
+			},
+		})
+	}
+
+	/**
+	 * Records when terminal execution hangs or gets stuck
+	 * @param stage Where the hang occurred
+	 */
+	public captureTerminalHang(stage: TerminalHangStage) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
+			properties: {
+				stage,
+			},
 		})
 	}
 

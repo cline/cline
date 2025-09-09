@@ -26,5 +26,5 @@ const posthogDevEnvConfig = {
 	uiHost: "https://us.i.posthog.com",
 } satisfies PostHogClientConfig
 
-// NOTE: Ensure that dev environment is only used in CI or local dev, never in production
-export const posthogConfig = process.env.CI || process.env.IS_DEV === "true" ? posthogDevEnvConfig : posthogProdConfig
+// NOTE: Ensure that dev environment is used when process.env.IS_DEV is "true"
+export const posthogConfig = process.env.IS_DEV === "true" ? posthogDevEnvConfig : posthogProdConfig
