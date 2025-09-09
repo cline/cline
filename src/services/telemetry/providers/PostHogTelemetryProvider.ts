@@ -50,15 +50,10 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			},
 		)
 
+		// Check host-specific telemetry setting (e.g. VS Code setting)
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			this.telemetrySettings.hostEnabled = false
-		}
-
-		// Check extension-specific telemetry setting
-		const config = vscode.workspace.getConfiguration("cline")
-		if (config.get("telemetrySetting") === "disabled") {
-			this.telemetrySettings.extensionEnabled = false
 		}
 
 		this.telemetrySettings.level = await this.getTelemetryLevel()
@@ -103,6 +98,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
+	// Set extension-specific telemetry setting - opt-in/opt-out via UI
 	public setOptIn(optIn: boolean): void {
 		if (optIn && !this.telemetrySettings.extensionEnabled) {
 			this.client.optIn()
