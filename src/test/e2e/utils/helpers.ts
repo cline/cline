@@ -165,6 +165,8 @@ export class E2ETestHelper {
  * This test configuration provides a comprehensive setup for end-to-end testing of the Cline VS Code extension,
  * including server mocking, temporary directories, VS Code instance management, and helper utilities.
  *
+ * NOTE: Default to run in single-root workspace; use `e2eMultiRoot` for multi-root workspace tests.
+ *
  * @extends test - Base Playwright test with multiple fixture extensions
  *
  * Fixtures provided:
@@ -305,6 +307,9 @@ export const e2e = test
 		},
 	})
 
+/**
+ * Multi-root workspace variant of the e2e test fixture
+ */
 export const e2eMultiRoot = e2e.extend<WorkspaceType>({
 	workspaceType: "multi",
 })
