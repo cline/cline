@@ -81,7 +81,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				🎉{"  "}New in v{minorVersion}
 			</h3>
 			<b>
-				Free <code>grok-code-fast-1</code> Until Sept 10th
+				Free <code>grok-code-fast-1</code>
 			</b>
 			<div style={{ margin: "0.3rem 0" }} />
 			We partnered with xAI to help build this model from the ground up for agentic coding, and so far–community feedback
