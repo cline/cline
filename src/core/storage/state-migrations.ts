@@ -82,14 +82,15 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		if (await fileExistsAtPath(taskHistoryFilePath)) {
 			try {
 				const contents = await fs.readFile(taskHistoryFilePath, "utf8")
-				try {
-					const newTaskHistory = JSON.parse(contents)
-					if (Array.isArray(newTaskHistory) && newTaskHistory.length > 0) {
-						console.log("[Storage Migration] Task history already in new location, skipping migration")
-						return
-					}
-				} catch (error) {
-					console.error("[Disk] Failed to parse task history JSON:", error)
+				const newTaskHistory = JSON.parse(contents)
+				if (!Array.isArray(newTaskHistory)) {
+					console.error(
+						"[Storage Migration] Task history in the new location is not an array, rewriting with an empty array.",
+					)
+					await writeTaskHistoryToState(context, [])
+				}
+				if (newTaskHistory.length > 0) {
+					console.log("[Storage Migration] Task history already in new location, skipping migration")
 					return
 				}
 			} catch (error) {
