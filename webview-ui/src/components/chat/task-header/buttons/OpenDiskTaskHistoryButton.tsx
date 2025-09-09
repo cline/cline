@@ -22,8 +22,11 @@ const OpenDiskTaskHistoryButton: React.FC<{
 				appearance="icon"
 				aria-label="Open Disk Task History"
 				className="p-0"
-				onClick={handleOpenDiskTaskHistory}
-				style={{ padding: "0px 0px" }}>
+				onClick={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+					handleOpenDiskTaskHistory()
+				}}>
 				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
 					<i className={`codicon codicon-folder`} />
 				</div>

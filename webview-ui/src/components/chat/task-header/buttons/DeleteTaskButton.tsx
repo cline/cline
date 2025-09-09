@@ -11,18 +11,14 @@ const DeleteTaskButton: React.FC<{
 		<VSCodeButton
 			appearance="icon"
 			aria-label="Delete task"
-			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
-			style={{ padding: "0px 0px" }}>
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					gap: "3px",
-					fontSize: "10px",
-					fontWeight: "bold",
-					opacity: 0.6,
-				}}>
-				<i className={`codicon codicon-trash`} />
+			className="p-0"
+			onClick={(e) => {
+				e.preventDefault()
+				e.stopPropagation()
+				taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))
+			}}>
+			<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
+				<i className="codicon codicon-trash" />
 			</div>
 		</VSCodeButton>
 	</HeroTooltip>

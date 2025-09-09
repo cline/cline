@@ -24,8 +24,11 @@ const CopyTaskButton: React.FC<{
 				appearance="icon"
 				aria-label="Copy Task"
 				className="p-0"
-				onClick={handleCopy}
-				style={{ padding: "0px 0px" }}>
+				onClick={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+					handleCopy()
+				}}>
 				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
 					<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
 				</div>

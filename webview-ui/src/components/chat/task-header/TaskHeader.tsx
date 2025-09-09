@@ -58,12 +58,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		useExtensionState()
 
 	// Consolidated state for better performance
-	const [autoCompactMarker, setAutoCompactMarker] = useState<number>(75)
 	const [expandedState, setExpandedState] = useState({
 		task: true,
 		text: false,
 		showSeeMore: false,
 	})
+
+	// TODO: Persist this in settings
+	const [autoCompactMarker, setAutoCompactMarker] = useState<number>(75)
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
@@ -168,7 +170,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						appearance={"type" in action && action.type === "primary" ? "primary" : "secondary"}
 						className="rounded-sm grow cursor-pointer"
 						key={action.command}
-						onClick={() => onSendMessage?.(action.command, [], [])}
+						onClick={(e) => {
+							e.preventDefault()
+							e.stopPropagation()
+							onSendMessage?.(action.command, [], [])
+						}}
 						type="button">
 						{action.title}
 					</VSCodeButton>
@@ -343,7 +349,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									)}
 								</div>
 
-								<div className="text-muted-foreground">{formatSize(currentTaskItem?.size)}</div>
+								<div className="opacity-60">{formatSize(currentTaskItem?.size)}</div>
 							</div>
 
 							<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
