@@ -14,7 +14,7 @@ interface E2ETestDirectories {
 }
 
 export interface WorkspaceType {
-	workspace: "single" | "multi"
+	workspaceType: "single" | "multi"
 }
 
 export class E2ETestHelper {
@@ -206,14 +206,9 @@ export class E2ETestHelper {
 export const e2e = test
 	.extend<{ server: ClineApiServerMock | null }>({
 		server: async ({}, use) => {
-			console.log("=== SERVER FIXTURE CALLED ===")
 			// Start server if it doesn't exist
 			if (!ClineApiServerMock.globalSharedServer) {
-				console.log("Starting global server...")
 				await ClineApiServerMock.startGlobalServer()
-				console.log("Global server started successfully")
-			} else {
-				console.log("Using existing global server")
 			}
 			await use(ClineApiServerMock.globalSharedServer)
 		},
@@ -234,13 +229,13 @@ export const e2e = test
 		},
 	})
 	.extend<WorkspaceType>({
-		workspace: "single",
+		workspaceType: "single",
 	})
-	.extend<{ openVSCode: (workspace: string) => Promise<ElectronApplication> }>({
+	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
 		openVSCode: async ({ userDataDir, extensionsDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
-			await use(async (workspace: string) => {
+			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -266,7 +261,7 @@ export const e2e = test
 						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
-						workspace,
+						workspacePath,
 					],
 				})
 				await E2ETestHelper.waitUntil(() => app.windows().length > 0)
@@ -275,8 +270,8 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceDir, multiRootWorkspaceDir }, use) => {
-			const app = await openVSCode(workspaceDir)
+		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
+			const app = await openVSCode(workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir)
 
 			try {
 				await use(app)
@@ -311,7 +306,7 @@ export const e2e = test
 	})
 
 export const e2eMultiRoot = e2e.extend<WorkspaceType>({
-	workspace: "multi",
+	workspaceType: "multi",
 })
 
 // Backward compatibility exports

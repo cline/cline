@@ -108,7 +108,7 @@ e2e("Chat - partial slash command completion preserves text", async ({ helper, s
 	await expect(inputbox).toHaveValue("/newtask some important text after")
 })
 
-e2eMultiRoot("Chat - partial @ mention completion preserves text", async ({ helper, sidebar }) => {
+e2eMultiRoot("[Multi-roots] Chat - partial @ mention completion preserves text", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 

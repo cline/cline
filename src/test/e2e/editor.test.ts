@@ -38,6 +38,6 @@ e2e("Code actions and editor panel", async ({ page, sidebar }) => {
 	await editorTest(page, sidebar)
 })
 
-e2eMultiRoot("Code actions and editor panel in Multi-Roots workspace", async ({ page, sidebar }) => {
+e2eMultiRoot("[Multi-roots] Code actions and editor panel", async ({ page, sidebar }) => {
 	await editorTest(page, sidebar)
 })

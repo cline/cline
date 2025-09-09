@@ -54,6 +54,6 @@ e2e("Diff editor", async ({ page, sidebar }) => {
 	await testDiffEditor(page, sidebar)
 })
 
-e2eMultiRoot("Diff editor in Multi-roots", async ({ page, sidebar }) => {
+e2eMultiRoot("[Multi-roots] Diff editor", async ({ page, sidebar }) => {
 	await testDiffEditor(page, sidebar)
 })
