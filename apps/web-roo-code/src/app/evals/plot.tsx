@@ -175,13 +175,13 @@ export const Plot = ({ tableData }: PlotProps) => {
 		<>
 			<div className="pt-4 pb-8 font-mono">Cost x Score</div>
 			<ChartContainer config={chartConfig} className="h-[500px] w-full">
-				<ScatterChart margin={{ top: 0, right: 0, bottom: 0, left: 20 }}>
+				<ScatterChart margin={{ top: 20, right: 0, bottom: 0, left: 20 }}>
 					<XAxis
 						type="number"
 						dataKey="cost"
 						name="Cost"
 						domain={[
-							(dataMin: number) => Math.round((dataMin - 5) / 5) * 5,
+							(dataMin: number) => Math.max(0, Math.round((dataMin - 5) / 5) * 5),
 							(dataMax: number) => Math.round((dataMax + 5) / 5) * 5,
 						]}
 						tickFormatter={(value) => formatCurrency(value)}
