@@ -26,18 +26,18 @@ export class ErrorProviderFactory {
 	 * @param config Configuration for the error provider
 	 * @returns IErrorProvider instance
 	 */
-	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
+	public static async createProvider(config: ErrorProviderConfig): Promise<IErrorProvider> {
 		switch (config.type) {
 			case "posthog": {
 				const hasValidPostHogConfig = isPostHogConfigValid(config.config)
 				const errorTrackingApiKey = config.config.errorTrackingApiKey
 				return hasValidPostHogConfig && errorTrackingApiKey
-					? new PostHogErrorProvider({
+					? await new PostHogErrorProvider({
 							apiKey: errorTrackingApiKey,
 							errorTrackingApiKey: errorTrackingApiKey,
 							host: config.config.host,
 							uiHost: config.config.uiHost,
-						})
+						}).initialize()
 					: new NoOpErrorProvider() // Fallback to no-op provider
 			}
 			default:

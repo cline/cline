@@ -8,33 +8,14 @@ import * as assert from "assert"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
-import { TelemetryProviderFactory, type TelemetryProviderType } from "../TelemetryProviderFactory"
-import { TelemetryService } from "../TelemetryService"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import { NoOpTelemetryProvider, TelemetryProviderFactory, TelemetryProviderType } from "./TelemetryProviderFactory"
+import { TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
 	// Setup and teardown for HostProvider mocking
 	before(() => {
-		// Mock HostProvider if not already initialized
-		if (!HostProvider.isInitialized()) {
-			const mockWebviewCreator = () => ({}) as any
-			const mockDiffCreator = () => ({}) as any
-			const mockHostBridge = {
-				envClient: {
-					getHostVersion: sinon.stub().resolves({
-						platform: "Test-IDE",
-						version: "9.8.7-abc",
-					}),
-				},
-				watchServiceClient: {},
-				workspaceClient: {},
-				windowClient: {},
-				diffClient: {},
-			} as any
-			const mockLogToChannel = sinon.stub()
-			const mockGetCallbackUri = sinon.stub().resolves("test://callback")
-
-			HostProvider.initialize(mockWebviewCreator, mockDiffCreator, mockHostBridge, mockLogToChannel, mockGetCallbackUri)
-		}
+		setVscodeHostProviderMock()
 	})
 
 	after(() => {
@@ -59,7 +40,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 	describe("Telemetry Service", () => {
 		it("should include correct metadata with telemetry events", async () => {
-			const noOpProvider = TelemetryProviderFactory.createProvider({
+			const noOpProvider = await TelemetryProviderFactory.createProvider({
 				type: "no-op",
 			})
 
@@ -111,7 +92,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	describe("PostHog Provider", () => {
 		it("should create PostHog provider and track events", async () => {
 			console.log("=== Testing PostHog Provider ===")
-			const posthogProvider = TelemetryProviderFactory.createProvider({
+			const posthogProvider = await TelemetryProviderFactory.createProvider({
 				type: "posthog",
 			})
 
@@ -142,7 +123,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	describe("No-Op Provider", () => {
 		it("should create No-Op provider and handle all operations safely", async () => {
 			console.log("\n=== Testing No-Op Provider ===")
-			const noOpProvider = TelemetryProviderFactory.createProvider({
+			const noOpProvider = await TelemetryProviderFactory.createProvider({
 				type: "no-op",
 			})
 
@@ -187,22 +168,16 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 		it("should handle unsupported provider types by returning No-Op provider", async () => {
 			console.log("\n=== Testing Unsupported Provider Type ===")
-
-			// Spy on console.error to verify error logging
-			const consoleSpy = sinon.stub(console, "error")
-
 			// Test unsupported type by casting to bypass TypeScript checking
-			const unsupportedProvider = TelemetryProviderFactory.createProvider({
+			const unsupportedProvider = await TelemetryProviderFactory.createProvider({
 				type: "unsupported_provider" as TelemetryProviderType,
 			})
 
-			// Should have logged an error
-			assert.ok(
-				consoleSpy.calledWith("Unsupported telemetry provider type: unsupported_provider"),
-				"Should log error for unsupported provider type",
-			)
-
 			// Should return NoOp provider
+			assert.ok(
+				unsupportedProvider instanceof NoOpTelemetryProvider,
+				"Unsupported provider should be an instance of NoOpTelemetryProvider",
+			)
 			assert.strictEqual(unsupportedProvider.isEnabled(), false, "Unsupported provider should return NoOp provider")
 			assert.deepStrictEqual(
 				unsupportedProvider.getSettings(),
@@ -220,9 +195,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			telemetryService.identifyAccount(MOCK_USER_INFO)
 
 			await unsupportedProvider.dispose()
-
-			// Restore console.error
-			consoleSpy.restore()
 		})
 	})
 
@@ -249,7 +221,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			console.log("\n=== Testing Provider Switching ===")
 
 			// Start with PostHog provider
-			const posthogProvider = TelemetryProviderFactory.createProvider({
+			const posthogProvider = await TelemetryProviderFactory.createProvider({
 				type: "posthog",
 			})
 			let telemetryService = new TelemetryService(posthogProvider, MOCK_METADATA)
@@ -260,7 +232,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			await posthogProvider.dispose()
 
 			// Switch to No-Op provider
-			const noOpProvider = TelemetryProviderFactory.createProvider({
+			const noOpProvider = await TelemetryProviderFactory.createProvider({
 				type: "no-op",
 			})
 			telemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)

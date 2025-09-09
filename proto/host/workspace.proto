@@ -18,8 +18,6 @@ service WorkspaceService {
 
   // Get diagnostics from the workspace.
   rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
-  // Returns workspace items (files/folders) matching a query for mention autocomplete
-  rpc searchWorkspaceItems(SearchWorkspaceItemsRequest) returns (SearchWorkspaceItemsResponse);
 
   // Makes the problems panel/pane visible in the IDE and focuses it.
   rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);

@@ -26,13 +26,14 @@ export class TelemetryProviderFactory {
 	 * @param config Configuration for the telemetry provider
 	 * @returns ITelemetryProvider instance
 	 */
-	public static createProvider(config: TelemetryProviderConfig): ITelemetryProvider {
+	public static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
+		// Get the shared PostHog client from PostHogClientProvider
 		switch (config.type) {
 			case "posthog": {
 				// Get the shared PostHog client from PostHogClientProvider
 				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
-					return new PostHogTelemetryProvider(sharedClient)
+					return await new PostHogTelemetryProvider(sharedClient).initialize()
 				}
 				return new NoOpTelemetryProvider()
 			}
@@ -58,7 +59,7 @@ export class TelemetryProviderFactory {
  * No-operation telemetry provider for when telemetry is disabled
  * or for testing purposes
  */
-class NoOpTelemetryProvider implements ITelemetryProvider {
+export class NoOpTelemetryProvider implements ITelemetryProvider {
 	public isOptIn = true
 
 	public log(event: string, properties?: Record<string, unknown>): void {
