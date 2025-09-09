@@ -123,7 +123,7 @@ export class FocusChainManager {
 					await this.postStateToWebview()
 				})
 				.on("error", (error) => {
-					console.error(`[Task ${this.taskId}] Failed to watch todo file:`, error)
+					console.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
 				})
 
 			console.log(`[Task ${this.taskId}] Todo file watcher initialized`)
