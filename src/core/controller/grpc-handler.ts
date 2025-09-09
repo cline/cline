@@ -1,8 +1,8 @@
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
+import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
+import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
-import { GrpcRecorderBuilder } from "./grpc-recorder/grpc-recorder.builder"
-import { GrpcRequestRegistry } from "./grpc-request-registry"
 import { Controller } from "./index"
 
 /**

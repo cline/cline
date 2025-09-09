@@ -156,17 +156,14 @@ export class GrpcRecorder implements IRecorder {
 		// Remove synthetic entries from session log
 		this.sessionLog.entries = this.sessionLog.entries.filter((entry) => !entry.meta?.synthetic)
 
-		// Also clean up from pending requests if needed
+		// clean up from pending requests if needed
 		for (const [requestId, pendingRequest] of this.pendingRequests.entries()) {
 			if (pendingRequest.entry.meta?.synthetic) {
 				this.pendingRequests.delete(requestId)
 			}
 		}
 
-		// Update session stats after cleanup
 		this.sessionLog.stats = this.getStats()
-
-		// Persist the cleaned log
 		this.flushLogAsync()
 	}
 
