@@ -57,6 +57,7 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
+import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -68,14 +69,13 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "@/services/error"
+import { ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
-import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -1128,7 +1128,6 @@ export class Task {
 				process.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
-				telemetryService.captureTerminalHang(TerminalHangStage.STREAM_TIMEOUT)
 			} finally {
 				// Clear the stuck timer
 				if (bufferStuckTimer) {
@@ -1379,12 +1378,12 @@ export class Task {
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
-			const clineError = errorService.toClineError(error, model.id, providerId)
+			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
 			// TODO: Move into errorService
-			errorService.logMessage(clineError.message)
-			errorService.logException(clineError)
+			ErrorService.get().logMessage(clineError.message)
+			ErrorService.get().logException(clineError)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				await this.handleContextWindowExceededError()
@@ -1612,6 +1611,9 @@ export class Task {
 					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
+				// Display the user's message in the chat UI
+				await this.say("user_feedback", text, images, files)
+
 				// This userContent is for the *next* API call.
 				const feedbackUserContent: UserContent = []
 				feedbackUserContent.push({
@@ -2034,7 +2036,7 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const clineError = errorService.toClineError(error, this.api.getModel().id)
+					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)

@@ -1,3 +1,7 @@
+import { GrpcRequest } from "@/shared/WebviewMessage"
+
+export type GrpcRequestFilter = (request: GrpcRequest) => boolean
+
 export interface GrpcLogEntry {
 	requestId: string
 	service: string

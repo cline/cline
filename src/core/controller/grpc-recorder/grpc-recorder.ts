@@ -2,7 +2,7 @@ import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
+import { GrpcLogEntry, GrpcRequestFilter, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
@@ -36,7 +36,10 @@ export class GrpcRecorder implements IRecorder {
 	private sessionLog: GrpcSessionLog
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
 
-	constructor(private fileHandler: ILogFileHandler) {
+	constructor(
+		private fileHandler: ILogFileHandler,
+		private requestFilters: GrpcRequestFilter[] = [],
+	) {
 		this.sessionLog = {
 			startTime: new Date().toISOString(),
 			entries: [],
@@ -61,6 +64,10 @@ export class GrpcRecorder implements IRecorder {
 	 * @param request - The incoming gRPC request.
 	 */
 	public recordRequest(request: GrpcRequest): void {
+		if (this.shouldFilter(request)) {
+			return
+		}
+
 		const entry: GrpcLogEntry = {
 			requestId: request.request_id,
 			service: request.service,
@@ -175,5 +182,9 @@ export class GrpcRecorder implements IRecorder {
 			completedRequests,
 			errorRequests,
 		}
+	}
+
+	private shouldFilter(request: GrpcRequest): boolean {
+		return this.requestFilters.some((filter) => filter(request))
 	}
 }

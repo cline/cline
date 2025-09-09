@@ -5,6 +5,7 @@ import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -173,7 +174,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = TelemetryProviderFactory.createProvider({
+		const provider = await TelemetryProviderFactory.createProvider({
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
@@ -209,7 +210,8 @@ export class TelemetryService {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
 		// We only enable telemetry if global vscode telemetry is enabled
-		if (!vscode.env.isTelemetryEnabled) {
+		const telemetrySettings = await HostProvider.env.getTelemetrySettings({})
+		if (telemetrySettings.isEnabled === Setting.DISABLED) {
 			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
 			if (didUserOptIn) {
 				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
