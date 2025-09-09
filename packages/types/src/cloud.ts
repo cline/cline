@@ -162,6 +162,7 @@ export type UserFeatures = z.infer<typeof userFeaturesSchema>
 
 export const userSettingsConfigSchema = z.object({
 	extensionBridgeEnabled: z.boolean().optional(),
+	taskSyncEnabled: z.boolean().optional(),
 })
 
 export type UserSettingsConfig = z.infer<typeof userSettingsConfigSchema>
