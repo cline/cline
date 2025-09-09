@@ -41,13 +41,17 @@ export class SharedUriHandler {
 					console.log("SharedUriHandler: Auth callback received:", { path: uri.path, provider: query.get("provider") })
 
 					const token = query.get("idToken")
+					const refreshToken = query.get("refreshToken")
 					const provider = query.get("provider")
 
 					if (token) {
 						await visibleWebview.controller.handleAuthCallback(token, provider)
 						return true
+					} else if (refreshToken) {
+						await visibleWebview.controller.handleAuthCallback(refreshToken, provider)
+						return true
 					}
-					console.warn("SharedUriHandler: Missing idToken parameter for auth callback")
+					console.warn("SharedUriHandler: Missing idToken or refreshToken parameter for auth callback")
 					return false
 				}
 				default:
