@@ -2,7 +2,13 @@ import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
 import { HistoryItem } from "@/shared/HistoryItem"
-import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { fileExistsAtPath } from "@/utils/fs"
+import {
+	ensureRulesDirectoryExists,
+	getTaskHistoryStateFilePath,
+	readTaskHistoryFromState,
+	writeTaskHistoryToState,
+} from "./disk"
 import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
@@ -69,57 +75,62 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
 	try {
-		// Get data from old location
-		const oldLocationData = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
+		// Check if the taskHistory is already in the new location.
+		// If it exists and is a valid, non-empty array, we skip the migration.
+		const taskHistoryFilePath = await getTaskHistoryStateFilePath(context)
 
-		// check if undefined here and return if so
-		if (oldLocationData === undefined) {
-			console.log("[Storage Migration] No task history to migrate")
+		if (await fileExistsAtPath(taskHistoryFilePath)) {
+			try {
+				const contents = await fs.readFile(taskHistoryFilePath, "utf8")
+				try {
+					const newTaskHistory = JSON.parse(contents)
+					if (Array.isArray(newTaskHistory) && newTaskHistory.length > 0) {
+						console.log("[Storage Migration] Task history already in new location, skipping migration")
+						return
+					}
+				} catch (error) {
+					console.error("[Disk] Failed to parse task history JSON:", error)
+					return
+				}
+			} catch (error) {
+				console.error("[Disk] Failed to read task history:", error)
+				return
+			}
+		}
+
+		// If we have reached this point, then the taskHistory.json file does not exist or it is an empty array.
+		// We will get the taskHistory from the old location in the vs code global state and write it to the new location.
+
+		const oldLocationTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory") || []
+
+		// We make sure that the old location taskHistory is an array. If it's not, then it's malformed, so we just write an empty array to the new taskHistory storage location.
+		if (!Array.isArray(oldLocationTaskHistory)) {
+			console.error(
+				"[Storage Migration] Task history in the vs code global state is malformed, writing an empty array to the new storage location",
+			)
+			await writeTaskHistoryToState(context, [])
 			return
 		}
 
-		// Make sure that the data is an array, return if not since it's malformed
-		if (!Array.isArray(oldLocationData)) {
-			console.error("[Storage Migration] Task history is malformed, skipping migration")
-			return
-		}
-
-		// Early return if the array is empty
-		if (oldLocationData.length === 0) {
-			console.log("[Storage Migration] No task history to migrate")
-			return
-		}
-
-		const newLocationData = await readTaskHistoryFromState(context)
-
-		if (newLocationData.length === 0) {
-			// Move old data to new location
-			await writeTaskHistoryToState(context, oldLocationData)
-			console.log("[Storage Migration] Migrated task history from old location to new location")
-		} else {
-			// Merge old data (more recent) with new data
-			const mergedData = [...newLocationData, ...oldLocationData]
-			await writeTaskHistoryToState(context, mergedData)
-			console.log("[Storage Migration] Merged task history from old and new locations")
-		}
+		// We write the taskHistory from the vs code global state to the new storage location in the json file.
+		await writeTaskHistoryToState(context, oldLocationTaskHistory)
 
 		// confirm that the data has been successfully written to the file by reading it back
 		const successfullyWrittenData = await readTaskHistoryFromState(context)
 
-		if (successfullyWrittenData.length === 0) {
+		if (!Array.isArray(successfullyWrittenData)) {
+			console.error("[Storage Migration] Task history in the new location is malformed, aborting migration.")
+			return
+		}
+
+		if (successfullyWrittenData.length !== oldLocationTaskHistory.length) {
 			console.error("[Storage Migration] Task history has not been successfully written to the file")
 			return
 		}
 
-		void context.globalState.update("taskHistory", undefined)
-		console.log("[Storage Migration] Removed task history from global state")
-
-		// confirm that the data has been successfully removed from the global state by reading it back
-		const successfullyRemovedData = context.globalState.get("taskHistory")
-		if (successfullyRemovedData !== undefined) {
-			console.error("[Storage Migration] Task history has not been successfully removed from the global state")
-			return
-		}
+		console.log(
+			`[Storage Migration] Migrated task history from old location to new location. ${successfullyWrittenData.length} items written.`,
+		)
 	} catch (error) {
 		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
