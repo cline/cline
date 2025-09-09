@@ -21,16 +21,5 @@
 	},
 	// Enable Lint and format using Biome
 	"biome.enabled": true,
-	"[typescript]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[typescriptreact]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[jsonc]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[json]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	}
+	"editor.defaultFormatter": "biomejs.biome"
 }
