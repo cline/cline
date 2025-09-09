@@ -206,8 +206,6 @@ describe("grpc-recorder", () => {
 				error: "",
 			})
 
-			await new Promise((resolve) => setTimeout(resolve, 10))
-
 			expect(hookExecuted).to.be.true
 			expect(hookEntry).to.not.be.null
 			expect(hookEntry.requestId).equal("test-id")

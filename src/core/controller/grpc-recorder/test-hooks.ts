@@ -1,7 +1,7 @@
+import { Controller } from "@/core/controller"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
+import { GrpcPostRecordHook } from "@/core/controller/grpc-recorder/types"
 import { getLatestState } from "@/core/controller/state/getLatestState"
-import { Controller } from ".."
-import { GrpcPostRecordHook } from "./types"
 
 // Add 50ms delay by default to ensure we get the latest state
 const TEST_HOOK_LATEST_STATE_DELAY = 50

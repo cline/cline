@@ -1,8 +1,8 @@
 import { GrpcPostRecordHook, GrpcRequestFilter } from "@core/controller/grpc-recorder/types"
+import { Controller } from "@/core/controller"
 import { GrpcRecorder, GrpcRecorderNoops, IRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { LogFileHandler, LogFileHandlerNoops } from "@/core/controller/grpc-recorder/log-file-handler"
 import { testHooks } from "@/core/controller/grpc-recorder/test-hooks"
-import { Controller } from ".."
 
 /**
  * A builder class for constructing a gRPC recorder instance.
