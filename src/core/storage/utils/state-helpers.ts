@@ -239,6 +239,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeTogetherModelId = context.globalState.get("planModeTogetherModelId") as string | undefined
 		const planModeFireworksModelId = context.globalState.get("planModeFireworksModelId") as string | undefined
 		const planModeSapAiCoreModelId = context.globalState.get("planModeSapAiCoreModelId") as string | undefined
+		const planModeSapAiCoreDeploymentId = context.globalState.get("planModeSapAiCoreDeploymentId") as string | undefined
 		const planModeGroqModelId = context.globalState.get("planModeGroqModelId") as string | undefined
 		const planModeGroqModelInfo = context.globalState.get("planModeGroqModelInfo") as ModelInfo | undefined
 		const planModeHuggingFaceModelId = context.globalState.get("planModeHuggingFaceModelId") as string | undefined
@@ -278,6 +279,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeTogetherModelId = context.globalState.get("actModeTogetherModelId") as string | undefined
 		const actModeFireworksModelId = context.globalState.get("actModeFireworksModelId") as string | undefined
 		const actModeSapAiCoreModelId = context.globalState.get("actModeSapAiCoreModelId") as string | undefined
+		const actModeSapAiCoreDeploymentId = context.globalState.get("actModeSapAiCoreDeploymentId") as string | undefined
 		const actModeGroqModelId = context.globalState.get("actModeGroqModelId") as string | undefined
 		const actModeGroqModelInfo = context.globalState.get("actModeGroqModelInfo") as ModelInfo | undefined
 		const actModeHuggingFaceModelId = context.globalState.get("actModeHuggingFaceModelId") as string | undefined
@@ -380,6 +382,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
@@ -411,6 +414,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,

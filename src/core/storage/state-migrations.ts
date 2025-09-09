@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { StateManager } from "./StateManager"
 
@@ -68,20 +69,37 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
 	try {
-		// If the old taskHistory vs code global state is undefined, do nothing
-		const vscodeGlobalStateTaskHistory = await context.globalState.get("taskHistory")
-		if (vscodeGlobalStateTaskHistory === undefined) {
+		// Get data from old location
+		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
+
+		// Normalize old location data to array (empty array if undefined/null/not-array)
+		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
+
+		// Early return if no migration needed
+		if (oldLocationData.length === 0) {
+			console.log("[Storage Migration] No task history to migrate")
 			return
 		}
-		// Read legacy from VS Code globalState, default to []
-		console.log("[Storage Migration] taskHistory from vscode global state: ", vscodeGlobalStateTaskHistory)
-		// Always create the file, even when empty
-		await writeTaskHistoryToState(context, Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : [])
-		// Don't remove the old taskHistory yet, while this version is not in production, for better dev experience.
-		// This is because the old version of the code (still in prod) is still reading taskHistory from the vs code global state, so it will appear as if all the user's tasks have been deleted.
-		// await context.globalState.update("taskHistory", undefined)
-		console.log("[Storage Migration] taskHistory file in new location: ", await readTaskHistoryFromState(context))
-		console.log("[Storage Migration] old vscode global state: ", await context.globalState.get("taskHistory"))
+
+		let finalData: HistoryItem[]
+		let migrationAction: string
+
+		const newLocationData = await readTaskHistoryFromState(context)
+		if (newLocationData.length === 0) {
+			// Move old data to new location
+			finalData = oldLocationData
+			migrationAction = "Migrated task history from old location to new location"
+		} else {
+			// Merge old data (more recent) with new data
+			finalData = [...newLocationData, ...oldLocationData]
+			migrationAction = "Merged task history from old and new locations"
+		}
+
+		// Perform migration operations sequentially - only clear old data if write succeeds
+		await writeTaskHistoryToState(context, finalData)
+		void context.globalState.update("taskHistory", undefined)
+
+		console.log(`[Storage Migration] ${migrationAction}`)
 	} catch (error) {
 		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
