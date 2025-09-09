@@ -238,6 +238,7 @@ export const e2e = test
 						CLINE_ENVIRONMENT: "local",
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
+						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},

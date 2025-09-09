@@ -1,3 +1,4 @@
+import { GrpcRequestFilter } from "@core/controller/grpc-recorder/types"
 import { GrpcRecorder, GrpcRecorderNoops, IRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { LogFileHandler, LogFileHandlerNoops } from "@/core/controller/grpc-recorder/log-file-handler"
 
@@ -11,6 +12,7 @@ import { LogFileHandler, LogFileHandlerNoops } from "@/core/controller/grpc-reco
 export class GrpcRecorderBuilder {
 	private fileHandler: LogFileHandler | null = null
 	private enabled: boolean = true
+	private filters: GrpcRequestFilter[] = []
 
 	public withLogFileHandler(handler: LogFileHandler): this {
 		this.fileHandler = handler
@@ -22,12 +24,40 @@ export class GrpcRecorderBuilder {
 		return this
 	}
 
+	public withFilters(...filters: GrpcRequestFilter[]): this {
+		this.filters.push(...filters)
+		return this
+	}
+
 	public build(): IRecorder {
 		if (!this.enabled) {
 			return new GrpcRecorderNoops()
 		}
 
+		let filters: GrpcRequestFilter[] = filtersFromEnv()
+		if (this.filters.length > 0) {
+			filters = filters.concat(this.filters)
+		}
+
 		const handler = this.fileHandler ?? new LogFileHandlerNoops()
-		return new GrpcRecorder(handler)
+		return new GrpcRecorder(handler, filters)
 	}
+}
+
+function filtersFromEnv(): GrpcRequestFilter[] {
+	const filters: GrpcRequestFilter[] = []
+
+	if (process.env.GRPC_RECORDER_TESTS_FILTERS_ENABLED === "true") {
+		filters.push(...testFilters())
+	}
+
+	return filters
+}
+
+function testFilters(): GrpcRequestFilter[] {
+	/*
+	 * Ignores streaming messages and unwanted services messages
+	 * that record more than expected.
+	 */
+	return [(req) => req.is_streaming, (req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service)]
 }
