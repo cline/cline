@@ -301,6 +301,20 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "dify":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "dify-workflow",
+				selectedModelInfo: {
+					maxTokens: 8192,
+					contextWindow: 128000,
+					supportsImages: true,
+					supportsPromptCache: false,
+					inputPrice: 0,
+					outputPrice: 0,
+					description: "Dify workflow - model selection is configured in your Dify application",
+				},
+			}
 		case "vercel-ai-gateway":
 			const vercelAiGatewayModelId =
 				currentMode === "plan"
@@ -462,12 +476,16 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) return
+	if (!apiConfiguration) {
+		return
+	}
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) return
+	if (!apiProvider) {
+		return
+	}
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {
@@ -571,6 +589,12 @@ export async function syncModeConfigurations(
 			updates.planModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			updates.actModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
+
+		case "dify":
+			// Dify doesn't have mode-specific model configurations
+			// The model is configured in the Dify application itself
+			break
+
 		case "vercel-ai-gateway":
 			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
 			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId

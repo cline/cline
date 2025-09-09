@@ -18,6 +18,7 @@ import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
@@ -29,14 +30,16 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { AuthService } from "./services/auth/AuthService"
-import { telemetryService } from "./services/posthog/PostHogClientProvider"
+import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { fileExistsAtPath } from "./utils/fs"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -443,8 +446,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (tabInstances.length > 0) {
 					activeWebview = tabInstances[tabInstances.length - 1]
 				} else {
-					// Try to focus sidebar
-					await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+					// Try to focus sidebar via hostbridge
+					await HostProvider.workspace.openClineSidebarPanel({})
 
 					// Small delay for focus to complete
 					await new Promise((resolve) => setTimeout(resolve, 200))
@@ -522,7 +525,41 @@ function setupHostProvider(context: ExtensionContext) {
 	context.subscriptions.push(outputChannel)
 
 	const getCallbackUri = async () => `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev`
-	HostProvider.initialize(createWebview, createDiffView, vscodeHostBridgeClient, outputChannel.appendLine, getCallbackUri)
+	HostProvider.initialize(
+		createWebview,
+		createDiffView,
+		vscodeHostBridgeClient,
+		outputChannel.appendLine,
+		getCallbackUri,
+		getBinaryLocation,
+	)
+}
+
+async function getBinaryLocation(name: string): Promise<string> {
+	// The only binary currently supported is the rg binary from the VSCode installation.
+	if (!name.startsWith("rg")) {
+		throw new Error(`Binary '${name}' is not supported`)
+	}
+
+	const checkPath = async (pkgFolder: string) => {
+		const fullPathResult = workspaceResolver.resolveWorkspacePath(
+			vscode.env.appRoot,
+			path.join(pkgFolder, name),
+			"Services.ripgrep.getBinPath",
+		)
+		const fullPath = typeof fullPathResult === "string" ? fullPathResult : fullPathResult.absolutePath
+		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
+	}
+
+	const binPath =
+		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
+		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
+		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
+		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
+	if (!binPath) {
+		throw new Error("Could not find ripgrep binary")
+	}
+	return binPath
 }
 
 // This method is called when your extension is deactivated

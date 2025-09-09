@@ -7,12 +7,13 @@ import { URI } from "vscode-uri"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
-const VERSION = getPackageVersion()
-log("Running standalone cline ", VERSION)
+export const VERSION = getPackageVersion()
+log("Running standalone cline", VERSION)
 
-const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
+export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
-const INSTALL_DIR = process.env.INSTALL_DIR || path.join(CLINE_DIR, "core", VERSION)
+const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
+
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 

@@ -9,6 +9,7 @@ import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
@@ -53,9 +54,9 @@ export interface ApiHandlerModel {
 }
 
 export interface ApiProviderInfo {
-	modelId: string
 	providerId: string
-	customPrompt?: string
+	model: ApiHandlerModel
+	customPrompt?: string // "compact"
 }
 
 export interface SingleCompletionHandler {
@@ -209,6 +210,7 @@ function createHandlerForProvider(
 			})
 		case "qwen-code":
 			return new QwenCodeHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				qwenCodeOauthPath: options.qwenCodeOauthPath,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
@@ -311,6 +313,7 @@ function createHandlerForProvider(
 			})
 		case "baseten":
 			return new BasetenHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				basetenApiKey: options.basetenApiKey,
 				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
 				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
@@ -328,6 +331,8 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				deploymentId: mode === "plan" ? options.planModeSapAiCoreDeploymentId : options.actModeSapAiCoreDeploymentId,
+				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
@@ -339,14 +344,25 @@ function createHandlerForProvider(
 			})
 		case "huawei-cloud-maas":
 			return new HuaweiCloudMaaSHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				huaweiCloudMaasApiKey: options.huaweiCloudMaasApiKey,
 				huaweiCloudMaasModelId:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
 				huaweiCloudMaasModelInfo:
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
 			})
+		case "dify": // Add Dify.ai handler
+			console.log("[DIFY DEBUG] Instantiating DifyHandler with options:", {
+				difyApiKeyPresent: !!options.difyApiKey,
+				difyBaseUrl: options.difyBaseUrl,
+			})
+			return new DifyHandler({
+				difyApiKey: options.difyApiKey,
+				difyBaseUrl: options.difyBaseUrl,
+			})
 		case "vercel-ai-gateway":
 			return new VercelAIGatewayHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
 				vercelAiGatewayModelId:
 					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
@@ -355,6 +371,7 @@ function createHandlerForProvider(
 			})
 		case "zai":
 			return new ZAiHandler({
+				onRetryAttempt: options.onRetryAttempt,
 				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
@@ -384,7 +401,7 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 			const handler = createHandlerForProvider(apiProvider, options, mode)
 
 			const modelInfo = handler.getModel().info
-			if (modelInfo.maxTokens && thinkingBudgetTokens > modelInfo.maxTokens) {
+			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
 				const clippedValue = modelInfo.maxTokens - 1
 				if (mode === "plan") {
 					options.planModeThinkingBudgetTokens = clippedValue

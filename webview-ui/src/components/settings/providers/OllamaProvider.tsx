@@ -3,6 +3,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
+import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -56,7 +57,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	useInterval(requestOllamaModels, 2000)
 
 	return (
-		<div>
+		<div className="flex flex-col gap-2">
 			<BaseUrlField
 				initialValue={apiConfiguration?.ollamaBaseUrl}
 				label="Use custom base URL"
@@ -76,7 +77,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 
 			{/* Model selection - use filterable picker */}
 			<label htmlFor="ollama-model-selection">
-				<span style={{ fontWeight: 500 }}>Model</span>
+				<span className="font-semibold">Model</span>
 			</label>
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
@@ -89,13 +90,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 
 			{/* Show status message based on model availability */}
 			{ollamaModels.length === 0 && (
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: "3px",
-						color: "var(--vscode-descriptionForeground)",
-						fontStyle: "italic",
-					}}>
+				<p className="text-sm mt-1 text-description italic">
 					Unable to fetch models from Ollama server. Please ensure Ollama is running and accessible, or enter the model
 					ID manually above.
 				</p>
@@ -106,7 +101,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				onChange={(v) => handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)}
 				placeholder={"e.g. 32768"}
 				style={{ width: "100%" }}>
-				<span style={{ fontWeight: 500 }}>Model Context Window</span>
+				<span className="font-semibold">Model Context Window</span>
 			</DebouncedTextField>
 
 			{showModelOptions && (
@@ -122,13 +117,15 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						}}
 						placeholder="Default: 30000 (30 seconds)"
 						style={{ width: "100%" }}>
-						<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
+						<span className="font-semibold">Request Timeout (ms)</span>
 					</DebouncedTextField>
-					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+					<p className="text-xs mt-0 text-description">
 						Maximum time in milliseconds to wait for API responses before timing out.
 					</p>
 				</>
 			)}
+
+			<UseCustomPromptCheckbox providerId="ollama" />
 
 			<p
 				style={{
