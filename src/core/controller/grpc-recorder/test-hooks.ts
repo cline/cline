@@ -1,15 +1,17 @@
+import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { getLatestState } from "@/core/controller/state/getLatestState"
 import { Controller } from ".."
-import { GrpcRecorderBuilder } from "./grpc-recorder.builder"
 import { GrpcPostRecordHook } from "./types"
+
+// Add 50ms delay by default to ensure we get the latest state
+const TEST_HOOK_LATEST_STATE_DELAY = 50
 
 export function testHooks(controller: Controller): GrpcPostRecordHook[] {
 	return [
 		async (entry) => {
 			GrpcRecorderBuilder.getRecorder(controller).cleanupSyntheticEntries()
 
-			// Add 50ms delay to ensure we get the latest state
-			await new Promise((resolve) => setTimeout(resolve, 50))
+			await new Promise((resolve) => setTimeout(resolve, TEST_HOOK_LATEST_STATE_DELAY))
 
 			const requestId = entry.requestId
 
