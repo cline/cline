@@ -90,6 +90,15 @@
 			"apiKeyModelPlanMismatch": "Les claus API i els plans de subscripció permeten models diferents. Assegura't que el model seleccionat estigui inclòs al teu pla.",
 			"notFound": "No s'ha trobat l'executable Claude Code '{{claudePath}}'.\n\nInstal·la Claude Code CLI:\n1. Visita {{installationUrl}} per descarregar Claude Code\n2. Segueix les instruccions d'instal·lació per al teu sistema operatiu\n3. Assegura't que la comanda 'claude' estigui disponible al teu PATH\n4. Alternativament, configura una ruta personalitzada a la configuració de Roo sota 'Ruta de Claude Code'\n\nError original: {{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "No hi ha cap tasca activa de la qual eliminar missatges",
+			"invalid_timestamp_for_deletion": "Marca de temps del missatge no vàlida per a l'eliminació",
+			"cannot_delete_missing_timestamp": "No es pot eliminar el missatge: falta la marca de temps",
+			"cannot_delete_invalid_timestamp": "No es pot eliminar el missatge: marca de temps no vàlida",
+			"message_not_found": "Missatge amb marca de temps {{messageTs}} no trobat",
+			"error_deleting_message": "Error eliminant missatge: {{error}}",
+			"error_editing_message": "Error editant missatge: {{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Error del flux de context de generació de Gemini: {{error}}",
 			"generate_complete_prompt": "Error de finalització de Gemini: {{error}}",

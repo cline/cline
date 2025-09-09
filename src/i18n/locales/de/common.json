@@ -87,6 +87,15 @@
 			"apiKeyModelPlanMismatch": "API-Schlüssel und Abonnement-Pläne erlauben verschiedene Modelle. Stelle sicher, dass das ausgewählte Modell in deinem Plan enthalten ist.",
 			"notFound": "Claude Code ausführbare Datei '{{claudePath}}' nicht gefunden.\n\nBitte installiere Claude Code CLI:\n1. Besuche {{installationUrl}} um Claude Code herunterzuladen\n2. Folge den Installationsanweisungen für dein Betriebssystem\n3. Stelle sicher, dass der 'claude' Befehl in deinem PATH verfügbar ist\n4. Alternativ konfiguriere einen benutzerdefinierten Pfad in den Roo-Einstellungen unter 'Claude Code Pfad'\n\nUrsprünglicher Fehler: {{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "Keine aktive Aufgabe, aus der Nachrichten gelöscht werden können",
+			"invalid_timestamp_for_deletion": "Ungültiger Nachrichten-Zeitstempel zum Löschen",
+			"cannot_delete_missing_timestamp": "Nachricht kann nicht gelöscht werden: fehlender Zeitstempel",
+			"cannot_delete_invalid_timestamp": "Nachricht kann nicht gelöscht werden: ungültiger Zeitstempel",
+			"message_not_found": "Nachricht mit Zeitstempel {{messageTs}} nicht gefunden",
+			"error_deleting_message": "Fehler beim Löschen der Nachricht: {{error}}",
+			"error_editing_message": "Fehler beim Bearbeiten der Nachricht: {{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Fehler beim Generieren des Kontext-Streams von Gemini: {{error}}",
 			"generate_complete_prompt": "Fehler bei der Vervollständigung durch Gemini: {{error}}",

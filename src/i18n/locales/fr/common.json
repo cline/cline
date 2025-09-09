@@ -87,6 +87,15 @@
 			"apiKeyModelPlanMismatch": "Les clés API et les plans d'abonnement permettent différents modèles. Assurez-vous que le modèle sélectionné est inclus dans votre plan.",
 			"notFound": "Exécutable Claude Code '{{claudePath}}' introuvable.\n\nVeuillez installer Claude Code CLI :\n1. Visitez {{installationUrl}} pour télécharger Claude Code\n2. Suivez les instructions d'installation pour votre système d'exploitation\n3. Assurez-vous que la commande 'claude' est disponible dans votre PATH\n4. Alternativement, configurez un chemin personnalisé dans les paramètres Roo sous 'Chemin de Claude Code'\n\nErreur originale : {{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "Aucune tâche active pour supprimer des messages",
+			"invalid_timestamp_for_deletion": "Horodatage du message invalide pour la suppression",
+			"cannot_delete_missing_timestamp": "Impossible de supprimer le message : horodatage manquant",
+			"cannot_delete_invalid_timestamp": "Impossible de supprimer le message : horodatage invalide",
+			"message_not_found": "Message avec horodatage {{messageTs}} introuvable",
+			"error_deleting_message": "Erreur lors de la suppression du message : {{error}}",
+			"error_editing_message": "Erreur lors de la modification du message : {{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Erreur du flux de contexte de génération Gemini : {{error}}",
 			"generate_complete_prompt": "Erreur d'achèvement de Gemini : {{error}}",

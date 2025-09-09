@@ -87,6 +87,15 @@
 			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
 			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "Không có nhiệm vụ hoạt động để xóa tin nhắn",
+			"invalid_timestamp_for_deletion": "Dấu thời gian tin nhắn không hợp lệ để xóa",
+			"cannot_delete_missing_timestamp": "Không thể xóa tin nhắn: thiếu dấu thời gian",
+			"cannot_delete_invalid_timestamp": "Không thể xóa tin nhắn: dấu thời gian không hợp lệ",
+			"message_not_found": "Không tìm thấy tin nhắn có dấu thời gian {{messageTs}}",
+			"error_deleting_message": "Lỗi xóa tin nhắn: {{error}}",
+			"error_editing_message": "Lỗi chỉnh sửa tin nhắn: {{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Lỗi luồng ngữ cảnh tạo Gemini: {{error}}",
 			"generate_complete_prompt": "Lỗi hoàn thành Gemini: {{error}}",

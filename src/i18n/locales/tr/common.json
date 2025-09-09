@@ -87,6 +87,15 @@
 			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
 			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "Mesaj silinecek aktif görev yok",
+			"invalid_timestamp_for_deletion": "Silme için geçersiz mesaj zaman damgası",
+			"cannot_delete_missing_timestamp": "Mesaj silinemiyor: zaman damgası eksik",
+			"cannot_delete_invalid_timestamp": "Mesaj silinemiyor: geçersiz zaman damgası",
+			"message_not_found": "{{messageTs}} zaman damgalı mesaj bulunamadı",
+			"error_deleting_message": "Mesaj silme hatası: {{error}}",
+			"error_editing_message": "Mesaj düzenleme hatası: {{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Gemini oluşturma bağlam akışı hatası: {{error}}",
 			"generate_complete_prompt": "Gemini tamamlama hatası: {{error}}",

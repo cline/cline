@@ -86,6 +86,15 @@
 			"apiKeyModelPlanMismatch": "API 金鑰和訂閱方案允許不同的模型。請確保所選模型包含在您的方案中。",
 			"notFound": "找不到 Claude Code 可執行檔案 '{{claudePath}}'。\n\n請安裝 Claude Code CLI：\n1. 造訪 {{installationUrl}} 下載 Claude Code\n2. 依照作業系統的安裝說明進行操作\n3. 確保 'claude' 指令在 PATH 中可用\n4. 或者在 Roo 設定中的 'Claude Code 路徑' 下設定自訂路徑\n\n原始錯誤：{{originalError}}"
 		},
+		"message": {
+			"no_active_task_to_delete": "沒有可刪除訊息的活躍工作",
+			"invalid_timestamp_for_deletion": "刪除操作的訊息時間戳無效",
+			"cannot_delete_missing_timestamp": "無法刪除訊息：缺少時間戳",
+			"cannot_delete_invalid_timestamp": "無法刪除訊息：時間戳無效",
+			"message_not_found": "未找到時間戳為 {{messageTs}} 的訊息",
+			"error_deleting_message": "刪除訊息時出錯：{{error}}",
+			"error_editing_message": "編輯訊息時出錯：{{error}}"
+		},
 		"gemini": {
 			"generate_stream": "Gemini 產生內容串流錯誤：{{error}}",
 			"generate_complete_prompt": "Gemini 完成錯誤：{{error}}",
