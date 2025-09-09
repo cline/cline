@@ -74,7 +74,7 @@ const CodeBlockButtonWrapper = styled.div`
 	top: var(--copy-button-top);
 	right: var(--copy-button-right, 8px);
 	height: auto;
-	z-index: 100;
+	z-index: 40;
 	background: ${CODE_BLOCK_BG_COLOR}${WRAPPER_ALPHA};
 	overflow: visible;
 	pointer-events: none;
