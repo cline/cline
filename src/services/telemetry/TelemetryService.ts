@@ -3,8 +3,8 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
-import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -173,7 +173,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = TelemetryProviderFactory.createProvider({
+		const provider = await TelemetryProviderFactory.createProvider({
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
@@ -208,34 +208,27 @@ export class TelemetryService {
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
-		// We only enable telemetry if global vscode telemetry is enabled
-		if (!vscode.env.isTelemetryEnabled) {
-			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
+		// We only enable telemetry if global host telemetry is enabled
+		const hostSetting = await HostProvider.env.getTelemetrySettings({})
+		if (hostSetting.isEnabled === Setting.DISABLED) {
+			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
 			if (didUserOptIn) {
-				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
-				if (isVsCodeHost) {
-					void HostProvider.window
-						.showMessage({
-							type: ShowMessageType.WARNING,
-							message:
-								"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-							options: {
-								items: ["Open Settings"],
-							},
-						})
-						.then((response) => {
-							if (response.selectedOption === "Open Settings") {
-								void HostProvider.window.openSettings({
-									query: "telemetry.telemetryLevel",
-								})
-							}
-						})
-				} else {
-					void HostProvider.window.showMessage({
+				void HostProvider.window
+					.showMessage({
 						type: ShowMessageType.WARNING,
-						message: "Anonymous Cline error and usage reporting is enabled, but host telemetry is disabled.",
+						message:
+							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+						options: {
+							items: ["Open Settings"],
+						},
 					})
-				}
+					.then((response) => {
+						if (response.selectedOption === "Open Settings") {
+							void HostProvider.window.openSettings({
+								query: "telemetry.telemetryLevel",
+							})
+						}
+					})
 			}
 		}
 

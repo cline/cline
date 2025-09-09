@@ -29,6 +29,12 @@ export class HostProvider {
 	// Returns a callback URI that will redirect to Cline.
 	getCallbackUri: () => Promise<string>
 
+	// Returns the location of the binary `name`.
+	// Use `getBinaryLocation()` from utils/ts.ts instead of using
+	// this directly. The helper function correctly handles the file
+	// extension on Windows.
+	getBinaryLocation: (name: string) => Promise<string>
+
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
@@ -36,12 +42,14 @@ export class HostProvider {
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUri: () => Promise<string>,
+		getBinaryLocation: (name: string) => Promise<string>,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
 		this.getCallbackUri = getCallbackUri
+		this.getBinaryLocation = getBinaryLocation
 	}
 
 	public static initialize(
@@ -50,6 +58,7 @@ export class HostProvider {
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUri: () => Promise<string>,
+		getBinaryLocation: (name: string) => Promise<string>,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host providers have already been initialized.")
@@ -60,6 +69,7 @@ export class HostProvider {
 			hostBridgeProvider,
 			logToChannel,
 			getCallbackUri,
+			getBinaryLocation,
 		)
 		return HostProvider.instance
 	}
