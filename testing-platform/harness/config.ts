@@ -1,3 +1,6 @@
+// Note: This list is temporary. Some items may remain in the long run,
+// but our goal is to reduce it over time by continuously improving
+// how we prepare the testing-platform environment.
 export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.distinctId",
 	"stateJson.apiConfiguration.actModeApiProvider",

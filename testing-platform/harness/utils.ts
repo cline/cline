@@ -2,12 +2,10 @@ import fs from "fs"
 import { diff } from "jest-diff"
 import path from "path"
 
-// Load JSON from file
 export function loadJson(filePath: string): any {
 	return JSON.parse(fs.readFileSync(path.resolve(filePath), "utf-8"))
 }
 
-// Pretty-print JSON
 export function pretty(obj: any): string {
 	return JSON.stringify(obj, null, 2)
 }
@@ -16,7 +14,8 @@ export function pretty(obj: any): string {
 function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any {
 	if (Array.isArray(obj)) {
 		return obj.map((item, idx) => normalize(item, ignoreFields, parentPath)) // do not include index
-	} else if (obj && typeof obj === "object") {
+	}
+	if (obj && typeof obj === "object") {
 		const result: Record<string, any> = {}
 		for (const [k, v] of Object.entries(obj)) {
 			const currentPath = parentPath ? `${parentPath}.${k}` : k
@@ -24,7 +23,8 @@ function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any 
 			result[k] = normalize(v, ignoreFields, currentPath)
 		}
 		return result
-	} else if (typeof obj === "string") {
+	}
+	if (typeof obj === "string") {
 		try {
 			return normalize(JSON.parse(obj), ignoreFields, parentPath)
 		} catch {
