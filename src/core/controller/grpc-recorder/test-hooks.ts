@@ -6,6 +6,11 @@ import { GrpcPostRecordHook } from "./types"
 export function testHooks(controller: Controller): GrpcPostRecordHook[] {
 	return [
 		async (entry) => {
+			GrpcRecorderBuilder.getRecorder(controller).cleanupSyntheticEntries()
+
+			// Add 50ms delay to ensure we get the latest state
+			await new Promise((resolve) => setTimeout(resolve, 50))
+
 			const requestId = entry.requestId
 
 			// Record synthetic "getLatestState" request
