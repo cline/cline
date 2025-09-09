@@ -6,6 +6,7 @@ import { showSystemNotification } from "@integrations/notifications"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -13,9 +14,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = "attempt_completion"
-
-	constructor() {}
+	readonly name = ClineDefaultTool.ATTEMPT
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -48,7 +47,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Validate required parameters
 		if (!result) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("attempt_completion", "result")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "result")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
