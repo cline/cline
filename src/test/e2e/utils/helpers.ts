@@ -221,7 +221,7 @@ export const e2e = test
 		},
 		multiRootWorkspaceDir: async ({}, use) => {
 			// DOCS: https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces
-			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "test.code-workspace"))
+			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "multiroots.code-workspace"))
 		},
 		userDataDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
@@ -273,7 +273,8 @@ export const e2e = test
 	})
 	.extend<{ app: ElectronApplication }>({
 		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
-			const app = await openVSCode(workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir)
+			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
+			const app = await openVSCode(workspacePath)
 
 			try {
 				await use(app)
