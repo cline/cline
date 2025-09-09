@@ -15,7 +15,7 @@ interface TodoInfo {
 	progressPercentage: number
 }
 
-interface FocusChainContainerProps {
+interface FocusChainProps {
 	lastProgressMessageText?: string
 	currentTaskItemId?: string
 }
@@ -43,11 +43,6 @@ const ToDoListHeader = memo<{
 					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-0.5 px-1.5 rounded-[10px]">
 						{todoInfo.currentIndex}/{todoInfo.totalCount}
 					</span>
-					{/* {todoInfo.currentTodo && (
-						<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
-							{todoInfo.currentTodo.text}
-						</span>
-					)} */}
 					<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
 						{todoInfo.isCompleted
 							? `All ${todoInfo.totalCount} steps are completed!`
@@ -122,7 +117,7 @@ const parseCurrentTodoInfo = (text: string): TodoInfo | null => {
 }
 
 // Main component with optimizations
-export const FocusChainContainer: React.FC<FocusChainContainerProps> = memo(({ currentTaskItemId, lastProgressMessageText }) => {
+export const FocusChain: React.FC<FocusChainProps> = memo(({ currentTaskItemId, lastProgressMessageText }) => {
 	const [isTodoExpanded, setIsTodoExpanded] = useState(false)
 
 	// Memoize parsed todo info
@@ -155,7 +150,7 @@ export const FocusChainContainer: React.FC<FocusChainContainerProps> = memo(({ c
 
 	return (
 		<div
-			className="flex flex-col gap-1.5 cursor-pointer select-none bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_10%,transparent)]"
+			className="flex flex-col gap-1.5 cursor-pointer rounded select-none bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_10%,transparent)]"
 			onClick={handleToggle}>
 			<ToDoListHeader currentTaskItemId={currentTaskItemId} isTodoExpanded={isTodoExpanded} todoInfo={todoInfo} />
 
@@ -181,4 +176,4 @@ export const FocusChainContainer: React.FC<FocusChainContainerProps> = memo(({ c
 	)
 })
 
-FocusChainContainer.displayName = "FocusChainContainer"
+FocusChain.displayName = "FocusChainContainer"
