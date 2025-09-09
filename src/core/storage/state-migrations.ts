@@ -117,7 +117,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		const successfullyWrittenData = await readTaskHistoryFromState(context)
 
 		if (!Array.isArray(successfullyWrittenData)) {
-			console.error("[Storage Migration] Task history in the new location is malformed, aborting migration.")
+			console.error("[Storage Migration] Task history in the new location is not an array, aborting migration.")
 			return
 		}
 
