@@ -11,6 +11,8 @@ import { StateServiceClient } from "@/services/grpc-client"
 const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): any => {
 	if (field === "openaiReasoningEffort" && typeof value === "string") {
 		switch (value) {
+			case "minimal":
+				return OpenaiReasoningEffort.MINIMAL
 			case "low":
 				return OpenaiReasoningEffort.LOW
 			case "medium":

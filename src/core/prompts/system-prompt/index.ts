@@ -1,8 +1,8 @@
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { PromptRegistry } from "./registry/PromptRegistry"
 import type { SystemPromptContext } from "./types"
-import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "./utils"
 
 export { ClineToolSet } from "./registry/ClineToolSet"
 export { PromptBuilder } from "./registry/PromptBuilder"
