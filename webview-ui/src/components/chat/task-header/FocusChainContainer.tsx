@@ -25,24 +25,9 @@ const ToDoListHeader = memo<{
 	todoInfo: TodoInfo
 	isTodoExpanded: boolean
 	currentTaskItemId?: string
-	onEditClick: (e: React.MouseEvent) => void
-}>(({ todoInfo, isTodoExpanded, onEditClick }) => {
+}>(({ todoInfo, isTodoExpanded }) => {
 	if (!todoInfo.hasItems) {
 		return null
-	}
-
-	// Completed state - simplified rendering
-	if (todoInfo.isCompleted) {
-		return (
-			<div className="relative flex items-center justify-between z-10 p-2">
-				<div className="flex align-center gap-1">
-					<span className="font-semibold text-[var(--vscode-charts-green)]">
-						All {todoInfo.totalCount} steps are completed!
-					</span>
-				</div>
-				<div className={`codicon codicon-chevron-${isTodoExpanded ? "down" : "right"}`} />
-			</div>
-		)
 	}
 
 	// In-progress state
@@ -58,24 +43,19 @@ const ToDoListHeader = memo<{
 					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-0.5 px-1.5 rounded-[10px]">
 						{todoInfo.currentIndex}/{todoInfo.totalCount}
 					</span>
-					{todoInfo.currentTodo && (
+					{/* {todoInfo.currentTodo && (
 						<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
 							{todoInfo.currentTodo.text}
 						</span>
-					)}
+					)} */}
+					<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
+						{todoInfo.isCompleted
+							? `All ${todoInfo.totalCount} steps are completed!`
+							: todoInfo.currentTodo && todoInfo.currentTodo.text}
+					</span>
 				</div>
 				<div className="flex items-center justify-between">
-					{isTodoExpanded ? (
-						<VSCodeButton
-							appearance="icon"
-							className="opacity-70 hover:bg-transparent hover:opacity-100"
-							onClick={onEditClick}
-							title="Edit focus chain list in markdown file">
-							<span className="codicon codicon-edit" />
-						</VSCodeButton>
-					) : (
-						<div className={`shrink-0 codicon codicon-chevron-right`} />
-					)}
+					<div className={`shrink-0 codicon codicon-chevron-${isTodoExpanded ? "down" : "right"}`} />
 				</div>
 			</div>
 		</div>
@@ -177,19 +157,24 @@ export const FocusChainContainer: React.FC<FocusChainContainerProps> = memo(({ c
 		<div
 			className="flex flex-col gap-1.5 cursor-pointer select-none bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_10%,transparent)]"
 			onClick={handleToggle}>
-			<ToDoListHeader
-				currentTaskItemId={currentTaskItemId}
-				isTodoExpanded={isTodoExpanded}
-				onEditClick={handleEditClick}
-				todoInfo={todoInfo}
-			/>
+			<ToDoListHeader currentTaskItemId={currentTaskItemId} isTodoExpanded={isTodoExpanded} todoInfo={todoInfo} />
 
 			{isTodoExpanded && (
 				<div className="m-1 pb-2 px-1 rounded relative">
 					<ChecklistRenderer text={lastProgressMessageText} />
-					{todoInfo.isCompleted && (
-						<div className="mt-2 text-xs text-description">New steps will be generated if you continue the task</div>
-					)}
+					<div className="flex justify-between items-center">
+						<div className="mt-2 text-xs text-description">
+							{todoInfo.isCompleted ? "New steps will be generated if you continue the task" : ""}
+						</div>
+
+						<VSCodeButton
+							appearance="icon"
+							className="text-xs opacity-70 hover:bg-transparent hover:opacity-100"
+							onClick={handleEditClick}
+							title="Edit focus chain list in markdown file">
+							<span className="codicon codicon-edit" />
+						</VSCodeButton>
+					</div>
 				</div>
 			)}
 		</div>

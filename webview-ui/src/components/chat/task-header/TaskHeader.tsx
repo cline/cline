@@ -3,7 +3,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -35,7 +35,6 @@ interface TaskHeaderProps {
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
-// Constants moved outside component to prevent recreation
 const CONTEXT_WINDOW_ACTIONS = [
 	{ title: "Smol", command: "/smol" },
 	{ title: "Compact", command: "/compact" },
@@ -57,117 +56,109 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const { apiConfiguration, currentTaskItem, checkpointManagerErrorMessage, clineMessages, navigateToSettings, mode } =
 		useExtensionState()
 
-	// Consolidated state for better performance
-	const [expandedState, setExpandedState] = useState({
-		task: true,
-		text: false,
-		showSeeMore: false,
-	})
+	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
+	const [isTextExpanded, setIsTextExpanded] = useState(false)
+	const [showSeeMore, setShowSeeMore] = useState(false)
 
 	// TODO: Persist this in settings
-	const [autoCompactMarker, setAutoCompactMarker] = useState<number>(75)
+	const [autoCompactMarker, setAutoCompactMarker] = useState(75)
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
 	const prevErrorMessageRef = useRef(checkpointManagerErrorMessage)
 
-	// Memoized computations
-	const { contextWindow, isCostAvailable, tokenUsage, shouldShowPromptCacheInfo } = useMemo(() => {
-		const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
-		const contextWindow = selectedModelInfo?.contextWindow
+	const { height: windowHeight } = useWindowSize()
 
-		const modeFields = getModeSpecificFields(apiConfiguration, mode)
-		const openAiCompatHasPricing =
-			modeFields.apiProvider === "openai" &&
+	// Simplified computed values
+	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
+	const contextWindow = selectedModelInfo?.contextWindow
+	const modeFields = getModeSpecificFields(apiConfiguration, mode)
+
+	const isCostAvailable =
+		(modeFields.apiProvider === "openai" &&
 			modeFields.openAiModelInfo?.inputPrice &&
-			modeFields.openAiModelInfo?.outputPrice
+			modeFields.openAiModelInfo?.outputPrice) ||
+		(modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio")
 
-		const isCostAvailable =
-			openAiCompatHasPricing ||
-			(modeFields.apiProvider !== "vscode-lm" &&
-				modeFields.apiProvider !== "ollama" &&
-				modeFields.apiProvider !== "lmstudio")
+	const shouldShowPromptCacheInfo = (cacheReads && cacheReads > 0) || (cacheWrites && cacheWrites > 0)
+	const usagePercentage = contextWindow ? ((lastApiReqTotalTokens || 0) / contextWindow) * 100 : 0
 
-		const tokenUsage = {
-			current: formatLargeNumber(lastApiReqTotalTokens || 0),
-			max: formatLargeNumber(contextWindow || 0),
-		}
-
-		const shouldShowPromptCacheInfo =
-			(cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0)
-
-		return { selectedModelInfo, contextWindow, isCostAvailable, tokenUsage, shouldShowPromptCacheInfo }
-	}, [apiConfiguration, mode, lastApiReqTotalTokens, cacheReads, cacheWrites])
-
-	// Optimized event handlers
+	// Event handlers
 	const toggleTaskExpanded = useCallback(() => {
-		setExpandedState((prev) => ({
-			...prev,
-			task: !prev.task,
-			text: prev.task ? false : prev.text, // Reset text expansion when collapsing
-		}))
+		setIsTaskExpanded((prev) => {
+			if (prev) {
+				setIsTextExpanded(false) // Reset text expansion when collapsing
+			}
+			return !prev
+		})
 	}, [])
 
 	const toggleTextExpanded = useCallback(() => {
-		setExpandedState((prev) => ({ ...prev, text: !prev.text }))
+		setIsTextExpanded((prev) => !prev)
 	}, [])
+
+	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+		const rect = event.currentTarget.getBoundingClientRect()
+		const clickX = event.clientX - rect.left
+		const percentage = Math.max(0, Math.min(100, (clickX / rect.width) * 100))
+		setAutoCompactMarker(percentage)
+	}, [])
+
+	const handleCheckpointSettingsClick = useCallback(() => {
+		navigateToSettings()
+		setTimeout(async () => {
+			try {
+				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
+			} catch (error) {
+				console.error("Error scrolling to checkpoint settings:", error)
+			}
+		}, 300)
+	}, [navigateToSettings])
 
 	// Handle checkpoint error message changes
 	useEffect(() => {
 		if (checkpointManagerErrorMessage !== prevErrorMessageRef.current) {
-			setExpandedState((prev) => ({ ...prev, task: true }))
+			setIsTaskExpanded(true)
 			prevErrorMessageRef.current = checkpointManagerErrorMessage
 		}
 	}, [checkpointManagerErrorMessage])
 
-	const { height: windowHeight, width: windowWidth } = useWindowSize()
-
-	// Optimized resize and overflow detection
+	// Handle text overflow detection
 	useEffect(() => {
-		if (!expandedState.task) {
+		if (!isTaskExpanded) {
 			return
 		}
 
-		const updateLayout = () => {
-			const textContainer = textContainerRef.current
-			const textElement = textRef.current
-
-			if (!textContainer || !textElement) {
-				return
-			}
-
-			// Update max height for expanded text
-			if (expandedState.text) {
-				textContainer.style.maxHeight = `${windowHeight * 0.5}px`
-			}
-
-			// Check for overflow
-			const containerHeight = textContainer.clientHeight || textContainer.getBoundingClientRect().height
-			const isOverflowing = textElement.scrollHeight > containerHeight
-
-			if (isOverflowing !== expandedState.showSeeMore) {
-				setExpandedState((prev) => ({ ...prev, showSeeMore: isOverflowing }))
-			}
+		const textContainer = textContainerRef.current
+		const textElement = textRef.current
+		if (!textContainer || !textElement) {
+			return
 		}
 
-		// Use requestAnimationFrame for better performance
-		const rafId = requestAnimationFrame(updateLayout)
-		return () => cancelAnimationFrame(rafId)
-	}, [task.text, windowWidth, windowHeight, expandedState.task, expandedState.text, expandedState.showSeeMore])
+		// Update max height for expanded text
+		if (isTextExpanded) {
+			textContainer.style.maxHeight = `${windowHeight * 0.5}px`
+		}
 
-	// Memoized components for better performance
-	const ContextWindowButtonsContainer = memo(() => (
+		// Check for overflow
+		const containerHeight = textContainer.clientHeight || textContainer.getBoundingClientRect().height
+		const isOverflowing = textElement.scrollHeight > containerHeight
+		setShowSeeMore(isOverflowing)
+	}, [task.text, windowHeight, isTaskExpanded, isTextExpanded])
+
+	// Context window buttons component
+	const ContextWindowButtons = () => (
 		<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
 			<header className="flex justify-between gap-3">
 				<div>Context Window</div>
 				<div className="text-muted-foreground">
-					{tokenUsage.current} of {tokenUsage.max} used
+					{formatLargeNumber(lastApiReqTotalTokens || 0)} of {formatLargeNumber(contextWindow || 0)} used
 				</div>
 			</header>
 			<div className="flex items-center gap-2 justify-evenly">
 				{CONTEXT_WINDOW_ACTIONS.map((action) => (
 					<VSCodeButton
-						appearance={"type" in action && action.type === "primary" ? "primary" : "secondary"}
+						appearance="secondary"
 						className="rounded-sm grow cursor-pointer"
 						key={action.command}
 						onClick={(e) => {
@@ -181,26 +172,24 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				))}
 			</div>
 		</div>
-	))
+	)
 
-	const ContextWindowComponent = memo(() => {
+	// Context window component
+	const ContextWindow = () => {
 		if (!contextWindow) {
 			return null
 		}
-
-		const usagePercentage = ((lastApiReqTotalTokens || 0) / contextWindow) * 100
 
 		return (
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-2 flex-[1] whitespace-nowrap">
 					<HeroTooltip content="Current tokens used in this request">
-						<span className="cursor-pointer">{tokenUsage.current}</span>
+						<span className="cursor-pointer">{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
 					</HeroTooltip>
 					<div className="flex items-center gap-1 flex-[1]">
-						<Tooltip closeDelay={100} content={<ContextWindowButtonsContainer />} placement="bottom" showArrow={true}>
+						<Tooltip closeDelay={100} content={<ContextWindowButtons />} placement="bottom" showArrow={true}>
 							<div
 								className="relative cursor-pointer flex-[1] h-1.5 border-[var(--vscode-charts-green)]/20 border-1 rounded overflow-hidden"
-								id="context-window-bar"
 								onClick={handleContextWindowBarClick}>
 								<div
 									className="h-full w-full bg-[var(--vscode-charts-green)]"
@@ -208,58 +197,38 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								/>
 								<div
 									className="absolute top-0 bottom-0 h-full w-1 bg-[var(--vscode-charts-yellow)] cursor-pointer"
-									id="auto-compact-marker"
 									style={{ left: `${autoCompactMarker}%` }}
 								/>
 							</div>
 						</Tooltip>
 						<HeroTooltip content="Maximum context window size for this model">
-							<span className="cursor-pointer">{tokenUsage.max}</span>
+							<span className="cursor-pointer">{formatLargeNumber(contextWindow || 0)}</span>
 						</HeroTooltip>
 					</div>
 				</div>
 			</div>
 		)
-	})
+	}
 
-	const ActionButtons = memo(() => (
+	// Action buttons component
+	const ActionButtons = () => (
 		<div className="flex items-center flex-wrap">
 			{IS_DEV && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
 			<CopyTaskButton taskText={task.text} />
 			<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
 		</div>
-	))
-
-	// Handle context window bar click to move auto-compact marker
-	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-		const rect = event.currentTarget.getBoundingClientRect()
-		const clickX = event.clientX - rect.left
-		const percentage = Math.max(0, Math.min(100, (clickX / rect.width) * 100))
-		setAutoCompactMarker(percentage)
-	}, [])
-
-	// Optimized checkpoint settings handler
-	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings()
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-			} catch (error) {
-				console.error("Error scrolling to checkpoint settings:", error)
-			}
-		}, 300)
-	}, [navigateToSettings])
+	)
 
 	return (
-		<div className="px-2.5 py-3 flex flex-col gap-1.5">
+		<div className="px-2.5 py-3 flex flex-col gap-2">
 			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 p-2.5">
 				<div className="flex justify-between items-center">
 					<div className="flex items-center cursor-pointer select-none flex-grow min-w-0" onClick={toggleTaskExpanded}>
 						<div className="flex items-center shrink-0">
-							<span className={`codicon codicon-chevron-${expandedState.task ? "down" : "right"}`} />
+							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`} />
 						</div>
 						<div className="ml-1.5 whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
-							{expandedState.task ? (
+							{isTaskExpanded ? (
 								<ActionButtons />
 							) : (
 								<span className="ph-no-capture ml-1">{highlightText(task.text, false)}</span>
@@ -288,16 +257,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</VSCodeButton>
 				</div>
 
-				{expandedState.task && (
+				{isTaskExpanded && (
 					<div className="flex flex-col gap-2 mt-1">
-						<div className={expandedState.showSeeMore ? "cursor-pointer" : ""} ref={textContainerRef}>
+						<div className={showSeeMore ? "cursor-pointer" : ""} ref={textContainerRef}>
 							<div
 								className="ph-no-capture overflow-hidden whitespace-pre-wrap break-words"
 								onClick={toggleTextExpanded}
 								ref={textRef}
 								style={{
 									display: "-webkit-box",
-									WebkitLineClamp: expandedState.text ? "unset" : 2,
+									WebkitLineClamp: isTextExpanded ? "unset" : 2,
 									WebkitBoxOrient: "vertical",
 								}}>
 								{highlightText(task.text, false)}
@@ -354,7 +323,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 							<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 
-							<ContextWindowComponent />
+							<ContextWindow />
 						</div>
 					</div>
 				)}
@@ -391,7 +360,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	)
 }
 
-// Optimized highlighting functions with better performance
+// Optimized highlighting functions
 const highlightSlashCommands = (text: string, withShadow = true) => {
 	const match = text.match(/^\s*\/([a-zA-Z0-9_-]+)(\s*|$)/)
 	if (!match || validateSlashCommand(match[1]) !== "full") {
@@ -422,12 +391,10 @@ export const highlightMentions = (text: string, withShadow = true) => {
 
 	for (let i = 0; i < parts.length; i++) {
 		if (i % 2 === 0) {
-			// Regular text
 			if (parts[i]) {
 				result.push(parts[i])
 			}
 		} else {
-			// Mention
 			result.push(
 				<span
 					className={`${withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} cursor-pointer`}
@@ -465,4 +432,4 @@ export const highlightText = (text?: string, withShadow = true) => {
 	return slashResult
 }
 
-export default memo(TaskHeader)
+export default TaskHeader
