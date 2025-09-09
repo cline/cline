@@ -54,7 +54,7 @@ From github.com:user/repo
       
       <tool_use><![CDATA[
 <execute_command>
-<command>git rebase origin/main</command>
+<command>GIT_EDITOR=true git rebase origin/main</command>
 </execute_command>
       ]]></tool_use>
       <expected_output><![CDATA[
@@ -251,7 +251,7 @@ abc123 Fix: Add listener cleanup to prevent memory leak
       
       <tool_use><![CDATA[
 <execute_command>
-<command>git rebase --continue</command>
+<command>GIT_EDITOR=true git rebase --continue</command>
 </execute_command>
       ]]></tool_use>
       <expected_output><![CDATA[
@@ -309,7 +309,8 @@ Both the feature refactor and the critical bugfix have been preserved in the res
     <takeaway>Use git blame and commit messages to understand the history</takeaway>
     <takeaway>Combine non-conflicting improvements when possible</takeaway>
     <takeaway>Prioritize bugfixes while accommodating refactors</takeaway>
-    <takeaway>Complete the rebase process with git rebase --continue</takeaway>
+    <takeaway>Use GIT_EDITOR=true to ensure non-interactive rebase operations</takeaway>
+    <takeaway>Complete the rebase process with GIT_EDITOR=true git rebase --continue</takeaway>
     <takeaway>Validate that both sets of changes work together</takeaway>
   </key_takeaways>
 </merge_resolver_example>

@@ -26,6 +26,8 @@
         <practice>Chain git commands with && for efficiency</practice>
         <practice>Use --format options for structured output</practice>
         <practice>Capture command output for parsing</practice>
+        <practice>Use GIT_EDITOR=true for non-interactive git rebase operations</practice>
+        <practice>Set environment variables inline to avoid prompts during automation</practice>
       </best_practices>
       
       <common_commands>
@@ -46,7 +48,7 @@
         
         <command>
           <purpose>Rebase onto main to reveal conflicts</purpose>
-          <syntax>git rebase origin/main</syntax>
+          <syntax>GIT_EDITOR=true git rebase origin/main</syntax>
         </command>
         
         <command>
@@ -71,7 +73,7 @@
         
         <command>
           <purpose>Continue rebase after resolution</purpose>
-          <syntax>git rebase --continue</syntax>
+          <syntax>GIT_EDITOR=true git rebase --continue</syntax>
         </command>
       </common_commands>
     </tool>
@@ -152,7 +154,7 @@ const config = {
         <step>execute_command - Get PR info with gh CLI</step>
         <step>execute_command - Checkout PR with gh pr checkout --force</step>
         <step>execute_command - Fetch origin main</step>
-        <step>execute_command - Rebase onto origin/main</step>
+        <step>execute_command - Rebase onto origin/main with GIT_EDITOR=true</step>
         <step>execute_command - Check for conflicts with git status</step>
       </sequence>
     </pattern>
@@ -178,13 +180,22 @@ const config = {
     <pattern name="complete_rebase">
       <sequence>
         <step>execute_command - Check all conflicts resolved</step>
-        <step>execute_command - Continue rebase with git rebase --continue</step>
+        <step>execute_command - Continue rebase with GIT_EDITOR=true git rebase --continue</step>
         <step>execute_command - Verify clean status</step>
       </sequence>
     </pattern>
   </tool_combination_patterns>
 
   <error_handling>
+    <scenario name="interactive_prompt_blocking">
+      <description>Git commands waiting for interactive input</description>
+      <approach>
+        Use GIT_EDITOR=true to bypass editor prompts
+        Set GIT_SEQUENCE_EDITOR=true for sequence editing
+        Consider --no-edit flag for commit operations
+      </approach>
+    </scenario>
+    
     <scenario name="no_conflicts_after_rebase">
       <description>Rebase completes without conflicts</description>
       <approach>
@@ -225,4 +236,42 @@ const config = {
       </approach>
     </scenario>
   </error_handling>
+
+  <non_interactive_operations>
+    <overview>
+      Ensuring git operations run without requiring user interaction is critical
+      for automated conflict resolution. The mode uses environment variables to
+      bypass interactive prompts.
+    </overview>
+    
+    <techniques>
+      <technique name="GIT_EDITOR">
+        <description>Set to 'true' (a no-op command) to skip editor prompts</description>
+        <usage>GIT_EDITOR=true git rebase --continue</usage>
+        <when>During rebase operations that would normally open an editor</when>
+      </technique>
+      
+      <technique name="GIT_SEQUENCE_EDITOR">
+        <description>Skip interactive rebase todo editing</description>
+        <usage>GIT_SEQUENCE_EDITOR=true git rebase -i HEAD~3</usage>
+        <when>When interactive rebase is triggered but no editing needed</when>
+      </technique>
+      
+      <technique name="commit_flags">
+        <description>Use flags to avoid interactive prompts</description>
+        <examples>
+          <example>git commit --no-edit (use existing message)</example>
+          <example>git merge --no-edit (skip merge message editing)</example>
+          <example>git cherry-pick --no-edit (keep original message)</example>
+        </examples>
+      </technique>
+    </techniques>
+    
+    <best_practices>
+      <practice>Always test commands locally first to identify potential prompts</practice>
+      <practice>Combine environment variables when multiple editors might be invoked</practice>
+      <practice>Document why non-interactive mode is used in comments</practice>
+      <practice>Have fallback strategies if automation fails</practice>
+    </best_practices>
+  </non_interactive_operations>
 </merge_resolver_tool_usage>

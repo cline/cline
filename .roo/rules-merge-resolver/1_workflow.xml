@@ -30,12 +30,13 @@
       <tools>
         <tool>gh pr checkout [PR_NUMBER] --force</tool>
         <tool>git fetch origin main</tool>
-        <tool>git rebase origin/main</tool>
+        <tool>GIT_EDITOR=true git rebase origin/main</tool>
       </tools>
       <details>
         Force checkout the PR branch to ensure clean state
         Fetch the latest main branch
         Attempt to rebase onto main to reveal conflicts
+        Use GIT_EDITOR=true to ensure non-interactive rebase
       </details>
     </step>
 
@@ -108,8 +109,8 @@
     </command>
     
     <command name="rebase_main">
-      <syntax>git rebase origin/main</syntax>
-      <purpose>Rebase current branch onto main to reveal conflicts</purpose>
+      <syntax>GIT_EDITOR=true git rebase origin/main</syntax>
+      <purpose>Rebase current branch onto main to reveal conflicts (non-interactive)</purpose>
     </command>
     
     <command name="get_blame_info">
@@ -132,6 +133,20 @@
       <purpose>List unmerged files with stage information</purpose>
     </command>
   </git_commands>
+
+    <command name="continue_rebase">
+      <syntax>GIT_EDITOR=true git rebase --continue</syntax>
+      <purpose>Continue rebase after resolving conflicts (non-interactive)</purpose>
+    </command>
+  </git_commands>
+
+  <environment_variables>
+    <variable name="GIT_EDITOR">
+      <value>true</value>
+      <purpose>Set to 'true' (a no-op command) to prevent interactive prompts during rebase operations</purpose>
+      <usage>Prefix git rebase commands with GIT_EDITOR=true to ensure non-interactive execution</usage>
+    </variable>
+  </environment_variables>
 
   <completion_criteria>
     <criterion>All merge conflicts have been resolved</criterion>
