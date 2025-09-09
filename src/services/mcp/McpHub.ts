@@ -30,7 +30,6 @@ import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
-import * as vscode from "vscode"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -44,7 +43,6 @@ export class McpHub {
 	private clientVersion: string
 	private telemetryService: TelemetryService
 
-	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
@@ -1153,6 +1151,5 @@ export class McpHub {
 		if (this.settingsWatcher) {
 			await this.settingsWatcher.close()
 		}
-		this.disposables.forEach((d) => d.dispose())
 	}
 }
