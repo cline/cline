@@ -1172,9 +1172,10 @@ export const ChatRowContent = ({
 					)
 				case "user_feedback":
 					return (
-						<div className="bg-vscode-editor-background border rounded-xs p-1 overflow-hidden whitespace-pre-wrap">
+						<div
+							className={`bg-vscode-editor-background border rounded-xs overflow-hidden whitespace-pre-wrap ${isEditing ? "p-0" : "p-1"}`}>
 							{isEditing ? (
-								<div className="flex flex-col gap-2 p-2">
+								<div className="flex flex-col gap-2">
 									<ChatTextArea
 										inputValue={editedContent}
 										setInputValue={setEditedContent}
@@ -1195,7 +1196,15 @@ export const ChatRowContent = ({
 								</div>
 							) : (
 								<div className="flex justify-between">
-									<div className="flex-grow px-2 py-1 wrap-anywhere">
+									<div
+										className="flex-grow px-2 py-1 wrap-anywhere cursor-pointer hover:bg-vscode-list-hoverBackground rounded transition-colors"
+										onClick={(e) => {
+											e.stopPropagation()
+											if (!isStreaming) {
+												handleEditClick()
+											}
+										}}
+										title={t("chat:queuedMessages.clickToEdit")}>
 										<Mention text={message.text} withShadow />
 									</div>
 									<div className="flex">
