@@ -107,7 +107,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		// We make sure that the old location taskHistory is an array. If it's not, then it's malformed, so we just write an empty array to the new taskHistory storage location.
 		if (!Array.isArray(oldLocationTaskHistory)) {
 			console.error(
-				"[Storage Migration] Task history in the vs code global state is malformed, writing an empty array to the new storage location",
+				"[Storage Migration] Task history in the vs code global state is not an array, writing an empty array to the new storage location",
 			)
 			await writeTaskHistoryToState(context, [])
 			return
