@@ -58,6 +58,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		useExtensionState()
 
 	// Consolidated state for better performance
+	const [autoCompactMarker, setAutoCompactMarker] = useState<number>(75)
 	const [expandedState, setExpandedState] = useState({
 		task: true,
 		text: false,
@@ -190,19 +191,22 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<span className="cursor-pointer">{tokenUsage.current}</span>
 					</HeroTooltip>
 					<div className="flex items-center gap-1 flex-[1]">
-						<div className="relative cursor-pointer flex-[1] h-1.5 border-[var(--vscode-charts-green)]/20 border-1 rounded overflow-hidden">
+						<Tooltip closeDelay={100} content={<ContextWindowButtonsContainer />} placement="bottom" showArrow={true}>
 							<div
-								className="h-full w-full bg-[var(--vscode-charts-green)]"
-								style={{ width: `${usagePercentage}%` }}
-							/>
-							<Tooltip
-								closeDelay={100}
-								content={<ContextWindowButtonsContainer />}
-								placement="bottom"
-								showArrow={true}>
-								<div className="absolute top-0 bottom-0 h-full w-1 bg-[var(--vscode-charts-yellow)] left-[75%] cursor-pointer" />
-							</Tooltip>
-						</div>
+								className="relative cursor-pointer flex-[1] h-1.5 border-[var(--vscode-charts-green)]/20 border-1 rounded overflow-hidden"
+								id="context-window-bar"
+								onClick={handleContextWindowBarClick}>
+								<div
+									className="h-full w-full bg-[var(--vscode-charts-green)]"
+									style={{ width: `${usagePercentage}%` }}
+								/>
+								<div
+									className="absolute top-0 bottom-0 h-full w-1 bg-[var(--vscode-charts-yellow)] cursor-pointer"
+									id="auto-compact-marker"
+									style={{ left: `${autoCompactMarker}%` }}
+								/>
+							</div>
+						</Tooltip>
 						<HeroTooltip content="Maximum context window size for this model">
 							<span className="cursor-pointer">{tokenUsage.max}</span>
 						</HeroTooltip>
@@ -219,6 +223,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
 		</div>
 	))
+
+	// Handle context window bar click to move auto-compact marker
+	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+		const rect = event.currentTarget.getBoundingClientRect()
+		const clickX = event.clientX - rect.left
+		const percentage = Math.max(0, Math.min(100, (clickX / rect.width) * 100))
+		setAutoCompactMarker(percentage)
+	}, [])
 
 	// Optimized checkpoint settings handler
 	const handleCheckpointSettingsClick = useCallback(() => {
@@ -249,14 +261,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						</div>
 					</div>
 
-					{isCostAvailable && (
+					{isCostAvailable && totalCost && (
 						<div
 							className="ml-2.5 px-1 py-0.5 rounded-full text-[11px] font-medium inline-block shrink-0"
 							style={{
 								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
 								color: "var(--vscode-badge-background)",
 							}}>
-							${totalCost?.toFixed(4)}
+							${totalCost.toFixed(4)}
 						</div>
 					)}
 
@@ -351,7 +363,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 						{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
 							<button
-								className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit text-[inherit]"
+								className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
 								onClick={handleCheckpointSettingsClick}>
 								disabling checkpoints.
 							</button>
