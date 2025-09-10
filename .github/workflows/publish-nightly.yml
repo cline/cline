@@ -20,7 +20,7 @@ jobs:
         name: Publish Cline (Nightly) Extension
         if: github.repository == 'cline/cline'
         runs-on: ubuntu-latest
-        environment: publish
+        environment: PublishNightly
 
         steps:
             - uses: actions/checkout@v4
