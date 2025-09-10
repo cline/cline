@@ -7,6 +7,7 @@ export interface PlatformConfig {
 	encodeMessage: MessageEncoder
 	decodeMessage: MessageDecoder
 	togglePlanActKeys: string
+	supportsTerminalMentions: boolean
 }
 
 // Internal type for JSON structure (not exported)
@@ -15,6 +16,7 @@ type PlatformConfigJson = {
 	showNavbar: boolean
 	postMessageHandler: "vscode" | "standalone"
 	togglePlanActKeys: string
+	supportsTerminalMentions: boolean
 }
 
 type PlatformConfigs = Record<string, PlatformConfigJson>
@@ -81,6 +83,7 @@ export const PLATFORM_CONFIG: PlatformConfig = {
 	encodeMessage: messageEncoders[selectedConfig.messageEncoding],
 	decodeMessage: messageDecoders[selectedConfig.messageEncoding],
 	togglePlanActKeys: selectedConfig.togglePlanActKeys,
+	supportsTerminalMentions: selectedConfig.supportsTerminalMentions,
 }
 
 type MessageEncoding = "none" | "json"
