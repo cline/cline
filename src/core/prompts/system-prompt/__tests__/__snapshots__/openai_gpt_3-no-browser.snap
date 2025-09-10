@@ -602,6 +602,7 @@ Operating System: macOS
 Default Shell: /bin/zsh
 Home Directory: /Users/tester
 Current Working Directory: /Users/tester/dev/project
+Active Workspaces: /Users/tester/dev/project, /Users/tester/dev/foo, /Users/tester/bar
 
 ====
 
