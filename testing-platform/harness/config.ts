@@ -21,4 +21,8 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.currentTaskItem.id",
 	"stateJson.currentTaskItem.ts",
 	"stateJson.currentTaskItem.ulid",
+	"stateJson.workspaceRoots.commitHash",
+	"stateJson.workspaceRoots.name",
+	"stateJson.workspaceRoots.path",
+	"stateJson.workspaceRoots.vcs",
 ]
