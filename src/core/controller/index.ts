@@ -176,6 +176,7 @@ export class Controller {
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalStateKey("strictPlanModeEnabled")
+		const yoloModeToggled = this.stateManager.getGlobalStateKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalStateKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -223,6 +224,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
+			yoloModeToggled ?? false,
 			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,

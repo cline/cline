@@ -31,6 +31,7 @@ export interface TaskConfig {
 	cwd: string
 	mode: Mode
 	strictPlanModeEnabled: boolean
+	yoloModeToggled: boolean
 	context: vscode.ExtensionContext
 
 	// State management

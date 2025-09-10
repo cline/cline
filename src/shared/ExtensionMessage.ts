@@ -67,6 +67,7 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
+	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean

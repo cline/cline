@@ -87,6 +87,7 @@ export class ToolExecutor {
 		private ulid: string,
 		private mode: Mode,
 		private strictPlanModeEnabled: boolean,
+		private yoloModeToggled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -129,6 +130,7 @@ export class ToolExecutor {
 			context: this.context,
 			mode: this.mode,
 			strictPlanModeEnabled: this.strictPlanModeEnabled,
+			yoloModeToggled: this.yoloModeToggled,
 			cwd: this.cwd,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
@@ -218,6 +220,10 @@ export class ToolExecutor {
 
 	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
 		this.strictPlanModeEnabled = strictPlanModeEnabled
+	}
+
+	public updateYoloModeToggled(yoloModeToggled: boolean): void {
+		this.yoloModeToggled = yoloModeToggled
 	}
 
 	/**

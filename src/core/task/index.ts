@@ -158,6 +158,7 @@ export class Task {
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
+		yoloModeToggled: boolean,
 		useAutoCondense: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
@@ -398,6 +399,7 @@ export class Task {
 			this.ulid,
 			this.mode,
 			strictPlanModeEnabled,
+			yoloModeToggled,
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpointCallback.bind(this),
@@ -415,6 +417,10 @@ export class Task {
 		if (this.FocusChainManager) {
 			this.FocusChainManager.updateMode(mode)
 		}
+	}
+
+	public updateYoloModeToggled(yoloModeToggled: boolean): void {
+		this.toolExecutor.updateYoloModeToggled(yoloModeToggled)
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {

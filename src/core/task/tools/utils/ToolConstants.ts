@@ -15,6 +15,7 @@ export const TASK_CONFIG_KEYS = [
 	"cwd",
 	"mode",
 	"strictPlanModeEnabled",
+	"yoloModeToggled",
 	"context",
 	"taskState",
 	"messageState",
