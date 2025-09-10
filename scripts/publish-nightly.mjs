@@ -187,7 +187,7 @@ class NightlyPublisher {
 		pkg.version = newVersion
 		pkg.name = config.nightlyName
 		pkg.displayName = config.nightlyDisplayName
-		pkg.viewsContainers.activitybar.title = config.nightlyDisplayName
+		pkg.contributes.viewsContainers.activitybar.title = config.nightlyDisplayName
 
 		// Save updated package.json
 		log.info("Updating package.json for nightly build")
