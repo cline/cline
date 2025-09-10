@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 
 	// Handle graceful shutdown
 	const shutdown = async (): Promise<void> => {
-		console.log(`\n Shutting down services...\n${userDataDir}\n, ${extensionsDir}\n, ${clineTestWorkspace}\n`)
+		console.log(`\n Shutting down services...\n${userDataDir}\n${extensionsDir}\n${clineTestWorkspace}\n`)
 		hostbridge.kill()
 		coreService.kill()
 		await ClineApiServerMock.stopGlobalServer()
