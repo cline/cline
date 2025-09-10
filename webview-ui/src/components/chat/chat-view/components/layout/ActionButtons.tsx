@@ -2,8 +2,8 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useEffect, useMemo, useState } from "react"
-import { BUTTON_CONFIGS, getButtonConfig } from "../../shared/buttonConfig"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { BUTTON_CONFIGS, ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -17,6 +17,11 @@ interface ActionButtonsProps {
 		disableAutoScrollRef: React.MutableRefObject<boolean>
 		showScrollToBottom: boolean
 	}
+}
+
+interface ActionButtonConfig {
+	text?: string
+	action?: ButtonActionType
 }
 
 /**
@@ -34,8 +39,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const isStreaming = useMemo(() => task?.partial === true, [task])
 
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+	const [primaryButtonConfig, setPrimaryButtonConfig] = useState<ActionButtonConfig | undefined>(undefined)
+	const [secondaryButtonConfig, setSecondaryButtonConfig] = useState<ActionButtonConfig | undefined>(undefined)
 
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [isProcessingClick, setIsProcessingClick] = useState<boolean>(false)
@@ -43,6 +48,17 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const [lastMessage, secondLastMessage] = useMemo(() => {
 		return [messages.at(-1), messages.at(-2)]
 	}, [messages])
+
+	const handleActionClick = useCallback(
+		(action?: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
+			if (!action) {
+				return
+			}
+			setIsProcessingClick(true)
+			messageHandlers.executeButtonAction(action, text, images, files)
+		},
+		[messageHandlers],
+	)
 
 	// Clear input when transitioning from command_output to api_req
 	// This happens when user provides feedback during command execution
@@ -56,26 +72,34 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Apply button configuration with a single batched update
 	useEffect(() => {
-		const buttonConfig = getButtonConfig(lastMessage, mode)
+		const buttonConfig = lastMessage ? getButtonConfig(lastMessage, mode) : BUTTON_CONFIGS.default
 		setEnableButtons(buttonConfig.enableButtons)
 		setSendingDisabled(buttonConfig.sendingDisabled)
-		setPrimaryButtonText(buttonConfig.primaryText)
-		setSecondaryButtonText(buttonConfig.secondaryText)
+		setPrimaryButtonConfig({
+			text: buttonConfig.primaryText,
+			action: buttonConfig.primaryAction,
+		})
+		setSecondaryButtonConfig({
+			text: buttonConfig.secondaryText,
+			action: buttonConfig.secondaryAction,
+		})
 		// Reset processing state when configuration changes (new message received)
 		setIsProcessingClick(false)
 	}, [lastMessage, mode, setSendingDisabled])
 
+	// Keyboard event listener
 	useEffect(() => {
-		if (!messages?.length) {
-			const buttonConfig = BUTTON_CONFIGS.default
-			setEnableButtons(buttonConfig.enableButtons)
-			setSendingDisabled(buttonConfig.sendingDisabled)
-			setPrimaryButtonText(buttonConfig.primaryText)
-			setSecondaryButtonText(buttonConfig.secondaryText)
-			// Reset processing state when no messages
-			setIsProcessingClick(false)
+		const onKeyDown = (event: KeyboardEvent) => {
+			// ESC to cancel the task in progress.
+			if (event.key === "Escape") {
+				event.preventDefault()
+				event.stopPropagation()
+				messageHandlers.executeButtonAction("cancel")
+			}
 		}
-	}, [messages, setSendingDisabled])
+		window.addEventListener("keydown", onKeyDown)
+		return () => window.removeEventListener("keydown", onKeyDown)
+	}, [lastMessage])
 
 	if (!task) {
 		return null
@@ -108,48 +132,28 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		)
 	}
 
-	const shouldShowButtons = primaryButtonText || secondaryButtonText
+	const shouldShowButtons = primaryButtonConfig?.text || secondaryButtonConfig?.text
 	const enableAndNotProcessing = enableButtons && !isProcessingClick
 	const opacity = shouldShowButtons ? (enableAndNotProcessing || isStreaming ? 1 : 0.5) : 0
 
-	const handlePrimaryClick = async () => {
-		if (!primaryButtonText) {
-			return
-		}
-		setIsProcessingClick(true)
-		if (primaryButtonText === "Start New Task") {
-			messageHandlers.startNewTask()
-		} else {
-			messageHandlers.handleButtonClick(primaryButtonText, inputValue, selectedImages, selectedFiles)
-		}
-	}
-
-	const handleSecondaryClick = async () => {
-		if (!secondaryButtonText) {
-			return
-		}
-		setIsProcessingClick(true)
-		messageHandlers.handleButtonClick(secondaryButtonText, inputValue, selectedImages, selectedFiles)
-	}
-
 	return (
 		<div className="flex px-[15px]" style={{ opacity }}>
-			{primaryButtonText && (
+			{primaryButtonConfig?.text && primaryButtonConfig?.action && (
 				<VSCodeButton
 					appearance="primary"
-					className={`${secondaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
+					className={`${secondaryButtonConfig?.text ? "flex-1 mr-[6px]" : "flex-[2]"}`}
 					disabled={!enableAndNotProcessing}
-					onClick={handlePrimaryClick}>
-					{primaryButtonText}
+					onClick={() => handleActionClick(primaryButtonConfig.action, inputValue, selectedImages, selectedFiles)}>
+					{primaryButtonConfig.text}
 				</VSCodeButton>
 			)}
-			{secondaryButtonText && (
+			{secondaryButtonConfig?.text && secondaryButtonConfig?.action && (
 				<VSCodeButton
 					appearance="secondary"
-					className={`${primaryButtonText ? "flex-1 mr-[6px]" : "flex-[2]"}`}
+					className={`${primaryButtonConfig?.text ? "flex-1 mr-[6px]" : "flex-[2]"}`}
 					disabled={!enableAndNotProcessing}
-					onClick={handleSecondaryClick}>
-					{secondaryButtonText}
+					onClick={() => handleActionClick(secondaryButtonConfig.action, inputValue, selectedImages, selectedFiles)}>
+					{secondaryButtonConfig.text}
 				</VSCodeButton>
 			)}
 		</div>
