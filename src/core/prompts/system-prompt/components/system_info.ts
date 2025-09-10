@@ -11,23 +11,34 @@ const SYSTEM_INFO_TEMPLATE_TEXT = `SYSTEM INFORMATION
 Operating System: {{os}}
 Default Shell: {{shell}}
 Home Directory: {{homeDir}}
-Current Working Directory: {{workingDir}}
-Active Workspaces: {{workspaces}}`
+{{WORKSPACE_TITLE}}: {{workingDir}}`
 
 export async function getSystemEnv(cwd?: string, isTesting = false) {
-	const workspaces = (await getWorkspacePaths({}))?.paths || []
-	return {
-		os: isTesting ? "macOS" : osName(),
-		shell: isTesting ? "/bin/zsh" : getShell(),
-		homeDir: isTesting ? "/Users/tester" : osModule.homedir(),
-		workingDir: isTesting ? "/Users/tester/dev/project" : cwd || process.cwd(),
-		workspaces: isTesting ? ["/Users/tester/dev/project", "/Users/tester/dev/foo", "/Users/tester/bar"] : workspaces,
-	}
+	const currentWorkDir = cwd || process.cwd()
+	const workspaces = (await getWorkspacePaths({}))?.paths || [currentWorkDir]
+	return isTesting
+		? {
+				os: "macOS",
+				shell: "/bin/zsh",
+				homeDir: "/Users/tester",
+				workingDir: "/Users/tester/dev/project",
+				// Multi-root workspace example: ["/Users/tester/dev/project", "/Users/tester/dev/foo", "/Users/tester/bar"],
+				workspaces: ["/Users/tester/dev/project"],
+			}
+		: {
+				os: osName(),
+				shell: getShell(),
+				homeDir: osModule.homedir(),
+				workingDir: currentWorkDir,
+				workspaces: workspaces,
+			}
 }
 
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const testMode = !!process?.env?.CI || !!process?.env?.IS_DEV || context.isTesting || false
 	const info = await getSystemEnv(context.cwd, testMode)
+	const WORKSPACE_TITLE =
+		!info.workspaces || info.workspaces.length === 1 ? "Current Working Directory" : "Active Workspace Folders"
 
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
@@ -35,7 +46,7 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 		os: info.os,
 		shell: info.shell,
 		homeDir: info.homeDir,
-		workingDir: info.workingDir,
-		workspaces: info.workspaces ? info.workspaces.join(", ") : info.workingDir,
+		WORKSPACE_TITLE,
+		workingDir: info.workspaces.length > 1 ? info.workspaces.join(", ") : info.workingDir,
 	})
 }
