@@ -1287,6 +1287,14 @@ export class Task {
 		return { model, providerId, customPrompt }
 	}
 
+	private getApiRequestIdSafe(): string | undefined {
+		const apiLike = this.api as Partial<{
+			getLastRequestId: () => string | undefined
+			lastGenerationId?: string
+		}>
+		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
@@ -2157,10 +2165,29 @@ export class Task {
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				await this.say(
-					"error",
-					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-				)
+				const { model, providerId } = this.getCurrentProviderInfo()
+				const reqId = this.getApiRequestIdSafe()
+
+				// Minimal diagnostics: structured log and telemetry
+				console.error("[EmptyAssistantMessage]", {
+					ulid: this.ulid,
+					providerId,
+					modelId: model.id,
+					requestId: reqId,
+				})
+				telemetryService.captureProviderApiError({
+					ulid: this.ulid,
+					model: model.id,
+					provider: providerId,
+					errorMessage: "empty_assistant_message",
+					requestId: reqId,
+				})
+
+				const baseErrorMessage =
+					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
+				const errorText = reqId ? `${baseErrorMessage} (reqId: ${reqId})` : baseErrorMessage
+
+				await this.say("error", errorText)
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [
