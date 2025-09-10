@@ -87,7 +87,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<a href="https://plugins.jetbrains.com/plugin/26861-cline">JetBrains Marketplace</a>
 			<div style={{ margin: "12px 0" }} />
 			<b>
-				Plus: Free <code>grok-code-fast-1</code> Until Sept 10th
+				Plus: Free <code>grok-code-fast-1</code>
 			</b>
 			<div style={{ margin: "0.3rem 0" }} />
 			We partnered with xAI to help build this model from the ground up for agentic coding, and so far–community feedback

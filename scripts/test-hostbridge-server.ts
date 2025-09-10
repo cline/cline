@@ -115,8 +115,8 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 						})
 						return
 
-					// For streaming methods (like subscribeToFile)
-					case "subscribeToFile":
+					// For streaming methods (like subscribeToTelemetrySettings)
+					case "subscribeToTelemetrySettings":
 						// Just end the stream immediately
 						call.end()
 						return
