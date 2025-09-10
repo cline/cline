@@ -1,6 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { DownloadIcon } from "lucide-react"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const OpenDiskTaskHistoryButton: React.FC<{
@@ -17,19 +17,18 @@ const OpenDiskTaskHistoryButton: React.FC<{
 	}
 
 	return (
-		<HeroTooltip content="Open Disk Task History">
-			<VSCodeButton
-				appearance="icon"
-				aria-label="Open Disk Task History"
-				className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
-				onClick={(e) => {
-					e.preventDefault()
-					e.stopPropagation()
-					handleOpenDiskTaskHistory()
-				}}>
-				<i className={`codicon codicon-folder`} />
-			</VSCodeButton>
-		</HeroTooltip>
+		<VSCodeButton
+			appearance="icon"
+			aria-label="Open Disk Task History"
+			className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
+			onClick={(e) => {
+				e.preventDefault()
+				e.stopPropagation()
+				handleOpenDiskTaskHistory()
+			}}
+			title="Open Disk Task History">
+			<DownloadIcon />
+		</VSCodeButton>
 	)
 }
 

@@ -4,52 +4,57 @@ import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import { FileServiceClient } from "@/services/grpc-client"
 
+// Optimized interface with readonly properties to prevent accidental mutations
 interface TodoInfo {
-	currentTodo: { text: string; completed: boolean; index: number } | null
-	currentIndex: number
-	completedCount: number
-	totalCount: number
-	hasItems: boolean
-	isCompleted: boolean
-	progressPercentage: number
+	readonly currentTodo: { text: string; completed: boolean; index: number } | null
+	readonly currentIndex: number
+	readonly completedCount: number
+	readonly totalCount: number
+	readonly progressPercentage: number
 }
 
 interface FocusChainProps {
-	lastProgressMessageText?: string
-	currentTaskItemId?: string
+	readonly lastProgressMessageText?: string
+	readonly currentTaskItemId?: string
 }
 
-// Memoized header component to prevent unnecessary re-renders
+// Static strings to avoid recreating them
+const COMPLETED_MESSAGE = "All tasks have been completed!"
+const TODO_LIST_LABEL = "To-Do list"
+const NEW_STEPS_MESSAGE = "New steps will be generated if you continue the task"
+const CLICK_TO_EDIT_TITLE = "Click to edit to-do list in file"
+
+// Optimized header component with minimal re-renders
 const ToDoListHeader = memo<{
 	todoInfo: TodoInfo
-	isTodoExpanded: boolean
-	currentTaskItemId?: string
-}>(({ todoInfo, isTodoExpanded }) => {
-	if (!todoInfo.hasItems) {
-		return null
-	}
+	isExpanded: boolean
+}>(({ todoInfo, isExpanded }) => {
+	const { currentTodo, currentIndex, totalCount, completedCount, progressPercentage } = todoInfo
+	const isCompleted = completedCount === totalCount
 
-	// In-progress state
+	// Pre-compute chevron class to avoid string concatenation in render
+	const chevronClass = isExpanded ? "shrink-0 codicon codicon-chevron-down" : "shrink-0 codicon codicon-chevron-right"
+
+	// Pre-compute display text
+	const displayText = isCompleted ? COMPLETED_MESSAGE : currentTodo?.text || TODO_LIST_LABEL
+
 	return (
 		<div className="relative w-full h-full">
 			<div
-				className="absolute top-0 left-0 h-full opacity-15 rounded-[3px] transition-[width] duration-300 ease-in-out pointer-events-none"
-				style={{ width: `${todoInfo.progressPercentage}%` }}
+				className="absolute top-0 left-0 h-full rounded-[3px] transition-[width] duration-300 ease-in-out pointer-events-none"
+				style={{ width: `${progressPercentage}%` }}
 			/>
-
 			<div className="flex items-center justify-between gap-2 z-10 p-1.5">
 				<div className="flex items-center gap-1.5 flex-1 min-w-0">
-					<span className="px-2 py-0.25 text-xs rounded-full inline-block shrink-0  bg-badge-foreground/20 text-badge-foreground">
-						{todoInfo.currentIndex}/{todoInfo.totalCount}
+					<span className="px-2 py-0.25 text-xs rounded-full inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground">
+						{currentIndex}/{totalCount}
 					</span>
 					<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
-						{todoInfo.isCompleted
-							? "All tasks have been completed!"
-							: todoInfo.currentTodo && todoInfo.currentTodo.text}
+						{displayText}
 					</span>
 				</div>
 				<div className="flex items-center justify-between">
-					<div className={`shrink-0 codicon codicon-chevron-${isTodoExpanded ? "down" : "right"}`} />
+					<div className={chevronClass} />
 				</div>
 			</div>
 		</div>
@@ -58,111 +63,136 @@ const ToDoListHeader = memo<{
 
 ToDoListHeader.displayName = "ToDoListHeader"
 
-// Optimized parsing function - single pass through lines
+// Cache for parsed todo info to avoid re-parsing identical text
+const todoInfoCache = new Map<string, TodoInfo | null>()
+const MAX_CACHE_SIZE = 100
+
+// Highly optimized parsing with minimal allocations
 const parseCurrentTodoInfo = (text: string): TodoInfo | null => {
 	if (!text) {
 		return null
 	}
 
-	// Pre-allocate arrays for better performance
-	const todoItems: Array<{ text: string; completed: boolean; index: number }> = []
-	let completedCount = 0
-	let currentTodoIndex = -1
-	let lineIndex = 0
-
-	// Single pass through lines
-	const lines = text.split("\n")
-	for (let i = 0, len = lines.length; i < len; i++) {
-		const line = lines[i]
-		const trimmedLine = line.trim()
-
-		if (isFocusChainItem(trimmedLine)) {
-			const completed = isCompletedFocusChainItem(trimmedLine)
-			// Use slice instead of substring for better performance
-			const itemText = trimmedLine.slice(5).trim()
-
-			todoItems.push({ text: itemText, completed, index: lineIndex })
-
-			if (completed) {
-				completedCount++
-			} else if (currentTodoIndex === -1) {
-				// First incomplete item found
-				currentTodoIndex = lineIndex
-			}
-
-			lineIndex++
-		}
+	// Check cache first
+	const cached = todoInfoCache.get(text)
+	if (cached !== undefined) {
+		return cached
 	}
 
-	const totalCount = todoItems.length
+	let completedCount = 0
+	let totalCount = 0
+	let firstIncompleteIndex = -1
+	let firstIncompleteText: string | null = null
+
+	// Process text line by line without creating intermediate arrays
+	let lineStart = 0
+	let lineEnd = text.indexOf("\n")
+
+	while (lineStart < text.length) {
+		const line = lineEnd === -1 ? text.substring(lineStart).trim() : text.substring(lineStart, lineEnd).trim()
+
+		if (isFocusChainItem(line)) {
+			const isCompleted = isCompletedFocusChainItem(line)
+
+			if (isCompleted) {
+				completedCount++
+			} else if (firstIncompleteIndex === -1) {
+				firstIncompleteIndex = totalCount
+				// Extract text only for the first incomplete item
+				firstIncompleteText = line.substring(5).trim()
+			}
+
+			totalCount++
+		}
+
+		if (lineEnd === -1) {
+			break
+		}
+		lineStart = lineEnd + 1
+		lineEnd = text.indexOf("\n", lineStart)
+	}
+
 	if (totalCount === 0) {
+		todoInfoCache.set(text, null)
 		return null
 	}
 
-	const currentTodo = currentTodoIndex >= 0 ? todoItems[currentTodoIndex] : null
-	const currentIndex = currentTodoIndex >= 0 ? currentTodoIndex + 1 : totalCount
-	const isCompleted = completedCount === totalCount
-	const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
+	const currentTodo = firstIncompleteText ? { text: firstIncompleteText, completed: false, index: firstIncompleteIndex } : null
 
-	return {
+	const result: TodoInfo = {
 		currentTodo,
-		currentIndex,
+		currentIndex: firstIncompleteIndex >= 0 ? firstIncompleteIndex + 1 : totalCount,
 		completedCount,
 		totalCount,
-		hasItems: true,
-		isCompleted,
-		progressPercentage,
+		progressPercentage: (completedCount / totalCount) * 100,
 	}
+
+	// Cache the result with size management
+	if (todoInfoCache.size >= MAX_CACHE_SIZE) {
+		// Remove oldest entry (first key)
+		const firstKey = todoInfoCache.keys().next().value
+		if (firstKey) {
+			todoInfoCache.delete(firstKey)
+		}
+	}
+	todoInfoCache.set(text, result)
+	return result
 }
 
-// Main component with optimizations
-export const FocusChain: React.FC<FocusChainProps> = memo(({ currentTaskItemId, lastProgressMessageText }) => {
-	const [isTodoExpanded, setIsTodoExpanded] = useState(false)
+// Main component with aggressive optimization
+export const FocusChain: React.FC<FocusChainProps> = memo(
+	({ currentTaskItemId, lastProgressMessageText }) => {
+		const [isExpanded, setIsExpanded] = useState(false)
 
-	// Memoize parsed todo info
-	const todoInfo = useMemo(
-		() => (lastProgressMessageText ? parseCurrentTodoInfo(lastProgressMessageText) : null),
-		[lastProgressMessageText],
-	)
+		// Parse todo info with caching
+		const todoInfo = useMemo(
+			() => (lastProgressMessageText ? parseCurrentTodoInfo(lastProgressMessageText) : null),
+			[lastProgressMessageText],
+		)
 
-	// Memoize toggle handler
-	const handleToggle = useCallback(() => {
-		setIsTodoExpanded((prev) => !prev)
-	}, [])
+		// Static callbacks that don't change
+		const handleToggle = useCallback(() => setIsExpanded((prev) => !prev), [])
 
-	// Memoize edit click handler
-	const handleEditClick = useCallback(
-		(e: React.MouseEvent) => {
-			e.preventDefault()
-			e.stopPropagation()
-			if (currentTaskItemId) {
-				FileServiceClient.openFocusChainFile(StringRequest.create({ value: currentTaskItemId }))
-			}
-		},
-		[currentTaskItemId],
-	)
+		const handleEditClick = useCallback(
+			(e: React.MouseEvent) => {
+				e.preventDefault()
+				e.stopPropagation()
+				if (currentTaskItemId) {
+					FileServiceClient.openFocusChainFile(StringRequest.create({ value: currentTaskItemId }))
+				}
+			},
+			[currentTaskItemId],
+		)
 
-	// Early return for no content
-	if (!lastProgressMessageText || !todoInfo) {
-		return null
-	}
+		// Early return for no content
+		if (!todoInfo) {
+			return null
+		}
 
-	return (
-		<div
-			className="flex flex-col gap-1.5 cursor-pointer rounded select-none bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_10%,transparent)]"
-			onClick={handleToggle}
-			title="Click to edit to-do list in file">
-			<ToDoListHeader currentTaskItemId={currentTaskItemId} isTodoExpanded={isTodoExpanded} todoInfo={todoInfo} />
-			{isTodoExpanded && (
-				<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
-					<ChecklistRenderer text={lastProgressMessageText} />
-					<div className="mt-2 text-xs text-description font-semibold">
-						{todoInfo.isCompleted ? "New steps will be generated if you continue the task" : ""}
+		const isCompleted = todoInfo.completedCount === todoInfo.totalCount
+
+		return (
+			<div
+				className="flex flex-col gap-1.5 cursor-pointer rounded select-none bg-button-background"
+				onClick={handleToggle}
+				title={CLICK_TO_EDIT_TITLE}>
+				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
+				{isExpanded && (
+					<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
+						<ChecklistRenderer text={lastProgressMessageText!} />
+						{isCompleted && <div className="mt-2 text-xs font-semibold">{NEW_STEPS_MESSAGE}</div>}
 					</div>
-				</div>
-			)}
-		</div>
-	)
-})
+				)}
+			</div>
+		)
+	},
+	(prevProps, nextProps) => {
+		// Custom comparison for better performance
+		return (
+			prevProps.lastProgressMessageText === nextProps.lastProgressMessageText &&
+			prevProps.currentTaskItemId === nextProps.currentTaskItemId
+		)
+	},
+)
 
-FocusChain.displayName = "FocusChainContainer"
+FocusChain.displayName = "FocusChain"

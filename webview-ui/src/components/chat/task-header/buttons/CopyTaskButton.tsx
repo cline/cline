@@ -1,6 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
-import HeroTooltip from "@/components/common/HeroTooltip"
 
 const CopyTaskButton: React.FC<{
 	taskText?: string
@@ -19,19 +18,18 @@ const CopyTaskButton: React.FC<{
 	}
 
 	return (
-		<HeroTooltip content="Copy Task">
-			<VSCodeButton
-				appearance="icon"
-				aria-label="Copy Task"
-				className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
-				onClick={(e) => {
-					e.preventDefault()
-					e.stopPropagation()
-					handleCopy()
-				}}>
-				<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
-			</VSCodeButton>
-		</HeroTooltip>
+		<VSCodeButton
+			appearance="icon"
+			aria-label="Copy Task"
+			className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
+			onClick={(e) => {
+				e.preventDefault()
+				e.stopPropagation()
+				handleCopy()
+			}}
+			title="Copy Task">
+			<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
+		</VSCodeButton>
 	)
 }
 

@@ -1,6 +1,6 @@
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { GitBranchIcon } from "lucide-react"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 const RetryTaskButton: React.FC<{
@@ -9,25 +9,24 @@ const RetryTaskButton: React.FC<{
 	files?: string[]
 }> = ({ text, images = [], files = [] }) => {
 	return (
-		<HeroTooltip content="Retry Task">
-			<VSCodeButton
-				appearance="icon"
-				aria-label="Retry Task"
-				className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
-				disabled={!text?.trim()}
-				onClick={() =>
-					text &&
-					TaskServiceClient.newTask(
-						NewTaskRequest.create({
-							text: text.trim(),
-							images,
-							files,
-						}),
-					)
-				}>
-				<i className={"codicon codicon-refresh"} />
-			</VSCodeButton>
-		</HeroTooltip>
+		<VSCodeButton
+			appearance="icon"
+			aria-label="Branch Task"
+			className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
+			disabled={!text?.trim()}
+			onClick={() =>
+				text &&
+				TaskServiceClient.newTask(
+					NewTaskRequest.create({
+						text: text.trim(),
+						images,
+						files,
+					}),
+				)
+			}
+			title="Create a new branch of the same task">
+			<GitBranchIcon />
+		</VSCodeButton>
 	)
 }
 

@@ -13,8 +13,9 @@ import { validateSlashCommand } from "@/utils/slash-commands"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
+import RetryTaskButton from "./buttons/RetryTaskButton"
 import { CheckpointError } from "./CheckpointError"
-import ContextWindowProgressBar, { ContextWindowInfo } from "./ContextWindowDetails"
+import ContextWindowProgress from "./ContextWindowProgress"
 import { FocusChain } from "./FocusChain"
 import TaskTimeline from "./TaskTimeline"
 
@@ -141,40 +142,37 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	return (
 		<div className="p-2 flex flex-col gap-2">
 			{/* Task Header */}
-			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-1">
+			<div className="bg-button-background text-button-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-2">
 				{/* Task Title */}
-				<div className="flex justify-between items-center">
-					<div
-						className="flex items-center cursor-pointer select-none flex-grow min-w-0 gap-1"
-						onClick={toggleTaskExpanded}>
-						<VSCodeButton
-							appearance="icon"
-							className="flex items-center shrink-0 bg-transparent"
-							onClick={toggleTaskExpanded}>
+				<div className="flex justify-between items-center" onClick={toggleTaskExpanded}>
+					<div className="flex items-center cursor-pointer select-none flex-grow min-w-0 gap-1">
+						<VSCodeButton appearance="icon" className="flex items-center shrink-0 bg-transparent">
 							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`} />
 						</VSCodeButton>
 
 						{isTaskExpanded && (
-							<div className="flex items-center flex-wrap">
+							<div className="flex items-center flex-wrap cursor-pointer">
 								{IS_DEV && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
+								<RetryTaskButton text={task.text} />
 								<CopyTaskButton taskText={task.text} />
 								<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
 							</div>
 						)}
 
 						{!isTaskExpanded && (
-							<div className=" whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
+							<div
+								className=" whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
+								onClick={toggleTextExpanded}>
 								<span className="ph-no-capture">{highlightedText}</span>
 							</div>
 						)}
 					</div>
 
-					{isCostAvailable && (
+					{isCostAvailable ? (
 						<div className="text-xs px-1 py-0.25 rounded-full inline-block shrink-0 text-badge-background bg-badge-foreground/70">
 							<span className="text-xs">${totalCost?.toFixed(4)}</span>
 						</div>
-					)}
-					{!useAutoCondense && (
+					) : (
 						<VSCodeButton
 							appearance="icon"
 							aria-label="Close task"
@@ -188,9 +186,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
-					<div className="flex flex-col gap-1.5 px-1">
+					<div className="flex flex-col gap-1.5 break-words">
 						<div
-							className="cursor-pointer my-1 opacity-85"
+							className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
 							ref={textContainerRef}
 							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
 							<div
@@ -211,18 +209,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 
 						<div className="flex flex-col">
-							<ContextWindowInfo
+							<ContextWindowProgress
+								autoCondenseThreshold={autoCondenseThreshold}
 								cacheReads={cacheReads}
 								cacheWrites={cacheWrites}
-								size={currentTaskItem?.size}
-								tokensIn={tokensIn}
-								tokensOut={tokensOut}
-							/>
-							<ContextWindowProgressBar
-								autoCondenseThreshold={autoCondenseThreshold}
 								contextWindow={selectedModelInfo?.contextWindow}
 								lastApiReqTotalTokens={lastApiReqTotalTokens}
 								onSendMessage={onSendMessage}
+								size={currentTaskItem?.size}
+								tokensIn={tokensIn}
+								tokensOut={tokensOut}
 								useAutoCondense={useAutoCondense || false}
 							/>
 						</div>

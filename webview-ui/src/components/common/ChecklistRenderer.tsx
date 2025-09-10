@@ -120,8 +120,8 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 						{item.checked ? "✓" : "○"}
 					</span>
 					<span
+						className="text-foreground"
 						style={{
-							color: item.checked ? "var(--vscode-descriptionForeground)" : "inherit",
 							textDecoration: item.checked ? "line-through" : "none",
 							opacity: item.checked ? 0.7 : 1,
 							fontSize: "12px",
