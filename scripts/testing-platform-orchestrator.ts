@@ -1,17 +1,40 @@
 #!/usr/bin/env npx tsx
+/**
+ * Test Orchestrator
+ *
+ * Automates server lifecycle for running spec files against the standalone server.
+ *
+ * Prerequisites:
+ *   Build standalone first: `npm run compile-standalone`
+ *
+ * Usage:
+ *   - Single file:   `npm run test:tp-orchestrator path/to/spec.json`
+ *   - All specs dir: `npm run test:tp-orchestrator tests/specs`
+ *   - Direct:        `npx tsx scripts/test-orchestrator.ts <spec-or-folder>`
+ *
+ * Flags:
+ *   --server-logs        Show server logs (hidden by default)
+ *   --count=<number>     Repeat execution N times (default: 1)
+ *
+ * Environment Variables:
+ *   HOSTBRIDGE_PORT      gRPC server port (default: 26040)
+ *   SERVER_BOOT_DELAY    Server startup delay in ms (default: 3000)
+ */
 
 import { ChildProcess, spawn } from "child_process"
 import fs from "fs"
 import minimist from "minimist"
 import path from "path"
 
-const STANDALONE_GRPC_SERVER_PORT = process.env.HOSTBRIDGE_PORT || "26040"
-const SERVER_BOOT_DELAY = 3000
+const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 3000
+
+let showServerLogs = false
 
 function startServer(): Promise<ChildProcess> {
 	return new Promise((resolve, reject) => {
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-			stdio: "inherit",
+			stdio: showServerLogs ? "inherit" : "ignore",
 		})
 
 		server.once("error", reject)
@@ -109,7 +132,7 @@ async function runAll(inputPath: string, count: number) {
 	}
 
 	console.log(`✅ Passed: ${success}`)
-	console.log(`❌ Failed: ${failure}`)
+	if (failure > 0) console.log(`❌ Failed: ${failure}`)
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
 	const totalElapsed = ((Date.now() - totalStart) / 1000).toFixed(2)
 	console.log(`\n🏁 All runs completed in ${totalElapsed}s`)
@@ -119,9 +142,10 @@ async function main() {
 	const args = minimist(process.argv.slice(2), { default: { count: 1 } })
 	const inputPath = args._[0]
 	const count = Number(args.count)
+	showServerLogs = Boolean(args["server-logs"])
 
 	if (!inputPath) {
-		console.error("Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N]")
+		console.error("Usage: npx tsx scripts/test-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs]")
 		process.exit(1)
 	}
 
