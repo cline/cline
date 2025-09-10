@@ -700,7 +700,7 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
-			autoCondenseThreshold: useAutoCondense ? (autoCondenseThreshold ?? 75) : undefined,
+			autoCondenseThreshold,
 		}
 	}
 

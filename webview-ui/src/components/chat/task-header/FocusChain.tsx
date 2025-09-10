@@ -1,6 +1,5 @@
 import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 import { StringRequest } from "@shared/proto/cline/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -39,13 +38,13 @@ const ToDoListHeader = memo<{
 			/>
 
 			<div className="flex items-center justify-between gap-2 z-10 p-1.5">
-				<div className="flex items-center gap-2 flex-1 min-w-0">
-					<span className="bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)] text-[var(--vscode-badge-foreground)] py-0.5 px-1.5 rounded-[10px]">
+				<div className="flex items-center gap-1.5 flex-1 min-w-0">
+					<span className="px-2 py-0.25 text-xs rounded-full inline-block shrink-0  bg-badge-foreground/20 text-badge-foreground">
 						{todoInfo.currentIndex}/{todoInfo.totalCount}
 					</span>
 					<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
 						{todoInfo.isCompleted
-							? `All ${todoInfo.totalCount} steps are completed!`
+							? "All tasks have been completed!"
 							: todoInfo.currentTodo && todoInfo.currentTodo.text}
 					</span>
 				</div>
@@ -151,24 +150,14 @@ export const FocusChain: React.FC<FocusChainProps> = memo(({ currentTaskItemId, 
 	return (
 		<div
 			className="flex flex-col gap-1.5 cursor-pointer rounded select-none bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_10%,transparent)]"
-			onClick={handleToggle}>
+			onClick={handleToggle}
+			title="Click to edit to-do list in file">
 			<ToDoListHeader currentTaskItemId={currentTaskItemId} isTodoExpanded={isTodoExpanded} todoInfo={todoInfo} />
-
 			{isTodoExpanded && (
-				<div className="m-1 pb-2 px-1 rounded relative">
+				<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
 					<ChecklistRenderer text={lastProgressMessageText} />
-					<div className="flex justify-between items-center">
-						<div className="mt-2 text-xs text-description">
-							{todoInfo.isCompleted ? "New steps will be generated if you continue the task" : ""}
-						</div>
-
-						<VSCodeButton
-							appearance="icon"
-							className="text-xs opacity-70 hover:bg-transparent hover:opacity-100"
-							onClick={handleEditClick}
-							title="Edit focus chain list in markdown file">
-							<span className="codicon codicon-edit" />
-						</VSCodeButton>
+					<div className="mt-2 text-xs text-description font-semibold">
+						{todoInfo.isCompleted ? "New steps will be generated if you continue the task" : ""}
 					</div>
 				</div>
 			)}

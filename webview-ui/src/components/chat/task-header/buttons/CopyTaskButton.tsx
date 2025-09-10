@@ -23,15 +23,13 @@ const CopyTaskButton: React.FC<{
 			<VSCodeButton
 				appearance="icon"
 				aria-label="Copy Task"
-				className="p-0"
+				className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
 				onClick={(e) => {
 					e.preventDefault()
 					e.stopPropagation()
 					handleCopy()
 				}}>
-				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
-					<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
-				</div>
+				<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
 			</VSCodeButton>
 		</HeroTooltip>
 	)

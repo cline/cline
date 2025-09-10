@@ -11,15 +11,13 @@ const DeleteTaskButton: React.FC<{
 		<VSCodeButton
 			appearance="icon"
 			aria-label="Delete task"
-			className="p-0"
+			className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
 			onClick={(e) => {
 				e.preventDefault()
 				e.stopPropagation()
 				taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))
 			}}>
-			<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
-				<i className="codicon codicon-trash" />
-			</div>
+			<i className="codicon codicon-trash" />
 		</VSCodeButton>
 	</HeroTooltip>
 )

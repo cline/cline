@@ -266,7 +266,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.autoCondenseThreshold !== undefined) {
-			const threshold = Math.min(0, Math.max(1, request.autoCondenseThreshold / 100)) // Clamp to 0-1 range
+			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold / 100)) // Clamp to 0-1 range
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
 		}
 

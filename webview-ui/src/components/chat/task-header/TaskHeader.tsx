@@ -4,7 +4,6 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -15,10 +14,9 @@ import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 import { CheckpointError } from "./CheckpointError"
-import ContextWindowProgressBar from "./ContextWindowDetails"
+import ContextWindowProgressBar, { ContextWindowInfo } from "./ContextWindowDetails"
 import { FocusChain } from "./FocusChain"
 import TaskTimeline from "./TaskTimeline"
-import { formatTokenNumber } from "./util"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
 interface TaskHeaderProps {
@@ -72,7 +70,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	// Simplified computed values
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
-	const contextWindow = selectedModelInfo?.contextWindow
 	const modeFields = getModeSpecificFields(apiConfiguration, mode)
 
 	const isCostAvailable =
@@ -91,7 +88,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		})
 	}, [])
 
-	const toggleTextExpanded = useCallback(() => {
+	const toggleTextExpanded = useCallback((e: React.MouseEvent) => {
+		e?.preventDefault()
+		e.stopPropagation()
 		setIsTextExpanded((prev) => !prev)
 	}, [])
 
@@ -137,71 +136,65 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		setShowSeeMore(isOverflowing)
 	}, [task.text, windowHeight, isTaskExpanded, isTextExpanded])
 
-	const contextTokenDetails = useMemo(
-		() =>
-			[
-				{ title: "Prompt Tokens", value: tokensIn, icon: "codicon-arrow-up" },
-				{ title: "Completion Tokens", value: tokensOut, icon: "codicon-arrow-down" },
-				{
-					title: "Tokens written to cache",
-					value: cacheWrites || 0,
-					icon: "codicon-arrow-left",
-				},
-				{
-					title: "Tokens read from cache",
-					value: cacheReads || 0,
-					icon: "codicon-arrow-right",
-				},
-			].filter((item) => item.value),
-		[tokensIn, tokensOut, cacheWrites, cacheReads],
-	)
+	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 
 	return (
-		<div className="px-2.5 py-3 flex flex-col gap-2">
+		<div className="p-2 flex flex-col gap-2">
 			{/* Task Header */}
-			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-2 px-2.5">
+			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-1">
 				{/* Task Title */}
-				<div className="flex justify-between items-center gap-2">
-					<div className="flex items-center cursor-pointer select-none flex-grow min-w-0" onClick={toggleTaskExpanded}>
-						<div className="flex items-center shrink-0">
+				<div className="flex justify-between items-center">
+					<div
+						className="flex items-center cursor-pointer select-none flex-grow min-w-0 gap-1"
+						onClick={toggleTaskExpanded}>
+						<VSCodeButton
+							appearance="icon"
+							className="flex items-center shrink-0 bg-transparent"
+							onClick={toggleTaskExpanded}>
 							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`} />
-						</div>
-						<div className=" whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
-							{isTaskExpanded ? (
-								<div className="flex items-center flex-wrap">
-									{IS_DEV && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
-									<CopyTaskButton taskText={task.text} />
-									<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
-								</div>
-							) : (
-								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
-							)}
-						</div>
+						</VSCodeButton>
+
+						{isTaskExpanded && (
+							<div className="flex items-center flex-wrap">
+								{IS_DEV && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
+								<CopyTaskButton taskText={task.text} />
+								<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
+							</div>
+						)}
+
+						{!isTaskExpanded && (
+							<div className=" whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
+								<span className="ph-no-capture">{highlightedText}</span>
+							</div>
+						)}
 					</div>
+
 					{isCostAvailable && (
-						<div className="px-1 py-0.5 rounded-full inline-block shrink-0 text-badge-background bg-badge-foreground/70">
-							${totalCost?.toFixed(4)}
+						<div className="text-xs px-1 py-0.25 rounded-full inline-block shrink-0 text-badge-background bg-badge-foreground/70">
+							<span className="text-xs">${totalCost?.toFixed(4)}</span>
 						</div>
 					)}
-					<VSCodeButton
-						appearance="icon"
-						aria-label="Close task"
-						className="shrink-0 hover:bg-transparent hover:opacity-70"
-						onClick={onClose}
-						title="Close task">
-						<span className="codicon codicon-close" />
-					</VSCodeButton>
+					{!useAutoCondense && (
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Close task"
+							className="shrink-0 hover:bg-transparent hover:opacity-70"
+							onClick={onClose}
+							title="Close task">
+							<span className="codicon codicon-close" />
+						</VSCodeButton>
+					)}
 				</div>
 
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
-					<div className="flex flex-col gap-2 mt-1">
+					<div className="flex flex-col gap-1.5 px-1">
 						<div
-							className="cursor-pointer"
+							className="cursor-pointer my-1 opacity-85"
 							ref={textContainerRef}
-							title={showSeeMore ? "Click to show more" : "Show less"}>
+							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
 							<div
-								className="ph-no-capture overflow-hidden whitespace-pre-wrap break-words"
+								className="ph-no-capture overflow-hidden whitespace-pre-wrap break-words p-0.5"
 								onClick={toggleTextExpanded}
 								ref={textRef}
 								style={{
@@ -209,7 +202,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									WebkitLineClamp: isTextExpanded ? "unset" : 2,
 									WebkitBoxOrient: "vertical",
 								}}>
-								{highlightText(task.text, false)}
+								{highlightedText}
 							</div>
 						</div>
 
@@ -218,34 +211,24 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 
 						<div className="flex flex-col">
-							<div className="flex items-center justify-between flex-wrap gap-2">
-								<div className="flex items-center flex-wrap gap-1 text-sm">
-									<div className="font-semibold">Tokens:</div>
-									{contextTokenDetails.map((item) => (
-										<HeroTooltip content={item.title}>
-											<span className="flex items-center gap-0.5 cursor-pointer">
-												<i className={`codicon ${item.icon} font-semibold`} />
-												{formatTokenNumber(item.value)}
-											</span>
-										</HeroTooltip>
-									))}
-								</div>
-								<HeroTooltip content="Task size on disk">
-									<div className="opacity-80">{formatSize(currentTaskItem?.size)}</div>
-								</HeroTooltip>
-							</div>
+							<ContextWindowInfo
+								cacheReads={cacheReads}
+								cacheWrites={cacheWrites}
+								size={currentTaskItem?.size}
+								tokensIn={tokensIn}
+								tokensOut={tokensOut}
+							/>
 							<ContextWindowProgressBar
 								autoCondenseThreshold={autoCondenseThreshold}
-								contextWindow={contextWindow}
-								key={currentTaskItem?.id}
+								contextWindow={selectedModelInfo?.contextWindow}
 								lastApiReqTotalTokens={lastApiReqTotalTokens}
 								onSendMessage={onSendMessage}
 								useAutoCondense={useAutoCondense || false}
 							/>
 						</div>
+						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 					</div>
 				)}
-				<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 			</div>
 
 			{/* Display Focus Chain To-Do List */}

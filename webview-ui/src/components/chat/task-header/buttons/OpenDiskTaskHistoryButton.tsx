@@ -21,15 +21,13 @@ const OpenDiskTaskHistoryButton: React.FC<{
 			<VSCodeButton
 				appearance="icon"
 				aria-label="Open Disk Task History"
-				className="p-0"
+				className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
 				onClick={(e) => {
 					e.preventDefault()
 					e.stopPropagation()
 					handleOpenDiskTaskHistory()
 				}}>
-				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
-					<i className={`codicon codicon-folder`} />
-				</div>
+				<i className={`codicon codicon-folder`} />
 			</VSCodeButton>
 		</HeroTooltip>
 	)
