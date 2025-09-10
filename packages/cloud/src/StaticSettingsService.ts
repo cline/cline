@@ -51,6 +51,7 @@ export class StaticSettingsService implements SettingsService {
 			},
 			settings: {
 				extensionBridgeEnabled: true,
+				taskSyncEnabled: true,
 			},
 			version: 1,
 		}
@@ -65,11 +66,17 @@ export class StaticSettingsService implements SettingsService {
 	public getUserSettingsConfig(): UserSettingsConfig {
 		return {
 			extensionBridgeEnabled: true,
+			taskSyncEnabled: true,
 		}
 	}
 
 	public async updateUserSettings(_settings: Partial<UserSettingsConfig>): Promise<boolean> {
 		throw new Error("User settings updates are not supported in static mode")
+	}
+
+	public isTaskSyncEnabled(): boolean {
+		// Static settings always enable task sync
+		return true
 	}
 
 	public dispose(): void {

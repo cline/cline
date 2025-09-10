@@ -23,7 +23,13 @@ type CloudViewProps = {
 
 export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: CloudViewProps) => {
 	const { t } = useAppTranslation()
-	const { remoteControlEnabled, setRemoteControlEnabled } = useExtensionState()
+	const {
+		remoteControlEnabled,
+		setRemoteControlEnabled,
+		taskSyncEnabled,
+		setTaskSyncEnabled,
+		featureRoomoteControlEnabled,
+	} = useExtensionState()
 	const wasAuthenticatedRef = useRef(false)
 	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const manualUrlInputRef = useRef<HTMLInputElement | null>(null)
@@ -142,6 +148,12 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 		vscode.postMessage({ type: "remoteControlEnabled", bool: newValue })
 	}
 
+	const handleTaskSyncToggle = () => {
+		const newValue = !taskSyncEnabled
+		setTaskSyncEnabled(newValue)
+		vscode.postMessage({ type: "taskSyncEnabled", bool: newValue })
+	}
+
 	return (
 		<div className="flex flex-col h-full">
 			<div className="flex justify-between items-center mb-6">
@@ -188,24 +200,62 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 						</div>
 					)}
 
-					{userInfo?.extensionBridgeEnabled && (
-						<div className="border-t border-vscode-widget-border pt-4 mt-4">
-							<div className="flex items-center gap-3 mb-2">
-								<ToggleSwitch
-									checked={remoteControlEnabled}
-									onChange={handleRemoteControlToggle}
-									size="medium"
-									aria-label={t("cloud:remoteControl")}
-									data-testid="remote-control-toggle"
-								/>
-								<span className="font-medium text-vscode-foreground">{t("cloud:remoteControl")}</span>
-							</div>
-							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
-								{t("cloud:remoteControlDescription")}
-							</div>
-							<hr className="border-vscode-widget-border mb-4" />
+					{/* Task Sync Toggle - Always shown when authenticated */}
+					<div className="border-t border-vscode-widget-border pt-4 mt-4">
+						<div className="flex items-center gap-3 mb-2">
+							<ToggleSwitch
+								checked={taskSyncEnabled}
+								onChange={handleTaskSyncToggle}
+								size="medium"
+								aria-label={t("cloud:taskSync")}
+								data-testid="task-sync-toggle"
+								disabled={!!userInfo?.organizationId}
+							/>
+							<span className="font-medium text-vscode-foreground">{t("cloud:taskSync")}</span>
 						</div>
-					)}
+						<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
+							{t("cloud:taskSyncDescription")}
+						</div>
+						{userInfo?.organizationId && (
+							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8 italic">
+								{t("cloud:taskSyncManagedByOrganization")}
+							</div>
+						)}
+
+						{/* Remote Control Toggle - Only shown when both extensionBridgeEnabled and featureRoomoteControlEnabled are true */}
+						{userInfo?.extensionBridgeEnabled && featureRoomoteControlEnabled && (
+							<>
+								<div className="flex items-center gap-3 mb-2">
+									<ToggleSwitch
+										checked={remoteControlEnabled}
+										onChange={handleRemoteControlToggle}
+										size="medium"
+										aria-label={t("cloud:remoteControl")}
+										data-testid="remote-control-toggle"
+										disabled={!taskSyncEnabled}
+									/>
+									<span className="font-medium text-vscode-foreground">
+										{t("cloud:remoteControl")}
+									</span>
+								</div>
+								<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
+									{t("cloud:remoteControlDescription")}
+									{!taskSyncEnabled && (
+										<div className="text-vscode-errorForeground mt-2">
+											{t("cloud:remoteControlRequiresTaskSync")}
+										</div>
+									)}
+								</div>
+							</>
+						)}
+
+						{/* Info text about usage metrics */}
+						<div className="text-vscode-descriptionForeground text-sm mt-4 mb-4 ml-8 italic">
+							{t("cloud:usageMetricsAlwaysReported")}
+						</div>
+
+						<hr className="border-vscode-widget-border mb-4" />
+					</div>
 
 					<div className="flex flex-col gap-2 mt-4">
 						<VSCodeButton appearance="secondary" onClick={handleVisitCloudWebsite} className="w-full">

@@ -304,6 +304,14 @@ export interface SettingsService {
 	updateUserSettings(settings: Partial<UserSettingsConfig>): Promise<boolean>
 
 	/**
+	 * Determines if task sync/recording is enabled based on organization and user settings
+	 * Organization settings take precedence over user settings.
+	 * User settings default to true if unspecified.
+	 * @returns true if task sync is enabled, false otherwise
+	 */
+	isTaskSyncEnabled(): boolean
+
+	/**
 	 * Dispose of the settings service and clean up resources
 	 */
 	dispose(): void

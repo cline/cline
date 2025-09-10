@@ -20,6 +20,7 @@ describe("CloudSettingsService", () => {
 		getSessionToken: ReturnType<typeof vi.fn>
 		hasActiveSession: ReturnType<typeof vi.fn>
 		on: ReturnType<typeof vi.fn>
+		getStoredOrganizationId: ReturnType<typeof vi.fn>
 	}
 	let mockRefreshTimer: {
 		start: ReturnType<typeof vi.fn>
@@ -63,6 +64,7 @@ describe("CloudSettingsService", () => {
 			getSessionToken: vi.fn(),
 			hasActiveSession: vi.fn().mockReturnValue(false),
 			on: vi.fn(),
+			getStoredOrganizationId: vi.fn().mockReturnValue(null),
 		}
 
 		mockRefreshTimer = {
@@ -530,6 +532,193 @@ describe("CloudSettingsService", () => {
 			expect(mockRefreshTimer.stop).toHaveBeenCalled()
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("organization-settings", undefined)
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("user-settings", undefined)
+		})
+	})
+
+	describe("isTaskSyncEnabled", () => {
+		beforeEach(async () => {
+			await cloudSettingsService.initialize()
+		})
+
+		it("should return true when org recordTaskMessages is true", () => {
+			// Set up mock settings with org recordTaskMessages = true
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {
+					recordTaskMessages: true,
+				},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			// Mock that user has organization ID (indicating org settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org-123")
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(true)
+		})
+
+		it("should return false when org recordTaskMessages is false", () => {
+			// Set up mock settings with org recordTaskMessages = false
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {
+					recordTaskMessages: false,
+				},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			// Mock that user has organization ID (indicating org settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org-123")
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(false)
+		})
+
+		it("should fall back to user taskSyncEnabled when org recordTaskMessages is undefined", () => {
+			// Set up mock settings with org recordTaskMessages undefined
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			const mockUserSettings = {
+				version: 1,
+				features: {},
+				settings: {
+					taskSyncEnabled: true,
+				},
+			}
+
+			// Mock that user has no organization ID (indicating user settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+			;(cloudSettingsService as unknown as { userSettings: typeof mockUserSettings }).userSettings =
+				mockUserSettings
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(true)
+		})
+
+		it("should return false when user taskSyncEnabled is false", () => {
+			// Set up mock settings with org recordTaskMessages undefined
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			const mockUserSettings = {
+				version: 1,
+				features: {},
+				settings: {
+					taskSyncEnabled: false,
+				},
+			}
+
+			// Mock that user has no organization ID (indicating user settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+			;(cloudSettingsService as unknown as { userSettings: typeof mockUserSettings }).userSettings =
+				mockUserSettings
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(false)
+		})
+
+		it("should return true when user taskSyncEnabled is undefined (default)", () => {
+			// Set up mock settings with org recordTaskMessages undefined
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			const mockUserSettings = {
+				version: 1,
+				features: {},
+				settings: {},
+			}
+
+			// Mock that user has no organization ID (indicating user settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+			;(cloudSettingsService as unknown as { userSettings: typeof mockUserSettings }).userSettings =
+				mockUserSettings
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(true)
+		})
+
+		it("should return false when no settings are available", () => {
+			// Mock that user has no organization ID
+			mockAuthService.getStoredOrganizationId.mockReturnValue(null)
+
+			// Clear both settings
+			;(cloudSettingsService as unknown as { settings: undefined }).settings = undefined
+			;(cloudSettingsService as unknown as { userSettings: undefined }).userSettings = undefined
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(false)
+		})
+
+		it("should return false when only org settings are available but cloudSettings is undefined", () => {
+			const mockSettings = {
+				version: 1,
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			// Mock that user has organization ID (indicating org settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org-123")
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+			;(cloudSettingsService as unknown as { userSettings: undefined }).userSettings = undefined
+
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(false)
+		})
+
+		it("should prioritize org settings over user settings", () => {
+			// Set up conflicting settings: org = false, user = true
+			const mockSettings = {
+				version: 1,
+				cloudSettings: {
+					recordTaskMessages: false,
+				},
+				defaultSettings: {},
+				allowList: { allowAll: true, providers: {} },
+			}
+
+			const mockUserSettings = {
+				version: 1,
+				features: {},
+				settings: {
+					taskSyncEnabled: true,
+				},
+			}
+
+			// Mock that user has organization ID (indicating org settings should be used)
+			mockAuthService.getStoredOrganizationId.mockReturnValue("org-123")
+
+			// Use reflection to set private settings
+			;(cloudSettingsService as unknown as { settings: typeof mockSettings }).settings = mockSettings
+			;(cloudSettingsService as unknown as { userSettings: typeof mockUserSettings }).userSettings =
+				mockUserSettings
+
+			// Should return false (org setting takes precedence)
+			expect(cloudSettingsService.isTaskSyncEnabled()).toBe(false)
 		})
 	})
 })

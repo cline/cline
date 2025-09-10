@@ -17,9 +17,14 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 				"cloud:logOut": "Log out",
 				"cloud:connect": "Connect Now",
 				"cloud:visitCloudWebsite": "Visit Roo Code Cloud",
+				"cloud:taskSync": "Task sync",
+				"cloud:taskSyncDescription": "Sync your tasks for viewing and sharing on Roo Code Cloud",
+				"cloud:taskSyncManagedByOrganization": "Task sync is managed by your organization",
 				"cloud:remoteControl": "Roomote Control",
 				"cloud:remoteControlDescription":
 					"Enable following and interacting with tasks in this workspace with Roo Code Cloud",
+				"cloud:remoteControlRequiresTaskSync": "Task sync must be enabled to use Roomote Control",
+				"cloud:usageMetricsAlwaysReported": "Model usage info is always reported when logged in",
 				"cloud:profilePicture": "Profile picture",
 				"cloud:cloudUrlPillLabel": "Roo Code Cloud URL: ",
 			}
@@ -43,11 +48,17 @@ vi.mock("@src/utils/TelemetryClient", () => ({
 }))
 
 // Mock the extension state context
+const mockExtensionState = {
+	remoteControlEnabled: false,
+	setRemoteControlEnabled: vi.fn(),
+	taskSyncEnabled: true,
+	setTaskSyncEnabled: vi.fn(),
+	featureRoomoteControlEnabled: true, // Default to true for tests
+	setFeatureRoomoteControlEnabled: vi.fn(),
+}
+
 vi.mock("@src/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({
-		remoteControlEnabled: false,
-		setRemoteControlEnabled: vi.fn(),
-	}),
+	useExtensionState: () => mockExtensionState,
 }))
 
 // Mock window global for images
@@ -105,7 +116,7 @@ describe("CloudView", () => {
 		expect(screen.getByText("test@example.com")).toBeInTheDocument()
 	})
 
-	it("should display remote control toggle when user has extension bridge enabled", () => {
+	it("should display remote control toggle when user has extension bridge enabled and roomote control enabled", () => {
 		const mockUserInfo = {
 			name: "Test User",
 			email: "test@example.com",
@@ -148,6 +159,65 @@ describe("CloudView", () => {
 		// Check that the remote control toggle is NOT displayed
 		expect(screen.queryByTestId("remote-control-toggle")).not.toBeInTheDocument()
 		expect(screen.queryByText("Roomote Control")).not.toBeInTheDocument()
+	})
+
+	it("should not display remote control toggle when roomote control is disabled", () => {
+		// Temporarily override the mock for this specific test
+		const originalFeatureRoomoteControlEnabled = mockExtensionState.featureRoomoteControlEnabled
+		mockExtensionState.featureRoomoteControlEnabled = false
+
+		const mockUserInfo = {
+			name: "Test User",
+			email: "test@example.com",
+			extensionBridgeEnabled: true, // Bridge enabled but roomote control disabled
+		}
+
+		render(
+			<CloudView
+				userInfo={mockUserInfo}
+				isAuthenticated={true}
+				cloudApiUrl="https://app.roocode.com"
+				onDone={() => {}}
+			/>,
+		)
+
+		// Check that the remote control toggle is NOT displayed
+		expect(screen.queryByTestId("remote-control-toggle")).not.toBeInTheDocument()
+		expect(screen.queryByText("Roomote Control")).not.toBeInTheDocument()
+
+		// Restore the original value
+		mockExtensionState.featureRoomoteControlEnabled = originalFeatureRoomoteControlEnabled
+	})
+
+	it("should display remote control toggle for organization users (simulating backend logic)", () => {
+		// This test simulates what the ClineProvider would do:
+		// Organization users are treated as having featureRoomoteControlEnabled true
+		const originalFeatureRoomoteControlEnabled = mockExtensionState.featureRoomoteControlEnabled
+		mockExtensionState.featureRoomoteControlEnabled = true // Simulating ClineProvider logic for org users
+
+		const mockUserInfo = {
+			name: "Test User",
+			email: "test@example.com",
+			organizationId: "org-123", // User is in an organization
+			extensionBridgeEnabled: true,
+		}
+
+		render(
+			<CloudView
+				userInfo={mockUserInfo}
+				isAuthenticated={true}
+				cloudApiUrl="https://app.roocode.com"
+				onDone={() => {}}
+			/>,
+		)
+
+		// Check that the remote control toggle IS displayed for organization users
+		// (The ClineProvider would set featureRoomoteControlEnabled to true for org users)
+		expect(screen.getByTestId("remote-control-toggle")).toBeInTheDocument()
+		expect(screen.getByText("Roomote Control")).toBeInTheDocument()
+
+		// Restore the original value
+		mockExtensionState.featureRoomoteControlEnabled = originalFeatureRoomoteControlEnabled
 	})
 
 	it("should not display cloud URL pill when pointing to production", () => {
@@ -214,5 +284,80 @@ describe("CloudView", () => {
 
 		// Check that the cloud URL pill is NOT displayed when cloudApiUrl is undefined
 		expect(screen.queryByText(/Roo Code Cloud URL:/)).not.toBeInTheDocument()
+	})
+
+	it("should disable task sync toggle for organization users", () => {
+		const mockUserInfo = {
+			name: "Test User",
+			email: "test@example.com",
+			organizationId: "org-123",
+			organizationName: "Test Organization",
+		}
+
+		render(
+			<CloudView
+				userInfo={mockUserInfo}
+				isAuthenticated={true}
+				cloudApiUrl="https://app.roocode.com"
+				onDone={() => {}}
+			/>,
+		)
+
+		// Check that the task sync toggle is disabled for organization users
+		const taskSyncToggle = screen.getByTestId("task-sync-toggle")
+		expect(taskSyncToggle).toBeInTheDocument()
+		expect(taskSyncToggle).toHaveAttribute("tabindex", "-1")
+
+		// Check that the organization message is displayed
+		expect(screen.getByText("Task sync is managed by your organization")).toBeInTheDocument()
+	})
+
+	it("should enable task sync toggle for non-organization users", () => {
+		const mockUserInfo = {
+			name: "Test User",
+			email: "test@example.com",
+			// No organizationId - regular user
+		}
+
+		render(
+			<CloudView
+				userInfo={mockUserInfo}
+				isAuthenticated={true}
+				cloudApiUrl="https://app.roocode.com"
+				onDone={() => {}}
+			/>,
+		)
+
+		// Check that the task sync toggle is enabled for non-organization users
+		const taskSyncToggle = screen.getByTestId("task-sync-toggle")
+		expect(taskSyncToggle).toBeInTheDocument()
+		expect(taskSyncToggle).toHaveAttribute("tabindex", "0")
+
+		// Check that the organization message is NOT displayed
+		expect(screen.queryByText("Task sync is managed by your organization")).not.toBeInTheDocument()
+	})
+
+	it("should show task sync state correctly for organization users", () => {
+		const mockUserInfo = {
+			name: "Test User",
+			email: "test@example.com",
+			organizationId: "org-123",
+			organizationName: "Test Organization",
+		}
+
+		// Test with task sync enabled
+		render(
+			<CloudView
+				userInfo={mockUserInfo}
+				isAuthenticated={true}
+				cloudApiUrl="https://app.roocode.com"
+				onDone={() => {}}
+			/>,
+		)
+
+		// Check that the toggle shows the current state (enabled in this case)
+		const taskSyncToggle = screen.getByTestId("task-sync-toggle")
+		expect(taskSyncToggle).toHaveAttribute("aria-checked", "true")
+		expect(taskSyncToggle).toHaveAttribute("tabindex", "-1")
 	})
 })

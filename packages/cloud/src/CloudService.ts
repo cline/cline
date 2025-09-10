@@ -248,6 +248,11 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		return this.settingsService!.updateUserSettings(settings)
 	}
 
+	public isTaskSyncEnabled(): boolean {
+		this.ensureInitialized()
+		return this.settingsService!.isTaskSyncEnabled()
+	}
+
 	// TelemetryClient
 
 	public captureEvent(event: TelemetryEvent): void {

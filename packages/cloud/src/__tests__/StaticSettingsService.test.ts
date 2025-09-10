@@ -98,5 +98,28 @@ describe("StaticSettingsService", () => {
 
 			expect(mockLog).not.toHaveBeenCalled()
 		})
+
+		describe("isTaskSyncEnabled", () => {
+			it("should always return true", () => {
+				const service = new StaticSettingsService(validBase64)
+				expect(service.isTaskSyncEnabled()).toBe(true)
+			})
+
+			it("should return true regardless of settings content", () => {
+				// Create settings with different content
+				const differentSettings = {
+					version: 2,
+					cloudSettings: {
+						recordTaskMessages: false,
+					},
+					defaultSettings: {},
+					allowList: { allowAll: false, providers: {} },
+				}
+				const differentBase64 = Buffer.from(JSON.stringify(differentSettings)).toString("base64")
+
+				const service = new StaticSettingsService(differentBase64)
+				expect(service.isTaskSyncEnabled()).toBe(true)
+			})
+		})
 	})
 })

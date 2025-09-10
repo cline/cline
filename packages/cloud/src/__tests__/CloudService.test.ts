@@ -59,6 +59,7 @@ describe("CloudService", () => {
 		initialize: ReturnType<typeof vi.fn>
 		getSettings: ReturnType<typeof vi.fn>
 		getAllowList: ReturnType<typeof vi.fn>
+		isTaskSyncEnabled: ReturnType<typeof vi.fn>
 		dispose: ReturnType<typeof vi.fn>
 		on: ReturnType<typeof vi.fn>
 		off: ReturnType<typeof vi.fn>
@@ -130,6 +131,7 @@ describe("CloudService", () => {
 			initialize: vi.fn(),
 			getSettings: vi.fn(),
 			getAllowList: vi.fn(),
+			isTaskSyncEnabled: vi.fn().mockReturnValue(true),
 			dispose: vi.fn(),
 			on: vi.fn(),
 			off: vi.fn(),
@@ -342,6 +344,12 @@ describe("CloudService", () => {
 		it("should delegate getAllowList to SettingsService", () => {
 			cloudService.getAllowList()
 			expect(mockSettingsService.getAllowList).toHaveBeenCalled()
+		})
+
+		it("should delegate isTaskSyncEnabled to SettingsService", () => {
+			const result = cloudService.isTaskSyncEnabled()
+			expect(mockSettingsService.isTaskSyncEnabled).toHaveBeenCalled()
+			expect(result).toBe(true)
 		})
 	})
 

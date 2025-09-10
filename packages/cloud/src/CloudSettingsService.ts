@@ -266,6 +266,21 @@ export class CloudSettingsService extends EventEmitter<SettingsServiceEvents> im
 		}
 	}
 
+	public isTaskSyncEnabled(): boolean {
+		// Org settings take precedence
+		if (this.authService.getStoredOrganizationId()) {
+			return this.settings?.cloudSettings?.recordTaskMessages ?? false
+		}
+
+		// User settings default to true if unspecified
+		const userSettings = this.userSettings
+		if (userSettings) {
+			return userSettings.settings.taskSyncEnabled ?? true
+		}
+
+		return false
+	}
+
 	private async removeSettings(): Promise<void> {
 		this.settings = undefined
 		this.userSettings = undefined
