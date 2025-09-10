@@ -103,6 +103,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 
 		if (!Array.isArray(successfullyWrittenData) || successfullyWrittenData.length !== finalData.length) {
 			console.error("[Storage Migration] Failed to write taskHistory to file.")
+			return
 		}
 
 		await context.globalState.update("taskHistory", undefined)
