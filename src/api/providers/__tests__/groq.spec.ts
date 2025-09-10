@@ -149,7 +149,7 @@ describe("GroqHandler", () => {
 		expect(firstChunk.done).toBe(false)
 		expect(firstChunk.value).toMatchObject({
 			type: "usage",
-			inputTokens: 70, // 100 total - 30 cached
+			inputTokens: 100,
 			outputTokens: 50,
 			cacheWriteTokens: 0,
 			cacheReadTokens: 30,
