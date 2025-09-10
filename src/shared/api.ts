@@ -36,6 +36,7 @@ export type ApiProvider =
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
+	| "tars"
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -77,6 +78,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyBaseUrl?: string
+	tarsApiKey?: string
 	togetherApiKey?: string
 	fireworksApiKey?: string
 	fireworksModelMaxCompletionTokens?: number
@@ -142,6 +144,8 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeVercelAiGatewayModelId?: string
 	planModeVercelAiGatewayModelInfo?: ModelInfo
+	planModeTarsModelId?: string
+	planModeTarsModelInfo?: ModelInfo
 	// Act mode configurations
 
 	actModeApiModelId?: string
@@ -173,6 +177,8 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeVercelAiGatewayModelId?: string
 	actModeVercelAiGatewayModelInfo?: ModelInfo
+	actModeTarsModelId?: string
+	actModeTarsModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -3504,3 +3510,18 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Tetrate Agent Router Service (TARS)
+export const tarsDefaultModelId = "claude-3-5-haiku-20241022"
+export const tarsDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 0.8,
+	outputPrice: 4.0,
+	cacheWritesPrice: 1.0,
+	cacheReadsPrice: 0.08,
+	description:
+		"Claude 3.5 Haiku - Fast and cost-effective with excellent coding capabilities. Ideal for development tasks with 200k context window",
+}

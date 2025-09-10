@@ -24,6 +24,8 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	tarsDefaultModelId,
+	tarsDefaultModelInfo,
 	vercelAiGatewayDefaultModelId,
 	vercelAiGatewayDefaultModelInfo,
 } from "../../../src/shared/api"
@@ -36,6 +38,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
+	tarsModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
@@ -60,6 +63,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
+	setTarsModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
 	setBasetenModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
@@ -218,6 +222,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
+	})
+	const [tarsModels, setTarsModels] = useState<Record<string, ModelInfo>>({
+		[tarsDefaultModelId]: tarsDefaultModelInfo,
 	})
 	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
@@ -623,6 +630,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		requestyModels,
+		tarsModels,
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
@@ -669,6 +677,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
+		setTarsModels: (models: Record<string, ModelInfo>) => setTarsModels(models),
 		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
 		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),

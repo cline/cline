@@ -48,6 +48,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
 		difyApiKey,
+		tarsApiKey,
 		authNonce,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<string | undefined>,
@@ -84,6 +85,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ollamaApiKey") as Promise<string | undefined>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<string | undefined>,
 		context.secrets.get("difyApiKey") as Promise<string | undefined>,
+		context.secrets.get("tarsApiKey") as Promise<string | undefined>,
 		context.secrets.get("authNonce") as Promise<string | undefined>,
 	])
 
@@ -99,6 +101,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
 		difyApiKey,
+		tarsApiKey,
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		xaiApiKey,
@@ -253,6 +256,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeVercelAiGatewayModelInfo = context.globalState.get("planModeVercelAiGatewayModelInfo") as
 			| ModelInfo
 			| undefined
+		const planModeTarsModelId = context.globalState.get("planModeTarsModelId") as string | undefined
+		const planModeTarsModelInfo = context.globalState.get("planModeTarsModelInfo") as ModelInfo | undefined
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get("actModeApiProvider") as ApiProvider | undefined
 		const actModeApiModelId = context.globalState.get("actModeApiModelId") as string | undefined
@@ -292,6 +297,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeVercelAiGatewayModelInfo = context.globalState.get("actModeVercelAiGatewayModelInfo") as
 			| ModelInfo
 			| undefined
+		const actModeTarsModelId = context.globalState.get("actModeTarsModelId") as string | undefined
+		const actModeTarsModelInfo = context.globalState.get("actModeTarsModelInfo") as ModelInfo | undefined
 		const sapAiCoreUseOrchestrationMode = context.globalState.get("sapAiCoreUseOrchestrationMode") as boolean | undefined
 
 		let apiProvider: ApiProvider
@@ -390,6 +397,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeTarsModelId,
+			planModeTarsModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -421,6 +430,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeTarsModelId,
+			actModeTarsModelInfo,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,

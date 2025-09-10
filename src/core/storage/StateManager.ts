@@ -215,6 +215,7 @@ export class StateManager {
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyBaseUrl,
+			tarsApiKey,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -287,6 +288,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeTarsModelId,
+			planModeTarsModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -318,6 +321,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeTarsModelId,
+			actModeTarsModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -353,6 +358,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeTarsModelId,
+			planModeTarsModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -385,6 +392,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeTarsModelId,
+			actModeTarsModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -441,6 +450,7 @@ export class StateManager {
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
+			tarsApiKey,
 			togetherApiKey,
 			qwenApiKey,
 			doubaoApiKey,
@@ -647,6 +657,7 @@ export class StateManager {
 			openAiNativeApiKey: this.secretsCache["openAiNativeApiKey"],
 			deepSeekApiKey: this.secretsCache["deepSeekApiKey"],
 			requestyApiKey: this.secretsCache["requestyApiKey"],
+			tarsApiKey: this.secretsCache["tarsApiKey"],
 			togetherApiKey: this.secretsCache["togetherApiKey"],
 			qwenApiKey: this.secretsCache["qwenApiKey"],
 			doubaoApiKey: this.secretsCache["doubaoApiKey"],
@@ -728,6 +739,8 @@ export class StateManager {
 			planModeRequestyModelInfo: this.globalStateCache["planModeRequestyModelInfo"],
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
 			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
+			planModeTarsModelId: this.globalStateCache["planModeTarsModelId"],
+			planModeTarsModelInfo: this.globalStateCache["planModeTarsModelInfo"],
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
@@ -760,6 +773,8 @@ export class StateManager {
 			actModeRequestyModelInfo: this.globalStateCache["actModeRequestyModelInfo"],
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
 			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
+			actModeTarsModelId: this.globalStateCache["actModeTarsModelId"],
+			actModeTarsModelInfo: this.globalStateCache["actModeTarsModelInfo"],
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],

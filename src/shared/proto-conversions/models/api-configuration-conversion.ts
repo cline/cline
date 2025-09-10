@@ -206,6 +206,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.OPENAI_NATIVE
 		case "requesty":
 			return ProtoApiProvider.REQUESTY
+		case "tars":
+			return ProtoApiProvider.TARS
 		case "together":
 			return ProtoApiProvider.TOGETHER
 		case "deepseek":
@@ -284,6 +286,8 @@ function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 			return "openai-native"
 		case ProtoApiProvider.REQUESTY:
 			return "requesty"
+		case ProtoApiProvider.TARS:
+			return "tars"
 		case ProtoApiProvider.TOGETHER:
 			return "together"
 		case ProtoApiProvider.DEEPSEEK:
@@ -380,6 +384,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
 		requestyBaseUrl: config.requestyBaseUrl,
+		tarsApiKey: config.tarsApiKey,
 		togetherApiKey: config.togetherApiKey,
 		fireworksApiKey: config.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens,
@@ -446,6 +451,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuaweiCloudMaasModelInfo),
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeTarsModelId: config.planModeTarsModelId,
+		planModeTarsModelInfo: convertModelInfoToProtoOpenRouter(config.planModeTarsModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -478,6 +485,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeTarsModelId: config.actModeTarsModelId,
+		actModeTarsModelInfo: convertModelInfoToProtoOpenRouter(config.actModeTarsModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -525,6 +534,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,
 		requestyBaseUrl: protoConfig.requestyBaseUrl,
+		tarsApiKey: protoConfig.tarsApiKey,
 		togetherApiKey: protoConfig.togetherApiKey,
 		fireworksApiKey: protoConfig.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens,
@@ -594,6 +604,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.planModeHuaweiCloudMaasModelInfo),
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeTarsModelId: protoConfig.planModeTarsModelId,
+		planModeTarsModelInfo: convertProtoToModelInfo(protoConfig.planModeTarsModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -627,6 +639,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeTarsModelId: protoConfig.actModeTarsModelId,
+		actModeTarsModelInfo: convertProtoToModelInfo(protoConfig.actModeTarsModelInfo),
 
 		// Favorited model IDs
 		favoritedModelIds:

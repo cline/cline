@@ -39,6 +39,7 @@ import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
+import { TarsProvider } from "./providers/TarsProvider"
 import { TogetherProvider } from "./providers/TogetherProvider"
 import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
@@ -145,6 +146,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "vercel-ai-gateway", label: "Vercel AI Gateway" },
 			{ value: "baseten", label: "Baseten" },
 			{ value: "requesty", label: "Requesty" },
+			{ value: "tars", label: "Tetrate Agent Router Service" },
 			{ value: "fireworks", label: "Fireworks AI" },
 			{ value: "together", label: "Together" },
 			{ value: "qwen", label: "Alibaba Qwen" },
@@ -420,6 +422,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "requesty" && (
 				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "tars" && (
+				<TarsProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "fireworks" && (
