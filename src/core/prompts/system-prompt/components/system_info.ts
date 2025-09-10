@@ -1,6 +1,7 @@
 import osModule from "node:os"
 import { getShell } from "@utils/shell"
 import osName from "os-name"
+import { getWorkspacePaths } from "@/hosts/vscode/hostbridge/workspace/getWorkspacePaths"
 import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
@@ -10,14 +11,17 @@ const SYSTEM_INFO_TEMPLATE_TEXT = `SYSTEM INFORMATION
 Operating System: {{os}}
 Default Shell: {{shell}}
 Home Directory: {{homeDir}}
-Current Working Directory: {{workingDir}}`
+Current Working Directory: {{workingDir}}
+Active Workspaces: {{workspaces}}`
 
 export async function getSystemEnv(cwd?: string, isTesting = false) {
+	const workspaces = (await getWorkspacePaths({}))?.paths || []
 	return {
 		os: isTesting ? "macOS" : osName(),
 		shell: isTesting ? "/bin/zsh" : getShell(),
 		homeDir: isTesting ? "/Users/tester" : osModule.homedir(),
 		workingDir: isTesting ? "/Users/tester/dev/project" : cwd || process.cwd(),
+		workspaces: isTesting ? ["/Users/tester/dev/project", "/Users/tester/dev/foo", "/Users/tester/bar"] : workspaces,
 	}
 }
 
@@ -32,5 +36,6 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 		shell: info.shell,
 		homeDir: info.homeDir,
 		workingDir: info.workingDir,
+		workspaces: info.workspaces ? info.workspaces.join(", ") : info.workingDir,
 	})
 }
