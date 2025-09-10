@@ -15,6 +15,26 @@ export class AutoApprove {
 	// Check if the tool should be auto-approved based on the settings
 	// Returns bool for most tools, and tuple for tools with nested settings
 	shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
+		if (this.approveAll) {
+			switch (toolName) {
+				case ClineDefaultTool.FILE_READ:
+				case ClineDefaultTool.LIST_FILES:
+				case ClineDefaultTool.LIST_CODE_DEF:
+				case ClineDefaultTool.SEARCH:
+				case ClineDefaultTool.NEW_RULE:
+				case ClineDefaultTool.FILE_NEW:
+				case ClineDefaultTool.FILE_EDIT:
+				case ClineDefaultTool.BASH:
+					return [true, true]
+
+				case ClineDefaultTool.BROWSER:
+				case ClineDefaultTool.WEB_FETCH:
+				case ClineDefaultTool.MCP_ACCESS:
+				case ClineDefaultTool.MCP_USE:
+					return true
+			}
+		}
+
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case ClineDefaultTool.FILE_READ:
@@ -56,6 +76,10 @@ export class AutoApprove {
 		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
+		if (this.approveAll) {
+			return true
+		}
+
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
 			const cwd = await getCwd(getDesktopDir())
