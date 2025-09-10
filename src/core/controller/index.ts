@@ -650,6 +650,10 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
+		const extensionInfo = {
+			name: this.context.extension?.packageJSON?.name,
+			publisher: this.context.extension?.packageJSON?.publisher,
+		}
 
 		return {
 			version,
@@ -692,6 +696,7 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
+			extensionInfo,
 		}
 	}
 
