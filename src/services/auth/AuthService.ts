@@ -15,6 +15,12 @@ type AvailableAuthProviders = FirebaseAuthProvider | ClineAuthProvider
 export interface ClineAuthInfo {
 	idToken: string
 	userInfo: ClineAccountUserInfo
+	/**
+	 * WorkOS IDP ID if user logged in via SSO
+	 */
+	subject?: string
+	// accessToken: string
+	expiresAt?: number
 }
 
 export interface ClineAccountUserInfo {
@@ -101,14 +107,15 @@ export class AuthService {
 		if (!this._clineAuthInfo) {
 			return null
 		}
-		const idToken = this._clineAuthInfo.idToken
-		const shouldRefreshIdToken = await this._provider?.shouldRefreshIdToken(idToken)
-		if (shouldRefreshIdToken) {
-			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
-			await this.restoreRefreshTokenAndRetrieveAuthInfo()
-			if (!this._clineAuthInfo) {
-				return null
-			}
+		const accessToken = this._clineAuthInfo.idToken // Using idToken field for backward compatibility
+		const shouldRefreshToken = await this._provider?.shouldRefreshIdToken(accessToken)
+		if (shouldRefreshToken) {
+			// Access token is expired, user needs to re-authenticate
+			// Clear the expired auth info and return null to trigger re-authentication
+			this._clineAuthInfo = null
+			this._authenticated = false
+			await this.sendAuthStatusUpdate()
+			return null
 		}
 		return this._clineAuthInfo.idToken
 	}
@@ -122,7 +129,7 @@ export class AuthService {
 				case "firebase":
 					return new FirebaseAuthProvider(clineEnvConfig.firebase)
 				default:
-					return new ClineAuthProvider()
+					return new ClineAuthProvider(clineEnvConfig)
 			}
 		}
 
@@ -160,24 +167,12 @@ export class AuthService {
 		const callbackHost = await HostProvider.get().getCallbackUri()
 		const callbackUrl = `${callbackHost}/auth`
 
-		// Use URL object for more graceful query construction
-		let authUrl = new URL(`${clineEnvConfig.appBaseUrl}/auth`)
-
-		if (this._provider?.name === "cline") {
-			const endpoint = new URL(`${clineEnvConfig.apiBaseUrl}/auth/authorize?source=vscode`)
-			// fetch from the endpoint to get the actual URL to use
-			const response = await fetch(endpoint.toString())
-			if (!response.ok) {
-				throw new Error(`Failed to fetch Cline auth URL: ${response.statusText}`)
-			}
-			const data = await response.json()
-			if (data.url) {
-				authUrl = new URL(data.url)
-			} else {
-				throw new Error("No URL returned from Cline auth endpoint")
-			}
-		}
-
+		// GET /api/v1/auth/authorize
+		// Query Parameters:
+		//   - client_type: "extension" (required)
+		//   - callback_url: Extension callback URL (required)
+		const authUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/authorize`)
+		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
 		const authUrlString = authUrl.toString()
@@ -201,18 +196,18 @@ export class AuthService {
 		}
 	}
 
-	async handleAuthCallback(token: string, provider: string): Promise<void> {
+	async handleAuthCallback(authorizationCode: string, provider: string): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.signIn(this._controller, token, provider)
+			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
 			this._authenticated = true
 
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing in with custom token:", error)
+			console.error("Error signing in with authorization code:", error)
 			throw error
 		}
 	}
@@ -226,7 +221,7 @@ export class AuthService {
 	}
 
 	/**
-	 * Restores the authentication token from the extension's storage.
+	 * Restores the authentication data from the extension's storage.
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
@@ -240,12 +235,12 @@ export class AuthService {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
-				console.warn("No user found after restoring auth token")
+				console.warn("No valid authentication data found or token expired")
 				this._authenticated = false
 				this._clineAuthInfo = null
 			}
 		} catch (error) {
-			console.error("Error restoring auth token:", error)
+			console.error("Error restoring authentication data:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			return

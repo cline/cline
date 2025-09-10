@@ -296,6 +296,34 @@ export class ClineApiServerMock {
 						return sendApiResponse("Account switched successfully")
 					}
 
+					// Auth token exchange endpoint
+					if (endpoint === "/auth/token" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { code, grant_type } = parsed
+
+						if (grant_type !== "authorization_code" || !code) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						const user = controller.API_USER.getUserByToken(code)
+						if (!user) {
+							return sendApiError("Invalid or expired authorization code", 400)
+						}
+
+						return sendApiResponse({
+							success: true,
+							access_token: code + "_access",
+							token_type: "Bearer",
+							expires_in: 3600,
+							user_info: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+							},
+						})
+					}
+
 					// Chat completions endpoint
 					if (endpoint === "/chat/completions" && method === "POST") {
 						if (!controller.userHasOrganization && controller.userBalance <= 0) {
