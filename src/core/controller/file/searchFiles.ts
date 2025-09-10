@@ -32,9 +32,12 @@ export async function searchFiles(_controller: Controller, request: FileSearchRe
 					? SearchWorkspaceItemsRequest_SearchItemType.FOLDER
 					: undefined
 
+		// Strip any leading '/' so the query matches workspace-relative paths across hosts
+		const normalizedQuery = (request.query || "").replace(/^\/+/, "")
+
 		// Use host-provided search via hostbridge (no fallback)
 		const hostResponse = await HostProvider.workspace.searchWorkspaceItems({
-			query: request.query || "",
+			query: normalizedQuery,
 			limit: request.limit || 20,
 			selectedType: selectedTypeValue,
 		})
