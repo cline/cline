@@ -61,7 +61,7 @@ export class HostProvider {
 		getBinaryLocation: (name: string) => Promise<string>,
 	): HostProvider {
 		if (HostProvider.instance) {
-			throw new Error("Host providers have already been initialized.")
+			throw new Error("Host provider has already been initialized.")
 		}
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
@@ -94,11 +94,6 @@ export class HostProvider {
 	 */
 	public static reset(): void {
 		HostProvider.instance = null
-	}
-
-	// Static service accessors for more concise access for callers.
-	public static get watch() {
-		return HostProvider.get().hostBridge.watchServiceClient
 	}
 
 	public static get workspace() {

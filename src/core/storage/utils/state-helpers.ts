@@ -323,6 +323,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 		const taskHistory = await readTaskHistoryFromState(context)
 
+		// Multi-root workspace support
+		const workspaceRoots = context.globalState.get("workspaceRoots") as GlobalState["workspaceRoots"]
+		const primaryRootIndex = context.globalState.get("primaryRootIndex") as number | undefined
+		const multiRootEnabled = context.globalState.get("multiRootEnabled") as boolean | undefined
+
 		return {
 			// api configuration fields
 			claudeCodePath,
@@ -456,6 +461,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			// Multi-root workspace support
+			workspaceRoots,
+			primaryRootIndex,
+			multiRootEnabled,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
