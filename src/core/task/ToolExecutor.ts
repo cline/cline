@@ -114,7 +114,7 @@ export class ToolExecutor {
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 	) {
-		this.autoApprover = new AutoApprove(autoApprovalSettings)
+		this.autoApprover = new AutoApprove(autoApprovalSettings, yoloModeToggled)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
@@ -224,6 +224,7 @@ export class ToolExecutor {
 
 	public updateYoloModeToggled(yoloModeToggled: boolean): void {
 		this.yoloModeToggled = yoloModeToggled
+		this.autoApprover.updateApproveAll(yoloModeToggled)
 	}
 
 	/**

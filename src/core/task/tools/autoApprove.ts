@@ -5,9 +5,11 @@ import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
+	approveAll: boolean
 
-	constructor(autoApprovalSettings: AutoApprovalSettings) {
+	constructor(autoApprovalSettings: AutoApprovalSettings, approveAll: boolean) {
 		this.autoApprovalSettings = autoApprovalSettings
+		this.approveAll = approveAll
 	}
 
 	// Check if the tool should be auto-approved based on the settings
@@ -79,5 +81,9 @@ export class AutoApprove {
 
 	updateSettings(settings: AutoApprovalSettings): void {
 		this.autoApprovalSettings = settings
+	}
+
+	updateApproveAll(approveAll: boolean): void {
+		this.approveAll = approveAll
 	}
 }
