@@ -3,8 +3,8 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
-import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -87,6 +87,19 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+		},
+		// Workspace-related events for multi-root support
+		WORKSPACE: {
+			// Track workspace initialization
+			INITIALIZED: "workspace.initialized",
+			// Track initialization errors
+			INIT_ERROR: "workspace.init_error",
+			// Track VCS detection
+			VCS_DETECTED: "workspace.vcs_detected",
+			// Track multi-root checkpoint operations
+			MULTI_ROOT_CHECKPOINT: "workspace.multi_root_checkpoint",
+			// Track workspace resolution
+			PATH_RESOLVED: "workspace.path_resolved",
 		},
 		TASK: {
 			// Tracks when a new task/conversation is started
@@ -173,7 +186,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = TelemetryProviderFactory.createProvider({
+		const provider = await TelemetryProviderFactory.createProvider({
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
@@ -208,34 +221,27 @@ export class TelemetryService {
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
-		// We only enable telemetry if global vscode telemetry is enabled
-		if (!vscode.env.isTelemetryEnabled) {
-			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
+		// We only enable telemetry if global host telemetry is enabled
+		const hostSetting = await HostProvider.env.getTelemetrySettings({})
+		if (hostSetting.isEnabled === Setting.DISABLED) {
+			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
 			if (didUserOptIn) {
-				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
-				if (isVsCodeHost) {
-					void HostProvider.window
-						.showMessage({
-							type: ShowMessageType.WARNING,
-							message:
-								"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-							options: {
-								items: ["Open Settings"],
-							},
-						})
-						.then((response) => {
-							if (response.selectedOption === "Open Settings") {
-								void HostProvider.window.openSettings({
-									query: "telemetry.telemetryLevel",
-								})
-							}
-						})
-				} else {
-					void HostProvider.window.showMessage({
+				void HostProvider.window
+					.showMessage({
 						type: ShowMessageType.WARNING,
-						message: "Anonymous Cline error and usage reporting is enabled, but host telemetry is disabled.",
+						message:
+							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+						options: {
+							items: ["Open Settings"],
+						},
 					})
-				}
+					.then((response) => {
+						if (response.selectedOption === "Open Settings") {
+							void HostProvider.window.openSettings({
+								query: "telemetry.telemetryLevel",
+							})
+						}
+					})
 			}
 		}
 
@@ -1001,6 +1007,84 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
 			properties: {
 				stage,
+			},
+		})
+	}
+
+	// Workspace telemetry methods
+
+	/**
+	 * Records when workspace is initialized
+	 * @param rootCount Number of workspace roots
+	 * @param vcsTypes Array of VCS types detected
+	 * @param initDurationMs Time taken to initialize in milliseconds
+	 * @param featureFlagEnabled Whether multi-root feature flag is enabled
+	 */
+	public captureWorkspaceInitialized(
+		rootCount: number,
+		vcsTypes: string[],
+		initDurationMs?: number,
+		featureFlagEnabled?: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.INITIALIZED,
+			properties: {
+				root_count: rootCount,
+				vcs_types: vcsTypes,
+				is_multi_root: rootCount > 1,
+				has_git: vcsTypes.includes("Git"),
+				has_mercurial: vcsTypes.includes("Mercurial"),
+				init_duration_ms: initDurationMs,
+				feature_flag_enabled: featureFlagEnabled,
+			},
+		})
+	}
+
+	/**
+	 * Records workspace initialization errors
+	 * @param error The error that occurred
+	 * @param fallbackMode Whether system fell back to single-root mode
+	 * @param workspaceCount Number of workspace folders detected
+	 */
+	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
+			properties: {
+				error_type: error.constructor.name,
+				error_message: error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				fallback_to_single_root: fallbackMode,
+				workspace_count: workspaceCount ?? 0,
+			},
+		})
+	}
+
+	/**
+	 * Records multi-root checkpoint operations
+	 * @param ulid Task identifier
+	 * @param action Type of checkpoint action
+	 * @param rootCount Number of roots being checkpointed
+	 * @param successCount Number of successful checkpoints
+	 * @param failureCount Number of failed checkpoints
+	 * @param durationMs Total operation duration in milliseconds
+	 */
+	public captureMultiRootCheckpoint(
+		ulid: string,
+		action: "initialized" | "committed" | "restored",
+		rootCount: number,
+		successCount: number,
+		failureCount: number,
+		durationMs?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.MULTI_ROOT_CHECKPOINT,
+			properties: {
+				ulid,
+				action,
+				root_count: rootCount,
+				success_count: successCount,
+				failure_count: failureCount,
+				success_rate: rootCount > 0 ? successCount / rootCount : 0,
+				duration_ms: durationMs,
 			},
 		})
 	}

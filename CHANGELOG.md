@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.27.2]
+
+- Remove `grok-code-fast-1` promotion deadline
+
 ## [3.27.1]
 
 - Add new Kimi K2 model to groq and moonshot providers

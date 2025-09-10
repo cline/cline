@@ -135,7 +135,12 @@
 				"**",
 				"!**/hosts/vscode/**",
 				"!**/test/**",
-				"!src/extension.ts"
+				"!**/*.test.ts",
+				"!src/dev/**",
+				"!src/extension.ts",
+				"!src/integrations/git/commit-message-generator.ts",
+				"!src/integrations/terminal/**",
+				"!src/core/controller/ui/openWalkthrough.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"
