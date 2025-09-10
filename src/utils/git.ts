@@ -259,3 +259,15 @@ function truncateOutput(content: string): string {
 		...lines.slice(-afterLimit),
 	].join("\n")
 }
+
+// NEW: Additional functions for Stage 3 multi-workspace support
+// These are the ONLY new additions needed for workspace detection
+
+/**
+ * Check if a directory is a Git repository (Stage 3 requirement)
+ * @param dirPath - The directory path to check
+ * @returns True if it's a Git repository
+ */
+export async function isGitRepository(dirPath: string): Promise<boolean> {
+	return await checkGitRepo(dirPath)
+}
