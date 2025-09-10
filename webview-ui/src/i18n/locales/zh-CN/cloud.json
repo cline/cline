@@ -22,5 +22,10 @@
 	"havingTrouble": "遇到问题？",
 	"pasteCallbackUrl": "从浏览器复制重定向 URL 并粘贴到这里：",
 	"startOver": "重新开始",
-	"cloudUrlPillLabel": "Roo Code Cloud URL"
+	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"upsell": {
+		"autoApprovePowerUser": "给 Roo 一些独立性？使用 Roo Code Cloud 从任何地方控制它。 <learnMoreLink>了解更多</learnMoreLink>。",
+		"longRunningTask": "这可能需要一段时间。使用 Cloud 从任何地方继续。",
+		"taskList": "Roo Code Cloud 在这里：从任何地方关注和控制您的任务。 <learnMoreLink>了解更多</learnMoreLink>。"
+	}
 }

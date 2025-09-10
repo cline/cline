@@ -4,11 +4,11 @@
 	"logOut": "Log out",
 	"testApiAuthentication": "Test API Authentication",
 	"signIn": "Connect to Roo Code Cloud",
-	"connect": "Connect Now",
-	"cloudBenefitsTitle": "Connect to Roo Code Cloud",
-	"cloudBenefitWalkaway": "Follow and control tasks from anywhere with Roomote Control",
+	"connect": "Get started",
+	"cloudBenefitsTitle": "Try Roo Code Cloud",
+	"cloudBenefitWalkaway": "Follow and control tasks from anywhere (including your phone)",
 	"cloudBenefitSharing": "Share tasks with others",
-	"cloudBenefitHistory": "Access your task history",
+	"cloudBenefitHistory": "Access your task history from anywhere",
 	"cloudBenefitMetrics": "Get a holistic view of your token consumption",
 	"visitCloudWebsite": "Visit Roo Code Cloud",
 	"taskSync": "Task sync",
@@ -22,5 +22,10 @@
 	"authWaiting": "Waiting for browser authentication...",
 	"havingTrouble": "Having trouble?",
 	"pasteCallbackUrl": "Copy the redirect URL from your browser and paste it here:",
-	"startOver": "Start over"
+	"startOver": "Start over",
+	"upsell": {
+		"autoApprovePowerUser": "Giving Roo some independence? Control it from anywhere with Roo Code Cloud. <learnMoreLink>Learn more</learnMoreLink>.",
+		"longRunningTask": "This might take a while. Continue from anywhere with Cloud.",
+		"taskList": "Roo Code Cloud is here: follow and control your tasks from anywhere. <learnMoreLink>Learn more</learnMoreLink>."
+	}
 }

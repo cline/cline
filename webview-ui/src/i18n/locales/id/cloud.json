@@ -22,5 +22,10 @@
 	"havingTrouble": "Ada masalah?",
 	"pasteCallbackUrl": "Salin URL redirect dari browser dan tempel di sini:",
 	"startOver": "Mulai dari awal",
-	"cloudUrlPillLabel": "URL Roo Code Cloud"
+	"cloudUrlPillLabel": "URL Roo Code Cloud",
+	"upsell": {
+		"autoApprovePowerUser": "Memberi Roo sedikit kebebasan? Kendalikan dari mana saja dengan Roo Code Cloud. <learnMoreLink>Pelajari lebih lanjut</learnMoreLink>.",
+		"longRunningTask": "Ini mungkin akan memakan waktu cukup lama. Lanjutkan dari mana saja dengan Cloud.",
+		"taskList": "Roo Code Cloud ada di sini: ikuti dan kendalikan tugas Anda dari mana saja. <learnMoreLink>Pelajari lebih lanjut</learnMoreLink>."
+	}
 }

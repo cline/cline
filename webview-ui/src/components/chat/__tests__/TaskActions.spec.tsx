@@ -43,11 +43,11 @@ vi.mock("react-i18next", () => ({
 				"chat:task.connectToCloudDescription": "Sign in to Roo Code Cloud to share tasks",
 				"chat:task.sharingDisabledByOrganization": "Sharing disabled by organization",
 				"cloud:cloudBenefitsTitle": "Connect to Roo Code Cloud",
-				"cloud:cloudBenefitsSubtitle": "Sign in to Roo Code Cloud to share tasks",
 				"cloud:cloudBenefitHistory": "Access your task history from anywhere",
 				"cloud:cloudBenefitSharing": "Share tasks with your team",
 				"cloud:cloudBenefitMetrics": "Track usage and costs",
 				"cloud:connect": "Connect",
+				"history:copyPrompt": "Copy",
 			}
 			return translations[key] || key
 		},
@@ -197,7 +197,6 @@ describe("TaskActions", () => {
 			fireEvent.click(shareButton)
 
 			expect(screen.getByText("Connect to Roo Code Cloud")).toBeInTheDocument()
-			expect(screen.getByText("Sign in to Roo Code Cloud to share tasks")).toBeInTheDocument()
 			expect(screen.getByText("Connect")).toBeInTheDocument()
 		})
 
@@ -351,30 +350,13 @@ describe("TaskActions", () => {
 	})
 
 	describe("Button States", () => {
-		it("keeps share, export, and copy buttons enabled but disables delete button when buttonsDisabled is true", () => {
-			render(<TaskActions item={mockItem} buttonsDisabled={true} />)
-
-			// Find buttons by their labels/test IDs
-			const shareButton = screen.getByTestId("share-button")
-			const exportButton = screen.getByLabelText("Export task history")
-			const copyButton = screen.getByLabelText("history:copyPrompt")
-			const deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
-
-			// Share, export, and copy buttons should be enabled regardless of buttonsDisabled
-			expect(shareButton).not.toBeDisabled()
-			expect(exportButton).not.toBeDisabled()
-			expect(copyButton).not.toBeDisabled()
-			// Delete button should respect buttonsDisabled
-			expect(deleteButton).toBeDisabled()
-		})
-
 		it("share, export, and copy buttons are always enabled while delete button respects buttonsDisabled state", () => {
 			// Test with buttonsDisabled = false
 			const { rerender } = render(<TaskActions item={mockItem} buttonsDisabled={false} />)
 
 			let shareButton = screen.getByTestId("share-button")
 			let exportButton = screen.getByLabelText("Export task history")
-			let copyButton = screen.getByLabelText("history:copyPrompt")
+			let copyButton = screen.getByLabelText("Copy")
 			let deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
 
 			expect(shareButton).not.toBeDisabled()
@@ -387,7 +369,7 @@ describe("TaskActions", () => {
 
 			shareButton = screen.getByTestId("share-button")
 			exportButton = screen.getByLabelText("Export task history")
-			copyButton = screen.getByLabelText("history:copyPrompt")
+			copyButton = screen.getByLabelText("Copy")
 			deleteButton = screen.getByLabelText("Delete Task (Shift + Click to skip confirmation)")
 
 			// Share, export, and copy remain enabled

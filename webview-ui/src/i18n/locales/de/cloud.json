@@ -22,5 +22,10 @@
 	"havingTrouble": "Probleme?",
 	"pasteCallbackUrl": "Kopiere die Redirect-URL aus deinem Browser und füge sie hier ein:",
 	"startOver": "Von vorne beginnen",
-	"cloudUrlPillLabel": "Roo Code Cloud URL"
+	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"upsell": {
+		"autoApprovePowerUser": "Roo etwas Unabhängigkeit geben? Kontrolliere es von überall mit Roo Code Cloud. <learnMoreLink>Mehr erfahren</learnMoreLink>.",
+		"longRunningTask": "Das könnte eine Weile dauern. Mit Cloud von überall weitermachen.",
+		"taskList": "Roo Code Cloud ist hier: Verfolge und kontrolliere deine Aufgaben von überall. <learnMoreLink>Mehr erfahren</learnMoreLink>."
+	}
 }

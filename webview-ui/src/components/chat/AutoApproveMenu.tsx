@@ -9,6 +9,9 @@ import { AutoApproveToggle, AutoApproveSetting, autoApproveSettingsConfig } from
 import { StandardTooltip } from "@src/components/ui"
 import { useAutoApprovalState } from "@src/hooks/useAutoApprovalState"
 import { useAutoApprovalToggles } from "@src/hooks/useAutoApprovalToggles"
+import DismissibleUpsell from "@src/components/common/DismissibleUpsell"
+import { useCloudUpsell } from "@src/hooks/useCloudUpsell"
+import { CloudUpsellDialog } from "@src/components/cloud/CloudUpsellDialog"
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -35,7 +38,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const { t } = useAppTranslation()
 
+	const { isOpen, openUpsell, closeUpsell, handleConnect } = useCloudUpsell({
+		autoOpenOnAuth: false,
+	})
+
 	const baseToggles = useAutoApprovalToggles()
+	const enabledCount = useMemo(() => Object.values(baseToggles).filter(Boolean).length, [baseToggles])
 
 	// AutoApproveMenu needs alwaysApproveResubmit in addition to the base toggles
 	const toggles = useMemo(
@@ -173,6 +181,23 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					</div>
 
 					<AutoApproveToggle {...toggles} onToggle={onAutoApproveToggle} />
+
+					{enabledCount > 7 && (
+						<>
+							<DismissibleUpsell
+								upsellId="autoApprovePowerUserA"
+								onClick={() => openUpsell()}
+								dismissOnClick={false}
+								variant="banner">
+								<Trans
+									i18nKey="cloud:upsell.autoApprovePowerUser"
+									components={{
+										learnMoreLink: <VSCodeLink href="#" />,
+									}}
+								/>
+							</DismissibleUpsell>
+						</>
+					)}
 				</div>
 			)}
 
@@ -240,6 +265,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					/>
 				</div>
 			</div>
+			<CloudUpsellDialog open={isOpen} onOpenChange={closeUpsell} onConnect={handleConnect} />
 		</div>
 	)
 }

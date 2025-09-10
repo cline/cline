@@ -8,8 +8,9 @@ import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 import { telemetryClient } from "@src/utils/TelemetryClient"
 import { ToggleSwitch } from "@/components/ui/toggle-switch"
-
-import { History, PiggyBank, SquareArrowOutUpRightIcon } from "lucide-react"
+import { renderCloudBenefitsContent } from "./CloudUpsellDialog"
+import { TriangleAlert } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 // Define the production URL constant locally to avoid importing from cloud package in tests
 const PRODUCTION_ROO_CODE_API_URL = "https://app.roocode.com"
@@ -33,13 +34,10 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 	const wasAuthenticatedRef = useRef(false)
 	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const manualUrlInputRef = useRef<HTMLInputElement | null>(null)
-
 	// Manual URL entry state
 	const [authInProgress, setAuthInProgress] = useState(false)
 	const [showManualEntry, setShowManualEntry] = useState(false)
 	const [manualUrl, setManualUrl] = useState("")
-
-	const rooLogoUri = (window as any).IMAGES_BASE_URI + "/roo-logo.svg"
 
 	// Track authentication state changes to detect successful logout
 	useEffect(() => {
@@ -157,7 +155,7 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 	return (
 		<div className="flex flex-col h-full">
 			<div className="flex justify-between items-center mb-6">
-				<h1 className="text-xl font-medium text-vscode-foreground">{t("cloud:title")}</h1>
+				<h1 className="text-xl font-medium text-vscode-foreground">{isAuthenticated && t("cloud:title")}</h1>
 				<VSCodeButton appearance="secondary" onClick={onDone}>
 					{t("settings:common.done")}
 				</VSCodeButton>
@@ -268,46 +266,11 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 				</>
 			) : (
 				<>
-					<div className="flex flex-col items-center mb-1 text-center">
-						<div className="w-16 h-16 mb-1 flex items-center justify-center">
-							<div
-								className="w-12 h-12 bg-vscode-foreground"
-								style={{
-									WebkitMaskImage: `url('${rooLogoUri}')`,
-									WebkitMaskRepeat: "no-repeat",
-									WebkitMaskSize: "contain",
-									maskImage: `url('${rooLogoUri}')`,
-									maskRepeat: "no-repeat",
-									maskSize: "contain",
-								}}>
-								<img src={rooLogoUri} alt="Roo logo" className="w-12 h-12 opacity-0" />
-							</div>
-						</div>
-					</div>
+					<div className="flex flex-col items-start gap-4 px-8">
+						<div className={cn(authInProgress && "opacity-50")}>{renderCloudBenefitsContent(t)}</div>
 
-					<div className="flex flex-col mb-6 text-center">
-						<h2 className="text-xl font-bold text-vscode-foreground mb-2">
-							{t("cloud:cloudBenefitsTitle")}
-						</h2>
-						<ul className="text-vscode-descriptionForeground space-y-3 mx-auto px-8">
-							<li className="flex items-start text-left gap-4">
-								<SquareArrowOutUpRightIcon size="16" className="shrink-0" />
-								{t("cloud:cloudBenefitSharing")}
-							</li>
-							<li className="flex items-start text-left gap-4">
-								<History size="16" className="shrink-0" />
-								{t("cloud:cloudBenefitHistory")}
-							</li>
-							<li className="flex items-start text-left gap-4">
-								<PiggyBank size="16" className="shrink-0" />
-								{t("cloud:cloudBenefitMetrics")}
-							</li>
-						</ul>
-					</div>
-
-					<div className="flex flex-col items-center gap-4">
 						{!authInProgress && (
-							<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-1/2">
+							<VSCodeButton appearance="primary" onClick={handleConnectClick} className="w-full">
 								{t("cloud:connect")}
 							</VSCodeButton>
 						)}
@@ -315,15 +278,15 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 						{/* Manual entry section */}
 						{authInProgress && !showManualEntry && (
 							// Timeout message with "Having trouble?" link
-							<div className="flex flex-col items-center gap-1">
-								<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground">
+							<div className="flex flex-col items-start gap-1">
+								<div className="flex items-center gap-2 text-base text-vscode-descriptionForeground">
 									<VSCodeProgressRing className="size-3 text-vscode-foreground" />
 									{t("cloud:authWaiting")}
 								</div>
 								{!showManualEntry && (
 									<button
 										onClick={handleShowManualEntry}
-										className="text-sm text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
+										className="text-base ml-5 text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
 										{t("cloud:havingTrouble")}
 									</button>
 								)}
@@ -332,8 +295,8 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 
 						{showManualEntry && (
 							// Manual URL entry form
-							<div className="space-y-2 text-center border-border/50 border-t px-2 pt-8 mt-3">
-								<p className="text-xs text-vscode-descriptionForeground">
+							<div className="space-y-2 max-w-72">
+								<p className="text-base text-vscode-descriptionForeground">
 									{t("cloud:pasteCallbackUrl")}
 								</p>
 								<VSCodeTextField
@@ -344,19 +307,23 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 									placeholder="vscode://RooVeterinaryInc.roo-cline/auth/clerk/callback?state=..."
 									className="w-full"
 								/>
-								<button
-									onClick={handleReset}
-									className="text-sm text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
-									{t("cloud:startOver")}
-								</button>
+								<p className="mt-1">
+									or{" "}
+									<button
+										onClick={handleReset}
+										className="text-base text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">
+										{t("cloud:startOver")}
+									</button>
+								</p>
 							</div>
 						)}
 					</div>
 				</>
 			)}
 			{cloudApiUrl && cloudApiUrl !== PRODUCTION_ROO_CODE_API_URL && (
-				<div className="mt-6 flex justify-center">
-					<div className="inline-flex items-center px-3 py-1 gap-1 rounded-full bg-vscode-badge-background/50 text-vscode-badge-foreground text-xs">
+				<div className="ml-8 mt-6 flex justify-start">
+					<div className="inline-flex items-center gap-2 text-xs">
+						<TriangleAlert className="size-4 text-vscode-descriptionForeground" />
 						<span className="text-vscode-foreground/75">{t("cloud:cloudUrlPillLabel")}: </span>
 						<button
 							onClick={handleOpenCloudUrl}

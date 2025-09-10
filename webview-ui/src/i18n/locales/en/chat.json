@@ -354,11 +354,6 @@
 	"versionIndicator": {
 		"ariaLabel": "Version {{version}} - Click to view release notes"
 	},
-	"rooCloudCTA": {
-		"title": "Roo Code Cloud is evolving!",
-		"description": "Run Roomote agents in the cloud, access your tasks from anywhere, collaborate with others, and more.",
-		"joinWaitlist": "Sign up to get the latest updates."
-	},
 	"command": {
 		"triggerDescription": "Trigger the {{name}} command"
 	},
