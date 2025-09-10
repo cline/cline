@@ -31,7 +31,10 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
-import { createTaskCheckpointManager, TaskCheckpointManager } from "@integrations/checkpoints"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
+import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
+import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -61,7 +64,6 @@ import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
-import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
@@ -110,7 +112,7 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	public checkpointManager?: TaskCheckpointManager
+	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
@@ -143,6 +145,10 @@ export class Task {
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
+
+	// Workspace manager
+	workspaceManager?: WorkspaceRootManager
+
 	constructor(
 		controller: Controller,
 		mcpHub: McpHub,
@@ -166,6 +172,7 @@ export class Task {
 		enableCheckpointsSetting: boolean,
 		cwd: string,
 		stateManager: StateManager,
+		workspaceManager?: WorkspaceRootManager,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -212,6 +219,7 @@ export class Task {
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.useAutoCondense = useAutoCondense
+		this.workspaceManager = workspaceManager
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
@@ -262,33 +270,40 @@ export class Task {
 			})
 		}
 
-		// Initialize checkpoint manager
+		// Initialize checkpoint manager based on workspace configuration
 		try {
-			this.checkpointManager = createTaskCheckpointManager(
-				{
-					taskId: this.taskId,
-				},
-				{
+			this.checkpointManager = buildCheckpointManager({
+				taskId: this.taskId,
+				enableCheckpoints: enableCheckpointsSetting,
+				messageStateHandler: this.messageStateHandler,
+				fileContextTracker: this.fileContextTracker,
+				diffViewProvider: this.diffViewProvider,
+				taskState: this.taskState,
+				context: controller.context,
+				workspaceManager: this.workspaceManager,
+				globalStoragePath: controller.context.globalStorageUri.fsPath,
+				isMultiRootEnabled: stateManager.isMultiRootEnabled(),
+				updateTaskHistory: this.updateTaskHistory,
+				say: this.say.bind(this),
+				cancelTask: this.cancelTask,
+				postStateToWebview: this.postStateToWebview,
+				initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+				initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+			})
+
+			// If multi-root, kick off non-blocking initialization
+			if (
+				shouldUseMultiRoot({
+					isMultiRootEnabled: stateManager.isMultiRootEnabled(),
+					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
-				},
-				{
-					context: controller.context,
-					diffViewProvider: this.diffViewProvider,
-					messageStateHandler: this.messageStateHandler,
-					fileContextTracker: this.fileContextTracker,
-					taskState: this.taskState,
-				},
-				{
-					updateTaskHistory: this.updateTaskHistory,
-					say: this.say.bind(this),
-					cancelTask: this.cancelTask,
-					postStateToWebview: this.postStateToWebview,
-				},
-				{
-					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-					checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-				},
-			)
+				})
+			) {
+				this.checkpointManager.initialize?.().catch((error: Error) => {
+					console.error("Failed to initialize multi-root checkpoint manager:", error)
+					this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
+				})
+			}
 		} catch (error) {
 			console.error("Failed to initialize checkpoint manager:", error)
 			if (enableCheckpointsSetting) {
@@ -1272,6 +1287,14 @@ export class Task {
 		return { model, providerId, customPrompt }
 	}
 
+	private getApiRequestIdSafe(): string | undefined {
+		const apiLike = this.api as Partial<{
+			getLastRequestId: () => string | undefined
+			lastGenerationId?: string
+		}>
+		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
@@ -1712,11 +1735,7 @@ export class Task {
 			!this.taskState.checkpointManagerErrorMessage
 		) {
 			try {
-				await pTimeout(this.checkpointManager.checkpointTrackerCheckAndInit(), {
-					milliseconds: 15_000,
-					message:
-						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-				})
+				await ensureCheckpointInitialized({ checkpointManager: this.checkpointManager })
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint manager:", errorMessage)
@@ -2146,10 +2165,29 @@ export class Task {
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				await this.say(
-					"error",
-					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-				)
+				const { model, providerId } = this.getCurrentProviderInfo()
+				const reqId = this.getApiRequestIdSafe()
+
+				// Minimal diagnostics: structured log and telemetry
+				console.error("[EmptyAssistantMessage]", {
+					ulid: this.ulid,
+					providerId,
+					modelId: model.id,
+					requestId: reqId,
+				})
+				telemetryService.captureProviderApiError({
+					ulid: this.ulid,
+					model: model.id,
+					provider: providerId,
+					errorMessage: "empty_assistant_message",
+					requestId: reqId,
+				})
+
+				const baseErrorMessage =
+					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
+				const errorText = reqId ? `${baseErrorMessage} (reqId: ${reqId})` : baseErrorMessage
+
+				await this.say("error", errorText)
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [

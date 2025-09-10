@@ -17,6 +17,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskState } from "../../core/task/TaskState"
+import { ICheckpointManager } from "./types"
 
 // Type definitions for better code organization
 type SayFunction = (
@@ -80,7 +81,7 @@ interface CheckpointRestoreStateUpdate {
  *
  * For checkpoint operations, the CheckpointTracker class is used to interact with the underlying git logic.
  */
-export class TaskCheckpointManager {
+export class TaskCheckpointManager implements ICheckpointManager {
 	private readonly task: CheckpointManagerTask
 	private readonly config: CheckpointManagerConfig
 	private readonly services: CheckpointManagerServices
