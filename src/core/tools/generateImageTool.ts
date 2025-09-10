@@ -244,7 +244,11 @@ export async function generateImageTool(
 			const fullImagePath = path.join(cline.cwd, finalPath)
 
 			// Convert to webview URI if provider is available
-			const imageUri = provider?.convertToWebviewUri?.(fullImagePath) ?? vscode.Uri.file(fullImagePath).toString()
+			let imageUri = provider?.convertToWebviewUri?.(fullImagePath) ?? vscode.Uri.file(fullImagePath).toString()
+
+			// Add cache-busting parameter to prevent browser caching issues
+			const cacheBuster = Date.now()
+			imageUri = imageUri.includes("?") ? `${imageUri}&t=${cacheBuster}` : `${imageUri}?t=${cacheBuster}`
 
 			// Send the image with the webview URI
 			await cline.say("image", JSON.stringify({ imageUri, imagePath: fullImagePath }))

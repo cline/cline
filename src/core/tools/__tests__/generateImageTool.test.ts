@@ -163,6 +163,60 @@ describe("generateImageTool", () => {
 			expect(mockGenerateImage).toHaveBeenCalled()
 			expect(mockPushToolResult).toHaveBeenCalled()
 		})
+
+		it("should add cache-busting parameter to image URI", async () => {
+			const completeBlock: ToolUse = {
+				type: "tool_use",
+				name: "generate_image",
+				params: {
+					prompt: "Generate a test image",
+					path: "test-image.png",
+				},
+				partial: false,
+			}
+
+			// Mock convertToWebviewUri to return a test URI
+			const mockWebviewUri = "https://file+.vscode-resource.vscode-cdn.net/test/workspace/test-image.png"
+			mockCline.providerRef.deref().convertToWebviewUri = vi.fn().mockReturnValue(mockWebviewUri)
+
+			// Mock the OpenRouterHandler generateImage method
+			const mockGenerateImage = vi.fn().mockResolvedValue({
+				success: true,
+				imageData: "data:image/png;base64,fakebase64data",
+			})
+
+			vi.mocked(OpenRouterHandler).mockImplementation(
+				() =>
+					({
+						generateImage: mockGenerateImage,
+					}) as any,
+			)
+
+			await generateImageTool(
+				mockCline as Task,
+				completeBlock,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			// Check that cline.say was called with image data containing cache-busting parameter
+			expect(mockCline.say).toHaveBeenCalledWith("image", expect.stringMatching(/"imageUri":"[^"]+\?t=\d+"/))
+
+			// Verify the imageUri contains the cache-busting parameter
+			const sayCall = mockCline.say.mock.calls.find((call: any[]) => call[0] === "image")
+			if (sayCall) {
+				const imageData = JSON.parse(sayCall[1])
+				expect(imageData.imageUri).toMatch(/\?t=\d+$/)
+				// Handle both Unix and Windows path separators
+				const expectedPath =
+					process.platform === "win32"
+						? "\\test\\workspace\\test-image.png"
+						: "/test/workspace/test-image.png"
+				expect(imageData.imagePath).toBe(expectedPath)
+			}
+		})
 	})
 
 	describe("missing parameters", () => {
