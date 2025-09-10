@@ -21,10 +21,12 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
-import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { getDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { PromptRegistry } from "../prompts/system-prompt"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
@@ -39,7 +41,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	readonly id: string
-	private disposables: vscode.Disposable[] = []
 	task?: Task
 
 	mcpHub: McpHub
@@ -52,7 +53,7 @@ export class Controller {
 		id: string,
 	) {
 		this.id = id
-
+		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
@@ -65,12 +66,15 @@ export class Controller {
 				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
-				console.error("CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+				console.error(
+					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
+					error,
+				)
 			})
 
 		// Set up persistence error recovery
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("Cache persistence failed, recovering:", error)
+			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
 				await this.stateManager.reInitialize()
 				await this.postStateToWebview()
@@ -79,12 +83,16 @@ export class Controller {
 					message: "Saving settings to storage failed.",
 				})
 			} catch (recoveryError) {
-				console.error("Cache recovery failed:", recoveryError)
+				console.error("[Controller] Cache recovery failed:", recoveryError)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to save settings. Please restart the extension.",
 				})
 			}
+		}
+
+		this.stateManager.onSyncExternalChange = async () => {
+			await this.postStateToWebview()
 		}
 
 		this.mcpHub = new McpHub(
@@ -111,12 +119,6 @@ export class Controller {
 	*/
 	async dispose() {
 		await this.clearTask()
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
@@ -191,10 +193,19 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-		// Apply remote feature flag gate to focus chain settings
+		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
+		let focusChainEnabled: boolean
+		if (focusChainSettings?.enabled === false) {
+			focusChainEnabled = false
+		} else if (focusChainFeatureFlagEnabled === false) {
+			focusChainEnabled = false
+		} else {
+			focusChainEnabled = Boolean(focusChainSettings?.enabled)
+		}
+
 		const effectiveFocusChainSettings = {
 			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
-			enabled: Boolean(focusChainSettings?.enabled) && Boolean(focusChainFeatureFlagEnabled),
+			enabled: focusChainEnabled,
 		}
 
 		this.task = new Task(
@@ -212,7 +223,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
-			useAutoCondense ?? true,
+			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -625,8 +636,8 @@ export class Controller {
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
@@ -636,7 +647,7 @@ export class Controller {
 		const latestAnnouncementId = getLatestAnnouncementId(this.context)
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
-		const distinctId = PostHogClientProvider.getInstance().distinctId
+		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
 
@@ -645,12 +656,9 @@ export class Controller {
 			apiConfiguration,
 			uriScheme,
 			currentTaskItem,
-			checkpointTrackerErrorMessage,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
-			taskHistory: processedTaskHistory,
-			shouldShowAnnouncement,
-			platform,
+			checkpointManagerErrorMessage,
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
@@ -681,6 +689,9 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			customPrompt,
+			taskHistory: processedTaskHistory,
+			platform,
+			shouldShowAnnouncement,
 		}
 	}
 

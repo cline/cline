@@ -1,10 +1,10 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
+import { getTaskHistoryStateFilePath, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
-import { readStateFromDisk } from "./utils/state-helpers"
+import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
 /**
  * Interface for persistence error event data
@@ -30,9 +30,13 @@ export class StateManager {
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
+	private taskHistoryWatcher: FSWatcher | null = null
 
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
+
+	// Callback to sync external state changes with the UI client
+	onSyncExternalChange?: () => void | Promise<void>
 
 	constructor(context: ExtensionContext) {
 		this.context = context
@@ -44,17 +48,20 @@ export class StateManager {
 	async initialize(): Promise<void> {
 		try {
 			// Load all extension state from disk
-			const state = await readStateFromDisk(this.context)
+			const globalState = await readGlobalStateFromDisk(this.context)
+			const secrets = await readSecretsFromDisk(this.context)
+			const workspaceState = await readWorkspaceStateFromDisk(this.context)
 
-			if (state) {
-				// Populate the caches with all extension state fields
-				// Use populate method to avoid triggering persistence during initialization
-				this.populateCache(state)
-			}
+			// Populate the cache with all extension state and secrets fields
+			// Use populate method to avoid triggering persistence during initialization
+			this.populateCache(globalState, secrets, workspaceState)
 
 			this.isInitialized = true
+
+			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
+			await this.setupTaskHistoryWatcher()
 		} catch (error) {
-			console.error("Failed to initialize StateManager:", error)
+			console.error("[StateManager] Failed to initialize:", error)
 			throw error
 		}
 	}
@@ -162,6 +169,56 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	/**
+	 * Initialize chokidar watcher for the taskHistory.json file
+	 * Updates in-memory cache on external changes without writing back to disk.
+	 */
+	private async setupTaskHistoryWatcher(): Promise<void> {
+		try {
+			const historyFile = await getTaskHistoryStateFilePath(this.context)
+
+			// Close any existing watcher before creating a new one
+			if (this.taskHistoryWatcher) {
+				await this.taskHistoryWatcher.close()
+				this.taskHistoryWatcher = null
+			}
+
+			this.taskHistoryWatcher = chokidar.watch(historyFile, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+			})
+
+			const syncTaskHistoryFromDisk = async () => {
+				try {
+					if (!this.isInitialized) {
+						return
+					}
+					const onDisk = await readTaskHistoryFromState(this.context)
+					const cached = this.globalStateCache["taskHistory"]
+					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
+						this.globalStateCache["taskHistory"] = onDisk
+						await this.onSyncExternalChange?.()
+					}
+				} catch (err) {
+					console.error("[StateManager] Failed to reload task history on change:", err)
+				}
+			}
+
+			this.taskHistoryWatcher
+				.on("add", () => syncTaskHistoryFromDisk())
+				.on("change", () => syncTaskHistoryFromDisk())
+				.on("unlink", async () => {
+					this.globalStateCache["taskHistory"] = []
+					await this.onSyncExternalChange?.()
+				})
+				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
+		} catch (err) {
+			console.error("[StateManager] Failed to set up taskHistory watcher:", err)
+		}
 	}
 
 	/**
@@ -278,6 +335,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -309,6 +367,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -344,6 +403,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -376,6 +436,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -516,6 +577,11 @@ export class StateManager {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
 		}
+		// Close file watcher if active
+		if (this.taskHistoryWatcher) {
+			this.taskHistoryWatcher.close()
+			this.taskHistoryWatcher = null
+		}
 
 		this.pendingGlobalState.clear()
 		this.pendingSecrets.clear()
@@ -552,11 +618,11 @@ export class StateManager {
 				this.pendingWorkspaceState.clear()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("Failed to persist pending changes:", error)
+				console.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery
-				this.onPersistenceError?.({ error: error as Error })
+				this.onPersistenceError?.({ error: error })
 			}
 		}, this.PERSISTENCE_DELAY_MS)
 	}
@@ -568,12 +634,15 @@ export class StateManager {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
-					const value = this.globalStateCache[key]
-					return this.context.globalState.update(key, value)
+					if (key === "taskHistory") {
+						// Route task history persistence to file, not VS Code globalState
+						return writeTaskHistoryToState(this.context, this.globalStateCache[key])
+					}
+					return this.context.globalState.update(key, this.globalStateCache[key])
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist global state batch:", error)
+			console.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
@@ -620,336 +689,10 @@ export class StateManager {
 	 * Private method to populate cache with all extension state without triggering persistence
 	 * Used during initialization
 	 */
-	private populateCache(state: any): void {
-		// Extract API configuration fields
-		const {
-			apiKey,
-			openRouterApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsBedrockUsePromptCache,
-			awsBedrockEndpoint,
-			awsBedrockApiKey,
-			awsProfile,
-			awsUseProfile,
-			awsAuthentication,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiHeaders,
-			ollamaBaseUrl,
-			ollamaApiKey,
-			ollamaApiOptionsCtxNum,
-			lmStudioBaseUrl,
-			lmStudioMaxTokens,
-			anthropicBaseUrl,
-			geminiApiKey,
-			geminiBaseUrl,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			requestyApiKey,
-			requestyBaseUrl,
-			togetherApiKey,
-			qwenApiKey,
-			doubaoApiKey,
-			mistralApiKey,
-			azureApiVersion,
-			openRouterProviderSorting,
-			liteLlmBaseUrl,
-			liteLlmApiKey,
-			liteLlmUsePromptCache,
-			qwenApiLine,
-			moonshotApiLine,
-			zaiApiLine,
-			asksageApiKey,
-			asksageApiUrl,
-			xaiApiKey,
-			clineAccountId,
-			sambanovaApiKey,
-			cerebrasApiKey,
-			groqApiKey,
-			basetenApiKey,
-			moonshotApiKey,
-			nebiusApiKey,
-			favoritedModelIds,
-			fireworksApiKey,
-			fireworksModelMaxCompletionTokens,
-			fireworksModelMaxTokens,
-			sapAiCoreClientId,
-			sapAiCoreClientSecret,
-			sapAiCoreBaseUrl,
-			sapAiCoreTokenUrl,
-			sapAiResourceGroup,
-			sapAiCoreUseOrchestrationMode,
-			claudeCodePath,
-			qwenCodeOauthPath,
-			huggingFaceApiKey,
-			huaweiCloudMaasApiKey,
-			difyApiKey,
-			difyBaseUrl,
-			vercelAiGatewayApiKey,
-			zaiApiKey,
-			requestTimeoutMs,
-			authNonce,
-			// Plan mode configurations
-			planModeApiProvider,
-			planModeApiModelId,
-			planModeThinkingBudgetTokens,
-			planModeReasoningEffort,
-			planModeVsCodeLmModelSelector,
-			planModeAwsBedrockCustomSelected,
-			planModeAwsBedrockCustomModelBaseId,
-			planModeOpenRouterModelId,
-			planModeOpenRouterModelInfo,
-			planModeOpenAiModelId,
-			planModeOpenAiModelInfo,
-			planModeOllamaModelId,
-			planModeLmStudioModelId,
-			planModeLiteLlmModelId,
-			planModeLiteLlmModelInfo,
-			planModeRequestyModelId,
-			planModeRequestyModelInfo,
-			planModeTogetherModelId,
-			planModeFireworksModelId,
-			planModeSapAiCoreModelId,
-			planModeGroqModelId,
-			planModeGroqModelInfo,
-			planModeBasetenModelId,
-			planModeBasetenModelInfo,
-			planModeHuggingFaceModelId,
-			planModeHuggingFaceModelInfo,
-			planModeHuaweiCloudMaasModelId,
-			planModeHuaweiCloudMaasModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
-			// Act mode configurations
-			actModeApiProvider,
-			actModeApiModelId,
-			actModeThinkingBudgetTokens,
-			actModeReasoningEffort,
-			actModeVsCodeLmModelSelector,
-			actModeAwsBedrockCustomSelected,
-			actModeAwsBedrockCustomModelBaseId,
-			actModeOpenRouterModelId,
-			actModeOpenRouterModelInfo,
-			actModeOpenAiModelId,
-			actModeOpenAiModelInfo,
-			actModeOllamaModelId,
-			actModeLmStudioModelId,
-			actModeLiteLlmModelId,
-			actModeLiteLlmModelInfo,
-			actModeRequestyModelId,
-			actModeRequestyModelInfo,
-			actModeTogetherModelId,
-			actModeFireworksModelId,
-			actModeSapAiCoreModelId,
-			actModeGroqModelId,
-			actModeGroqModelInfo,
-			actModeBasetenModelId,
-			actModeBasetenModelInfo,
-			actModeHuggingFaceModelId,
-			actModeHuggingFaceModelInfo,
-			actModeHuaweiCloudMaasModelId,
-			actModeHuaweiCloudMaasModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
-		} = state.apiConfiguration || {}
-
-		// Directly populate global state cache without triggering persistence
-		const globalStateFields = {
-			// Extension state fields
-			strictPlanModeEnabled: state.strictPlanModeEnabled,
-			useAutoCondense: state.useAutoCondense,
-			isNewUser: state.isNewUser,
-			welcomeViewCompleted: state.welcomeViewCompleted,
-			autoApprovalSettings: state.autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS,
-			globalClineRulesToggles: state.globalClineRulesToggles,
-			browserSettings: state.browserSettings,
-			focusChainSettings: state.focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
-			focusChainFeatureFlagEnabled: state.focusChainFeatureFlagEnabled,
-			preferredLanguage: state.preferredLanguage,
-			openaiReasoningEffort: state.openaiReasoningEffort,
-			mode: state.mode,
-			userInfo: state.userInfo,
-			mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-			mcpDisplayMode: state.mcpDisplayMode,
-			mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-			telemetrySetting: state.telemetrySetting,
-			planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-			enableCheckpointsSetting: state.enableCheckpointsSetting,
-			shellIntegrationTimeout: state.shellIntegrationTimeout,
-			terminalReuseEnabled: state.terminalReuseEnabled,
-			terminalOutputLineLimit: state.terminalOutputLineLimit,
-			defaultTerminalProfile: state.defaultTerminalProfile,
-			globalWorkflowToggles: state.globalWorkflowToggles,
-			taskHistory: state.taskHistory,
-			lastShownAnnouncementId: state.lastShownAnnouncementId,
-			mcpMarketplaceCatalog: state.mcpMarketplaceCatalog,
-			customPrompt: state.customPrompt,
-
-			// Plan mode configuration updates
-			planModeApiProvider,
-			planModeApiModelId,
-			planModeThinkingBudgetTokens,
-			planModeReasoningEffort,
-			planModeVsCodeLmModelSelector,
-			planModeAwsBedrockCustomSelected,
-			planModeAwsBedrockCustomModelBaseId,
-			planModeOpenRouterModelId,
-			planModeOpenRouterModelInfo,
-			planModeOpenAiModelId,
-			planModeOpenAiModelInfo,
-			planModeOllamaModelId,
-			planModeLmStudioModelId,
-			planModeLiteLlmModelId,
-			planModeLiteLlmModelInfo,
-			planModeRequestyModelId,
-			planModeRequestyModelInfo,
-			planModeTogetherModelId,
-			planModeFireworksModelId,
-			planModeSapAiCoreModelId,
-			planModeGroqModelId,
-			planModeGroqModelInfo,
-			planModeBasetenModelId,
-			planModeBasetenModelInfo,
-			planModeHuggingFaceModelId,
-			planModeHuggingFaceModelInfo,
-			planModeHuaweiCloudMaasModelId,
-			planModeHuaweiCloudMaasModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
-
-			// Act mode configuration updates
-			actModeApiProvider,
-			actModeApiModelId,
-			actModeThinkingBudgetTokens,
-			actModeReasoningEffort,
-			actModeVsCodeLmModelSelector,
-			actModeAwsBedrockCustomSelected,
-			actModeAwsBedrockCustomModelBaseId,
-			actModeOpenRouterModelId,
-			actModeOpenRouterModelInfo,
-			actModeOpenAiModelId,
-			actModeOpenAiModelInfo,
-			actModeOllamaModelId,
-			actModeLmStudioModelId,
-			actModeLiteLlmModelId,
-			actModeLiteLlmModelInfo,
-			actModeRequestyModelId,
-			actModeRequestyModelInfo,
-			actModeTogetherModelId,
-			actModeFireworksModelId,
-			actModeSapAiCoreModelId,
-			actModeGroqModelId,
-			actModeGroqModelInfo,
-			actModeBasetenModelId,
-			actModeBasetenModelInfo,
-			actModeHuggingFaceModelId,
-			actModeHuggingFaceModelInfo,
-			actModeHuaweiCloudMaasModelId,
-			actModeHuaweiCloudMaasModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
-
-			// API configuration global state updates
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsBedrockUsePromptCache,
-			awsBedrockEndpoint,
-			awsProfile,
-			awsUseProfile,
-			awsAuthentication,
-			awsBedrockApiKey,
-			vertexProjectId,
-			vertexRegion,
-			requestyBaseUrl,
-			openAiBaseUrl,
-			openAiHeaders,
-			ollamaBaseUrl,
-			ollamaApiOptionsCtxNum,
-			lmStudioBaseUrl,
-			lmStudioMaxTokens,
-			anthropicBaseUrl,
-			geminiBaseUrl,
-			azureApiVersion,
-			openRouterProviderSorting,
-			liteLlmBaseUrl,
-			liteLlmUsePromptCache,
-			qwenApiLine,
-			moonshotApiLine,
-			zaiApiLine,
-			asksageApiUrl,
-			favoritedModelIds,
-			requestTimeoutMs,
-			fireworksModelMaxCompletionTokens,
-			fireworksModelMaxTokens,
-			sapAiCoreBaseUrl,
-			sapAiCoreTokenUrl,
-			sapAiResourceGroup,
-			sapAiCoreUseOrchestrationMode,
-			claudeCodePath,
-			difyBaseUrl,
-			qwenCodeOauthPath,
-		} satisfies GlobalState
-
-		// Populate global state cache directly
-		Object.assign(this.globalStateCache, globalStateFields)
-
-		// Directly populate secrets cache without triggering persistence
-		const secretsFields = {
-			apiKey,
-			openRouterApiKey,
-			clineAccountId,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsBedrockApiKey,
-			openAiApiKey,
-			ollamaApiKey,
-			geminiApiKey,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			requestyApiKey,
-			togetherApiKey,
-			qwenApiKey,
-			doubaoApiKey,
-			mistralApiKey,
-			liteLlmApiKey,
-			fireworksApiKey,
-			asksageApiKey,
-			xaiApiKey,
-			sambanovaApiKey,
-			cerebrasApiKey,
-			groqApiKey,
-			basetenApiKey,
-			moonshotApiKey,
-			nebiusApiKey,
-			sapAiCoreClientId,
-			sapAiCoreClientSecret,
-			authNonce,
-			huggingFaceApiKey,
-			huaweiCloudMaasApiKey,
-			difyApiKey,
-			vercelAiGatewayApiKey,
-			zaiApiKey,
-		} satisfies Secrets
-
-		// Populate secrets cache directly
-		Object.assign(this.secretsCache, secretsFields)
-
-		// Populate workspace state cache directly
-		const workspaceStateFields = {
-			localClineRulesToggles: state.localClineRulesToggles,
-			localWindsurfRulesToggles: state.localWindsurfRulesToggles,
-			localCursorRulesToggles: state.localCursorRulesToggles,
-			workflowToggles: state.localWorkflowToggles, // Note: key name is "workflowToggles" in LocalStateKey
-		}
-
-		Object.assign(this.workspaceStateCache, workspaceStateFields)
+	private populateCache(globalState: GlobalState, secrets: Secrets, workspaceState: LocalState): void {
+		Object.assign(this.globalStateCache, globalState)
+		Object.assign(this.secretsCache, secrets)
+		Object.assign(this.workspaceStateCache, workspaceState)
 	}
 
 	/**
@@ -1053,6 +796,7 @@ export class StateManager {
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
 			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
+			planModeSapAiCoreDeploymentId: this.globalStateCache["planModeSapAiCoreDeploymentId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
 			planModeBasetenModelId: this.globalStateCache["planModeBasetenModelId"],
@@ -1085,6 +829,7 @@ export class StateManager {
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
 			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
+			actModeSapAiCoreDeploymentId: this.globalStateCache["actModeSapAiCoreDeploymentId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
 			actModeBasetenModelId: this.globalStateCache["actModeBasetenModelId"],

@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.LIST_CODE_DEF
 
@@ -17,6 +18,7 @@ const generic: ClineToolSpec = {
 			instruction: `The path of the directory (relative to the current working directory {{CWD}}) to list top level source code definitions for.`,
 			usage: "Directory path here",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

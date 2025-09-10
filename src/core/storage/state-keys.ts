@@ -23,7 +23,6 @@ export interface GlobalState {
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
-	awsBedrockApiKey: string | undefined
 	awsAuthentication: string | undefined
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
@@ -106,6 +105,7 @@ export interface GlobalState {
 	planModeTogetherModelId: string | undefined
 	planModeFireworksModelId: string | undefined
 	planModeSapAiCoreModelId: string | undefined
+	planModeSapAiCoreDeploymentId: string | undefined
 	planModeGroqModelId: string | undefined
 	planModeGroqModelInfo: ModelInfo | undefined
 	planModeBasetenModelId: string | undefined
@@ -135,6 +135,7 @@ export interface GlobalState {
 	actModeTogetherModelId: string | undefined
 	actModeFireworksModelId: string | undefined
 	actModeSapAiCoreModelId: string | undefined
+	actModeSapAiCoreDeploymentId: string | undefined
 	actModeGroqModelId: string | undefined
 	actModeGroqModelInfo: ModelInfo | undefined
 	actModeBasetenModelId: string | undefined

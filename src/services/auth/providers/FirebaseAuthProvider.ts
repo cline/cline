@@ -1,10 +1,10 @@
-import { errorService } from "@services/posthog/PostHogClientProvider"
 import axios from "axios"
 import { initializeApp } from "firebase/app"
 import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
 import { clineEnvConfig } from "@/config"
 import { Controller } from "@/core/controller"
+import { ErrorService } from "@/services/error"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 export class FirebaseAuthProvider {
@@ -88,8 +88,8 @@ export class FirebaseAuthProvider {
 			// return userCredential.user
 		} catch (error) {
 			console.error("Firebase restore token error", error)
-			errorService.logMessage("Firebase restore token error", "error")
-			errorService.logException(error)
+			ErrorService.get().logMessage("Firebase restore token error", "error")
+			ErrorService.get().logException(error)
 			throw error
 		}
 	}
@@ -124,16 +124,16 @@ export class FirebaseAuthProvider {
 			try {
 				controller.stateManager.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
-				errorService.logMessage("Firebase store token error", "error")
-				errorService.logException(error)
+				ErrorService.get().logMessage("Firebase store token error", "error")
+				ErrorService.get().logException(error)
 				throw error
 			}
 
 			// userCredential = await this._signInWithCredential(context, credential)
 			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
-			errorService.logMessage("Firebase sign-in error", "error")
-			errorService.logException(error)
+			ErrorService.get().logMessage("Firebase sign-in error", "error")
+			ErrorService.get().logException(error)
 			throw error
 		}
 	}

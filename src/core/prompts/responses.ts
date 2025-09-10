@@ -9,7 +9,7 @@ export const formatResponse = {
 		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
 
 	contextTruncationNotice: () =>
-		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Please keep this in mind as you continue assisting the user.`,
+		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Keep this in mind as you continue assisting the user. Pay special attention to the user's latest messages.`,
 
 	processFirstUserMessageForTruncation: (originalContent: string) => {
 		const MAX_CHARS = 400_000

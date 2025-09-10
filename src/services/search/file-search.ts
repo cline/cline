@@ -3,21 +3,21 @@ import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
 import * as path from "path"
 import * as readline from "readline"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { getBinaryLocation } from "@/utils/fs"
 import { asRelativePath, isLocatedInWorkspace } from "@/utils/path"
-import { getBinPath } from "../ripgrep"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 export async function executeRipgrepForFiles(
-	rgPath: string,
 	workspacePath: string,
 	limit: number = 5000,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	const rgPath = await getBinaryLocation("rg")
+
 	return new Promise((resolve, reject) => {
 		// Arguments for ripgrep to list files, follow symlinks, include hidden, and exclude common directories
 		const args = [
@@ -68,7 +68,9 @@ export async function executeRipgrepForFiles(
 
 		// Capture any error output from ripgrep
 		let errorOutput = ""
-		rgProcess.stderr.on("data", (data) => (errorOutput += data.toString()))
+		rgProcess.stderr.on("data", (data) => {
+			errorOutput += data.toString()
+		})
 
 		// When ripgrep finishes or is closed
 		rl.on("close", () => {
@@ -107,12 +109,6 @@ export async function searchWorkspaceFiles(
 	selectedType?: "file" | "folder",
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
-		const rgPath = await getBinPath(vscode.env.appRoot)
-
-		if (!rgPath) {
-			throw new Error("Could not find ripgrep binary")
-		}
-
 		// Get currently active files and convert to search format
 		const activeFilePaths = await getActiveFiles()
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
@@ -130,7 +126,7 @@ export async function searchWorkspaceFiles(
 		}
 
 		// Get all files and directories
-		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
+		const allItems = await executeRipgrepForFiles(workspacePath, 5000)
 
 		// Combine active files with all items, removing duplicates (like the old WorkspaceTracker)
 		const combinedItems = [...activeFiles]

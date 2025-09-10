@@ -94,8 +94,23 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
-			.replace(/====\n([^\n])/g, "====\n\n$1") // Ensure proper section separation
-			.replace(/([^\n])\n====/g, "$1\n\n====")
+			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
+				// Add extra newline after ====+ if not already followed by a newline
+				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
+				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
+				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
+				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
+				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
+				return isDiffLike ? match : match.replace(/\n/, "\n\n")
+			})
+			.replace(/([^\n])\n(?!\n)====+/g, (match, prevChar, offset, string) => {
+				// Add extra newline before ====+ if not already preceded by a newline
+				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
+				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
+				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
+				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
+				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
+			})
 	}
 
 	getBuildMetadata(): {
@@ -149,7 +164,7 @@ export class PromptBuilder {
 		const description = [`Description: ${config.description}`]
 
 		if (!config.parameters?.length) {
-			return [title, description.join("\n")].join("\n")
+			config.parameters = []
 		}
 
 		// Clone parameters to avoid mutating original
@@ -182,7 +197,7 @@ export class PromptBuilder {
 
 	private static buildParametersSection(params: any[]): string {
 		if (!params.length) {
-			return ""
+			return "Parameters: None"
 		}
 
 		const paramList = params.map((p) => {

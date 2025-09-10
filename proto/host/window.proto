@@ -4,8 +4,6 @@ package host;
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
-import "cline/common.proto";
-
 // Provides methods for working with IDE windows and editors.
 service WindowService {
   // Opens a text document in the IDE editor and returns editor information.
@@ -40,7 +38,6 @@ service WindowService {
 }
 
 message ShowTextDocumentRequest {
-  cline.Metadata metadata = 1;
   string path = 2;
   optional ShowTextDocumentOptions options = 3;
 }
@@ -59,7 +56,6 @@ message TextEditorInfo {
 }
 
 message ShowOpenDialogueRequest {
-  cline.Metadata metadata = 1;
   optional bool can_select_many = 2;
   optional string open_label = 3;
   optional ShowOpenDialogueFilterOption filters = 4;

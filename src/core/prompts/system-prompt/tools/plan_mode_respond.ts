@@ -42,12 +42,13 @@ However, if while writing your response you realize you actually need to do more
 				"Set to true if while formulating your response that you found you need to do more exploration with tools, for example reading files. (Remember, you can explore the project with tools like read_file in PLAN MODE without the user having to toggle to ACT MODE.) Defaults to false if not specified.",
 			usage: "true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)",
 		},
+		// Different than the vanilla TASK_PROGRESS_PARAMETER
 		{
 			name: "task_progress",
 			required: false,
 			instruction:
 				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
-			usage: "Checklist here (optional)",
+			usage: "Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
 			dependencies: [ClineDefaultTool.TODO],
 		},
 	],

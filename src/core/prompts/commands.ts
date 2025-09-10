@@ -218,7 +218,7 @@ Perform your research without commentary or narration. Execute commands and read
 You must use the read_file tool to examine relevant source files, configuration files, and documentation. You must use terminal commands to gather information about the codebase structure and patterns. All terminal output must be piped to cat for visibility.
 
 ### Essential Terminal Commands
-Execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. These are only examples, the exact commands will differ depending on the codebase.
+First, determine the language(s) used in the codebase, then execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. For example, you should exclude dependency folders such as node_modules, venv or php vendor, etc. These are only examples, the exact commands will differ depending on the codebase.
 
 ${
 	isPowerShell

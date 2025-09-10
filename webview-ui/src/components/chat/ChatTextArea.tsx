@@ -279,8 +279,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { mode, apiConfiguration, openRouterModels, platform, localWorkflowToggles, globalWorkflowToggles } =
-			useExtensionState()
+		const {
+			mode,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			showChatModelSelector: showModelSelector,
+			setShowChatModelSelector: setShowModelSelector,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -304,7 +312,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterSlashCommand, setJustDeletedSpaceAfterSlashCommand] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
-		const [showModelSelector, setShowModelSelector] = useState(false)
+
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
@@ -412,7 +420,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							setSearchLoading(true)
 
 							// Map ContextMenuOptionType to FileSearchType enum
-							let searchType
+							let searchType: FileSearchType | undefined
 							if (type === ContextMenuOptionType.File) {
 								searchType = FileSearchType.FILE
 							} else if (type === ContextMenuOptionType.Folder) {
@@ -442,6 +450,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				setShowContextMenu(false)
 				setSelectedType(null)
+				const queryLength = searchQuery.length
+				setSearchQuery("")
+
 				if (textAreaRef.current) {
 					let insertValue = value || ""
 					if (type === ContextMenuOptionType.URL) {
@@ -456,7 +467,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					}
 
-					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					const { newValue, mentionIndex } = insertMention(
+						textAreaRef.current.value,
+						cursorPosition,
+						insertValue,
+						queryLength,
+					)
 
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
@@ -473,15 +489,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, cursorPosition],
+			[setInputValue, cursorPosition, searchQuery],
 		)
 
 		const handleSlashCommandsSelect = useCallback(
 			(command: SlashCommand) => {
 				setShowSlashCommandsMenu(false)
+				const queryLength = slashCommandsQuery.length
+				setSlashCommandsQuery("")
 
 				if (textAreaRef.current) {
-					const { newValue, commandIndex } = insertSlashCommand(textAreaRef.current.value, command.name)
+					const { newValue, commandIndex } = insertSlashCommand(textAreaRef.current.value, command.name, queryLength)
 					const newCursorPosition = newValue.indexOf(" ", commandIndex + 1 + command.name.length) + 1
 
 					setInputValue(newValue)
@@ -496,7 +514,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue],
+			[setInputValue, slashCommandsQuery],
 		)
 
 		const handleKeyDown = useCallback(
@@ -504,6 +522,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (showSlashCommandsMenu) {
 					if (event.key === "Escape") {
 						setShowSlashCommandsMenu(false)
+						setSlashCommandsQuery("")
 						return
 					}
 
@@ -546,6 +565,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						// event.preventDefault()
 						setSelectedType(null)
 						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
+						setSearchQuery("")
 						return
 					}
 
@@ -1118,15 +1138,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
 			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
-			const {
-				vsCodeLmModelSelector,
-				togetherModelId,
-				fireworksModelId,
-				lmStudioModelId,
-				ollamaModelId,
-				liteLlmModelId,
-				requestyModelId,
-			} = getModeSpecificFields(apiConfiguration, mode)
+			const { vsCodeLmModelSelector, togetherModelId, lmStudioModelId, ollamaModelId, liteLlmModelId, requestyModelId } =
+				getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) {
 				return unknownModel

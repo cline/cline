@@ -476,12 +476,16 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) return
+	if (!apiConfiguration) {
+		return
+	}
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) return
+	if (!apiProvider) {
+		return
+	}
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {
