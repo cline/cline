@@ -13,7 +13,7 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
 				// Avoid conflicts with the nightly extension
-				"--disable-extension=claude-dev.cline-nightly",
+				"--disable-extension=saoudrizwan.cline-nightly",
 				"${workspaceFolder}"
 			],
 			"outFiles": [

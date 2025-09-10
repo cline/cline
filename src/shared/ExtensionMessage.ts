@@ -71,6 +71,7 @@ export interface ExtensionState {
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
+	extensionInfo: { name: string; publisher: string }
 }
 
 export interface ClineMessage {
