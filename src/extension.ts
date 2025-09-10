@@ -35,6 +35,7 @@ import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtil
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
+import { getClineCommands } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
@@ -70,8 +71,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	const commands = getClineCommands(context.extension.packageJSON.name)
+
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
+		vscode.commands.registerCommand(commands.PlusButton, async (webview: any) => {
 			console.log("[DEBUG] plusButtonClicked", webview)
 			// Pass the webview type to the event sender
 			const isSidebar = !webview
@@ -98,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
+		vscode.commands.registerCommand(commands.McpButton, (webview: any) => {
 			console.log("[DEBUG] mcpButtonClicked", webview)
 
 			const activeInstance = WebviewProvider.getActiveInstance()
@@ -156,11 +159,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		return tabWebview
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.PopoutButton, openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.OpenInNewTab, openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
+		vscode.commands.registerCommand(commands.SettingsButton, (webview: any) => {
 			const isSidebar = !webview
 			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 
@@ -169,7 +172,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", async (webview: any) => {
+		vscode.commands.registerCommand(commands.HistoryButton, async (webview: any) => {
 			console.log("[DEBUG] historyButtonClicked", webview)
 			// Pass the webview type to the event sender
 			const isSidebar = !webview
@@ -181,7 +184,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
+		vscode.commands.registerCommand(commands.AccountButton, (webview: any) => {
 			console.log("[DEBUG] accountButtonClicked", webview)
 
 			const isSidebar = !webview
@@ -244,7 +247,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addTerminalOutputToChat", async () => {
+		vscode.commands.registerCommand(commands.TerminalOutput, async () => {
 			const terminal = vscode.window.activeTerminal
 			if (!terminal) {
 				return
@@ -385,7 +388,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the command handlers
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+		vscode.commands.registerCommand(commands.AddToChat, async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
 			const context = await getContextForCommand(range, diagnostics)
 			if (!context) {
 				return
@@ -394,7 +397,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
+		vscode.commands.registerCommand(commands.FixWithCline, async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
 			const context = await getContextForCommand(range, diagnostics)
 			if (!context) {
 				return
@@ -403,7 +406,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.explainCode", async (range: vscode.Range) => {
+		vscode.commands.registerCommand(commands.ExplainCode, async (range: vscode.Range) => {
 			const context = await getContextForCommand(range)
 			if (!context) {
 				return
@@ -412,7 +415,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.improveCode", async (range: vscode.Range) => {
+		vscode.commands.registerCommand(commands.ImproveCode, async (range: vscode.Range) => {
 			const context = await getContextForCommand(range)
 			if (!context) {
 				return
@@ -423,7 +426,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the focusChatInput command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.focusChatInput", async () => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async () => {
 			// Fast path: check for existing active instance
 			let activeWebview = WebviewProvider.getLastActiveInstance() as VscodeWebviewProvider
 
@@ -477,7 +480,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.openWalkthrough", async () => {
+		vscode.commands.registerCommand(commands.Walkthrough, async () => {
 			await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#ClineWalkthrough`)
 			telemetryService.captureButtonClick("command_openWalkthrough")
 		}),
@@ -485,10 +488,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.generateGitCommitMessage", async (scm) => {
+		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
 			await GitCommitGenerator?.generate?.(context, scm)
 		}),
-		vscode.commands.registerCommand("cline.abortGitCommitMessage", () => {
+		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			GitCommitGenerator?.abort?.()
 		}),
 	)
