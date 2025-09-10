@@ -102,6 +102,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				case ProtoOpenaiReasoningEffort.HIGH:
 					reasoningEffort = "high"
 					break
+				case ProtoOpenaiReasoningEffort.MINIMAL:
+					reasoningEffort = "minimal"
+					break
 				default:
 					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
 			}
