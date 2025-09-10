@@ -2,7 +2,13 @@ import { GrpcResponse } from "@shared/ExtensionMessage"
 import { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import { GrpcLogEntry, GrpcSessionLog, SessionStats } from "@/core/controller/grpc-recorder/types"
+import {
+	GrpcLogEntry,
+	GrpcPostRecordHook,
+	GrpcRequestFilter,
+	GrpcSessionLog,
+	SessionStats,
+} from "@/core/controller/grpc-recorder/types"
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
@@ -14,13 +20,15 @@ export class GrpcRecorderNoops implements IRecorder {
 			entries: [],
 		}
 	}
+	cleanupSyntheticEntries(): void {}
 }
 
 export interface IRecorder {
-	recordRequest(request: GrpcRequest): void
+	recordRequest(request: GrpcRequest, synthetic?: boolean): void
 	recordResponse(requestId: string, response: GrpcResponse): void
 	recordError(requestId: string, error: string): void
 	getSessionLog(): GrpcSessionLog
+	cleanupSyntheticEntries(): void
 }
 
 /**
@@ -36,7 +44,11 @@ export class GrpcRecorder implements IRecorder {
 	private sessionLog: GrpcSessionLog
 	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
 
-	constructor(private fileHandler: ILogFileHandler) {
+	constructor(
+		private fileHandler: ILogFileHandler,
+		private requestFilters: GrpcRequestFilter[] = [],
+		private postRecordHooks: GrpcPostRecordHook[] = [],
+	) {
 		this.sessionLog = {
 			startTime: new Date().toISOString(),
 			entries: [],
@@ -60,7 +72,11 @@ export class GrpcRecorder implements IRecorder {
 	 *
 	 * @param request - The incoming gRPC request.
 	 */
-	public recordRequest(request: GrpcRequest): void {
+	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
+		if (this.shouldFilter(request)) {
+			return
+		}
+
 		const entry: GrpcLogEntry = {
 			requestId: request.request_id,
 			service: request.service,
@@ -70,6 +86,7 @@ export class GrpcRecorder implements IRecorder {
 				message: request.message,
 			},
 			status: "pending",
+			meta: { synthetic },
 		}
 
 		this.pendingRequests.set(request.request_id, {
@@ -99,6 +116,7 @@ export class GrpcRecorder implements IRecorder {
 	 */
 	public recordResponse(requestId: string, response: GrpcResponse): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
+
 		if (!pendingRequest) {
 			console.warn(`No pending request found for response with ID: ${requestId}`)
 			return
@@ -122,6 +140,30 @@ export class GrpcRecorder implements IRecorder {
 
 		this.sessionLog.stats = this.getStats()
 
+		this.flushLogAsync()
+
+		this.runHooks(entry).catch((e) => console.error("Post-record hook failed:", e))
+	}
+
+	private async runHooks(entry: GrpcLogEntry): Promise<void> {
+		if (entry.meta?.synthetic) return
+		for (const hook of this.postRecordHooks) {
+			await hook(entry)
+		}
+	}
+
+	public cleanupSyntheticEntries(): void {
+		// Remove synthetic entries from session log
+		this.sessionLog.entries = this.sessionLog.entries.filter((entry) => !entry.meta?.synthetic)
+
+		// clean up from pending requests if needed
+		for (const [requestId, pendingRequest] of this.pendingRequests.entries()) {
+			if (pendingRequest.entry.meta?.synthetic) {
+				this.pendingRequests.delete(requestId)
+			}
+		}
+
+		this.sessionLog.stats = this.getStats()
 		this.flushLogAsync()
 	}
 
@@ -175,5 +217,9 @@ export class GrpcRecorder implements IRecorder {
 			completedRequests,
 			errorRequests,
 		}
+	}
+
+	private shouldFilter(request: GrpcRequest): boolean {
+		return this.requestFilters.some((filter) => filter(request))
 	}
 }

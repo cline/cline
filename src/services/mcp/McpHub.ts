@@ -138,7 +138,7 @@ export class McpHub {
 			ignoreInitial: true, // Don't fire 'add' events when discovering the file initially
 			awaitWriteFinish: {
 				// Wait for writes to finish before emitting events (handles chunked writes)
-				stabilityThreshold: 100, // Wait 100ms for file size to remain constant (matches the debounce from subscribeToFile.ts)
+				stabilityThreshold: 100, // Wait 100ms for file size to remain constant
 				pollInterval: 100, // Check file size every 100ms while waiting for stability
 			},
 			atomic: true, // Handle atomic writes where editors write to a temp file then rename (prevents duplicate events)

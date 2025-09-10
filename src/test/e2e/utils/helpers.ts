@@ -8,8 +8,13 @@ import { ClineApiServerMock } from "../fixtures/server"
 
 interface E2ETestDirectories {
 	workspaceDir: string
+	multiRootWorkspaceDir: string
 	userDataDir: string
 	extensionsDir: string
+}
+
+export interface WorkspaceType {
+	workspaceType: "single" | "multi"
 }
 
 export class E2ETestHelper {
@@ -160,6 +165,8 @@ export class E2ETestHelper {
  * This test configuration provides a comprehensive setup for end-to-end testing of the Cline VS Code extension,
  * including server mocking, temporary directories, VS Code instance management, and helper utilities.
  *
+ * NOTE: Default to run in single-root workspace; use `e2eMultiRoot` for multi-root workspace tests.
+ *
  * @extends test - Base Playwright test with multiple fixture extensions
  *
  * Fixtures provided:
@@ -201,14 +208,9 @@ export class E2ETestHelper {
 export const e2e = test
 	.extend<{ server: ClineApiServerMock | null }>({
 		server: async ({}, use) => {
-			console.log("=== SERVER FIXTURE CALLED ===")
 			// Start server if it doesn't exist
 			if (!ClineApiServerMock.globalSharedServer) {
-				console.log("Starting global server...")
 				await ClineApiServerMock.startGlobalServer()
-				console.log("Global server started successfully")
-			} else {
-				console.log("Using existing global server")
 			}
 			await use(ClineApiServerMock.globalSharedServer)
 		},
@@ -217,6 +219,10 @@ export const e2e = test
 		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
+		multiRootWorkspaceDir: async ({}, use) => {
+			// DOCS: https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces
+			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "multiroots.code-workspace"))
+		},
 		userDataDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
@@ -224,11 +230,14 @@ export const e2e = test
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
-	.extend<{ openVSCode: () => Promise<ElectronApplication> }>({
-		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
+	.extend<WorkspaceType>({
+		workspaceType: "single",
+	})
+	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
+		openVSCode: async ({ userDataDir, extensionsDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
-			await use(async () => {
+			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -254,7 +263,7 @@ export const e2e = test
 						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
-						workspaceDir,
+						workspacePath,
 					],
 				})
 				await E2ETestHelper.waitUntil(() => app.windows().length > 0)
@@ -263,8 +272,9 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir }, use) => {
-			const app = await openVSCode()
+		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
+			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
+			const app = await openVSCode(workspacePath)
 
 			try {
 				await use(app)
@@ -297,6 +307,13 @@ export const e2e = test
 			await use(sidebar)
 		},
 	})
+
+/**
+ * Multi-root workspace variant of the e2e test fixture
+ */
+export const e2eMultiRoot = e2e.extend<WorkspaceType>({
+	workspaceType: "multi",
+})
 
 // Backward compatibility exports
 export const getResultsDir = E2ETestHelper.getResultsDir
