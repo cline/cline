@@ -35,7 +35,7 @@ export async function getSystemEnv(cwd?: string, isTesting = false) {
 }
 
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const testMode = !!process?.env?.CI || !!process?.env?.IS_DEV || context.isTesting || false
+	const testMode = !!process?.env?.CI || !!process?.env?.IS_TEST || context.isTesting || false
 	const info = await getSystemEnv(context.cwd, testMode)
 	const WORKSPACE_TITLE =
 		!info.workspaces || info.workspaces.length === 1 ? "Current Working Directory" : "Active Workspace Folders"
