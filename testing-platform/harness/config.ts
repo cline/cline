@@ -3,12 +3,10 @@
 // how we prepare the testing-platform environment.
 export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.distinctId",
-	"stateJson.apiConfiguration.actModeApiProvider",
-	"stateJson.apiConfiguration.planModeApiProvider",
 	"stateJson.shouldShowAnnouncement",
-	"stateJson.welcomeViewCompleted",
+	"stateJson.platform",
 	"stateJson.focusChainFeatureFlagEnabled",
-	"stateJson.clineMessages",
+	"stateJson.clineMessages.ts",
 	"stateJson.taskHistory.cwdOnTaskInitialization",
 	"stateJson.taskHistory.id",
 	"stateJson.taskHistory.size",

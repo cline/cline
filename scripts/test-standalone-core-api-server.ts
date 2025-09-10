@@ -75,17 +75,22 @@ async function main(): Promise<void> {
 		process.exit(1)
 	}
 
+	// Create temporary directories like e2e tests
+	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	const extensionsDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
+
 	// Start hostbridge test server in background.
 	// We run it as a child process to emulate how the extension currently operates
 	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		detached: false,
+		env: {
+			...process.env,
+			TEST_HOSTBRIDGE_WORKSPACE_DIR: clineTestWorkspace,
+		},
 	})
-
-	// Create temporary directories like e2e tests
-	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
-	const extensionsDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 
 	console.log(`Temp user data dir: ${userDataDir}`)
 	console.log(`Temp extensions dir: ${extensionsDir}`)
@@ -127,7 +132,7 @@ async function main(): Promise<void> {
 
 	// Handle graceful shutdown
 	const shutdown = async (): Promise<void> => {
-		console.log("\n Shutting down services...", userDataDir, extensionsDir)
+		console.log("\n Shutting down services...", userDataDir, extensionsDir, clineTestWorkspace)
 		hostbridge.kill()
 		coreService.kill()
 		await ClineApiServerMock.stopGlobalServer()
@@ -136,6 +141,7 @@ async function main(): Promise<void> {
 		try {
 			rmSync(userDataDir, { recursive: true, force: true })
 			rmSync(extensionsDir, { recursive: true, force: true })
+			rmSync(clineTestWorkspace, { recursive: true, force: true })
 			console.log("Cleaned up temporary directories")
 		} catch (error) {
 			console.warn("Failed to cleanup temp directories:", error)
