@@ -6,9 +6,11 @@ import EventEmitter from "events"
 
 import simpleGit, { SimpleGit } from "simple-git"
 import pWaitFor from "p-wait-for"
+import * as vscode from "vscode"
 
 import { fileExistsAtPath } from "../../utils/fs"
 import { executeRipgrep } from "../../services/search/file-search"
+import { t } from "../../i18n"
 
 import { CheckpointDiff, CheckpointResult, CheckpointEventMap } from "./types"
 import { getExcludePatterns } from "./excludes"
@@ -71,6 +73,9 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		const hasNestedGitRepos = await this.hasNestedGitRepositories()
 
 		if (hasNestedGitRepos) {
+			// Show user-friendly notification
+			vscode.window.showWarningMessage(t("common:errors.nested_git_repos_warning"), "OK")
+
 			throw new Error(
 				"Checkpoints are disabled because nested git repositories were detected in the workspace. " +
 					"Please remove or relocate nested git repositories to use the checkpoints feature.",

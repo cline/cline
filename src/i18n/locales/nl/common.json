@@ -29,6 +29,7 @@
 		"checkpoint_timeout": "Time-out bij het herstellen van checkpoint.",
 		"checkpoint_failed": "Herstellen van checkpoint mislukt.",
 		"git_not_installed": "Git is vereist voor de checkpoint-functie. Installeer Git om checkpoints in te schakelen.",
+		"nested_git_repos_warning": "Checkpoints zijn uitgeschakeld omdat geneste git-repositories zijn gedetecteerd in de werkruimte. Om checkpoints te gebruiken, verwijder of verplaats de geneste git-repositories.",
 		"no_workspace": "Open eerst een projectmap",
 		"update_support_prompt": "Bijwerken van ondersteuningsprompt mislukt",
 		"reset_support_prompt": "Resetten van ondersteuningsprompt mislukt",

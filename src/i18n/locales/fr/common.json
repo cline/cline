@@ -29,6 +29,7 @@
 		"checkpoint_timeout": "Expiration du délai lors de la tentative de rétablissement du checkpoint.",
 		"checkpoint_failed": "Échec du rétablissement du checkpoint.",
 		"git_not_installed": "Git est requis pour la fonctionnalité des points de contrôle. Veuillez installer Git pour activer les points de contrôle.",
+		"nested_git_repos_warning": "Les points de contrôle sont désactivés car des dépôts git imbriqués ont été détectés dans l'espace de travail. Pour utiliser les points de contrôle, veuillez supprimer ou déplacer les dépôts git imbriqués.",
 		"no_workspace": "Veuillez d'abord ouvrir un espace de travail",
 		"update_support_prompt": "Erreur lors de la mise à jour du prompt de support",
 		"reset_support_prompt": "Erreur lors de la réinitialisation du prompt de support",

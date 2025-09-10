@@ -34,6 +34,7 @@
 		"checkpoint_timeout": "尝试恢复检查点时超时。",
 		"checkpoint_failed": "恢复检查点失败。",
 		"git_not_installed": "存档点功能需要 Git。请安装 Git 以启用存档点。",
+		"nested_git_repos_warning": "存档点已禁用，因为在工作区中检测到嵌套的 git 仓库。要使用存档点，请移除或重新定位嵌套的 git 仓库。",
 		"no_workspace": "请先打开项目文件夹",
 		"update_support_prompt": "更新支持消息失败",
 		"reset_support_prompt": "重置支持消息失败",

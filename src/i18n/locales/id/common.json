@@ -29,6 +29,7 @@
 		"checkpoint_timeout": "Timeout saat mencoba memulihkan checkpoint.",
 		"checkpoint_failed": "Gagal memulihkan checkpoint.",
 		"git_not_installed": "Git diperlukan untuk fitur checkpoint. Silakan instal Git untuk mengaktifkan checkpoint.",
+		"nested_git_repos_warning": "Checkpoint dinonaktifkan karena repositori git bersarang terdeteksi di workspace. Untuk menggunakan checkpoint, silakan hapus atau pindahkan repositori git bersarang.",
 		"no_workspace": "Silakan buka folder proyek terlebih dahulu",
 		"update_support_prompt": "Gagal memperbarui support prompt",
 		"reset_support_prompt": "Gagal mereset support prompt",
