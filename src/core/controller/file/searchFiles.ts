@@ -25,12 +25,14 @@ export async function searchFiles(_controller: Controller, request: FileSearchRe
 
 	try {
 		// Map enum to host SearchItemType (0 = FILE, 1 = FOLDER)
-		const selectedTypeValue: SearchWorkspaceItemsRequest_SearchItemType | undefined =
-			request.selectedType === FileSearchType.FILE
-				? SearchWorkspaceItemsRequest_SearchItemType.FILE
-				: request.selectedType === FileSearchType.FOLDER
-					? SearchWorkspaceItemsRequest_SearchItemType.FOLDER
-					: undefined
+		let selectedTypeValue: SearchWorkspaceItemsRequest_SearchItemType | undefined
+		if (request.selectedType === FileSearchType.FILE) {
+			selectedTypeValue = SearchWorkspaceItemsRequest_SearchItemType.FILE
+		} else if (request.selectedType === FileSearchType.FOLDER) {
+			selectedTypeValue = SearchWorkspaceItemsRequest_SearchItemType.FOLDER
+		} else {
+			selectedTypeValue = undefined
+		}
 
 		// Strip any leading '/' so the query matches workspace-relative paths across hosts
 		const normalizedQuery = (request.query || "").replace(/^\/+/, "")
