@@ -10,7 +10,6 @@
  * Usage:
  *   - Single file:   `npm run test:tp-orchestrator path/to/spec.json`
  *   - All specs dir: `npm run test:tp-orchestrator tests/specs`
- *   - Direct:        `npx tsx scripts/test-orchestrator.ts <spec-or-folder>`
  *
  * Flags:
  *   --server-logs        Show server logs (hidden by default)
@@ -145,7 +144,7 @@ async function main() {
 	showServerLogs = Boolean(args["server-logs"])
 
 	if (!inputPath) {
-		console.error("Usage: npx tsx scripts/test-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs]")
+		console.error("Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs]")
 		process.exit(1)
 	}
 
