@@ -2,8 +2,8 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { BUTTON_CONFIGS, ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
+import { useCallback, useEffect, useMemo, useRef } from "react"
+import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -19,11 +19,6 @@ interface ActionButtonsProps {
 	}
 }
 
-interface ActionButtonConfig {
-	text?: string
-	action?: ButtonActionType
-}
-
 /**
  * Action buttons area including scroll-to-bottom and approve/reject buttons
  */
@@ -36,29 +31,24 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	scrollBehavior,
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
+	const isProcessingRef = useRef(false)
 
-	const isStreaming = useMemo(() => task?.partial === true, [task])
-
-	const [primaryButtonConfig, setPrimaryButtonConfig] = useState<ActionButtonConfig | undefined>(undefined)
-	const [secondaryButtonConfig, setSecondaryButtonConfig] = useState<ActionButtonConfig | undefined>(undefined)
-
-	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [isProcessingClick, setIsProcessingClick] = useState<boolean>(false)
-
+	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
-		return [messages.at(-1), messages.at(-2)]
+		const len = messages.length
+		return len > 0 ? [messages[len - 1], messages[len - 2]] : [undefined, undefined]
 	}, [messages])
 
-	const handleActionClick = useCallback(
-		(action?: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
-			if (!action) {
-				return
-			}
-			setIsProcessingClick(true)
-			messageHandlers.executeButtonAction(action, text, images, files)
-		},
-		[messageHandlers],
-	)
+	// Memoize button configuration to avoid recalculation on every render
+	const buttonConfig = useMemo(() => {
+		return lastMessage ? getButtonConfig(lastMessage, mode) : { sendingDisabled: false, enableButtons: false }
+	}, [lastMessage, mode])
+
+	// Single effect to handle all configuration updates
+	useEffect(() => {
+		setSendingDisabled(buttonConfig.sendingDisabled)
+		isProcessingRef.current = false
+	}, [buttonConfig, setSendingDisabled])
 
 	// Clear input when transitioning from command_output to api_req
 	// This happens when user provides feedback during command execution
@@ -68,38 +58,36 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			chatState.setSelectedImages([])
 			chatState.setSelectedFiles([])
 		}
-	}, [chatState, lastMessage, secondLastMessage])
+	}, [lastMessage?.type, lastMessage?.say, secondLastMessage?.ask, chatState])
 
-	// Apply button configuration with a single batched update
-	useEffect(() => {
-		const buttonConfig = lastMessage ? getButtonConfig(lastMessage, mode) : BUTTON_CONFIGS.default
-		setEnableButtons(buttonConfig.enableButtons)
-		setSendingDisabled(buttonConfig.sendingDisabled)
-		setPrimaryButtonConfig({
-			text: buttonConfig.primaryText,
-			action: buttonConfig.primaryAction,
-		})
-		setSecondaryButtonConfig({
-			text: buttonConfig.secondaryText,
-			action: buttonConfig.secondaryAction,
-		})
-		// Reset processing state when configuration changes (new message received)
-		setIsProcessingClick(false)
-	}, [lastMessage, mode, setSendingDisabled])
+	// Optimized action handler with ref to avoid processing state updates
+	const handleActionClick = useCallback(
+		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
+			if (isProcessingRef.current) {
+				return
+			}
+			isProcessingRef.current = true
+			messageHandlers.executeButtonAction(action, text, images, files)
+		},
+		[messageHandlers],
+	)
 
-	// Keyboard event listener
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			// ESC to cancel the task in progress.
+	// Keyboard event handler
+	const handleKeyDown = useCallback(
+		(event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				event.preventDefault()
 				event.stopPropagation()
 				messageHandlers.executeButtonAction("cancel")
 			}
-		}
-		window.addEventListener("keydown", onKeyDown)
-		return () => window.removeEventListener("keydown", onKeyDown)
-	}, [lastMessage])
+		},
+		[messageHandlers],
+	)
+
+	useEffect(() => {
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [handleKeyDown])
 
 	if (!task) {
 		return null
@@ -107,6 +95,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
 
+	// Early return for scroll button to avoid unnecessary computation
 	if (showScrollToBottom) {
 		const handleScrollToBottom = () => {
 			scrollToBottomSmooth()
@@ -132,28 +121,35 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		)
 	}
 
-	const shouldShowButtons = primaryButtonConfig?.text || secondaryButtonConfig?.text
-	const enableAndNotProcessing = enableButtons && !isProcessingClick
-	const opacity = shouldShowButtons ? (enableAndNotProcessing || isStreaming ? 1 : 0.5) : 0
+	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
+	const hasButtons = primaryText || secondaryText
+	const isStreaming = task.partial === true
+	const canInteract = enableButtons && !isProcessingRef.current
+
+	if (!hasButtons) {
+		return null
+	}
+
+	const opacity = canInteract || isStreaming ? 1 : 0.5
 
 	return (
 		<div className="flex px-[15px]" style={{ opacity }}>
-			{primaryButtonConfig?.text && primaryButtonConfig?.action && (
+			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					className={`${secondaryButtonConfig?.text ? "flex-1 mr-[6px]" : "flex-[2]"}`}
-					disabled={!enableAndNotProcessing}
-					onClick={() => handleActionClick(primaryButtonConfig.action, inputValue, selectedImages, selectedFiles)}>
-					{primaryButtonConfig.text}
+					className={secondaryText ? "flex-1 mr-[6px]" : "flex-[2]"}
+					disabled={!canInteract}
+					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
+					{primaryText}
 				</VSCodeButton>
 			)}
-			{secondaryButtonConfig?.text && secondaryButtonConfig?.action && (
+			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					className={`${primaryButtonConfig?.text ? "flex-1 mr-[6px]" : "flex-[2]"}`}
-					disabled={!enableAndNotProcessing}
-					onClick={() => handleActionClick(secondaryButtonConfig.action, inputValue, selectedImages, selectedFiles)}>
-					{secondaryButtonConfig.text}
+					className={primaryText ? "flex-1 mr-[6px]" : "flex-[2]"}
+					disabled={!canInteract}
+					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
+					{secondaryText}
 				</VSCodeButton>
 			)}
 		</div>
