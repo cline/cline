@@ -2,15 +2,10 @@
 
 ## 3.28.0
 
-### Minor Changes
-
 - c30b215: Add optional middleware for recording gRPC calls in the view.
 - a3b4ad5: Sync taskHistory across Cline instances so that it will update for all Cline instances when one instance creates, adds to, or deletes a task.
 - 6b9ac49: fetch deployment id in design-time instead of runtime
 - 190d4a2: support orchestration mode for sap provider
-
-### Patch Changes
-
 - 518e624: fix showing the ai core exisiting models when resource group field is empty (using the default resource group)
 - 43a6e85: Add orchestrator script and improve standalone service for local testing
 - e5f8c04: Reset account view on sign out
