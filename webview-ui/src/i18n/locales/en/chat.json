@@ -280,12 +280,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",
-		"stealthModel": {
-			"feature": "The Sonic stealth model is now <bold>Grok Code Fast</bold>! This high-performance reasoning model is available as <code>grok-code-fast-1</code> under the <bold>xAI (Grok)</bold> provider.",
-			"note": "As a thank you for all the helpful feedback on Sonic, xAI is extending free access to <code>grok-code-fast-1</code> for another week through the <bold>Roo Code Cloud</bold> provider.",
-			"connectButton": "Connect to Roo Code Cloud",
-			"selectModel": "Visit <settingsLink>Settings</settingsLink> to update your provider configuration."
-		}
+		"description": "Introducing <bold>Roo Code Cloud:</bold> Bringing the power of Roo beyond the IDE",
+		"feature1": "<bold>Track task progress from anywhere (Free):</bold> Get real-time updates on long-running tasks without being stuck in your IDE",
+		"feature2": "<bold>Control the Roo Extension remotely (Pro):</bold> Start, stop, and interact with tasks from a chat-based browser interface.",
+		"learnMore": "Ready to take control? Learn more <learnMoreLink>here</learnMoreLink>.",
+		"visitCloudButton": "Visit Roo Code Cloud",
+		"socialLinks": "Join us on <xLink>X</xLink>, <discordLink>Discord</discordLink>, or <redditLink>r/RooCode</redditLink>"
 	},
 	"reasoning": {
 		"thinking": "Thinking",

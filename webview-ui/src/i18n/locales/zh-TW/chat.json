@@ -280,19 +280,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",
-		"stealthModel": {
-			"feature": "Sonic 隱形模型現在是 <bold>Grok Code Fast</bold>！這個高效能推理模型現已作為 <code>grok-code-fast-1</code> 在 <bold>xAI (Grok)</bold> 提供商下提供。",
-			"note": "作為對 Sonic 所有寶貴回饋的感謝，xAI 將透過 <bold>Roo Code Cloud</bold> 提供商延長 <code>grok-code-fast-1</code> 的免費存取一週。",
-			"connectButton": "連接到 Roo Code Cloud",
-			"selectModel": "造訪<settingsLink>設定</settingsLink>更新你的提供商設定。"
-		},
-		"description": "Roo Code {{version}} 帶來強大的新功能和重大改進，提升您的開發工作流程。",
-		"whatsNew": "新功能",
-		"feature1": "<bold>訊息佇列</bold>：在 Roo 工作時將多個訊息排入佇列，讓您可以不間斷地繼續規劃工作流程。",
-		"feature2": "<bold>自訂斜線命令</bold>：建立個人化斜線命令，快速存取常用提示詞和工作流程，具備完整的 UI 管理功能。",
-		"feature3": "<bold>增強的 Gemini 工具</bold>：新的 URL 內容和 Google 搜尋基礎功能為 Gemini 模型提供即時網路資訊和增強的研究能力。",
-		"hideButton": "隱藏公告",
-		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
+		"description": "介紹 <bold>Roo Code Cloud：</bold>將 Roo 的強大功能延伸到 IDE 之外",
+		"feature1": "<bold>隨時隨地追蹤任務進度（免費）：</bold>取得長時間執行任務的即時更新，無需被困在 IDE 中",
+		"feature2": "<bold>遠端控制 Roo 擴充功能（Pro）：</bold>透過基於聊天的瀏覽器介面啟動、停止並與任務互動。",
+		"learnMore": "準備好掌控一切了嗎？在<learnMoreLink>這裡</learnMoreLink>了解更多。",
+		"visitCloudButton": "造訪 Roo Code Cloud",
+		"socialLinks": "在 <xLink>X</xLink>、<discordLink>Discord</discordLink> 或 <redditLink>r/RooCode</redditLink> 上關注我們"
 	},
 	"reasoning": {
 		"thinking": "思考中",

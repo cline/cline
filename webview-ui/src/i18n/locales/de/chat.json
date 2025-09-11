@@ -271,19 +271,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} veröffentlicht",
-		"stealthModel": {
-			"feature": "Das Sonic Stealth-Modell heißt jetzt <bold>Grok Code Fast</bold>! Dieses hochleistungsfähige Reasoning-Modell ist als <code>grok-code-fast-1</code> unter dem <bold>xAI (Grok)</bold> Provider verfügbar.",
-			"note": "Als Dankeschön für all das hilfreiche Feedback zu Sonic erweitert xAI den kostenlosen Zugang zu <code>grok-code-fast-1</code> für eine weitere Woche über den <bold>Roo Code Cloud</bold>-Anbieter.",
-			"connectButton": "Mit Roo Code Cloud verbinden",
-			"selectModel": "Besuche die <settingsLink>Einstellungen</settingsLink>, um deine Provider-Konfiguration zu aktualisieren."
-		},
-		"description": "Roo Code {{version}} bringt mächtige neue Funktionen und bedeutende Verbesserungen, um deinen Entwicklungsworkflow zu verbessern.",
-		"whatsNew": "Was ist neu",
-		"feature1": "<bold>Nachrichten-Warteschlange</bold>: Stelle mehrere Nachrichten in die Warteschlange, während Roo arbeitet, damit du deinen Workflow ohne Unterbrechung weiter planen kannst.",
-		"feature2": "<bold>Benutzerdefinierte Slash-Befehle</bold>: Erstelle personalisierte Slash-Befehle für schnellen Zugriff auf häufig verwendete Prompts und Workflows mit vollständiger UI-Verwaltung.",
-		"feature3": "<bold>Erweiterte Gemini-Tools</bold>: Neue URL-Kontext- und Google-Such-Grundlagen-Funktionen bieten Gemini-Modellen Echtzeit-Web-Informationen und erweiterte Recherche-Fähigkeiten.",
-		"hideButton": "Ankündigung ausblenden",
-		"detailsDiscussLinks": "Erhalte mehr Details und diskutiere auf <discordLink>Discord</discordLink> und <redditLink>Reddit</redditLink> 🚀"
+		"description": "Wir stellen vor: <bold>Roo Code Cloud:</bold> Die Macht von Roo über die IDE hinaus bringen",
+		"feature1": "<bold>Aufgabenfortschritt von überall verfolgen (Kostenlos):</bold> Erhalte Echtzeit-Updates zu lang laufenden Aufgaben, ohne in deiner IDE festzustecken",
+		"feature2": "<bold>Die Roo-Erweiterung fernsteuern (Pro):</bold> Starte, stoppe und interagiere mit Aufgaben über eine chat-basierte Browser-Oberfläche.",
+		"learnMore": "Bereit, die Kontrolle zu übernehmen? Erfahre mehr <learnMoreLink>hier</learnMoreLink>.",
+		"visitCloudButton": "Roo Code Cloud besuchen",
+		"socialLinks": "Folge uns auf <xLink>X</xLink>, <discordLink>Discord</discordLink> oder <redditLink>r/RooCode</redditLink>"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo möchte den Browser verwenden:",

@@ -271,19 +271,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Lançado",
-		"stealthModel": {
-			"feature": "O modelo stealth Sonic agora é <bold>Grok Code Fast</bold>! Este modelo de raciocínio de alta performance está disponível como <code>grok-code-fast-1</code> no provedor <bold>xAI (Grok)</bold>.",
-			"note": "Como agradecimento por todo o feedback útil sobre o Sonic, a xAI está estendendo o acesso gratuito ao <code>grok-code-fast-1</code> por mais uma semana através do provedor <bold>Roo Code Cloud</bold>.",
-			"connectButton": "Conectar ao Roo Code Cloud",
-			"selectModel": "Visite as <settingsLink>Configurações</settingsLink> para atualizar sua configuração de provedor."
-		},
-		"description": "Roo Code {{version}} traz novos recursos poderosos e melhorias significativas para aprimorar seu fluxo de trabalho de desenvolvimento.",
-		"whatsNew": "O que há de novo",
-		"feature1": "<bold>Fila de Mensagens</bold>: Coloque várias mensagens na fila enquanto o Roo está trabalhando, permitindo que você continue planejando seu fluxo de trabalho sem interrupção.",
-		"feature2": "<bold>Comandos de Barra Personalizados</bold>: Crie comandos de barra personalizados para acesso rápido a prompts e fluxos de trabalho usados frequentemente, com gerenciamento completo da interface do usuário.",
-		"feature3": "<bold>Ferramentas Gemini Aprimoradas</bold>: Novas capacidades de contexto de URL e fundamentação de pesquisa do Google fornecem aos modelos Gemini informações web em tempo real e capacidades de pesquisa aprimoradas.",
-		"hideButton": "Ocultar anúncio",
-		"detailsDiscussLinks": "Obtenha mais detalhes e participe da discussão no <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
+		"description": "Apresentando <bold>Roo Code Cloud:</bold> Levando o poder do Roo além da IDE",
+		"feature1": "<bold>Acompanhe o progresso das tarefas de qualquer lugar (Grátis):</bold> Receba atualizações em tempo real de tarefas de longa duração sem ficar preso na sua IDE",
+		"feature2": "<bold>Controle a Extensão Roo remotamente (Pro):</bold> Inicie, pare e interaja com tarefas de uma interface de navegador baseada em chat.",
+		"learnMore": "Pronto para assumir o controle? Saiba mais <learnMoreLink>aqui</learnMoreLink>.",
+		"visitCloudButton": "Visite Roo Code Cloud",
+		"socialLinks": "Junte-se a nós no <xLink>X</xLink>, <discordLink>Discord</discordLink>, ou <redditLink>r/RooCode</redditLink>"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo quer usar o navegador:",

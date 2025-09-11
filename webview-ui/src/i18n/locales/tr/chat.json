@@ -271,19 +271,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
-		"stealthModel": {
-			"feature": "Sonic gizli model artık <bold>Grok Code Fast</bold>! Bu yüksek performanslı akıl yürütme modeli <bold>xAI (Grok)</bold> sağlayıcısı altında <code>grok-code-fast-1</code> olarak mevcut.",
-			"note": "Sonic hakkındaki tüm yararlı geri bildirimler için teşekkür olarak, xAI <code>grok-code-fast-1</code>'e ücretsiz erişimi <bold>Roo Code Cloud</bold> sağlayıcısı üzerinden bir hafta daha uzatıyor.",
-			"connectButton": "Roo Code Cloud'a bağlan",
-			"selectModel": "Sağlayıcı yapılandırmanızı güncellemek için <settingsLink>Ayarlar</settingsLink>'ı ziyaret edin."
-		},
-		"description": "Roo Code {{version}}, geliştirme iş akışınızı geliştirmek için güçlü yeni özellikler ve önemli iyileştirmeler getiriyor.",
-		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Mesaj Kuyruğu</bold>: Roo çalışırken birden fazla mesajı kuyruğa alın, iş akışınızı kesintisiz olarak planlamaya devam etmenizi sağlar.",
-		"feature2": "<bold>Özel Slash Komutları</bold>: Sık kullanılan promptlara ve iş akışlarına hızlı erişim için kişiselleştirilmiş slash komutları oluşturun, tam UI yönetimi ile.",
-		"feature3": "<bold>Gelişmiş Gemini Araçları</bold>: Yeni URL bağlamı ve Google Arama temellendirilmesi yetenekleri, Gemini modellerine gerçek zamanlı web bilgileri ve gelişmiş araştırma yetenekleri sağlar.",
-		"hideButton": "Duyuruyu gizle",
-		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink>'te daha fazla ayrıntı alın ve tartışmalara katılın 🚀"
+		"description": "<bold>Roo Code Cloud</bold> Tanıtımı: Roo'nun gücünü IDE'nin ötesine taşıyoruz",
+		"feature1": "<bold>Görev ilerlemesini her yerden takip edin (Ücretsiz):</bold> IDE'nizde sıkışıp kalmadan uzun süren görevlerin gerçek zamanlı güncellemelerini alın",
+		"feature2": "<bold>Roo Uzantısını uzaktan kontrol edin (Pro):</bold> Sohbet tabanlı tarayıcı arayüzünden görevleri başlatın, durdurun ve etkileşime geçin.",
+		"learnMore": "Kontrolü ele almaya hazır mısınız? Daha fazlasını <learnMoreLink>buradan</learnMoreLink> öğrenin.",
+		"visitCloudButton": "Roo Code Cloud'u Ziyaret Et",
+		"socialLinks": "Bize <xLink>X</xLink>, <discordLink>Discord</discordLink>, veya <redditLink>r/RooCode</redditLink>'da katılın"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo tarayıcıyı kullanmak istiyor:",

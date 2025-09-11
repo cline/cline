@@ -271,19 +271,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",
-		"stealthModel": {
-			"feature": "Sonicステルスモデルが今、<bold>Grok Code Fast</bold>に！この高性能推論モデルが<bold>xAI (Grok)</bold>プロバイダーの下で<code>grok-code-fast-1</code>として利用できるようになりました。",
-			"note": "Sonicに関するすべての有用なフィードバックに感謝して、xAIは<bold>Roo Code Cloud</bold>プロバイダーを通じて<code>grok-code-fast-1</code>への無料アクセスをもう1週間延長しています。",
-			"connectButton": "Roo Code Cloudに接続",
-			"selectModel": "プロバイダー設定を更新するために<settingsLink>設定</settingsLink>にアクセスしてください。"
-		},
-		"description": "Roo Code {{version}}は、開発ワークフローを向上させる強力な新機能と重要な改善をもたらします。",
-		"whatsNew": "新機能",
-		"feature1": "<bold>メッセージキュー</bold>: Rooが作業中に複数のメッセージをキューに入れ、ワークフローの計画を中断することなく続行できます。",
-		"feature2": "<bold>カスタムスラッシュコマンド</bold>: よく使用するプロンプトやワークフローへの迅速なアクセスのために、パーソナライズされたスラッシュコマンドを作成し、完全なUI管理を提供します。",
-		"feature3": "<bold>強化されたGeminiツール</bold>: 新しいURLコンテキストとGoogle検索グラウンディング機能により、Geminiモデルにリアルタイムのウェブ情報と強化された研究能力を提供します。",
-		"hideButton": "通知を非表示",
-		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
+		"description": "<bold>Roo Code Cloud</bold>のご紹介：RooのパワーをIDEを超えて",
+		"feature1": "<bold>どこからでもタスクの進行状況を追跡（無料）：</bold>IDEに縛られることなく、長時間実行タスクのリアルタイム更新を取得",
+		"feature2": "<bold>Roo拡張機能をリモート制御（Pro）：</bold>チャットベースのブラウザインターフェースからタスクを開始、停止、操作。",
+		"learnMore": "制御を取る準備はできましたか？詳細は<learnMoreLink>こちら</learnMoreLink>。",
+		"visitCloudButton": "Roo Code Cloudを訪問",
+		"socialLinks": "<xLink>X</xLink>、<discordLink>Discord</discordLink>、または<redditLink>r/RooCode</redditLink>でフォローしてください"
 	},
 	"browser": {
 		"rooWantsToUse": "Rooはブラウザを使用したい:",

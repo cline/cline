@@ -271,19 +271,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 출시",
-		"stealthModel": {
-			"feature": "Sonic 스텔스 모델이 이제 <bold>Grok Code Fast</bold>입니다! 이 고성능 추론 모델은 <bold>xAI (Grok)</bold> 제공업체 하에서 <code>grok-code-fast-1</code>로 이용 가능합니다.",
-			"note": "Sonic에 대한 모든 유용한 피드백에 대한 감사의 표시로, xAI는 <bold>Roo Code Cloud</bold> 제공업체를 통해 <code>grok-code-fast-1</code>에 대한 무료 액세스를 한 주 더 연장합니다.",
-			"connectButton": "Roo Code Cloud에 연결",
-			"selectModel": "제공업체 설정을 업데이트하려면 <settingsLink>설정</settingsLink>을 방문하세요."
-		},
-		"description": "Roo Code {{version}}은 개발 워크플로우를 향상시키는 강력한 새 기능과 중요한 개선사항을 제공합니다.",
-		"whatsNew": "새로운 기능",
-		"feature1": "<bold>메시지 대기열</bold>: Roo가 작업하는 동안 여러 메시지를 대기열에 넣어 워크플로우 계획을 중단 없이 계속할 수 있습니다.",
-		"feature2": "<bold>사용자 정의 슬래시 명령</bold>: 자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 개인화된 슬래시 명령을 생성하고, 완전한 UI 관리를 제공합니다.",
-		"feature3": "<bold>향상된 Gemini 도구</bold>: 새로운 URL 컨텍스트 및 Google 검색 기반 기능으로 Gemini 모델에 실시간 웹 정보와 향상된 연구 기능을 제공합니다.",
-		"hideButton": "공지 숨기기",
-		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 자세한 내용을 확인하고 토론에 참여하세요 🚀"
+		"description": "<bold>Roo Code Cloud</bold> 소개: IDE를 넘어 Roo의 힘을 확장",
+		"feature1": "<bold>어디서나 작업 진행상황 추적 (무료):</bold> IDE에 갇히지 않고 장시간 실행 작업의 실시간 업데이트를 받아보세요",
+		"feature2": "<bold>원격으로 Roo 확장기능 제어 (Pro):</bold> 채팅 기반 브라우저 인터페이스에서 작업을 시작, 중지, 상호작용하세요.",
+		"learnMore": "제어권을 잡을 준비가 되셨나요? <learnMoreLink>여기서</learnMoreLink> 자세히 알아보세요.",
+		"visitCloudButton": "Roo Code Cloud 방문",
+		"socialLinks": "<xLink>X</xLink>, <discordLink>Discord</discordLink>, 또는 <redditLink>r/RooCode</redditLink>에서 만나요"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo가 브라우저를 사용하고 싶어합니다:",

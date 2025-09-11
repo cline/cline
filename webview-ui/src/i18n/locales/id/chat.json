@@ -283,19 +283,12 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",
-		"stealthModel": {
-			"feature": "Model stealth Sonic kini adalah <bold>Grok Code Fast</bold>! Model penalaran berperforma tinggi ini tersedia sebagai <code>grok-code-fast-1</code> di bawah penyedia <bold>xAI (Grok)</bold>.",
-			"note": "Sebagai ucapan terima kasih atas semua masukan berguna tentang Sonic, xAI memperpanjang akses gratis ke <code>grok-code-fast-1</code> selama satu minggu lagi melalui penyedia <bold>Roo Code Cloud</bold>.",
-			"connectButton": "Hubungkan ke Roo Code Cloud",
-			"selectModel": "Kunjungi <settingsLink>Pengaturan</settingsLink> untuk memperbarui konfigurasi penyedia."
-		},
-		"description": "Roo Code {{version}} menghadirkan fitur-fitur baru yang kuat dan peningkatan signifikan untuk meningkatkan alur kerja pengembangan Anda.",
-		"whatsNew": "Yang Baru",
-		"feature1": "<bold>Antrian Pesan</bold>: Antrikan beberapa pesan saat Roo sedang bekerja, memungkinkan Anda melanjutkan perencanaan alur kerja tanpa gangguan.",
-		"feature2": "<bold>Perintah Slash Kustom</bold>: Buat perintah slash yang dipersonalisasi untuk akses cepat ke prompt dan alur kerja yang sering digunakan, dengan manajemen UI lengkap.",
-		"feature3": "<bold>Alat Gemini yang Ditingkatkan</bold>: Kemampuan konteks URL baru dan dasar pencarian Google memberikan model Gemini informasi web real-time dan kemampuan penelitian yang ditingkatkan.",
-		"hideButton": "Sembunyikan pengumuman",
-		"detailsDiscussLinks": "Dapatkan detail lebih lanjut dan bergabung dalam diskusi di <discordLink>Discord</discordLink> dan <redditLink>Reddit</redditLink> 🚀"
+		"description": "Memperkenalkan <bold>Roo Code Cloud:</bold> Membawa kekuatan Roo melampaui IDE",
+		"feature1": "<bold>Lacak kemajuan tugas dari mana saja (Gratis):</bold> Dapatkan pembaruan real-time tentang tugas yang berjalan lama tanpa terjebak di IDE Anda",
+		"feature2": "<bold>Kontrol Ekstensi Roo dari jarak jauh (Pro):</bold> Mulai, hentikan, dan berinteraksi dengan tugas dari antarmuka browser berbasis chat.",
+		"learnMore": "Siap mengambil kontrol? Pelajari lebih lanjut <learnMoreLink>di sini</learnMoreLink>.",
+		"visitCloudButton": "Kunjungi Roo Code Cloud",
+		"socialLinks": "Bergabunglah dengan kami di <xLink>X</xLink>, <discordLink>Discord</discordLink>, atau <redditLink>r/RooCode</redditLink>"
 	},
 	"reasoning": {
 		"thinking": "Berpikir",
