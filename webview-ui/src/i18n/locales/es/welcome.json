@@ -16,12 +16,8 @@
 	"startRouter": "Recomendamos usar un router LLM:",
 	"startCustom": "O puedes traer tu propia clave API:",
 	"telemetry": {
-		"title": "Ayuda a mejorar Roo Code",
-		"anonymousTelemetry": "Envía datos de uso y errores anónimos para ayudarnos a corregir errores y mejorar la extensión. Nunca se envía código, texto o información personal.",
-		"changeSettings": "Siempre puedes cambiar esto en la parte inferior de la <settingsLink>configuración</settingsLink>",
-		"settings": "configuración",
-		"allow": "Permitir",
-		"deny": "Denegar"
+		"helpImprove": "Ayuda a mejorar Roo Code",
+		"helpImproveMessage": "Roo Code recopila datos de errores y uso para ayudarnos a corregir errores y mejorar la extensión. Esta telemetría no recopila código, prompts o información personal. Puedes desactivar esto en la <settingsLink>configuración</settingsLink>."
 	},
 	"importSettings": "Importar configuración"
 }

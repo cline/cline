@@ -822,7 +822,7 @@
 		"feedback": "Jika kamu punya pertanyaan atau feedback, jangan ragu untuk membuka issue di <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> atau bergabung <redditLink>reddit.com/r/RooCode</redditLink> atau <discordLink>discord.gg/roocode</discordLink>",
 		"telemetry": {
 			"label": "Izinkan pelaporan error dan penggunaan anonim",
-			"description": "Bantu tingkatkan Roo Code dengan mengirim data penggunaan anonim dan laporan error. Tidak ada kode, prompt, atau informasi pribadi yang pernah dikirim. Lihat kebijakan privasi kami untuk detail lebih lanjut."
+			"description": "Bantu tingkatkan Roo Code dengan mengirimkan data penggunaan anonim dan laporan error. Telemetri ini tidak mengumpulkan kode, prompt, atau informasi pribadi. Lihat <privacyLink>kebijakan privasi</privacyLink> kami untuk detail lebih lanjut. Anda dapat menonaktifkannya kapan saja."
 		},
 		"settings": {
 			"import": "Impor",

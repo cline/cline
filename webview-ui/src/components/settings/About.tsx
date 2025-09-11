@@ -40,7 +40,7 @@ export const About = ({ telemetrySetting, setTelemetrySetting, className, ...pro
 			<Section>
 				<div>
 					<VSCodeCheckbox
-						checked={telemetrySetting === "enabled"}
+						checked={telemetrySetting !== "disabled"}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
 							setTelemetrySetting(checked ? "enabled" : "disabled")

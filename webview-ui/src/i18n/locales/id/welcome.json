@@ -16,12 +16,8 @@
 	"startRouter": "Kami merekomendasikan menggunakan Router LLM:",
 	"startCustom": "Atau Anda dapat menggunakan API key Anda sendiri:",
 	"telemetry": {
-		"title": "Bantu Tingkatkan Roo Code",
-		"anonymousTelemetry": "Kirim data error dan penggunaan anonim untuk membantu kami memperbaiki bug dan meningkatkan ekstensi. Tidak ada kode, prompt, atau informasi pribadi yang pernah dikirim.",
-		"changeSettings": "Anda selalu dapat mengubah ini di bagian bawah <settingsLink>pengaturan</settingsLink>",
-		"settings": "pengaturan",
-		"allow": "Izinkan",
-		"deny": "Tolak"
+		"helpImprove": "Bantu Tingkatkan Roo Code",
+		"helpImproveMessage": "Roo Code mengumpulkan data kesalahan dan penggunaan untuk membantu kami memperbaiki bug dan meningkatkan ekstensi. Telemetri ini tidak mengumpulkan kode, prompt, atau informasi pribadi. Anda dapat menonaktifkan ini di <settingsLink>pengaturan</settingsLink>."
 	},
 	"importSettings": "Impor Pengaturan"
 }

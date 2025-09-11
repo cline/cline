@@ -16,12 +16,8 @@
 	"startRouter": "我們建議使用 LLM 路由器：",
 	"startCustom": "或者您可以使用自己的 API 金鑰：",
 	"telemetry": {
-		"title": "協助改進 Roo Code",
-		"anonymousTelemetry": "傳送匿名錯誤和使用資料，以協助我們修復錯誤並改善擴充功能。我們絕不會傳送任何程式碼、命令提示詞、或個人資訊 (除非您使用了 Roo Code Cloud)。詳細資訊請參閱我們的<privacyLink>隱私權政策</privacyLink>。",
-		"changeSettings": "您隨時可以到<settingsLink>設定</settingsLink>頁面底部變更此選項",
-		"settings": "設定",
-		"allow": "允許",
-		"deny": "拒絕"
+		"helpImprove": "協助改進 Roo Code",
+		"helpImproveMessage": "Roo Code 會收集錯誤和使用資料，協助我們修復錯誤並改善擴充功能。此遙測不會收集程式碼、提示或個人資訊。您可以在<settingsLink>設定</settingsLink>中關閉此設定。"
 	},
 	"importSettings": "匯入設定"
 }

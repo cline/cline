@@ -793,7 +793,7 @@
 		"feedback": "Heb je vragen of feedback? Open gerust een issue op <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> of sluit je aan bij <redditLink>reddit.com/r/RooCode</redditLink> of <discordLink>discord.gg/roocode</discordLink>",
 		"telemetry": {
 			"label": "Anonieme fout- en gebruiksrapportage toestaan",
-			"description": "Help Roo Code te verbeteren door anonieme gebruiksgegevens en foutmeldingen te verzenden. Er worden nooit code, prompts of persoonlijke gegevens verzonden. Zie ons privacybeleid voor meer informatie."
+			"description": "Help Roo Code te verbeteren door anonieme gebruiksgegevens en foutmeldingen te versturen. Deze telemetrie verzamelt geen code, prompts of persoonlijke informatie. Zie ons <privacyLink>privacybeleid</privacyLink> voor meer details."
 		},
 		"settings": {
 			"import": "Importeren",

@@ -490,10 +490,10 @@ export const webviewMessageHandler = async (
 					),
 				)
 
-			// If user already opted in to telemetry, enable telemetry service
+			// Enable telemetry by default (when unset) or when explicitly enabled
 			provider.getStateToPostToWebview().then((state) => {
 				const { telemetrySetting } = state
-				const isOptedIn = telemetrySetting === "enabled"
+				const isOptedIn = telemetrySetting !== "disabled"
 				TelemetryService.instance.updateTelemetryState(isOptedIn)
 			})
 
@@ -2289,7 +2289,7 @@ export const webviewMessageHandler = async (
 		case "telemetrySetting": {
 			const telemetrySetting = message.text as TelemetrySetting
 			await updateGlobalState("telemetrySetting", telemetrySetting)
-			const isOptedIn = telemetrySetting === "enabled"
+			const isOptedIn = telemetrySetting !== "disabled"
 			TelemetryService.instance.updateTelemetryState(isOptedIn)
 			await provider.postStateToWebview()
 			break

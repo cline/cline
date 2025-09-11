@@ -16,12 +16,8 @@
 	"startRouter": "我们推荐使用 LLM 路由器：",
 	"startCustom": "或者你可以使用自己的 API 密钥：",
 	"telemetry": {
-		"title": "帮助改进 Roo Code",
-		"anonymousTelemetry": "发送匿名的错误和使用数据，以帮助我们修复错误并改进扩展程序。不会涉及代码、提示词或个人隐私信息。",
-		"changeSettings": "可以随时在<settingsLink>设置</settingsLink>页面底部更改此设置",
-		"settings": "设置",
-		"allow": "允许",
-		"deny": "拒绝"
+		"helpImprove": "Help Improve Roo Code",
+		"helpImproveMessage": "Roo Code 收集错误和使用数据来帮助我们修复 bug 并改进扩展。此遥测不会收集代码、提示词或个人信息。您可以在<settingsLink>设置</settingsLink>中关闭此设置。"
 	},
 	"importSettings": "导入设置"
 }

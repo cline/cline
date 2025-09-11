@@ -140,6 +140,9 @@
 	--color-vscode-editorHoverWidget-foreground: var(--vscode-editorHoverWidget-foreground);
 	--color-vscode-editorHoverWidget-background: var(--vscode-editorHoverWidget-background);
 	--color-vscode-editorHoverWidget-border: var(--vscode-editorHoverWidget-border);
+
+	--color-vscode-banner-background: var(--vscode-banner-background);
+	--color-vscode-banner-foreground: var(--vscode-banner-foreground);
 }
 
 @layer base {
