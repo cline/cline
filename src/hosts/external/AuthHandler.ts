@@ -164,7 +164,7 @@ export class AuthHandler {
 			// Use SharedUriHandler directly - it handles all validation and processing
 			const success = await SharedUriHandler.handleUri(fullUrl)
 			const uriScheme = (await HostProvider.env.getUriScheme({})).uriScheme
-			const html = createAuthSuceededHtml(uriScheme)
+			const html = createAuthSucceededHtml(uriScheme)
 
 			if (success) {
 				this.sendResponse(res, 200, "text/html", html)
@@ -205,8 +205,8 @@ export class AuthHandler {
 	}
 }
 
-function createAuthSuceededHtml(uriScheme?: string): string {
-	var redirect = uriScheme ? `<script>setTimeout(() => { window.location.href = '${uriScheme}://'; }, 1000);</script>` : ""
+function createAuthSucceededHtml(uriScheme?: string): string {
+	const redirect = uriScheme ? `<script>setTimeout(() => { window.location.href = '${uriScheme}://'; }, 1000);</script>` : ""
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
