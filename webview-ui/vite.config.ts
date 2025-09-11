@@ -28,6 +28,15 @@ const writePortToFile = (): Plugin => {
 
 const isDevBuild = process.argv.includes("--dev-build")
 
+// Valid platforms, these should the keys in platform-configs.json
+const VALID_PLATFORMS = ["vscode", "standalone"]
+const platform = process.env.PLATFORM || "vscode" // Default to vscode
+
+if (!VALID_PLATFORMS.includes(platform)) {
+	throw new Error(`Invalid PLATFORM "${platform}". Must be one of: ${VALID_PLATFORMS.join(", ")}`)
+}
+console.log("Building webview for", platform)
+
 export default defineConfig({
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
@@ -79,6 +88,7 @@ export default defineConfig({
 		},
 	},
 	define: {
+		__PLATFORM__: JSON.stringify(platform),
 		process: JSON.stringify({
 			env: {
 				NODE_ENV: process?.env?.IS_DEV ? "development" : "production",

@@ -59,7 +59,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
 	// Load filtered task history with gRPC
-	const [filteredTasks, setFilteredTasks] = useState<any[]>([])
+	const [tasks, setTasks] = useState<any[]>([])
 
 	// Load and refresh task history
 	const loadTaskHistory = useCallback(async () => {
@@ -72,7 +72,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					currentWorkspaceOnly: showCurrentWorkspaceOnly,
 				}),
 			)
-			setFilteredTasks(response.tasks || [])
+			setTasks(response.tasks || [])
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
@@ -83,7 +83,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		// Force a complete refresh when both filters are active
 		// to ensure proper combined filtering
 		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
-			setFilteredTasks([])
+			setTasks([])
 		}
 		loadTaskHistory()
 	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
@@ -214,10 +214,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			.toUpperCase()
 	}, [])
 
-	const presentableTasks = useMemo(() => filteredTasks, [filteredTasks])
-
 	const fuse = useMemo(() => {
-		return new Fuse(presentableTasks, {
+		return new Fuse(tasks, {
 			keys: ["task"],
 			threshold: 0.6,
 			shouldSort: true,
@@ -226,10 +224,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
-	}, [presentableTasks])
+	}, [tasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		const results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
+		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
@@ -255,7 +253,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 
 		return results
-	}, [presentableTasks, searchQuery, fuse, sortOption])
+	}, [tasks, searchQuery, fuse, sortOption])
 
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
@@ -400,22 +398,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					{/* {presentableTasks.length === 0 && (
-						<div
-							style={{
-								
-								alignItems: "center",
-								fontStyle: "italic",
-								color: "var(--vscode-descriptionForeground)",
-								textAlign: "center",
-								padding: "0px 10px",
-							}}>
-							<span
-								className="codicon codicon-robot"
-								style={{ fontSize: "60px", marginBottom: "10px" }}></span>
-							<div>Start a task to see it here</div>
-						</div>
-					)} */}
 					<Virtuoso
 						data={taskHistorySearchResults}
 						itemContent={(index, item) => (
