@@ -40,14 +40,6 @@ export class StateManager {
 	}
 
 	/**
-	 * Check if multi-root workspace feature is enabled
-	 * Returns the feature flag value from cache, with fallback to false
-	 */
-	public isMultiRootEnabled(): boolean {
-		return this.globalStateCache["multiRootEnabled"] ?? false
-	}
-
-	/**
 	 * Initialize the cache by loading data from disk
 	 */
 	async initialize(): Promise<void> {
