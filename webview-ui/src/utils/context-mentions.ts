@@ -8,7 +8,12 @@ export interface SearchResult {
 	label?: string
 }
 
-export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
+export function insertMention(
+	text: string,
+	position: number,
+	value: string,
+	partialQueryLength: number = 0,
+): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
@@ -26,8 +31,11 @@ export function insertMention(text: string, position: number, value: string): { 
 
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
-		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + formattedValue + " " + afterCursor.replace(/^[^\s]*/, "")
+		const beforeAt = text.substring(0, lastAtIndex + 1)
+		const afterPartialQuery = text.substring(lastAtIndex + 1 + partialQueryLength)
+
+		// replace the partial query with the full mention
+		newValue = beforeAt + formattedValue + (afterPartialQuery.startsWith(" ") ? afterPartialQuery : " " + afterPartialQuery)
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position

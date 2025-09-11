@@ -2,7 +2,10 @@ import { ApiHandler } from "@core/api"
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
+import { processFilesIntoText } from "@/integrations/misc/extract-text"
+import { ClineAsk } from "@/shared/ExtensionMessage"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import { TaskConfig } from "../types/TaskConfig"
 
 /**
  * Utility functions for handling tool results and feedback
@@ -71,6 +74,32 @@ export class ToolResultUtils {
 			})
 		} else {
 			userMessageContent.push(...content)
+		}
+	}
+
+	/**
+	 * Handles tool approval flow and processes any user feedback
+	 */
+	static async askApprovalAndPushFeedback(type: ClineAsk, completeMessage: string, config: TaskConfig) {
+		const { response, text, images, files } = await config.callbacks.ask(type, completeMessage, false)
+
+		if (text || (images && images.length > 0) || (files && files.length > 0)) {
+			let fileContentString = ""
+			if (files && files.length > 0) {
+				fileContentString = await processFilesIntoText(files)
+			}
+
+			ToolResultUtils.pushAdditionalToolFeedback(config.taskState.userMessageContent, text, images, fileContentString)
+			await config.callbacks.say("user_feedback", text, images, files)
+		}
+
+		if (response !== "yesButtonClicked") {
+			// User pressed reject button or responded with a message, which we treat as a rejection
+			config.taskState.didRejectTool = true // Prevent further tool uses in this message
+			return false
+		} else {
+			// User hit the approve button, and may have provided feedback
+			return true
 		}
 	}
 }

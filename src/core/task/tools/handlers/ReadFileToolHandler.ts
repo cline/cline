@@ -1,18 +1,21 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
+import { telemetryService } from "@/services/telemetry"
+import { ClineSayTool } from "@/shared/ExtensionMessage"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ReadFileToolHandler implements IFullyManagedTool {
-	readonly name = "read_file"
+	readonly name = ClineDefaultTool.FILE_READ
 
 	constructor(private validator: ToolValidator) {}
 
@@ -23,28 +26,13 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const relPath = block.params.path
 
-		// Early return if we don't have enough data yet
-		if (!relPath) {
-			return
-		}
-
-		// Get config access for services
 		const config = uiHelpers.getConfig()
 
-		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(relPath)
-		if (!accessValidation.ok) {
-			// Show error and return early
-			await uiHelpers.say("clineignore_error", relPath)
-			return
-		}
-
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
 		const sharedMessageProps = {
 			tool: "readFile",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: absolutePath,
+			content: undefined,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 		}
 
@@ -61,18 +49,13 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const relPath: string | undefined = block.params.path
 
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("read_file", "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		// Check clineignore access
@@ -83,7 +66,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relPath!)
+		const absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -91,7 +74,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			path: getReadablePath(config.cwd, relPath!),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
-		}
+		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
@@ -105,7 +88,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to read ${path.basename(absolutePath)}`
+			const notificationMessage = `Cline wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
 
 			// Show notification
 			showNotificationForApprovalIfAutoApprovalEnabled(
@@ -116,14 +99,10 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("tool", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+				return formatResponse.toolDenied()
 			} else {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
