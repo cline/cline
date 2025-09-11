@@ -225,6 +225,7 @@ export class Controller {
 		})
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
 		this.task = new Task(
 			this,
 			this.mcpHub,

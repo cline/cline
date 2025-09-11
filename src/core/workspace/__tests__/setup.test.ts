@@ -31,14 +31,27 @@ describe("setupWorkspaceManager", () => {
 	}) => {
 		const state: { roots?: WorkspaceRoot[]; primaryIndex?: number } = {}
 		return {
-			isMultiRootEnabled: () => multiRootEnabled,
-			getWorkspaceRoots: () => savedRoots,
-			getPrimaryRootIndex: () => savedPrimaryIndex,
-			setWorkspaceRoots: (roots: WorkspaceRoot[]) => {
-				state.roots = roots
+			getGlobalStateKey: (key: string) => {
+				switch (key) {
+					case "multiRootEnabled":
+						return multiRootEnabled
+					case "workspaceRoots":
+						return savedRoots
+					case "primaryRootIndex":
+						return savedPrimaryIndex
+					default:
+						return undefined
+				}
 			},
-			setPrimaryRootIndex: (idx: number) => {
-				state.primaryIndex = idx
+			setGlobalState: (key: string, value: any) => {
+				switch (key) {
+					case "workspaceRoots":
+						state.roots = value
+						break
+					case "primaryRootIndex":
+						state.primaryIndex = value
+						break
+				}
 			},
 			// for assertions
 			_state: state,
