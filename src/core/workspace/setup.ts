@@ -3,6 +3,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { StateManager } from "../storage/StateManager"
 import type { WorkspaceRoot } from "./WorkspaceRoot"
 import { WorkspaceRootManager } from "./WorkspaceRootManager"
 
@@ -18,18 +19,12 @@ export async function setupWorkspaceManager({
 	stateManager,
 	detectRoots,
 }: {
-	stateManager: {
-		isMultiRootEnabled(): boolean
-		getWorkspaceRoots(): WorkspaceRoot[] | undefined
-		getPrimaryRootIndex(): number
-		setWorkspaceRoots(roots: WorkspaceRoot[]): void
-		setPrimaryRootIndex(idx: number): void
-	}
+	stateManager: StateManager
 	historyItem?: HistoryItem
 	detectRoots: DetectRoots
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
-	const multiRootEnabled = stateManager.isMultiRootEnabled()
+	const multiRootEnabled = stateManager.getGlobalStateKey("multiRootEnabled")
 	const startTime = performance.now()
 
 	try {
@@ -50,8 +45,8 @@ export async function setupWorkspaceManager({
 			)
 
 			// Persist
-			stateManager.setWorkspaceRoots(manager.getRoots())
-			stateManager.setPrimaryRootIndex(manager.getPrimaryIndex())
+			stateManager.setGlobalState("workspaceRoots", manager.getRoots())
+			stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
 			return manager
 		}
 
@@ -88,8 +83,9 @@ export async function setupWorkspaceManager({
 		)
 
 		console.log(`[WorkspaceManager] Single-root mode: ${cwd}`)
-		stateManager.setWorkspaceRoots(manager.getRoots())
-		stateManager.setPrimaryRootIndex(manager.getPrimaryIndex())
+		const roots = manager.getRoots()
+		stateManager.setGlobalState("workspaceRoots", roots)
+		stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
 		return manager
 	} catch (error) {
 		// Telemetry + graceful fallback to single-root from cwd
@@ -98,8 +94,9 @@ export async function setupWorkspaceManager({
 
 		console.error("[WorkspaceManager] Initialization failed:", error)
 		const manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
-		stateManager.setWorkspaceRoots(manager.getRoots())
-		stateManager.setPrimaryRootIndex(manager.getPrimaryIndex())
+		const roots = manager.getRoots()
+		stateManager.setGlobalState("workspaceRoots", roots)
+		stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
 
 		HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,

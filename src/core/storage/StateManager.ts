@@ -1,4 +1,3 @@
-import { WorkspaceRoot } from "@core/workspace"
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
@@ -553,54 +552,6 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.workspaceStateCache[key]
-	}
-
-	/**
-	 * Get workspace roots from global state
-	 */
-	getWorkspaceRoots(): WorkspaceRoot[] | undefined {
-		return this.getGlobalStateKey("workspaceRoots")
-	}
-
-	/**
-	 * Set workspace roots in global state
-	 */
-	setWorkspaceRoots(roots: WorkspaceRoot[]): void {
-		this.setGlobalState("workspaceRoots", roots)
-	}
-
-	/**
-	 * Get primary root index from global state.
-	 * The primary root is the main workspace folder that Cline focuses on when dealing with
-	 * multi-root workspaces. In VS Code, you can have multiple folders open in one workspace,
-	 * and the primary root index indicates which folder (by its position in the array, 0-based)
-	 * should be treated as the main/default working directory for operations.
-	 */
-	getPrimaryRootIndex(): number {
-		return this.getGlobalStateKey("primaryRootIndex") ?? 0
-	}
-
-	/**
-	 * Set primary root index in global state
-	 */
-	setPrimaryRootIndex(index: number): void {
-		this.setGlobalState("primaryRootIndex", index)
-	}
-
-	/**
-	 * Check if multi-root workspace feature is enabled
-	 */
-	isMultiRootEnabled(): boolean {
-		// Feature flag - defaults to false
-		// For now, always return false to disable multi-root support by default
-		return this.getGlobalStateKey("multiRootEnabled") ?? false
-	}
-
-	/**
-	 * Enable or disable multi-root workspace feature
-	 */
-	setMultiRootEnabled(enabled: boolean): void {
-		this.setGlobalState("multiRootEnabled", enabled)
 	}
 
 	/**

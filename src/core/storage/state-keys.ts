@@ -87,8 +87,8 @@ export interface GlobalState {
 
 	// Multi-root workspace support
 	workspaceRoots: WorkspaceRoot[] | undefined
-	primaryRootIndex: number | undefined
-	multiRootEnabled: boolean | undefined
+	primaryRootIndex: number
+	multiRootEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
