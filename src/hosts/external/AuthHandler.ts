@@ -2,6 +2,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
+import { HostProvider } from "../host-provider"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 
@@ -162,9 +163,11 @@ export class AuthHandler {
 
 			// Use SharedUriHandler directly - it handles all validation and processing
 			const success = await SharedUriHandler.handleUri(fullUrl)
+			const uriScheme = (await HostProvider.env.getUriScheme({})).uriScheme
+			const html = createAuthSuceededHtml(uriScheme)
 
 			if (success) {
-				this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
+				this.sendResponse(res, 200, "text/html", html)
 			} else {
 				this.sendResponse(res, 400, "text/plain", "Bad request")
 			}
@@ -202,12 +205,16 @@ export class AuthHandler {
 	}
 }
 
-const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
+function createAuthSuceededHtml(uriScheme?: string): string {
+	var redirect = uriScheme ? `<script>setTimeout(() => { window.location.href = '${uriScheme}://'; }, 1000);</script>` : ""
+
+	const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cline - Authentication Success</title>
+	${redirect}
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;700&display=swap');
         
@@ -304,3 +311,5 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
     </div>
 </body>
 </html>`
+	return html
+}
