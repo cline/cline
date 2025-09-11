@@ -22,10 +22,17 @@ const generic: ClineToolSpec = {
 				"A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.",
 			usage: "true or false",
 		},
+		{
+			name: "timeout",
+			required: false,
+			contextRequirements: (context) => context.yoloModeToggled === true,
+			instruction: "Optional timeout in seconds for command execution",
+			usage: "30",
+		},
 	],
 }
 
-const gpt = {
+const gpt: ClineToolSpec = {
 	variant: ModelFamily.GPT,
 	id: ClineDefaultTool.BASH,
 	name: "bash",
@@ -42,6 +49,13 @@ const gpt = {
 			name: "requires_approval",
 			required: false,
 			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
+		},
+		{
+			name: "timeout",
+			required: false,
+			contextRequirements: (context) => context.yoloModeToggled === true,
+			instruction: "Optional timeout in seconds for command execution",
+			usage: "30",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],
