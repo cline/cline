@@ -240,6 +240,15 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			})
 			.catch((err: any) => console.error("Failed to refresh focus chain remote flag on webview init", err))
 
+		// Refresh multi-root workspace remote flag on webview init
+		featureFlagsService
+			.getMultiRootEnabled()
+			.then(async (enabled: boolean) => {
+				controller.stateManager.setGlobalState("multiRootEnabled", enabled)
+				await controller.postStateToWebview()
+			})
+			.catch((err: any) => console.error("Failed to refresh multi-root workspace remote flag on webview init", err))
+
 		return Empty.create({})
 	} catch (error) {
 		console.error("Failed to initialize webview:", error)

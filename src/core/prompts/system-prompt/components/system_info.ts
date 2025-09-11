@@ -37,8 +37,32 @@ export async function getSystemEnv(cwd?: string, isTesting = false) {
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const testMode = !!process?.env?.CI || !!process?.env?.IS_TEST || context.isTesting || false
 	const info = await getSystemEnv(context.cwd, testMode)
-	const WORKSPACE_TITLE =
-		!info.workspaces || info.workspaces.length === 1 ? "Current Working Directory" : "Active Workspace Folders"
+
+	// Check if multi-root is enabled and we have workspace roots
+	const isMultiRoot = context.isMultiRootEnabled && context.workspaceRoots && context.workspaceRoots.length > 1
+
+	let WORKSPACE_TITLE: string
+	let workingDirInfo: string
+
+	if (isMultiRoot && context.workspaceRoots) {
+		// Multi-root workspace with feature flag enabled
+		WORKSPACE_TITLE = "Workspace Roots"
+		const rootsInfo = context.workspaceRoots
+			.map((root) => {
+				const vcsInfo = root.vcs ? ` (${root.vcs})` : ""
+				return `\n  - ${root.name}: ${root.path}${vcsInfo}`
+			})
+			.join("")
+		workingDirInfo = rootsInfo + `\n\nPrimary Working Directory: ${context.cwd}`
+	} else if (!info.workspaces || info.workspaces.length === 1) {
+		// Single workspace
+		WORKSPACE_TITLE = "Current Working Directory"
+		workingDirInfo = info.workingDir
+	} else {
+		// Multiple workspaces but feature flag not enabled
+		WORKSPACE_TITLE = "Active Workspace Folders"
+		workingDirInfo = info.workspaces.join(", ")
+	}
 
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
@@ -47,6 +71,6 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 		shell: info.shell,
 		homeDir: info.homeDir,
 		WORKSPACE_TITLE,
-		workingDir: info.workspaces.length > 1 ? info.workspaces.join(", ") : info.workingDir,
+		workingDir: workingDirInfo,
 	})
 }

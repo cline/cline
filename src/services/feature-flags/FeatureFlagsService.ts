@@ -81,6 +81,13 @@ export class FeatureFlagsService {
 	}
 
 	/**
+	 * Convenience: multi-root workspace remote gate
+	 */
+	public async getMultiRootEnabled(): Promise<boolean> {
+		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
+	}
+
+	/**
 	 * Get the feature flag payload for advanced use cases
 	 * @param flagName The feature flag key
 	 * @returns The feature flag payload or null if not found
