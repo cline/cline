@@ -28,7 +28,9 @@
  * Ideal for local development, testing, or lightweight E2E scenarios.
  */
 
-import { ChildProcess, spawn } from "child_process"
+import { mkdtempSync, rmSync } from "node:fs"
+import * as os from "node:os"
+import { ChildProcess, execSync, spawn } from "child_process"
 import * as fs from "fs"
 import * as path from "path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
@@ -66,12 +68,17 @@ async function main(): Promise<void> {
 	}
 
 	try {
-		const apiServer = await ClineApiServerMock.startGlobalServer()
+		await ClineApiServerMock.startGlobalServer()
 		console.log("Cline API Server started in-process")
 	} catch (error) {
 		console.error("Failed to start Cline API Server:", error)
 		process.exit(1)
 	}
+
+	// Create temporary directories like e2e tests
+	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	const extensionsDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
 	// Start hostbridge test server in background.
 	// We run it as a child process to emulate how the extension currently operates
@@ -79,7 +86,30 @@ async function main(): Promise<void> {
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		detached: false,
+		env: {
+			...process.env,
+			TEST_HOSTBRIDGE_WORKSPACE_DIR: clineTestWorkspace,
+		},
 	})
+
+	console.log(`Temp user data dir: ${userDataDir}`)
+	console.log(`Temp extensions dir: ${extensionsDir}`)
+
+	// Extract standalone.zip to the extensions directory
+	const standaloneZipPath = path.join(distDir, "standalone.zip")
+	if (!fs.existsSync(standaloneZipPath)) {
+		console.error(`standalone.zip not found at: ${standaloneZipPath}`)
+		process.exit(1)
+	}
+
+	console.log("Extracting standalone.zip to extensions directory...")
+	try {
+		execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
+	} catch (error) {
+		console.error("Failed to extract standalone.zip:", error)
+		process.exit(1)
+	}
 
 	// Start the core service
 	// We run it as a child process to emulate how the extension currently operates
@@ -94,16 +124,29 @@ async function main(): Promise<void> {
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
 			E2E_TEST: E2E_TEST,
 			CLINE_ENVIRONMENT: CLINE_ENVIRONMENT,
+			CLINE_DIR: userDataDir,
+			INSTALL_DIR: extensionsDir,
 		},
 		stdio: "inherit",
 	})
 
 	// Handle graceful shutdown
 	const shutdown = async (): Promise<void> => {
-		console.log("\n Shutting down services...")
+		console.log(`\n Shutting down services...\n${userDataDir}\n${extensionsDir}\n${clineTestWorkspace}\n`)
 		hostbridge.kill()
 		coreService.kill()
 		await ClineApiServerMock.stopGlobalServer()
+
+		// Cleanup temp directories
+		try {
+			rmSync(userDataDir, { recursive: true, force: true })
+			rmSync(extensionsDir, { recursive: true, force: true })
+			rmSync(clineTestWorkspace, { recursive: true, force: true })
+			console.log("Cleaned up temporary directories")
+		} catch (error) {
+			console.warn("Failed to cleanup temp directories:", error)
+		}
+
 		process.exit(0)
 	}
 

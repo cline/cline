@@ -228,7 +228,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	const handleUri = async (uri: vscode.Uri) => {
-		const success = await SharedUriHandler.handleUri(uri)
+		const url = decodeURIComponent(uri.toString())
+		const success = await SharedUriHandler.handleUri(url)
 		if (!success) {
 			console.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
