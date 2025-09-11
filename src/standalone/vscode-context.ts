@@ -4,6 +4,7 @@ import path, { join } from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
+import { CredentialStorage } from "@/core/storage/credential"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
@@ -37,7 +38,9 @@ const extensionContext: ExtensionContext = {
 
 	// Set up KV stores.
 	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-	secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
+	// Example using CredentialStorage with fallback to SecretStore
+	// TODO: Use storage based on host configurations. E.g. 'credential', 'stateless', 'file', 'client', etc.
+	secrets: new CredentialStorage() || new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
 	// Set up URIs.
 	storageUri: URI.file(DATA_DIR),
