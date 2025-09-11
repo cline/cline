@@ -1,0 +1,137 @@
+{
+	"startTime": "2025-09-11T10:18:34.084Z",
+	"entries": [
+		{
+			"requestId": "22449341-7627-4329-b57d-d212e54134d7",
+			"service": "cline.StateService",
+			"method": "getAvailableTerminalProfiles",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {
+					"profiles": [
+						{
+							"id": "default",
+							"name": "Default",
+							"path": "",
+							"description": "Use VSCode's default terminal configuration"
+						},
+						{
+							"id": "zsh",
+							"name": "zsh",
+							"path": "/bin/zsh",
+							"description": "Z shell (default on macOS)"
+						},
+						{
+							"id": "bash",
+							"name": "bash",
+							"path": "/bin/bash",
+							"description": "Bourne Again Shell"
+						}
+					]
+				}
+			},
+			"duration": 1
+		},
+		{
+			"requestId": "22221d6c-5df7-4654-bc67-16d2202c90d2",
+			"service": "cline.ModelsService",
+			"method": "updateApiConfigurationProto",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"apiConfiguration": {
+						"openAiHeaders": {},
+						"openRouterApiKey": "test-api-key",
+						"planModeApiProvider": 1,
+						"planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+						"actModeApiProvider": 1,
+						"actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+						"favoritedModelIds": []
+					}
+				}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {}
+			},
+			"duration": 1
+		},
+		{
+			"requestId": "904d6d3e-9470-428f-b03b-c3cca24cd076",
+			"service": "cline.StateService",
+			"method": "setWelcomeViewCompleted",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"value": true
+				}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {}
+			},
+			"duration": 1
+		},
+		{
+			"requestId": "c2bee498-142f-4793-8224-a28ce4d371f1",
+			"service": "cline.FileService",
+			"method": "searchFiles",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"query": "prob",
+					"mentionsRequestId": "prob"
+				}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {
+					"results": [],
+					"mentionsRequestId": "prob"
+				}
+			},
+			"duration": 7
+		},
+		{
+			"requestId": "c2bee498-142f-4793-8224-a28ce4d371f1",
+			"service": "cline.StateService",
+			"method": "getLatestState",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": true
+			},
+			"response": {
+				"message": {
+					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"5f9fb200052a0035a677c0ea783a54ee888686c8fadcf3c7e3369580a761a587\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+				}
+			},
+			"duration": 0
+		}
+	],
+	"stats": {
+		"totalRequests": 5,
+		"pendingRequests": 0,
+		"completedRequests": 5,
+		"errorRequests": 0
+	}
+}
