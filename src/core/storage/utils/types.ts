@@ -1,9 +1,9 @@
 import { type SecretStorage } from "vscode"
+import { ClineStorage } from "../ClineStorage"
 import { CredentialStorage } from "../credential"
-import { ClineSecretStorageType } from "../secrets"
-import { ClineStorage } from "../stateless"
+import { ClineSecretStorage } from "../secrets"
 
-export type ClineStorages = ClineStorage | ClineSecretStorageType | CredentialStorage | SecretStorage
+export type ClineStorages = ClineStorage | ClineSecretStorage | CredentialStorage | SecretStorage
 
 export interface ClineStorageChangeEvent {
 	readonly key: string

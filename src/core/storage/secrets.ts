@@ -1,41 +1,49 @@
 import type { SecretStorage as VSCodeSecretStorage } from "vscode"
-import { ClineStorage } from "./stateless"
+import { ClineStorage } from "./ClineStorage"
 
-export type ClineSecretStorageType = ClineSecretStorage
+type SecretStores = VSCodeSecretStorage | ClineStorage
 
-class ClineSecretStorage extends ClineStorage {
-	private _store: VSCodeSecretStorage | null = null
-
-	public get storage(): VSCodeSecretStorage {
-		if (!this._store) {
-			console.error("[ClineSecretStorage]", "SecretStorage not initialized")
-			throw new Error("SecretStorage not initialized")
-		}
-		return this._store
+/**
+ * Wrapper around VSCode Secret Storage or any other storage type for managing secrets.
+ */
+export class ClineSecretStorage extends ClineStorage {
+	private static readonly store = new ClineSecretStorage()
+	static get instance(): ClineSecretStorage {
+		return ClineSecretStorage.store
 	}
 
-	public setStorage(storage: VSCodeSecretStorage): void {
-		if (!this._store) {
-			this._store = storage
-			console.info("[ClineSecretStorage]", "set")
+	private secretStorage: SecretStores | null = null
+
+	public get storage(): SecretStores {
+		if (!this.secretStorage) {
+			throw new Error("[ClineSecretStorage] init not called")
 		}
+		return this.secretStorage
 	}
 
-	override async get(key: string): Promise<string | undefined> {
+	public init(store: SecretStores) {
+		if (!this.secretStorage) {
+			this.secretStorage = store
+			console.info("[ClineSecretStorage] initialized")
+		}
+		return this.secretStorage
+	}
+
+	protected async _get(key: string): Promise<string | undefined> {
 		try {
-			if (key) {
-				console.info("[ClineSecretStorage]", "get", key)
-				return await this.storage.get(key)
-			}
+			return key ? await this.storage.get(key) : undefined
 		} catch (error) {
 			console.error("[ClineSecretStorage]", error)
+			return undefined
 		}
-		return undefined
 	}
 
-	override async store(key: string, value: string): Promise<void> {
+	/**
+	 * [SECURITY] Avoid logging secrets values.
+	 */
+	protected async _store(key: string, value: string): Promise<void> {
 		try {
-			if (value?.length > 0) {
+			if (value && value.length > 0) {
 				await this.storage.store(key, value)
 			}
 		} catch (error) {
@@ -43,9 +51,13 @@ class ClineSecretStorage extends ClineStorage {
 		}
 	}
 
-	override async delete(key: string): Promise<void> {
+	protected async _delete(key: string): Promise<void> {
+		console.info("[ClineSecretStorage]", "deleting", key)
 		await this.storage.delete(key)
 	}
 }
 
-export const secretStorage = new ClineSecretStorage()
+/**
+ * Singleton instance of ClineSecretStorage
+ */
+export const secretStorage = ClineSecretStorage.instance

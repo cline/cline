@@ -56,7 +56,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
-	secretStorage.setStorage(context.secrets)
+	secretStorage.init(context.secrets)
 
 	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
 

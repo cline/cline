@@ -9,9 +9,9 @@ import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMod
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
+import { ClineStorage } from "../ClineStorage"
 import { readTaskHistoryFromState } from "../disk"
 import { GlobalState, LocalState, SecretKey, Secrets } from "../state-keys"
-import { ClineStorage } from "../stateless"
 
 export async function readSecretsFromDisk(store: ClineStorage): Promise<Secrets> {
 	const [
