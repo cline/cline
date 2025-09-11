@@ -1,7 +1,7 @@
 import { jwtDecode } from "jwt-decode"
 import { EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
-import { ErrorService } from "@/services/error"
+import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
@@ -60,7 +60,7 @@ export class ClineAuthProvider {
 			}
 			return false
 		} catch (error) {
-			console.error("Error checking token expiration:", error)
+			Logger.error("Error checking token expiration:", error)
 			return true // If we can't decode the token, assume it needs refresh
 		}
 	}
@@ -73,7 +73,7 @@ export class ClineAuthProvider {
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
 		const storedAuthDataStr = controller.stateManager.getSecretKey("clineAccountId")
 		if (!storedAuthDataStr) {
-			console.error("No stored authentication credential found.")
+			Logger.error("No stored authentication credential found.")
 			return null
 		}
 
@@ -99,7 +99,7 @@ export class ClineAuthProvider {
 				userInfo: storedAuthData.userInfo,
 			}
 		} catch (error) {
-			ErrorService.get().logException(error)
+			console.error("Error retrieving stored authentication credential:", error)
 			// Clear invalid stored data
 			controller.stateManager.setSecret("clineAccountId", undefined)
 			return null
@@ -222,7 +222,6 @@ export class ClineAuthProvider {
 			try {
 				controller.stateManager.setSecret("clineAccountId", JSON.stringify(authData))
 			} catch (error) {
-				ErrorService.get().logException(error)
 				throw error
 			}
 
@@ -232,7 +231,6 @@ export class ClineAuthProvider {
 				userInfo: detailedUserInfo,
 			}
 		} catch (error) {
-			ErrorService.get().logException(error)
 			throw error
 		}
 	}

@@ -33,7 +33,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extension=claude-dev.cline-nightly",
+				"--disable-extension=saoudrizwan.cline-nightly",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -53,7 +53,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extension=claude-dev.cline-nightly",
+				"--disable-extension=saoudrizwan.cline-nightly",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -77,6 +77,7 @@
 				"--sync=off",
 				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extension=saoudrizwan.cline-nightly",
 				"${workspaceFolder}"
 			],
 			"outFiles": [
