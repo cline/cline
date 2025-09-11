@@ -24,7 +24,7 @@ export async function setupWorkspaceManager({
 	detectRoots: DetectRoots
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
-	const multiRootEnabled = stateManager.isMultiRootEnabled()
+	const multiRootEnabled = stateManager.getGlobalStateKey("multiRootEnabled")
 	const startTime = performance.now()
 
 	try {
