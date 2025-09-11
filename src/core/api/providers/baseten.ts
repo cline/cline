@@ -150,16 +150,33 @@ export class BasetenHandler implements ApiHandler {
 	 * Checks if the current model supports vision/images
 	 */
 	supportsImages(): boolean {
-		const model = this.getModel()
-		return model.info.supportsImages === true
+		// Baseten models do not currently support image input
+		return false
 	}
 
 	/**
 	 * Checks if the current model supports tools
 	 */
 	supportsTools(): boolean {
-		const _model = this.getModel()
-		// Baseten models support tools via OpenAI-compatible API
+		const model = this.getModel()
+
+		// Check model description for tool support indicators
+		const description = model.info.description?.toLowerCase() || ""
+		const modelId = model.id.toLowerCase()
+
+		// Look for explicit mentions of tool support in description
+		if (description.includes("tool") || description.includes("function calling") || description.includes("agentic")) {
+			return true
+		}
+
+		// Most modern chat models on Baseten support tools via OpenAI-compatible API
+		// Only exclude models that are clearly not designed for tool use
+		if (modelId.includes("coder") || modelId.includes("code") || description.includes("coding")) {
+			// Coding models typically support tools for code generation
+			return true
+		}
+
+		// Default to true for Baseten models as they generally support tools
 		return true
 	}
 }
