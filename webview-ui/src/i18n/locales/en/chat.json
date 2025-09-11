@@ -24,7 +24,9 @@
 		"connectToCloudDescription": "Sign in to Roo Code Cloud to share tasks",
 		"sharingDisabledByOrganization": "Sharing disabled by organization",
 		"shareSuccessOrganization": "Organization link copied to clipboard",
-		"shareSuccessPublic": "Public link copied to clipboard"
+		"shareSuccessPublic": "Public link copied to clipboard",
+		"openInCloud": "Open task in Roo Code Cloud",
+		"openInCloudIntro": "Keep monitoring or interacting with Roo from anywhere. Scan, click or copy to open."
 	},
 	"unpin": "Unpin",
 	"pin": "Pin",

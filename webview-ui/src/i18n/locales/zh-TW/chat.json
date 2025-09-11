@@ -24,7 +24,9 @@
 		"connectToCloudDescription": "登入 Roo Code Cloud 以分享工作",
 		"sharingDisabledByOrganization": "組織已停用分享功能",
 		"shareSuccessOrganization": "組織連結已複製到剪貼簿",
-		"shareSuccessPublic": "公開連結已複製到剪貼簿"
+		"shareSuccessPublic": "公開連結已複製到剪貼簿",
+		"openInCloud": "在 Roo Code Cloud 中開啟工作",
+		"openInCloudIntro": "從任何地方繼續監控或與 Roo 互動。掃描、點擊或複製以開啟。"
 	},
 	"unpin": "取消釘選",
 	"pin": "釘選",

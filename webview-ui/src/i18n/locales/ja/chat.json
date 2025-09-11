@@ -24,7 +24,9 @@
 		"connectToCloudDescription": "タスクを共有するためにRoo Code Cloudにサインイン",
 		"sharingDisabledByOrganization": "組織により共有が無効化されています",
 		"shareSuccessOrganization": "組織リンクをクリップボードにコピーしました",
-		"shareSuccessPublic": "公開リンクをクリップボードにコピーしました"
+		"shareSuccessPublic": "公開リンクをクリップボードにコピーしました",
+		"openInCloud": "Roo Code Cloudでタスクを開く",
+		"openInCloudIntro": "どこからでもRooの監視や操作を続けられます。スキャン、クリック、またはコピーして開いてください。"
 	},
 	"unpin": "ピン留めを解除",
 	"pin": "ピン留め",
