@@ -254,6 +254,28 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
+	async toggleActModeForYoloMode(): Promise<boolean> {
+		const modeToSwitchTo: Mode = "act"
+
+		// Switch to act mode
+		this.stateManager.setGlobalState("mode", modeToSwitchTo)
+
+		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
+		if (this.task) {
+			const apiConfiguration = this.stateManager.getApiConfiguration()
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
+		}
+
+		await this.postStateToWebview()
+
+		// Additional safety
+		if (this.task) {
+			this.task.updateMode(modeToSwitchTo)
+			return true
+		}
+		return false
+	}
+
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = modeToSwitchTo === "act"
 

@@ -108,6 +108,8 @@ export interface TaskCallbacks {
 	updateTaskHistory: (update: any) => Promise<any[]>
 
 	applyLatestBrowserSettings: () => Promise<BrowserSession>
+
+	switchToActMode: () => Promise<boolean>
 }
 
 /**

@@ -408,6 +408,7 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
+			this.switchToActModeCallback.bind(this),
 		)
 	}
 
@@ -715,6 +716,10 @@ export class Task {
 
 	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
+	}
+
+	private async switchToActModeCallback(): Promise<boolean> {
+		return await this.controller.toggleActModeForYoloMode()
 	}
 
 	// Task lifecycle

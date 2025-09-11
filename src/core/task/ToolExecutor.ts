@@ -113,6 +113,7 @@ export class ToolExecutor {
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
+		private switchToActMode: () => Promise<boolean>,
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings, yoloModeToggled)
 
@@ -165,6 +166,7 @@ export class ToolExecutor {
 				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
+				switchToActMode: this.switchToActMode,
 			},
 			coordinator: this.coordinator,
 		}
