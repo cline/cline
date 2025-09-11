@@ -76,6 +76,10 @@ export class Controller {
 					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
 					error,
 				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to initialize Cline's application state. Please restart the extension.",
+				})
 			})
 
 		// Set up persistence error recovery
@@ -221,6 +225,7 @@ export class Controller {
 		})
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
 		this.task = new Task(
 			this,
 			this.mcpHub,

@@ -47,8 +47,6 @@ export async function deleteTasksWithIds(controller: Controller, request: String
  * @param id The task ID to delete
  */
 async function deleteTaskWithId(controller: Controller, id: string): Promise<void> {
-	console.info("deleteTaskWithId: ", id)
-
 	try {
 		// Clear current task if it matches the ID being deleted
 		if (id === controller.task?.taskId) {
