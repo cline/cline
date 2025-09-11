@@ -28,6 +28,18 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
 const useDevEnv = process?.env?.IS_DEV === "true" || process?.env?.CLINE_ENVIRONMENT === "local"
 
 /**
+ * Soon to be deprecated hardcoded keys for PostHog.
+ */
+const TO_BE_DEPRECATED = {
+	production: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
+	dev: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
+}
+/**
+ * NOTE: Will be deprecated once we have set up the environment variables in CI/CD pipeline.
+ */
+const DEPRECATED_KEY = useDevEnv ? TO_BE_DEPRECATED.dev : TO_BE_DEPRECATED.production
+
+/**
  * PostHog configuration for Production Environment.
  * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
  * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
@@ -35,8 +47,8 @@ const useDevEnv = process?.env?.IS_DEV === "true" || process?.env?.CLINE_ENVIRON
  * NOTE: The development environment variables should be retrieved from 1password shared vault.
  */
 export const posthogConfig: PostHogClientConfig = {
-	apiKey: process?.env?.TELEMETRY_SERVICE_API_KEY,
-	errorTrackingApiKey: process?.env?.ERROR_SERVICE_API_KEY,
+	apiKey: process?.env?.TELEMETRY_SERVICE_API_KEY || DEPRECATED_KEY,
+	errorTrackingApiKey: process?.env?.ERROR_SERVICE_API_KEY || DEPRECATED_KEY,
 	host: "https://data.cline.bot",
 	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
 }
