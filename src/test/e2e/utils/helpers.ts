@@ -234,7 +234,7 @@ export const e2e = test
 		workspaceType: "single",
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir, extensionsDir }, use, testInfo) => {
+		openVSCode: async ({ userDataDir }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
@@ -260,7 +260,6 @@ export const e2e = test
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
