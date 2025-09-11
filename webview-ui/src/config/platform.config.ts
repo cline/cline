@@ -6,6 +6,7 @@ export interface PlatformConfig {
 	postMessage: PostMessageFunction
 	encodeMessage: MessageEncoder
 	decodeMessage: MessageDecoder
+	togglePlanActKeys: string
 }
 
 // Internal type for JSON structure (not exported)
@@ -13,6 +14,7 @@ type PlatformConfigJson = {
 	messageEncoding: "none" | "json"
 	showNavbar: boolean
 	postMessageHandler: "vscode" | "standalone"
+	togglePlanActKeys: string
 }
 
 type PlatformConfigs = Record<string, PlatformConfigJson>
@@ -78,6 +80,7 @@ export const PLATFORM_CONFIG: PlatformConfig = {
 	postMessage: postMessageStrategies[selectedConfig.postMessageHandler],
 	encodeMessage: messageEncoders[selectedConfig.messageEncoding],
 	decodeMessage: messageDecoders[selectedConfig.messageEncoding],
+	togglePlanActKeys: selectedConfig.togglePlanActKeys,
 }
 
 type MessageEncoding = "none" | "json"
