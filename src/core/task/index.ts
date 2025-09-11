@@ -139,6 +139,7 @@ export class Task {
 	focusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
+	yoloModeToggled: boolean
 	mode: Mode
 
 	// Message and conversation state
@@ -208,6 +209,7 @@ export class Task {
 		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
+		this.yoloModeToggled = yoloModeToggled
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
@@ -421,6 +423,7 @@ export class Task {
 	}
 
 	public updateYoloModeToggled(yoloModeToggled: boolean): void {
+		this.yoloModeToggled = yoloModeToggled
 		this.toolExecutor.updateYoloModeToggled(yoloModeToggled)
 	}
 
@@ -1356,6 +1359,7 @@ export class Task {
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.browserSettings,
+			yoloModeToggled: this.yoloModeToggled,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)

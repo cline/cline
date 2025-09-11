@@ -104,6 +104,7 @@ export interface SystemPromptContext {
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
+	readonly yoloModeToggled?: boolean
 }
 
 /**
