@@ -7,20 +7,20 @@ import { MultiRootCheckpointManager } from "@integrations/checkpoints/MultiRootC
 import type { ICheckpointManager } from "@integrations/checkpoints/types"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type * as vscode from "vscode"
+import { featureFlagsService } from "@/services/feature-flags"
 
 /**
  * Simple predicate abstracting our multi-root decision.
  */
 export function shouldUseMultiRoot({
-	isMultiRootEnabled,
 	workspaceManager,
 	enableCheckpoints,
 }: {
-	isMultiRootEnabled: boolean
 	workspaceManager?: WorkspaceRootManager
 	enableCheckpoints: boolean
 }): boolean {
-	return Boolean(isMultiRootEnabled && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
+	const featureFlagEnabled = featureFlagsService.getMultiRootEnabled()
+	return Boolean(featureFlagEnabled && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
 }
 
 type BuildArgs = {
@@ -36,7 +36,6 @@ type BuildArgs = {
 	// multi-root deps
 	workspaceManager?: WorkspaceRootManager
 	globalStoragePath: string
-	isMultiRootEnabled: boolean
 
 	// callbacks for single-root TaskCheckpointManager
 	updateTaskHistory: (historyItem: any) => Promise<any[]>
@@ -65,7 +64,6 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		context,
 		workspaceManager,
 		globalStoragePath,
-		isMultiRootEnabled,
 		updateTaskHistory,
 		say,
 		cancelTask,
@@ -74,7 +72,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		initialCheckpointManagerErrorMessage,
 	} = args
 
-	if (shouldUseMultiRoot({ isMultiRootEnabled, workspaceManager, enableCheckpoints })) {
+	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints })) {
 		// Multi-root manager (init should be kicked off externally, non-blocking)
 		return new MultiRootCheckpointManager(
 			workspaceManager!,

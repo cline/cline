@@ -53,17 +53,6 @@ export class StateManager {
 			// Use populate method to avoid triggering persistence during initialization
 			this.populateCache(globalState, secrets, workspaceState)
 
-			// Fetch multi-root feature flag from service and store in cache
-			try {
-				const { getFeatureFlagsService } = await import("@services/feature-flags")
-				const featureFlagsService = getFeatureFlagsService()
-				const isEnabled = await featureFlagsService.getMultiRootEnabled()
-				this.globalStateCache["multiRootEnabled"] = isEnabled
-			} catch (error) {
-				console.error("[StateManager] Failed to fetch multi-root feature flag:", error)
-				// Keep existing value in cache or undefined (will fall back to false in isMultiRootEnabled())
-			}
-
 			this.isInitialized = true
 
 			// Start watcher for taskHistory.json so external edits update cache (no persist loop)

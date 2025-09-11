@@ -282,7 +282,6 @@ export class Task {
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
 				globalStoragePath: controller.context.globalStorageUri.fsPath,
-				isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
@@ -294,7 +293,6 @@ export class Task {
 			// If multi-root, kick off non-blocking initialization
 			if (
 				shouldUseMultiRoot({
-					isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
 				})
