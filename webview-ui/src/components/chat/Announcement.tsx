@@ -80,25 +80,28 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<b>Cline is now available in JetBrains IDEs!</b>
-			<div style={{ margin: "0.3rem 0" }} />
-			Cline is now officially available for JetBrains IDEs including IntelliJ IDEA, PyCharm, WebStorm, and more! Experience
-			the same powerful AI coding assistant you love in VSCode, now in your favorite JetBrains environment. Get started at:{" "}
-			<a href="https://plugins.jetbrains.com/plugin/26861-cline">JetBrains Marketplace</a>
-			<div style={{ margin: "12px 0" }} />
-			<b>
-				Plus: Free <code>grok-code-fast-1</code>
-			</b>
-			<div style={{ margin: "0.3rem 0" }} />
-			We partnered with xAI to help build this model from the ground up for agentic coding, and so far–community feedback
-			has been incredible. xAI is continuously improving the model's intelligence with more usage, so give it a try today
-			and let us know what you think! Read more about it here:{" "}
-			<a href="https://x.ai/news/grok-code-fast-1">https://x.ai/news/grok-code-fast-1</a>
+			<ul style={ulStyle}>
+				<li>
+					<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
+					incredibly fast, and it's still available at no cost
+				</li>
+				<li>
+					<b>GPT-5 Optimizations:</b> Fine-tuned system prompts for improved performance across the GPT-5 model family
+				</li>
+				<li>
+					<b>ESC to Cancel:</b> Quick keyboard navigation to cancel operations with the ESC key
+				</li>
+				<li>
+					Fixed task sync across multiple Cline windows, <code>/deep-planning</code> improvements for
+					Windows/PowerShell, Dify.ai integration, DeepSeek-V3.1 support, enhanced Gemini rate limiting, and multiple
+					provider fixes
+				</li>
+			</ul>
 			<div style={{ margin: "18px 0" }} />
 			{user ? (
 				!didClickGrokCodeButton ? (
 					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1
+						Try grok-code-fast-1 free
 					</VSCodeButton>
 				) : null
 			) : (
@@ -120,6 +123,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						title="Previous Updates:">
 						<ul style={ulStyle}>
 							<li>
+								<b>Free grok-code-fast-1:</b> Partnered with xAI to provide free usage of grok. Community feedback
+								has been incredible and xAI is continuously improving the model's intelligence.
+							</li>
+							<li>
 								<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management,
 								breaking down complex tasks into manageable steps with real-time progress tracking and passive
 								reminders.
@@ -133,10 +140,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 								<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an
 								architect who investigates your codebase, asks clarifying questions, and creates a comprehensive
 								plan before writing any code.
-							</li>
-							<li>
-								<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users
-								need Tier 4, and Bedrock users must be on a supported region.
 							</li>
 						</ul>
 					</AccordionItem>
