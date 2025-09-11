@@ -297,7 +297,15 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await use(page)
+			try {
+				await use(page)
+			} finally {
+				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
+				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
+				if (!page.isClosed()) {
+					await page.close()
+				}
+			}
 		},
 	})
 	.extend<{ sidebar: Frame }>({

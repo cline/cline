@@ -1,198 +1,198 @@
 {
-	"startTime": "2025-09-11T10:18:17.632Z",
-	"entries": [
-		{
-			"requestId": "80663ef9-5e79-491a-b85e-f390480ec315",
-			"service": "cline.StateService",
-			"method": "getAvailableTerminalProfiles",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"profiles": [
-						{
-							"id": "default",
-							"name": "Default",
-							"path": "",
-							"description": "Use VSCode's default terminal configuration"
-						},
-						{
-							"id": "zsh",
-							"name": "zsh",
-							"path": "/bin/zsh",
-							"description": "Z shell (default on macOS)"
-						},
-						{
-							"id": "bash",
-							"name": "bash",
-							"path": "/bin/bash",
-							"description": "Bourne Again Shell"
-						}
-					]
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "78da737f-cf47-41c8-be29-25e8cadc7b08",
-			"service": "cline.ModelsService",
-			"method": "updateApiConfigurationProto",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"apiConfiguration": {
-						"openAiHeaders": {},
-						"openRouterApiKey": "test-api-key",
-						"planModeApiProvider": 1,
-						"planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
-						"actModeApiProvider": 1,
-						"actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
-						"favoritedModelIds": []
-					}
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 1
-		},
-		{
-			"requestId": "5c52cad0-6583-41c7-887c-60faf731e2e2",
-			"service": "cline.StateService",
-			"method": "setWelcomeViewCompleted",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"value": true
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 1
-		},
-		{
-			"requestId": "f542f23b-add1-4bf8-b27c-1739f2561d3f",
-			"service": "cline.TaskService",
-			"method": "newTask",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"text": "Hello, Cline!",
-					"images": [],
-					"files": []
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 56
-		},
-		{
-			"requestId": "e7ca4875-f289-4d12-aa0a-cb150375030d",
-			"service": "cline.TaskService",
-			"method": "clearTask",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 3
-		},
-		{
-			"requestId": "cbaab070-ca94-4d93-bb00-33e7417196b5",
-			"service": "cline.StateService",
-			"method": "togglePlanActModeProto",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"mode": 0,
-					"chatContent": {
-						"images": [],
-						"files": []
-					}
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"value": false
-				}
-			},
-			"duration": 1
-		},
-		{
-			"requestId": "2573f8e3-e3e7-44d9-8780-e42a9ea10bbd",
-			"service": "cline.TaskService",
-			"method": "newTask",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"text": "Plan mode submission",
-					"images": [],
-					"files": []
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 52
-		},
-		{
-			"requestId": "2573f8e3-e3e7-44d9-8780-e42a9ea10bbd",
-			"service": "cline.StateService",
-			"method": "getLatestState",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": true
-			},
-			"response": {
-				"message": {
-					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"currentTaskItem\":{\"id\":\"1757585899754\",\"ulid\":\"01K4W4H07ADG272KHP6VKV25NN\",\"ts\":1757585899761,\"task\":\"Plan mode submission\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":630,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},\"clineMessages\":[{\"ts\":1757585899759,\"type\":\"say\",\"say\":\"text\",\"text\":\"Plan mode submission\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1},{\"ts\":1757585899761,\"type\":\"say\",\"say\":\"api_req_started\",\"text\":\"{\\\"request\\\":\\\"<task>\\\\nPlan mode submission\\\\n</task>\\\\n\\\\nLoading...\\\"}\",\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"plan\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"5f9fb200052a0035a677c0ea783a54ee888686c8fadcf3c7e3369580a761a587\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1757585899754\",\"ulid\":\"01K4W4H07ADG272KHP6VKV25NN\",\"ts\":1757585899761,\"task\":\"Plan mode submission\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":630,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},{\"id\":\"1757585898589\",\"ulid\":\"01K4W4GZ2XDJ1P1MAM27Y2PN1K\",\"ts\":1757585899302,\"task\":\"Hello, Cline!\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":4399,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[{\"path\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"name\":\"workspace\",\"vcs\":\"git\",\"commitHash\":\"43a6e85d7a8a25e4f24dd359b4660fefd1bdce5e\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-				}
-			},
-			"duration": 0
-		}
-	],
-	"stats": {
-		"totalRequests": 8,
-		"pendingRequests": 0,
-		"completedRequests": 8,
-		"errorRequests": 0
-	}
+  "startTime": "2025-09-11T12:23:06.261Z",
+  "entries": [
+    {
+      "requestId": "cea817d1-3281-4ee6-99a0-3d1ad90d1f64",
+      "service": "cline.StateService",
+      "method": "getAvailableTerminalProfiles",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "profiles": [
+            {
+              "id": "default",
+              "name": "Default",
+              "path": "",
+              "description": "Use VSCode's default terminal configuration"
+            },
+            {
+              "id": "zsh",
+              "name": "zsh",
+              "path": "/bin/zsh",
+              "description": "Z shell (default on macOS)"
+            },
+            {
+              "id": "bash",
+              "name": "bash",
+              "path": "/bin/bash",
+              "description": "Bourne Again Shell"
+            }
+          ]
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "a16dde7a-24ac-4c67-a49c-ba9d19992e38",
+      "service": "cline.ModelsService",
+      "method": "updateApiConfigurationProto",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "apiConfiguration": {
+            "openAiHeaders": {},
+            "openRouterApiKey": "test-api-key",
+            "planModeApiProvider": 1,
+            "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeApiProvider": 1,
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "favoritedModelIds": []
+          }
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 1
+    },
+    {
+      "requestId": "91b85ea6-2cfc-40be-937d-238ce31a2954",
+      "service": "cline.StateService",
+      "method": "setWelcomeViewCompleted",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "value": true
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 1
+    },
+    {
+      "requestId": "89b746e2-c004-4e7c-aaf2-88eac32e51f9",
+      "service": "cline.TaskService",
+      "method": "newTask",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "text": "Hello, Cline!",
+          "images": [],
+          "files": []
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 54
+    },
+    {
+      "requestId": "5490f6db-9100-4b63-aabf-8d684687bfbf",
+      "service": "cline.TaskService",
+      "method": "clearTask",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 2
+    },
+    {
+      "requestId": "1c376ea9-ebc2-4c36-be3b-d3e69c17d414",
+      "service": "cline.StateService",
+      "method": "togglePlanActModeProto",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "mode": 0,
+          "chatContent": {
+            "images": [],
+            "files": []
+          }
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "value": false
+        }
+      },
+      "duration": 1
+    },
+    {
+      "requestId": "b96456f8-50e4-419e-b375-6006c2f39903",
+      "service": "cline.TaskService",
+      "method": "newTask",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "text": "Plan mode submission",
+          "images": [],
+          "files": []
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 49
+    },
+    {
+      "requestId": "b96456f8-50e4-419e-b375-6006c2f39903",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"currentTaskItem\":{\"id\":\"1757593388320\",\"ulid\":\"01K4WBNH90748266CXXWBSQG2P\",\"ts\":1757593388327,\"task\":\"Plan mode submission\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":630,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},\"clineMessages\":[{\"ts\":1757593388325,\"type\":\"say\",\"say\":\"text\",\"text\":\"Plan mode submission\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1},{\"ts\":1757593388327,\"type\":\"say\",\"say\":\"api_req_started\",\"text\":\"{\\\"request\\\":\\\"<task>\\\\nPlan mode submission\\\\n</task>\\\\n\\\\nLoading...\\\"}\",\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"plan\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"5f9fb200052a0035a677c0ea783a54ee888686c8fadcf3c7e3369580a761a587\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1757593388320\",\"ulid\":\"01K4WBNH90748266CXXWBSQG2P\",\"ts\":1757593388327,\"task\":\"Plan mode submission\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":630,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},{\"id\":\"1757593387138\",\"ulid\":\"01K4WBNG4277HZA8DCF0ZCHMDW\",\"ts\":1757593387883,\"task\":\"Hello, Cline!\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":4397,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[{\"path\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"name\":\"workspace\",\"vcs\":\"git\",\"commitHash\":\"411f073f2db7d204da6970e496e555405b1117b4\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    }
+  ],
+  "stats": {
+    "totalRequests": 8,
+    "pendingRequests": 0,
+    "completedRequests": 8,
+    "errorRequests": 0
+  }
 }

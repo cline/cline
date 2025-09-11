@@ -1,137 +1,118 @@
 {
-	"startTime": "2025-09-11T10:18:26.726Z",
-	"entries": [
-		{
-			"requestId": "fccc4d00-8838-4c43-b944-b7bff8d7f785",
-			"service": "cline.StateService",
-			"method": "getAvailableTerminalProfiles",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"profiles": [
-						{
-							"id": "default",
-							"name": "Default",
-							"path": "",
-							"description": "Use VSCode's default terminal configuration"
-						},
-						{
-							"id": "zsh",
-							"name": "zsh",
-							"path": "/bin/zsh",
-							"description": "Z shell (default on macOS)"
-						},
-						{
-							"id": "bash",
-							"name": "bash",
-							"path": "/bin/bash",
-							"description": "Bourne Again Shell"
-						}
-					]
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "516b70be-2565-4bc0-b757-c593295ee028",
-			"service": "cline.ModelsService",
-			"method": "updateApiConfigurationProto",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"apiConfiguration": {
-						"openAiHeaders": {},
-						"openRouterApiKey": "test-api-key",
-						"planModeApiProvider": 1,
-						"planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
-						"actModeApiProvider": 1,
-						"actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
-						"favoritedModelIds": []
-					}
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 1
-		},
-		{
-			"requestId": "44f91a15-a3a8-4687-b6f4-302e2b85f654",
-			"service": "cline.StateService",
-			"method": "setWelcomeViewCompleted",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"value": true
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 1
-		},
-		{
-			"requestId": "596ca29d-c562-4fc6-a08e-e65901949f6e",
-			"service": "cline.FileService",
-			"method": "searchFiles",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"query": "prob",
-					"mentionsRequestId": "prob"
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"results": [],
-					"mentionsRequestId": "prob"
-				}
-			},
-			"duration": 18
-		},
-		{
-			"requestId": "596ca29d-c562-4fc6-a08e-e65901949f6e",
-			"service": "cline.StateService",
-			"method": "getLatestState",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": true
-			},
-			"response": {
-				"message": {
-					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"5f9fb200052a0035a677c0ea783a54ee888686c8fadcf3c7e3369580a761a587\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-				}
-			},
-			"duration": 0
-		}
-	],
-	"stats": {
-		"totalRequests": 5,
-		"pendingRequests": 0,
-		"completedRequests": 5,
-		"errorRequests": 0
-	}
+  "startTime": "2025-09-11T12:23:15.174Z",
+  "entries": [
+    {
+      "requestId": "bf64b22e-db21-4d04-b806-6286b6e1d13a",
+      "service": "cline.StateService",
+      "method": "getAvailableTerminalProfiles",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "profiles": [
+            {
+              "id": "default",
+              "name": "Default",
+              "path": "",
+              "description": "Use VSCode's default terminal configuration"
+            },
+            {
+              "id": "zsh",
+              "name": "zsh",
+              "path": "/bin/zsh",
+              "description": "Z shell (default on macOS)"
+            },
+            {
+              "id": "bash",
+              "name": "bash",
+              "path": "/bin/bash",
+              "description": "Bourne Again Shell"
+            }
+          ]
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "fbae6ff5-6642-4648-8625-daf42b8906e1",
+      "service": "cline.ModelsService",
+      "method": "updateApiConfigurationProto",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "apiConfiguration": {
+            "openAiHeaders": {},
+            "openRouterApiKey": "test-api-key",
+            "planModeApiProvider": 1,
+            "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeApiProvider": 1,
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "favoritedModelIds": []
+          }
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 1
+    },
+    {
+      "requestId": "b890e2df-ba34-4914-8c0a-12c9f82d8f1a",
+      "service": "cline.StateService",
+      "method": "setWelcomeViewCompleted",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "value": true
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 1
+    },
+    {
+      "requestId": "1f8a7262-ad80-4f4a-9d9b-f9de7e1f005d",
+      "service": "cline.FileService",
+      "method": "searchFiles",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "query": "prob",
+          "mentionsRequestId": "prob"
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "results": [],
+          "mentionsRequestId": "prob"
+        }
+      },
+      "duration": 14
+    }
+  ],
+  "stats": {
+    "totalRequests": 4,
+    "pendingRequests": 0,
+    "completedRequests": 4,
+    "errorRequests": 0
+  }
 }

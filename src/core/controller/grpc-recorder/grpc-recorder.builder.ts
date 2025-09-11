@@ -88,7 +88,11 @@ function testFilters(): GrpcRequestFilter[] {
 	 * Ignores streaming messages and unwanted services messages
 	 * that record more than expected.
 	 */
-	return [(req) => req.is_streaming, (req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service)]
+	return [
+		(req) => req.is_streaming,
+		(req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service),
+		(req) => ["refreshOpenRouterModels"].includes(req.method),
+	]
 }
 
 function hooksFromEnv(controller?: Controller): GrpcPostRecordHook[] {

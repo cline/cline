@@ -1,279 +1,279 @@
 {
-	"startTime": "2025-09-11T10:19:00.003Z",
-	"entries": [
-		{
-			"requestId": "b92f11f3-4a8b-4c16-952e-383532b3bf86",
-			"service": "cline.StateService",
-			"method": "getAvailableTerminalProfiles",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"profiles": [
-						{
-							"id": "default",
-							"name": "Default",
-							"path": "",
-							"description": "Use VSCode's default terminal configuration"
-						},
-						{
-							"id": "zsh",
-							"name": "zsh",
-							"path": "/bin/zsh",
-							"description": "Z shell (default on macOS)"
-						},
-						{
-							"id": "bash",
-							"name": "bash",
-							"path": "/bin/bash",
-							"description": "Bourne Again Shell"
-						}
-					]
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "1109d431-65a2-4d72-a6b5-31438eba3c7a",
-			"service": "cline.AccountService",
-			"method": "accountLoginClicked",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"value": "http://localhost:7777/"
-				}
-			},
-			"duration": 1136
-		},
-		{
-			"requestId": "768e9b0c-d992-4070-a6b7-d56fe7d3002a",
-			"service": "cline.AccountService",
-			"method": "getUserOrganizations",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"organizations": [
-						{
-							"active": false,
-							"memberId": "random-member-id",
-							"name": "Test Organization",
-							"organizationId": "random-org-id",
-							"roles": [
-								"member"
-							]
-						}
-					]
-				}
-			},
-			"duration": 3
-		},
-		{
-			"requestId": "722302b3-9a1e-4e08-9f6d-4f20ff191018",
-			"service": "cline.AccountService",
-			"method": "getUserOrganizations",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"organizations": [
-						{
-							"active": false,
-							"memberId": "random-member-id",
-							"name": "Test Organization",
-							"organizationId": "random-org-id",
-							"roles": [
-								"member"
-							]
-						}
-					]
-				}
-			},
-			"duration": 2
-		},
-		{
-			"requestId": "3ad7a2d9-e2c2-4221-a9f4-f5a990065e9a",
-			"service": "cline.StateService",
-			"method": "getAvailableTerminalProfiles",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"profiles": [
-						{
-							"id": "default",
-							"name": "Default",
-							"path": "",
-							"description": "Use VSCode's default terminal configuration"
-						},
-						{
-							"id": "zsh",
-							"name": "zsh",
-							"path": "/bin/zsh",
-							"description": "Z shell (default on macOS)"
-						},
-						{
-							"id": "bash",
-							"name": "bash",
-							"path": "/bin/bash",
-							"description": "Bourne Again Shell"
-						}
-					]
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "8c7e93fa-8629-495a-9de5-b879b3d3a7d7",
-			"service": "cline.AccountService",
-			"method": "getUserOrganizations",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"organizations": [
-						{
-							"active": false,
-							"memberId": "random-member-id",
-							"name": "Test Organization",
-							"organizationId": "random-org-id",
-							"roles": [
-								"member"
-							]
-						}
-					]
-				}
-			},
-			"duration": 6
-		},
-		{
-			"requestId": "39c7f844-316b-4668-9237-f23e60725815",
-			"service": "cline.AccountService",
-			"method": "getUserOrganizations",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {
-					"organizations": [
-						{
-							"active": false,
-							"memberId": "random-member-id",
-							"name": "Test Organization",
-							"organizationId": "random-org-id",
-							"roles": [
-								"member"
-							]
-						}
-					]
-				}
-			},
-			"duration": 5
-		},
-		{
-			"requestId": "3ad7a2d9-e2c2-4221-a9f4-f5a990065e9a",
-			"service": "cline.StateService",
-			"method": "getLatestState",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": true
-			},
-			"response": {
-				"message": {
-					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "8c7e93fa-8629-495a-9de5-b879b3d3a7d7",
-			"service": "cline.StateService",
-			"method": "getLatestState",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": true
-			},
-			"response": {
-				"message": {
-					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-				}
-			},
-			"duration": 0
-		},
-		{
-			"requestId": "39c7f844-316b-4668-9237-f23e60725815",
-			"service": "cline.StateService",
-			"method": "getLatestState",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": true
-			},
-			"response": {
-				"message": {
-					"stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-				}
-			},
-			"duration": 0
-		}
-	],
-	"stats": {
-		"totalRequests": 10,
-		"pendingRequests": 0,
-		"completedRequests": 10,
-		"errorRequests": 0
-	}
+  "startTime": "2025-09-11T12:23:48.878Z",
+  "entries": [
+    {
+      "requestId": "b3ebc41a-8bb4-412e-a367-15df92448553",
+      "service": "cline.StateService",
+      "method": "getAvailableTerminalProfiles",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "profiles": [
+            {
+              "id": "default",
+              "name": "Default",
+              "path": "",
+              "description": "Use VSCode's default terminal configuration"
+            },
+            {
+              "id": "zsh",
+              "name": "zsh",
+              "path": "/bin/zsh",
+              "description": "Z shell (default on macOS)"
+            },
+            {
+              "id": "bash",
+              "name": "bash",
+              "path": "/bin/bash",
+              "description": "Bourne Again Shell"
+            }
+          ]
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "d45e1099-7a5d-4537-87bd-47dfff269311",
+      "service": "cline.AccountService",
+      "method": "accountLoginClicked",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "value": "http://localhost:7777/"
+        }
+      },
+      "duration": 1135
+    },
+    {
+      "requestId": "0ed01127-3640-4836-8653-fd5ebd4a1725",
+      "service": "cline.AccountService",
+      "method": "getUserOrganizations",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "organizations": [
+            {
+              "active": false,
+              "memberId": "random-member-id",
+              "name": "Test Organization",
+              "organizationId": "random-org-id",
+              "roles": [
+                "member"
+              ]
+            }
+          ]
+        }
+      },
+      "duration": 3
+    },
+    {
+      "requestId": "bf81f0b1-0caf-4160-892e-7184fc7ac420",
+      "service": "cline.AccountService",
+      "method": "getUserOrganizations",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "organizations": [
+            {
+              "active": false,
+              "memberId": "random-member-id",
+              "name": "Test Organization",
+              "organizationId": "random-org-id",
+              "roles": [
+                "member"
+              ]
+            }
+          ]
+        }
+      },
+      "duration": 2
+    },
+    {
+      "requestId": "18d46ca5-50b5-4231-8ef7-6870b43b1de3",
+      "service": "cline.StateService",
+      "method": "getAvailableTerminalProfiles",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "profiles": [
+            {
+              "id": "default",
+              "name": "Default",
+              "path": "",
+              "description": "Use VSCode's default terminal configuration"
+            },
+            {
+              "id": "zsh",
+              "name": "zsh",
+              "path": "/bin/zsh",
+              "description": "Z shell (default on macOS)"
+            },
+            {
+              "id": "bash",
+              "name": "bash",
+              "path": "/bin/bash",
+              "description": "Bourne Again Shell"
+            }
+          ]
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "622429ee-6f75-4277-882b-994d829539ec",
+      "service": "cline.AccountService",
+      "method": "getUserOrganizations",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "organizations": [
+            {
+              "active": false,
+              "memberId": "random-member-id",
+              "name": "Test Organization",
+              "organizationId": "random-org-id",
+              "roles": [
+                "member"
+              ]
+            }
+          ]
+        }
+      },
+      "duration": 17
+    },
+    {
+      "requestId": "116089d3-b7d1-424f-9f8e-6b48f060655f",
+      "service": "cline.AccountService",
+      "method": "getUserOrganizations",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "organizations": [
+            {
+              "active": false,
+              "memberId": "random-member-id",
+              "name": "Test Organization",
+              "organizationId": "random-org-id",
+              "roles": [
+                "member"
+              ]
+            }
+          ]
+        }
+      },
+      "duration": 20
+    },
+    {
+      "requestId": "18d46ca5-50b5-4231-8ef7-6870b43b1de3",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "622429ee-6f75-4277-882b-994d829539ec",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "116089d3-b7d1-424f-9f8e-6b48f060655f",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    }
+  ],
+  "stats": {
+    "totalRequests": 10,
+    "pendingRequests": 0,
+    "completedRequests": 10,
+    "errorRequests": 0
+  }
 }
