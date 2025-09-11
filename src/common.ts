@@ -32,8 +32,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance()
 
-	// Setup the ErrorService
+	// Setup the external services
 	await ErrorService.initialize()
+	await featureFlagsService.poll()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)

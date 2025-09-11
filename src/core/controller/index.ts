@@ -24,6 +24,7 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -174,7 +175,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
+		const focusChainFeatureFlagEnabled = featureFlagsService.getFocusChainEnabled()
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -625,7 +626,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
+		const focusChainFeatureFlagEnabled = featureFlagsService.getFocusChainEnabled()
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
