@@ -282,7 +282,7 @@ export class Task {
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
 				globalStoragePath: controller.context.globalStorageUri.fsPath,
-				isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
+				isMultiRootEnabled: stateManager.isMultiRootEnabled(),
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
@@ -294,7 +294,7 @@ export class Task {
 			// If multi-root, kick off non-blocking initialization
 			if (
 				shouldUseMultiRoot({
-					isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
+					isMultiRootEnabled: stateManager.isMultiRootEnabled(),
 					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
 				})
@@ -1356,7 +1356,7 @@ export class Task {
 
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-		const isMultiRootEnabled = this.stateManager.getGlobalStateKey("multiRootEnabled")
+		const isMultiRootEnabled = this.stateManager.isMultiRootEnabled()
 		if (isMultiRootEnabled && this.workspaceManager) {
 			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
 				path: root.path,

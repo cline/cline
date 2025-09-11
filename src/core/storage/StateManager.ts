@@ -40,6 +40,14 @@ export class StateManager {
 	}
 
 	/**
+	 * Check if multi-root workspace feature is enabled
+	 * Returns the feature flag value from cache, with fallback to false
+	 */
+	public isMultiRootEnabled(): boolean {
+		return this.globalStateCache["multiRootEnabled"] ?? false
+	}
+
+	/**
 	 * Initialize the cache by loading data from disk
 	 */
 	async initialize(): Promise<void> {
@@ -52,6 +60,17 @@ export class StateManager {
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
 			this.populateCache(globalState, secrets, workspaceState)
+
+			// Fetch multi-root feature flag from service and store in cache
+			try {
+				const { getFeatureFlagsService } = await import("@services/feature-flags")
+				const featureFlagsService = getFeatureFlagsService()
+				const isEnabled = await featureFlagsService.getMultiRootEnabled()
+				this.globalStateCache["multiRootEnabled"] = isEnabled
+			} catch (error) {
+				console.error("[StateManager] Failed to fetch multi-root feature flag:", error)
+				// Keep existing value in cache or undefined (will fall back to false in isMultiRootEnabled())
+			}
 
 			this.isInitialized = true
 
