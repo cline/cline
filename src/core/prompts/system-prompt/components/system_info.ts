@@ -54,16 +54,11 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 			})
 			.join("")
 		workingDirInfo = rootsInfo + `\n\nPrimary Working Directory: ${context.cwd}`
-	} else if (!info.workspaces || info.workspaces.length === 1) {
+	} else {
 		// Single workspace
 		WORKSPACE_TITLE = "Current Working Directory"
 		workingDirInfo = info.workingDir
-	} else {
-		// Multiple workspaces but feature flag not enabled
-		WORKSPACE_TITLE = "Active Workspace Folders"
-		workingDirInfo = info.workspaces.join(", ")
 	}
-
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
 	return new TemplateEngine().resolve(template, {

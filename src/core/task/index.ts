@@ -1357,7 +1357,7 @@ export class Task {
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
 		const isMultiRootEnabled = this.stateManager.isMultiRootEnabled()
-		if (isMultiRootEnabled && this.workspaceManager && !this.workspaceManager.isSingleRoot()) {
+		if (isMultiRootEnabled && this.workspaceManager) {
 			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
 				path: root.path,
 				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
