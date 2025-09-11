@@ -282,7 +282,7 @@ export class Task {
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
 				globalStoragePath: controller.context.globalStorageUri.fsPath,
-				isMultiRootEnabled: stateManager.isMultiRootEnabled(),
+				isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
@@ -294,7 +294,7 @@ export class Task {
 			// If multi-root, kick off non-blocking initialization
 			if (
 				shouldUseMultiRoot({
-					isMultiRootEnabled: stateManager.isMultiRootEnabled(),
+					isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
 				})
@@ -1354,6 +1354,17 @@ export class Task {
 			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
 		}
 
+		// Prepare multi-root workspace information if enabled
+		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
+		const isMultiRootEnabled = this.stateManager.getGlobalStateKey("multiRootEnabled")
+		if (isMultiRootEnabled && this.workspaceManager) {
+			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
+				path: root.path,
+				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
+				vcs: root.vcs as string | undefined, // Cast VcsType to string
+			}))
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			providerInfo,
@@ -1368,6 +1379,8 @@ export class Task {
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.browserSettings,
+			isMultiRootEnabled,
+			workspaceRoots,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)
