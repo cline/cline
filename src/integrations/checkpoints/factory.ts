@@ -15,12 +15,14 @@ import { featureFlagsService } from "@/services/feature-flags"
 export function shouldUseMultiRoot({
 	workspaceManager,
 	enableCheckpoints,
+	isMultiRootEnabled,
 }: {
 	workspaceManager?: WorkspaceRootManager
 	enableCheckpoints: boolean
+	isMultiRootEnabled?: boolean
 }): boolean {
-	const featureFlagEnabled = featureFlagsService.getMultiRootEnabled()
-	return Boolean(featureFlagEnabled && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
+	const hasFeatureFlag = isMultiRootEnabled === undefined ? featureFlagsService.getMultiRootEnabled() : isMultiRootEnabled
+	return Boolean(hasFeatureFlag && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
 }
 
 type BuildArgs = {

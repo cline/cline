@@ -38,10 +38,13 @@ export class FeatureFlagsService {
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
 		try {
-			const flagEnabled = await this.provider.getFeatureFlag(flagName)
-			return flagEnabled === true
+			const flagValue = await this.provider.getFeatureFlag(flagName)
+			const enabled = flagValue === true
+			this.cache.set(flagName, enabled)
+			return enabled
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
+			this.cache.set(flagName, false)
 			return false
 		}
 	}
@@ -131,6 +134,15 @@ export class FeatureFlagsService {
 	public reset(): void {
 		this.cache.clear()
 		this.lastCacheUpdateTime = 0
+	}
+
+	/**
+	 * For testing: directly set a feature flag in the cache
+	 */
+	public test(flagName: FeatureFlag, value: boolean) {
+		if (process.env.NODE_ENV === "true") {
+			this.cache.set(flagName, value)
+		}
 	}
 
 	/**

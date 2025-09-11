@@ -72,6 +72,7 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
+import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -295,6 +296,7 @@ export class Task {
 				shouldUseMultiRoot({
 					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
+					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
 				})
 			) {
 				this.checkpointManager.initialize?.().catch((error: Error) => {
@@ -1354,7 +1356,7 @@ export class Task {
 
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-		const isMultiRootEnabled = this.stateManager.getGlobalStateKey("multiRootEnabled")
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
 		if (isMultiRootEnabled && this.workspaceManager) {
 			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
 				path: root.path,
