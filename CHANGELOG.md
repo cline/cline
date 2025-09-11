@@ -1,44 +1,24 @@
 # Changelog
 
-## 3.28.0
+## [3.28.0]
+- Synchronized Task History: Real-time task history synchronization across all Cline instances
+- Optimized GPT-5 Integration: Fine-tuned system prompts for improved performance with GPT-5 model family
+- Deep Planning Improvements: Optimized prompts for Windows/PowerShell environments and dependency exclusion
+- Streamlined UI Experience: ESC key navigation, cleaner approve/reject buttons, and improved editor panel focus
+- Smart Provider Search: Improved search functionality in API provider dropdown for faster model selection
+- Added per-provider thinking tokens configurability
+- Added Ollama custom prompt options
+- Enhanced SAP AI Core Provider: Orchestration mode support and improved model visibility
+- Added Dify.ai API Integration
+- SambaNova Updates: Added DeepSeek-V3.1 model
+- Better Gemini rate limit handling
+- OpenAI Reasoning Effort: Minimal reasoning effort configuration for OpenAI models
+- Fixed LiteLLM Caching: Anthropic caching compatibility when using LiteLLM
+- Fixed Ollama default endpoint connections 
+- Fixed AutoApprove menu overflow
+- Fixed extended thinking token issue with Anthropic models
+- Fixed issue with slash commands removing text from prompt
 
-- c30b215: Add optional middleware for recording gRPC calls in the view.
-- a3b4ad5: Sync taskHistory across Cline instances so that it will update for all Cline instances when one instance creates, adds to, or deletes a task.
-- 6b9ac49: fetch deployment id in design-time instead of runtime
-- 190d4a2: support orchestration mode for sap provider
-- 518e624: fix showing the ai core exisiting models when resource group field is empty (using the default resource group)
-- 43a6e85: Add orchestrator script and improve standalone service for local testing
-- e5f8c04: Reset account view on sign out
-- b858277: Adds ESC key listener and refactors button handling to use typed actions
-- 45871a9: Fix issue on Account view where balance is fetched twice that cause janky UI
-- 550883d: Fixes an issue where thinking text from litellm was not being passed through to Cline thinking UI
-- 9b75078: Add gRPC recorder request filtering logic to make it more generic and configurable
-- 1ab3de8: Fix Ollama connection issue to default endpoint at port 11434
-- 9463b4a: Dev: Supports using secrets as PostHog API keys at build time
-- cdc2489: Optimized Cline for GPT-5 model family with an aligned system prompt
-- 971ac0f: REfactoring Tool Executor
-- 31161f8: Add search functionality to API provider dropdown
-- 3ed4d55: Adding telemetry for terminal command issue
-- b176319: Remove disabled approve / reject buttons from UI.
-- 291287c: Adding a grpc recording class with its builder
-- 3f341d9: Fixed minor bug where entering slash commands would result in the following word being removed from the chat text area
-- d69fb10: Fix issue where editor panel gets reset to chat view on each chat input focus event
-- 5af6e8d: Exclude dependency folders for deep-planning prompt
-- 64a8096: Sambanova provider: add DeepSeek-V3.1
-- 4d5ab59: Add "Use custom prompt" option to Ollama provider
-- cb1bda9: add free grok-coder-free model to cline provider
-- 5e8102e: Adding a new standalone core api server script for local and integration testing purposes
-- 26a4772: correctly passes extended thinking tokens when max output is set to -1 default, unset temp for anthropic models when extended thinking is on
-- 213591a: Fix AutoApproveModal overflowing issue
-- e3bc5f0: Setup Raw Structure for implementing multi-workspace support with WorkspaceRoot
-- 592e1a6: Adds a CLI testing framework for the Cline Core extension, providing gRPC-based integration clients and utilities for automated scenarios
-- d4ba4fd: Dify.ai api integration
-- 35f0873: Improve Gemini Rate Limit handling
-- 4628eca: fix: Support Anthropic Caching when using LiteLLM
-- 950142f: Reasoning Effort Minimal on OpenAI
-- 92d7cdf: Adding basic multi root algorithm
-- 97dadea: Adding hooks to record getlateststate for testing
-- ca1e008: Prompt changes for deep-planning in windows/powershell
 
 ## [3.27.2]
 
