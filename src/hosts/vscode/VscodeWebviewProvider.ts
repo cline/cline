@@ -1,7 +1,5 @@
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
-import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 import { WebviewProvider } from "@core/webview"
-import { getTheme } from "@integrations/theme/getTheme"
 import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
@@ -9,6 +7,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewMessage } from "@/shared/WebviewMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
+import { name as pkgName } from "../../../package.json"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -18,8 +17,8 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class VscodeWebviewProvider extends WebviewProvider implements vscode.WebviewViewProvider {
 	// Used in package.json as the view's id. This value cannot be changed due to how vscode caches
 	// views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly SIDEBAR_ID = "claude-dev.SidebarProvider"
-	public static readonly TAB_PANEL_ID = "claude-dev.TabPanelProvider"
+	public static readonly SIDEBAR_ID = `${pkgName}.SidebarProvider`
+	public static readonly TAB_PANEL_ID = `${pkgName}.TabPanelProvider`
 
 	private webview?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
@@ -130,13 +129,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
-				if (e && e.affectsConfiguration("workbench.colorTheme")) {
-					// Send theme update via gRPC subscription
-					const theme = await getTheme(this.context)
-					if (theme) {
-						await sendThemeEvent(JSON.stringify(theme))
-					}
-				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
 					await this.controller.postStateToWebview()

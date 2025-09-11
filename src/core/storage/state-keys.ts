@@ -1,6 +1,7 @@
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
+import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
 import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -11,172 +12,11 @@ import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
 
-export type SecretKey =
-	| "apiKey"
-	| "clineAccountId"
-	| "openRouterApiKey"
-	| "awsAccessKey"
-	| "awsSecretKey"
-	| "awsSessionToken"
-	| "awsBedrockApiKey"
-	| "openAiApiKey"
-	| "ollamaApiKey"
-	| "geminiApiKey"
-	| "openAiNativeApiKey"
-	| "deepSeekApiKey"
-	| "requestyApiKey"
-	| "togetherApiKey"
-	| "fireworksApiKey"
-	| "qwenApiKey"
-	| "doubaoApiKey"
-	| "mistralApiKey"
-	| "liteLlmApiKey"
-	| "authNonce"
-	| "asksageApiKey"
-	| "xaiApiKey"
-	| "moonshotApiKey"
-	| "huggingFaceApiKey"
-	| "nebiusApiKey"
-	| "sambanovaApiKey"
-	| "cerebrasApiKey"
-	| "sapAiCoreClientId"
-	| "sapAiCoreClientSecret"
-	| "groqApiKey"
-	| "huaweiCloudMaasApiKey"
-	| "basetenApiKey"
-	| "vercelAiGatewayApiKey"
-	| "zaiApiKey"
+export type SecretKey = keyof Secrets
 
-export type GlobalStateKey =
-	| "awsRegion"
-	| "awsUseCrossRegionInference"
-	| "awsBedrockUsePromptCache"
-	| "awsBedrockEndpoint"
-	| "awsProfile"
-	| "awsBedrockApiKey"
-	| "awsAuthentication"
-	| "awsUseProfile"
-	| "vertexProjectId"
-	| "vertexRegion"
-	| "lastShownAnnouncementId"
-	| "taskHistory"
-	| "requestyBaseUrl"
-	| "openAiBaseUrl"
-	| "openAiHeaders"
-	| "ollamaBaseUrl"
-	| "ollamaApiOptionsCtxNum"
-	| "lmStudioBaseUrl"
-	| "lmStudioMaxTokens"
-	| "anthropicBaseUrl"
-	| "geminiBaseUrl"
-	| "azureApiVersion"
-	| "openRouterProviderSorting"
-	| "autoApprovalSettings"
-	| "globalClineRulesToggles"
-	| "globalWorkflowToggles"
-	| "browserSettings"
-	| "userInfo"
-	| "liteLlmBaseUrl"
-	| "liteLlmUsePromptCache"
-	| "fireworksModelMaxCompletionTokens"
-	| "fireworksModelMaxTokens"
-	| "qwenApiLine"
-	| "moonshotApiLine"
-	| "zaiApiLine"
-	| "mcpMarketplaceCatalog"
-	| "telemetrySetting"
-	| "asksageApiUrl"
-	| "planActSeparateModelsSetting"
-	| "enableCheckpointsSetting"
-	| "mcpMarketplaceEnabled"
-	| "favoritedModelIds"
-	| "requestTimeoutMs"
-	| "shellIntegrationTimeout"
-	| "mcpResponsesCollapsed"
-	| "terminalReuseEnabled"
-	| "defaultTerminalProfile"
-	| "isNewUser"
-	| "welcomeViewCompleted"
-	| "terminalOutputLineLimit"
-	| "mcpDisplayMode"
-	| "sapAiCoreTokenUrl"
-	| "sapAiCoreBaseUrl"
-	| "sapAiResourceGroup"
-	| "claudeCodePath"
-	| "qwenCodeOauthPath"
-	| "strictPlanModeEnabled"
-	| "useAutoCondense"
-	| "focusChainSettings"
-	| "focusChainFeatureFlagEnabled"
-	// Settings around plan/act and ephemeral model configuration
-	| "preferredLanguage"
-	| "openaiReasoningEffort"
-	| "mode"
-	| "customPrompt"
-	// Plan mode configurations
-	| "planModeApiProvider"
-	| "planModeApiModelId"
-	| "planModeThinkingBudgetTokens"
-	| "planModeReasoningEffort"
-	| "planModeVsCodeLmModelSelector"
-	| "planModeAwsBedrockCustomSelected"
-	| "planModeAwsBedrockCustomModelBaseId"
-	| "planModeOpenRouterModelId"
-	| "planModeOpenRouterModelInfo"
-	| "planModeOpenAiModelId"
-	| "planModeOpenAiModelInfo"
-	| "planModeOllamaModelId"
-	| "planModeLmStudioModelId"
-	| "planModeLiteLlmModelId"
-	| "planModeLiteLlmModelInfo"
-	| "planModeRequestyModelId"
-	| "planModeRequestyModelInfo"
-	| "planModeTogetherModelId"
-	| "planModeFireworksModelId"
-	| "planModeSapAiCoreModelId"
-	| "planModeGroqModelId"
-	| "planModeGroqModelInfo"
-	| "planModeBasetenModelId"
-	| "planModeBasetenModelInfo"
-	| "planModeHuggingFaceModelId"
-	| "planModeHuggingFaceModelInfo"
-	| "planModeHuaweiCloudMaasModelId"
-	| "planModeHuaweiCloudMaasModelInfo"
-	| "planModeVercelAiGatewayModelId"
-	| "planModeVercelAiGatewayModelInfo"
-	// Act mode configurations
-	| "actModeApiProvider"
-	| "actModeApiModelId"
-	| "actModeThinkingBudgetTokens"
-	| "actModeReasoningEffort"
-	| "actModeVsCodeLmModelSelector"
-	| "actModeAwsBedrockCustomSelected"
-	| "actModeAwsBedrockCustomModelBaseId"
-	| "actModeOpenRouterModelId"
-	| "actModeOpenRouterModelInfo"
-	| "actModeOpenAiModelId"
-	| "actModeOpenAiModelInfo"
-	| "actModeOllamaModelId"
-	| "actModeLmStudioModelId"
-	| "actModeLiteLlmModelId"
-	| "actModeLiteLlmModelInfo"
-	| "actModeRequestyModelId"
-	| "actModeRequestyModelInfo"
-	| "actModeTogetherModelId"
-	| "actModeFireworksModelId"
-	| "actModeSapAiCoreModelId"
-	| "actModeGroqModelId"
-	| "actModeGroqModelInfo"
-	| "actModeBasetenModelId"
-	| "actModeBasetenModelInfo"
-	| "actModeHuggingFaceModelId"
-	| "actModeHuggingFaceModelInfo"
-	| "actModeHuaweiCloudMaasModelId"
-	| "actModeHuaweiCloudMaasModelInfo"
-	| "actModeVercelAiGatewayModelId"
-	| "actModeVercelAiGatewayModelInfo"
+export type GlobalStateKey = keyof GlobalState
 
-export type LocalStateKey = "localClineRulesToggles" | "localCursorRulesToggles" | "localWindsurfRulesToggles" | "workflowToggles"
+export type LocalStateKey = keyof LocalState
 
 export interface GlobalState {
 	awsRegion: string | undefined
@@ -184,7 +24,6 @@ export interface GlobalState {
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
-	awsBedrockApiKey: string | undefined
 	awsAuthentication: string | undefined
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
@@ -233,6 +72,7 @@ export interface GlobalState {
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
+	sapAiCoreUseOrchestrationMode: boolean | undefined
 	claudeCodePath: string | undefined
 	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean
@@ -243,6 +83,12 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
+	difyBaseUrl: string | undefined
+
+	// Multi-root workspace support
+	workspaceRoots: WorkspaceRoot[] | undefined
+	primaryRootIndex: number
+	multiRootEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -265,6 +111,7 @@ export interface GlobalState {
 	planModeTogetherModelId: string | undefined
 	planModeFireworksModelId: string | undefined
 	planModeSapAiCoreModelId: string | undefined
+	planModeSapAiCoreDeploymentId: string | undefined
 	planModeGroqModelId: string | undefined
 	planModeGroqModelInfo: ModelInfo | undefined
 	planModeBasetenModelId: string | undefined
@@ -294,6 +141,7 @@ export interface GlobalState {
 	actModeTogetherModelId: string | undefined
 	actModeFireworksModelId: string | undefined
 	actModeSapAiCoreModelId: string | undefined
+	actModeSapAiCoreDeploymentId: string | undefined
 	actModeGroqModelId: string | undefined
 	actModeGroqModelInfo: ModelInfo | undefined
 	actModeBasetenModelId: string | undefined
@@ -343,6 +191,7 @@ export interface Secrets {
 	huaweiCloudMaasApiKey: string | undefined
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
+	difyApiKey: string | undefined
 }
 
 export interface LocalState {

@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { WorkspaceRoot } from "../core/workspace"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
@@ -39,7 +40,7 @@ export interface ExtensionState {
 	preferredLanguage?: string
 	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	currentFocusChainChecklist?: string | null
@@ -71,6 +72,11 @@ export interface ExtensionState {
 	focusChainSettings: FocusChainSettings
 	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
+	extensionInfo: { name: string; publisher: string }
+	// NEW: Add workspace information
+	workspaceRoots: WorkspaceRoot[]
+	primaryRootIndex: number
+	isMultiRootWorkspace: boolean
 }
 
 export interface ClineMessage {

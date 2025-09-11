@@ -10,6 +10,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { getCwd } from "@/utils/path"
+import { name as pkgName } from "../../../package.json"
 import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
 /**
@@ -48,7 +49,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const autoApprovalSettings = controller?.cacheService.getGlobalStateKey("autoApprovalSettings")
+		const autoApprovalSettings = controller?.stateManager.getGlobalStateKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
@@ -67,7 +68,7 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		controller?.cacheService.setGlobalState("autoApprovalSettings", updatedSettings)
+		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
@@ -87,10 +88,10 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
 export function createTestServer(controller: Controller): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
-	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
+	vscode.commands.executeCommand(`workbench.view.${pkgName}-ActivityBar`)
 
 	// Then ensure the webview is focused/loaded
-	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+	vscode.commands.executeCommand(`${pkgName}.SidebarProvider.focus`)
 
 	// Update auto approval settings is available
 	updateAutoApprovalSettings(controller.context, controller)
@@ -208,7 +209,7 @@ export function createTestServer(controller: Controller): http.Server {
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const apiConfiguration = visibleWebview.controller.cacheService.getApiConfiguration()
+						const apiConfiguration = visibleWebview.controller.stateManager.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {
@@ -218,13 +219,13 @@ export function createTestServer(controller: Controller): http.Server {
 						}
 
 						// Store the API key securely
-						visibleWebview.controller.cacheService.setSecret("clineAccountId", apiKey)
+						visibleWebview.controller.stateManager.setSecret("clineAccountId", apiKey)
 
-						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
+						visibleWebview.controller.stateManager.setApiConfiguration(updatedConfig)
 
 						// Update cache service to use cline provider
-						const currentConfig = visibleWebview.controller.cacheService.getApiConfiguration()
-						visibleWebview.controller.cacheService.setApiConfiguration({
+						const currentConfig = visibleWebview.controller.stateManager.getApiConfiguration()
+						visibleWebview.controller.stateManager.setApiConfiguration({
 							...currentConfig,
 							planModeApiProvider: "cline",
 							actModeApiProvider: "cline",

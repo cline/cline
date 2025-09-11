@@ -1,7 +1,7 @@
-import { ToolUseName } from "@core/assistant-message"
+import { resolveWorkspacePath } from "@core/workspace"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import * as path from "path"
-import { getCwd, getDesktopDir } from "@/utils/path"
+import { ClineDefaultTool } from "@shared/tools"
+import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
@@ -12,35 +12,35 @@ export class AutoApprove {
 
 	// Check if the tool should be auto-approved based on the settings
 	// Returns bool for most tools, and tuple for tools with nested settings
-	shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+	shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
-				case "read_file":
-				case "list_files":
-				case "list_code_definition_names":
-				case "search_files":
+				case ClineDefaultTool.FILE_READ:
+				case ClineDefaultTool.LIST_FILES:
+				case ClineDefaultTool.LIST_CODE_DEF:
+				case ClineDefaultTool.SEARCH:
 					return [
 						this.autoApprovalSettings.actions.readFiles,
 						this.autoApprovalSettings.actions.readFilesExternally ?? false,
 					]
-				case "new_rule":
-				case "write_to_file":
-				case "replace_in_file":
+				case ClineDefaultTool.NEW_RULE:
+				case ClineDefaultTool.FILE_NEW:
+				case ClineDefaultTool.FILE_EDIT:
 					return [
 						this.autoApprovalSettings.actions.editFiles,
 						this.autoApprovalSettings.actions.editFilesExternally ?? false,
 					]
-				case "execute_command":
+				case ClineDefaultTool.BASH:
 					return [
 						this.autoApprovalSettings.actions.executeSafeCommands ?? false,
 						this.autoApprovalSettings.actions.executeAllCommands ?? false,
 					]
-				case "browser_action":
+				case ClineDefaultTool.BROWSER:
 					return this.autoApprovalSettings.actions.useBrowser
-				case "web_fetch":
+				case ClineDefaultTool.WEB_FETCH:
 					return this.autoApprovalSettings.actions.useBrowser
-				case "access_mcp_resource":
-				case "use_mcp_tool":
+				case ClineDefaultTool.MCP_ACCESS:
+				case ClineDefaultTool.MCP_USE:
 					return this.autoApprovalSettings.actions.useMcp
 			}
 		}
@@ -50,12 +50,15 @@ export class AutoApprove {
 	// Check if the tool should be auto-approved based on the settings
 	// and the path of the action. Returns true if the tool should be auto-approved
 	// based on the user's settings and the path of the action.
-	async shouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): Promise<boolean> {
+	async shouldAutoApproveToolWithPath(
+		blockname: ClineDefaultTool,
+		autoApproveActionpath: string | undefined,
+	): Promise<boolean> {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
 			const cwd = await getCwd(getDesktopDir())
-			const absolutePath = path.resolve(cwd, autoApproveActionpath)
-			isLocalRead = absolutePath.startsWith(cwd)
+			const absolutePath = resolveWorkspacePath(cwd, autoApproveActionpath, "AutoApprove.shouldAutoApproveToolWithPath")
+			isLocalRead = isLocatedInPath(cwd, absolutePath)
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false

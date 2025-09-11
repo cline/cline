@@ -1,6 +1,5 @@
-import { UpdateBrowserSettingsRequest } from "@shared/proto/cline/browser"
 import { McpDisplayMode, OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { BrowserServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { StateServiceClient } from "@/services/grpc-client"
 
 /**
  * Converts values to their corresponding proto format
@@ -12,6 +11,8 @@ import { BrowserServiceClient, StateServiceClient } from "@/services/grpc-client
 const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): any => {
 	if (field === "openaiReasoningEffort" && typeof value === "string") {
 		switch (value) {
+			case "minimal":
+				return OpenaiReasoningEffort.MINIMAL
 			case "low":
 				return OpenaiReasoningEffort.LOW
 			case "medium":
@@ -50,22 +51,5 @@ export const updateSetting = (field: keyof UpdateSettingsRequest, value: any) =>
 
 	StateServiceClient.updateSettings(UpdateSettingsRequest.create(updateRequest)).catch((error) => {
 		console.error(`Failed to update setting ${field}:`, error)
-	})
-}
-
-/**
- * Updates a single browser setting field.
- *
- * @param field - The field key to update
- * @param value - The new value for the field
- */
-export const updateBrowserSetting = (field: keyof UpdateBrowserSettingsRequest, value: any) => {
-	const updateRequest: Partial<UpdateBrowserSettingsRequest> = {
-		metadata: {},
-		[field]: value,
-	}
-
-	BrowserServiceClient.updateBrowserSettings(UpdateBrowserSettingsRequest.create(updateRequest)).catch((error) => {
-		console.error(`Failed to update browser setting ${field}:`, error)
 	})
 }
