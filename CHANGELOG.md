@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.28.1
+## [3.28.1]
 
-- 6b9dbcc: use Requesty's base URL to get models and API keys
-- ddd0324: Adding initial integration spec files based on e2e playwright tests
-- 1b08f23: Add multi-root workspace paths to system info section in system prompt.
+- Requesty: use base URL to get models and API keys
+- Removed focus chain feature flag
 
 ## [3.28.0]
 
