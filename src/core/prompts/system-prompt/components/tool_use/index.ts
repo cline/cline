@@ -7,7 +7,11 @@ import { getToolUseGuidelinesSection } from "./guidelines"
 import { getToolUseToolsSection } from "./tools"
 
 export async function getToolUseSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.TOOL_USE]?.template || TOOL_USE_TEMPLATE_TEXT
+	let template = variant.componentOverrides?.[SystemPromptSection.TOOL_USE]?.template || TOOL_USE_TEMPLATE_TEXT
+
+	if (typeof template === "function") {
+		template = template(context)
+	}
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, {

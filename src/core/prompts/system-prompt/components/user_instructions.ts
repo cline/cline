@@ -23,8 +23,12 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 		return undefined
 	}
 
-	const template =
+	let template =
 		variant.componentOverrides?.[SystemPromptSection.USER_INSTRUCTIONS]?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
+
+	if (typeof template === "function") {
+		template = template(context)
+	}
 
 	return new TemplateEngine().resolve(template, {
 		CUSTOM_INSTRUCTIONS: customInstructions,

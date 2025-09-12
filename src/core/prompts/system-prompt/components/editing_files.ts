@@ -74,8 +74,12 @@ You have access to two tools for working with files: **write_to_file** and **rep
 4. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
 By thoughtfully selecting between write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.`
 
-export async function getEditingFilesSection(variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.EDITING_FILES]?.template || EDITING_FILES_TEMPLATE_TEXT
+export async function getEditingFilesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
+	let template = variant.componentOverrides?.[SystemPromptSection.EDITING_FILES]?.template || EDITING_FILES_TEMPLATE_TEXT
+
+	if (typeof template === "function") {
+		template = template(context)
+	}
 
 	return new TemplateEngine().resolve(template, {})
 }

@@ -25,7 +25,11 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 	const testMode = !!process?.env?.CI || !!process?.env?.IS_DEV || context.isTesting || false
 	const info = await getSystemEnv(context.cwd, testMode)
 
-	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
+	let template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
+
+	if (typeof template === "function") {
+		template = template(context)
+	}
 
 	return new TemplateEngine().resolve(template, {
 		os: info.os,

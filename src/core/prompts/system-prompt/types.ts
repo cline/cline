@@ -15,7 +15,7 @@ import { SystemPromptSection } from "./templates/placeholders"
  * Strongly typed configuration override with validation
  */
 export interface ConfigOverride {
-	template?: string // Custom template for the component/tool
+	template?: string | ((context: SystemPromptContext) => string) // Custom template for the component/tool
 	enabled?: boolean // Whether the component/tool is enabled
 	order?: number // Override the order of the component/tool
 }
