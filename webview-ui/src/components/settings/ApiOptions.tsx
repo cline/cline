@@ -45,6 +45,7 @@ import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
+import { mapOptionToProviderAndDefaults, mapProviderToOption } from "./utils/providerPresets"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
@@ -81,11 +82,11 @@ declare module "vscode" {
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -121,6 +122,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
+
+	// Track the last chosen option value (e.g., "portkey") so the UI reflects the intended label immediately
+	// while the provider/base URL update round-trips through the backend. This prevents the selection
+	// from appearing to "deselect" momentarily.
+	const [lastChosenOption, setLastChosenOption] = useState<string | null>(null)
 
 	const providerOptions = useMemo(
 		() => [
@@ -165,8 +171,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	)
 
 	const currentProviderLabel = useMemo(() => {
-		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
-	}, [providerOptions, selectedProvider])
+		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
+		const optionValue = lastChosenOption ?? mapped
+		return providerOptions.find((option) => option.value === optionValue)?.label || optionValue
+	}, [providerOptions, selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
+
+	// Once the persisted config maps back to the same option as the last chosen option,
+	// clear the temporary override.
+	useEffect(() => {
+		if (!lastChosenOption) return
+		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
+		if (mapped === lastChosenOption) {
+			setLastChosenOption(null)
+		}
+	}, [selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
@@ -200,8 +218,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			: searchableItems
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
-	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+	const handleProviderChange = (newOptionValue: string) => {
+		const { provider: mappedProvider, defaults } = mapOptionToProviderAndDefaults(newOptionValue)
+
+		// Apply provider and preset defaults in a single atomic update to avoid race conditions
+		const updates: any = {}
+		if (planActSeparateModelsSetting) {
+			if (currentMode === "plan") {
+				updates.planModeApiProvider = mappedProvider
+			} else {
+				updates.actModeApiProvider = mappedProvider
+			}
+		} else {
+			updates.planModeApiProvider = mappedProvider
+			updates.actModeApiProvider = mappedProvider
+		}
+
+		if (defaults?.openAiBaseUrl) {
+			// Trim trailing slashes to keep a stable canonical form
+			updates.openAiBaseUrl = defaults.openAiBaseUrl.replace(/\/+$/, "")
+		}
+
+		handleFieldsChange(updates)
+
+		// Immediately reflect the chosen option label to avoid flicker
+		setLastChosenOption(newOptionValue)
+		const chosenLabel = providerOptions.find((o) => o.value === newOptionValue)?.label || newOptionValue
+		setSearchTerm(chosenLabel)
+
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
