@@ -1075,7 +1075,7 @@ export class Task {
 		}
 	}
 
-	async executeCommandTool(command: string, timeoutSeconds?: number): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
