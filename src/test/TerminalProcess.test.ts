@@ -3,8 +3,8 @@ import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import { TerminalProcess } from "./TerminalProcess"
-import { TerminalRegistry } from "./TerminalRegistry"
+import { TerminalProcess } from "../integrations/terminal/TerminalProcess"
+import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442

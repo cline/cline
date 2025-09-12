@@ -221,24 +221,3 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Upload e2e coverage
-              uses: qltysh/qlty-action/coverage@v2
-              with:
-                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: target/e2e-lcov.info
-                tag: e2e
-
-            - name: Upload core coverage as core-unit-test
-              uses: qltysh/qlty-action/coverage@v2
-              with:
-                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: ./coverage/lcov.info
-                tag: unit:core
-
-            - name: Upload webview coverage as webview-unit-test
-              uses: qltysh/qlty-action/coverage@v2
-              with:
-                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: ./webview-ui/coverage/lcov.info
-                tag: unit:webview

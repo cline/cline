@@ -3,8 +3,8 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import type { TaskMetadata } from "./ContextTrackerTypes"
-import { ModelContextTracker } from "./ModelContextTracker"
+import type { TaskMetadata } from "../core/context/context-tracking/ContextTrackerTypes"
+import { ModelContextTracker } from "../core/context/context-tracking/ModelContextTracker"
 
 describe("ModelContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
