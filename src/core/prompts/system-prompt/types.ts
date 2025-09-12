@@ -91,6 +91,7 @@ export interface VersionMetadata {
 export interface SystemPromptContext {
 	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
+	readonly ide: string
 	readonly supportsBrowserUse?: boolean
 	readonly mcpHub?: McpHub
 	readonly focusChainSettings?: FocusChainSettings
