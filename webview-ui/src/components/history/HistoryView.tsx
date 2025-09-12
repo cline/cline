@@ -601,40 +601,44 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													}}>
 													Cache:
 												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-database"
+												{item.cacheWrites > 0 && (
+													<span
 														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-1px",
-														}}
-													/>
-													+{formatLargeNumber(item.cacheWrites || 0)}
-												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-arrow-right"
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														<i
+															className="codicon codicon-arrow-right"
+															style={{
+																fontSize: "12px",
+																fontWeight: "bold",
+																marginBottom: "-1px",
+															}}
+														/>
+														{formatLargeNumber(item.cacheWrites)}
+													</span>
+												)}
+												{item.cacheReads > 0 && (
+													<span
 														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: 0,
-														}}
-													/>
-													{formatLargeNumber(item.cacheReads || 0)}
-												</span>
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														<i
+															className="codicon codicon-arrow-left"
+															style={{
+																fontSize: "12px",
+																fontWeight: "bold",
+																marginBottom: 0,
+															}}
+														/>
+														{formatLargeNumber(item.cacheReads)}
+													</span>
+												)}
 											</div>
 										)}
 										{!!item.totalCost && (
