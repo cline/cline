@@ -1,12 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import {
-	internationalZAiDefaultModelId,
-	internationalZAiModelId,
-	internationalZAiModels,
+	internationalZAiDefaultModelId, internationalZAiModels,
 	ModelInfo,
-	mainlandZAiDefaultModelId,
-	mainlandZAiModelId,
-	mainlandZAiModels,
+	mainlandZAiDefaultModelId, mainlandZAiModels
 } from "@shared/api"
 import OpenAI from "openai"
 import { version as extensionVersion } from "../../../../package.json"
@@ -54,20 +50,41 @@ export class ZAiHandler implements ApiHandler {
 		return this.client
 	}
 
-	getModel(): { id: mainlandZAiModelId | internationalZAiModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+	private _selectValidModel(
+		userModelId: string | undefined,
+		models: Record<string, ModelInfo>,
+		defaultModelId: string,
+		modelType: 'mainlandZAiModelId' | 'internationalZAiModelId'
+	): { id: string; info: ModelInfo } {
+		const validModelIds = Object.keys(models);
+		if (userModelId && validModelIds.includes(userModelId)) {
+			return {
+				id: userModelId,
+				info: models[userModelId],
+			};
+		}
+		return {
+			id: defaultModelId,
+			info: models[defaultModelId],
+		};
+	}
+
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.apiModelId;
 		if (this.useChinaApi()) {
-			return {
-				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
-				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
-			}
+			return this._selectValidModel(
+				modelId,
+				mainlandZAiModels,
+				mainlandZAiDefaultModelId,
+				'mainlandZAiModelId'
+			);
 		} else {
-			return {
-				id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
-				info:
-					internationalZAiModels[modelId as internationalZAiModelId] ??
-					internationalZAiModels[internationalZAiDefaultModelId],
-			}
+			return this._selectValidModel(
+				modelId,
+				internationalZAiModels,
+				internationalZAiDefaultModelId,
+				'internationalZAiModelId'
+			);
 		}
 	}
 

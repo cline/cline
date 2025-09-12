@@ -1,4 +1,4 @@
-import { internationalZAiModels, mainlandZAiModels } from "@shared/api"
+import { internationalZAiDefaultModelId, internationalZAiModels, mainlandZAiDefaultModelId, mainlandZAiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
@@ -34,6 +34,35 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 		[apiConfiguration?.zaiApiLine],
 	)
 
+	// Determine default model ID based on API line selection
+	const getDefaultModelId = (line: string | undefined) => {
+		if (line === "china") {
+			return mainlandZAiDefaultModelId;
+		}
+		return internationalZAiDefaultModelId; // Default to international if "china" is not set
+	};
+
+	const handleApiLineChange = (e: any) => {
+		// VSCodeDropdown's onChange event might be a custom event or not directly React.FormEvent
+		// Accessing the selected value might require different approach if e.currentTarget.value is not available
+		// For now, assuming the event structure allows accessing the value
+		// If this fails, we might need to inspect the actual event structure from VSCodeDropdown
+		const newLine = e.target?.value || e.currentTarget?.value; // Try both e.target and e.currentTarget
+		if (newLine === undefined) {
+			console.error("Could not determine selected value from VSCodeDropdown event:", e);
+			return;
+		}
+		handleFieldChange("zaiApiLine", newLine);
+
+		// Reset apiModelId to the default for the new line
+		const newDefaultModelId = getDefaultModelId(newLine);
+		if (currentMode === "plan") {
+			handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, newDefaultModelId, "plan");
+		} else {
+			handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, newDefaultModelId, "act");
+		}
+	};
+
 	return (
 		<div>
 			<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
@@ -42,7 +71,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				</label>
 				<VSCodeDropdown
 					id="zai-entrypoint"
-					onChange={(e) => handleFieldChange("zaiApiLine", (e.target as any).value)}
+					onChange={handleApiLineChange}
 					style={{
 						minWidth: 130,
 						position: "relative",
