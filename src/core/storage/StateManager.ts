@@ -159,12 +159,12 @@ export class StateManager {
 			// Populate task cache with loaded settings
 			Object.assign(this.taskStateCache, taskSettings)
 		} catch (error) {
-			// If task settings don't exist yet (new task), that's fine - just use empty cache
+			// If reading fails, just use empty cache
 
 			console.error("[StateManager] Failed to load task settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to load task settings.`,
+				message: `Failed to load task settings, defaulting to globally selected settings.`,
 			})
 		}
 	}
