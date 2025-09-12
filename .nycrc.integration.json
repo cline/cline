@@ -12,7 +12,8 @@
 		"!src/**/*.test.ts",
 		"!src/**/__tests__/**",
 		"!src/test/**",
-		"!src/**/*.d.ts"
+		"!src/**/*.d.ts",
+		"!src/generated/**"
 	],
 	"exclude": [
 		"coverage/**",
@@ -22,7 +23,8 @@
 		"node_modules/**",
 		"**/*.test.ts",
 		"**/__tests__/**",
-		"src/test/**"
+		"src/test/**",
+		"src/generated/**"
 	],
 	"extension": [
 		".ts"
