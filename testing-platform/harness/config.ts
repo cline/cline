@@ -5,7 +5,6 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.distinctId",
 	"stateJson.shouldShowAnnouncement",
 	"stateJson.platform",
-	"stateJson.focusChainFeatureFlagEnabled",
 	"stateJson.clineMessages.ts",
 	"stateJson.taskHistory.cwdOnTaskInitialization",
 	"stateJson.taskHistory.id",
