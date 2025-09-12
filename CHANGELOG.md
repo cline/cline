@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.28.2]
+
+- Fix for focus chain settings
+
 ## [3.28.1]
 
 - Requesty: use base URL to get models and API keys
