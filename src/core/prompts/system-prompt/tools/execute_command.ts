@@ -26,7 +26,8 @@ const generic: ClineToolSpec = {
 			name: "timeout",
 			required: false,
 			contextRequirements: (context) => context.yoloModeToggled === true,
-			instruction: "Optional timeout in seconds for command execution",
+			instruction:
+				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
 			usage: "30",
 		},
 	],
@@ -54,7 +55,8 @@ const gpt: ClineToolSpec = {
 			name: "timeout",
 			required: false,
 			contextRequirements: (context) => context.yoloModeToggled === true,
-			instruction: "Optional timeout in seconds for command execution",
+			instruction:
+				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
 			usage: "30",
 		},
 		TASK_PROGRESS_PARAMETER,
