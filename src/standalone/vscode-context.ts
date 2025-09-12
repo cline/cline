@@ -7,8 +7,8 @@ import { URI } from "vscode-uri"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
-export const VERSION = getPackageVersion()
-log("Running standalone cline", VERSION)
+export const { version, name, publisher } = getPackageInfo()
+log("Running standalone cline", version)
 
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
@@ -21,7 +21,7 @@ const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {
-	id: "saoudrizwan.claude-dev",
+	id: `${publisher}.${name}`,
 	isActive: true,
 	extensionPath: EXTENSION_DIR,
 	extensionUri: URI.file(EXTENSION_DIR),
@@ -60,9 +60,9 @@ const extensionContext: ExtensionContext = {
 	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
 }
 
-function getPackageVersion(): string {
+function getPackageInfo() {
 	const packageJson = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"))
-	return packageJson.version
+	return { version: packageJson.version, name: packageJson.name, publisher: packageJson.publisher }
 }
 
 console.log("Finished loading vscode context...")

@@ -10,6 +10,13 @@ const E2E_API_SERVER_PORT = 7777
 
 export const MOCK_CLINE_API_SERVER_URL = `http://localhost:${E2E_API_SERVER_PORT}`
 
+const useVerboseLogging = process.env.CLINE_E2E_TESTS_VERBOSE === "true"
+function log(...args: unknown[]) {
+	if (useVerboseLogging) {
+		console.log("[ClineApiServerMock]", ...args)
+	}
+}
+
 export class ClineApiServerMock {
 	static globalSharedServer: ClineApiServerMock | null = null
 	static globalSockets: Set<Socket> = new Set()
@@ -106,10 +113,13 @@ export class ClineApiServerMock {
 
 	// Starts the global shared server
 	public static async startGlobalServer(): Promise<ClineApiServerMock> {
+		log("=== SERVER FIXTURE CALLED ===")
 		if (ClineApiServerMock.globalSharedServer) {
+			log("Using existing global server")
 			return ClineApiServerMock.globalSharedServer
 		}
 
+		log("Starting global server...")
 		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 			// Parse URL and method
 			const parsedUrl = parse(req.url || "", true)
@@ -136,7 +146,7 @@ export class ClineApiServerMock {
 
 			// Helper to send API response
 			const sendApiResponse = (data: unknown, status = 200) => {
-				console.log(`API Response: ${JSON.stringify(data)}`)
+				log(`API Response: ${JSON.stringify(data)}`)
 				sendJson({ success: true, data }, status)
 			}
 
@@ -157,7 +167,7 @@ export class ClineApiServerMock {
 
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
-				console.log(`Authenticating token: ${authToken}`)
+				log(`Authenticating token: ${authToken}`)
 				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
@@ -165,12 +175,12 @@ export class ClineApiServerMock {
 				ClineApiServerMock.globalSharedServer!.setCurrentUser(user)
 			}
 
-			console.log("=== MOCK SERVER REQUEST ===")
-			console.log("Method:", method)
-			console.log("Path:", path)
-			console.log("Query:", JSON.stringify(query))
-			console.log("Headers:", JSON.stringify(req.headers))
-			console.log("===============")
+			log("=== MOCK SERVER REQUEST ===")
+			log("Method:", method)
+			log("Path:", path)
+			log("Query:", JSON.stringify(query))
+			log("Headers:", JSON.stringify(req.headers))
+			log("===============")
 
 			// Route handling
 			const handleRequest = async () => {
@@ -253,7 +263,7 @@ export class ClineApiServerMock {
 						}
 						const body = await readBody()
 						const { orgId } = params
-						console.log("Fetching organization usage transactions for", {
+						log("Fetching organization usage transactions for", {
 							orgId,
 							body,
 						})
@@ -264,7 +274,7 @@ export class ClineApiServerMock {
 
 					if (endpoint === "/users/active-account" && method === "PUT") {
 						const body = await readBody()
-						console.log("Switching active account")
+						log("Switching active account")
 						const { organizationId } = JSON.parse(body)
 						controller.setUserHasOrganization(!!organizationId)
 						const currentUser = controller.API_USER.getCurrentUser()
@@ -481,7 +491,7 @@ export class ClineApiServerMock {
 					console.error(`Failed to start server on port ${E2E_API_SERVER_PORT}:`, error)
 					reject(error)
 				} else {
-					console.log(`ClineApiServerMock listening on port ${E2E_API_SERVER_PORT}`)
+					log(`ClineApiServerMock listening on port ${E2E_API_SERVER_PORT}`)
 					resolve()
 				}
 			})

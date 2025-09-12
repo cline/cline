@@ -1,5 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { detectWorkspaceRoots } from "@core/workspace/detection"
+import { setupWorkspaceManager } from "@core/workspace/setup"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -21,6 +24,7 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/services/auth/AuthService"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -48,6 +52,9 @@ export class Controller {
 	authService: AuthService
 	readonly stateManager: StateManager
 
+	// NEW: Add workspace manager (optional initially)
+	private workspaceManager?: WorkspaceRootManager
+
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		id: string,
@@ -70,6 +77,10 @@ export class Controller {
 					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
 					error,
 				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to initialize Cline's application state. Please restart the extension.",
+				})
 			})
 
 		// Set up persistence error recovery
@@ -164,7 +175,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
+		const focusChainFeatureFlagEnabled = featureFlagsService.getFocusChainEnabled()
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -209,6 +220,14 @@ export class Controller {
 			enabled: focusChainEnabled,
 		}
 
+		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
+		this.workspaceManager = await setupWorkspaceManager({
+			stateManager: this.stateManager,
+			detectRoots: detectWorkspaceRoots,
+		})
+
+		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
 		this.task = new Task(
 			this,
 			this.mcpHub,
@@ -231,8 +250,9 @@ export class Controller {
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
-			await getCwd(getDesktopDir()),
+			cwd,
 			this.stateManager,
+			this.workspaceManager,
 			task,
 			images,
 			files,
@@ -630,7 +650,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
+		const focusChainFeatureFlagEnabled = featureFlagsService.getFocusChainEnabled()
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -674,6 +694,10 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
+		const extensionInfo = {
+			name: this.context.extension?.packageJSON?.name,
+			publisher: this.context.extension?.packageJSON?.publisher,
+		}
 
 		return {
 			version,
@@ -716,6 +740,11 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
+			extensionInfo,
+			// NEW: Add workspace information
+			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
+			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
+			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 		}
 	}
 

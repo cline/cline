@@ -2,21 +2,23 @@
 import "tsconfig-paths/register"
 
 import { GrpcAdapter } from "@adapters/grpcAdapter"
+import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
 import { SpecFile } from "@harness/types"
 import { compareResponse, loadJson } from "@harness/utils"
 import fs from "fs"
 import path from "path"
 
-const STANDALONE_GRPC_SERVER_PORT = process.env.HOSTBRIDGE_PORT || "26040"
+const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 
 async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 	const spec: SpecFile = loadJson(specPath)
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
+		await new Promise((resolve) => setTimeout(resolve, 50))
 		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
-		const { success, diffs } = compareResponse(response, entry?.response?.message)
+		const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
 		if (!success) {
 			console.error("❌ Response mismatch! RequestID: %s", entry.requestId)
 			console.error(diffs.join("\n"))

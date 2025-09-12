@@ -167,7 +167,11 @@ class NightlyPublisher {
 	 * Update package.json with nightly configuration
 	 */
 	updatePackageJson() {
-		const pkg = JSON.parse(fs.readFileSync(config.packageJsonPath, "utf-8"))
+		// Replace any occurrences cline. or claude-dev with nightly name
+		const rawContent = fs.readFileSync(config.packageJsonPath, "utf-8")
+		const content = rawContent.replaceAll("claude-dev", config.nightlyName).replaceAll('"cline.', `"${config.nightlyName}.`)
+
+		const pkg = JSON.parse(content)
 		const currentVersion = pkg.version
 
 		if (!currentVersion) {
@@ -183,6 +187,7 @@ class NightlyPublisher {
 		pkg.version = newVersion
 		pkg.name = config.nightlyName
 		pkg.displayName = config.nightlyDisplayName
+		pkg.contributes.viewsContainers.activitybar.title = config.nightlyDisplayName
 
 		// Save updated package.json
 		log.info("Updating package.json for nightly build")
@@ -202,15 +207,7 @@ class NightlyPublisher {
 
 		log.info("Packaging extension")
 
-		const args = [
-			"package",
-			"--pre-release",
-			"--no-update-package-json",
-			"--no-git-tag-version",
-			"--no-dependencies",
-			"--out",
-			config.vsixPath,
-		]
+		const args = ["package", "--pre-release", "--no-update-package-json", "--no-git-tag-version", "--out", config.vsixPath]
 
 		try {
 			execFileSync("vsce", args, {
