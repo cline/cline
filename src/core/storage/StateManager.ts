@@ -743,7 +743,7 @@ export class StateManager {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
-					writeTaskSettingsToStorage(this.context, taskId, { [key]: this.taskStateCache[key] })
+					return writeTaskSettingsToStorage(this.context, taskId, { [key]: this.taskStateCache[key] })
 				}),
 			)
 		} catch (error) {
