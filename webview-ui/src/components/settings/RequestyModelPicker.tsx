@@ -1,5 +1,6 @@
 import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { toRequestyServiceUrl } from "@shared/providers/requesty"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -18,10 +19,11 @@ import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
+	baseUrl?: string
 	currentMode: Mode
 }
 
-const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, currentMode }) => {
+const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -32,13 +34,22 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
+	const resolvedUrl = toRequestyServiceUrl(baseUrl)
+	const requestyModelListUrl = new URL("models", resolvedUrl)
+
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
 
 		handleModeFieldsChange(
 			{
-				requestyModelId: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
-				requestyModelInfo: { plan: "planModeRequestyModelInfo", act: "actModeRequestyModelInfo" },
+				requestyModelId: {
+					plan: "planModeRequestyModelId",
+					act: "actModeRequestyModelId",
+				},
+				requestyModelInfo: {
+					plan: "planModeRequestyModelInfo",
+					act: "actModeRequestyModelInfo",
+				},
 			},
 			{
 				requestyModelId: newModelId,
@@ -248,16 +259,18 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest list of models available on{" "}
-					<VSCodeLink href="https://app.requesty.ai/router/list" style={{ display: "inline", fontSize: "inherit" }}>
-						Requesty.
-					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
-					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}
-						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-3-7-sonnet-latest.
-					</VSCodeLink>
+					<>
+						The extension automatically fetches the latest list of models available on{" "}
+						<VSCodeLink href={requestyModelListUrl.toString()} style={{ display: "inline", fontSize: "inherit" }}>
+							Requesty.
+						</VSCodeLink>
+						If you're unsure which model to choose, Cline works best with{" "}
+						<VSCodeLink
+							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}
+							style={{ display: "inline", fontSize: "inherit" }}>
+							anthropic/claude-3-7-sonnet-latest.
+						</VSCodeLink>
+					</>
 				</p>
 			)}
 		</div>
@@ -269,84 +282,84 @@ export default RequestyModelPicker
 // Dropdown
 
 const DropdownWrapper = styled.div`
-	position: relative;
-	width: 100%;
+  position: relative;
+  width: 100%;
 `
 
 export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
-	position: absolute;
-	top: calc(100% - 3px);
-	left: 0;
-	width: calc(100% - 2px);
-	max-height: 200px;
-	overflow-y: auto;
-	background-color: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-list-activeSelectionBackground);
-	z-index: ${REQUESTY_MODEL_PICKER_Z_INDEX - 1};
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
+  position: absolute;
+  top: calc(100% - 3px);
+  left: 0;
+  width: calc(100% - 2px);
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-list-activeSelectionBackground);
+  z-index: ${REQUESTY_MODEL_PICKER_Z_INDEX - 1};
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
 `
 
 const DropdownItem = styled.div<{ isSelected: boolean }>`
-	padding: 5px 10px;
-	cursor: pointer;
-	word-break: break-all;
-	white-space: normal;
+  padding: 5px 10px;
+  cursor: pointer;
+  word-break: break-all;
+  white-space: normal;
 
-	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+  background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 
-	&:hover {
-		background-color: var(--vscode-list-activeSelectionBackground);
-	}
+  &:hover {
+    background-color: var(--vscode-list-activeSelectionBackground);
+  }
 `
 
 // Markdown
 
 const StyledMarkdown = styled.div`
-	font-family:
-		var(--vscode-font-family),
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		Oxygen,
-		Ubuntu,
-		Cantarell,
-		"Open Sans",
-		"Helvetica Neue",
-		sans-serif;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
+  font-family:
+    var(--vscode-font-family),
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
 
-	p,
-	li,
-	ol,
-	ul {
-		line-height: 1.25;
-		margin: 0;
-	}
+  p,
+  li,
+  ol,
+  ul {
+    line-height: 1.25;
+    margin: 0;
+  }
 
-	ol,
-	ul {
-		padding-left: 1.5em;
-		margin-left: 0;
-	}
+  ol,
+  ul {
+    padding-left: 1.5em;
+    margin-left: 0;
+  }
 
-	p {
-		white-space: pre-wrap;
-	}
+  p {
+    white-space: pre-wrap;
+  }
 
-	a {
-		text-decoration: none;
-	}
-	a {
-		&:hover {
-			text-decoration: underline;
-		}
-	}
+  a {
+    text-decoration: none;
+  }
+  a {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 `
 
 export const ModelDescriptionMarkdown = memo(
