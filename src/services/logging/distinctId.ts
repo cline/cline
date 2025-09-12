@@ -2,35 +2,50 @@ import { v4 as uuidv4 } from "uuid"
 import { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { EmptyRequest } from "@/shared/proto/cline/common"
-import { Logger } from "./Logger"
 
 /*
- * Unique identifiers for the current session
- * NOTE: Unchanged throughout session
+ * Unique identifier for the current installation.
  */
-const _anonymousId = uuidv4()
+let _distinctId: string = ""
 
-let _machineId = ""
-let _distinctId = ""
+/**
+ * Some environments don't return a value for the machine ID. For these situations we generated
+ * a unique ID and store it locally.
+ */
+export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
 
-export async function initializeDistinctId(context: ExtensionContext) {
-	// NOTE: Backward compatibility in case where cline.distinctId was set in older versions
-	const existingId = context.globalState.get<string>("cline.distinctId")
-	const machineId = await getMachineId()
-	setDistinctId(existingId || machineId)
+export async function initializeDistinctId(context: ExtensionContext, uuid: () => string = uuidv4) {
+	// Try to read the ID from storage.
+	let distinctId = context.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
+
+	if (!distinctId) {
+		// Get the ID from the host environment.
+		distinctId = await getMachineId()
+	}
+	if (!distinctId) {
+		// Fallback to generating a unique ID and keeping in global storage.
+		console.warn("No machine ID found for telemetry, generating UUID")
+		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
+		distinctId = "cl-" + uuid()
+		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
+	}
+
+	setDistinctId(distinctId)
+
+	console.log("Telemetry distinct ID initialized:", distinctId)
 }
 
 /*
  * Host-provided UUID when running via HostBridge; fall back to VS Code's machineId
  */
-async function getMachineId() {
+async function getMachineId(): Promise<string | undefined> {
 	try {
 		const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
-		_machineId = response.value
-	} catch (e) {
-		Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
+		return response.value
+	} catch (error) {
+		console.log("Failed to get machine ID", error)
+		return undefined
 	}
-	return _distinctId || _anonymousId
 }
 
 /*
@@ -38,6 +53,9 @@ async function getMachineId() {
  * This is updated to Cline User ID when authenticated.
  */
 export function setDistinctId(newId: string) {
+	if (_distinctId && _distinctId !== newId) {
+		console.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
+	}
 	_distinctId = newId
 }
 
@@ -46,4 +64,9 @@ export function setDistinctId(newId: string) {
  * If authenticated, this will be the Cline User ID.
  * Else, this will be the machine ID, or the anonymous ID as a fallback.
  */
-export const getDistinctId = () => _distinctId || _machineId || _anonymousId
+export function getDistinctId() {
+	if (!_distinctId) {
+		console.error("Telemetry ID is not initialized. Call initializeDistinctId() first.")
+	}
+	return _distinctId
+}

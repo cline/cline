@@ -104,6 +104,8 @@ export interface SystemPromptContext {
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
+	readonly isMultiRootEnabled?: boolean
+	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 }
 
 /**

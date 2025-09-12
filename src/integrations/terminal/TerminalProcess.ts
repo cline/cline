@@ -1,3 +1,4 @@
+import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
 import { EventEmitter } from "events"
 import * as vscode from "vscode"
 import { stripAnsi } from "./ansiUtils"
@@ -39,6 +40,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		}
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
+			// Track that we're using shell integration
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors
@@ -189,7 +191,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
 			if (!this.fullOutput.trim()) {
+				// No output captured via shell integration, trying fallback
+				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT)
 				await returnCurrentTerminalContents()
+				// Check if fallback worked
+				const terminalSnapshot = await getLatestTerminalOutput()
+				if (terminalSnapshot && terminalSnapshot.trim()) {
+					telemetryService.captureTerminalExecution(true, "clipboard")
+				} else {
+					telemetryService.captureTerminalExecution(false, "none")
+				}
+			} else {
+				// Shell integration worked
+				telemetryService.captureTerminalExecution(true, "shell_integration")
 			}
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
@@ -203,6 +217,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
+			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION)
 			terminal.sendText(command, true)
 
 			// wait 3 seconds for the command to run
@@ -210,6 +225,13 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			// For terminals without shell integration, also try to capture terminal content
 			await returnCurrentTerminalContents()
+			// Check if clipboard fallback worked
+			const terminalSnapshot = await getLatestTerminalOutput()
+			if (terminalSnapshot && terminalSnapshot.trim()) {
+				telemetryService.captureTerminalExecution(true, "clipboard")
+			} else {
+				telemetryService.captureTerminalExecution(false, "none")
+			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
 			this.emit("completed")

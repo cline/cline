@@ -1,11 +1,9 @@
 import { FocusChainSettings } from "@shared/FocusChainSettings"
+import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
 import * as vscode from "vscode"
-import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
-import { HostProvider } from "../../../hosts/host-provider"
 import { ClineSay } from "../../../shared/ExtensionMessage"
-import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../../shared/proto/host/watch"
 import { Mode } from "../../../shared/storage/types"
 import { writeFile } from "../../../utils/fs"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
@@ -26,7 +24,7 @@ export interface FocusChainDependencies {
 	context: vscode.ExtensionContext
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
-	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
+	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
 	focusChainSettings: FocusChainSettings
 }
 
@@ -37,8 +35,14 @@ export class FocusChainManager {
 	private context: vscode.ExtensionContext
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
-	private say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<undefined>
-	private focusChainFileWatcherCancel?: () => void
+	private say: (
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	) => Promise<number | undefined>
+	private focusChainFileWatcher?: chokidar.FSWatcher
 	private hasTrackedFirstProgress = false
 	private focusChainSettings: FocusChainSettings
 	private fileUpdateDebounceTimer?: NodeJS.Timeout
@@ -66,8 +70,6 @@ export class FocusChainManager {
 	 */
 	private async initializeRemoteFeatureFlags(): Promise<void> {
 		try {
-			const enabled = await featureFlagsService.getFocusChainEnabled()
-			this.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Error initializing focus chain remote feature flags:", error)
@@ -95,33 +97,33 @@ export class FocusChainManager {
 			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
 			const focusChainFilePath = getFocusChainFilePath(taskDir, this.taskId)
 
-			this.focusChainFileWatcherCancel = HostProvider.watch.subscribeToFile(
-				SubscribeToFileRequest.create({
-					path: focusChainFilePath,
-				}),
-				{
-					onResponse: async (response) => {
-						switch (response.type) {
-							case FileChangeEvent_ChangeType.CHANGED:
-								await this.updateFCListFromMarkdownFileAndNotifyUI()
-								break
-							case FileChangeEvent_ChangeType.CREATED:
-								await this.updateFCListFromMarkdownFileAndNotifyUI()
-								break
-							case FileChangeEvent_ChangeType.DELETED:
-								this.taskState.currentFocusChainChecklist = null
-								await this.postStateToWebview()
-								break
-						}
-					},
-					onError: (error) => {
-						console.error(`[Task ${this.taskId}] Failed to watch todo file:`, error)
-					},
-					onComplete: () => {
-						console.log(`[Task ${this.taskId}] Todo file watcher completed`)
-					},
+			// Initialize chokidar watcher
+			this.focusChainFileWatcher = chokidar.watch(focusChainFilePath, {
+				persistent: true,
+				ignoreInitial: true,
+				awaitWriteFinish: {
+					stabilityThreshold: 300,
+					pollInterval: 100,
 				},
-			)
+			})
+
+			// Handle file changes
+			this.focusChainFileWatcher
+				.on("add", async () => {
+					await this.updateFCListFromMarkdownFileAndNotifyUI()
+				})
+				.on("change", async () => {
+					await this.updateFCListFromMarkdownFileAndNotifyUI()
+				})
+				.on("unlink", async () => {
+					this.taskState.currentFocusChainChecklist = null
+					await this.postStateToWebview()
+				})
+				.on("error", (error) => {
+					console.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
+				})
+
+			console.log(`[Task ${this.taskId}] Todo file watcher initialized`)
 		} catch (error) {
 			console.error(`[Task ${this.taskId}] Failed to setup todo file watcher:`, error)
 		}
@@ -507,9 +509,9 @@ ${listInstrunctionsReminder}\n`
 			this.fileUpdateDebounceTimer = undefined
 		}
 
-		if (this.focusChainFileWatcherCancel && typeof this.focusChainFileWatcherCancel === "function") {
-			this.focusChainFileWatcherCancel()
-			this.focusChainFileWatcherCancel = undefined
+		if (this.focusChainFileWatcher) {
+			this.focusChainFileWatcher.close()
+			this.focusChainFileWatcher = undefined
 		}
 	}
 }

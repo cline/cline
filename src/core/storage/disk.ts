@@ -201,7 +201,13 @@ export async function readTaskHistoryFromState(context: vscode.ExtensionContext)
 	try {
 		const filePath = await getTaskHistoryStateFilePath(context)
 		if (await fileExistsAtPath(filePath)) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
+			const contents = await fs.readFile(filePath, "utf8")
+			try {
+				return JSON.parse(contents)
+			} catch (error) {
+				console.error("[Disk] Failed to parse task history:", error)
+				return []
+			}
 		}
 		return []
 	} catch (error) {

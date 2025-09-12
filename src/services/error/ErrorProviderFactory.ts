@@ -1,11 +1,12 @@
-import { PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { ClineError } from "./ClineError"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 /**
  * Supported error provider types
  */
-export type ErrorProviderType = "posthog" | "none"
+export type ErrorProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for error providers
@@ -25,20 +26,21 @@ export class ErrorProviderFactory {
 	 * @param config Configuration for the error provider
 	 * @returns IErrorProvider instance
 	 */
-	public static createProvider(config: ErrorProviderConfig): IErrorProvider {
+	public static async createProvider(config: ErrorProviderConfig): Promise<IErrorProvider> {
 		switch (config.type) {
-			case "posthog":
-				if (config.config.apiKey !== undefined && config.config.errorTrackingApiKey !== undefined) {
-					return new PostHogErrorProvider({
-						apiKey: config.config.apiKey,
-						errorTrackingApiKey: config.config.errorTrackingApiKey,
-						host: config.config.host,
-						uiHost: config.config.uiHost,
-					})
-				}
-				return new NoOpErrorProvider()
+			case "posthog": {
+				const hasValidPostHogConfig = isPostHogConfigValid(config.config)
+				const errorTrackingApiKey = config.config.errorTrackingApiKey
+				return hasValidPostHogConfig && errorTrackingApiKey
+					? await new PostHogErrorProvider({
+							apiKey: errorTrackingApiKey,
+							errorTrackingApiKey: errorTrackingApiKey,
+							host: config.config.host,
+							uiHost: config.config.uiHost,
+						}).initialize()
+					: new NoOpErrorProvider() // Fallback to no-op provider
+			}
 			default:
-				console.error(`Unsupported error provider type: ${config.type}`)
 				return new NoOpErrorProvider()
 		}
 	}
@@ -60,31 +62,32 @@ export class ErrorProviderFactory {
  * or for testing purposes
  */
 class NoOpErrorProvider implements IErrorProvider {
-	public logException(_error: Error, _properties?: Record<string, unknown>): void {
-		// No-op
+	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
+		// Use console.error directly to avoid potential infinite recursion through Logger
+		console.error("[NoOpErrorProvider]", error.message || String(error))
 	}
 
 	public logMessage(
-		_message: string,
-		_level?: "error" | "warning" | "log" | "debug" | "info",
-		_properties?: Record<string, unknown>,
+		message: string,
+		level?: "error" | "warning" | "log" | "debug" | "info",
+		properties?: Record<string, unknown>,
 	): void {
-		// No-op
+		console.log("[NoOpErrorProvider]", { message, level, properties })
 	}
 
 	public isEnabled(): boolean {
-		return false
+		return true
 	}
 
 	public getSettings() {
 		return {
-			enabled: false,
-			hostEnabled: false,
-			level: "off" as const,
+			enabled: true,
+			hostEnabled: true,
+			level: "all" as const,
 		}
 	}
 
 	public async dispose(): Promise<void> {
-		// No-op
+		console.info("[NoOpErrorProvider] Disposing")
 	}
 }

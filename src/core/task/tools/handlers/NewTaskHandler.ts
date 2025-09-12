@@ -2,14 +2,14 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = "new_task"
-
+	readonly name = ClineDefaultTool.NEW_TASK
 	constructor() {}
 
 	getDescription(block: ToolUse): string {
@@ -21,7 +21,7 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const context = uiHelpers.removeClosingTag(block, "context", block.params.context)
-		await uiHelpers.ask("new_task", context, true).catch(() => {})
+		await uiHelpers.ask(this.name, context, true).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -44,7 +44,7 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 		}
 
 		// Ask user for response
-		const { text, images, files: newTaskFiles } = await config.callbacks.ask("new_task", context, false)
+		const { text, images, files: newTaskFiles } = await config.callbacks.ask(this.name, context, false)
 
 		// If the user provided a response, treat it as feedback
 		if (text || (images && images.length > 0) || (newTaskFiles && newTaskFiles.length > 0)) {

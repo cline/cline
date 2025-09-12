@@ -242,6 +242,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeTogetherModelId = context.globalState.get("planModeTogetherModelId") as string | undefined
 		const planModeFireworksModelId = context.globalState.get("planModeFireworksModelId") as string | undefined
 		const planModeSapAiCoreModelId = context.globalState.get("planModeSapAiCoreModelId") as string | undefined
+		const planModeSapAiCoreDeploymentId = context.globalState.get("planModeSapAiCoreDeploymentId") as string | undefined
 		const planModeGroqModelId = context.globalState.get("planModeGroqModelId") as string | undefined
 		const planModeGroqModelInfo = context.globalState.get("planModeGroqModelInfo") as ModelInfo | undefined
 		const planModeHuggingFaceModelId = context.globalState.get("planModeHuggingFaceModelId") as string | undefined
@@ -283,6 +284,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeTogetherModelId = context.globalState.get("actModeTogetherModelId") as string | undefined
 		const actModeFireworksModelId = context.globalState.get("actModeFireworksModelId") as string | undefined
 		const actModeSapAiCoreModelId = context.globalState.get("actModeSapAiCoreModelId") as string | undefined
+		const actModeSapAiCoreDeploymentId = context.globalState.get("actModeSapAiCoreDeploymentId") as string | undefined
 		const actModeGroqModelId = context.globalState.get("actModeGroqModelId") as string | undefined
 		const actModeGroqModelInfo = context.globalState.get("actModeGroqModelInfo") as ModelInfo | undefined
 		const actModeHuggingFaceModelId = context.globalState.get("actModeHuggingFaceModelId") as string | undefined
@@ -327,6 +329,18 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		}
 
 		const taskHistory = await readTaskHistoryFromState(context)
+
+		// Multi-root workspace support
+		const workspaceRoots = context.globalState.get<GlobalState["workspaceRoots"]>("workspaceRoots")
+		/**
+		 * Get primary root index from global state.
+		 * The primary root is the main workspace folder that Cline focuses on when dealing with
+		 * multi-root workspaces. In VS Code, you can have multiple folders open in one workspace,
+		 * and the primary root index indicates which folder (by its position in the array, 0-based)
+		 * should be treated as the main/default working directory for operations.
+		 */
+		const primaryRootIndex = context.globalState.get<GlobalState["primaryRootIndex"]>("primaryRootIndex")
+		const multiRootEnabled = context.globalState.get<GlobalState["multiRootEnabled"]>("multiRootEnabled")
 
 		return {
 			// api configuration fields
@@ -387,6 +401,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeHuggingFaceModelId,
@@ -420,6 +435,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeHuggingFaceModelId,
@@ -463,6 +479,12 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			// Multi-root workspace support
+			workspaceRoots,
+			primaryRootIndex: primaryRootIndex ?? 0,
+			// Feature flag - defaults to false
+			// For now, always return false to disable multi-root support by default
+			multiRootEnabled: multiRootEnabled ?? false,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
