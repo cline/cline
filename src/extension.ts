@@ -35,7 +35,7 @@ import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtil
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
-import { getClineCommands } from "./registry"
+import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
@@ -71,7 +71,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	const commands = getClineCommands(context.extension.packageJSON.name)
+	const { commands } = ExtensionRegistryInfo
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async (webview: any) => {
@@ -339,7 +339,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					// Add to Cline (Always available)
 					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
-						command: "cline.addToChat",
+						command: commands.AddToChat,
 						title: "Add to Cline",
 						arguments: [expandedRange, context.diagnostics],
 					}
@@ -348,7 +348,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					// Explain with Cline (Always available)
 					const explainAction = new vscode.CodeAction("Explain with Cline", vscode.CodeActionKind.RefactorExtract) // Using a refactor kind
 					explainAction.command = {
-						command: "cline.explainCode",
+						command: commands.ExplainCode,
 						title: "Explain with Cline",
 						arguments: [expandedRange],
 					}
@@ -357,7 +357,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					// Improve with Cline (Always available)
 					const improveAction = new vscode.CodeAction("Improve with Cline", vscode.CodeActionKind.RefactorRewrite) // Using a refactor kind
 					improveAction.command = {
-						command: "cline.improveCode",
+						command: commands.ImproveCode,
 						title: "Improve with Cline",
 						arguments: [expandedRange],
 					}
@@ -368,7 +368,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
 						fixAction.isPreferred = true
 						fixAction.command = {
-							command: "cline.fixWithCline",
+							command: commands.FixWithCline,
 							title: "Fix with Cline",
 							arguments: [expandedRange, context.diagnostics],
 						}
