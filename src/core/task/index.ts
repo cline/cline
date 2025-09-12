@@ -62,6 +62,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
+import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
 import pWaitFor from "p-wait-for"
@@ -2321,9 +2322,9 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
-			path.relative(this.cwd, absolutePath),
-		)
+		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
+		const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
+		const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
 		const allowedVisibleFiles = this.clineIgnoreController
@@ -2338,9 +2339,9 @@ export class Task {
 		}
 
 		details += "\n\n# VSCode Open Tabs"
-		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
-			path.relative(this.cwd, absolutePath),
-		)
+		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
+		const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
+		const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
 		const allowedOpenTabs = this.clineIgnoreController
