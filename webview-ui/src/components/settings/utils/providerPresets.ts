@@ -34,7 +34,20 @@ export function mapProviderToOption(provider: string, openAiBaseUrl?: string): s
 	if (provider !== "openai") {
 		return provider
 	}
+
 	const base = (openAiBaseUrl || "").trim()
+	try {
+		const input = new URL(base)
+		const host = input.hostname.toLowerCase()
+		// Any gateway under the Portkey domain should be treated as the Portkey preset
+		if (host === "portkey.ai" || host.endsWith(".portkey.ai")) {
+			return "portkey"
+		}
+	} catch {
+		// ignore parse errors and fall back to preset loop below
+	}
+
+	// Fallback: attempt exact preset matching (useful if other presets are added later)
 	for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
 		const presetUrl = preset.defaults?.openAiBaseUrl
 		if (!presetUrl) {
