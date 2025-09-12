@@ -86,7 +86,7 @@ export class Controller {
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
 			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
-				await this.stateManager.reInitialize()
+				await this.stateManager.reInitialize(this.task?.taskId)
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
@@ -255,6 +255,11 @@ export class Controller {
 			files,
 			historyItem,
 		)
+
+		// Load task settings after task creation
+		if (this.task.taskId) {
+			await this.stateManager.loadTaskSettings(this.task.taskId)
+		}
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -725,6 +730,8 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
+			// Clear task settings cache when task ends
+			this.stateManager.clearTaskSettings()
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected

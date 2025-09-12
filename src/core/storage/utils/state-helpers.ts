@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, BedrockModelId, fireworksDefaultModelId, ModelInfo } from "@shared/api"
 import { ExtensionContext, LanguageModelChatSelector } from "vscode"
 import { Controller } from "@/core/controller"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -392,7 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeRequestyModelId,
 			planModeRequestyModelInfo,
 			planModeTogetherModelId,
-			planModeFireworksModelId,
+			planModeFireworksModelId: planModeFireworksModelId || fireworksDefaultModelId,
 			planModeSapAiCoreModelId,
 			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
@@ -424,7 +424,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeRequestyModelId,
 			actModeRequestyModelInfo,
 			actModeTogetherModelId,
-			actModeFireworksModelId,
+			actModeFireworksModelId: actModeFireworksModelId || fireworksDefaultModelId,
 			actModeSapAiCoreModelId,
 			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
