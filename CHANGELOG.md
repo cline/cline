@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.28.2
+## [3.28.2]
 
-- ac291a6: Fix for focus chain settings
+- Fix for focus chain settings
 
 ## [3.28.1]
 
