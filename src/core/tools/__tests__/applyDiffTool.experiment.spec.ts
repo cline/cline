@@ -40,6 +40,7 @@ describe("applyDiffTool experiment routing", () => {
 			api: {
 				getModel: vi.fn().mockReturnValue({ id: "test-model" }),
 			},
+			processQueuedMessages: vi.fn(),
 		} as any
 
 		mockBlock = {

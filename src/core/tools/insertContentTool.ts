@@ -187,6 +187,9 @@ export async function insertContentTool(
 		pushToolResult(message)
 
 		await cline.diffViewProvider.reset()
+
+		// Process any queued messages after file edit completes
+		cline.processQueuedMessages()
 	} catch (error) {
 		handleError("insert content", error)
 		await cline.diffViewProvider.reset()

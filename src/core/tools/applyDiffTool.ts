@@ -207,6 +207,7 @@ export async function applyDiffToolLegacy(
 
 				if (!didApprove) {
 					await cline.diffViewProvider.revertChanges() // Cline likely handles closing the diff view
+					cline.processQueuedMessages()
 					return
 				}
 
@@ -245,11 +246,15 @@ export async function applyDiffToolLegacy(
 
 			await cline.diffViewProvider.reset()
 
+			// Process any queued messages after file edit completes
+			cline.processQueuedMessages()
+
 			return
 		}
 	} catch (error) {
 		await handleError("applying diff", error)
 		await cline.diffViewProvider.reset()
+		cline.processQueuedMessages()
 		return
 	}
 }
