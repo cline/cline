@@ -2317,10 +2317,11 @@ export class Task {
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
-		details += "\n\n# VSCode Visible Files"
+		details += `\n\n# ${host.platform} Visible Files`
 		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2337,7 +2338,7 @@ export class Task {
 			details += "\n(No visible files)"
 		}
 
-		details += "\n\n# VSCode Open Tabs"
+		details += `\n\n# ${host.platform} Open Tabs`
 		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2410,13 +2411,6 @@ export class Task {
 				}
 			}
 		}
-
-		// details += "\n\n# VSCode Workspace Errors"
-		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
-		// } else {
-		// 	details += "\n(No errors detected)"
-		// }
 
 		if (terminalDetails) {
 			details += terminalDetails
