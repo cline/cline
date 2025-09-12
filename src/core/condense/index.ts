@@ -223,11 +223,24 @@ export function getMessagesSinceLastSummary(messages: ApiMessage[]): ApiMessage[
 	const messagesSinceSummary = messages.slice(lastSummaryIndex)
 
 	// Bedrock requires the first message to be a user message.
+	// We preserve the original first message to maintain context.
 	// See https://github.com/RooCodeInc/Roo-Code/issues/4147
-	const userMessage: ApiMessage = {
-		role: "user",
-		content: "Please continue from the following summary:",
-		ts: messages[0]?.ts ? messages[0].ts - 1 : Date.now(),
+	if (messagesSinceSummary.length > 0 && messagesSinceSummary[0].role !== "user") {
+		// Get the original first message (should always be a user message with the task)
+		const originalFirstMessage = messages[0]
+		if (originalFirstMessage && originalFirstMessage.role === "user") {
+			// Use the original first message unchanged to maintain full context
+			return [originalFirstMessage, ...messagesSinceSummary]
+		} else {
+			// Fallback to generic message if no original first message exists (shouldn't happen)
+			const userMessage: ApiMessage = {
+				role: "user",
+				content: "Please continue from the following summary:",
+				ts: messages[0]?.ts ? messages[0].ts - 1 : Date.now(),
+			}
+			return [userMessage, ...messagesSinceSummary]
+		}
 	}
-	return [userMessage, ...messagesSinceSummary]
+
+	return messagesSinceSummary
 }

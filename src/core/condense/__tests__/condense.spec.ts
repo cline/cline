@@ -229,9 +229,9 @@ describe("Condense", () => {
 
 			const result = getMessagesSinceLastSummary(messages)
 
-			// Should include a user message prefix for Bedrock compatibility, the summary, and messages after
+			// Should include the original first user message for context preservation, the summary, and messages after
 			expect(result[0].role).toBe("user")
-			expect(result[0].content).toBe("Please continue from the following summary:")
+			expect(result[0].content).toBe("First message") // Preserves original first message
 			expect(result[1]).toEqual(messages[2]) // The summary
 			expect(result[2]).toEqual(messages[3])
 			expect(result[3]).toEqual(messages[4])
@@ -249,9 +249,9 @@ describe("Condense", () => {
 
 			const result = getMessagesSinceLastSummary(messages)
 
-			// Should only include from the last summary
+			// Should only include from the last summary with original first message preserved
 			expect(result[0].role).toBe("user")
-			expect(result[0].content).toBe("Please continue from the following summary:")
+			expect(result[0].content).toBe("First message") // Preserves original first message
 			expect(result[1]).toEqual(messages[3]) // Second summary
 			expect(result[2]).toEqual(messages[4])
 			expect(result[3]).toEqual(messages[5])
