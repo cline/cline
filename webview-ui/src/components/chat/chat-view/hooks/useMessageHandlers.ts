@@ -217,6 +217,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								console.error(err),
 							)
 							break
+						case "new_task":
+							await TaskServiceClient.newTask(
+								NewTaskRequest.create({
+									text: lastMessage?.text,
+									images: [],
+									files: [],
+								}),
+							)
+							break
 					}
 					break
 			}
