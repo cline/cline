@@ -174,7 +174,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -206,8 +205,6 @@ export class Controller {
 		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
 		let focusChainEnabled: boolean
 		if (focusChainSettings?.enabled === false) {
-			focusChainEnabled = false
-		} else if (focusChainFeatureFlagEnabled === false) {
 			focusChainEnabled = false
 		} else {
 			focusChainEnabled = Boolean(focusChainSettings?.enabled)
@@ -625,7 +622,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -685,7 +681,6 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
-			focusChainFeatureFlagEnabled,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,

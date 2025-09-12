@@ -13,5 +13,4 @@ export const usePlatform = () => {
 }
 
 // Optional convenience hooks for individual config values
-export const useMessageEncoding = () => usePlatform().messageEncoding
 export const useShowNavbar = () => usePlatform().showNavbar

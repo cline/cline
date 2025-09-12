@@ -1,5 +1,34 @@
 # Changelog
 
+## [3.28.2]
+
+- Fix for focus chain settings
+
+## [3.28.1]
+
+- Requesty: use base URL to get models and API keys
+- Removed focus chain feature flag
+
+## [3.28.0]
+
+- Synchronized Task History: Real-time task history synchronization across all Cline instances
+- Optimized GPT-5 Integration: Fine-tuned system prompts for improved performance with GPT-5 model family
+- Deep Planning Improvements: Optimized prompts for Windows/PowerShell environments and dependency exclusion
+- Streamlined UI Experience: ESC key navigation, cleaner approve/reject buttons, and improved editor panel focus
+- Smart Provider Search: Improved search functionality in API provider dropdown for faster model selection
+- Added per-provider thinking tokens configurability
+- Added Ollama custom prompt options
+- Enhanced SAP AI Core Provider: Orchestration mode support and improved model visibility
+- Added Dify.ai API Integration
+- SambaNova Updates: Added DeepSeek-V3.1 model
+- Better Gemini rate limit handling
+- OpenAI Reasoning Effort: Minimal reasoning effort configuration for OpenAI models
+- Fixed LiteLLM Caching: Anthropic caching compatibility when using LiteLLM
+- Fixed Ollama default endpoint connections
+- Fixed AutoApprove menu overflow
+- Fixed extended thinking token issue with Anthropic models
+- Fixed issue with slash commands removing text from prompt
+
 ## [3.27.2]
 
 - Remove `grok-code-fast-1` promotion deadline

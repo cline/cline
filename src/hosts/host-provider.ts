@@ -26,8 +26,8 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
-	// Returns a callback URI that will redirect to Cline.
-	getCallbackUri: () => Promise<string>
+	// Returns a callback URL that will redirect to Cline.
+	getCallbackUrl: () => Promise<string>
 
 	// Returns the location of the binary `name`.
 	// Use `getBinaryLocation()` from utils/ts.ts instead of using
@@ -41,14 +41,14 @@ export class HostProvider {
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
-		this.getCallbackUri = getCallbackUri
+		this.getCallbackUrl = getCallbackUrl
 		this.getBinaryLocation = getBinaryLocation
 	}
 
@@ -57,7 +57,7 @@ export class HostProvider {
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
 	): HostProvider {
 		if (HostProvider.instance) {
@@ -68,7 +68,7 @@ export class HostProvider {
 			diffViewProviderCreator,
 			hostBridgeProvider,
 			logToChannel,
-			getCallbackUri,
+			getCallbackUrl,
 			getBinaryLocation,
 		)
 		return HostProvider.instance
