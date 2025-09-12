@@ -324,6 +324,18 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 		const taskHistory = await readTaskHistoryFromState(context)
 
+		// Multi-root workspace support
+		const workspaceRoots = context.globalState.get<GlobalState["workspaceRoots"]>("workspaceRoots")
+		/**
+		 * Get primary root index from global state.
+		 * The primary root is the main workspace folder that Cline focuses on when dealing with
+		 * multi-root workspaces. In VS Code, you can have multiple folders open in one workspace,
+		 * and the primary root index indicates which folder (by its position in the array, 0-based)
+		 * should be treated as the main/default working directory for operations.
+		 */
+		const primaryRootIndex = context.globalState.get<GlobalState["primaryRootIndex"]>("primaryRootIndex")
+		const multiRootEnabled = context.globalState.get<GlobalState["multiRootEnabled"]>("multiRootEnabled")
+
 		return {
 			// api configuration fields
 			claudeCodePath,
@@ -458,6 +470,12 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			// Multi-root workspace support
+			workspaceRoots,
+			primaryRootIndex: primaryRootIndex ?? 0,
+			// Feature flag - defaults to false
+			// For now, always return false to disable multi-root support by default
+			multiRootEnabled: multiRootEnabled ?? false,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

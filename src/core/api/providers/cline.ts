@@ -32,6 +32,7 @@ export class ClineHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
+	private lastRequestId?: string
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -54,6 +55,31 @@ export class ClineHandler implements ApiHandler {
 						"X-Task-ID": this.options.ulid || "",
 						"X-Cline-Version": extensionVersion,
 					},
+					// Capture real HTTP request ID from initial streaming response headers
+					fetch: async (...args: Parameters<typeof fetch>): Promise<Awaited<ReturnType<typeof fetch>>> => {
+						const [input, init] = args
+						const resp = await fetch(input, init)
+						try {
+							let urlStr = ""
+							if (typeof input === "string") {
+								urlStr = input
+							} else if (input instanceof URL) {
+								urlStr = input.toString()
+							} else if (typeof (input as { url?: unknown }).url === "string") {
+								urlStr = (input as { url: string }).url
+							}
+							// Only record for chat completions (the primary streaming request)
+							if (urlStr.includes("/chat/completions")) {
+								const rid = resp.headers.get("x-request-id") || resp.headers.get("request-id")
+								if (rid) {
+									this.lastRequestId = rid
+								}
+							}
+						} catch {
+							// ignore header capture errors
+						}
+						return resp
+					},
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Cline client: ${error.message}`)
@@ -70,6 +96,7 @@ export class ClineHandler implements ApiHandler {
 			const client = await this.ensureClient()
 
 			this.lastGenerationId = undefined
+			this.lastRequestId = undefined
 
 			let didOutputUsage: boolean = false
 
@@ -92,6 +119,7 @@ export class ClineHandler implements ApiHandler {
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
 				}
+
 				if (!this.lastGenerationId && chunk.id) {
 					this.lastGenerationId = chunk.id
 				}
@@ -201,6 +229,11 @@ export class ClineHandler implements ApiHandler {
 			}
 		}
 		return undefined
+	}
+
+	// Expose the last HTTP request ID captured from response headers (X-Request-ID)
+	getLastRequestId(): string | undefined {
+		return this.lastRequestId
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

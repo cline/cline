@@ -115,6 +115,10 @@ export class ClineError extends Error {
 	 */
 	static transform(error: any, modelId?: string, providerId?: string): ClineError {
 		try {
+			// If already a ClineError, return it directly to prevent infinite recursion
+			if (error instanceof ClineError) {
+				return error
+			}
 			return new ClineError(JSON.parse(error), modelId, providerId)
 		} catch {
 			return new ClineError(error, modelId, providerId)
