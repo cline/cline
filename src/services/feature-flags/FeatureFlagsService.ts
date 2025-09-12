@@ -76,13 +76,6 @@ export class FeatureFlagsService {
 	}
 
 	/**
-	 * Convenience: focus chain checklist remote gate
-	 */
-	public getFocusChainEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.FOCUS_CHAIN_CHECKLIST, true)
-	}
-
-	/**
 	 * Convenience: multi-root workspace remote gate
 	 */
 	public getMultiRootEnabled(): boolean {
