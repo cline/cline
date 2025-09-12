@@ -1,5 +1,6 @@
 import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 import { StringRequest } from "@shared/proto/cline/common"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -32,29 +33,26 @@ const ToDoListHeader = memo<{
 	const { currentTodo, currentIndex, totalCount, completedCount, progressPercentage } = todoInfo
 	const isCompleted = completedCount === totalCount
 
-	// Pre-compute chevron class to avoid string concatenation in render
-	const chevronClass = isExpanded ? "shrink-0 codicon codicon-chevron-down" : "shrink-0 codicon codicon-chevron-right"
-
 	// Pre-compute display text
 	const displayText = isCompleted ? COMPLETED_MESSAGE : currentTodo?.text || TODO_LIST_LABEL
 
 	return (
 		<div className="relative w-full h-full">
 			<div
-				className="absolute top-0 left-0 h-full rounded-[3px] transition-[width] duration-300 ease-in-out pointer-events-none"
-				style={{ width: `${progressPercentage}%` }}
+				className="absolute bg-success top-0 left-0 h-full transition-[width] duration-300 ease-in-out pointer-events-none z-1 opacity-0"
+				style={{ width: `${100 - progressPercentage}%` }}
 			/>
 			<div className="flex items-center justify-between gap-2 z-10 p-1.5">
 				<div className="flex items-center gap-1.5 flex-1 min-w-0">
 					<span className="px-2 py-0.25 text-xs rounded-full inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground">
 						{currentIndex}/{totalCount}
 					</span>
-					<span className="text-foreground text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
+					<span className="text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
 						{displayText}
 					</span>
 				</div>
 				<div className="flex items-center justify-between">
-					<div className={chevronClass} />
+					{isExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
 				</div>
 			</div>
 		</div>
@@ -173,7 +171,7 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		return (
 			<div
-				className="flex flex-col gap-1.5 cursor-pointer rounded select-none bg-button-background"
+				className="flex flex-col gap-1.5 cursor-pointer rounded-xs select-none bg-badge-background"
 				onClick={handleToggle}
 				title={CLICK_TO_EDIT_TITLE}>
 				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />

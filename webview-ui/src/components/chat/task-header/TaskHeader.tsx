@@ -1,22 +1,21 @@
-import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { formatSize } from "@/utils/format"
-import { validateSlashCommand } from "@/utils/slash-commands"
+import { UiServiceClient } from "@/services/grpc-client"
+import { cn } from "@/utils/cn"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 import RetryTaskButton from "./buttons/RetryTaskButton"
 import { CheckpointError } from "./CheckpointError"
-import ContextWindowProgress from "./ContextWindowProgress"
+import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
+import { highlightText } from "./Highlights"
 import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
@@ -35,6 +34,8 @@ interface TaskHeaderProps {
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
+const BUTTON_CLASS = "max-h-3 border-0 font-bold bg-transparent hover:opacity-100 text-badge-foreground"
+
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
@@ -44,7 +45,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
-	onClose,
 	onScrollToMessage,
 	onSendMessage,
 }) => {
@@ -65,7 +65,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
-	const prevErrorMessageRef = useRef(checkpointManagerErrorMessage)
 
 	const { height: windowHeight } = useWindowSize()
 
@@ -74,7 +73,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const modeFields = getModeSpecificFields(apiConfiguration, mode)
 
 	const isCostAvailable =
-		(modeFields.apiProvider === "openai" &&
+		(totalCost &&
+			modeFields.apiProvider === "openai" &&
 			modeFields.openAiModelInfo?.inputPrice &&
 			modeFields.openAiModelInfo?.outputPrice) ||
 		(modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio")
@@ -106,14 +106,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}, 300)
 	}, [navigateToSettings])
 
-	// Handle checkpoint error message changes
-	useEffect(() => {
-		if (checkpointManagerErrorMessage !== prevErrorMessageRef.current) {
-			setIsTaskExpanded(true)
-			prevErrorMessageRef.current = checkpointManagerErrorMessage
-		}
-	}, [checkpointManagerErrorMessage])
-
 	// Handle text overflow detection
 	useEffect(() => {
 		if (!isTaskExpanded) {
@@ -140,48 +132,44 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 
 	return (
-		<div className="p-2 flex flex-col gap-2">
+		<div className="p-2 flex flex-col gap-1.5 text-badge-foreground">
+			{/* Display Checkpoint Error */}
+			<CheckpointError
+				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
+				handleCheckpointSettingsClick={handleCheckpointSettingsClick}
+				key={checkpointManagerErrorMessage}
+			/>
 			{/* Task Header */}
-			<div className="bg-button-background text-button-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-2">
+			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-2">
 				{/* Task Title */}
-				<div className="flex justify-between items-center" onClick={toggleTaskExpanded}>
-					<div className="flex items-center cursor-pointer select-none flex-grow min-w-0 gap-1">
-						<VSCodeButton appearance="icon" className="flex items-center shrink-0 bg-transparent">
-							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`} />
-						</VSCodeButton>
-
+				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
+					<div className="flex justify-between items-center">
+						{isTaskExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
-							<div className="flex items-center flex-wrap cursor-pointer">
-								{IS_DEV && <OpenDiskTaskHistoryButton taskId={currentTaskItem?.id} />}
-								<RetryTaskButton text={task.text} />
-								<CopyTaskButton taskText={task.text} />
-								<DeleteTaskButton taskId={currentTaskItem?.id} taskSize={formatSize(currentTaskItem?.size)} />
-							</div>
-						)}
-
-						{!isTaskExpanded && (
-							<div
-								className=" whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
-								onClick={toggleTextExpanded}>
-								<span className="ph-no-capture">{highlightedText}</span>
+							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
+								<RetryTaskButton className={BUTTON_CLASS} text={task.text} />
+								<DeleteTaskButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
+								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
+								{IS_DEV && <OpenDiskTaskHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />}
 							</div>
 						)}
 					</div>
-
-					{isCostAvailable ? (
-						<div className="text-xs px-1 py-0.25 rounded-full inline-block shrink-0 text-badge-background bg-badge-foreground/70">
-							<span className="text-xs">${totalCost?.toFixed(4)}</span>
-						</div>
-					) : (
-						<VSCodeButton
-							appearance="icon"
-							aria-label="Close task"
-							className="shrink-0 hover:bg-transparent hover:opacity-70"
-							onClick={onClose}
-							title="Close task">
-							<span className="codicon codicon-close" />
-						</VSCodeButton>
-					)}
+					<div className="flex items-center select-none flex-grow min-w-0 gap-1 justify-between">
+						{!isTaskExpanded && (
+							<div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
+								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
+							</div>
+						)}
+					</div>
+					<div>
+						{isCostAvailable && (
+							<div
+								className="mr-1 px-1 py-0.25 rounded-full inline-block shrink-0 text-badge-background bg-badge-foreground/80"
+								id="price-tag">
+								<span className="text-xs">${totalCost?.toFixed(4)}</span>
+							</div>
+						)}
+					</div>
 				</div>
 
 				{/* Expand/Collapse Task Details */}
@@ -189,10 +177,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex flex-col gap-1.5 break-words">
 						<div
 							className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
-							ref={textContainerRef}
+							ref={isTaskExpanded ? textContainerRef : null}
 							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
 							<div
-								className="ph-no-capture overflow-hidden whitespace-pre-wrap break-words p-0.5"
+								className={cn(
+									"max-h-20 ph-no-capture overflow-hidden whitespace-pre-wrap break-words p-0.5 text-sm",
+									isTextExpanded ? "overflow-y-scroll" : "overflow-hidden",
+								)}
 								onClick={toggleTextExpanded}
 								ref={textRef}
 								style={{
@@ -209,7 +200,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 
 						<div className="flex flex-col">
-							<ContextWindowProgress
+							<ContextWindow
 								autoCondenseThreshold={autoCondenseThreshold}
 								cacheReads={cacheReads}
 								cacheWrites={cacheWrites}
@@ -229,86 +220,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 			{/* Display Focus Chain To-Do List */}
 			<FocusChain currentTaskItemId={currentTaskItem?.id} lastProgressMessageText={lastProgressMessageText} />
-
-			{/* Display Checkpoint Error */}
-			<CheckpointError
-				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
-				handleCheckpointSettingsClick={handleCheckpointSettingsClick}
-			/>
 		</div>
 	)
-}
-
-// Optimized highlighting functions
-const highlightSlashCommands = (text: string, withShadow = true) => {
-	const match = text.match(/^\s*\/([a-zA-Z0-9_-]+)(\s*|$)/)
-	if (!match || validateSlashCommand(match[1]) !== "full") {
-		return text
-	}
-
-	const commandName = match[1]
-	const commandEndIndex = match[0].length
-	const beforeCommand = text.substring(0, text.indexOf("/"))
-	const afterCommand = match[2] + text.substring(commandEndIndex)
-
-	return [
-		beforeCommand,
-		<span className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} key="slashCommand">
-			/{commandName}
-		</span>,
-		afterCommand,
-	]
-}
-
-export const highlightMentions = (text: string, withShadow = true) => {
-	if (!mentionRegexGlobal.test(text)) {
-		return text
-	}
-
-	const parts = text.split(mentionRegexGlobal)
-	const result: (string | JSX.Element)[] = []
-
-	for (let i = 0; i < parts.length; i++) {
-		if (i % 2 === 0) {
-			if (parts[i]) {
-				result.push(parts[i])
-			}
-		} else {
-			result.push(
-				<span
-					className={`${withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} cursor-pointer`}
-					key={`mention-${Math.floor(i / 2)}`}
-					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: parts[i] }))}>
-					@{parts[i]}
-				</span>,
-			)
-		}
-	}
-
-	return result.length === 1 ? result[0] : result
-}
-
-export const highlightText = (text?: string, withShadow = true) => {
-	if (!text) {
-		return text
-	}
-
-	const slashResult = highlightSlashCommands(text, withShadow)
-
-	if (slashResult === text) {
-		return highlightMentions(text, withShadow)
-	}
-
-	if (Array.isArray(slashResult) && slashResult.length === 3) {
-		const [beforeCommand, commandElement, afterCommand] = slashResult as [string, JSX.Element, string]
-		const mentionResult = highlightMentions(afterCommand, withShadow)
-
-		return Array.isArray(mentionResult)
-			? [beforeCommand, commandElement, ...mentionResult]
-			: [beforeCommand, commandElement, mentionResult]
-	}
-
-	return slashResult
 }
 
 export default TaskHeader

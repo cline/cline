@@ -1,5 +1,7 @@
 import { parseFocusChainItem } from "@shared/focus-chain-utils"
+import { CheckIcon, CircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { cn } from "@/utils/cn"
 
 interface ChecklistRendererProps {
 	text: string
@@ -102,31 +104,17 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 				overflowY: items.length >= 10 ? "auto" : "visible",
 			}}>
 			{items.map((item, index) => (
-				<div
-					key={index}
-					style={{
-						display: "flex",
-						alignItems: "flex-start",
-						gap: "6px",
-						padding: "1px 0",
-					}}>
-					<span
-						style={{
-							fontSize: "11px",
-							color: item.checked ? "var(--vscode-charts-green)" : "var(--vscode-descriptionForeground)",
-							flexShrink: 0,
-							marginTop: "1px",
-						}}>
-						{item.checked ? "✓" : "○"}
+				<div className="flex *:items-start gap-1.5 p-0.5" key={`checklist-item-${index}`}>
+					<span className={cn("text-xs shrink-0", item.checked ? "text-success" : "text-badge-foreground")}>
+						{item.checked ? <CheckIcon size={10} /> : <CircleIcon size={10} />}
 					</span>
 					<span
-						className="text-foreground"
+						className={cn(
+							"text-xs shrink-0 wrap-anywhere",
+							item.checked ? "text-description" : "text-badge-foreground",
+						)}
 						style={{
 							textDecoration: item.checked ? "line-through" : "none",
-							opacity: item.checked ? 0.7 : 1,
-							fontSize: "12px",
-							wordBreak: "break-word",
-							overflowWrap: "anywhere",
 							lineHeight: "1.3",
 						}}>
 						{item.text}

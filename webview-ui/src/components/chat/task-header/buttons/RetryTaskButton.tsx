@@ -1,20 +1,22 @@
+import { Button } from "@heroui/react"
 import { NewTaskRequest } from "@shared/proto/cline/task"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { GitBranchIcon } from "lucide-react"
+import { GitCompareIcon } from "lucide-react"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { cn } from "@/utils/cn"
 
 const RetryTaskButton: React.FC<{
 	text?: string
 	images?: string[]
 	files?: string[]
-}> = ({ text, images = [], files = [] }) => {
+	className?: string
+}> = ({ text, images = [], files = [], className }) => {
 	return (
-		<VSCodeButton
-			appearance="icon"
+		<Button
 			aria-label="Branch Task"
-			className="flex items-center text-sm font-bold opacity-80 hover:bg-transparent hover:opacity-100"
+			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
 			disabled={!text?.trim()}
-			onClick={() =>
+			isIconOnly={true}
+			onPress={() =>
 				text &&
 				TaskServiceClient.newTask(
 					NewTaskRequest.create({
@@ -24,9 +26,11 @@ const RetryTaskButton: React.FC<{
 					}),
 				)
 			}
-			title="Create a new branch of the same task">
-			<GitBranchIcon />
-		</VSCodeButton>
+			radius="sm"
+			size="sm"
+			title="Retry as New Task">
+			<GitCompareIcon size="14" />
+		</Button>
 	)
 }
 
