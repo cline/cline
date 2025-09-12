@@ -8,8 +8,13 @@ try {
 
 		execSync("which xvfb-run", { stdio: "ignore" })
 
-		console.log("xvfb-run is installed. Running tests with xvfb-run...")
-		execSync("xvfb-run -a npm run test:coverage", { stdio: "inherit" })
+		console.log("Installing nyc TypeScript configuration...")
+		execSync("npm install --no-save @istanbuljs/nyc-config-typescript", { stdio: "inherit" })
+
+		console.log("xvfb-run is installed. Running tests with coverage...")
+		execSync("xvfb-run -a npx nyc --nycrc-path .nycrc.integration.json --reporter=lcov npm run test:coverage", {
+			stdio: "inherit",
+		})
 	} else {
 		console.log("Non-Linux environment detected. Running tests normally.")
 		execSync("npm run test:integration", { stdio: "inherit" })

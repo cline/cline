@@ -15,4 +15,12 @@ export default defineConfig({
 	version: "stable",
 	extensionDevelopmentPath: path.resolve("./"),
 	launchArgs: ["--disable-extensions"],
+	env: {
+		TS_NODE_PROJECT: "./tsconfig.test.json",
+	},
+	coverage: {
+		reporter: ["lcov", "text"],
+		include: ["src/**/*.ts"],
+		exclude: ["**/*.d.ts", "**/*.test.ts", "**/*.spec.ts", "**/test/**", "**/tests/**", "src/test/**", "src/generated/**"],
+	},
 })
