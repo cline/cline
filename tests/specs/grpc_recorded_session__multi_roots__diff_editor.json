@@ -1,46 +1,8 @@
 {
-  "startTime": "2025-09-11T12:23:35.962Z",
+  "startTime": "2025-09-12T17:31:20.031Z",
   "entries": [
     {
-      "requestId": "1bc66ae2-b69f-402b-8331-92623528f4c3",
-      "service": "cline.StateService",
-      "method": "getAvailableTerminalProfiles",
-      "isStreaming": false,
-      "request": {
-        "message": {}
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {
-          "profiles": [
-            {
-              "id": "default",
-              "name": "Default",
-              "path": "",
-              "description": "Use VSCode's default terminal configuration"
-            },
-            {
-              "id": "zsh",
-              "name": "zsh",
-              "path": "/bin/zsh",
-              "description": "Z shell (default on macOS)"
-            },
-            {
-              "id": "bash",
-              "name": "bash",
-              "path": "/bin/bash",
-              "description": "Bourne Again Shell"
-            }
-          ]
-        }
-      },
-      "duration": 0
-    },
-    {
-      "requestId": "8d1badc3-94b5-4d7f-bacd-ecffcd96d18f",
+      "requestId": "daecab5c-38f1-4569-8099-30063f95802e",
       "service": "cline.AccountService",
       "method": "accountLoginClicked",
       "isStreaming": false,
@@ -56,10 +18,10 @@
           "value": "http://localhost:7777/"
         }
       },
-      "duration": 1113
+      "duration": 26
     },
     {
-      "requestId": "ffdcd2f7-633f-4b25-a6be-90bc8914641e",
+      "requestId": "26afbaa5-05e1-431f-8d45-5281ae7d0ee7",
       "service": "cline.AccountService",
       "method": "getUserOrganizations",
       "isStreaming": false,
@@ -88,7 +50,7 @@
       "duration": 2
     },
     {
-      "requestId": "37614ebc-1f3a-46d0-8498-c4b3240af525",
+      "requestId": "118bb19e-50b4-431a-a10e-df5b1570f988",
       "service": "cline.TaskService",
       "method": "newTask",
       "isStreaming": false,
@@ -106,10 +68,10 @@
       "response": {
         "message": {}
       },
-      "duration": 55
+      "duration": 53
     },
     {
-      "requestId": "b7a7786b-61c0-45b0-9958-85e8e31bd0bf",
+      "requestId": "275c8b4f-ed27-4c13-8ddf-c1ce67307d32",
       "service": "cline.TaskService",
       "method": "clearTask",
       "isStreaming": false,
@@ -123,10 +85,10 @@
       "response": {
         "message": {}
       },
-      "duration": 3
+      "duration": 4
     },
     {
-      "requestId": "8af5d4a0-3291-461f-a70d-cab1e291774e",
+      "requestId": "879968bf-bfcb-44d6-be27-16abc7b8d73c",
       "service": "cline.TaskService",
       "method": "newTask",
       "isStreaming": false,
@@ -144,10 +106,10 @@
       "response": {
         "message": {}
       },
-      "duration": 48
+      "duration": 47
     },
     {
-      "requestId": "8af5d4a0-3291-461f-a70d-cab1e291774e",
+      "requestId": "879968bf-bfcb-44d6-be27-16abc7b8d73c",
       "service": "cline.StateService",
       "method": "getLatestState",
       "isStreaming": false,
@@ -160,16 +122,16 @@
       },
       "response": {
         "message": {
-          "stateJson": "{\"version\":\"3.27.2\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"currentTaskItem\":{\"id\":\"1757593419985\",\"ulid\":\"01K4WBPG6HHVCWFVW5JCH3XXR1\",\"ts\":1757593419993,\"task\":\"edit_request\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":608,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},\"clineMessages\":[{\"ts\":1757593419987,\"type\":\"say\",\"say\":\"text\",\"text\":\"edit_request\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1},{\"ts\":1757593419993,\"type\":\"say\",\"say\":\"api_req_started\",\"text\":\"{\\\"request\\\":\\\"<task>\\\\nedit_request\\\\n</task>\\\\n\\\\nLoading...\\\"}\",\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":true,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1757593419985\",\"ulid\":\"01K4WBPG6HHVCWFVW5JCH3XXR1\",\"ts\":1757593419993,\"task\":\"edit_request\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":608,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},{\"id\":\"1757593418524\",\"ulid\":\"01K4WBPERWH0D4V8GT9MYVXHYE\",\"ts\":1757593419406,\"task\":\"Hello, Cline!\",\"tokensIn\":420,\"tokensOut\":273,\"cacheWrites\":0,\"cacheReads\":0,\"totalCost\":0.10395,\"size\":14614,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[{\"path\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"name\":\"workspace\",\"vcs\":\"git\",\"commitHash\":\"411f073f2db7d204da6970e496e555405b1117b4\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+          "stateJson": "{\"version\":\"3.28.0\",\"apiConfiguration\":{\"openAiHeaders\":{},\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"uriScheme\":\"vscode\",\"currentTaskItem\":{\"id\":\"1757698282102\",\"ulid\":\"01K4ZFPMKPY3V7WC2Q6V92KR6K\",\"ts\":1757698282105,\"task\":\"edit_request\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":608,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},\"clineMessages\":[{\"ts\":1757698282103,\"type\":\"say\",\"say\":\"text\",\"text\":\"edit_request\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1},{\"ts\":1757698282105,\"type\":\"say\",\"say\":\"api_req_started\",\"text\":\"{\\\"request\\\":\\\"<task>\\\\nedit_request\\\\n</task>\\\\n\\\\nLoading...\\\"}\",\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"focusChainFeatureFlagEnabled\":false,\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1757698282102\",\"ulid\":\"01K4ZFPMKPY3V7WC2Q6V92KR6K\",\"ts\":1757698282105,\"task\":\"edit_request\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":608,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false},{\"id\":\"1757698280645\",\"ulid\":\"01K4ZFPK65H5Q4YZT73Q6YK7SQ\",\"ts\":1757698281524,\"task\":\"Hello, Cline!\",\"tokensIn\":420,\"tokensOut\":273,\"cacheWrites\":0,\"cacheReads\":0,\"totalCost\":0.10395,\"size\":9379,\"cwdOnTaskInitialization\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":false,\"extensionInfo\":{\"name\":\"claude-dev\",\"publisher\":\"saoudrizwan\"},\"workspaceRoots\":[{\"path\":\"/Users/clinebot/Desktop/cline/cline/src/test/e2e/fixtures/workspace\",\"name\":\"workspace\",\"vcs\":\"git\",\"commitHash\":\"0ac634924409b1ac2b125e1d03be4abc91455161\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
         }
       },
       "duration": 0
     }
   ],
   "stats": {
-    "totalRequests": 7,
+    "totalRequests": 6,
     "pendingRequests": 0,
-    "completedRequests": 7,
+    "completedRequests": 6,
     "errorRequests": 0
   }
 }

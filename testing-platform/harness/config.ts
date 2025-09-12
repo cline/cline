@@ -17,6 +17,7 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"stateJson.taskHistory.tokensIn",
 	"stateJson.taskHistory.tokensOut",
 	"stateJson.taskHistory.totalCost",
+	"stateJson.version",
 	"stateJson.currentTaskItem.cwdOnTaskInitialization",
 	"stateJson.currentTaskItem.id",
 	"stateJson.currentTaskItem.ts",
