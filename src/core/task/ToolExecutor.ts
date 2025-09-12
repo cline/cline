@@ -10,9 +10,11 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Mode } from "@shared/storage/types"
+import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { ToolUse, ToolUseName } from "../assistant-message"
+import { modelDoesntSupportWebp } from "@/utils/model-utils"
+import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
@@ -50,12 +52,12 @@ export class ToolExecutor {
 	private coordinator: ToolExecutorCoordinator
 
 	// Auto-approval methods using the AutoApprove class
-	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+	private shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}
 
 	private async shouldAutoApproveToolWithPath(
-		blockname: ToolUseName,
+		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
@@ -105,7 +107,7 @@ export class ToolExecutor {
 			files?: string[]
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
-		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
+		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
 		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
@@ -119,6 +121,7 @@ export class ToolExecutor {
 	}
 
 	// Create a properly typed TaskConfig object for handlers
+	// NOTE: modifying this object in the tool handlers is okay since these are all references to the singular ToolExecutor instance's variables. However, be careful modifying this object assuming it will update the ToolExecutor instance, e.g. config.browserSession = ... will not update the ToolExecutor.browserSession instance variable. Use applyLatestBrowserSettings() instead.
 	private asToolConfig(): TaskConfig {
 		const config: TaskConfig = {
 			taskId: this.taskId,
@@ -157,7 +160,9 @@ export class ToolExecutor {
 				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
 				removeLastPartialMessageIfExistsWithType: this.removeLastPartialMessageIfExistsWithType,
+				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
+				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 			},
 			coordinator: this.coordinator,
 		}
@@ -182,9 +187,9 @@ export class ToolExecutor {
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file"
-		this.coordinator.register(new SharedToolHandler("replace_in_file", writeHandler))
-		this.coordinator.register(new SharedToolHandler("new_rule", writeHandler))
+		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
@@ -223,9 +228,26 @@ export class ToolExecutor {
 	}
 
 	/**
+	 * Updates the browser settings
+	 */
+	public async applyLatestBrowserSettings() {
+		if (this.context) {
+			await this.browserSession.dispose()
+			const apiHandlerModel = this.api.getModel()
+			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
+		} else {
+			console.warn("no controller context available for browserSession")
+		}
+
+		return this.browserSession
+	}
+
+	/**
 	 * Handles errors during tool execution
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
+		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 
@@ -252,7 +274,11 @@ export class ToolExecutor {
 	/**
 	 * Tools that are restricted in plan mode and can only be used in act mode
 	 */
-	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ToolUseName[] = ["write_to_file", "replace_in_file", "new_rule"]
+	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ClineDefaultTool[] = [
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.NEW_RULE,
+	]
 
 	/**
 	 * Execute a tool through the coordinator if it's registered
@@ -305,6 +331,7 @@ export class ToolExecutor {
 
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
+			await this.saveCheckpoint()
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
@@ -316,7 +343,7 @@ export class ToolExecutor {
 	/**
 	 * Check if a tool is restricted in plan mode
 	 */
-	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
 		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 
@@ -351,15 +378,13 @@ export class ToolExecutor {
 	 * Handle complete block execution
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		// All tools are now fully self-managed and implement IPartialBlockHandler
 		const result = await this.coordinator.execute(config, block)
+
 		this.pushToolResult(result, block)
 
 		// Handle focus chain updates
 		if (!block.partial && this.focusChainSettings.enabled) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
-
-		await this.saveCheckpoint()
 	}
 }

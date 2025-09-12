@@ -1,12 +1,11 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
+import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
+import { getTaskHistoryStateFilePath, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
-/**
- * Interface for persistence error event data
- */
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -28,9 +27,13 @@ export class StateManager {
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
+	private taskHistoryWatcher: FSWatcher | null = null
 
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
+
+	// Callback to sync external state changes with the UI client
+	onSyncExternalChange?: () => void | Promise<void>
 
 	constructor(context: ExtensionContext) {
 		this.context = context
@@ -46,13 +49,16 @@ export class StateManager {
 			const secrets = await readSecretsFromDisk(this.context)
 			const workspaceState = await readWorkspaceStateFromDisk(this.context)
 
-			// Populate the caches with all extension state fields
+			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
 			this.populateCache(globalState, secrets, workspaceState)
 
 			this.isInitialized = true
+
+			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
+			await this.setupTaskHistoryWatcher()
 		} catch (error) {
-			console.error("Failed to initialize StateManager:", error)
+			console.error("[StateManager] Failed to initialize:", error)
 			throw error
 		}
 	}
@@ -160,6 +166,56 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	/**
+	 * Initialize chokidar watcher for the taskHistory.json file
+	 * Updates in-memory cache on external changes without writing back to disk.
+	 */
+	private async setupTaskHistoryWatcher(): Promise<void> {
+		try {
+			const historyFile = await getTaskHistoryStateFilePath(this.context)
+
+			// Close any existing watcher before creating a new one
+			if (this.taskHistoryWatcher) {
+				await this.taskHistoryWatcher.close()
+				this.taskHistoryWatcher = null
+			}
+
+			this.taskHistoryWatcher = chokidar.watch(historyFile, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+			})
+
+			const syncTaskHistoryFromDisk = async () => {
+				try {
+					if (!this.isInitialized) {
+						return
+					}
+					const onDisk = await readTaskHistoryFromState(this.context)
+					const cached = this.globalStateCache["taskHistory"]
+					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
+						this.globalStateCache["taskHistory"] = onDisk
+						await this.onSyncExternalChange?.()
+					}
+				} catch (err) {
+					console.error("[StateManager] Failed to reload task history on change:", err)
+				}
+			}
+
+			this.taskHistoryWatcher
+				.on("add", () => syncTaskHistoryFromDisk())
+				.on("change", () => syncTaskHistoryFromDisk())
+				.on("unlink", async () => {
+					this.globalStateCache["taskHistory"] = []
+					await this.onSyncExternalChange?.()
+				})
+				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
+		} catch (err) {
+			console.error("[StateManager] Failed to set up taskHistory watcher:", err)
+		}
 	}
 
 	/**
@@ -276,6 +332,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -307,6 +364,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -342,6 +400,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -374,6 +433,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -514,6 +574,11 @@ export class StateManager {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
 		}
+		// Close file watcher if active
+		if (this.taskHistoryWatcher) {
+			this.taskHistoryWatcher.close()
+			this.taskHistoryWatcher = null
+		}
 
 		this.pendingGlobalState.clear()
 		this.pendingSecrets.clear()
@@ -550,11 +615,11 @@ export class StateManager {
 				this.pendingWorkspaceState.clear()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("Failed to persist pending changes:", error)
+				console.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery
-				this.onPersistenceError?.({ error: error as Error })
+				this.onPersistenceError?.({ error: error })
 			}
 		}, this.PERSISTENCE_DELAY_MS)
 	}
@@ -566,12 +631,15 @@ export class StateManager {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
-					const value = this.globalStateCache[key]
-					return this.context.globalState.update(key, value)
+					if (key === "taskHistory") {
+						// Route task history persistence to file, not VS Code globalState
+						return writeTaskHistoryToState(this.context, this.globalStateCache[key])
+					}
+					return this.context.globalState.update(key, this.globalStateCache[key])
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist global state batch:", error)
+			console.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
@@ -725,6 +793,7 @@ export class StateManager {
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
 			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
+			planModeSapAiCoreDeploymentId: this.globalStateCache["planModeSapAiCoreDeploymentId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
 			planModeBasetenModelId: this.globalStateCache["planModeBasetenModelId"],
@@ -757,6 +826,7 @@ export class StateManager {
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
 			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
+			actModeSapAiCoreDeploymentId: this.globalStateCache["actModeSapAiCoreDeploymentId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
 			actModeBasetenModelId: this.globalStateCache["actModeBasetenModelId"],

@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -178,5 +179,50 @@ export async function saveTaskMetadata(context: vscode.ExtensionContext, taskId:
 		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
 	} catch (error) {
 		console.error("Failed to save task metadata:", error)
+	}
+}
+
+export async function ensureStateDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
+	const stateDir = path.join(context.globalStorageUri.fsPath, "state")
+	await fs.mkdir(stateDir, { recursive: true })
+	return stateDir
+}
+
+export async function getTaskHistoryStateFilePath(context: vscode.ExtensionContext): Promise<string> {
+	return path.join(await ensureStateDirectoryExists(context), "taskHistory.json")
+}
+
+export async function taskHistoryStateFileExists(context: vscode.ExtensionContext): Promise<boolean> {
+	const filePath = await getTaskHistoryStateFilePath(context)
+	return fileExistsAtPath(filePath)
+}
+
+export async function readTaskHistoryFromState(context: vscode.ExtensionContext): Promise<HistoryItem[]> {
+	try {
+		const filePath = await getTaskHistoryStateFilePath(context)
+		if (await fileExistsAtPath(filePath)) {
+			const contents = await fs.readFile(filePath, "utf8")
+			try {
+				return JSON.parse(contents)
+			} catch (error) {
+				console.error("[Disk] Failed to parse task history:", error)
+				return []
+			}
+		}
+		return []
+	} catch (error) {
+		console.error("[Disk] Failed to read task history:", error)
+		throw error
+	}
+}
+
+export async function writeTaskHistoryToState(context: vscode.ExtensionContext, items: HistoryItem[]): Promise<void> {
+	try {
+		const filePath = await getTaskHistoryStateFilePath(context)
+		// Always create the file; if items is empty, write [] to ensure presence on first startup
+		await fs.writeFile(filePath, JSON.stringify(items))
+	} catch (error) {
+		console.error("[Disk] Failed to write task history:", error)
+		throw error
 	}
 }

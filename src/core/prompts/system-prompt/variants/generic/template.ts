@@ -1,45 +1,49 @@
-import { SystemPromptSection } from "../.."
+import { SystemPromptSection } from "../../templates/placeholders"
 
 export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
-{{TOOL_USE_SECTION}}
+{{${SystemPromptSection.TOOL_USE}}}
 
 ====
 
-{{TASK_PROGRESS_SECTION}}
+{{${SystemPromptSection.TODO}}}
 
 ====
 
-{{MCP_SECTION}}
+{{${SystemPromptSection.MCP}}}
 
 ====
 
-{{EDITING_FILES_SECTION}}
+{{${SystemPromptSection.EDITING_FILES}}}
 
 ====
 
-{{ACT_VS_PLAN_SECTION}}
+{{${SystemPromptSection.ACT_VS_PLAN}}}
 
 ====
 
-{{TODO_SECTION}}
+{{${SystemPromptSection.TASK_PROGRESS}}}
 
 ====
 
-{{CAPABILITIES_SECTION}}
+{{${SystemPromptSection.CAPABILITIES}}}
 
 ====
 
-{{RULES_SECTION}}
+{{${SystemPromptSection.FEEDBACK}}}
 
 ====
 
-{{SYSTEM_INFO_SECTION}}
+{{${SystemPromptSection.RULES}}}
 
 ====
 
-{{OBJECTIVE_SECTION}}
+{{${SystemPromptSection.SYSTEM_INFO}}}
 
 ====
 
-{{USER_INSTRUCTIONS_SECTION}}`
+{{${SystemPromptSection.OBJECTIVE}}}
+
+====
+
+{{${SystemPromptSection.USER_INSTRUCTIONS}}}`
