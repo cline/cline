@@ -156,7 +156,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		enableButtons: true,
 		primaryText: "Start New Task with Context",
 		secondaryText: undefined,
-		primaryAction: "utility",
+		primaryAction: "new_task",
 		secondaryAction: undefined,
 	},
 
