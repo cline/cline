@@ -1075,7 +1075,7 @@ export class Task {
 		}
 	}
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, timeoutSeconds?: number): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
@@ -1214,7 +1214,49 @@ export class Task {
 			await this.say("shell_integration_warning")
 		})
 
-		await process
+		//await process
+
+		if (timeoutSeconds) {
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					reject(new Error("COMMAND_TIMEOUT"))
+				}, timeoutSeconds * 1000)
+			})
+
+			try {
+				await Promise.race([process, timeoutPromise])
+			} catch (error) {
+				// This will continue running the command in the background
+				didContinue = true
+				process.continue()
+
+				// Clear all our timers
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
+				if (completionTimer) {
+					clearTimeout(completionTimer)
+					completionTimer = null
+				}
+
+				// Process any output we captured before timeout
+				await setTimeoutPromise(50)
+				const result = this.terminalManager.processOutput(outputLines)
+
+				if (error.message === "COMMAND_TIMEOUT") {
+					return [
+						false,
+						`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+					]
+				}
+
+				// Re-throw other errors
+				throw error
+			}
+		} else {
+			await process
+		}
 
 		// Clear timer if process completes normally
 		if (completionTimer) {
