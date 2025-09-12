@@ -102,6 +102,19 @@ jobs:
                   # Default the encoding to UTF-8 - It's not the default on Windows
                   PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
+            - name: Verify lcov.info file
+              if: runner.os == 'Linux'
+              run: |
+                if [ -f "coverage/lcov.info" ]; then
+                  echo "✅ lcov.info file generated successfully"
+                  echo "File size: $(du -h coverage/lcov.info | cut -f1)"
+                  echo "Line count: $(wc -l < coverage/lcov.info)"
+                else
+                  echo "❌ lcov.info file not found"
+                  ls -la coverage/ || echo "Coverage directory not found"
+                  exit 1
+                fi
+
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
               id: webview_coverage
