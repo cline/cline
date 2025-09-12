@@ -586,7 +586,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
 
-										{!!item.cacheWrites && (
+										{!!(item.cacheWrites || item.cacheReads) && (
 											<div
 												style={{
 													display: "flex",
