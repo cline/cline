@@ -31,5 +31,5 @@
 	"cache": true,
 	"sourceMap": true,
 	"instrument": true,
-	"report-dir": "./coverage"
+	"report-dir": "./coverage-unit"
 }

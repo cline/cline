@@ -93,7 +93,7 @@ jobs:
             - name: Unit Tests
               run: |
                 npm install --no-save nyc
-                npx nyc --reporter=lcov npm run test:unit
+                npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
             # Run extension tests with coverage
             - name: Extension Integration Tests with Coverage
