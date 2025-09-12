@@ -528,13 +528,13 @@ function setupHostProvider(context: ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
-	const getCallbackUri = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
 		vscodeHostBridgeClient,
 		outputChannel.appendLine,
-		getCallbackUri,
+		getCallbackUrl,
 		getBinaryLocation,
 	)
 }

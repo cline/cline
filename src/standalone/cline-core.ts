@@ -43,8 +43,8 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
-	const getCallbackUri = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUri()
+	const getCallbackUrl = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUrl()
 	}
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
@@ -53,7 +53,7 @@ function setupHostProvider() {
 		createDiffView,
 		new ExternalHostBridgeClientManager(),
 		log,
-		getCallbackUri,
+		getCallbackUrl,
 		getBinaryLocation,
 	)
 }
