@@ -227,6 +227,11 @@ jobs:
         # Run on PRs to main, pushes to main, and manual dispatches
         if: always() && needs.test.result == 'success'
         steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for accurate comparison
+
             - name: Download Coverage Reports
               uses: actions/download-artifact@v4
               with:
