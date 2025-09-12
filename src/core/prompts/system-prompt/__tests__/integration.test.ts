@@ -129,7 +129,7 @@ const makeMockProviderInfo = (modelId: string, providerId: string = "test") => (
 
 const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
-	ide: "VSCode",
+	ide: "TestIde",
 	supportsBrowserUse: true,
 	mcpHub: {
 		getServers: () => [
