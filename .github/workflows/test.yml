@@ -102,19 +102,6 @@ jobs:
                   # Default the encoding to UTF-8 - It's not the default on Windows
                   PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
-            - name: Verify lcov.info file
-              if: runner.os == 'Linux'
-              run: |
-                if [ -f "coverage/lcov.info" ]; then
-                  echo "✅ lcov.info file generated successfully"
-                  echo "File size: $(du -h coverage/lcov.info | cut -f1)"
-                  echo "Line count: $(wc -l < coverage/lcov.info)"
-                else
-                  echo "❌ lcov.info file not found"
-                  ls -la coverage/ || echo "Coverage directory not found"
-                  exit 1
-                fi
-
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
               id: webview_coverage
@@ -138,6 +125,7 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                      coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
@@ -232,3 +220,22 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    qlty:
+        needs: test
+        runs-on: ubuntu-latest
+        # Run on PRs to main, pushes to main, and manual dispatches
+        if: always() && needs.test.result == 'success'
+        steps:
+            - name: Download Coverage Reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: pr-coverage-reports
+                  path: .
+
+            - name: Upload integration coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  files: ./coverage/lcov.info
+                  tag: integration:extension
