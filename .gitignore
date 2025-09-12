@@ -35,3 +35,5 @@ test-results
 
 ## CLI pre-release  ##
 /cli 
+
+.nyc_output/

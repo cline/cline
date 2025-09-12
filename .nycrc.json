@@ -1,0 +1,35 @@
+{
+	"all": true,
+	"check-coverage": false,
+	"reporter": [
+		"text",
+		"lcov"
+	],
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.js"
+	],
+	"exclude": [
+		"**/*.d.ts",
+		"**/*.test.ts",
+		"**/*.test.js",
+		"**/*.spec.ts",
+		"**/*.spec.js",
+		"**/test/**",
+		"**/tests/**",
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/out/**",
+		"**/coverage/**",
+		"src/test/**",
+		"src/generated/**"
+	],
+	"extension": [
+		".ts",
+		".js"
+	],
+	"cache": true,
+	"sourceMap": true,
+	"instrument": true,
+	"report-dir": "./coverage"
+}
