@@ -1,7 +1,6 @@
 import osModule from "node:os"
 import { getShell } from "@utils/shell"
 import osName from "os-name"
-import { HostProvider } from "@/hosts/host-provider"
 import { getWorkspacePaths } from "@/hosts/vscode/hostbridge/workspace/getWorkspacePaths"
 import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
@@ -15,14 +14,13 @@ Default Shell: {{shell}}
 Home Directory: {{homeDir}}
 {{WORKSPACE_TITLE}}: {{workingDir}}`
 
-export async function getSystemEnv(cwd?: string, isTesting = false) {
-	const currentWorkDir = cwd || process.cwd()
+export async function getSystemEnv(context: SystemPromptContext, isTesting = false) {
+	const currentWorkDir = context.cwd || process.cwd()
 	const workspaces = (await getWorkspacePaths({}))?.paths || [currentWorkDir]
-	const host = await HostProvider.env.getHostVersion({})
 	return isTesting
 		? {
 				os: "macOS",
-				ide: "VSCode",
+				ide: "TestIde",
 				shell: "/bin/zsh",
 				homeDir: "/Users/tester",
 				workingDir: "/Users/tester/dev/project",
@@ -31,7 +29,7 @@ export async function getSystemEnv(cwd?: string, isTesting = false) {
 			}
 		: {
 				os: osName(),
-				ide: host.platform,
+				ide: context.ide,
 				shell: getShell(),
 				homeDir: osModule.homedir(),
 				workingDir: currentWorkDir,
@@ -41,7 +39,7 @@ export async function getSystemEnv(cwd?: string, isTesting = false) {
 
 export async function getSystemInfo(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const testMode = !!process?.env?.CI || !!process?.env?.IS_TEST || context.isTesting || false
-	const info = await getSystemEnv(context.cwd, testMode)
+	const info = await getSystemEnv(context, testMode)
 
 	// Check if multi-root is enabled and we have workspace roots
 	const isMultiRoot = context.isMultiRootEnabled && context.workspaceRoots && context.workspaceRoots.length > 1

@@ -1322,6 +1322,7 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
+		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1367,6 +1368,7 @@ export class Task {
 
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
+			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
