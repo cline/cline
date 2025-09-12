@@ -13,8 +13,9 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._config = { URI: clineEnvConfig.apiBaseUrl }
-		this._setProvider("firebase")
+		// Support both auth providers, default to firebase for compatibility
+		const authProvider = process.env.E2E_TEST_AUTH_PROVIDER || "firebase"
+		this._setProvider(authProvider)
 		this._controller = controller
 	}
 
@@ -46,7 +47,7 @@ export class AuthServiceMock extends AuthService {
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(clineEnvConfig.apiBaseUrl)
 		const authUrlString = authUrl.toString()
-		// Call the parent implementation
+
 		if (this._authenticated && this._clineAuthInfo) {
 			console.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
@@ -98,7 +99,10 @@ export class AuthServiceMock extends AuthService {
 			console.log(`Successfully authenticated with mock server as ${userData.displayName} (${userData.email})`)
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
-			await visibleWebview?.controller.handleAuthCallback(testToken, "mock")
+
+			// Use appropriate provider name for callback
+			const providerName = this._provider?.name || "cline"
+			await visibleWebview?.controller.handleAuthCallback(testToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
 			this._authenticated = false

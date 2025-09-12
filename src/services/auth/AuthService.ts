@@ -7,24 +7,20 @@ import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../feature-flags"
+import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
-const DefaultClineAccountURI = `${clineEnvConfig.appBaseUrl}/auth`
-let authProviders: any[] = []
-
-export type ServiceConfig = {
-	URI?: string
-	[key: string]: any
-}
-
-const availableAuthProviders = {
-	firebase: FirebaseAuthProvider,
-	// Add other providers here as needed
-}
+type AvailableAuthProviders = FirebaseAuthProvider | ClineAuthProvider
 
 export interface ClineAuthInfo {
 	idToken: string
 	userInfo: ClineAccountUserInfo
+	/**
+	 * WorkOS IDP ID if user logged in via SSO
+	 */
+	subject?: string
+	// accessToken: string
+	expiresAt?: number
 }
 
 export interface ClineAccountUserInfo {
@@ -51,10 +47,9 @@ export interface ClineAccountOrganization {
 
 export class AuthService {
 	protected static instance: AuthService | null = null
-	protected _config: ServiceConfig
 	protected _authenticated: boolean = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
-	protected _provider: { provider: FirebaseAuthProvider } | null = null
+	protected _provider: AvailableAuthProviders | null = null
 	protected _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler<AuthState>]>()
 	protected _controller: Controller
 
@@ -63,35 +58,9 @@ export class AuthService {
 	 * @param controller - Optional reference to the Controller instance.
 	 */
 	protected constructor(controller: Controller) {
-		const providerName = "firebase"
-		this._config = { URI: DefaultClineAccountURI }
+		const providerName = "cline"
 
-		// Fetch AuthProviders
-		// TODO:  Deliver this config from the backend securely
-		// ex.  https://app.cline.bot/api/v1/auth/providers
-
-		const authProvidersConfigs = [
-			{
-				name: "firebase",
-				config: clineEnvConfig.firebase,
-			},
-		]
-
-		// Merge authProviders with availableAuthProviders
-		authProviders = authProvidersConfigs.map((provider) => {
-			const providerName = provider.name
-			const ProviderClass = availableAuthProviders[providerName as keyof typeof availableAuthProviders]
-			if (!ProviderClass) {
-				throw new Error(`Auth provider "${providerName}" is not available`)
-			}
-			return {
-				name: providerName,
-				config: provider.config,
-				provider: new ProviderClass(provider.config),
-			}
-		})
-
-		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
+		this._setProvider(providerName)
 
 		this._controller = controller
 	}
@@ -138,25 +107,33 @@ export class AuthService {
 		if (!this._clineAuthInfo) {
 			return null
 		}
-		const idToken = this._clineAuthInfo.idToken
-		const shouldRefreshIdToken = await this._provider?.provider.shouldRefreshIdToken(idToken)
-		if (shouldRefreshIdToken) {
-			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
-			await this.restoreRefreshTokenAndRetrieveAuthInfo()
-			if (!this._clineAuthInfo) {
-				return null
-			}
+		const accessToken = this._clineAuthInfo.idToken // Using idToken field for backward compatibility
+		const shouldRefreshToken = await this._provider?.shouldRefreshIdToken(accessToken)
+		if (shouldRefreshToken) {
+			// Access token is expired, user needs to re-authenticate
+			// Clear the expired auth info and return null to trigger re-authentication
+			this._clineAuthInfo = null
+			this._authenticated = false
+			await this.sendAuthStatusUpdate()
+			return null
 		}
 		return this._clineAuthInfo.idToken
 	}
 
 	protected _setProvider(providerName: string): void {
-		const providerConfig = authProviders.find((provider) => provider.name === providerName)
-		if (!providerConfig) {
-			throw new Error(`Auth provider "${providerName}" not found`)
+		// Fetch AuthProviders
+		// TODO:  Deliver this config from the backend securely
+		// ex.  https://app.cline.bot/api/v1/auth/providers
+		function findProviderConfig(name: string) {
+			switch (name) {
+				case "firebase":
+					return new FirebaseAuthProvider(clineEnvConfig.firebase)
+				default:
+					return new ClineAuthProvider(clineEnvConfig)
+			}
 		}
 
-		this._provider = providerConfig
+		this._provider = findProviderConfig(providerName)
 	}
 
 	getInfo(): AuthState {
@@ -187,15 +164,15 @@ export class AuthService {
 			return String.create({ value: "Already authenticated" })
 		}
 
-		if (!this._config.URI) {
-			throw new Error("Authentication URI is not configured")
-		}
-
 		const callbackHost = await HostProvider.get().getCallbackUri()
 		const callbackUrl = `${callbackHost}/auth`
 
-		// Use URL object for more graceful query construction
-		const authUrl = new URL(this._config.URI)
+		// GET /api/v1/auth/authorize
+		// Query Parameters:
+		//   - client_type: "extension" (required)
+		//   - callback_url: Extension callback URL (required)
+		const authUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/authorize`)
+		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
 		const authUrlString = authUrl.toString()
@@ -219,18 +196,18 @@ export class AuthService {
 		}
 	}
 
-	async handleAuthCallback(token: string, provider: string): Promise<void> {
+	async handleAuthCallback(authorizationCode: string, provider: string): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.signIn(this._controller, token, provider)
+			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
 			this._authenticated = true
 
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing in with custom token:", error)
+			console.error("Error signing in with authorization code:", error)
 			throw error
 		}
 	}
@@ -244,26 +221,26 @@ export class AuthService {
 	}
 
 	/**
-	 * Restores the authentication token from the extension's storage.
+	 * Restores the authentication data from the extension's storage.
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
-		if (!this._provider || !this._provider.provider) {
+		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._controller)
+			this._clineAuthInfo = await this._provider.retrieveClineAuthInfo(this._controller)
 			if (this._clineAuthInfo) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
-				console.warn("No user found after restoring auth token")
+				console.warn("No valid authentication data found or token expired")
 				this._authenticated = false
 				this._clineAuthInfo = null
 			}
 		} catch (error) {
-			console.error("Error restoring auth token:", error)
+			console.error("Error restoring authentication data:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			return

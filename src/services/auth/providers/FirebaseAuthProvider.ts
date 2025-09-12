@@ -2,15 +2,18 @@ import axios from "axios"
 import { initializeApp } from "firebase/app"
 import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
-import { clineEnvConfig } from "@/config"
+import { clineEnvConfig, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { ErrorService } from "@/services/error"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 export class FirebaseAuthProvider {
-	private _config: any
+	readonly name = "firebase"
+	readonly callbackEndpoint = "/auth"
 
-	constructor(config: any) {
+	private _config: EnvironmentConfig["firebase"]
+
+	constructor(config: EnvironmentConfig["firebase"]) {
 		this._config = config || {}
 	}
 
@@ -87,8 +90,6 @@ export class FirebaseAuthProvider {
 			// const userCredential = await this._signInWithCredential(context, credentialData)
 			// return userCredential.user
 		} catch (error) {
-			console.error("Firebase restore token error", error)
-			ErrorService.get().logMessage("Firebase restore token error", "error")
 			ErrorService.get().logException(error)
 			throw error
 		}
@@ -124,7 +125,6 @@ export class FirebaseAuthProvider {
 			try {
 				controller.stateManager.setSecret("clineAccountId", userCredential.refreshToken)
 			} catch (error) {
-				ErrorService.get().logMessage("Firebase store token error", "error")
 				ErrorService.get().logException(error)
 				throw error
 			}
@@ -132,7 +132,6 @@ export class FirebaseAuthProvider {
 			// userCredential = await this._signInWithCredential(context, credential)
 			return await this.retrieveClineAuthInfo(controller)
 		} catch (error) {
-			ErrorService.get().logMessage("Firebase sign-in error", "error")
 			ErrorService.get().logException(error)
 			throw error
 		}
