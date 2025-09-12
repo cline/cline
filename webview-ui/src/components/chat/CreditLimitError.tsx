@@ -21,7 +21,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	message = "You have run out of credits.",
 	// buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 }) => {
-	const { uriScheme } = useExtensionState()
+	const { uriScheme, extensionInfo } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
 
 	const isPersonal = !activeOrganization?.organizationId
@@ -29,7 +29,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 		? "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
 		: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
 
-	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
+	const callbackUrl = `${uriScheme || "vscode"}://${extensionInfo.publisher}.${extensionInfo.name}`
 	const fullPurchaseUrl = new URL(buyCreditsUrl)
 	fullPurchaseUrl.searchParams.set("callback_url", callbackUrl)
 

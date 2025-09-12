@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.26.7",
+	"version": "3.28.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -102,15 +102,8 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "isMac"
-				},
-				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "!isMac"
+					"title": "Cline",
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
@@ -348,7 +341,9 @@
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
 		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
-		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
+		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
+		"clean:deps": "rimraf node_modules webview-ui/node_modules",
+		"clean:all": "npm run clean:build && npm run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b --noEmit",
@@ -362,15 +357,18 @@
 		"test:integration": "vscode-test",
 		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
+		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
+		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
 		"e2e": "playwright test -c playwright.config.ts",
-		"test:e2e": "playwright install && vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
-		"test:e2e:optimal": "vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e": "playwright install && vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e:optimal": "vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix && node src/test/e2e/utils/build.mjs && playwright test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish --allow-package-secrets sendgrid && ovsx publish",
 		"publish:marketplace:prerelease": "vsce publish --allow-package-secrets sendgrid --pre-release && ovsx publish --pre-release",
+		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
@@ -388,6 +386,7 @@
 		"@biomejs/biome": "^2.1.4",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",
 		"@types/diff": "^5.2.1",
@@ -411,6 +410,7 @@
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
 		"npm-run-all": "^4.1.5",
+		"prebuild-install": "^7.1.3",
 		"protoc-gen-ts": "^0.8.7",
 		"proxyquire": "^2.1.3",
 		"rimraf": "^6.0.1",
@@ -426,8 +426,6 @@
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
 		"@aws-sdk/credential-providers": "^3.840.0",
-		"@sap-ai-sdk/ai-api": "^1.17.0",
-		"@sap-ai-sdk/orchestration": "^1.17.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
@@ -443,6 +441,8 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@playwright/test": "^1.53.2",
+		"@sap-ai-sdk/ai-api": "^1.17.0",
+		"@sap-ai-sdk/orchestration": "^1.17.0",
 		"@sentry/browser": "^9.12.0",
 		"@streamparser/json": "^0.0.22",
 		"@types/uuid": "^10.0.0",

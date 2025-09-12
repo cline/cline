@@ -1,13 +1,11 @@
 import { ApiConfiguration, fireworksDefaultModelId } from "@shared/api"
+import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
-import { writeTaskHistoryToState } from "./disk"
+import { getTaskHistoryStateFilePath, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
-/**
- * Interface for persistence error event data
- */
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -29,9 +27,13 @@ export class StateManager {
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
+	private taskHistoryWatcher: FSWatcher | null = null
 
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
+
+	// Callback to sync external state changes with the UI client
+	onSyncExternalChange?: () => void | Promise<void>
 
 	constructor(context: ExtensionContext) {
 		this.context = context
@@ -52,6 +54,9 @@ export class StateManager {
 			this.populateCache(globalState, secrets, workspaceState)
 
 			this.isInitialized = true
+
+			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
+			await this.setupTaskHistoryWatcher()
 		} catch (error) {
 			console.error("[StateManager] Failed to initialize:", error)
 			throw error
@@ -161,6 +166,56 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	/**
+	 * Initialize chokidar watcher for the taskHistory.json file
+	 * Updates in-memory cache on external changes without writing back to disk.
+	 */
+	private async setupTaskHistoryWatcher(): Promise<void> {
+		try {
+			const historyFile = await getTaskHistoryStateFilePath(this.context)
+
+			// Close any existing watcher before creating a new one
+			if (this.taskHistoryWatcher) {
+				await this.taskHistoryWatcher.close()
+				this.taskHistoryWatcher = null
+			}
+
+			this.taskHistoryWatcher = chokidar.watch(historyFile, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+			})
+
+			const syncTaskHistoryFromDisk = async () => {
+				try {
+					if (!this.isInitialized) {
+						return
+					}
+					const onDisk = await readTaskHistoryFromState(this.context)
+					const cached = this.globalStateCache["taskHistory"]
+					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
+						this.globalStateCache["taskHistory"] = onDisk
+						await this.onSyncExternalChange?.()
+					}
+				} catch (err) {
+					console.error("[StateManager] Failed to reload task history on change:", err)
+				}
+			}
+
+			this.taskHistoryWatcher
+				.on("add", () => syncTaskHistoryFromDisk())
+				.on("change", () => syncTaskHistoryFromDisk())
+				.on("unlink", async () => {
+					this.globalStateCache["taskHistory"] = []
+					await this.onSyncExternalChange?.()
+				})
+				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
+		} catch (err) {
+			console.error("[StateManager] Failed to set up taskHistory watcher:", err)
+		}
 	}
 
 	/**
@@ -277,6 +332,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -308,6 +364,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -343,6 +400,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -375,6 +433,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -514,6 +573,11 @@ export class StateManager {
 		if (this.persistenceTimeout) {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
+		}
+		// Close file watcher if active
+		if (this.taskHistoryWatcher) {
+			this.taskHistoryWatcher.close()
+			this.taskHistoryWatcher = null
 		}
 
 		this.pendingGlobalState.clear()
@@ -729,6 +793,7 @@ export class StateManager {
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
 			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
+			planModeSapAiCoreDeploymentId: this.globalStateCache["planModeSapAiCoreDeploymentId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
 			planModeBasetenModelId: this.globalStateCache["planModeBasetenModelId"],
@@ -761,6 +826,7 @@ export class StateManager {
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
 			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
+			actModeSapAiCoreDeploymentId: this.globalStateCache["actModeSapAiCoreDeploymentId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
 			actModeBasetenModelId: this.globalStateCache["actModeBasetenModelId"],
