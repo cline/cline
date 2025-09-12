@@ -2,8 +2,6 @@
 
 ## 3.28.1
 
-### Patch Changes
-
 - 6b9dbcc: use Requesty's base URL to get models and API keys
 - ddd0324: Adding initial integration spec files based on e2e playwright tests
 - 1b08f23: Add multi-root workspace paths to system info section in system prompt.
