@@ -198,7 +198,7 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		}
 
 		let diff = ""
-		let command = "git --no-pager diff --staged --diff-filter=d --stat"
+		let command = "git --no-pager diff --staged --diff-filter=d"
 		if (await checkGitRepoHasCommits(cwd)) {
 			// Only run git diff if there are commits
 			const { stdout: staged } = await execAsync(command, { cwd })
@@ -206,12 +206,10 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		}
 
 		if (!stagedOnly && !diff) {
-			command = "git --no-pager diff HEAD --diff-filter=d --stat"
+			command = "git --no-pager diff HEAD --diff-filter=d"
 			const { stdout: unstaged } = await execAsync(command, { cwd })
 			diff = unstaged.trim()
 		}
-
-		console.log(`${command}: ${diff}`)
 
 		if (!diff) {
 			throw new Error("No changes in workspace for commit message")
