@@ -144,7 +144,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
-		const yoloModeToggled = context.globalState.get("yoloModeToggled") as boolean | undefined
+		const yoloModeToggled = context.globalState.get<boolean | undefined>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 		const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined

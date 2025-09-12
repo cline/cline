@@ -243,7 +243,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
-			yoloModeToggled ?? false,
+			yoloModeToggled,
 			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
