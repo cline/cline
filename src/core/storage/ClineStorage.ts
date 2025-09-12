@@ -1,4 +1,5 @@
 import { Disposable } from "vscode"
+import { Logger } from "@/services/logging/Logger"
 import { StorageEventListener } from "./utils/types"
 
 /**
@@ -7,6 +8,10 @@ import { StorageEventListener } from "./utils/types"
  * The public methods (get, store, delete) are final and cannot be overridden.
  */
 export abstract class ClineStorage {
+	/**
+	 * The name of the storage, used for logging purposes.
+	 */
+	protected name = "ClineStorage"
 	/**
 	 * List of subscribers to storage change events.
 	 */
@@ -27,6 +32,7 @@ export abstract class ClineStorage {
 	 * Fire storage change event to all subscribers.
 	 */
 	protected async fire(key: string): Promise<void> {
+		Logger.info(`[${this.name}] onDidChange event fired for '${key}'`)
 		await Promise.all(this.subscribers.map((subscriber) => subscriber({ key })))
 	}
 
@@ -35,7 +41,12 @@ export abstract class ClineStorage {
 	 * Subclasses should implement _get() to define their storage retrieval logic.
 	 */
 	public async get(key: string): Promise<string | undefined> {
-		return await this._get(key)
+		try {
+			return await this._get(key)
+		} catch (error) {
+			Logger.error(`[${this.name}] failed to get '${key}':`, error)
+			return undefined
+		}
 	}
 
 	/**
@@ -44,8 +55,12 @@ export abstract class ClineStorage {
 	 * This method automatically fires change events after storing.
 	 */
 	public async store(key: string, value: string): Promise<void> {
-		await this._store(key, value)
-		await this.fire(key)
+		try {
+			await this._store(key, value)
+			await this.fire(key)
+		} catch (error) {
+			Logger.error(`[${this.name}] failed to store '${key}':`, error)
+		}
 	}
 
 	/**
@@ -54,8 +69,12 @@ export abstract class ClineStorage {
 	 * This method automatically fires change events after deletion.
 	 */
 	public async delete(key: string): Promise<void> {
-		await this._delete(key)
-		await this.fire(key)
+		try {
+			await this._delete(key)
+			await this.fire(key)
+		} catch (error) {
+			Logger.error(`[${this.name}] failed to delete '${key}':`, error)
+		}
 	}
 
 	/**

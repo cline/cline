@@ -27,6 +27,7 @@ interface PlatformCommands {
 }
 
 export class CredentialStorage extends ClineStorage {
+	override name = "CredentialStorage"
 	private readonly commands: PlatformCommand
 
 	constructor() {
@@ -57,9 +58,8 @@ export class CredentialStorage extends ClineStorage {
 		try {
 			const result = await this.exec(this.commands.get({ service, account, target }))
 			return result || undefined
-		} catch {
-			console.error(`Failed to get credential for ${key}`)
-			return undefined
+		} catch (error) {
+			throw error
 		}
 	}
 
@@ -67,8 +67,8 @@ export class CredentialStorage extends ClineStorage {
 		const { service, account, target } = this.getCredentialIdentifiers(key)
 		try {
 			await this.exec(this.commands.store({ service, account, target, value }))
-		} catch {
-			console.error(`Failed to store credential for ${key}`)
+		} catch (error) {
+			throw error
 		}
 	}
 
@@ -154,21 +154,29 @@ const PLATFORM_COMMANDS: PlatformCommands = {
 			command: "powershell.exe",
 			args: [
 				"-Command",
-				`$cred = Get-StoredCredential -Target "${target}"; if ($cred) { $cred.GetNetworkCredential().Password } else { "" }`,
+				"param($Target); $cred = Get-StoredCredential -Target $Target; if ($cred) { $cred.GetNetworkCredential().Password } else { '' }",
+				"-Target",
+				target || "",
 			],
 		}),
 		store: ({ target, value }) => ({
 			command: "powershell.exe",
 			args: [
 				"-Command",
-				`$pass = ConvertTo-SecureString '${value}' -AsPlainText -Force; New-StoredCredential -Target '${target}' -UserName 'Cline' -SecurePassword $pass -Persist LocalMachine`,
+				"param($Target, $Value); $pass = ConvertTo-SecureString $Value -AsPlainText -Force; New-StoredCredential -Target $Target -UserName 'Cline' -SecurePassword $pass -Persist LocalMachine",
+				"-Target",
+				target || "",
+				"-Value",
+				value,
 			],
 		}),
 		delete: ({ target }) => ({
 			command: "powershell.exe",
 			args: [
 				"-Command",
-				`$cred = Get-StoredCredential -Target '${target}'; if ($cred) { Remove-StoredCredential -Target '${target}' }`,
+				"param($Target); $cred = Get-StoredCredential -Target $Target; if ($cred) { Remove-StoredCredential -Target $Target }",
+				"-Target",
+				target || "",
 			],
 		}),
 	},

@@ -1,4 +1,5 @@
 import type { SecretStorage as VSCodeSecretStorage } from "vscode"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorage } from "./ClineStorage"
 
 type SecretStores = VSCodeSecretStorage | ClineStorage
@@ -7,6 +8,7 @@ type SecretStores = VSCodeSecretStorage | ClineStorage
  * Wrapper around VSCode Secret Storage or any other storage type for managing secrets.
  */
 export class ClineSecretStorage extends ClineStorage {
+	override readonly name = "ClineSecretStorage"
 	private static readonly store = new ClineSecretStorage()
 	static get instance(): ClineSecretStorage {
 		return ClineSecretStorage.store
@@ -24,7 +26,7 @@ export class ClineSecretStorage extends ClineStorage {
 	public init(store: SecretStores) {
 		if (!this.secretStorage) {
 			this.secretStorage = store
-			console.info("[ClineSecretStorage] initialized")
+			Logger.info("[ClineSecretStorage] initialized")
 		}
 		return this.secretStorage
 	}
@@ -33,7 +35,7 @@ export class ClineSecretStorage extends ClineStorage {
 		try {
 			return key ? await this.storage.get(key) : undefined
 		} catch (error) {
-			console.error("[ClineSecretStorage]", error)
+			Logger.error("[ClineSecretStorage]", error)
 			return undefined
 		}
 	}
@@ -47,12 +49,12 @@ export class ClineSecretStorage extends ClineStorage {
 				await this.storage.store(key, value)
 			}
 		} catch (error) {
-			console.error("[ClineSecretStorage]", error)
+			Logger.error("[ClineSecretStorage]", error)
 		}
 	}
 
 	protected async _delete(key: string): Promise<void> {
-		console.info("[ClineSecretStorage]", "deleting", key)
+		Logger.info("[ClineSecretStorage] deleting " + key)
 		await this.storage.delete(key)
 	}
 }
