@@ -13,8 +13,9 @@ interface E2ETestDirectories {
 	extensionsDir: string
 }
 
-export interface WorkspaceType {
+export interface E2ETestConfigs {
 	workspaceType: "single" | "multi"
+	channel: "stable" | "insiders"
 }
 
 export class E2ETestHelper {
@@ -230,12 +231,13 @@ export const e2e = test
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
-	.extend<WorkspaceType>({
+	.extend<E2ETestConfigs>({
 		workspaceType: "single",
+		channel: "stable",
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
+		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
+			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
@@ -258,6 +260,7 @@ export const e2e = test
 						"--no-sandbox",
 						"--disable-updates",
 						"--disable-workspace-trust",
+						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
@@ -319,9 +322,6 @@ export const e2e = test
 /**
  * Multi-root workspace variant of the e2e test fixture
  */
-export const e2eMultiRoot = e2e.extend<WorkspaceType>({
+export const e2eMultiRoot = e2e.extend<E2ETestConfigs>({
 	workspaceType: "multi",
 })
-
-// Backward compatibility exports
-export const getResultsDir = E2ETestHelper.getResultsDir

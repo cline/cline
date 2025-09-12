@@ -2,11 +2,15 @@
 	"vscode": {
 		"messageEncoding": "none",
 		"showNavbar": false,
-		"postMessageHandler": "vscode"
+		"postMessageHandler": "vscode",
+		"togglePlanActKeys": "Meta+Shift+a",
+		"supportsTerminalMentions": true
 	},
 	"standalone": {
 		"messageEncoding": "json",
 		"showNavbar": true,
-		"postMessageHandler": "standalone"
+		"postMessageHandler": "standalone",
+		"togglePlanActKeys": "Meta+Shift+p",
+		"supportsTerminalMentions": false
 	}
 }

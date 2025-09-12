@@ -91,6 +91,7 @@ export interface VersionMetadata {
 export interface SystemPromptContext {
 	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
+	readonly ide: string
 	readonly supportsBrowserUse?: boolean
 	readonly mcpHub?: McpHub
 	readonly focusChainSettings?: FocusChainSettings
@@ -104,6 +105,8 @@ export interface SystemPromptContext {
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
+	readonly isMultiRootEnabled?: boolean
+	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 }
 
 /**

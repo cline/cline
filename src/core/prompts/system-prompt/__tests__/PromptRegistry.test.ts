@@ -10,6 +10,7 @@ describe("PromptRegistry", () => {
 	let registry: PromptRegistry
 	const mockContext: SystemPromptContext = {
 		cwd: "/test/project",
+		ide: "TestIde",
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],
