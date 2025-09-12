@@ -1,6 +1,7 @@
 import osModule from "node:os"
 import { getShell } from "@utils/shell"
 import osName from "os-name"
+import { HostProvider } from "@/hosts/host-provider"
 import { getWorkspacePaths } from "@/hosts/vscode/hostbridge/workspace/getWorkspacePaths"
 import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
@@ -9,6 +10,7 @@ import type { PromptVariant, SystemPromptContext } from "../types"
 const SYSTEM_INFO_TEMPLATE_TEXT = `SYSTEM INFORMATION
 
 Operating System: {{os}}
+IDE: {{ide}}
 Default Shell: {{shell}}
 Home Directory: {{homeDir}}
 {{WORKSPACE_TITLE}}: {{workingDir}}`
@@ -16,9 +18,11 @@ Home Directory: {{homeDir}}
 export async function getSystemEnv(cwd?: string, isTesting = false) {
 	const currentWorkDir = cwd || process.cwd()
 	const workspaces = (await getWorkspacePaths({}))?.paths || [currentWorkDir]
+	const host = await HostProvider.env.getHostVersion({})
 	return isTesting
 		? {
 				os: "macOS",
+				ide: "VSCode",
 				shell: "/bin/zsh",
 				homeDir: "/Users/tester",
 				workingDir: "/Users/tester/dev/project",
@@ -27,6 +31,7 @@ export async function getSystemEnv(cwd?: string, isTesting = false) {
 			}
 		: {
 				os: osName(),
+				ide: host.platform,
 				shell: getShell(),
 				homeDir: osModule.homedir(),
 				workingDir: currentWorkDir,
@@ -63,6 +68,7 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 
 	return new TemplateEngine().resolve(template, {
 		os: info.os,
+		ide: info.ide,
 		shell: info.shell,
 		homeDir: info.homeDir,
 		WORKSPACE_TITLE,
