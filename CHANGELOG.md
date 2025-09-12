@@ -1,6 +1,12 @@
 # Changelog
 
+## [3.28.1]
+
+- Requesty: use base URL to get models and API keys
+- Removed focus chain feature flag
+
 ## [3.28.0]
+
 - Synchronized Task History: Real-time task history synchronization across all Cline instances
 - Optimized GPT-5 Integration: Fine-tuned system prompts for improved performance with GPT-5 model family
 - Deep Planning Improvements: Optimized prompts for Windows/PowerShell environments and dependency exclusion
@@ -14,11 +20,10 @@
 - Better Gemini rate limit handling
 - OpenAI Reasoning Effort: Minimal reasoning effort configuration for OpenAI models
 - Fixed LiteLLM Caching: Anthropic caching compatibility when using LiteLLM
-- Fixed Ollama default endpoint connections 
+- Fixed Ollama default endpoint connections
 - Fixed AutoApprove menu overflow
 - Fixed extended thinking token issue with Anthropic models
 - Fixed issue with slash commands removing text from prompt
-
 
 ## [3.27.2]
 
