@@ -13,11 +13,7 @@ const getCapabilitiesTemplateText = (context: SystemPromptContext) => `CAPABILIT
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.`
 
 export async function getCapabilitiesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || getCapabilitiesTemplateText
-
-	if (typeof template === "function") {
-		template = template(context)
-	}
+	const template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || getCapabilitiesTemplateText
 
 	const browserSupport = context.supportsBrowserUse ? ", use the browser" : ""
 	const browserCapabilities = context.supportsBrowserUse
@@ -25,7 +21,7 @@ export async function getCapabilitiesSection(variant: PromptVariant, context: Sy
 		: ""
 
 	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return templateEngine.resolve(template, context, {
 		BROWSER_SUPPORT: browserSupport,
 		BROWSER_CAPABILITIES: browserCapabilities,
 		CWD: context.cwd || process.cwd(),

@@ -9,11 +9,7 @@ const AGENT_ROLE = [
 ]
 
 export async function getAgentRoleSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.AGENT_ROLE]?.template || AGENT_ROLE.join(" ")
+	const template = variant.componentOverrides?.[SystemPromptSection.AGENT_ROLE]?.template || AGENT_ROLE.join(" ")
 
-	if (typeof template === "function") {
-		template = template(context)
-	}
-
-	return new TemplateEngine().resolve(template, {})
+	return new TemplateEngine().resolve(template, context, {})
 }

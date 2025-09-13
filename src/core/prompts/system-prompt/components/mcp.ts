@@ -23,14 +23,10 @@ export async function getMcp(variant: PromptVariant, context: SystemPromptContex
 }
 
 async function getMcpServers(servers: McpServer[], variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.MCP]?.template || MCP_TEMPLATE_TEXT
-
-	if (typeof template === "function") {
-		template = template(context)
-	}
+	const template = variant.componentOverrides?.[SystemPromptSection.MCP]?.template || MCP_TEMPLATE_TEXT
 
 	const serversList = servers.length > 0 ? formatMcpServersList(servers) : "(No MCP servers currently connected)"
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		MCP_SERVERS_LIST: serversList,
 	})
 }

@@ -18,14 +18,10 @@ export async function getTodoListSection(variant: PromptVariant, context: System
 		return undefined
 	}
 
-	let template = variant.componentOverrides?.[SystemPromptSection.TODO]?.template || TODO_LIST_TEMPLATE_TEXT
-
-	if (typeof template === "function") {
-		template = template(context)
-	}
+	const template = variant.componentOverrides?.[SystemPromptSection.TODO]?.template || TODO_LIST_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return templateEngine.resolve(template, context, {
 		// Add any todo-specific placeholders here
 	})
 }

@@ -34,16 +34,12 @@ const getRulesTemplateText = (context: SystemPromptContext) => `RULES
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
 
 export async function getRulesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.RULES]?.template || getRulesTemplateText
-
-	if (typeof template === "function") {
-		template = template(context)
-	}
+	const template = variant.componentOverrides?.[SystemPromptSection.RULES]?.template || getRulesTemplateText
 
 	const browserRules = context.supportsBrowserUse ? BROWSER_RULES : ""
 	const browserWaitRules = context.supportsBrowserUse ? BROWSER_WAIT_RULES : ""
 
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		CWD: context.cwd || process.cwd(),
 		BROWSER_RULES: browserRules,
 		BROWSER_WAIT_RULES: browserWaitRules,

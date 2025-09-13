@@ -13,11 +13,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
 export async function getObjectiveSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.OBJECTIVE]?.template || getObjectiveTemplateText
+	const template = variant.componentOverrides?.[SystemPromptSection.OBJECTIVE]?.template || getObjectiveTemplateText
 
-	if (typeof template === "function") {
-		template = template(context)
-	}
-
-	return new TemplateEngine().resolve(template, {})
+	return new TemplateEngine().resolve(template, context, {})
 }

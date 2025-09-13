@@ -60,13 +60,9 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 		workingDirInfo = info.workingDir
 	}
 
-	let template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
-	if (typeof template === "function") {
-		template = template(context)
-	}
-
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		os: info.os,
 		shell: info.shell,
 		homeDir: info.homeDir,

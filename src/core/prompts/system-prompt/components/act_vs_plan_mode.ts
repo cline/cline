@@ -21,11 +21,7 @@ In each user message, the environment_details will specify the current mode. The
 - Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.`
 
 export async function getActVsPlanModeSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	let template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || getActVsPlanModeTemplateText
+	const template = variant.componentOverrides?.[SystemPromptSection.ACT_VS_PLAN]?.template || getActVsPlanModeTemplateText
 
-	if (typeof template === "function") {
-		template = template(context)
-	}
-
-	return new TemplateEngine().resolve(template, {})
+	return new TemplateEngine().resolve(template, context, {})
 }
