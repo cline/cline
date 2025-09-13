@@ -19,4 +19,5 @@ interface ClineToolSpecParameter {
 	usage?: string
 	dependencies?: ClineDefaultTool[]
 	description?: string
+	contextRequirements?: (context: SystemPromptContext) => boolean
 }

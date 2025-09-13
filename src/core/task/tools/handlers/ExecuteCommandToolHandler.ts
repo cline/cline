@@ -45,6 +45,8 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		let command: string | undefined = block.params.command
 		const requiresApprovalRaw: string | undefined = block.params.requires_approval
 		const requiresApprovalPerLLM = requiresApprovalRaw?.toLowerCase() === "true"
+		const timeoutParam: string | undefined = block.params.timeout
+		let timeoutSeconds: number | undefined
 
 		// Validate required parameters
 		if (!command) {
@@ -58,6 +60,16 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Handling of timeout while in yolo mode
+		if (config.yoloModeToggled) {
+			if (!timeoutParam) {
+				timeoutSeconds = 30
+			} else {
+				const parsedTimeoutParam = parseInt(timeoutParam, 10)
+				timeoutSeconds = isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? 30 : parsedTimeoutParam
+			}
+		}
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {
@@ -120,7 +132,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		}
 
 		// Execute the command
-		const [userRejected, result] = await config.callbacks.executeCommandTool(command)
+		const [userRejected, result] = await config.callbacks.executeCommandTool(command, timeoutSeconds)
 
 		if (timeoutId) {
 			clearTimeout(timeoutId)

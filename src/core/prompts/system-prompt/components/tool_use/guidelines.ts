@@ -22,6 +22,6 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.`
 
-export async function getToolUseGuidelinesSection(_variant: PromptVariant, _context: SystemPromptContext): Promise<string> {
-	return new TemplateEngine().resolve(TOOL_USE_GUIDELINES_TEMPLATE_TEXT, {})
+export async function getToolUseGuidelinesSection(_variant: PromptVariant, context: SystemPromptContext): Promise<string> {
+	return new TemplateEngine().resolve(TOOL_USE_GUIDELINES_TEMPLATE_TEXT, context, {})
 }

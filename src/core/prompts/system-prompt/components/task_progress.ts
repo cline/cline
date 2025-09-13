@@ -31,5 +31,5 @@ export async function getUpdatingTaskProgress(variant: PromptVariant, context: S
 
 	const template = variant.componentOverrides?.[SystemPromptSection.TASK_PROGRESS]?.template || UPDATING_TASK_PROGRESS
 
-	return new TemplateEngine().resolve(template, {})
+	return new TemplateEngine().resolve(template, context, {})
 }

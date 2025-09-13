@@ -8,7 +8,7 @@ export async function getToolUseFormattingSection(_variant: PromptVariant, conte
 	const focusChainEnabled = context.focusChainSettings?.enabled
 
 	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return templateEngine.resolve(template, context, {
 		FOCUS_CHATIN_FORMATTING: focusChainEnabled ? FOCUS_CHATIN_FORMATTING_TEMPLATE : "",
 	})
 }

@@ -1,5 +1,8 @@
 import { expect } from "chai"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { TemplateEngine } from "../templates/TemplateEngine"
+import type { SystemPromptContext } from "../types"
+import { mockProviderInfo } from "./integration.test"
 
 describe("TemplateEngine", () => {
 	let templateEngine: TemplateEngine
@@ -9,10 +12,36 @@ describe("TemplateEngine", () => {
 	})
 
 	describe("resolve", () => {
+		const mockContext: SystemPromptContext = {
+			cwd: "/test/project",
+			ide: "TestIde",
+			supportsBrowserUse: true,
+			mcpHub: {
+				getServers: () => [],
+				getMcpServersPath: () => "/test/mcp-servers",
+				getSettingsDirectoryPath: () => "/test/settings",
+				clientVersion: "1.0.0",
+				disposables: [],
+			} as unknown as McpHub,
+			focusChainSettings: {
+				enabled: true,
+				remindClineInterval: 6,
+			},
+			browserSettings: {
+				viewport: {
+					width: 1280,
+					height: 720,
+				},
+			},
+			isTesting: true,
+			providerInfo: mockProviderInfo,
+			yoloModeToggled: false,
+		}
+
 		it("should resolve simple placeholders", () => {
 			const template = "Hello {{name}}!"
 			const placeholders = { name: "World" }
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello World!")
 		})
 
@@ -23,7 +52,7 @@ describe("TemplateEngine", () => {
 				name: "Alice",
 				day: "Monday",
 			}
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Alice, today is Monday")
 		})
 
@@ -35,14 +64,14 @@ describe("TemplateEngine", () => {
 					age: 30,
 				},
 			}
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("User: John, Age: 30")
 		})
 
 		it("should preserve unmatched placeholders", () => {
 			const template = "Hello {{name}}, your {{missing}} is pending"
 			const placeholders = { name: "Alice" }
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Alice, your {{missing}} is pending")
 		})
 
@@ -51,14 +80,14 @@ describe("TemplateEngine", () => {
 			const placeholders = {
 				config: { key: "value", items: [1, 2, 3] },
 			}
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal('Config: {"key":"value","items":[1,2,3]}')
 		})
 
 		it("should handle whitespace around placeholder names", () => {
 			const template = "Hello {{ name }}, welcome to {{  place  }}"
 			const placeholders = { name: "Bob", place: "Paradise" }
-			const result = templateEngine.resolve(template, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Bob, welcome to Paradise")
 		})
 	})

@@ -23,7 +23,7 @@ export class PromptBuilder {
 	async build(): Promise<string> {
 		const componentSections = await this.buildComponents()
 		const placeholderValues = this.preparePlaceholders(componentSections)
-		const prompt = this.templateEngine.resolve(this.variant.baseTemplate, placeholderValues)
+		const prompt = this.templateEngine.resolve(this.variant.baseTemplate, this.context, placeholderValues)
 		return this.postProcess(prompt)
 	}
 
@@ -152,10 +152,10 @@ export class PromptBuilder {
 		)
 
 		const ids = enabledTools.map((tool) => tool.config.id)
-		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids)))
+		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids, context)))
 	}
 
-	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[]): string {
+	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[], context: SystemPromptContext): string {
 		// Skip tools without parameters or description - those are placeholder tools
 		if (!config.parameters?.length && !config.description?.length) {
 			return ""
@@ -170,12 +170,21 @@ export class PromptBuilder {
 		// Clone parameters to avoid mutating original
 		const params = [...config.parameters]
 
-		// Filter parameters based on dependencies FIRST, before collecting descriptions
+		// Filter parameters based on dependencies and contextRequirements
 		const filteredParams = params.filter((p) => {
-			if (!p.dependencies?.length) {
-				return true
+			// Check dependencies first (existing behavior)
+			if (p.dependencies?.length) {
+				if (!p.dependencies.every((d) => registry.includes(d))) {
+					return false
+				}
 			}
-			return p.dependencies.every((d) => registry.includes(d))
+
+			// Check contextRequirements (new behavior)
+			if (p.contextRequirements) {
+				return p.contextRequirements(context)
+			}
+
+			return true
 		})
 
 		// Collect additional descriptions only from filtered parameters
