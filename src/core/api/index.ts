@@ -30,6 +30,7 @@ import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
 import { SapAiCoreHandler } from "./providers/sapaicore"
+import { TarsHandler } from "./providers/tars"
 import { TogetherHandler } from "./providers/together"
 import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
@@ -368,6 +369,14 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
 				vercelAiGatewayModelInfo:
 					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
+			})
+		case "tars":
+			return new TarsHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				tarsApiKey: options.tarsApiKey,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				tarsModelId: mode === "plan" ? options.planModeTarsModelId : options.actModeTarsModelId,
+				tarsModelInfo: mode === "plan" ? options.planModeTarsModelInfo : options.actModeTarsModelInfo,
 			})
 		case "zai":
 			return new ZAiHandler({

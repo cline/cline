@@ -1,0 +1,48 @@
+---
+title: "Tetrate Agent Router Service (TARS)"
+description: "Learn how to configure and use Tetrate Agent Router Service with Cline to access various AI models through Tetrate's agent routing service."
+---
+
+**Website:** [https://router.tetrate.ai](https://router.tetrate.ai)
+
+TARS (Tetrate Agent Router Service) is an AI model routing service that provides access to various language models through a unified OpenAI-compatible API. It offers intelligent routing, load balancing, and advanced features like reasoning effort control for supported models.
+
+### Getting an API Key
+
+1. **Sign Up/Sign In:** Go to the [Tetrate Agent Router Service website](https://router.tetrate.ai). Create an account or sign in.
+2. **Get an API Key:** Navigate to your API keys section in the dashboard.
+3. **Create a Key:** Generate a new API key for use with Cline.
+4. **Copy the Key:** **Important:** Copy the API key immediately and store it securely.
+
+### Supported Models
+
+Tetrate Agent Router Service supports a wide variety of models from different providers. Cline automatically fetches the list of available models from the Tetrate Agent Router Service API. The exact models available may vary over time as Tetrate Agent Router Service adds support for new providers and models.
+
+### Configuration in Cline
+
+1. **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2. **Select Provider:** Choose "Tetrate Agent Router Service" from the "API Provider" dropdown.
+3. **Enter API Key:** Paste your Tetrate Agent Router Service API key into the "TARS API Key" field.
+4. **Select Model:** Choose your desired model from the "Model" dropdown.
+
+#### Model Support
+
+Tetrate Agent Router Service provides access to models from various providers including:
+
+- OpenAI models (including reasoning models like o3, o4, gpt-5)
+- Anthropic Claude models
+- Other popular model providers
+
+### Tips and Notes
+
+- **Model Selection:** Tetrate Agent Router Service offers access to a wide range of models. Experiment to find the best one for your specific use case.
+- **Pricing:** Tetrate Agent Router Service charges based on the underlying model's pricing structure. Check the Tetrate Agent Router Service dashboard for current pricing information.
+- **Performance:** Tetrate Agent Router Service provides intelligent routing and load balancing to optimize response times and reliability.
+- **Reasoning Models:** When using OpenAI reasoning models, note that they have different parameter support (no max_tokens or temperature) compared to standard chat models.
+- **Automatic Model Refresh:** Cline periodically refreshes the available model list from Tetrate Agent Router Service to ensure you have access to the latest models.
+
+### Troubleshooting
+
+- **API Key Issues:** Ensure your Tetrate Agent Router Service API key is valid and has sufficient credits.
+- **Model Availability:** If a specific model isn't available, it may have been temporarily disabled or removed from Tetrate Agent Router Service.
+- **Rate Limits:** Tetrate Agent Router Service may have rate limits depending on your subscription plan. Check your Tetrate Agent Router Service dashboard for details.

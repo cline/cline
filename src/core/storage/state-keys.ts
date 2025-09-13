@@ -151,8 +151,12 @@ export interface GlobalState {
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeVercelAiGatewayModelId: string | undefined
 	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	planModeTarsModelId: string | undefined
+	planModeTarsModelInfo: ModelInfo | undefined
 	actModeVercelAiGatewayModelId: string | undefined
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeTarsModelId: string | undefined
+	actModeTarsModelInfo: ModelInfo | undefined
 }
 
 export interface Secrets {
@@ -191,6 +195,7 @@ export interface Secrets {
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
+	tarsApiKey: string | undefined
 }
 
 export interface LocalState {

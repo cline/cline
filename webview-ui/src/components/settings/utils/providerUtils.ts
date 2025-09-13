@@ -56,6 +56,8 @@ import {
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
+	tarsDefaultModelId,
+	tarsDefaultModelInfo,
 	vercelAiGatewayDefaultModelId,
 	vercelAiGatewayDefaultModelInfo,
 	vertexDefaultModelId,
@@ -166,6 +168,16 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: requestyModelId || requestyDefaultModelId,
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
+			}
+		case "tars":
+			const tarsModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeTarsModelId : apiConfiguration?.actModeTarsModelId
+			const tarsModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeTarsModelInfo : apiConfiguration?.actModeTarsModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: tarsModelId || tarsDefaultModelId,
+				selectedModelInfo: tarsModelInfo || tarsDefaultModelInfo,
 			}
 		case "cline":
 			const clineOpenRouterModelId =
@@ -370,6 +382,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			ollamaModelId: undefined,
 			liteLlmModelId: undefined,
 			requestyModelId: undefined,
+			tarsModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
 			groqModelId: undefined,
@@ -383,6 +396,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
 			requestyModelInfo: undefined,
+			tarsModelInfo: undefined,
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
@@ -414,6 +428,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
 		requestyModelId: mode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
+		tarsModelId: mode === "plan" ? apiConfiguration.planModeTarsModelId : apiConfiguration.actModeTarsModelId,
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
@@ -433,6 +448,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
+		tarsModelInfo: mode === "plan" ? apiConfiguration.planModeTarsModelInfo : apiConfiguration.actModeTarsModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
 		basetenModelInfo: mode === "plan" ? apiConfiguration.planModeBasetenModelInfo : apiConfiguration.actModeBasetenModelInfo,
 		huggingFaceModelInfo:
@@ -513,6 +529,13 @@ export async function syncModeConfigurations(
 			updates.actModeRequestyModelId = sourceFields.requestyModelId
 			updates.planModeRequestyModelInfo = sourceFields.requestyModelInfo
 			updates.actModeRequestyModelInfo = sourceFields.requestyModelInfo
+			break
+
+		case "tars":
+			updates.planModeTarsModelId = sourceFields.tarsModelId
+			updates.actModeTarsModelId = sourceFields.tarsModelId
+			updates.planModeTarsModelInfo = sourceFields.tarsModelInfo
+			updates.actModeTarsModelInfo = sourceFields.tarsModelInfo
 			break
 
 		case "openai":

@@ -182,6 +182,7 @@
 					"provider-config/openai-compatible",
 					"provider-config/openrouter",
 					"provider-config/sap-aicore",
+					"provider-config/tars",
 					"provider-config/vercel-ai-gateway",
 					"provider-config/requesty"
 				]

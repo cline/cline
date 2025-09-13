@@ -33,6 +33,8 @@ service ModelsService {
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
+  // Refreshes and returns Tetrate Agent Router Service (TARS) models
+  rpc refreshTarsModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -164,6 +166,7 @@ enum ApiProvider {
   VERCEL_AI_GATEWAY = 32;
   QWEN_CODE = 33;
   DIFY = 34;
+  TARS = 35;
 }
 
 // Model info for OpenAI-compatible models
@@ -276,6 +279,7 @@ message ModelsApiConfiguration {
   optional string qwen_code_oauth_path = 70;
   optional string dify_api_key = 71;
   optional string dify_base_url = 72;
+  optional string tars_api_key = 73;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -309,7 +313,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
   optional string plan_mode_vercel_ai_gateway_model_id = 129;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
-
+  optional string plan_mode_tars_model_id = 131;
+  optional OpenRouterModelInfo plan_mode_tars_model_info = 132;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -343,7 +348,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
   optional string act_mode_vercel_ai_gateway_model_id = 229;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
-
+  optional string act_mode_tars_model_id = 231;
+  optional OpenRouterModelInfo act_mode_tars_model_info = 232;
 
   repeated string favorited_model_ids = 300;
 }

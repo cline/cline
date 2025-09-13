@@ -7,6 +7,7 @@ import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplace
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
+import { refreshTarsModels } from "../models/refreshTarsModels"
 import { refreshVercelAiGatewayModels } from "../models/refreshVercelAiGatewayModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
@@ -197,6 +198,52 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
 						updatedConfig.actModeVercelAiGatewayModelInfo = response.models[actModelId]
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						controller.stateManager.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		refreshTarsModels(controller, EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// Update model info in state for TARS (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+				const currentMode = await controller.getCurrentMode()
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeTarsModelId" : "actModeTarsModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeTarsModelInfo" : "actModeTarsModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						const updatedConfig = {
+							...apiConfiguration,
+							[modelInfoField]: response.models[modelId],
+						}
+						controller.stateManager.setApiConfiguration(updatedConfig)
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeTarsModelId
+					const actModelId = apiConfiguration.actModeTarsModelId
+					const updatedConfig = { ...apiConfiguration }
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						updatedConfig.planModeTarsModelInfo = response.models[planModelId]
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						updatedConfig.actModeTarsModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info

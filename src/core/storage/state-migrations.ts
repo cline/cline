@@ -590,6 +590,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.openAiNativeApiKey,
 						config.deepSeekApiKey,
 						config.requestyApiKey,
+						config.tarsApiKey,
 						config.togetherApiKey,
 						config.qwenApiKey,
 						config.doubaoApiKey,
