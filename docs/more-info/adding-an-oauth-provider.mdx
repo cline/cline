@@ -1,0 +1,330 @@
+---
+title: Adding a New OAuth Provider
+description: End-to-end guide for adding a new OAuth-based model provider to Cline’s VSCode extension
+---
+
+Audience: Extension maintainers and integrators who want to add a first‑class OAuth provider to Cline. This guide is general-purpose and does not require following any specific config-file pattern from other providers — design your auth, settings, and API contracts as your provider requires.
+
+Overview
+- Core pieces you will touch:
+  - Core API provider: src/core/api/providers/[provider].ts
+  - Auth service: src/services/auth/[provider]/...
+  - Controller flows: src/core/controller/[provider]*/...
+  - Webview settings UI: webview-ui/src/components/settings/providers/[Provider]*.tsx
+  - Protobuf surfaces for settings and (optionally) account/auth: proto/cline/*.proto
+  - State and conversions: src/core/storage/* and src/shared/proto-conversions/*
+
+- Design goals:
+  - Keep secrets in VSCode Secrets storage
+  - Keep non-sensitive configuration in global/workspace state
+  - Use protobuf definitions for typed core↔webview messages
+  - Make provider registration modular and isolated from other providers
+  - Allow flexible OAuth flows (Authorization Code, PKCE, Device Code, custom redirect schemes) and custom headers
+  - Streaming support and error handling consistent with other providers
+
+High-Level Steps
+1) Define the provider shape and IDs
+2) (Optional) Add protobuf surfaces for settings and account flows
+3) Generate protobuf stubs (npm run protos)
+4) Implement the Core API provider
+5) Implement the Auth service and token management
+6) Wire Controller handlers for login/logout/status and settings updates
+7) Add Webview Settings UI
+8) Persist state & secrets; implement conversions
+9) Register provider and test end-to-end
+
+1) Define Provider Shape and IDs
+- Choose a stable internal provider ID (e.g. "myProvider") used in:
+  - API registration (src/core/api/index.ts)
+  - Settings serialization
+  - Webview provider registry
+- Decide how tokens are acquired (browser redirect, device code, embedded webview, local listener, etc.)
+- Decide the minimum settings users must specify (e.g., region, tenant, endpoint URL, org/project, optional model group) — do not copy other providers’ config patterns unless they fit your needs.
+
+2) Protobuf Surfaces (Optional but Recommended)
+Use proto to strongly type UI↔core messages and persisted settings.
+
+Common places to extend:
+- proto/cline/state.proto
+  - Add provider to ApiProvider enum if needed
+  - Add a ProviderSettings message if you have typed settings to persist
+
+Example (simplified):
+```proto
+// proto/cline/state.proto
+enum ApiProvider {
+  ANTHROPIC = 0;
+  OPENROUTER = 1;
+  // ...
+  MY_PROVIDER = 99; // your new provider
+}
+
+message MyProviderSettings {
+  string endpoint = 1;       // optional
+  string tenant = 2;         // optional
+  string default_model = 3;  // optional
+  bool use_pkce = 4;         // optional
+}
+```
+
+- proto/cline/models.proto (optional)
+  - If you want a command to refresh/fetch provider models from your backend, add a request/response surface.
+
+- proto/cline/[provider]_account.proto (optional)
+  - If you want explicit RPCs for login/logout/status streaming. Otherwise, you can reuse existing account patterns and generic messages.
+
+Notes:
+- Prefer common message types in proto/common.proto for simple strings/ints.
+- Keep messages minimal; you can evolve later.
+
+3) Generate Protobuf Stubs
+After editing any .proto:
+```bash
+npm run protos
+```
+This regenerates types in src/generated/ and src/shared/. Do not edit generated files.
+
+4) Implement the Core API Provider
+Create src/core/api/providers/myProvider.ts that implements the provider interface used by the API factory. This module should:
+- Accept the current settings and a Secrets-backed token accessor
+- Perform chat/completions calls to your backend (OpenAI-compatible or custom)
+- Stream tokens and usage if supported
+- Map provider-specific errors to consistent errors for Cline
+- Guard calls if no access token is present; return a clear error
+
+Skeleton:
+```ts
+// src/core/api/providers/myProvider.ts
+import type { ApiHandler, ChatParams, StreamCallbacks } from "../types" // adjust based on existing types
+import { getSecret } from "../../storage/secrets" // example helper you might have
+
+export function buildMyProvider(): ApiHandler {
+  return {
+    id: "myProvider",
+    async chat(params: ChatParams, stream?: StreamCallbacks) {
+      const accessToken = await getSecret("myProvider.accessToken")
+      if (!accessToken) {
+        throw new Error("MyProvider: Not authenticated. Please sign in from Settings.")
+      }
+
+      // Build request
+      const url = resolveEndpoint(params) // your logic
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+        // add any custom vendor headers
+      }
+
+      const body = JSON.stringify({
+        model: params.model,
+        messages: params.messages.map(/* map to provider format */),
+        stream: Boolean(stream),
+        // ... any provider features you support (reasoning budget, caching, etc.)
+      })
+
+      const res = await fetch(url, { method: "POST", headers, body })
+
+      if (!res.ok) {
+        // map status codes and payload to a helpful error
+        const text = await res.text().catch(() => "")
+        throw new Error(`MyProvider error ${res.status}: ${text || res.statusText}`)
+      }
+
+      if (stream) {
+        // parse your provider’s streaming format and call:
+        // stream.onToken(token), stream.onUsage(usage), stream.onDone()
+        await streamProviderResponse(res, stream)
+        return { content: "", usage: undefined } // content streamed
+      }
+
+      const json = await res.json()
+      return normalizeProviderResponse(json)
+    },
+    // Optionally implement: embeddings, models.list, etc.
+  }
+}
+```
+
+Finally, register the provider in src/core/api/index.ts so it’s selectable in Settings.
+
+5) Implement Auth Service and Token Management
+Create a dedicated auth module:
+- src/services/auth/myProvider/MyProviderAuthService.ts
+- If you like a layered approach, add:
+  - src/services/auth/myProvider/providers/MyProviderAuthProvider.ts (an object implementing a small AuthProvider interface)
+  - src/services/auth/myProvider/utils/* for PKCE, constants, and useful helpers
+
+Auth Service responsibilities:
+- Start login: open browser/device flow, attach PKCE if needed
+- Handle redirect via VSCode URI handler or a local callback
+- Exchange code for tokens
+- Store tokens in VSCode Secrets (access, refresh, expiry, token_type, etc.)
+- Refresh tokens proactively (on demand or on schedule)
+- Revoke tokens and cleanup on logout
+- Emit auth status changes to Controller
+
+Example interface (you can shape this as you like):
+```ts
+// src/services/auth/myProvider/providers/AuthProvider.ts
+export interface AuthProvider {
+  login(): Promise<void>
+  logout(): Promise<void>
+  getAccessToken(): Promise<string | undefined>
+  refreshIfNeeded(): Promise<void>
+  subscribe(cb: (status: "logged_in" | "logged_out" | "refreshing") => void): () => void
+}
+```
+
+Token storage:
+- Use VSCode Secrets for sensitive data:
+  - Keys like myProvider.accessToken, myProvider.refreshToken, myProvider.expiresAt
+- Use global/workspace state for non-sensitive defaults (model, endpoint, etc.)
+
+Redirect handling:
+- Use or extend SharedUriHandler (src/services/uri/SharedUriHandler.ts) to register a scheme (vscode://) and handle the auth callback.
+- For device code flow, poll token endpoint until approval.
+
+6) Wire Controller Flows
+Add small handlers to bridge UI actions ↔ auth service ↔ state:
+- src/core/controller/myProviderAccount/myProviderLoginClicked.ts
+- src/core/controller/myProviderAccount/myProviderLogoutClicked.ts
+- src/core/controller/myProviderAccount/subscribeToAuthStatusUpdate.ts
+- If you support model refresh, add something like src/core/controller/models/refreshMyProviderModels.ts
+
+Also update settings flow to accept and persist MyProviderSettings:
+- src/core/controller/state/updateSettings.ts
+- src/core/storage/state-keys.ts and src/core/storage/StateManager.ts (or wherever your project persists provider settings)
+- src/shared/proto-conversions/state/settings-conversion.ts (map between proto and internal shape)
+
+7) Add Webview Settings UI
+Create provider UI in:
+- webview-ui/src/components/settings/providers/MyProvider.tsx — main settings panel
+- webview-ui/src/components/settings/providers/MyProviderModelPicker.tsx — optional model selector
+
+What UI should do:
+- Present auth status (signed in/out)
+- Buttons to sign in/out and refresh tokens/models
+- Inputs for provider-specific settings
+- Save settings via generated gRPC clients calling core Controller handlers
+- React to streamed auth status updates
+
+Example login button handler (simplified):
+```tsx
+// webview-ui/src/components/settings/providers/MyProvider.tsx
+import { UiServiceClient } from "../../../services/grpc" // your generated client
+import { Empty } from "../../../../shared/proto/common"
+
+export function MyProviderSettings() {
+  const [authStatus, setAuthStatus] = useState<"logged_in" | "logged_out" | "refreshing">("logged_out")
+
+  useEffect(() => {
+    const stream = UiServiceClient.subscribeToMyProviderAuthStatus(Empty.create({}))
+    stream.onMessage((msg) => setAuthStatus(msg.value as any))
+    return () => stream.close()
+  }, [])
+
+  const onLogin = async () => {
+    await UiServiceClient.myProviderLoginClicked(Empty.create({}))
+  }
+
+  const onLogout = async () => {
+    await UiServiceClient.myProviderLogoutClicked(Empty.create({}))
+  }
+
+  return (
+    <div>
+      <p>Auth: {authStatus}</p>
+      {authStatus !== "logged_in" ? (
+        <button onClick={onLogin}>Sign in</button>
+      ) : (
+        <button onClick={onLogout}>Sign out</button>
+      )}
+      {/* Render your provider-specific settings inputs and save actions */}
+    </div>
+  )
+}
+```
+
+8) Persist State & Conversions
+- Persist provider settings to global/workspace state (non-sensitive only)
+- Store tokens and secrets via VSCode Secrets
+- Add conversion helpers in src/shared/proto-conversions to map proto <-> internal types
+- Ensure state updates are broadcast to the webview (Controller handles state distribution)
+
+9) Register Provider & Test
+- Add to core API registry: src/core/api/index.ts
+- Add to Settings provider list: webview-ui/src/components/settings/ApiOptions.tsx and providerUtils.ts
+- Verify:
+  - Login flow completes and secrets are stored
+  - Access token is injected into API requests
+  - Chat works; streaming and usage tallies show up if supported
+  - Logout clears secrets
+  - Model refresh (if implemented) updates UI
+  - Errors are handled with clear messages
+
+Variations You Can Choose
+- OAuth flow: Authorization Code with PKCE, Device Code, SSO-specific flows, or any custom handshake your provider supports
+- Token transport: Authorization header, custom header, cookie-based sessions (browser workflows)
+- Model listing: On-demand fetch, static list, or computed from org/tenant
+- Pricing/cost: Per-token, per-second, or no-cost; implement usage calculation only if you have a reliable source
+- Ephemeral prompts/caching/reasoning budget: Optional feature flags in your API provider
+
+Security & Privacy
+- Keep tokens only in VSCode Secrets
+- Never log raw tokens
+- Enforce minimal scopes needed
+- Handle token refresh errors gracefully and surface a non-sensitive error message to the user
+
+Error Handling Checklist
+- No token: prompt the user to sign in from Settings
+- Expired/invalid token: try refresh, then prompt sign in
+- Network errors: retry with backoff if sensible; display actionable message
+- Provider 4xx/5xx: show concise, user-friendly error with an error code
+
+Release & Maintenance
+- Add a docs page for your provider (this page) and a user-facing configuration doc if needed
+- Add a changeset for semantic release
+- Ensure CI tests cover: login flow, token refresh, API handler happy-path
+- Monitor telemetry for auth failures (without storing secrets)
+
+Minimal Working Example: Controller login handler
+```ts
+// src/core/controller/myProviderAccount/myProviderLoginClicked.ts
+import type { Controller } from ".."
+import { Empty, KeyValuePair } from "../../../shared/proto/common"
+import { MyProviderAuthService } from "../../../services/auth/myProvider/MyProviderAuthService"
+
+export async function myProviderLoginClicked(controller: Controller, _req: Empty): Promise<KeyValuePair> {
+  const auth = MyProviderAuthService.getInstance(controller.context)
+  await auth.login()
+  return KeyValuePair.create({ key: "myProviderLogin", value: "started" })
+}
+```
+
+Minimal Working Example: Injecting token in API call
+```ts
+// src/core/api/providers/myProvider.ts
+async function callModelApi(endpoint: string, accessToken: string, payload: unknown) {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+      // vendor-specific headers ok here
+    },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    throw new Error(`MyProvider ${res.status}: ${await res.text().catch(() => res.statusText)}`)
+  }
+  return res.json()
+}
+```
+
+Troubleshooting
+- Handler not called: Verify protobuf RPC wiring, re-run npm run protos, and confirm controller exported the handler
+- Webview not updated: Ensure state broadcast in Controller and webview subscription is active
+- URI handler not invoked: Confirm your vscode:// scheme is registered and the redirect URI matches provider config
+- Streaming stalls: Check server-sent events or chunked parsing is implemented per provider spec
+
+By following this guide, you can add a new OAuth provider cleanly without adopting any other provider’s config file conventions. Keep the integration modular, secrets secure, and the UI clear for users.

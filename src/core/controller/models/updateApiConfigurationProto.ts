@@ -29,7 +29,7 @@ export async function updateApiConfigurationProto(
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = await controller.getCurrentMode()
-			controller.task.api = buildApiHandler({ ...appApiConfiguration, ulid: controller.task.ulid }, currentMode)
+			controller.task.api = buildApiHandler({ ...appApiConfiguration, ulid: controller.task.ulid }, currentMode, controller)
 		}
 
 		// Post updated state to webview
