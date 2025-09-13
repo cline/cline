@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.28.4
+
+### Patch Changes
+
+- 4985d1d: fix: display prompt cache info in History"
+
 ## [3.28.3]
 
 - Fixed issue with start new task button
