@@ -28,7 +28,7 @@ export async function refreshBasetenModels(
 	try {
 		if (!basetenApiKey) {
 			console.log("No Baseten API key found, using static models as fallback")
-			// Don't throw an error, just use static models
+			// Don't throw an error, just use static models, althought this might be slightly out of date
 			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
@@ -69,22 +69,16 @@ export async function refreshBasetenModels(
 						continue
 					}
 
-					// Only include models that are listed in the static basetenModels
-					if (!(rawModel.id in basetenModels)) {
-						console.log(`Skipping model ${rawModel.id} - not in static basetenModels list`)
-						continue
-					}
-
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 
 					const modelInfo: Partial<OpenRouterModelInfo> = {
-						maxTokens: staticModelInfo?.maxTokens || 8192,
-						contextWindow: staticModelInfo?.contextWindow || 8192,
-						supportsImages: staticModelInfo?.supportsImages || false,
+						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
+						contextWindow: rawModel.context_length || staticModelInfo?.contextWindow,
+						supportsImages: false, // Baseten model APIs does not support image input
 						supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
-						inputPrice: staticModelInfo?.inputPrice || 0,
-						outputPrice: staticModelInfo?.outputPrice || 0,
+						inputPrice: parsePrice(rawModel.pricing?.prompt) || staticModelInfo?.inputPrice || 0,
+						outputPrice: parsePrice(rawModel.pricing?.completion) || staticModelInfo?.outputPrice || 0,
 						cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
@@ -125,11 +119,9 @@ export async function refreshBasetenModels(
 		const cachedModels = await readBasetenModels(controller)
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
 			console.log("Using cached Baseten models")
-			// Filter cached models to only include those in static basetenModels
+			// Use all cached models (no filtering)
 			for (const [modelId, modelInfo] of Object.entries(cachedModels)) {
-				if (modelId in basetenModels) {
-					models[modelId] = modelInfo
-				}
+				models[modelId] = modelInfo
 			}
 		} else {
 			// Fall back to static models from shared/api.ts
@@ -216,17 +208,65 @@ function isValidChatModel(rawModel: any): boolean {
 }
 
 /**
+ * Converts string pricing from per-token to per-million-tokens
+ */
+function parsePrice(priceString: string | undefined): number {
+	if (!priceString || priceString === "" || priceString === "0") {
+		return 0
+	}
+	const parsed = parseFloat(priceString)
+	if (isNaN(parsed)) {
+		return 0
+	}
+	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
+	return parsed * 1_000_000
+}
+
+/**
  * Generates a descriptive name for the model
  */
 function generateModelDescription(rawModel: any, staticModelInfo?: any): string {
-	// Use static description if available
+	// Use static description if available and preferred
 	if (staticModelInfo?.description) {
 		return staticModelInfo.description
 	}
 
-	// Generate description based on model characteristics
-	const modelId = rawModel.id
-	const ownedBy = rawModel.owned_by || "Unknown"
+	// Use API description if available
+	if (rawModel.description) {
+		const contextWindow = rawModel.context_length
+		const quantization = rawModel.quantization
+		const features = rawModel.supported_features || []
 
-	return `${ownedBy} model: ${modelId}`
+		let description = rawModel.description
+
+		// Add technical details if available
+		const technicalDetails = []
+		if (contextWindow) {
+			technicalDetails.push(`${contextWindow.toLocaleString()} token context`)
+		}
+		if (quantization) {
+			technicalDetails.push(`${quantization} precision`)
+		}
+		if (features.length > 0) {
+			const featureList = features.join(", ")
+			technicalDetails.push(`supports ${featureList}`)
+		}
+
+		if (technicalDetails.length > 0) {
+			description += ` (${technicalDetails.join(", ")})`
+		}
+
+		return description
+	}
+
+	// Fallback: use name or model ID
+	const modelName = rawModel.name || rawModel.id
+	const contextWindow = rawModel.context_length
+	const ownedBy = rawModel.owned_by || "Baseten"
+
+	if (contextWindow) {
+		return `${ownedBy} ${modelName} with ${contextWindow.toLocaleString()} token context window`
+	}
+
+	return `${ownedBy} model: ${modelName}`
 }
