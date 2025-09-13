@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.28.3]
+
+- Fixed issue with start new task button
+- Feature to generate commit message for staged changes, with unstaged as fallback
+
 ## [3.28.2]
 
 - Fix for focus chain settings
