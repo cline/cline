@@ -413,6 +413,8 @@ export class Task {
 			this.ulid,
 			this.mode,
 			strictPlanModeEnabled,
+			this.workspaceManager,
+			featureFlagsService.getMultiRootEnabled(),
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpointCallback.bind(this),
@@ -2318,9 +2320,71 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
+	/**
+	 * Format workspace roots section for multi-root workspaces
+	 */
+	private formatWorkspaceRootsSection(): string {
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const hasWorkspaceManager = !!this.workspaceManager
+		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
+
+		// Only show workspace roots if multi-root is enabled and there are multiple roots
+		if (!isMultiRootEnabled || roots.length <= 1) {
+			return ""
+		}
+
+		let section = "\n\n# Workspace Roots"
+
+		// Format each root with its name, path, and VCS info
+		for (const root of roots) {
+			const name = root.name || path.basename(root.path)
+			const vcs = root.vcs ? ` (${String(root.vcs)})` : ""
+			section += `\n- ${name}: ${root.path}${vcs}`
+		}
+
+		// Add primary workspace information
+		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primaryName = this.getPrimaryWorkspaceName(primary)
+		section += `\n\nPrimary workspace: ${primaryName}`
+
+		return section
+	}
+
+	/**
+	 * Get the display name for the primary workspace
+	 */
+	private getPrimaryWorkspaceName(primary?: ReturnType<WorkspaceRootManager["getRoots"]>[0]): string {
+		if (primary?.name) {
+			return primary.name
+		}
+		if (primary?.path) {
+			return path.basename(primary.path)
+		}
+		return path.basename(this.cwd)
+	}
+
+	/**
+	 * Format the file details header based on workspace configuration
+	 */
+	private formatFileDetailsHeader(): string {
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const roots = this.workspaceManager?.getRoots() || []
+
+		if (isMultiRootEnabled && roots.length > 1) {
+			const primary = this.workspaceManager?.getPrimaryRoot()
+			const primaryName = this.getPrimaryWorkspaceName(primary)
+			return `\n\n# Current Working Directory (Primary: ${primaryName}) Files\n`
+		} else {
+			return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+		}
+	}
+
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
+
+		// Workspace roots (multi-root)
+		details += this.formatWorkspaceRootsSection()
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += `\n\n# ${host.platform} Visible Files`
@@ -2445,7 +2509,7 @@ export class Task {
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+			details += this.formatFileDetailsHeader()
 			const isDesktop = arePathsEqual(this.cwd, getDesktopDir())
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup

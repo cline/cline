@@ -18,6 +18,7 @@ import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
+import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
@@ -88,6 +89,10 @@ export class ToolExecutor {
 		private mode: Mode,
 		private strictPlanModeEnabled: boolean,
 
+		// Workspace Management
+		private workspaceManager: WorkspaceRootManager | undefined,
+		private isMultiRootEnabled: boolean,
+
 		// Callbacks to the Task (Entity)
 		private say: (
 			type: ClineSay,
@@ -130,6 +135,8 @@ export class ToolExecutor {
 			mode: this.mode,
 			strictPlanModeEnabled: this.strictPlanModeEnabled,
 			cwd: this.cwd,
+			workspaceManager: this.workspaceManager,
+			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
 			api: this.api,
