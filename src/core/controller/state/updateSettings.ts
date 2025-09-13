@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -31,8 +30,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setApiConfiguration(apiConfiguration)
 
 			if (controller.task) {
-				const currentMode = await controller.getCurrentMode()
-				controller.task.api = buildApiHandler({ ...apiConfiguration, ulid: controller.task.ulid }, currentMode)
+				controller.rebuildApiHandler(apiConfiguration)
 			}
 		}
 
