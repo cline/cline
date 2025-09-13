@@ -125,6 +125,8 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                      webview-ui/coverage/lcov.info
+                      coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
@@ -219,3 +221,38 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    qlty:
+        needs: test
+        runs-on: ubuntu-latest
+        # Run on PRs to main, pushes to main, and manual dispatches
+        if: always() && needs.test.result == 'success'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for accurate comparison
+
+            - name: Download Coverage Reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: pr-coverage-reports
+                  path: .
+
+            - name: Upload core integration tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage/lcov.info
+                  tag: core:integration
+
+            - name: Upload webview-ui unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    webview-ui/coverage/lcov.info
+                  tag: webview-ui:unit
