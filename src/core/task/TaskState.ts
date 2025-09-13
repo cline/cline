@@ -43,7 +43,7 @@ export class TaskState {
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false
-	checkpointManagerErrorMessage?: string
+	checkpointTrackerErrorMessage?: string
 
 	// Task Initialization
 	isInitialized = false

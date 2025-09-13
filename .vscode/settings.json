@@ -21,11 +21,16 @@
 	},
 	// Enable Lint and format using Biome
 	"biome.enabled": true,
-	"editor.defaultFormatter": "biomejs.biome",
-	"editor.codeActionsOnSave": {
-		"source.fixAll.biome": "explicit",
-		"source.removeUnused.biome": "always",
-		"source.removeUnusedImports": "always",
-		"source.organizeImports.biome": "always"
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
 	}
 }

@@ -87,7 +87,6 @@ const CodeAccordian = ({
 					) : (
 						<>
 							{path?.startsWith(".") && <span>.</span>}
-							{path && !path.startsWith(".") && <span>/</span>}
 							<span
 								style={{
 									whiteSpace: "nowrap",

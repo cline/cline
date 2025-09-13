@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const nextGen: ClineToolSpec = {
 	variant: ModelFamily.NEXT_GEN,
@@ -22,7 +21,6 @@ const nextGen: ClineToolSpec = {
 			instruction: "The URL to fetch content from",
 			usage: "https://example.com/docs",
 		},
-		TASK_PROGRESS_PARAMETER,
 	],
 }
 

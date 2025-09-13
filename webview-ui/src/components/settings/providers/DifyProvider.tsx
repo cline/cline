@@ -1,4 +1,5 @@
 import { Mode } from "@shared/storage/types"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"

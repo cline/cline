@@ -1,18 +1,17 @@
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
-import { ClineDefaultTool } from "@shared/tools"
-import { telemetryService } from "@/services/telemetry"
-import { ToolUse } from "../../../assistant-message"
+import { ToolUse, ToolUseName } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WebFetchToolHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.WEB_FETCH
+	name = "web_fetch"
+	supportedTools: ToolUseName[] = ["web_fetch"]
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.url}']`
@@ -25,7 +24,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			path: uiHelpers.removeClosingTag(block, "url", url),
 			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
 			operationIsLocatedInWorkspace: false, // web_fetch is always external
-		} satisfies ClineSayTool
+		}
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -36,13 +35,18 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+		// For partial blocks, don't execute yet
+		if (block.partial) {
+			return ""
+		}
+
 		try {
 			const url: string | undefined = block.params.url
 
 			// Validate required parameter
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError(this.name, "url")
+				return await config.callbacks.sayAndCreateMissingParamError("web_fetch", "url")
 			}
 			config.taskState.consecutiveMistakeCount = 0
 
@@ -55,7 +59,10 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
-			if (config.callbacks.shouldAutoApproveTool(this.name)) {
+			// Check auto-approval (web_fetch uses simple boolean, not array)
+			const autoApprove = config.autoApprovalSettings.enabled && config.autoApprovalSettings.actions.useBrowser
+
+			if (autoApprove) {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
@@ -70,13 +77,12 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
-				if (!didApprove) {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-					return formatResponse.toolDenied()
-				} else {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+				const { response } = await config.callbacks.ask("tool", completeMessage, false)
+				if (response !== "yesButtonClicked") {
+					telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, false)
+					return "The user denied this operation."
 				}
+				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, true)
 			}
 
 			// Execute the actual fetch

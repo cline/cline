@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -198,8 +197,8 @@ export class LiteLlmHandler implements ApiHandler {
 
 		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
 
-		if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
-			temperature = undefined // OAI omni and Anthropic extended thinking mode doesn't support temperature
+		if (isOminiModel && reasoningOn) {
+			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
 		const modelInfo = await this.modelInfo(modelId)

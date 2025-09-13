@@ -5,7 +5,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
-import { telemetryService } from "@/services/telemetry"
+import { telemetryService } from "@/services/posthog/PostHogClientProvider"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 

@@ -143,7 +143,7 @@ return (
 <tool_name>create_issue</tool_name>
 <arguments>
 {
-  "owner": "octocat2",
+  "owner": "octocat",
   "repo": "hello-world",
   "title": "Found a bug",
   "body": "I'm having a problem with this.",

@@ -26,14 +26,8 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
-	// Returns a callback URL that will redirect to Cline.
-	getCallbackUrl: () => Promise<string>
-
-	// Returns the location of the binary `name`.
-	// Use `getBinaryLocation()` from utils/ts.ts instead of using
-	// this directly. The helper function correctly handles the file
-	// extension on Windows.
-	getBinaryLocation: (name: string) => Promise<string>
+	// Returns a callback URI that will redirect to Cline.
+	getCallbackUri: () => Promise<string>
 
 	// Private constructor to enforce singleton pattern
 	private constructor(
@@ -41,15 +35,13 @@ export class HostProvider {
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUrl: () => Promise<string>,
-		getBinaryLocation: (name: string) => Promise<string>,
+		getCallbackUri: () => Promise<string>,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
-		this.getCallbackUrl = getCallbackUrl
-		this.getBinaryLocation = getBinaryLocation
+		this.getCallbackUri = getCallbackUri
 	}
 
 	public static initialize(
@@ -57,19 +49,17 @@ export class HostProvider {
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUrl: () => Promise<string>,
-		getBinaryLocation: (name: string) => Promise<string>,
+		getCallbackUri: () => Promise<string>,
 	): HostProvider {
 		if (HostProvider.instance) {
-			throw new Error("Host provider has already been initialized.")
+			throw new Error("Host providers have already been initialized.")
 		}
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
 			diffViewProviderCreator,
 			hostBridgeProvider,
 			logToChannel,
-			getCallbackUrl,
-			getBinaryLocation,
+			getCallbackUri,
 		)
 		return HostProvider.instance
 	}
@@ -94,6 +84,11 @@ export class HostProvider {
 	 */
 	public static reset(): void {
 		HostProvider.instance = null
+	}
+
+	// Static service accessors for more concise access for callers.
+	public static get watch() {
+		return HostProvider.get().hostBridge.watchServiceClient
 	}
 
 	public static get workspace() {

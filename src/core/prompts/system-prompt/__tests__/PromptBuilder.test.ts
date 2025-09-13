@@ -10,7 +10,6 @@ import { mockProviderInfo } from "./integration.test"
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {
 		cwd: "/test/project",
-		ide: "TestIde",
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],

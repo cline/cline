@@ -3,18 +3,18 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = ClineDefaultTool.ATTEMPT
+	readonly name = "attempt_completion"
+
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -28,26 +28,37 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		const result = block.params.result
 		const command = block.params.command
 
-		if (!command) {
-			// no command, still outputting partial result
-			await uiHelpers.say(
-				"completion_result",
-				uiHelpers.removeClosingTag(block, "result", result),
-				undefined,
-				undefined,
-				block.partial,
-			)
+		if (command) {
+			// the attempt_completion text is done, now we're getting command
+			// Original had complex logic here but most was commented out
+			// For now, we'll keep it simple and not stream command (matching original's disabled approach)
+			// But we can still stream result if we have it
+			if (result) {
+				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
+				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
+			}
+		} else {
+			// no command, still outputting partial result - MATCH ORIGINAL EXACTLY
+			if (result) {
+				const cleanResult = uiHelpers.removeClosingTag(block, "result", result)
+				await uiHelpers.say("completion_result", cleanResult, undefined, undefined, true)
+			}
 		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+		// For partial blocks, don't execute yet
+		if (block.partial) {
+			return ""
+		}
+
 		const result: string | undefined = block.params.result
 		const command: string | undefined = block.params.command
 
 		// Validate required parameters
 		if (!result) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "result")
+			return "Missing required parameter: result"
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
@@ -95,15 +106,11 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.saveCheckpoint(true)
 			}
 
-			// Attempt completion is a special tool where we want to update the focus chain list before the user provides response
-			if (!block.partial && config.focusChainSettings.enabled) {
-				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
-			}
-
 			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
-			if (!didApprove) {
-				return formatResponse.toolDenied()
+			const { response } = await config.callbacks.ask("command", command, false)
+			if (response !== "yesButtonClicked") {
+				// User rejected the command
+				return "The user denied the command execution."
 			}
 
 			// User approved, execute the command
@@ -122,21 +129,13 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
-		// in case last command was interactive and in partial state, the UI is expecting an ask response. This ends the command ask response, freeing up the UI to proceed with the completion ask.
-		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {
-			await config.callbacks.say("command_output", "")
-		}
-
-		if (!block.partial && config.focusChainSettings.enabled) {
-			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
-		}
-
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		if (response === "yesButtonClicked") {
 			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
+		await config.callbacks.saveCheckpoint()
 
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {

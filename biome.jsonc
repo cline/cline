@@ -37,8 +37,7 @@
 				"useYield": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off",
-				"noUnusedImports": "error"
+				"noSwitchDeclarations": "off"
 			},
 			"a11y": "off",
 			"style": {
@@ -123,8 +122,7 @@
 			"!**/node_modules/**",
 			"!**/webview-ui/build/**",
 			"!**/generated/**",
-			"!**/proto/**",
-			"!**/tests/specs/**"
+			"!**/proto/**"
 		]
 	},
 	"plugins": [
@@ -136,12 +134,7 @@
 				"**",
 				"!**/hosts/vscode/**",
 				"!**/test/**",
-				"!**/*.test.ts",
-				"!src/dev/**",
-				"!src/extension.ts",
-				"!src/integrations/git/commit-message-generator.ts",
-				"!src/integrations/terminal/**",
-				"!src/core/controller/ui/openWalkthrough.ts"
+				"!src/extension.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"
@@ -154,7 +147,6 @@
 				"!src/core/storage/FileContextTracker.ts",
 				"!src/core/context/context-tracking/FileContextTracker.ts",
 				"!src/common.ts",
-				"!src/services/logging/distinctId.ts",
 				"!src/core/storage/utils/state-helpers.ts",
 				"!src/extension.ts"
 			],

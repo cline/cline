@@ -4,6 +4,7 @@ import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
@@ -52,11 +53,9 @@ interface ExtensionStateContextType extends ExtensionState {
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
-	showChatModelSelector: boolean
 
 	// Setters
 	setShowAnnouncement: (value: boolean) => void
-	setShowChatModelSelector: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
@@ -72,6 +71,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setDictationSettings: (value: DictationSettings) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -93,7 +93,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	hideHistory: () => void
 	hideAccount: () => void
 	hideAnnouncement: () => void
-	hideChatModelSelector: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -115,7 +114,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -128,7 +126,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
-	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -179,7 +176,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
+		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
+		focusChainFeatureFlagEnabled: false,
 		preferredLanguage: "English",
 		openaiReasoningEffort: "medium",
 		mode: "act",
@@ -205,12 +204,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
-		extensionInfo: { name: "claude-dev", publisher: "saoudrizwan" },
-
-		// NEW: Add workspace information with defaults
-		workspaceRoots: [],
-		primaryRootIndex: 0,
-		isMultiRootWorkspace: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -642,7 +635,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		showHistory,
 		showAccount,
 		showAnnouncement,
-		showChatModelSelector,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -665,8 +657,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideAccount,
 		hideAnnouncement,
 		setShowAnnouncement,
-		hideChatModelSelector,
-		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -716,6 +706,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		setDictationSettings: (value: DictationSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				dictationSettings: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

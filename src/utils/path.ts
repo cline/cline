@@ -1,4 +1,3 @@
-import { workspaceResolver } from "@core/workspace"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
@@ -83,15 +82,13 @@ function normalizePath(p: string): string {
 export function getReadablePath(cwd: string, relPath?: string): string {
 	relPath = relPath || ""
 	// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
-	const absolutePathResult = workspaceResolver.resolveWorkspacePath(cwd, relPath, "Utils.path.getReadablePath")
-	const absolutePath = typeof absolutePathResult === "string" ? absolutePathResult : absolutePathResult.absolutePath
+	const absolutePath = path.resolve(cwd, relPath)
 	if (arePathsEqual(cwd, getDesktopDir())) {
 		// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
 		return absolutePath.toPosix()
 	}
 	if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
-		const basenameResult = workspaceResolver.getBasename(absolutePath, "Utils.path.getReadablePath")
-		return basenameResult.toPosix()
+		return path.basename(absolutePath).toPosix()
 	} else {
 		// show the relative path to the cwd
 		const normalizedRelPath = path.relative(cwd, absolutePath)
@@ -111,8 +108,7 @@ export async function getCwd(defaultCwd = ""): Promise<string> {
 }
 
 export function getDesktopDir() {
-	const desktopResult = workspaceResolver.resolveWorkspacePath(os.homedir(), "Desktop", "Utils.path.getDesktopDir")
-	return typeof desktopResult === "string" ? desktopResult : desktopResult.absolutePath
+	return path.join(os.homedir(), "Desktop")
 }
 
 // Returns the workspace path of the file in the current editor.
@@ -135,12 +131,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 export async function isLocatedInWorkspace(pathToCheck: string = ""): Promise<boolean> {
 	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
-		const resolvedPathResult = workspaceResolver.resolveWorkspacePath(
-			workspacePath,
-			pathToCheck,
-			"Utils.path.isLocatedInWorkspace",
-		)
-		const resolvedPath = typeof resolvedPathResult === "string" ? resolvedPathResult : resolvedPathResult.absolutePath
+		const resolvedPath = path.resolve(workspacePath, pathToCheck)
 		if (isLocatedInPath(workspacePath, resolvedPath)) {
 			return true
 		}
@@ -158,12 +149,7 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 		return pathToCheck.startsWith(dirPath)
 	}
 
-	const resolvedDirResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Utils.path.isLocatedInPath")
-	const resolvedDir = typeof resolvedDirResult === "string" ? resolvedDirResult : resolvedDirResult.absolutePath
-	const resolvedCheckResult = workspaceResolver.resolveWorkspacePath(pathToCheck, "", "Utils.path.isLocatedInPath")
-	const resolvedCheck = typeof resolvedCheckResult === "string" ? resolvedCheckResult : resolvedCheckResult.absolutePath
-
-	const relativePath = path.relative(resolvedDir, resolvedCheck)
+	const relativePath = path.relative(path.resolve(dirPath), path.resolve(pathToCheck))
 	if (relativePath.startsWith("..")) {
 		return false
 	}

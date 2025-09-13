@@ -2,14 +2,12 @@ import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvid
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { WebviewProviderType } from "@shared/webview/types"
-import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { waitForHostBridgeReady } from "./hostbridge-client"
-import { startProtobusService } from "./protobus-service"
+import { startProtobusService, waitForHostBridgeReady } from "./protobus-service"
 import { log } from "./utils"
 import { extensionContext } from "./vscode-context"
 
@@ -43,19 +41,11 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
-	const getCallbackUrl = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUrl()
+	const getCallbackUri = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUri()
 	}
-	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
-	HostProvider.initialize(
-		createWebview,
-		createDiffView,
-		new ExternalHostBridgeClientManager(),
-		log,
-		getCallbackUrl,
-		getBinaryLocation,
-	)
+	HostProvider.initialize(createWebview, createDiffView, new ExternalHostBridgeClientManager(), log, getCallbackUri)
 }
 
 /**

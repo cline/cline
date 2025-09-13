@@ -1,3 +1,4 @@
+import * as vscode from "vscode"
 import { WebviewProvider } from "@/core/webview"
 
 /**
@@ -6,24 +7,18 @@ import { WebviewProvider } from "@/core/webview"
 export class SharedUriHandler {
 	/**
 	 * Processes a URI and routes it to the appropriate handler
-	 * @param url The URI to process (can be from VSCode or converted from HTTP)
+	 * @param uri The URI to process (can be from VSCode or converted from HTTP)
 	 * @returns Promise<boolean> indicating success (true) or failure (false)
 	 */
-	public static async handleUri(url: string): Promise<boolean> {
-		const parsedUrl = new URL(url)
-		const path = parsedUrl.pathname
-
-		// Create URLSearchParams from the query string, but preserve plus signs
-		// by replacing them with a placeholder before parsing
-		const queryString = parsedUrl.search.slice(1) // Remove leading '?'
-		const query = new URLSearchParams(queryString.replace(/\+/g, "%2B"))
-
+	public static async handleUri(uri: vscode.Uri): Promise<boolean> {
 		console.log("SharedUriHandler: Processing URI:", {
-			path: path,
-			query: query,
-			scheme: parsedUrl.protocol,
+			path: uri.path,
+			query: uri.query,
+			scheme: uri.scheme,
 		})
 
+		const path = uri.path
+		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const visibleWebview = WebviewProvider.getVisibleInstance()
 
 		if (!visibleWebview) {
@@ -43,10 +38,10 @@ export class SharedUriHandler {
 					return false
 				}
 				case "/auth": {
-					const provider = query.get("provider")
-					const token = query.get("idToken")
+					console.log("SharedUriHandler: Auth callback received:", { path: uri.path, provider: query.get("provider") })
 
-					console.log("SharedUriHandler: Auth callback received:", { path: path, provider: provider })
+					const token = query.get("idToken")
+					const provider = query.get("provider")
 
 					if (token) {
 						await visibleWebview.controller.handleAuthCallback(token, provider)
@@ -63,5 +58,14 @@ export class SharedUriHandler {
 			console.error("SharedUriHandler: Error processing URI:", error)
 			return false
 		}
+	}
+
+	/**
+	 * Converts an HTTP URL to a vscode.Uri for unified processing
+	 * @param httpUrl The HTTP URL to convert
+	 * @returns vscode.Uri representation of the URL
+	 */
+	public static convertHttpUrlToUri(httpUrl: string): vscode.Uri {
+		return vscode.Uri.parse(httpUrl)
 	}
 }

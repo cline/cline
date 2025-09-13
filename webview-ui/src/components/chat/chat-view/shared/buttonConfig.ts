@@ -11,7 +11,6 @@ export type ButtonActionType =
 	| "new_task" // Start a new task
 	| "cancel" // Cancel streaming
 	| "utility" // Execute utility function (condense, report_bug)
-	| "retry" // Retry the last action
 
 /**
  * Button configuration for different message states
@@ -32,11 +31,11 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: true,
+		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Retry",
 		secondaryText: "Start New Task",
-		primaryAction: "retry",
+		primaryAction: "approve",
 		secondaryAction: "new_task",
 	},
 	mistake_limit_reached: {
@@ -148,7 +147,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		enableButtons: true,
 		primaryText: "Start New Task",
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: "proceed",
 		secondaryAction: undefined,
 	},
 	new_task: {
@@ -156,7 +155,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		enableButtons: true,
 		primaryText: "Start New Task with Context",
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: "utility",
 		secondaryAction: undefined,
 	},
 
@@ -183,7 +182,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: "Cancel",
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
@@ -201,7 +200,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: "Cancel",
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},

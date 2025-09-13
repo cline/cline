@@ -4,7 +4,6 @@
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../shared/buttonConfig"
 
 /**
  * Main ChatView component props
@@ -66,8 +65,8 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
-	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
+	handleButtonClick: (action: string, text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
 }

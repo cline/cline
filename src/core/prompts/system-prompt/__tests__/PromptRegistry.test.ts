@@ -10,7 +10,6 @@ describe("PromptRegistry", () => {
 	let registry: PromptRegistry
 	const mockContext: SystemPromptContext = {
 		cwd: "/test/project",
-		ide: "TestIde",
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],
@@ -60,7 +59,6 @@ describe("PromptRegistry", () => {
 				{ id: "google/gemini", expected: ModelFamily.GENERIC },
 				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
 				{ id: "gpt-5", expected: ModelFamily.GPT_5 },
-				{ id: "openai/gpt-5", expected: ModelFamily.GPT_5 },
 				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 

@@ -1,8 +1,8 @@
-import { expect, Frame, Page } from "@playwright/test"
+import { expect } from "@playwright/test"
 import { addSelectedCodeToClineWebview, getClineEditorWebviewFrame, openTab, toggleNotifications } from "./utils/common"
-import { e2e, e2eMultiRoot } from "./utils/helpers"
+import { e2e } from "./utils/helpers"
 
-async function editorTest(page: Page, sidebar: Frame) {
+e2e("code actions and editor panel", async ({ page, sidebar, helper }) => {
 	await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
 	// Sidebar - input should start empty
 	const sidebarInput = sidebar.getByTestId("chat-input")
@@ -32,12 +32,4 @@ async function editorTest(page: Page, sidebar: Frame) {
 	await expect(clineEditorWebview.getByTestId("chat-input")).toBeEmpty()
 	await addSelectedCodeToClineWebview(page)
 	await expect(clineEditorWebview.getByTestId("chat-input")).not.toBeEmpty()
-}
-
-e2e("Code actions and editor panel", async ({ page, sidebar }) => {
-	await editorTest(page, sidebar)
-})
-
-e2eMultiRoot("[Multi-roots] Code actions and editor panel", async ({ page, sidebar }) => {
-	await editorTest(page, sidebar)
 })

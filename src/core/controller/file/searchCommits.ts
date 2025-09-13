@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { GitCommits } from "@shared/proto/cline/file"
+import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
 import { Controller } from ".."
@@ -19,7 +20,9 @@ export async function searchCommits(_controller: Controller, request: StringRequ
 	try {
 		const commits = await searchCommitsUtil(request.value || "", cwd)
 
-		return GitCommits.create({ commits })
+		const protoCommits = convertGitCommitsToProtoGitCommits(commits)
+
+		return GitCommits.create({ commits: protoCommits })
 	} catch (error) {
 		console.error(`Error searching commits: ${JSON.stringify(error)}`)
 		return GitCommits.create({ commits: [] })

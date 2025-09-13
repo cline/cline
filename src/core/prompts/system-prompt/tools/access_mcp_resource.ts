@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 /**
  * ## access_mcp_resource
@@ -24,23 +23,27 @@ const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.MCP_ACCESS,
 	name: "access_mcp_resource",
-	description:
-		"Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.",
+	description: "The name of the MCP server providing the resource.",
 	contextRequirements: (context) => context.mcpHub !== undefined && context.mcpHub !== null,
 	parameters: [
 		{
 			name: "server_name",
 			required: true,
-			instruction: "The name of the MCP server providing the resource",
-			usage: "server name here",
+			instruction: "server name here",
 		},
 		{
 			name: "uri",
 			required: true,
-			instruction: "The URI identifying the specific resource to access",
-			usage: "resource URI here",
+			instruction: "resource URI here",
 		},
-		TASK_PROGRESS_PARAMETER,
+		{
+			name: "task_progress",
+			required: false,
+			instruction:
+				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
+			usage: "Checklist here (optional)",
+			dependencies: [ClineDefaultTool.TODO],
+		},
 	],
 }
 

@@ -1,3 +1,4 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
@@ -65,8 +66,12 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 		const target = event.target as HTMLSelectElement
 		const profileId = target.value
 
-		// Save immediately using the consolidated updateSettings approach
-		updateSetting("defaultTerminalProfile", profileId || "default")
+		// Save immediately - the backend will call postStateToWebview() to update our state
+		StateServiceClient.updateDefaultTerminalProfile({
+			value: profileId || "default",
+		} as StringRequest).catch((error) => {
+			console.error("Failed to update default terminal profile:", error)
+		})
 	}
 
 	const profilesToShow = availableTerminalProfiles

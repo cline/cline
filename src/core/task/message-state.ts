@@ -19,7 +19,7 @@ interface MessageStateHandlerParams {
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
-	checkpointManagerErrorMessage?: string
+	checkpointTrackerErrorMessage?: string
 }
 
 export class MessageStateHandler {
@@ -27,7 +27,7 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
-	private checkpointManagerErrorMessage: string | undefined
+	private checkpointTrackerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
@@ -41,7 +41,7 @@ export class MessageStateHandler {
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
-		this.checkpointManagerErrorMessage = this.taskState.checkpointManagerErrorMessage
+		this.checkpointTrackerErrorMessage = this.taskState.checkpointTrackerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -103,7 +103,7 @@ export class MessageStateHandler {
 				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
-				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				checkpointTrackerErrorMessage: this.taskState.checkpointTrackerErrorMessage,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

@@ -57,7 +57,9 @@ Key: If output doesn’t stream, assume success unless critical; else ask user t
 <diff>
 ------- SEARCH
 console.log('Hi');
+
 =======
+
 console.log('Hello');
 +++++++ REPLACE
 </diff>
@@ -97,7 +99,6 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 ## SYSTEM INFORMATION
 
 Operating System: macOS
-IDE: TestIde
 Default Shell: /bin/zsh
 Home Directory: /Users/tester
 Current Working Directory: /Users/tester/dev/project

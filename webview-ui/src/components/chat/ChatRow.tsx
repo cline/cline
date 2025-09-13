@@ -486,7 +486,6 @@ export const ChatRowContent = memo(
 										msUserSelect: isImage ? "text" : "none",
 									}}>
 									{tool.path?.startsWith(".") && <span>.</span>}
-									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span
 										className="ph-no-capture"
 										style={{

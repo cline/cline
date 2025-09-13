@@ -12,7 +12,6 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -32,7 +31,6 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -52,7 +50,6 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -74,7 +71,7 @@
 				"--user-data-dir=${workspaceFolder}/dist/tmp/user",
 				"--profile-temp",
 				"--sync=off",
-				"--disable-extensions", // Avoid conflicts with installed extensions
+				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],
@@ -94,7 +91,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Debug Test Standalone Core Api Server (test:sca-server)",
+			"name": "Run cline-core service",
 			"skipFiles": [
 				"<node_internals>/**"
 			],
@@ -103,62 +100,18 @@
 				"${workspaceFolder}/**",
 				"!**/node_modules/**"
 			],
-			"cwd": "${workspaceFolder}",
+			"cwd": "${workspaceFolder}/dist-standalone",
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js",
 				"${workspaceFolder}/dist-standalone/**/*.js"
 			],
 			"preLaunchTask": "compile-standalone",
-			"runtimeExecutable": "npx",
-			"runtimeArgs": [
-				"tsx"
-			],
-			"program": "scripts/test-standalone-core-api-server.ts",
 			"env": {
-				"PROTOBUS_PORT": "26040",
-				"HOSTBRIDGE_PORT": "26041",
-				"WORKSPACE_DIR": "${workspaceFolder}",
-				"E2E_TEST": "true",
-				"CLINE_ENVIRONMENT": "local"
+				// Turns on grpc debug log.
+				//"GRPC_TRACE": "all",
+				//"GRPC_VERBOSITY": "DEBUG",
+				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
-			"console": "integratedTerminal",
-			"internalConsoleOptions": "neverOpen"
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Debug Current Test File",
-			"skipFiles": [
-				"<node_internals>/**"
-			],
-			"sourceMaps": true,
-			"resolveSourceMapLocations": [
-				"${workspaceFolder}/**",
-				"!**/node_modules/**"
-			],
-			"cwd": "${workspaceFolder}",
-			"runtimeExecutable": "npx",
-			"runtimeArgs": [
-				"mocha"
-			],
-			"args": [
-				"--require",
-				"ts-node/register",
-				"--require",
-				"source-map-support/register",
-				"--require",
-				"./src/test/requires.ts",
-				"--exit",
-				"${file}"
-			],
-			"env": {
-				"TS_NODE_PROJECT": "./tsconfig.unit-test.json",
-				"NODE_ENV": "test",
-				"IS_DEV": "true",
-				"CLINE_ENVIRONMENT": "local"
-			},
-			"console": "integratedTerminal",
-			"internalConsoleOptions": "openOnSessionStart"
+			"program": "cline-core.js"
 		}
 	]
 }

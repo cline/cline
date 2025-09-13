@@ -2,16 +2,15 @@ import type { ToolUse } from "@core/assistant-message"
 import { continuationPrompt } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineSayTool } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = ClineDefaultTool.SUMMARIZE_TASK
+	readonly name = "summarize_task"
 
 	constructor() {}
 
@@ -20,13 +19,18 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+		// For partial blocks, don't execute yet
+		if (block.partial) {
+			return ""
+		}
+
 		try {
 			const context: string | undefined = block.params.context
 
 			// Validate required parameters
 			if (!context) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError(this.name, "context")
+				return "Missing required parameter: context"
 			}
 
 			config.taskState.consecutiveMistakeCount = 0

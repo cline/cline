@@ -2,7 +2,6 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
-import { HostProvider } from "../host-provider"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 
@@ -39,7 +38,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUrl(): Promise<string> {
+	public async getCallbackUri(): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}
@@ -160,14 +159,13 @@ export class AuthHandler {
 		try {
 			// Convert HTTP URL to vscode.Uri and use shared handler directly
 			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
+			const uri = SharedUriHandler.convertHttpUrlToUri(fullUrl)
 
 			// Use SharedUriHandler directly - it handles all validation and processing
-			const success = await SharedUriHandler.handleUri(fullUrl)
-			const uriScheme = (await HostProvider.env.getUriScheme({})).uriScheme
-			const html = createAuthSucceededHtml(uriScheme)
+			const success = await SharedUriHandler.handleUri(uri)
 
 			if (success) {
-				this.sendResponse(res, 200, "text/html", html)
+				this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
 			} else {
 				this.sendResponse(res, 400, "text/plain", "Bad request")
 			}
@@ -205,16 +203,12 @@ export class AuthHandler {
 	}
 }
 
-function createAuthSucceededHtml(uriScheme?: string): string {
-	const redirect = uriScheme ? `<script>setTimeout(() => { window.location.href = '${uriScheme}://'; }, 1000);</script>` : ""
-
-	const html = `<!DOCTYPE html>
+const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cline - Authentication Success</title>
-	${redirect}
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;700&display=swap');
         
@@ -311,5 +305,3 @@ function createAuthSucceededHtml(uriScheme?: string): string {
     </div>
 </body>
 </html>`
-	return html
-}

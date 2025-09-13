@@ -1,8 +1,7 @@
-export enum FeatureFlag {
-	CUSTOM_INSTRUCTIONS = "custom-instructions",
-	DEV_ENV_POSTHOG = "dev-env-posthog",
-	FOCUS_CHAIN_CHECKLIST = "focus_chain_checklist",
-	MULTI_ROOT_WORKSPACE = "multi_root_workspace",
-}
+export const FEATURE_FLAGS = {
+	CUSTOM_INSTRUCTIONS: "custom-instructions",
+	// Further flags here
+	DEV_ENV_POSTHOG: "dev-env-posthog",
+} as const
 
-export const FEATURE_FLAGS = Object.values(FeatureFlag)
+export type FeatureFlag = (typeof FEATURE_FLAGS)[keyof typeof FEATURE_FLAGS]

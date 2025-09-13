@@ -1,7 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
-import { toRequestyServiceUrl } from "@/shared/providers/requesty"
 import { Controller } from ".."
 
 /**
@@ -21,15 +20,10 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
 		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
-		const baseUrl = controller.stateManager.getGlobalStateKey("requestyBaseUrl")
-
-		const resolvedUrl = toRequestyServiceUrl(baseUrl)
-		const url = new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString()
-
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
 		}
-		const response = await axios.get(url, { headers })
+		const response = await axios.get("https://router.requesty.ai/v1/models", { headers })
 		if (response.data?.data) {
 			for (const model of response.data.data) {
 				const modelInfo: OpenRouterModelInfo = OpenRouterModelInfo.create({

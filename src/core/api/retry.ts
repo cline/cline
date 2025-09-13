@@ -12,18 +12,6 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	retryAllErrors: false,
 }
 
-export class RetriableError extends Error {
-	status: number = 429
-	retryAfter?: number
-
-	constructor(message: string, retryAfter?: number, options?: ErrorOptions) {
-		super(message, options)
-		this.name = "RetriableError"
-
-		this.retryAfter = retryAfter
-	}
-}
-
 export function withRetry(options: RetryOptions = {}) {
 	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
@@ -36,7 +24,7 @@ export function withRetry(options: RetryOptions = {}) {
 					yield* originalMethod.apply(this, args)
 					return
 				} catch (error: any) {
-					const isRateLimit = error?.status === 429 || error instanceof RetriableError
+					const isRateLimit = error?.status === 429
 					const isLastAttempt = attempt === maxRetries - 1
 
 					if ((!isRateLimit && !retryAllErrors) || isLastAttempt) {
@@ -48,8 +36,7 @@ export function withRetry(options: RetryOptions = {}) {
 					const retryAfter =
 						error.headers?.["retry-after"] ||
 						error.headers?.["x-ratelimit-reset"] ||
-						error.headers?.["ratelimit-reset"] ||
-						error.retryAfter
+						error.headers?.["ratelimit-reset"]
 
 					let delay: number
 					if (retryAfter) {

@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.LIST_FILES
 
@@ -24,7 +23,6 @@ const generic: ClineToolSpec = {
 			instruction: "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.",
 			usage: "true or false (optional)",
 		},
-		TASK_PROGRESS_PARAMETER,
 	],
 }
 

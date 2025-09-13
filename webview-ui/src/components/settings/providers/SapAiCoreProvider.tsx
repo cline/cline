@@ -1,4 +1,4 @@
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import { SapAiCoreModelsRequest } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
@@ -24,7 +24,7 @@ interface SapAiCoreProviderProps {
  */
 export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: SapAiCoreProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Handle orchestration checkbox change
 	const handleOrchestrationChange = async (checked: boolean) => {
@@ -34,7 +34,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// State for dynamic model fetching
-	const [sapAiCoreModelDeployments, setSapAiCoreModelDeployments] = useState<SapAiCoreModelDeployment[]>([])
+	const [deployedModelsArray, setDeployedModelsArray] = useState<string[]>([])
 	const [orchestrationAvailable, setOrchestrationAvailable] = useState<boolean>(false)
 	const [hasCheckedOrchestration, setHasCheckedOrchestration] = useState<boolean>(false)
 	const [isLoadingModels, setIsLoadingModels] = useState(false)
@@ -50,7 +50,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	// Function to fetch SAP AI Core models
 	const fetchSapAiCoreModels = useCallback(async () => {
 		if (!hasRequiredCredentials) {
-			setSapAiCoreModelDeployments([])
+			setDeployedModelsArray([])
 			setOrchestrationAvailable(false)
 			setHasCheckedOrchestration(false)
 			return
@@ -71,18 +71,18 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			)
 
 			if (response) {
-				setSapAiCoreModelDeployments(response.deployments || [])
+				setDeployedModelsArray(response.modelNames || [])
 				setOrchestrationAvailable(response.orchestrationAvailable || false)
 				setHasCheckedOrchestration(true)
 			} else {
-				setSapAiCoreModelDeployments([])
+				setDeployedModelsArray([])
 				setOrchestrationAvailable(false)
 				setHasCheckedOrchestration(true)
 			}
 		} catch (error) {
 			console.error("Error fetching SAP AI Core models:", error)
 			setModelError("Failed to fetch models. Please check your configuration.")
-			setSapAiCoreModelDeployments([])
+			setDeployedModelsArray([])
 			setOrchestrationAvailable(false)
 			setHasCheckedOrchestration(true)
 		} finally {
@@ -112,18 +112,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 
 	// Handle model selection
 	const handleModelChange = useCallback(
-		(modelId: string, deploymentId: string) => {
-			// Update both model ID and deployment ID atomically
-			handleModeFieldsChange(
-				{
-					modelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-					deploymentId: { plan: "planModeSapAiCoreDeploymentId", act: "actModeSapAiCoreDeploymentId" },
-				},
-				{ modelId, deploymentId },
-				currentMode,
-			)
+		(modelId: string) => {
+			handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
 		},
-		[handleModeFieldsChange, currentMode],
+		[handleModeFieldChange, currentMode],
 	)
 
 	return (
@@ -225,7 +217,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 							</div>
 						) : hasRequiredCredentials ? (
 							<>
-								{sapAiCoreModelDeployments.length === 0 && (
+								{deployedModelsArray.length === 0 && (
 									<div className="text-xs text-[var(--vscode-errorForeground)] mb-2">
 										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
 										configuration or ensure your deployments are deployed and running in the service instance
@@ -234,14 +226,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 								<SapAiCoreModelPicker
 									onModelChange={handleModelChange}
 									placeholder="Select a model..."
-									sapAiCoreModelDeployments={sapAiCoreModelDeployments}
-									selectedDeploymentId={
-										apiConfiguration?.[
-											currentMode === "plan"
-												? "planModeSapAiCoreDeploymentId"
-												: "actModeSapAiCoreDeploymentId"
-										]
-									}
+									sapAiCoreDeployedModels={deployedModelsArray}
 									selectedModelId={selectedModelId || ""}
 									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
 								/>

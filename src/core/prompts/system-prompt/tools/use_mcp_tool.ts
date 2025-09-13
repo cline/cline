@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 /**
 ## use_mcp_tool
@@ -55,14 +54,20 @@ const generic: ClineToolSpec = {
 			name: "arguments",
 			required: true,
 			instruction: "A JSON object containing the tool's input parameters, following the tool's input schema",
-			usage: `
-{
+			usage: `{
   "param1": "value1",
   "param2": "value2"
-}
-`,
+}`,
+			dependencies: [ClineDefaultTool.MCP_USE],
 		},
-		TASK_PROGRESS_PARAMETER,
+		{
+			name: "task_progress",
+			required: false,
+			instruction:
+				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
+			usage: "Checklist here (optional)",
+			dependencies: [ClineDefaultTool.TODO],
+		},
 	],
 }
 

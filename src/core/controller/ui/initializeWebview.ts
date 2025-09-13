@@ -1,7 +1,7 @@
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { telemetryService } from "@/services/telemetry"
+import { featureFlagsService, telemetryService } from "@/services/posthog/PostHogClientProvider"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
@@ -229,6 +229,15 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			const isOptedIn = telemetrySetting !== "disabled"
 			telemetryService.updateTelemetryState(isOptedIn)
 		})
+
+		// Refresh focus chain remote flag on webview init
+		featureFlagsService
+			.getFocusChainEnabled()
+			.then(async (enabled: boolean) => {
+				controller.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
+				await controller.postStateToWebview()
+			})
+			.catch((err: any) => console.error("Failed to refresh focus chain remote flag on webview init", err))
 
 		return Empty.create({})
 	} catch (error) {

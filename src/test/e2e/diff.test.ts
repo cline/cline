@@ -1,13 +1,8 @@
-import { expect, Frame, Page } from "@playwright/test"
+import { expect } from "@playwright/test"
 import { cleanChatView } from "./utils/common"
-import { e2e, e2eMultiRoot } from "./utils/helpers"
+import { e2e } from "./utils/helpers"
 
-/**
- * Shared test logic for diff editor tests
- * @param page - Playwright page object
- * @param sidebar - Sidebar frame for the Cline extension
- */
-async function testDiffEditor(page: Page, sidebar: Frame) {
+e2e("Diff editor", async ({ page, sidebar, helper }) => {
 	await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
 	// Submit a message
 	await cleanChatView(page)
@@ -46,14 +41,4 @@ async function testDiffEditor(page: Page, sidebar: Frame) {
 	)
 	await diffEditor.click()
 	await expect(diffEditor).toBeVisible()
-
-	await page.close()
-}
-
-e2e("Diff editor", async ({ page, sidebar }) => {
-	await testDiffEditor(page, sidebar)
-})
-
-e2eMultiRoot("[Multi-roots] Diff editor", async ({ page, sidebar }) => {
-	await testDiffEditor(page, sidebar)
 })

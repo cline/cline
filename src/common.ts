@@ -1,22 +1,19 @@
 import * as vscode from "vscode"
 import {
 	migrateCustomInstructionsToGlobalRules,
-	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
+import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
+import { EmptyRequest } from "./shared/proto/cline/common"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { ErrorService } from "./services/error"
-import { featureFlagsService } from "./services/feature-flags"
-import { initializeDistinctId } from "./services/logging/distinctId"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
-import { telemetryService } from "./services/telemetry"
+import { telemetryService } from "./services/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
@@ -26,15 +23,18 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  * @returns The webview provider
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
-	// Set the distinct ID for logging and telemetry
-	await initializeDistinctId(context)
-
 	// Initialize PostHog client provider
-	PostHogClientProvider.getInstance()
-
-	// Setup the external services
-	await ErrorService.initialize()
-	await featureFlagsService.poll()
+	let distinctId = context.globalState.get<string>("cline.distinctId")
+	if (!distinctId) {
+		try {
+			const response = await HostProvider.env.getMachineId(EmptyRequest.create({}))
+			distinctId = response.value
+		} catch (e) {
+			Logger.warn(`Failed to get machine ID: ${e instanceof Error ? e.message : String(e)}`)
+			// PostHogProvider will fall back to uuid
+		}
+	}
+	PostHogClientProvider.getInstance(distinctId)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -44,9 +44,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Migrate workspace storage values back to global storage (reverting previous migration)
 	await migrateWorkspaceToGlobalStorage(context)
-
-	// Ensure taskHistory.json exists and migrate legacy state (runs once)
-	await migrateTaskHistoryToFile(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
@@ -99,9 +96,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  */
 export async function tearDown(): Promise<void> {
 	PostHogClientProvider.getInstance().dispose()
-	telemetryService.dispose()
-	ErrorService.get().dispose()
-	featureFlagsService.dispose()
+
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
 }

@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 /**
  * ## write_to_file
@@ -44,7 +43,14 @@ const generic: ClineToolSpec = {
 				"The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.",
 			usage: "Your file content here",
 		},
-		TASK_PROGRESS_PARAMETER,
+		{
+			name: "task_progress",
+			required: false,
+			instruction:
+				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
+			usage: "Checklist here (optional)",
+			dependencies: [ClineDefaultTool.TODO],
+		},
 	],
 }
 

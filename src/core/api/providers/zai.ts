@@ -10,12 +10,12 @@ import {
 } from "@shared/api"
 import OpenAI from "openai"
 import { version as extensionVersion } from "../../../../package.json"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import { ApiHandler } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface ZAiHandlerOptions extends CommonApiHandlerOptions {
+interface ZAiHandlerOptions {
 	zaiApiLine?: string
 	zaiApiKey?: string
 	apiModelId?: string

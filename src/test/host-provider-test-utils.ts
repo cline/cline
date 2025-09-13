@@ -14,7 +14,6 @@ export function setVscodeHostProviderMock(options?: {
 	hostBridgeClient?: HostBridgeClientProvider
 	logToChannel?: (message: string) => void
 	getCallbackUri?: () => Promise<string>
-	getBinaryLocation?: (name: string) => Promise<string>
 }) {
 	HostProvider.reset()
 	HostProvider.initialize(
@@ -23,6 +22,5 @@ export function setVscodeHostProviderMock(options?: {
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_) => {}),
 		options?.getCallbackUri ?? (async () => "http://example.com:1234/"),
-		options?.getBinaryLocation ?? (async (n) => `/mock/path/${n}`),
 	)
 }

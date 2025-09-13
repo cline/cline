@@ -47,10 +47,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
 							message: "Error in file1",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -118,10 +114,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
 							message: "Error in file1",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -133,10 +125,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
 							message: "Error in file1",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -146,10 +134,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
 							message: "Error in file2",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -214,10 +198,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_WARNING,
 							message: "Warning message",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -260,10 +240,6 @@ describe("Diagnostics Tests", () => {
 						{
 							severity: DiagnosticSeverity.DIAGNOSTIC_ERROR,
 							message: "File-level error",
-							range: {
-								start: { line: 0, character: 0 },
-								end: { line: 0, character: 10 },
-							},
 						},
 					],
 				},
@@ -272,7 +248,7 @@ describe("Diagnostics Tests", () => {
 
 			const result = await diagnosticsToProblemsString(diagnostics, severities)
 
-			expect(result).to.equal("src/file1.ts\n- [Error] Line 1: File-level error")
+			expect(result).to.equal("src/file1.ts\n- [Error] Line : File-level error")
 		})
 
 		it("should handle diagnostics with missing start property in range", async () => {

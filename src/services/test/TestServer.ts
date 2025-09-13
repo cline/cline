@@ -9,7 +9,6 @@ import * as http from "http"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
-import { ExtensionRegistryInfo } from "@/registry"
 import { getCwd } from "@/utils/path"
 import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
@@ -88,10 +87,10 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
 export function createTestServer(controller: Controller): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
-	vscode.commands.executeCommand(`workbench.view.${ExtensionRegistryInfo.name}-ActivityBar`)
+	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
 
 	// Then ensure the webview is focused/loaded
-	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 
 	// Update auto approval settings is available
 	updateAutoApprovalSettings(controller.context, controller)

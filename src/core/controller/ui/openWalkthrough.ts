@@ -1,8 +1,7 @@
+import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
-import { ExtensionRegistryInfo } from "@/registry"
-import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 
 /**
@@ -13,10 +12,7 @@ import type { Controller } from "../index"
  */
 export async function openWalkthrough(_controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
-		await vscode.commands.executeCommand(
-			"workbench.action.openWalkthrough",
-			`saoudrizwan.${ExtensionRegistryInfo.name}#ClineWalkthrough`,
-		)
+		await vscode.commands.executeCommand("workbench.action.openWalkthrough", "saoudrizwan.claude-dev#ClineWalkthrough")
 		telemetryService.captureButtonClick("webview_openWalkthrough")
 		return Empty.create({})
 	} catch (error) {

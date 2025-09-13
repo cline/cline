@@ -74,6 +74,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
 	tokensOut,
+	doesModelSupportPromptCache,
 	cacheWrites,
 	cacheReads,
 	totalCost,
@@ -82,7 +83,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 	onScrollToMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointManagerErrorMessage, clineMessages, navigateToSettings, mode } =
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings, mode } =
 		useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
@@ -95,13 +96,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const contextWindow = selectedModelInfo?.contextWindow
 
 	// Open task header when checkpoint tracker error message is set
-	const prevErrorMessageRef = useRef(checkpointManagerErrorMessage)
+	const prevErrorMessageRef = useRef(checkpointTrackerErrorMessage)
 	useEffect(() => {
-		if (checkpointManagerErrorMessage !== prevErrorMessageRef.current) {
+		if (checkpointTrackerErrorMessage !== prevErrorMessageRef.current) {
 			setIsTaskExpanded(true)
-			prevErrorMessageRef.current = checkpointManagerErrorMessage
+			prevErrorMessageRef.current = checkpointTrackerErrorMessage
 		}
-	}, [checkpointManagerErrorMessage])
+	}, [checkpointTrackerErrorMessage])
 
 	// Reset isTextExpanded when task is collapsed
 	useEffect(() => {
@@ -749,7 +750,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								</div>
 							)}
 
-							{checkpointManagerErrorMessage && (
+							{checkpointTrackerErrorMessage && (
 								<div
 									style={{
 										display: "flex",
@@ -760,8 +761,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									}}>
 									<i className="codicon codicon-warning" />
 									<span>
-										{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
-										{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
+										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
+										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
 											<button
 												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
 												onClick={() => {
@@ -783,7 +784,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 												disabling checkpoints.
 											</button>
 										)}
-										{checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.") && (
+										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
 												{" "}
 												<a
@@ -851,7 +852,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 			return (
 				<span
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
-					key={`mention-${Math.floor(index / 2)}`}
+					key={index}
 					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
 					style={{ cursor: "pointer" }}>
 					@{part}

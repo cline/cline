@@ -160,9 +160,9 @@ const standaloneConfig = {
 	...baseConfig,
 	entryPoints: ["src/standalone/cline-core.ts"],
 	outfile: `${destDir}/cline-core.js`,
-	// These modules need to load files from the module directory at runtime,
+	// These gRPC protos need to load files from the module directory at runtime,
 	// so they cannot be bundled.
-	external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
+	external: ["vscode", "@grpc/reflection", "grpc-health-check"],
 }
 
 // E2E build script configuration
