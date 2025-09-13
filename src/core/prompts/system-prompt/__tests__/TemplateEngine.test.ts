@@ -2,6 +2,31 @@ import { expect } from "chai"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import { mockProviderInfo } from "./integration.test"
 
+const mockContext = {
+	cwd: "/test/project",
+	supportsBrowserUse: true,
+	mcpHub: {
+		getServers: () => [],
+		getMcpServersPath: () => "/test/mcp-servers",
+		getSettingsDirectoryPath: () => "/test/settings",
+		clientVersion: "1.0.0",
+		disposables: [],
+	} as unknown as any,
+	focusChainSettings: {
+		enabled: true,
+		remindClineInterval: 6,
+	},
+	browserSettings: {
+		viewport: {
+			width: 1280,
+			height: 720,
+		},
+	},
+	isTesting: true,
+	providerInfo: mockProviderInfo,
+	yoloModeToggled: false,
+}
+
 describe("TemplateEngine", () => {
 	let templateEngine: TemplateEngine
 
@@ -12,7 +37,7 @@ describe("TemplateEngine", () => {
 	describe("resolve", () => {
 		it("should resolve simple placeholders", () => {
 			const template = "Hello {{name}}!"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = { name: "World" }
 			const result = templateEngine.resolve(template, context, placeholders)
 			expect(result).to.equal("Hello World!")
@@ -20,7 +45,7 @@ describe("TemplateEngine", () => {
 
 		it("should resolve multiple placeholders", () => {
 			const template = "{{greeting}} {{name}}, today is {{day}}"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = {
 				greeting: "Hello",
 				name: "Alice",
@@ -32,7 +57,7 @@ describe("TemplateEngine", () => {
 
 		it("should handle nested object placeholders", () => {
 			const template = "User: {{user.name}}, Age: {{user.age}}"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = {
 				user: {
 					name: "John",
@@ -45,7 +70,7 @@ describe("TemplateEngine", () => {
 
 		it("should preserve unmatched placeholders", () => {
 			const template = "Hello {{name}}, your {{missing}} is pending"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = { name: "Alice" }
 			const result = templateEngine.resolve(template, context, placeholders)
 			expect(result).to.equal("Hello Alice, your {{missing}} is pending")
@@ -53,7 +78,7 @@ describe("TemplateEngine", () => {
 
 		it("should handle object and array values", () => {
 			const template = "Config: {{config}}"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = {
 				config: { key: "value", items: [1, 2, 3] },
 			}
@@ -63,7 +88,7 @@ describe("TemplateEngine", () => {
 
 		it("should handle whitespace around placeholder names", () => {
 			const template = "Hello {{ name }}, welcome to {{  place  }}"
-			const context = { providerInfo: mockProviderInfo, yoloModeToggled: false }
+			const context = mockContext
 			const placeholders = { name: "Bob", place: "Paradise" }
 			const result = templateEngine.resolve(template, context, placeholders)
 			expect(result).to.equal("Hello Bob, welcome to Paradise")
