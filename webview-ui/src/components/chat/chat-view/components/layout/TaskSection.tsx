@@ -44,6 +44,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 			lastProgressMessageText={lastProgressMessageText}
 			onClose={messageHandlers.handleTaskCloseButtonClick}
 			onScrollToMessage={scrollBehavior.scrollToMessage}
+			onSendMessage={messageHandlers.handleSendMessage}
 			task={task}
 			tokensIn={apiMetrics.totalTokensIn}
 			tokensOut={apiMetrics.totalTokensOut}

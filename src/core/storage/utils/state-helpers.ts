@@ -207,6 +207,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
 		const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
 		const customPrompt = context.globalState.get("customPrompt") as GlobalState["customPrompt"]
+		const autoCondenseThreshold = context.globalState.get("autoCondenseThreshold") as number | undefined // percentage 0-100
 
 		// Get mode-related configurations
 		const mode = context.globalState.get("mode") as Mode | undefined
@@ -466,6 +467,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			autoCondenseThreshold: autoCondenseThreshold || 75,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,

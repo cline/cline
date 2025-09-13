@@ -8,7 +8,7 @@ import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
 
 // Timeline dimensions and spacing
-const TIMELINE_HEIGHT = "13px"
+const TIMELINE_HEIGHT = "12px"
 const BLOCK_WIDTH = "13px"
 const BLOCK_GAP = "3px"
 const _TOOLTIP_MARGIN = 32 // 32px margin on each side

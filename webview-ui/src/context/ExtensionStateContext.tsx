@@ -205,6 +205,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		autoCondenseThreshold: undefined,
 		extensionInfo: { name: "claude-dev", publisher: "saoudrizwan" },
 
 		// NEW: Add workspace information with defaults

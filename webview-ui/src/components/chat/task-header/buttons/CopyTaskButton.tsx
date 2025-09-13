@@ -1,13 +1,15 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Button } from "@heroui/button"
+import { CheckIcon, CopyIcon } from "lucide-react"
+import { useCallback, useState } from "react"
+import { cn } from "@/utils/cn"
 
 const CopyTaskButton: React.FC<{
 	taskText?: string
-}> = ({ taskText }) => {
+	className?: string
+}> = ({ taskText, className }) => {
 	const [copied, setCopied] = useState(false)
 
-	const handleCopy = () => {
+	const handleCopy = useCallback(() => {
 		if (!taskText) {
 			return
 		}
@@ -16,21 +18,21 @@ const CopyTaskButton: React.FC<{
 			setCopied(true)
 			setTimeout(() => setCopied(false), 1500)
 		})
-	}
+	}, [taskText])
 
 	return (
-		<HeroTooltip content="Copy Task">
-			<VSCodeButton
-				appearance="icon"
-				aria-label="Copy Task"
-				className="p-0"
-				onClick={handleCopy}
-				style={{ padding: "0px 0px" }}>
-				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
-					<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
-				</div>
-			</VSCodeButton>
-		</HeroTooltip>
+		<Button
+			aria-label="Copy Task"
+			className={cn("bg-transparent hover:opacity-100", className)}
+			isIconOnly={true}
+			onPress={() => {
+				handleCopy()
+			}}
+			radius="sm"
+			size="sm"
+			title="Copy Task">
+			{copied ? <CheckIcon size="14" /> : <CopyIcon size="14" />}
+		</Button>
 	)
 }
 

@@ -71,6 +71,7 @@ export interface ExtensionState {
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
 	customPrompt?: string
+	autoCondenseThreshold?: number
 	extensionInfo: { name: string; publisher: string }
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]

@@ -1,6 +1,10 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { formatLargeNumber } from "@/utils/format"
 import { COLOR_BEIGE, COLOR_BLUE, COLOR_DARK_GRAY, COLOR_GRAY, COLOR_GREEN, COLOR_PURPLE, COLOR_WHITE } from "../colors"
 
+export function formatTokenNumber(num = 0): string {
+	return formatLargeNumber(num)
+}
 /**
  *
  * Get the color for a block or the indicator based on the message type

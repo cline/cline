@@ -83,6 +83,7 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+	autoCondenseThreshold: number | undefined // percentage 0-100
 
 	// Multi-root workspace support
 	workspaceRoots: WorkspaceRoot[] | undefined
