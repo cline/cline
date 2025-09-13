@@ -33,6 +33,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const isProcessingRef = useRef(false)
+	// HACK: Append keybinding only if the platform doesn't show navbar to determine if host is VS Code or not.
+	const showKeybindings = usePlatform().showNavbar !== true
 
 	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
@@ -48,8 +50,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		// Append keybinding display to button text if available
 		const btnConfig = getButtonConfig(lastMessage, mode)
 		const config = { ...btnConfig } // Create a shallow copy to avoid mutating original
-		// HACK: Append keybinding only if the platform doesn't show navbar to determine if host is VS Code or not.
-		const showKeybindings = usePlatform().showNavbar !== true
 		const primaryButtonKey = config.primaryKeybinding?.display
 		const secondaryButtonKey = config.secondaryKeybinding?.display
 		if (primaryButtonKey) {
@@ -106,7 +106,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				messageHandlers.executeButtonAction(buttonConfig.secondaryAction)
 			}
 		},
-		[messageHandlers],
+		[messageHandlers, buttonConfig],
 	)
 
 	useEffect(() => {
