@@ -15,10 +15,13 @@ import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { ApiConfiguration } from "./shared/api"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
+import cloneDeep from "clone-deep"
+import { merge } from "lodash"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
@@ -494,6 +497,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			GitCommitGenerator?.abort?.()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.setApiConfiguration", async (apiConfiguration: ApiConfiguration) => {
+			const controller = WebviewProvider.getLastActiveInstance()?.controller
+			if (!controller) {
+				throw new Error("No active Cline controller found")
+			}
+
+			const stateManager = controller.stateManager
+			const newConfig = cloneDeep(stateManager.getApiConfiguration())
+			merge(newConfig, apiConfiguration)
+
+			controller.stateManager.setApiConfiguration(newConfig)
+			await controller.postStateToWebview()
 		}),
 	)
 
