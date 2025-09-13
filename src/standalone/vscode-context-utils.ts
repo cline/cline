@@ -1,33 +1,106 @@
 import * as fs from "fs"
 import type { EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableScope } from "vscode"
 import * as vscode from "vscode"
+
+let keytar: any | null = null
+try {
+	// Runtime require to avoid bundling native module and keep VS Code build clean
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	// @ts-ignore
+	keytar = require("keytar")
+} catch (err) {
+	console.warn("[cline] Failed to load keytar; falling back to JSON secret store.", err)
+	keytar = null
+}
+
+const SERVICE_NAME = "cline"
+
 export class SecretStore implements vscode.SecretStorage {
-	private data: JsonKeyValueStore<string>
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
+	private readonly jsonStore: JsonKeyValueStore<string>
+	private readonly jsonFilePath: string
 
 	constructor(filepath: string) {
-		this.data = new JsonKeyValueStore(filepath)
+		// JSON store always created as fallback, even when keytar is available
+		this.jsonStore = new JsonKeyValueStore<string>(filepath)
+		this.jsonFilePath = filepath
+		if (keytar) {
+			void this.migrateSecretsToKeytarIfNeeded()
+		}
 	}
 
 	readonly onDidChange: vscode.Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event
 
 	get(key: string): Thenable<string | undefined> {
-		return Promise.resolve(this.data.get(key))
+		if (keytar) {
+			return keytar.getPassword(SERVICE_NAME, key).then((v: string | null) => (v === null ? undefined : v))
+		}
+		return Promise.resolve(this.jsonStore.get(key))
 	}
 
 	store(key: string, value: string): Thenable<void> {
-		this.data.put(key, value)
+		if (keytar) {
+			return keytar.setPassword(SERVICE_NAME, key, value).then(() => {
+				this._onDidChange.fire({ key })
+			})
+		}
+		this.jsonStore.put(key, value)
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
 
 	delete(key: string): Thenable<void> {
-		this.data.delete(key)
+		if (keytar) {
+			return keytar.deletePassword(SERVICE_NAME, key).then(() => {
+				this._onDidChange.fire({ key })
+			})
+		}
+		this.jsonStore.delete(key)
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
-}
 
+	private async migrateSecretsToKeytarIfNeeded(): Promise<void> {
+		try {
+			// Skip if keytar already has secrets or no JSON file exists
+			const existingSecrets = await keytar!.findCredentials(SERVICE_NAME)
+			if (existingSecrets?.length > 0 || !fs.existsSync(this.jsonFilePath)) return
+
+			const data = JSON.parse(fs.readFileSync(this.jsonFilePath, "utf-8"))
+			const secrets = Object.entries(data || {}).filter(([, v]) => typeof v === "string" && (v as string).length > 0)
+
+			if (secrets.length === 0) {
+				fs.unlinkSync(this.jsonFilePath)
+				return
+			}
+
+			const migratedKeys: string[] = []
+			for (const [k, v] of secrets) {
+				try {
+					await keytar!.setPassword(SERVICE_NAME, k, v as string)
+					migratedKeys.push(k)
+				} catch (err) {
+					console.warn(`[cline] Failed to migrate secret for key "${k}" to keytar. Rolling back.`, err)
+					// Roll back any migrated keys, keep JSON intact
+					await Promise.all(
+						migratedKeys.map(async (mk) => {
+							try {
+								await keytar!.deletePassword(SERVICE_NAME, mk)
+							} catch (rollbackErr) {
+								console.warn(`[cline] Failed to rollback migrated key "${mk}" from keytar.`, rollbackErr)
+							}
+						}),
+					)
+					return
+				}
+			}
+
+			fs.unlinkSync(this.jsonFilePath)
+		} catch (err) {
+			console.warn("[cline] Secret migration to keytar failed. Keeping JSON store.", err)
+		}
+	}
+}
 // Create a class that implements Memento interface with the required setKeysForSync method
 export class MementoStore implements vscode.Memento {
 	private data: JsonKeyValueStore<any>
