@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.28.3
+## [3.28.3]
 
-- d462e0b: fix: Start new task button should not resume completed task
-- a4d8f7c: feat: generate commit for staged changes with unstaged as fallback
+- Fixed issue with start new task button
+- Feature to generate commit message for staged changes, with unstaged as fallback
 
 ## [3.28.2]
 
