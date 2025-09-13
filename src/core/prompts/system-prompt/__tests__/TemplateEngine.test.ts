@@ -1,8 +1,10 @@
 import { expect } from "chai"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { TemplateEngine } from "../templates/TemplateEngine"
+import type { SystemPromptContext } from "../types"
 import { mockProviderInfo } from "./integration.test"
 
-const mockContext = {
+const mockContext: SystemPromptContext = {
 	cwd: "/test/project",
 	supportsBrowserUse: true,
 	mcpHub: {
@@ -11,7 +13,7 @@ const mockContext = {
 		getSettingsDirectoryPath: () => "/test/settings",
 		clientVersion: "1.0.0",
 		disposables: [],
-	} as unknown as any,
+	} as unknown as McpHub,
 	focusChainSettings: {
 		enabled: true,
 		remindClineInterval: 6,
