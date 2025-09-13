@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, ModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
 import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
@@ -96,7 +96,7 @@ export interface GlobalState {
 	planModeReasoningEffort: string | undefined
 	planModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	planModeAwsBedrockCustomSelected: boolean | undefined
-	planModeAwsBedrockCustomModelBaseId: BedrockModelId | undefined
+	planModeAwsBedrockCustomModelBaseId: string | undefined
 	planModeOpenRouterModelId: string | undefined
 	planModeOpenRouterModelInfo: ModelInfo | undefined
 	planModeOpenAiModelId: string | undefined
@@ -126,7 +126,7 @@ export interface GlobalState {
 	actModeReasoningEffort: string | undefined
 	actModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	actModeAwsBedrockCustomSelected: boolean | undefined
-	actModeAwsBedrockCustomModelBaseId: BedrockModelId | undefined
+	actModeAwsBedrockCustomModelBaseId: string | undefined
 	actModeOpenRouterModelId: string | undefined
 	actModeOpenRouterModelInfo: ModelInfo | undefined
 	actModeOpenAiModelId: string | undefined

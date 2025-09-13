@@ -262,7 +262,7 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 }
 
 // Convert proto ApiProvider to application ApiProvider
-function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
+export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
 	switch (provider) {
 		case ProtoApiProvider.ANTHROPIC:
 			return "anthropic"
