@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.28.3
+
+### Patch Changes
+
+- d462e0b: fix: Start new task button should not resume completed task
+- a4d8f7c: feat: generate commit for staged changes with unstaged as fallback
+
 ## [3.28.2]
 
 - Fix for focus chain settings
