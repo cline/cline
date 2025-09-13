@@ -13,6 +13,12 @@ export type ButtonActionType =
 	| "utility" // Execute utility function (condense, report_bug)
 	| "retry" // Retry the last action
 
+// e.g., { key: ["Escape"], display: "ESC" }
+export interface KeybindingConfig {
+	key: string[]
+	display: string
+}
+
 /**
  * Button configuration for different message states
  */
@@ -23,6 +29,8 @@ export interface ButtonConfig {
 	secondaryText?: string
 	primaryAction?: ButtonActionType
 	secondaryAction?: ButtonActionType
+	primaryKeybinding?: KeybindingConfig
+	secondaryKeybinding?: KeybindingConfig
 }
 
 /**
@@ -183,7 +191,8 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: "Cancel",
+		secondaryKeybinding: { key: ["Escape"], display: "ESC" },
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
@@ -201,7 +210,8 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: "Cancel",
+		secondaryKeybinding: { key: ["Escape"], display: "ESC" },
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},

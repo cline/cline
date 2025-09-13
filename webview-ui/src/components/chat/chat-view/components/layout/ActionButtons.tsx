@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import { usePlatform } from "@/context/PlatformContext"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -32,6 +33,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const isProcessingRef = useRef(false)
+	// HACK: Append keybinding only if the platform doesn't show navbar to determine if host is VS Code or not.
+	const showKeybindings = usePlatform().showNavbar !== true
 
 	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
@@ -41,7 +44,22 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Memoize button configuration to avoid recalculation on every render
 	const buttonConfig = useMemo(() => {
-		return lastMessage ? getButtonConfig(lastMessage, mode) : { sendingDisabled: false, enableButtons: false }
+		if (!lastMessage) {
+			return { sendingDisabled: false, enableButtons: false }
+		}
+		// Append keybinding display to button text if available
+		const btnConfig = getButtonConfig(lastMessage, mode)
+		const config = { ...btnConfig } // Create a shallow copy to avoid mutating original
+		const primaryButtonKey = config.primaryKeybinding?.display
+		const secondaryButtonKey = config.secondaryKeybinding?.display
+		if (primaryButtonKey) {
+			config.primaryText = showKeybindings ? `${config.primaryText} (${primaryButtonKey})` : config.primaryText
+		}
+		if (secondaryButtonKey) {
+			config.secondaryText = showKeybindings ? `${config.secondaryText} (${secondaryButtonKey})` : config.secondaryText
+		}
+		// Return the modified config
+		return config
 	}, [lastMessage, mode])
 
 	// Single effect to handle all configuration updates
@@ -75,13 +93,56 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	// Keyboard event handler
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				event.preventDefault()
-				event.stopPropagation()
-				messageHandlers.executeButtonAction("cancel")
+			const checkKeybinding = (keybinding: string[]): boolean => {
+				if (keybinding.length === 1) {
+					return event.key === keybinding[0]
+				}
+
+				// Handle modifier combinations
+				const modifiers = keybinding.slice(0, -1)
+				const mainKey = keybinding[keybinding.length - 1]
+
+				// Check if all required modifiers are pressed
+				const modifierChecks = modifiers.every((modifier) => {
+					switch (modifier.toLowerCase()) {
+						case "control":
+						case "ctrl":
+							return event.ctrlKey
+						case "shift":
+							return event.shiftKey
+						case "alt":
+						case "option":
+							return event.altKey
+						case "meta":
+						case "cmd":
+						case "command":
+							return event.metaKey
+						default:
+							return false
+					}
+				})
+
+				return modifierChecks && event.key === mainKey
+			}
+
+			if (buttonConfig.primaryAction && buttonConfig.primaryKeybinding) {
+				if (checkKeybinding(buttonConfig.primaryKeybinding.key)) {
+					event.preventDefault()
+					event.stopPropagation()
+					messageHandlers.executeButtonAction(buttonConfig.primaryAction)
+					return
+				}
+			}
+
+			if (buttonConfig.secondaryAction && buttonConfig.secondaryKeybinding) {
+				if (checkKeybinding(buttonConfig.secondaryKeybinding.key)) {
+					event.preventDefault()
+					event.stopPropagation()
+					messageHandlers.executeButtonAction(buttonConfig.secondaryAction)
+				}
 			}
 		},
-		[messageHandlers],
+		[messageHandlers, buttonConfig],
 	)
 
 	useEffect(() => {
