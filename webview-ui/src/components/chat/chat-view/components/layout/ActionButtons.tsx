@@ -93,17 +93,53 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	// Keyboard event handler
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
-			const primaryKey = buttonConfig.primaryKeybinding?.key.join("+")
-			if (buttonConfig.primaryAction && primaryKey && event.key === primaryKey) {
-				event.preventDefault()
-				event.stopPropagation()
-				messageHandlers.executeButtonAction(buttonConfig.primaryAction)
+			const checkKeybinding = (keybinding: string[]): boolean => {
+				if (keybinding.length === 1) {
+					return event.key === keybinding[0]
+				}
+
+				// Handle modifier combinations
+				const modifiers = keybinding.slice(0, -1)
+				const mainKey = keybinding[keybinding.length - 1]
+
+				// Check if all required modifiers are pressed
+				const modifierChecks = modifiers.every((modifier) => {
+					switch (modifier.toLowerCase()) {
+						case "control":
+						case "ctrl":
+							return event.ctrlKey
+						case "shift":
+							return event.shiftKey
+						case "alt":
+						case "option":
+							return event.altKey
+						case "meta":
+						case "cmd":
+						case "command":
+							return event.metaKey
+						default:
+							return false
+					}
+				})
+
+				return modifierChecks && event.key === mainKey
 			}
-			const secondaryKey = buttonConfig.secondaryKeybinding?.key.join("+")
-			if (event.key === secondaryKey && buttonConfig.secondaryAction) {
-				event.preventDefault()
-				event.stopPropagation()
-				messageHandlers.executeButtonAction(buttonConfig.secondaryAction)
+
+			if (buttonConfig.primaryAction && buttonConfig.primaryKeybinding) {
+				if (checkKeybinding(buttonConfig.primaryKeybinding.key)) {
+					event.preventDefault()
+					event.stopPropagation()
+					messageHandlers.executeButtonAction(buttonConfig.primaryAction)
+					return
+				}
+			}
+
+			if (buttonConfig.secondaryAction && buttonConfig.secondaryKeybinding) {
+				if (checkKeybinding(buttonConfig.secondaryKeybinding.key)) {
+					event.preventDefault()
+					event.stopPropagation()
+					messageHandlers.executeButtonAction(buttonConfig.secondaryAction)
+				}
 			}
 		},
 		[messageHandlers, buttonConfig],
