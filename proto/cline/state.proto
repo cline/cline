@@ -8,6 +8,7 @@ service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
   rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
   rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
+  rpc updateDefaultTerminalProfile(StringRequest) returns (TerminalProfileUpdateResponse);
   rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
@@ -55,7 +56,6 @@ enum OpenaiReasoningEffort {
   LOW = 0;
   MEDIUM = 1;
   HIGH = 2;
-  MINIMAL = 3;
 }
 
 enum McpDisplayMode {
@@ -106,16 +106,6 @@ message TelemetrySettingRequest {
   TelemetrySettingEnum setting = 2;
 }
 
-// Browser settings for UpdateSettingsRequest
-message BrowserSettingsUpdate {
-  optional Viewport viewport = 1;
-  optional string remote_browser_host = 2;
-  optional bool remote_browser_enabled = 3;
-  optional string chrome_executable_path = 4;
-  optional bool disable_tool_use = 5;
-  optional string custom_args = 6;
-}
-
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -133,11 +123,10 @@ message UpdateSettingsRequest {
   optional string preferred_language = 14;
   optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
-  optional FocusChainSettings focus_chain_settings = 17;
-  optional bool use_auto_condense = 18;
-  optional string custom_prompt = 19;
-  optional BrowserSettingsUpdate browser_settings = 20;
-  optional string default_terminal_profile = 21;
+  optional DictationSettings dictation_settings = 17;
+  optional FocusChainSettings focus_chain_settings = 18;
+  optional bool use_auto_condense = 19;
+  optional string custom_prompt = 20;
 }
 
 // Complete API Configuration message
@@ -275,14 +264,14 @@ message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
 }
 
+message DictationSettings {
+  bool dictation_enabled = 1;
+  string dictation_language = 2;
+}
+
 message FocusChainSettings {
   bool enabled = 1;
   int32 remind_cline_interval = 2;
-}
-
-message Viewport {
-  int32 width = 1;
-  int32 height = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {
