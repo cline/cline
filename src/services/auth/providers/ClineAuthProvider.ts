@@ -1,17 +1,19 @@
 import { jwtDecode } from "jwt-decode"
 import { EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 interface ClineAuthApiUser {
-	subject: string
-	email: string
-	name: string
+	Subject: string | null
+	Email: string
+	Name: string
+	ClineUserID: string | null
 }
 
-interface ClineAuthApiTokenExchangeResponse {
+export interface ClineAuthApiTokenExchangeResponse {
 	success: boolean
 	data: {
 		// Auth token to be used for authenticated requests
@@ -19,7 +21,7 @@ interface ClineAuthApiTokenExchangeResponse {
 		// Bearer
 		token_type: string
 		// Token expiration time in seconds
-		expires_in: number
+		expires_at: number
 		user_info: ClineAuthApiUser
 	}
 }
@@ -71,37 +73,83 @@ export class ClineAuthProvider {
 	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
 	 */
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
-		const storedAuthDataStr = controller.stateManager.getSecretKey("clineAccountId")
-		if (!storedAuthDataStr) {
-			Logger.error("No stored authentication credential found.")
-			return null
-		}
-
 		try {
-			const storedAuthData: ClineAuthInfo = JSON.parse(storedAuthDataStr)
+			// Get the stored auth data from secure storage
+			const storedAuthDataString = controller.stateManager.getSecretKey("clineAccountId")
 
-			if (!storedAuthData.idToken) {
+			if (!storedAuthDataString) {
+				Logger.debug("No stored authentication data found")
 				return null
 			}
 
-			// Check if the stored token is expired
-			const currentTime = Date.now()
-			if (storedAuthData.expiresAt && currentTime >= storedAuthData.expiresAt) {
-				console.log("Stored access token has expired")
-				// Clear the expired token
+			// Parse the stored auth data
+			let storedAuthData: ClineAuthInfo
+			try {
+				storedAuthData = JSON.parse(storedAuthDataString)
+			} catch (e) {
+				console.error("Failed to parse stored auth data:", e)
 				controller.stateManager.setSecret("clineAccountId", undefined)
 				return null
 			}
 
-			// Return the stored auth info
+			// Check if we have a valid token
+			if (!storedAuthData?.idToken) {
+				console.error("No access token found in stored authentication data")
+				controller.stateManager.setSecret("clineAccountId", undefined)
+				return null
+			}
+
+			// Check if token is expired
+			const now = Date.now()
+			if (storedAuthData.expiresAt && storedAuthData.expiresAt < now) {
+				console.log(`Token expired at ${new Date(storedAuthData.expiresAt).toISOString()}`)
+				controller.stateManager.setSecret("clineAccountId", undefined)
+				return null
+			}
+
+			// Verify the token structure
+			try {
+				const tokenParts = storedAuthData.idToken.split(".")
+				if (tokenParts.length !== 3) {
+					throw new Error("Invalid token format")
+				}
+
+				// Decode the token to verify it's a valid JWT
+				const payload = JSON.parse(Buffer.from(tokenParts[1], "base64").toString("utf-8"))
+
+				// Check if token has expired
+				if (payload.exp && payload.exp * 1000 < now) {
+					console.log("Token has expired according to JWT payload")
+					controller.stateManager.setSecret("clineAccountId", undefined)
+					return null
+				}
+			} catch (e) {
+				console.error("Invalid token format or content:", e)
+				controller.stateManager.setSecret("clineAccountId", undefined)
+				return null
+			}
+
+			console.log("Successfully retrieved and validated stored auth token")
 			return {
-				idToken: storedAuthData.idToken, // Using idToken field for backward compatibility
-				userInfo: storedAuthData.userInfo,
+				expiresAt: storedAuthData.expiresAt,
+				subject: storedAuthData.subject || storedAuthData.userInfo?.id || "",
+				idToken: storedAuthData.idToken,
+				userInfo: storedAuthData.userInfo || {
+					id: storedAuthData.subject || "",
+					email: "",
+					displayName: "",
+					createdAt: new Date().toISOString(),
+					organizations: [],
+				},
 			}
 		} catch (error) {
 			console.error("Error retrieving stored authentication credential:", error)
 			// Clear invalid stored data
-			controller.stateManager.setSecret("clineAccountId", undefined)
+			try {
+				controller.stateManager.setSecret("clineAccountId", undefined)
+			} catch (e) {
+				console.error("Failed to clear invalid auth data:", e)
+			}
 			return null
 		}
 	}
@@ -113,6 +161,9 @@ export class ClineAuthProvider {
 	 */
 	private async exchangeCodeForToken(authorizationCode: string): Promise<ClineAuthInfo> {
 		try {
+			// Get the callback URL that was used during the initial auth request
+			const callbackHost = await HostProvider.get().getCallbackUri()
+			const callbackUrl = `${callbackHost}/auth`
 			const endpoint = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, this._config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
@@ -122,6 +173,9 @@ export class ClineAuthProvider {
 				body: JSON.stringify({
 					code: authorizationCode, // short_lived_auth_code
 					grant_type: "authorization_code", // must be "authorization_code"
+					client_type: "extension",
+					redirect_uri: callbackUrl,
+					provider: "cline",
 				}),
 			})
 
@@ -142,16 +196,16 @@ export class ClineAuthProvider {
 
 			return {
 				idToken: data.data.access_token,
-				expiresAt: Date.now() + data.data.expires_in * 1000,
+				expiresAt: Date.now() + data.data.expires_at * 1000,
 				userInfo: {
 					createdAt: new Date().toISOString(),
-					email: data.data.user_info.email,
-					id: data.data.user_info.subject,
-					displayName: data.data.user_info.name,
+					email: data.data.user_info.Email,
+					id: data.data.user_info.Subject || "",
+					displayName: data.data.user_info.Name,
 					organizations: [],
 					appBaseUrl: this._config.appBaseUrl,
 				},
-				subject: data.data.user_info.subject,
+				subject: data.data.user_info.Subject || "",
 			}
 		} catch (error: any) {
 			throw error
@@ -201,6 +255,7 @@ export class ClineAuthProvider {
 	 */
 	async signIn(controller: Controller, authorizationCode: string, _provider: string): Promise<ClineAuthInfo | null> {
 		try {
+			console.log(authorizationCode, "auth provider:", _provider)
 			// Exchange the authorization code for an access token
 			const { idToken, expiresAt } = await this.exchangeCodeForToken(authorizationCode)
 			// 5 mins

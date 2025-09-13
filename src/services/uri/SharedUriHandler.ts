@@ -51,12 +51,7 @@ export class SharedUriHandler {
 
 					Logger.info(`SharedUriHandler - Auth callback received for ${provider} - ${path}`)
 
-					const refreshToken = query.get("refreshToken")
-					if (refreshToken) {
-						await visibleWebview.controller.handleAuthCallback(refreshToken, provider)
-						return true
-					}
-					const token = query.get("idToken")
+					const token = query.get("refreshToken") || query.get("idToken") || query.get("code")
 					if (token) {
 						await visibleWebview.controller.handleAuthCallback(token, provider)
 						return true

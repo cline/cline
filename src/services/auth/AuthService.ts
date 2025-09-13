@@ -7,7 +7,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../feature-flags"
-import { ClineAuthProvider } from "./providers/ClineAuthProvider"
+import { ClineAuthApiTokenExchangeResponse, ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
 type AvailableAuthProviders = FirebaseAuthProvider | ClineAuthProvider
@@ -104,20 +104,41 @@ export class AuthService {
 	}
 
 	async getAuthToken(): Promise<string | null> {
-		if (!this._clineAuthInfo) {
+		try {
+			if (!this._clineAuthInfo) {
+				console.log("No auth info available")
+				return null
+			}
+
+			const now = Date.now()
+			const expiresAt = this._clineAuthInfo.expiresAt
+
+			// Check if token is expired
+			if (expiresAt && expiresAt < now) {
+				console.log("Token expired at:", new Date(expiresAt).toISOString())
+				this._clineAuthInfo = null
+				this._authenticated = false
+				await this.sendAuthStatusUpdate()
+				return null
+			}
+
+			// Additional check with provider if needed
+			if (this._provider?.shouldRefreshIdToken) {
+				const shouldRefresh = await this._provider.shouldRefreshIdToken(this._clineAuthInfo.idToken)
+				if (shouldRefresh) {
+					console.log("Provider indicates token needs refresh")
+					this._clineAuthInfo = null
+					this._authenticated = false
+					await this.sendAuthStatusUpdate()
+					return null
+				}
+			}
+
+			return this._clineAuthInfo.idToken
+		} catch (error) {
+			console.error("Error getting auth token:", error)
 			return null
 		}
-		const accessToken = this._clineAuthInfo.idToken // Using idToken field for backward compatibility
-		const shouldRefreshToken = await this._provider?.shouldRefreshIdToken(accessToken)
-		if (shouldRefreshToken) {
-			// Access token is expired, user needs to re-authenticate
-			// Clear the expired auth info and return null to trigger re-authentication
-			this._clineAuthInfo = null
-			this._authenticated = false
-			await this.sendAuthStatusUpdate()
-			return null
-		}
-		return this._clineAuthInfo.idToken
 	}
 
 	protected _setProvider(providerName: string): void {
@@ -174,11 +195,48 @@ export class AuthService {
 		const authUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/authorize`)
 		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
+		// Ensure the redirect_uri is properly encoded and included
+		authUrl.searchParams.set("redirect_uri", callbackUrl)
 
-		const authUrlString = authUrl.toString()
+		// The server will respond with a 302 redirect to the OAuth provider
+		// We need to follow the redirect and get the final URL
+		let response: Response
+		try {
+			// Set redirect: 'manual' to handle the redirect manually
+			response = await fetch(authUrl.toString(), {
+				method: "GET",
+				redirect: "manual",
+				credentials: "include", // Important for cookies if needed
+				headers: {
+					Accept: "application/json",
+					"Content-Type": "application/json",
+				},
+			})
 
-		await openExternal(authUrlString)
-		return String.create({ value: authUrlString })
+			// If we get a redirect status (3xx), get the Location header
+			if (response.status >= 300 && response.status < 400) {
+				const redirectUrl = response.headers.get("Location")
+				if (!redirectUrl) {
+					throw new Error("No redirect URL found in the response")
+				}
+
+				// Open the OAuth provider's URL in the default browser
+				await openExternal(redirectUrl)
+				return String.create({ value: redirectUrl })
+			}
+
+			// If we didn't get a redirect, try to parse the response as JSON
+			const responseData = await response.json()
+			if (responseData.redirect_url) {
+				await openExternal(responseData.redirect_url)
+				return String.create({ value: responseData.redirect_url })
+			}
+
+			throw new Error("Unexpected response from auth server")
+		} catch (error) {
+			console.error("Error during authentication request:", error)
+			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+		}
 	}
 
 	async handleDeauth(): Promise<void> {
@@ -202,12 +260,91 @@ export class AuthService {
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
+			// Get the callback URL that was used during the initial auth request
+			const callbackHost = await HostProvider.get().getCallbackUri()
+			const callbackUrl = `${callbackHost}/auth`
+
+			// Exchange the authorization code for tokens
+			const tokenUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/token`)
+
+			const response = await fetch(tokenUrl.toString(), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Accept: "application/json",
+				},
+				body: JSON.stringify({
+					grant_type: "authorization_code",
+					code: authorizationCode,
+					client_type: "extension",
+					redirect_uri: callbackUrl,
+					provider: provider,
+				}),
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}))
+				throw new Error(errorData.error_description || "Failed to exchange authorization code for tokens")
+			}
+
+			const responseJSON = await response.json()
+			console.log("Token data received:", responseJSON)
+
+			const responseType: ClineAuthApiTokenExchangeResponse = responseJSON
+			const tokenData = responseType.data
+
+			if (!tokenData.access_token || !tokenData.user_info) {
+				throw new Error("Invalid token response from server")
+			}
+
+			// Convert expires_at to milliseconds if it's in seconds
+			const expiresAt = tokenData.expires_at
+				? tokenData.expires_at > 1e12
+					? tokenData.expires_at
+					: tokenData.expires_at * 1000
+				: Date.now() + 3600000 // Default to 1 hour from now
+
+			// Store the tokens and user info
+			this._clineAuthInfo = {
+				idToken: tokenData.access_token,
+				userInfo: {
+					id: tokenData.user_info.Subject || tokenData.user_info.ClineUserID || "",
+					email: tokenData.user_info.Email || "",
+					displayName: tokenData.user_info.Name || "",
+					createdAt: new Date().toISOString(),
+					organizations: [],
+				},
+				expiresAt: expiresAt,
+			}
+
 			this._authenticated = true
 
+			// Notify all subscribers about the auth state change
 			await this.sendAuthStatusUpdate()
+
+			// Store the auth info in the extension's secure storage
+			if (tokenData.access_token) {
+				const authInfo: ClineAuthInfo = {
+					idToken: tokenData.access_token,
+					userInfo: {
+						email: tokenData.user_info.Email || "",
+						displayName: tokenData.user_info.Name || "",
+						id: tokenData.user_info.ClineUserID || tokenData.user_info.Subject || "",
+						createdAt: new Date().toISOString(),
+						organizations: [],
+					},
+					expiresAt: tokenData.expires_at
+						? tokenData.expires_at > 1e12
+							? tokenData.expires_at
+							: tokenData.expires_at * 1000
+						: Date.now() + 3600000, // Default to 1 hour from now
+				}
+				this._controller.stateManager.setSecret("clineAccountId", JSON.stringify(authInfo))
+			}
 		} catch (error) {
-			console.error("Error signing in with authorization code:", error)
+			console.error("Error handling auth callback:", error)
+			// this._authenticated = false
+			// this._clineAuthInfo = null
 			throw error
 		}
 	}
