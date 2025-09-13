@@ -3,6 +3,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { getTaskHistoryStateFilePath, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import { secretStorage } from "./secrets"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
@@ -46,8 +47,8 @@ export class StateManager {
 		try {
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(this.context)
-			const secrets = await readSecretsFromDisk(this.context)
 			const workspaceState = await readWorkspaceStateFromDisk(this.context)
+			const secrets = await readSecretsFromDisk(secretStorage)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -126,6 +127,12 @@ export class StateManager {
 
 		// Update cache immediately for all keys
 		Object.entries(updates).forEach(([key, value]) => {
+			// Skip unchanged values as we don't want to trigger unnecessary
+			// writes & incorrectly fire an onDidChange events.
+			const current = this.secretsCache[key as keyof Secrets]
+			if (current === value) {
+				return
+			}
 			this.secretsCache[key as keyof Secrets] = value
 			this.pendingSecrets.add(key as SecretKey)
 		})
@@ -653,9 +660,9 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return this.context.secrets.store(key, value)
+						return secretStorage.store(key, value)
 					} else {
-						return this.context.secrets.delete(key)
+						return secretStorage.delete(key)
 					}
 				}),
 			)
