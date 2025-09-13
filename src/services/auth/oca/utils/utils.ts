@@ -9,14 +9,30 @@ import {
 } from "../utils/constants"
 import type { OcaConfig } from "./types"
 
+/**
+ * Loads OCA auth configuration, falling back to built-in defaults.
+ *
+ * Behavior:
+ * - Attempts to read a user-provided JSON config from OCA_CONFIG_PATH.
+ * - If the file is missing or invalid JSON, silently falls back to defaults.
+ * - Combines user-provided values with defaults via nullish coalescing (??).
+ *
+ * Returns the effective configuration used by OCA auth flows.
+ */
 export const getOcaConfig = (): OcaConfig => {
+	// Holds raw values loaded from the optional on-disk config.
+	// Using `any` here is intentional; we coerce into a typed OcaConfig below.
 	let cfg: any = {}
 	try {
+		// Read and parse the user config file, if present.
 		const raw = fs.readFileSync(OCA_CONFIG_PATH, "utf-8")
 		cfg = JSON.parse(raw)
 	} catch {
-		/* ignore - use defaults */
+		// Intentionally ignore read/parse errors and use default values instead.
+		// This keeps the auth flow resilient when no user config is provided.
 	}
+	// Overlay user-provided values onto defaults. For each field, prefer the file
+	// value if it is defined; otherwise, use the default constant.
 	const ocaConfig: OcaConfig = {
 		client_id: cfg.client_id ?? DEFAULT_IDCS_CLIENT_ID,
 		idcs_url: cfg.idcs_url ?? DEFAULT_IDCS_URL,

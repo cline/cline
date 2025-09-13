@@ -123,7 +123,7 @@ function useOcaModels({
 }) {
 	const [models, setModels] = useState<Record<string, OcaModelInfo>>({})
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
+	const [hasError, setHasError] = useState(false)
 	const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null)
 
 	const reqIdRef = useRef(0)
@@ -133,23 +133,23 @@ function useOcaModels({
 	const doRefresh = useCallback(async (url: string) => {
 		const myReqId = ++reqIdRef.current
 		setLoading(true)
-		setError(null)
+		setHasError(false)
 		try {
 			const resp = await ModelsServiceClient.refreshOcaModels(StringRequest.create({ value: url || "" }))
 			// Only apply if still latest and still mounted
 			if (!unmountedRef.current && myReqId === reqIdRef.current) {
 				if (resp.error) {
-					setError(resp.error)
+					setHasError(true)
 				} else {
 					setModels(resp.models || {})
-					setError(null)
+					setHasError(false)
 					setLastRefreshedAt(Date.now())
 				}
 			}
 		} catch (err) {
 			if (!unmountedRef.current && myReqId === reqIdRef.current) {
 				console.error("Failed to refresh Oca models:", err)
-				setError("Failed to refresh models")
+				setHasError(true)
 			}
 		} finally {
 			if (!unmountedRef.current && myReqId === reqIdRef.current) {
@@ -170,7 +170,7 @@ function useOcaModels({
 			// Clear models if logged out; prevent stale data
 			setModels({})
 			setLoading(false)
-			setError(null)
+			setHasError(false)
 			return
 		}
 
@@ -192,22 +192,24 @@ function useOcaModels({
 	// User-initiated refresh with auto login + single retry on failure
 	const refreshModels = useCallback(async () => {
 		setLoading(true)
-		setError(null)
+		setHasError(false)
 
 		async function tryRefresh(retry = false): Promise<boolean> {
 			try {
 				const resp = await ModelsServiceClient.refreshOcaModels(StringRequest.create({ value: baseUrl || "" }))
-				if (resp.error) throw new Error(resp.error)
+				if (resp.error) {
+					throw new Error(resp.error)
+				}
 				setModels(resp.models || {})
-				setError(null)
+				setHasError(false)
 				setLastRefreshedAt(Date.now())
 				return true
-			} catch (err) {
+			} catch (_err) {
 				if (!retry) {
 					await login() // prompt login
 					return tryRefresh(true) // retry once
 				} else {
-					setError("Failed to refresh models. Please check your login or network.")
+					setHasError(true)
 				}
 				return false
 			} finally {
@@ -218,7 +220,7 @@ function useOcaModels({
 		await tryRefresh()
 	}, [baseUrl, login])
 
-	return { models, loading, error, refreshModels, lastRefreshedAt }
+	return { models, loading, hasError, refreshModels, lastRefreshedAt }
 }
 
 /**
@@ -236,7 +238,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 	const {
 		models: ocaModels,
 		refreshModels,
-		error: ocaError,
+		hasError: ocaHasError,
 		loading: ocaLoading,
 		lastRefreshedAt,
 	} = useOcaModels({
@@ -349,7 +351,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 						onRefresh={handleRefresh}
 					/>
 
-					{isAuthenticated && ocaError && (
+					{isAuthenticated && ocaHasError && (
 						<div
 							aria-live="polite"
 							className={`mt-2 text-[13px] [color:var(${VSC_DESCRIPTION_FOREGROUND})]`}

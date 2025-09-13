@@ -132,9 +132,9 @@ message UpdateApiConfigurationRequest {
  // Model info for OCA (OpenAI-compatible) models exposed by the OCA provider
 message OcaModelInfo {
   // Maximum completion tokens per request supported by this model
-  optional int32 max_tokens = 1;
+  optional int64 max_tokens = 1;
   // Total context window in tokens (input + output)
-  optional int32 context_window = 2;
+  optional int64 context_window = 2;
   // Whether the model supports image inputs
   optional bool supports_images = 3;
   // Whether prompt caching is supported for this model

@@ -2,8 +2,8 @@ import { type EmptyRequest, String as ProtoString } from "@shared/proto/cline/co
 import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { openExternal } from "@/utils/env"
-import { OcaAuthHandler } from "./handler/OcaAuthHandler"
 import { OcaAuthProvider } from "./providers/OcaAuthProvider"
 import type { OcaConfig } from "./utils/types"
 import { getOcaConfig } from "./utils/utils"
@@ -15,7 +15,6 @@ export class OcaAuthService {
 	protected _authenticated: boolean = false
 	protected _ocaAuthState: OcaAuthState | null = null
 	protected _provider: OcaAuthProvider | null = null
-	protected _ocaAuthHandler: OcaAuthHandler | null = null
 	protected _refreshInFlight: Promise<void> | null = null
 	protected _activeAuthStatusUpdateSubscriptions = new Set<{
 		controller: Controller
@@ -25,9 +24,6 @@ export class OcaAuthService {
 	protected constructor() {
 		this._config = getOcaConfig()
 		this._provider = new OcaAuthProvider(this._config)
-		this._ocaAuthHandler = OcaAuthHandler.getInstance()
-		this._ocaAuthHandler.ports = this._config.ports
-		this._ocaAuthHandler.setEnabled(true)
 	}
 
 	private requireProvider(): OcaAuthProvider {
@@ -117,8 +113,7 @@ export class OcaAuthService {
 			throw new Error("IDCS URI is not configured")
 		}
 		// Start the auth handler
-		this._ocaAuthHandler?.getCallbackUri()
-		const callbackUrl = await this._ocaAuthHandler?.getCallbackUri()
+		const callbackUrl = `${await AuthHandler.getInstance().getCallbackUrl()}\auth\oca`
 		const authUrl = this.requireProvider().getAuthUrl(callbackUrl!)
 		const authUrlString = authUrl?.toString() || ""
 		if (!authUrlString) {

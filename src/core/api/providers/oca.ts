@@ -28,7 +28,6 @@ export class OcaHandler implements ApiHandler {
 
 	constructor(options: OcaHandlerOptions) {
 		this.options = options
-		this.options = options
 	}
 
 	protected initializeClient(options: OcaHandlerOptions) {

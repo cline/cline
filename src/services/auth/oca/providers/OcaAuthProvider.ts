@@ -5,10 +5,16 @@ import { Controller } from "@/core/controller"
 
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
+type PkceState = {
+	code_verifier: string
+	nonce: string
+	createdAt: number
+	redirect_uri: string
+}
+
 export class OcaAuthProvider {
 	// Map state -> { code_verifier, nonce, createdAt }
-	private static pkceStateMap: Map<string, { code_verifier: string; nonce: string; createdAt: number; redirect_uri: string }> =
-		new Map()
+	private static pkceStateMap: Map<string, PkceState> = new Map()
 
 	protected _config: any
 
