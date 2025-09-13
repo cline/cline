@@ -107,6 +107,12 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 			? JSON.stringify(config.planModeVercelAiGatewayModelInfo)
 			: undefined,
 
+		// Plan mode rate limit configs
+		planModeRateLimitRpm: config.planModeRateLimitRpm ? Number(config.planModeRateLimitRpm) : undefined,
+		planModeRateLimitTpm: config.planModeRateLimitTpm ? Number(config.planModeRateLimitTpm) : undefined,
+		planModeRateLimitNearThreshold:
+			typeof config.planModeRateLimitNearThreshold === "number" ? Number(config.planModeRateLimitNearThreshold) : undefined,
+
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider,
 		actModeApiModelId: config.actModeApiModelId,
@@ -136,6 +142,12 @@ export function convertApiConfigurationToProtoApiConfiguration(config: ApiConfig
 		actModeVercelAiGatewayModelInfo: config.actModeVercelAiGatewayModelInfo
 			? JSON.stringify(config.actModeVercelAiGatewayModelInfo)
 			: undefined,
+
+		// Act mode rate limit configs
+		actModeRateLimitRpm: config.actModeRateLimitRpm ? Number(config.actModeRateLimitRpm) : undefined,
+		actModeRateLimitTpm: config.actModeRateLimitTpm ? Number(config.actModeRateLimitTpm) : undefined,
+		actModeRateLimitNearThreshold:
+			typeof config.actModeRateLimitNearThreshold === "number" ? Number(config.actModeRateLimitNearThreshold) : undefined,
 
 		// Favorited model IDs
 		favoritedModelIds: config.favoritedModelIds || [],
@@ -232,6 +244,13 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeSapAiCoreModelId: protoConfig.planModeSapAiCoreModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
+		// Plan mode rate limit configs
+		planModeRateLimitRpm: protoConfig.planModeRateLimitRpm ? Number(protoConfig.planModeRateLimitRpm) : undefined,
+		planModeRateLimitTpm: protoConfig.planModeRateLimitTpm ? Number(protoConfig.planModeRateLimitTpm) : undefined,
+		planModeRateLimitNearThreshold:
+			typeof protoConfig.planModeRateLimitNearThreshold === "number"
+				? Number(protoConfig.planModeRateLimitNearThreshold)
+				: undefined,
 
 		// Act mode configurations
 		actModeApiProvider: protoConfig.actModeApiProvider as ApiProvider,
@@ -252,6 +271,13 @@ export function convertProtoApiConfigurationToApiConfiguration(protoConfig: Prot
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeSapAiCoreModelId: protoConfig.actModeSapAiCoreModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
+		// Act mode rate limit configs
+		actModeRateLimitRpm: protoConfig.actModeRateLimitRpm ? Number(protoConfig.actModeRateLimitRpm) : undefined,
+		actModeRateLimitTpm: protoConfig.actModeRateLimitTpm ? Number(protoConfig.actModeRateLimitTpm) : undefined,
+		actModeRateLimitNearThreshold:
+			typeof protoConfig.actModeRateLimitNearThreshold === "number"
+				? Number(protoConfig.actModeRateLimitNearThreshold)
+				: undefined,
 
 		// Favorited model IDs
 		favoritedModelIds: protoConfig.favoritedModelIds || [],

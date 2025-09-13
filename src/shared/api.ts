@@ -111,6 +111,15 @@ export interface ApiHandlerOptions {
 	difyBaseUrl?: string
 	zaiApiKey?: string
 	zaiApiLine?: string
+
+	// Mode-specific rate limit configs
+	planModeRateLimitRpm?: number
+	planModeRateLimitTpm?: number
+	planModeRateLimitNearThreshold?: number
+	actModeRateLimitRpm?: number
+	actModeRateLimitTpm?: number
+	actModeRateLimitNearThreshold?: number
+
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	// Plan mode configurations
 	planModeApiModelId?: string
