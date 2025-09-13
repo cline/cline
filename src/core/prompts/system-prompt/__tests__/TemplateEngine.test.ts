@@ -40,60 +40,54 @@ describe("TemplateEngine", () => {
 
 		it("should resolve simple placeholders", () => {
 			const template = "Hello {{name}}!"
-			const context = mockContext
 			const placeholders = { name: "World" }
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello World!")
 		})
 
 		it("should resolve multiple placeholders", () => {
 			const template = "{{greeting}} {{name}}, today is {{day}}"
-			const context = mockContext
 			const placeholders = {
 				greeting: "Hello",
 				name: "Alice",
 				day: "Monday",
 			}
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Alice, today is Monday")
 		})
 
 		it("should handle nested object placeholders", () => {
 			const template = "User: {{user.name}}, Age: {{user.age}}"
-			const context = mockContext
 			const placeholders = {
 				user: {
 					name: "John",
 					age: 30,
 				},
 			}
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("User: John, Age: 30")
 		})
 
 		it("should preserve unmatched placeholders", () => {
 			const template = "Hello {{name}}, your {{missing}} is pending"
-			const context = mockContext
 			const placeholders = { name: "Alice" }
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Alice, your {{missing}} is pending")
 		})
 
 		it("should handle object and array values", () => {
 			const template = "Config: {{config}}"
-			const context = mockContext
 			const placeholders = {
 				config: { key: "value", items: [1, 2, 3] },
 			}
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal('Config: {"key":"value","items":[1,2,3]}')
 		})
 
 		it("should handle whitespace around placeholder names", () => {
 			const template = "Hello {{ name }}, welcome to {{  place  }}"
-			const context = mockContext
 			const placeholders = { name: "Bob", place: "Paradise" }
-			const result = templateEngine.resolve(template, context, placeholders)
+			const result = templateEngine.resolve(template, mockContext, placeholders)
 			expect(result).to.equal("Hello Bob, welcome to Paradise")
 		})
 	})
