@@ -71,7 +71,6 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
 	extensionInfo: { name: string; publisher: string }
 	// NEW: Add workspace information

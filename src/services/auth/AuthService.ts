@@ -191,7 +191,7 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackHost = await HostProvider.get().getCallbackUri()
+		const callbackHost = await HostProvider.get().getCallbackUrl()
 		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction

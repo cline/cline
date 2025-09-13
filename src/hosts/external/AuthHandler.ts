@@ -39,7 +39,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUri(): Promise<string> {
+	public async getCallbackUrl(): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}

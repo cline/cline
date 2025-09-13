@@ -82,7 +82,6 @@ export interface GlobalState {
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
 
