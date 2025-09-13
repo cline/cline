@@ -4,31 +4,6 @@ import { TemplateEngine } from "../templates/TemplateEngine"
 import type { SystemPromptContext } from "../types"
 import { mockProviderInfo } from "./integration.test"
 
-const mockContext: SystemPromptContext = {
-	cwd: "/test/project",
-	supportsBrowserUse: true,
-	mcpHub: {
-		getServers: () => [],
-		getMcpServersPath: () => "/test/mcp-servers",
-		getSettingsDirectoryPath: () => "/test/settings",
-		clientVersion: "1.0.0",
-		disposables: [],
-	} as unknown as McpHub,
-	focusChainSettings: {
-		enabled: true,
-		remindClineInterval: 6,
-	},
-	browserSettings: {
-		viewport: {
-			width: 1280,
-			height: 720,
-		},
-	},
-	isTesting: true,
-	providerInfo: mockProviderInfo,
-	yoloModeToggled: false,
-}
-
 describe("TemplateEngine", () => {
 	let templateEngine: TemplateEngine
 
@@ -37,6 +12,31 @@ describe("TemplateEngine", () => {
 	})
 
 	describe("resolve", () => {
+		const mockContext: SystemPromptContext = {
+			cwd: "/test/project",
+			supportsBrowserUse: true,
+			mcpHub: {
+				getServers: () => [],
+				getMcpServersPath: () => "/test/mcp-servers",
+				getSettingsDirectoryPath: () => "/test/settings",
+				clientVersion: "1.0.0",
+				disposables: [],
+			} as unknown as McpHub,
+			focusChainSettings: {
+				enabled: true,
+				remindClineInterval: 6,
+			},
+			browserSettings: {
+				viewport: {
+					width: 1280,
+					height: 720,
+				},
+			},
+			isTesting: true,
+			providerInfo: mockProviderInfo,
+			yoloModeToggled: false,
+		}
+
 		it("should resolve simple placeholders", () => {
 			const template = "Hello {{name}}!"
 			const context = mockContext
