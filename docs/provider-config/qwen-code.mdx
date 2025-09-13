@@ -1,0 +1,88 @@
+---
+title: "Qwen Code"
+description: "Use Qwen Code's OAuth-based API with Cline for free AI-powered coding assistance. Learn how to set up and configure the Qwen Code provider."
+---
+
+**Website:** [https://github.com/QwenLM/qwen-code](https://github.com/QwenLM/qwen-code)
+
+The Qwen Code provider lets you use Qwen's coding-specialized models with Cline through OAuth authentication. You get 2,000 free requests per day with 1M token context windows.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/qwen-code-provider-setup.png"
+		alt="Setting up the Qwen Code provider in Cline"
+	/>
+</Frame>
+
+## Setup
+
+First, you'll need to install and authenticate Qwen Code on your system:
+
+1. **Install Qwen Code**: Install the official Qwen Code CLI tool
+   ```bash
+   npm install -g @qwen-code/qwen-code@latest
+   ```
+
+2. **Authenticate**: Run the authentication command and follow the browser prompts
+   ```bash
+   qwen
+   ```
+   This will save OAuth credentials to `~/.qwen/oauth_creds.json`.
+
+3. **Configure in Cline**:
+    - Open Cline settings (⚙️ icon)
+    - Select **Qwen Code** from the **API Provider** dropdown
+    - Set the OAuth credentials path to `~/.qwen/oauth_creds.json` (or your custom path)
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/qwen-code-provider-models.png"
+		alt="Available models in the Qwen Code provider"
+	/>
+</Frame>
+
+### Finding your OAuth credentials
+
+If you're not sure where your Qwen Code credentials are stored:
+
+- **Default location**: `~/.qwen/oauth_creds.json`
+- **Check if file exists**: 
+  - **macOS/Linux**: `ls -la ~/.qwen/oauth_creds.json`
+  - **Windows**: `dir %USERPROFILE%\.qwen\oauth_creds.json`
+
+## Supported Models
+
+The Qwen Code provider supports these models:
+
+- `qwen3-coder-plus` (Recommended)
+- `qwen3-coder-flash`
+
+## How it works
+
+When you use Qwen Code with Cline, here's what happens behind the scenes:
+
+Cline wraps the Qwen Code CLI to handle your requests. Each time you send a message, Cline starts a new `qwen` process, sends your conversation, and streams the response back. The AI reasoning comes from Qwen Code, but all the actual file editing, terminal commands, and other tools are handled by Cline.
+
+The main difference you'll notice is that responses don't stream character-by-character like other providers. Instead, Qwen Code processes your full request before sending back the complete response.
+
+## Limitations
+
+There are a few things to keep in mind with Qwen Code:
+
+- Images in your messages get converted to text placeholders since Qwen Code doesn't support image uploads through the CLI
+- Prompt caching isn't available with this provider
+- Responses don't stream in real-time like other providers
+- 2,000 requests per day limit (resets at midnight UTC)
+- 60 requests per minute rate limit
+
+## Troubleshooting
+
+If you run into issues:
+
+**Authentication problems**: Make sure you're logged into Qwen Code with your account. Run `qwen` to re-authenticate if needed.
+
+**Path issues**: Double-check that the OAuth credentials path in Cline's settings is correct. Verify the file exists at `~/.qwen/oauth_creds.json`.
+
+**Rate limit issues**: You've hit the 60 requests/minute or 2,000 requests/day limit. Wait for the limits to reset.
+
+**Still having trouble?** Report issues on our [GitHub](https://github.com/cline/cline/issues) or ask for help in our [Discord](https://discord.gg/cline).
