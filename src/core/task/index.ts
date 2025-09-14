@@ -2124,6 +2124,25 @@ export class Task {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
+			if (assistantMessage.length === 0 && reasoningMessage) {
+				// Check if reasoning contains tool usage that should be parsed
+				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
+				const reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
+				console.log("reasoningToolBlocks:", reasoningToolBlocks)
+				if (reasoningToolBlocks.length > 0) {
+					// Found tools in reasoning - add them to assistant message content for execution
+					const prevLength = this.taskState.assistantMessageContent.length
+					this.taskState.assistantMessageContent = [...this.taskState.assistantMessageContent, ...reasoningToolBlocks]
+					assistantMessage = reasoningMessage
+
+					if (this.taskState.assistantMessageContent.length > prevLength) {
+						this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+					}
+					// present content to user (executes tool use blocks)
+					this.presentAssistantMessage()
+				}
+			}
+
 			await updateApiReqMsg({
 				messageStateHandler: this.messageStateHandler,
 				lastApiReqIndex,
