@@ -48,6 +48,27 @@ export default defineConfig({
 			reportOnFailure: true,
 			reporter: ["html", "lcov"],
 			reportsDirectory: "./coverage",
+			exclude: [
+				"**/*.{spec,test}.{js,jsx,ts,tsx,mjs,cjs}",
+
+				"**/*.d.ts",
+				"**/vite-env.d.ts",
+				"**/*.{config,setup}.{js,ts,mjs,cjs}",
+
+				"**/*.{css,scss,sass,less,styl}",
+				"**/*.{svg,png,jpg,jpeg,gif,ico}",
+
+				"**/*.{json,yaml,yml}",
+
+				"**/__mocks__/**",
+				"node_modules/**",
+				"build/**",
+				"coverage/**",
+				"dist/**",
+				"public/**",
+
+				"src/services/grpc-client.ts",
+			],
 		},
 	},
 	build: {
