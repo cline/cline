@@ -1218,8 +1218,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			e.preventDefault()
 			setIsDraggingOver(true)
 
-			// Check if files are being dragged
-			if (e.dataTransfer.types.includes("Files")) {
+			// If this is a VSCode Explorer drop (contains special URI payloads), do not show unsupported files error
+			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
+			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
+			const isVsCodeExplorerDrop = !!resourceUrlsData || !!vscodeUriListData
+
+			// Check if files are being dragged (native OS drop). Skip for VSCode Explorer drops.
+			if (!isVsCodeExplorerDrop && e.dataTransfer.types.includes("Files")) {
 				// Check if any of the files are not images
 				const items = Array.from(e.dataTransfer.items)
 				const hasNonImageFile = items.some((item) => {
@@ -1635,7 +1640,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+							Type @ for context, / for slash commands & workflows. Drag in images or drop files/folders from Explorer
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
