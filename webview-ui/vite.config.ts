@@ -46,7 +46,7 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			reportOnFailure: true,
-			reporter: ["html", "lcov"],
+			reporter: ["html", "lcov", "text"],
 			reportsDirectory: "./coverage",
 			exclude: [
 				"**/*.{spec,test}.{js,jsx,ts,tsx,mjs,cjs}",
