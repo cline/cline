@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "Kontrol noktasını geri yüklemeye çalışırken zaman aşımına uğradı.",
 		"checkpoint_failed": "Kontrol noktası geri yüklenemedi.",
 		"git_not_installed": "Kontrol noktaları özelliği için Git gereklidir. Kontrol noktalarını etkinleştirmek için lütfen Git'i yükleyin.",
-		"nested_git_repos_warning": "Çalışma alanında iç içe git depoları tespit edildiği için kontrol noktaları devre dışı bırakıldı. Kontrol noktalarını kullanmak için lütfen iç içe git depolarını kaldırın veya taşıyın.",
+		"nested_git_repos_warning": "{{path}} konumunda iç içe git deposu tespit edildiği için kontrol noktaları devre dışı bırakıldı. Kontrol noktalarını kullanmak için lütfen bu iç içe git deposunu kaldırın veya taşıyın.",
 		"no_workspace": "Lütfen önce bir proje klasörü açın",
 		"update_support_prompt": "Destek istemi güncellenemedi",
 		"reset_support_prompt": "Destek istemi sıfırlanamadı",

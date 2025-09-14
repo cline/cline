@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "Zeitüberschreitung beim Versuch, den Checkpoint wiederherzustellen.",
 		"checkpoint_failed": "Fehler beim Wiederherstellen des Checkpoints.",
 		"git_not_installed": "Git ist für die Checkpoint-Funktion erforderlich. Bitte installiere Git, um Checkpoints zu aktivieren.",
-		"nested_git_repos_warning": "Checkpoints sind deaktiviert, da verschachtelte Git-Repositories im Arbeitsbereich erkannt wurden. Um Checkpoints zu verwenden, entferne oder verschiebe bitte die verschachtelten Git-Repositories.",
+		"nested_git_repos_warning": "Checkpoints sind deaktiviert, da ein verschachteltes Git-Repository erkannt wurde unter: {{path}}. Um Checkpoints zu verwenden, entferne oder verschiebe bitte dieses verschachtelte Git-Repository.",
 		"no_workspace": "Bitte öffne zuerst einen Projektordner",
 		"update_support_prompt": "Fehler beim Aktualisieren der Support-Nachricht",
 		"reset_support_prompt": "Fehler beim Zurücksetzen der Support-Nachricht",

@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "Se agotó el tiempo al intentar restaurar el punto de control.",
 		"checkpoint_failed": "Error al restaurar el punto de control.",
 		"git_not_installed": "Git es necesario para la función de puntos de control. Por favor, instala Git para activar los puntos de control.",
-		"nested_git_repos_warning": "Los puntos de control están deshabilitados porque se detectaron repositorios git anidados en el espacio de trabajo. Para usar puntos de control, por favor elimina o reubica los repositorios git anidados.",
+		"nested_git_repos_warning": "Los puntos de control están deshabilitados porque se detectó un repositorio git anidado en: {{path}}. Para usar puntos de control, por favor elimina o reubica este repositorio git anidado.",
 		"no_workspace": "Por favor, abre primero una carpeta de proyecto",
 		"update_support_prompt": "Error al actualizar el mensaje de soporte",
 		"reset_support_prompt": "Error al restablecer el mensaje de soporte",

@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "체크포인트 복원을 시도하는 중 시간 초과되었습니다.",
 		"checkpoint_failed": "체크포인트 복원에 실패했습니다.",
 		"git_not_installed": "체크포인트 기능을 사용하려면 Git이 필요합니다. 체크포인트를 활성화하려면 Git을 설치하세요.",
-		"nested_git_repos_warning": "워크스페이스에서 중첩된 git 저장소가 감지되어 체크포인트가 비활성화되었습니다. 체크포인트를 사용하려면 중첩된 git 저장소를 제거하거나 이동해주세요.",
+		"nested_git_repos_warning": "{{path}}에서 중첩된 git 저장소가 감지되어 체크포인트가 비활성화되었습니다. 체크포인트를 사용하려면 이 중첩된 git 저장소를 제거하거나 이동해주세요.",
 		"no_workspace": "먼저 프로젝트 폴더를 열어주세요",
 		"update_support_prompt": "지원 프롬프트 업데이트에 실패했습니다",
 		"reset_support_prompt": "지원 프롬프트 재설정에 실패했습니다",

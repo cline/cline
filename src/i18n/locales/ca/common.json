@@ -33,7 +33,7 @@
 		"checkpoint_timeout": "S'ha esgotat el temps en intentar restaurar el punt de control.",
 		"checkpoint_failed": "Ha fallat la restauració del punt de control.",
 		"git_not_installed": "Git és necessari per a la funció de punts de control. Si us plau, instal·la Git per activar els punts de control.",
-		"nested_git_repos_warning": "Els punts de control estan deshabilitats perquè s'han detectat repositoris git niats a l'espai de treball. Per utilitzar punts de control, si us plau elimina o reubica els repositoris git niats.",
+		"nested_git_repos_warning": "Els punts de control estan deshabilitats perquè s'ha detectat un repositori git niat a: {{path}}. Per utilitzar punts de control, si us plau elimina o reubica aquest repositori git niat.",
 		"no_workspace": "Si us plau, obre primer una carpeta de projecte",
 		"update_support_prompt": "Ha fallat l'actualització del missatge de suport",
 		"reset_support_prompt": "Ha fallat el restabliment del missatge de suport",

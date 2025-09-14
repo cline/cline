@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "嘗試恢復檢查點時超時。",
 		"checkpoint_failed": "恢復檢查點失敗。",
 		"git_not_installed": "存檔點功能需要 Git。請安裝 Git 以啟用存檔點。",
-		"nested_git_repos_warning": "存檔點已停用，因為在工作區中偵測到巢狀的 git 儲存庫。要使用存檔點，請移除或重新配置巢狀的 git 儲存庫。",
+		"nested_git_repos_warning": "存檔點已停用，因為在 {{path}} 偵測到巢狀的 git 儲存庫。要使用存檔點，請移除或重新配置此巢狀的 git 儲存庫。",
 		"no_workspace": "請先開啟專案資料夾",
 		"update_support_prompt": "更新支援訊息失敗",
 		"reset_support_prompt": "重設支援訊息失敗",

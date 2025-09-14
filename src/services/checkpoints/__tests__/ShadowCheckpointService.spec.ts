@@ -421,11 +421,13 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 					const searchPattern = args[4]
 
 					if (searchPattern.includes(".git/HEAD")) {
+						// Return the HEAD file path, not the .git directory
+						const headFilePath = path.join(path.relative(workspaceDir, nestedGitDir), "HEAD")
 						return Promise.resolve([
 							{
-								path: path.relative(workspaceDir, nestedGitDir),
-								type: "folder",
-								label: ".git",
+								path: headFilePath,
+								type: "file", // HEAD is a file, not a folder
+								label: "HEAD",
 							},
 						])
 					} else {
@@ -436,8 +438,9 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				const service = new klass(taskId, shadowDir, workspaceDir, () => {})
 
 				// Verify that initialization throws an error when nested git repos are detected
-				await expect(service.initShadowGit()).rejects.toThrow(
-					"Checkpoints are disabled because nested git repositories were detected in the workspace",
+				// The error message now includes the specific path of the nested repository
+				await expect(service.initShadowGit()).rejects.toThrowError(
+					/Checkpoints are disabled because a nested git repository was detected at:/,
 				)
 
 				// Clean up.

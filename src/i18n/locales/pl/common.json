@@ -29,7 +29,7 @@
 		"checkpoint_timeout": "Upłynął limit czasu podczas próby przywrócenia punktu kontrolnego.",
 		"checkpoint_failed": "Nie udało się przywrócić punktu kontrolnego.",
 		"git_not_installed": "Funkcja punktów kontrolnych wymaga oprogramowania Git. Zainstaluj Git, aby włączyć punkty kontrolne.",
-		"nested_git_repos_warning": "Punkty kontrolne są wyłączone, ponieważ wykryto zagnieżdżone repozytoria git w obszarze roboczym. Aby używać punktów kontrolnych, usuń lub przenieś zagnieżdżone repozytoria git.",
+		"nested_git_repos_warning": "Punkty kontrolne są wyłączone, ponieważ wykryto zagnieżdżone repozytorium git w: {{path}}. Aby używać punktów kontrolnych, usuń lub przenieś to zagnieżdżone repozytorium git.",
 		"no_workspace": "Najpierw otwórz folder projektu",
 		"update_support_prompt": "Nie udało się zaktualizować komunikatu wsparcia",
 		"reset_support_prompt": "Nie udało się zresetować komunikatu wsparcia",

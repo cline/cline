@@ -33,7 +33,7 @@
 		"checkpoint_timeout": "Tempo esgotado ao tentar restaurar o ponto de verificação.",
 		"checkpoint_failed": "Falha ao restaurar o ponto de verificação.",
 		"git_not_installed": "O Git é necessário para o recurso de checkpoints. Por favor, instale o Git para habilitar os checkpoints.",
-		"nested_git_repos_warning": "Os checkpoints estão desabilitados porque repositórios git aninhados foram detectados no espaço de trabalho. Para usar checkpoints, por favor remova ou realoque os repositórios git aninhados.",
+		"nested_git_repos_warning": "Os checkpoints estão desabilitados porque um repositório git aninhado foi detectado em: {{path}}. Para usar checkpoints, por favor remova ou realoque este repositório git aninhado.",
 		"no_workspace": "Por favor, abra primeiro uma pasta de projeto",
 		"update_support_prompt": "Falha ao atualizar o prompt de suporte",
 		"reset_support_prompt": "Falha ao redefinir o prompt de suporte",
