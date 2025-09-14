@@ -274,12 +274,18 @@
 		"issues": "Sepertinya kamu mengalami masalah Windows PowerShell, silakan lihat ini"
 	},
 	"autoApprove": {
-		"title": "Auto-approve:",
+		"tooltip": "Kelola pengaturan persetujuan otomatis",
+		"title": "Persetujuan otomatis",
+		"all": "Semua",
 		"none": "Tidak Ada",
-		"description": "Auto-approve memungkinkan Roo Code melakukan aksi tanpa meminta izin. Hanya aktifkan untuk aksi yang benar-benar kamu percayai. Konfigurasi lebih detail tersedia di <settingsLink>Pengaturan</settingsLink>.",
+		"description": "Jalankan tindakan ini tanpa meminta izin. Aktifkan hanya untuk tindakan yang Anda percayai sepenuhnya.",
 		"selectOptionsFirst": "Pilih setidaknya satu opsi di bawah untuk mengaktifkan persetujuan otomatis",
 		"toggleAriaLabel": "Beralih persetujuan otomatis",
-		"disabledAriaLabel": "Persetujuan otomatis dinonaktifkan - pilih opsi terlebih dahulu"
+		"disabledAriaLabel": "Persetujuan otomatis dinonaktifkan - pilih opsi terlebih dahulu",
+		"triggerLabel_zero": "Tidak ada persetujuan otomatis",
+		"triggerLabel_one": "1 disetujui otomatis",
+		"triggerLabel_other": "{{count}} disetujui otomatis",
+		"triggerLabelAll": "YOLO"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",

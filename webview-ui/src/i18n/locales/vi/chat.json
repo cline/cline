@@ -247,12 +247,18 @@
 		"issues": "Có vẻ như bạn đang gặp vấn đề với Windows PowerShell, vui lòng xem"
 	},
 	"autoApprove": {
-		"title": "Tự động phê duyệt:",
-		"none": "Không",
-		"description": "Tự động phê duyệt cho phép Roo Code thực hiện hành động mà không cần xin phép. Chỉ bật cho các hành động bạn hoàn toàn tin tưởng. Cấu hình chi tiết hơn có sẵn trong <settingsLink>Cài đặt</settingsLink>.",
-		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tự động phê duyệt",
-		"toggleAriaLabel": "Chuyển đổi tự động phê duyệt",
-		"disabledAriaLabel": "Tự động phê duyệt bị vô hiệu hóa - hãy chọn các tùy chọn trước"
+		"tooltip": "Quản lý cài đặt tự động phê duyệt",
+		"title": "Tự động phê duyệt",
+		"all": "Tất cả",
+		"none": "Không có",
+		"description": "Thực hiện các hành động này mà không cần xin phép. Chỉ bật tính năng này cho các hành động bạn hoàn toàn tin tưởng.",
+		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tính năng tự động phê duyệt",
+		"toggleAriaLabel": "Bật/tắt tự động phê duyệt",
+		"disabledAriaLabel": "Tự động phê duyệt đã tắt - trước tiên hãy chọn các tùy chọn",
+		"triggerLabel_zero": "Không có tự động phê duyệt",
+		"triggerLabel_one": "1 được tự động phê duyệt",
+		"triggerLabel_other": "{{count}} được tự động phê duyệt",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Đang suy nghĩ",

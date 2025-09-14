@@ -15,7 +15,7 @@
 	"taskSyncDescription": "Roo Code Cloudでタスクを表示・共有するために同期",
 	"remoteControl": "Roomote Control",
 	"remoteControlDescription": "Roo Code Cloudからタスクを制御できるようにする",
-	"remoteControlRequiresTaskSync": "Roomote Controlを使用するにはタ스크同期を有効にする必要があります",
+	"remoteControlRequiresTaskSync": "Roomote Controlを使用するにはタスク同期を有効にする必要があります",
 	"taskSyncManagedByOrganization": "タスク同期は組織によって管理されます",
 	"usageMetricsAlwaysReported": "ログイン時にはモデル使用情報が常に報告されます",
 	"authWaiting": "認証完了をお待ちください...",

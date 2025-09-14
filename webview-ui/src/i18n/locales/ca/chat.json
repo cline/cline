@@ -247,12 +247,18 @@
 		"issues": "Sembla que estàs tenint problemes amb Windows PowerShell, si us plau consulta aquesta documentació per a més informació."
 	},
 	"autoApprove": {
-		"title": "Aprovació automàtica:",
+		"tooltip": "Gestiona la configuració d'aprovació automàtica",
+		"title": "Aprovació automàtica",
+		"all": "Totes",
 		"none": "Cap",
-		"description": "L'aprovació automàtica permet a Roo Code realitzar accions sense demanar permís. Activa-la només per a accions en les que confies plenament. Configuració més detallada disponible a la <settingsLink>Configuració</settingsLink>.",
-		"selectOptionsFirst": "Selecciona almenys una opció a continuació per activar l'aprovació automàtica",
+		"description": "Executeu aquestes accions sense demanar permís. Activeu-ho només per a les accions en què confieu plenament.",
+		"selectOptionsFirst": "Seleccioneu almenys una opció a continuació per activar l'aprovació automàtica",
 		"toggleAriaLabel": "Commuta l'aprovació automàtica",
-		"disabledAriaLabel": "Aprovació automàtica desactivada: seleccioneu primer les opcions"
+		"disabledAriaLabel": "Aprovació automàtica desactivada: seleccioneu primer les opcions",
+		"triggerLabel_zero": "Sense aprovació automàtica",
+		"triggerLabel_one": "1 aprovació automàtica",
+		"triggerLabel_other": "{{count}} aprovacions automàtiques",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Pensant",

@@ -247,12 +247,18 @@
 		"issues": "看起来您遇到了Windows PowerShell问题，请参阅此"
 	},
 	"autoApprove": {
-		"title": "自动批准:",
+		"tooltip": "管理自动批准设置",
+		"title": "自动批准",
+		"all": "全部",
 		"none": "无",
-		"description": "允许直接执行操作无需确认，请谨慎启用。前往<settingsLink>设置</settingsLink>调整",
-		"selectOptionsFirst": "选择至少一个下面的选项以启用自动批准",
+		"description": "无需请求权限即可执行这些操作。仅对您完全信任的操作启用此功能。",
+		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准",
 		"toggleAriaLabel": "切换自动批准",
-		"disabledAriaLabel": "自动批准已禁用 - 请先选择选项"
+		"disabledAriaLabel": "自动批准已禁用 - 请先选择选项",
+		"triggerLabel_zero": "无自动批准",
+		"triggerLabel_one": "1 个自动批准",
+		"triggerLabel_other": "{{count}} 个自动批准",
+		"triggerLabelAll": "人生只有一次"
 	},
 	"reasoning": {
 		"thinking": "思考中",

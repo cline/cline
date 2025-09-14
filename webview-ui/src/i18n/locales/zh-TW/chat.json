@@ -271,12 +271,18 @@
 		"issues": "您似乎遇到了 Windows PowerShell 的問題，請參閱此說明文件"
 	},
 	"autoApprove": {
-		"title": "自動核准：",
+		"tooltip": "管理自動批准設定",
+		"title": "自動批准",
+		"all": "全部",
 		"none": "無",
-		"description": "自動核准讓 Roo Code 可以在無需徵求您同意的情況下執行操作。請僅對您完全信任的動作啟用此功能。您可以在<settingsLink>設定</settingsLink>中進行更詳細的調整。",
-		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准",
-		"toggleAriaLabel": "切換自動核准",
-		"disabledAriaLabel": "自動核准已停用 - 請先選取選項"
+		"description": "無需請求權限即可執行這些操作。僅對您完全信任的操作啟用此功能。",
+		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動批准",
+		"toggleAriaLabel": "切換自動批准",
+		"disabledAriaLabel": "自動批准已禁用 - 請先選擇選項",
+		"triggerLabel_zero": "無自動核准",
+		"triggerLabel_one": "1 個自動核准",
+		"triggerLabel_other": "{{count}} 個自動核准",
+		"triggerLabelAll": "人生只有一次"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",

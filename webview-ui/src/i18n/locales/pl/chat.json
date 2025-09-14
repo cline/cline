@@ -247,12 +247,20 @@
 		"issues": "Wygląda na to, że masz problemy z Windows PowerShell, proszę zapoznaj się z tym"
 	},
 	"autoApprove": {
-		"title": "Automatyczne zatwierdzanie:",
-		"none": "Brak",
-		"description": "Automatyczne zatwierdzanie pozwala Roo Code wykonywać działania bez pytania o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz. Bardziej szczegółowa konfiguracja dostępna w <settingsLink>Ustawieniach</settingsLink>.",
+		"tooltip": "Zarządzaj ustawieniami automatycznego zatwierdzania",
+		"title": "Automatyczne zatwierdzanie",
+		"all": "Wszystkie",
+		"none": "Żadne",
+		"description": "Wykonuj te działania bez pytania o zgodę. Włącz tę opcję tylko dla działań, którym w pełni ufasz.",
 		"selectOptionsFirst": "Wybierz co najmniej jedną opcję poniżej, aby włączyć automatyczne zatwierdzanie",
 		"toggleAriaLabel": "Przełącz automatyczne zatwierdzanie",
-		"disabledAriaLabel": "Automatyczne zatwierdzanie wyłączone - najpierw wybierz opcje"
+		"disabledAriaLabel": "Automatyczne zatwierdzanie wyłączone - najpierw wybierz opcje",
+		"triggerLabel_zero": "Brak automatycznej akceptacji",
+		"triggerLabel_one": "1 automatycznie zaakceptowany",
+		"triggerLabel_few": "{{count}} automatycznie zaakceptowane",
+		"triggerLabel_many": "{{count}} automatycznie zaakceptowanych",
+		"triggerLabel_other": "{{count}} automatycznie zaakceptowanych",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Myślenie",

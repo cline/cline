@@ -247,12 +247,18 @@
 		"issues": "Windows PowerShell ile ilgili sorunlar yaşıyor gibi görünüyorsunuz, lütfen şu konuya bakın"
 	},
 	"autoApprove": {
-		"title": "Otomatik-onay:",
+		"tooltip": "Otomatik onay ayarlarını yönet",
+		"title": "Otomatik onayla",
+		"all": "Tümü",
 		"none": "Hiçbiri",
-		"description": "Otomatik onay, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Yalnızca tamamen güvendiğiniz eylemler için etkinleştirin. Daha detaylı yapılandırma <settingsLink>Ayarlar</settingsLink>'da mevcuttur.",
-		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek belirleyin",
-		"toggleAriaLabel": "Otomatik onayı değiştir",
-		"disabledAriaLabel": "Otomatik onay devre dışı - önce seçenekleri belirleyin"
+		"description": "İzin istemeden bu eylemleri gerçekleştirin. Bunu yalnızca tamamen güvendiğiniz eylemler için etkinleştirin.",
+		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek seçin",
+		"toggleAriaLabel": "Otomatik onayı aç/kapat",
+		"disabledAriaLabel": "Otomatik onay devre dışı - önce seçenekleri seçin",
+		"triggerLabel_zero": "Otomatik onay yok",
+		"triggerLabel_one": "1 otomatik onaylandı",
+		"triggerLabel_other": "{{count}} otomatik onaylandı",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Düşünüyor",

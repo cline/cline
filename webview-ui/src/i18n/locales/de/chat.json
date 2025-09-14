@@ -247,12 +247,18 @@
 		"issues": "Es scheint, dass du Probleme mit Windows PowerShell hast, bitte sieh dir dies an"
 	},
 	"autoApprove": {
-		"title": "Automatische Genehmigung:",
+		"tooltip": "Einstellungen für die automatische Genehmigung verwalten",
+		"title": "Automatische Genehmigung",
+		"all": "Alle",
 		"none": "Keine",
-		"description": "Automatische Genehmigung erlaubt Roo Code, Aktionen ohne Nachfrage auszuführen. Aktiviere dies nur für Aktionen, denen du vollständig vertraust. Detailliertere Konfiguration verfügbar in den <settingsLink>Einstellungen</settingsLink>.",
-		"selectOptionsFirst": "Wähle mindestens eine der folgenden Optionen aus, um die automatische Genehmigung zu aktivieren",
+		"description": "Führe diese Aktionen aus, ohne um Erlaubnis zu fragen. Aktiviere dies nur für Aktionen, denen du voll vertraust.",
+		"selectOptionsFirst": "Wähle zuerst mindestens eine Option unten aus, um die automatische Genehmigung zu aktivieren",
 		"toggleAriaLabel": "Automatische Genehmigung umschalten",
-		"disabledAriaLabel": "Automatische Genehmigung deaktiviert - zuerst Optionen auswählen"
+		"disabledAriaLabel": "Automatische Genehmigung deaktiviert - wähle zuerst Optionen aus",
+		"triggerLabel_zero": "Keine automatische Genehmigung",
+		"triggerLabel_one": "1 automatisch genehmigt",
+		"triggerLabel_other": "{{count}} automatisch genehmigt",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Denke nach",
