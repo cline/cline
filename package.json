@@ -356,7 +356,7 @@
 		"test:ci": "node scripts/test-ci.js",
 		"test:integration": "vscode-test",
 		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
-		"test:coverage": "vscode-test --coverage --coverage-output coverage --coverage-reporter html --coverage-reporter lcov --coverage-reporter text-summary",
+		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
 		"e2e": "playwright test -c playwright.config.ts",

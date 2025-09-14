@@ -126,7 +126,6 @@ jobs:
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
                       webview-ui/coverage/lcov.info
-                      coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
@@ -239,20 +238,12 @@ jobs:
                   name: pr-coverage-reports
                   path: .
 
-            - name: Upload core integration tests coverage to Qlty
-              uses: qltysh/qlty-action/coverage@v2
-              with:
-                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                  # we can merge multiple files if necessary
-                  files: |
-                    coverage/lcov.info
-                  tag: core:integration
-
             - name: Upload webview-ui unit tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
+              working-directory: webview-ui
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
                     webview-ui/coverage/lcov.info
-                  tag: webview-ui:unit
+                  tag: unit:webview-ui
