@@ -246,4 +246,4 @@ jobs:
                   files: |
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
-                  add-prefix: webview-ui
+                  add-prefix: webview-ui/
