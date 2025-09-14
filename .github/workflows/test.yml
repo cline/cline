@@ -240,10 +240,10 @@ jobs:
 
             - name: Upload webview-ui unit tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
-              working-directory: webview-ui
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
+                  add-prefix: webview-ui
