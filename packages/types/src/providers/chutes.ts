@@ -32,6 +32,8 @@ export type ChutesModelId =
 	| "moonshotai/Kimi-K2-Instruct-75k"
 	| "moonshotai/Kimi-K2-Instruct-0905"
 	| "Qwen/Qwen3-235B-A22B-Thinking-2507"
+	| "Qwen/Qwen3-Next-80B-A3B-Instruct"
+	| "Qwen/Qwen3-Next-80B-A3B-Thinking"
 
 export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1-0528"
 
@@ -307,5 +309,25 @@ export const chutesModels = {
 		inputPrice: 0.077968332,
 		outputPrice: 0.31202496,
 		description: "Qwen3 235B A22B Thinking 2507 model with 262K context window.",
+	},
+	"Qwen/Qwen3-Next-80B-A3B-Instruct": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Fast, stable instruction-tuned model optimized for complex tasks, RAG, and tool use without thinking traces.",
+	},
+	"Qwen/Qwen3-Next-80B-A3B-Thinking": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Reasoning-first model with structured thinking traces for multi-step problems, math proofs, and code synthesis.",
 	},
 } as const satisfies Record<string, ModelInfo>
