@@ -90,8 +90,14 @@ jobs:
             - name: Build Tests and Extension
               run: npm run pretest
 
-            - name: Unit Tests
-              run: npm run test:unit
+            - name: Unit Tests (with coverage on Linux)
+              run: |
+                if [ "${{ runner.os }}" = "Linux" ]; then
+                  npm install --no-save nyc
+                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                else
+                  npm run test:unit
+                fi
 
             # Run extension tests with coverage
             - name: Extension Integration Tests with Coverage
@@ -125,6 +131,7 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                      coverage-unit/lcov.info
                       webview-ui/coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
@@ -237,6 +244,15 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: .
+
+            - name: Upload core unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage-unit/lcov.info
+                  tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
