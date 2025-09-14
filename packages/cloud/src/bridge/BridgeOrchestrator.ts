@@ -59,13 +59,28 @@ export class BridgeOrchestrator {
 		return BridgeOrchestrator.instance
 	}
 
-	public static isEnabled(user?: CloudUserInfo | null, remoteControlEnabled?: boolean): boolean {
-		return !!(user?.id && user.extensionBridgeEnabled && remoteControlEnabled)
+	public static isEnabled(user: CloudUserInfo | null, remoteControlEnabled: boolean): boolean {
+		// Always disabled if signed out.
+		if (!user) {
+			return false
+		}
+
+		// Disabled by the user's organization?
+		if (!user.extensionBridgeEnabled) {
+			return false
+		}
+
+		// Disabled by the user?
+		if (!remoteControlEnabled) {
+			return false
+		}
+
+		return true
 	}
 
 	public static async connectOrDisconnect(
-		userInfo: CloudUserInfo | null,
-		remoteControlEnabled: boolean | undefined,
+		userInfo: CloudUserInfo,
+		remoteControlEnabled: boolean,
 		options: BridgeOrchestratorOptions,
 	): Promise<void> {
 		if (BridgeOrchestrator.isEnabled(userInfo, remoteControlEnabled)) {
