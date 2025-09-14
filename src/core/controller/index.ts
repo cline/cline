@@ -1,5 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { detectWorkspaceRoots } from "@core/workspace/detection"
+import { setupWorkspaceManager } from "@core/workspace/setup"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -41,13 +44,15 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	readonly id: string
-	private disposables: vscode.Disposable[] = []
 	task?: Task
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
 	readonly stateManager: StateManager
+
+	// NEW: Add workspace manager (optional initially)
+	private workspaceManager?: WorkspaceRootManager
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -71,6 +76,10 @@ export class Controller {
 					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
 					error,
 				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to initialize Cline's application state. Please restart the extension.",
+				})
 			})
 
 		// Set up persistence error recovery
@@ -120,12 +129,6 @@ export class Controller {
 	*/
 	async dispose() {
 		await this.clearTask()
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
@@ -171,7 +174,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -204,8 +206,6 @@ export class Controller {
 		let focusChainEnabled: boolean
 		if (focusChainSettings?.enabled === false) {
 			focusChainEnabled = false
-		} else if (focusChainFeatureFlagEnabled === false) {
-			focusChainEnabled = false
 		} else {
 			focusChainEnabled = Boolean(focusChainSettings?.enabled)
 		}
@@ -214,6 +214,14 @@ export class Controller {
 			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
 			enabled: focusChainEnabled,
 		}
+
+		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
+		this.workspaceManager = await setupWorkspaceManager({
+			stateManager: this.stateManager,
+			detectRoots: detectWorkspaceRoots,
+		})
+
+		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
 		this.task = new Task(
 			this,
@@ -236,8 +244,9 @@ export class Controller {
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
-			await getCwd(getDesktopDir()),
+			cwd,
 			this.stateManager,
+			this.workspaceManager,
 			task,
 			images,
 			files,
@@ -613,7 +622,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalStateKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalStateKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalStateKey("focusChainSettings")
-		const focusChainFeatureFlagEnabled = this.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
 		const preferredLanguage = this.stateManager.getGlobalStateKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalStateKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalStateKey("mode")
@@ -657,6 +665,10 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
 		const uriScheme = vscode.env.uriScheme
+		const extensionInfo = {
+			name: this.context.extension?.packageJSON?.name,
+			publisher: this.context.extension?.packageJSON?.publisher,
+		}
 
 		return {
 			version,
@@ -669,7 +681,6 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
-			focusChainFeatureFlagEnabled,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
@@ -699,6 +710,11 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
+			extensionInfo,
+			// NEW: Add workspace information
+			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
+			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
+			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 		}
 	}
 

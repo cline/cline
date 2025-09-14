@@ -102,6 +102,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				case ProtoOpenaiReasoningEffort.HIGH:
 					reasoningEffort = "high"
 					break
+				case ProtoOpenaiReasoningEffort.MINIMAL:
+					reasoningEffort = "minimal"
+					break
 				default:
 					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
 			}
@@ -153,10 +156,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = controller.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
-			if (remoteEnabled === false) {
-				// No-op when feature flag disabled
-			} else {
+			{
 				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled

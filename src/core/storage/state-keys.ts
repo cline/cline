@@ -1,6 +1,7 @@
 import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
+import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
 import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -80,9 +81,13 @@ export interface GlobalState {
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+
+	// Multi-root workspace support
+	workspaceRoots: WorkspaceRoot[] | undefined
+	primaryRootIndex: number
+	multiRootEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -105,6 +110,7 @@ export interface GlobalState {
 	planModeTogetherModelId: string | undefined
 	planModeFireworksModelId: string | undefined
 	planModeSapAiCoreModelId: string | undefined
+	planModeSapAiCoreDeploymentId: string | undefined
 	planModeGroqModelId: string | undefined
 	planModeGroqModelInfo: ModelInfo | undefined
 	planModeBasetenModelId: string | undefined
@@ -134,6 +140,7 @@ export interface GlobalState {
 	actModeTogetherModelId: string | undefined
 	actModeFireworksModelId: string | undefined
 	actModeSapAiCoreModelId: string | undefined
+	actModeSapAiCoreDeploymentId: string | undefined
 	actModeGroqModelId: string | undefined
 	actModeGroqModelInfo: ModelInfo | undefined
 	actModeBasetenModelId: string | undefined

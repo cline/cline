@@ -6,9 +6,6 @@ import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
-/**
- * Interface for persistence error event data
- */
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -335,6 +332,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -366,6 +364,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -401,6 +400,7 @@ export class StateManager {
 			planModeTogetherModelId,
 			planModeFireworksModelId,
 			planModeSapAiCoreModelId,
+			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
 			planModeGroqModelInfo,
 			planModeBasetenModelId,
@@ -433,6 +433,7 @@ export class StateManager {
 			actModeTogetherModelId,
 			actModeFireworksModelId,
 			actModeSapAiCoreModelId,
+			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
 			actModeGroqModelInfo,
 			actModeBasetenModelId,
@@ -792,6 +793,7 @@ export class StateManager {
 			planModeTogetherModelId: this.globalStateCache["planModeTogetherModelId"],
 			planModeFireworksModelId: this.globalStateCache["planModeFireworksModelId"] || fireworksDefaultModelId,
 			planModeSapAiCoreModelId: this.globalStateCache["planModeSapAiCoreModelId"],
+			planModeSapAiCoreDeploymentId: this.globalStateCache["planModeSapAiCoreDeploymentId"],
 			planModeGroqModelId: this.globalStateCache["planModeGroqModelId"],
 			planModeGroqModelInfo: this.globalStateCache["planModeGroqModelInfo"],
 			planModeBasetenModelId: this.globalStateCache["planModeBasetenModelId"],
@@ -824,6 +826,7 @@ export class StateManager {
 			actModeTogetherModelId: this.globalStateCache["actModeTogetherModelId"],
 			actModeFireworksModelId: this.globalStateCache["actModeFireworksModelId"] || fireworksDefaultModelId,
 			actModeSapAiCoreModelId: this.globalStateCache["actModeSapAiCoreModelId"],
+			actModeSapAiCoreDeploymentId: this.globalStateCache["actModeSapAiCoreDeploymentId"],
 			actModeGroqModelId: this.globalStateCache["actModeGroqModelId"],
 			actModeGroqModelInfo: this.globalStateCache["actModeGroqModelInfo"],
 			actModeBasetenModelId: this.globalStateCache["actModeBasetenModelId"],

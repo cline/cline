@@ -31,7 +31,10 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
-import { createTaskCheckpointManager, TaskCheckpointManager } from "@integrations/checkpoints"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
+import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
+import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -57,10 +60,10 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
+import { isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
-import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
@@ -68,14 +71,14 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "@/services/error"
+import { ErrorService } from "@/services/error"
+import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
-import { isNextGenModelFamily } from "../prompts/system-prompt/utils"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -110,7 +113,7 @@ export class Task {
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
-	public checkpointManager?: TaskCheckpointManager
+	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
@@ -143,6 +146,10 @@ export class Task {
 
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
+
+	// Workspace manager
+	workspaceManager?: WorkspaceRootManager
+
 	constructor(
 		controller: Controller,
 		mcpHub: McpHub,
@@ -166,6 +173,7 @@ export class Task {
 		enableCheckpointsSetting: boolean,
 		cwd: string,
 		stateManager: StateManager,
+		workspaceManager?: WorkspaceRootManager,
 		task?: string,
 		images?: string[],
 		files?: string[],
@@ -212,6 +220,7 @@ export class Task {
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.useAutoCondense = useAutoCondense
+		this.workspaceManager = workspaceManager
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
@@ -262,33 +271,39 @@ export class Task {
 			})
 		}
 
-		// Initialize checkpoint manager
+		// Initialize checkpoint manager based on workspace configuration
 		try {
-			this.checkpointManager = createTaskCheckpointManager(
-				{
-					taskId: this.taskId,
-				},
-				{
+			this.checkpointManager = buildCheckpointManager({
+				taskId: this.taskId,
+				enableCheckpoints: enableCheckpointsSetting,
+				messageStateHandler: this.messageStateHandler,
+				fileContextTracker: this.fileContextTracker,
+				diffViewProvider: this.diffViewProvider,
+				taskState: this.taskState,
+				context: controller.context,
+				workspaceManager: this.workspaceManager,
+				globalStoragePath: controller.context.globalStorageUri.fsPath,
+				updateTaskHistory: this.updateTaskHistory,
+				say: this.say.bind(this),
+				cancelTask: this.cancelTask,
+				postStateToWebview: this.postStateToWebview,
+				initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+				initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+			})
+
+			// If multi-root, kick off non-blocking initialization
+			if (
+				shouldUseMultiRoot({
+					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
-				},
-				{
-					context: controller.context,
-					diffViewProvider: this.diffViewProvider,
-					messageStateHandler: this.messageStateHandler,
-					fileContextTracker: this.fileContextTracker,
-					taskState: this.taskState,
-				},
-				{
-					updateTaskHistory: this.updateTaskHistory,
-					say: this.say.bind(this),
-					cancelTask: this.cancelTask,
-					postStateToWebview: this.postStateToWebview,
-				},
-				{
-					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-					checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-				},
-			)
+					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
+				})
+			) {
+				this.checkpointManager.initialize?.().catch((error: Error) => {
+					console.error("Failed to initialize multi-root checkpoint manager:", error)
+					this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
+				})
+			}
 		} catch (error) {
 			console.error("Failed to initialize checkpoint manager:", error)
 			if (enableCheckpointsSetting) {
@@ -1128,7 +1143,6 @@ export class Task {
 				process.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
-				telemetryService.captureTerminalHang(TerminalHangStage.STREAM_TIMEOUT)
 			} finally {
 				// Clear the stuck timer
 				if (bufferStuckTimer) {
@@ -1273,6 +1287,14 @@ export class Task {
 		return { model, providerId, customPrompt }
 	}
 
+	private getApiRequestIdSafe(): string | undefined {
+		const apiLike = this.api as Partial<{
+			getLastRequestId: () => string | undefined
+			lastGenerationId?: string
+		}>
+		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
@@ -1300,6 +1322,7 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
+		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1332,8 +1355,20 @@ export class Task {
 			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
 		}
 
+		// Prepare multi-root workspace information if enabled
+		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		if (isMultiRootEnabled && this.workspaceManager) {
+			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
+				path: root.path,
+				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
+				vcs: root.vcs as string | undefined, // Cast VcsType to string
+			}))
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
+			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
@@ -1346,6 +1381,8 @@ export class Task {
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.browserSettings,
+			isMultiRootEnabled,
+			workspaceRoots,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)
@@ -1379,12 +1416,12 @@ export class Task {
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
-			const clineError = errorService.toClineError(error, model.id, providerId)
+			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
 			// TODO: Move into errorService
-			errorService.logMessage(clineError.message)
-			errorService.logException(clineError)
+			ErrorService.get().logMessage(clineError.message)
+			ErrorService.get().logException(clineError)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				await this.handleContextWindowExceededError()
@@ -1612,6 +1649,9 @@ export class Task {
 					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
+				// Display the user's message in the chat UI
+				await this.say("user_feedback", text, images, files)
+
 				// This userContent is for the *next* API call.
 				const feedbackUserContent: UserContent = []
 				feedbackUserContent.push({
@@ -1710,11 +1750,7 @@ export class Task {
 			!this.taskState.checkpointManagerErrorMessage
 		) {
 			try {
-				await pTimeout(this.checkpointManager.checkpointTrackerCheckAndInit(), {
-					milliseconds: 15_000,
-					message:
-						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-				})
+				await ensureCheckpointInitialized({ checkpointManager: this.checkpointManager })
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint manager:", errorMessage)
@@ -2034,7 +2070,7 @@ export class Task {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					const clineError = errorService.toClineError(error, this.api.getModel().id)
+					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
 
 					await abortStream("streaming_failed", errorMessage)
@@ -2144,10 +2180,29 @@ export class Task {
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				await this.say(
-					"error",
-					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
-				)
+				const { model, providerId } = this.getCurrentProviderInfo()
+				const reqId = this.getApiRequestIdSafe()
+
+				// Minimal diagnostics: structured log and telemetry
+				console.error("[EmptyAssistantMessage]", {
+					ulid: this.ulid,
+					providerId,
+					modelId: model.id,
+					requestId: reqId,
+				})
+				telemetryService.captureProviderApiError({
+					ulid: this.ulid,
+					model: model.id,
+					provider: providerId,
+					errorMessage: "empty_assistant_message",
+					requestId: reqId,
+				})
+
+				const baseErrorMessage =
+					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
+				const errorText = reqId ? `${baseErrorMessage} (reqId: ${reqId})` : baseErrorMessage
+
+				await this.say("error", errorText)
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
 					content: [
@@ -2264,10 +2319,11 @@ export class Task {
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
-		details += "\n\n# VSCode Visible Files"
+		details += `\n\n# ${host.platform} Visible Files`
 		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2284,7 +2340,7 @@ export class Task {
 			details += "\n(No visible files)"
 		}
 
-		details += "\n\n# VSCode Open Tabs"
+		details += `\n\n# ${host.platform} Open Tabs`
 		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2357,13 +2413,6 @@ export class Task {
 				}
 			}
 		}
-
-		// details += "\n\n# VSCode Workspace Errors"
-		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
-		// } else {
-		// 	details += "\n(No errors detected)"
-		// }
 
 		if (terminalDetails) {
 			details += terminalDetails

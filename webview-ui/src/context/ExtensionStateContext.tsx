@@ -180,7 +180,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
-		focusChainFeatureFlagEnabled: false,
 		preferredLanguage: "English",
 		openaiReasoningEffort: "medium",
 		mode: "act",
@@ -206,6 +205,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		extensionInfo: { name: "claude-dev", publisher: "saoudrizwan" },
+
+		// NEW: Add workspace information with defaults
+		workspaceRoots: [],
+		primaryRootIndex: 0,
+		isMultiRootWorkspace: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

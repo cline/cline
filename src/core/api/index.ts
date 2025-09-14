@@ -331,6 +331,7 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				deploymentId: mode === "plan" ? options.planModeSapAiCoreDeploymentId : options.actModeSapAiCoreDeploymentId,
 				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
@@ -400,7 +401,7 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 			const handler = createHandlerForProvider(apiProvider, options, mode)
 
 			const modelInfo = handler.getModel().info
-			if (modelInfo.maxTokens && thinkingBudgetTokens > modelInfo.maxTokens) {
+			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
 				const clippedValue = modelInfo.maxTokens - 1
 				if (mode === "plan") {
 					options.planModeThinkingBudgetTokens = clippedValue

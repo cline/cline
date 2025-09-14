@@ -1,0 +1,28 @@
+// Note: This list is temporary. Some items may remain in the long run,
+// but our goal is to reduce it over time by continuously improving
+// how we prepare the testing-platform environment.
+export const NON_DETERMINISTIC_FIELDS = [
+	"stateJson.distinctId",
+	"stateJson.shouldShowAnnouncement",
+	"stateJson.platform",
+	"stateJson.clineMessages.ts",
+	"stateJson.taskHistory.cwdOnTaskInitialization",
+	"stateJson.taskHistory.id",
+	"stateJson.taskHistory.size",
+	"stateJson.taskHistory.ts",
+	"stateJson.taskHistory.ulid",
+	"stateJson.taskHistory.cacheWrites",
+	"stateJson.taskHistory.cacheReads",
+	"stateJson.taskHistory.tokensIn",
+	"stateJson.taskHistory.tokensOut",
+	"stateJson.taskHistory.totalCost",
+	"stateJson.version",
+	"stateJson.currentTaskItem.cwdOnTaskInitialization",
+	"stateJson.currentTaskItem.id",
+	"stateJson.currentTaskItem.ts",
+	"stateJson.currentTaskItem.ulid",
+	"stateJson.workspaceRoots.commitHash",
+	"stateJson.workspaceRoots.name",
+	"stateJson.workspaceRoots.path",
+	"stateJson.workspaceRoots.vcs",
+]
