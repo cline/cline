@@ -1,5 +1,6 @@
 import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
+import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 /**
  * Button action types that determine the behavior
@@ -183,7 +184,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: getCancelButtonText(),
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
@@ -201,10 +202,18 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel (ESC)",
+		secondaryText: getCancelButtonText(),
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
+}
+
+function getCancelButtonText(): string {
+	var text = "Cancel"
+	if (PLATFORM_CONFIG.supportsEscShortcut) {
+		text += " (ESC)"
+	}
+	return text
 }
 
 const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_max_req_reached"]
