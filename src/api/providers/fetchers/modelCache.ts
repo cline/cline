@@ -75,7 +75,7 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 				models = await getLiteLLMModels(options.apiKey, options.baseUrl)
 				break
 			case "ollama":
-				models = await getOllamaModels(options.baseUrl)
+				models = await getOllamaModels(options.baseUrl, options.apiKey)
 				break
 			case "lmstudio":
 				models = await getLMStudioModels(options.baseUrl)

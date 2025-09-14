@@ -54,7 +54,10 @@ export const parseOllamaModel = (rawModel: OllamaModelInfoResponse): ModelInfo =
 	return modelInfo
 }
 
-export async function getOllamaModels(baseUrl = "http://localhost:11434"): Promise<Record<string, ModelInfo>> {
+export async function getOllamaModels(
+	baseUrl = "http://localhost:11434",
+	apiKey?: string,
+): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
 
 	// clearing the input can leave an empty string; use the default in that case
@@ -65,7 +68,13 @@ export async function getOllamaModels(baseUrl = "http://localhost:11434"): Promi
 			return models
 		}
 
-		const response = await axios.get<OllamaModelsResponse>(`${baseUrl}/api/tags`)
+		// Prepare headers with optional API key
+		const headers: Record<string, string> = {}
+		if (apiKey) {
+			headers["Authorization"] = `Bearer ${apiKey}`
+		}
+
+		const response = await axios.get<OllamaModelsResponse>(`${baseUrl}/api/tags`, { headers })
 		const parsedResponse = OllamaModelsResponseSchema.safeParse(response.data)
 		let modelInfoPromises = []
 
@@ -73,9 +82,13 @@ export async function getOllamaModels(baseUrl = "http://localhost:11434"): Promi
 			for (const ollamaModel of parsedResponse.data.models) {
 				modelInfoPromises.push(
 					axios
-						.post<OllamaModelInfoResponse>(`${baseUrl}/api/show`, {
-							model: ollamaModel.model,
-						})
+						.post<OllamaModelInfoResponse>(
+							`${baseUrl}/api/show`,
+							{
+								model: ollamaModel.model,
+							},
+							{ headers },
+						)
 						.then((ollamaModelInfo) => {
 							models[ollamaModel.name] = parseOllamaModel(ollamaModelInfo.data)
 						}),

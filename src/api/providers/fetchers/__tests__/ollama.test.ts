@@ -108,10 +108,10 @@ describe("Ollama Fetcher", () => {
 			const result = await getOllamaModels(baseUrl)
 
 			expect(mockedAxios.get).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`)
+			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`, { headers: {} })
 
 			expect(mockedAxios.post).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.post).toHaveBeenCalledWith(`${baseUrl}/api/show`, { model: modelName })
+			expect(mockedAxios.post).toHaveBeenCalledWith(`${baseUrl}/api/show`, { model: modelName }, { headers: {} })
 
 			expect(typeof result).toBe("object")
 			expect(result).not.toBeInstanceOf(Array)
@@ -130,7 +130,7 @@ describe("Ollama Fetcher", () => {
 			const result = await getOllamaModels(baseUrl)
 
 			expect(mockedAxios.get).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`)
+			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`, { headers: {} })
 			expect(mockedAxios.post).not.toHaveBeenCalled()
 			expect(result).toEqual({})
 		})
@@ -146,7 +146,7 @@ describe("Ollama Fetcher", () => {
 			const result = await getOllamaModels(baseUrl)
 
 			expect(mockedAxios.get).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`)
+			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`, { headers: {} })
 			expect(mockedAxios.post).not.toHaveBeenCalled()
 			expect(consoleInfoSpy).toHaveBeenCalledWith(`Failed connecting to Ollama at ${baseUrl}`)
 			expect(result).toEqual({})
@@ -204,10 +204,10 @@ describe("Ollama Fetcher", () => {
 			const result = await getOllamaModels(baseUrl)
 
 			expect(mockedAxios.get).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`)
+			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`, { headers: {} })
 
 			expect(mockedAxios.post).toHaveBeenCalledTimes(1)
-			expect(mockedAxios.post).toHaveBeenCalledWith(`${baseUrl}/api/show`, { model: modelName })
+			expect(mockedAxios.post).toHaveBeenCalledWith(`${baseUrl}/api/show`, { model: modelName }, { headers: {} })
 
 			expect(typeof result).toBe("object")
 			expect(result).not.toBeInstanceOf(Array)
@@ -216,6 +216,74 @@ describe("Ollama Fetcher", () => {
 
 			// Verify the model was parsed correctly despite null families
 			expect(result[modelName].description).toBe("Family: llama, Context: 4096, Size: 23.6B")
+		})
+
+		it("should include Authorization header when API key is provided", async () => {
+			const baseUrl = "http://localhost:11434"
+			const apiKey = "test-api-key-123"
+			const modelName = "test-model:latest"
+
+			const mockApiTagsResponse = {
+				models: [
+					{
+						name: modelName,
+						model: modelName,
+						modified_at: "2025-06-03T09:23:22.610222878-04:00",
+						size: 14333928010,
+						digest: "6a5f0c01d2c96c687d79e32fdd25b87087feb376bf9838f854d10be8cf3c10a5",
+						details: {
+							family: "llama",
+							families: ["llama"],
+							format: "gguf",
+							parameter_size: "23.6B",
+							parent_model: "",
+							quantization_level: "Q4_K_M",
+						},
+					},
+				],
+			}
+			const mockApiShowResponse = {
+				license: "Mock License",
+				modelfile: "FROM /path/to/blob\nTEMPLATE {{ .Prompt }}",
+				parameters: "num_ctx 4096\nstop_token <eos>",
+				template: "{{ .System }}USER: {{ .Prompt }}ASSISTANT:",
+				modified_at: "2025-06-03T09:23:22.610222878-04:00",
+				details: {
+					parent_model: "",
+					format: "gguf",
+					family: "llama",
+					families: ["llama"],
+					parameter_size: "23.6B",
+					quantization_level: "Q4_K_M",
+				},
+				model_info: {
+					"ollama.context_length": 4096,
+					"some.other.info": "value",
+				},
+				capabilities: ["completion"],
+			}
+
+			mockedAxios.get.mockResolvedValueOnce({ data: mockApiTagsResponse })
+			mockedAxios.post.mockResolvedValueOnce({ data: mockApiShowResponse })
+
+			const result = await getOllamaModels(baseUrl, apiKey)
+
+			const expectedHeaders = { Authorization: `Bearer ${apiKey}` }
+
+			expect(mockedAxios.get).toHaveBeenCalledTimes(1)
+			expect(mockedAxios.get).toHaveBeenCalledWith(`${baseUrl}/api/tags`, { headers: expectedHeaders })
+
+			expect(mockedAxios.post).toHaveBeenCalledTimes(1)
+			expect(mockedAxios.post).toHaveBeenCalledWith(
+				`${baseUrl}/api/show`,
+				{ model: modelName },
+				{ headers: expectedHeaders },
+			)
+
+			expect(typeof result).toBe("object")
+			expect(result).not.toBeInstanceOf(Array)
+			expect(Object.keys(result).length).toBe(1)
+			expect(result[modelName]).toBeDefined()
 		})
 	})
 })
