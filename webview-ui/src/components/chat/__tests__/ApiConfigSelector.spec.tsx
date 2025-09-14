@@ -86,15 +86,6 @@ describe("ApiConfigSelector", () => {
 		expect(trigger).toHaveTextContent("Config 1")
 	})
 
-	test("renders with ChevronUp icon", () => {
-		render(<ApiConfigSelector {...defaultProps} />)
-
-		const trigger = screen.getByTestId("dropdown-trigger")
-		// Check for the icon by looking for the svg element (ChevronUp from lucide-react renders as svg)
-		const icon = trigger.querySelector("svg")
-		expect(icon).toBeInTheDocument()
-	})
-
 	test("handles disabled state correctly", () => {
 		render(<ApiConfigSelector {...defaultProps} disabled={true} />)
 

@@ -167,8 +167,8 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
 						triggerClassName,
 					)}>
-					<CheckCheck className="size-3" />
-					<span className="truncate">
+					<CheckCheck className="size-3 flex-shrink-0" />
+					<span className="truncate min-w-0">
 						{enabledCount === totalCount
 							? t("chat:autoApprove.triggerLabelAll")
 							: t("chat:autoApprove.triggerLabel", { count: enabledCount })}

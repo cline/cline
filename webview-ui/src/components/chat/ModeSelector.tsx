@@ -1,6 +1,6 @@
 import React from "react"
 import { Fzf } from "fzf"
-import { ChevronUp, Check, X } from "lucide-react"
+import { Check, X } from "lucide-react"
 
 import { type ModeConfig, type CustomModePrompts, TelemetryEventName } from "@roo-code/types"
 
@@ -198,7 +198,7 @@ export const ModeSelector = ({
 					disabled={disabled}
 					data-testid="mode-selector-trigger"
 					className={cn(
-						"inline-flex items-center gap-1.5 relative whitespace-nowrap px-1.5 py-1 text-xs",
+						"inline-flex items-center relative whitespace-nowrap px-1.5 py-1 text-xs",
 						"bg-transparent border border-[rgba(255,255,255,0.08)] rounded-md text-vscode-foreground",
 						"transition-all duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder focus-visible:ring-inset",
 						disabled
@@ -209,12 +209,6 @@ export const ModeSelector = ({
 							? "bg-primary opacity-90 hover:bg-primary-hover text-vscode-button-foreground"
 							: null,
 					)}>
-					<ChevronUp
-						className={cn(
-							"pointer-events-none opacity-80 flex-shrink-0 size-3 transition-transform duration-200",
-							open && "rotate-180",
-						)}
-					/>
 					<span className="truncate">{selectedMode?.name || ""}</span>
 				</PopoverTrigger>
 			</StandardTooltip>

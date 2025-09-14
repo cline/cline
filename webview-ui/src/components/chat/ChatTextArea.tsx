@@ -1100,7 +1100,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</StandardTooltip>
 							</div>
 
-							<div className="absolute bottom-2 right-2 z-30">
+							<div className="absolute bottom-2 right-2 z-30 flex items-center gap-1">
 								{isEditMode && (
 									<StandardTooltip content={t("chat:cancel.title")}>
 										<button
@@ -1175,12 +1175,12 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)}
 
 				<div className="flex items-center gap-2">
-					<div className="flex items-center gap-2 min-w-40 overflow-clip flex-1">
+					<div className="flex items-center gap-2 min-w-0 overflow-clip flex-1">
 						<ModeSelector
 							value={mode}
 							title={t("chat:selectMode")}
 							onChange={handleModeChange}
-							triggerClassName="min-w-20 text-ellipsis overflow-hidden"
+							triggerClassName="text-ellipsis overflow-hidden flex-shrink-0"
 							modeShortcutText={modeShortcutText}
 							customModes={customModes}
 							customModePrompts={customModePrompts}
@@ -1191,12 +1191,12 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							disabled={selectApiConfigDisabled}
 							title={t("chat:selectApiConfig")}
 							onChange={handleApiConfigChange}
-							triggerClassName="min-w-16 text-ellipsis overflow-hidden"
+							triggerClassName="min-w-[28px] text-ellipsis overflow-hidden flex-shrink"
 							listApiConfigMeta={listApiConfigMeta || []}
 							pinnedApiConfigs={pinnedApiConfigs}
 							togglePinnedApiConfig={togglePinnedApiConfig}
 						/>
-						<AutoApproveDropdown triggerClassName="min-w-20 text-ellipsis overflow-hidden" />
+						<AutoApproveDropdown triggerClassName="min-w-[28px] text-ellipsis overflow-hidden flex-shrink" />
 					</div>
 					<div className="flex flex-shrink-0 items-center gap-0.5">
 						{isTtsPlaying && (
