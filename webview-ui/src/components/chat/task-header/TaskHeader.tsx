@@ -16,6 +16,7 @@ import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
+import styles from "./TaskHeader.module.css"
 import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
@@ -133,33 +134,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	return (
 		<div className="p-2 flex flex-col gap-1.5 text-badge-foreground">
-			<style>
-				{`
-					.task-header-container {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
-						border-radius: 4px;
-						position: relative;
-						overflow: hidden;
-						cursor: pointer;
-					}
-					
-					/* Hover effects only when collapsed */
-					.task-header-container.collapsed {
-						opacity: 0.8;
-						transition: all 0.2s ease;
-					}
-					.task-header-container.collapsed:hover {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
-						opacity: 1;
-					}
-					
-					/* No hover effects when expanded, add border */
-					.task-header-container.expanded {
-						opacity: 1;
-						border: 1px solid rgba(255, 255, 255, 0.2);
-					}
-				`}
-			</style>
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -168,11 +142,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			/>
 			{/* Task Header */}
 			<div
-				className={`task-header-container ${isTaskExpanded ? "expanded" : "collapsed"} text-badge-foreground flex flex-col gap-1.5 relative z-10 pt-2 pb-2 px-2`}>
+				className={cn({
+					[styles.taskHeaderContainer]: true,
+					"opacity-100 border-1 border-muted-foreground": isTaskExpanded, // No hover effects when expanded, add border
+					"opacity-80 transition-opacity duration-200": !isTaskExpanded, // Hover effects only when collapsed
+					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100": true,
+				})}>
 				{/* Task Title */}
 				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
 					<div className="flex justify-between items-center">
-						{isTaskExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
+						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
 							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
 								<RetryTaskButton className={BUTTON_CLASS} text={task.text} />
@@ -209,22 +188,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
 							<div
 								className={cn(
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200",
-									isTextExpanded ? "py-1.5 max-h-20 overflow-y-scroll" : "overflow-hidden",
+									styles.taskHeaderContent,
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200 mt-1 mb-1.5",
+									isTextExpanded ? "pb-1.5 max-h-20 overflow-y-scroll" : "overflow-hidden",
+									isTextExpanded ? styles.taskHeaderTextExpanded : styles.taskHeaderTextCollapsed,
 								)}
 								onClick={toggleTextExpanded}
-								ref={textRef}
-								style={{
-									display: "-webkit-box",
-									WebkitLineClamp: isTextExpanded ? "unset" : 2,
-									WebkitBoxOrient: "vertical",
-									lineHeight: "1.2",
-									maxHeight: isTextExpanded ? undefined : "2.4em", // Exactly 2 lines at 1.2 line-height
-									paddingTop: isTextExpanded ? "6px" : "0px",
-									paddingBottom: isTextExpanded ? "6px" : "0px",
-									marginTop: "4px",
-									marginBottom: "6px",
-								}}>
+								ref={textRef}>
 								{highlightedText}
 							</div>
 						</div>

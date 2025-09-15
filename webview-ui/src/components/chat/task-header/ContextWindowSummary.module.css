@@ -1,0 +1,8 @@
+.threshold-value-changed {
+	color: var(--vscode-charts-green) !important;
+	transition: none;
+}
+
+.threshold-value-fadeout {
+	transition: color 2s ease-out;
+}

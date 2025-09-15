@@ -82,7 +82,9 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 			event.stopPropagation()
 
 			// Get the progress bar element bounds for smart boundary detection
-			if (!progressRef.current) return
+			if (!progressRef.current) {
+				return
+			}
 
 			const progressBarRect = progressRef.current.getBoundingClientRect()
 			const clickX = event.clientX
@@ -130,6 +132,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 
 	const handleProgressBarHover = useCallback(
 		(event: React.MouseEvent<HTMLDivElement>) => {
+			event.stopPropagation()
 			// Clear any existing hover timeout
 			if (hoverTimeout) {
 				clearTimeout(hoverTimeout)

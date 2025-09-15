@@ -1,9 +1,11 @@
 import React, { memo, useMemo } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
+import { cn } from "@/utils/cn"
 import { formatSize } from "@/utils/format"
+import styles from "./ContextWindowSummary.module.css"
 import { formatTokenNumber } from "./util"
 
-interface ContextWindowInfoProps {
+interface TokenUsageInfoProps {
 	tokensIn?: number
 	tokensOut?: number
 	cacheWrites?: number
@@ -17,7 +19,7 @@ interface TokenDetail {
 	icon: string
 }
 
-interface TaskContextWindowButtonsProps extends ContextWindowInfoProps {
+interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 	percentage: number
 	tokenUsed: string
 	contextWindow: string
@@ -42,7 +44,7 @@ const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
 	{ title: "Tokens read from cache", icon: "codicon-arrow-right" },
 ]
 
-const ContextWindowInfo = memo<ContextWindowInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
+const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
 	const contextTokenDetails = useMemo(() => {
 		const values = [tokensIn, tokensOut, cacheWrites || 0, cacheReads || 0]
 		return TOKEN_DETAILS_CONFIG.map((config, index) => ({ ...config, value: values[index] })).filter((item) => item.value)
@@ -50,8 +52,8 @@ const ContextWindowInfo = memo<ContextWindowInfoProps>(({ tokensIn, tokensOut, c
 
 	const TokenDetailItem = memo<TokenDetail>(({ title, value, icon }) => (
 		<HeroTooltip content={title} key={`${icon}-${value}`}>
-			<span className="flex items-center gap-0.5 cursor-pointer">
-				<i className={`codicon ${icon} font-semibold`} />
+			<span className="flex items-center gap-0.5 cursor-pointer text-muted-foreground">
+				<i className={`codicon ${icon} font-semibold `} />
 				{formatTokenNumber(value)}
 			</span>
 		</HeroTooltip>
@@ -64,7 +66,7 @@ const ContextWindowInfo = memo<ContextWindowInfoProps>(({ tokensIn, tokensOut, c
 
 	return (
 		<div className="flex items-center justify-between flex-wrap">
-			<div className="font-semibold">Tokens</div>
+			<div className="font-semibold">Token Usage</div>
 			<div className="flex items-center justify-between flex-wrap gap-1 opacity-80">
 				{contextTokenDetails.map((item) => (
 					<TokenDetailItem key={item.icon} {...item} />
@@ -73,7 +75,7 @@ const ContextWindowInfo = memo<ContextWindowInfoProps>(({ tokensIn, tokensOut, c
 		</div>
 	)
 })
-ContextWindowInfo.displayName = "ContextWindowInfo"
+TokenUsageInfo.displayName = "TokenUsageInfo"
 
 export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	contextWindow,
@@ -87,47 +89,25 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	autoCompactThreshold = 0,
 	isThresholdChanged = false,
 	isThresholdFadingOut = false,
-}) => {
-	const getThresholdClass = () => {
-		if (isThresholdChanged && !isThresholdFadingOut) {
-			return "threshold-value-changed" // Instant green
-		} else if (isThresholdChanged && isThresholdFadingOut) {
-			return "threshold-value-fadeout" // Smooth fadeout
-		}
-		return "" // Normal color
-	}
-
-	return (
-		<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
-			<style>
-				{`
-					.threshold-value-changed {
-						color: var(--vscode-charts-green) !important;
-						transition: none;
-					}
-					.threshold-value-fadeout {
-						transition: color 2s ease-out;
-					}
-				`}
-			</style>
-			{autoCompactThreshold > 0 && (
-				<InfoRow
-					label="Auto Condense Threshold"
-					value={<span className={getThresholdClass()}>{`${(autoCompactThreshold * 100).toFixed(2)}%`}</span>}
-				/>
-			)}
-			<ContextWindowInfo
-				cacheReads={cacheReads}
-				cacheWrites={cacheWrites}
-				size={size}
-				tokensIn={tokensIn}
-				tokensOut={tokensOut}
-			/>
+}) => (
+	<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
+		{autoCompactThreshold > 0 && (
 			<InfoRow
-				label="Context Window"
-				value={percentage ? `${tokenUsed} of ${contextWindow} (${percentage.toFixed(2)}%) used` : contextWindow}
+				label="Auto Condense Threshold"
+				value={
+					<span
+						className={cn({
+							[styles.thresholdValueChanged]: isThresholdChanged && !isThresholdFadingOut,
+							[styles.thresholdValueFadeout]: isThresholdChanged && isThresholdFadingOut,
+						})}>{`${(autoCompactThreshold * 100).toFixed(2)}%`}</span>
+				}
 			/>
-			<InfoRow label="Size" value={formatSize(size)} />
-		</div>
-	)
-}
+		)}
+		<InfoRow
+			label="Context Window"
+			value={percentage ? `${tokenUsed} of ${contextWindow} (${percentage.toFixed(2)}%) used` : contextWindow}
+		/>
+		<TokenUsageInfo cacheReads={cacheReads} cacheWrites={cacheWrites} size={size} tokensIn={tokensIn} tokensOut={tokensOut} />
+		<InfoRow label="Size" value={formatSize(size)} />
+	</div>
+)

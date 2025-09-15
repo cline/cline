@@ -82,6 +82,10 @@ export default {
 					foreground: "var(--vscode-banner-foreground)",
 					icon: "var(--vscode-banner-iconForeground)",
 				},
+				toolbar: {
+					DEFAULT: "var(--vscode-toolbar-background)",
+					hover: "var(--vscode-toolbar-hoverBackground)",
+				},
 				error: "var(--vscode-errorForeground)",
 				description: "var(--vscode-descriptionForeground)",
 				success: "var(--vscode-charts-green)",

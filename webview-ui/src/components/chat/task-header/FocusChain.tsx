@@ -210,7 +210,9 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 					{isExpanded && (
 						<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
 							<ChecklistRenderer text={lastProgressMessageText!} />
-							{isCompleted && <div className="mt-2 text-xs font-semibold">{NEW_STEPS_MESSAGE}</div>}
+							{isCompleted && (
+								<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
+							)}
 						</div>
 					)}
 				</div>
