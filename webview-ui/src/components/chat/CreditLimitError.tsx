@@ -1,10 +1,9 @@
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, TaskServiceClient } from "@/services/grpc-client"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
@@ -15,23 +14,32 @@ interface CreditLimitErrorProps {
 }
 
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
-	currentBalance = 0,
-	totalSpent = 0,
-	totalPromotions = 0,
 	message = "You have run out of credits.",
 	// buyCreditsUrl = "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
 }) => {
-	const { uriScheme, extensionInfo } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
+	const [fullBuyCreditsUrl, setFullBuyCreditsUrl] = useState<string>("")
 
 	const isPersonal = !activeOrganization?.organizationId
 	const buyCreditsUrl = isPersonal
 		? "https://app.cline.bot/dashboard/account?tab=credits&redirect=true"
 		: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
 
-	const callbackUrl = `${uriScheme || "vscode"}://${extensionInfo.publisher}.${extensionInfo.name}`
-	const fullPurchaseUrl = new URL(buyCreditsUrl)
-	fullPurchaseUrl.searchParams.set("callback_url", callbackUrl)
+	useEffect(() => {
+		const fetchCallbackUrl = async () => {
+			try {
+				const callbackUrl = (await AccountServiceClient.getRedirectUrl({})).value
+				const url = new URL(buyCreditsUrl)
+				url.searchParams.set("callback_url", callbackUrl)
+				setFullBuyCreditsUrl(url.toString())
+			} catch (error) {
+				console.error("Error fetching callback URL:", error)
+				// Fallback to URL without callback if the API call fails
+				setFullBuyCreditsUrl(buyCreditsUrl)
+			}
+		}
+		fetchCallbackUrl()
+	}, [buyCreditsUrl])
 
 	// We have to divide because the balance is stored in microcredits
 	return (
@@ -48,7 +56,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 			</div>
 
 			<VSCodeButtonLink
-				href={fullPurchaseUrl.toString()}
+				href={fullBuyCreditsUrl}
 				style={{
 					width: "100%",
 					marginBottom: "8px",
