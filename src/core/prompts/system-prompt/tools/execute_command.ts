@@ -7,7 +7,7 @@ const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.BASH,
 	name: "execute_command",
-	description: `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}`,
+	description: `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}{{MULTI_ROOT_HINT}}`,
 	parameters: [
 		{
 			name: "command",
@@ -30,8 +30,13 @@ const generic: ClineToolSpec = {
 				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
 			usage: "30",
 		},
+
+		TASK_PROGRESS_PARAMETER,
 	],
 }
+
+const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
+const gemini = { ...generic, variant: ModelFamily.GEMINI }
 
 const gpt: ClineToolSpec = {
 	variant: ModelFamily.GPT,
@@ -50,6 +55,7 @@ const gpt: ClineToolSpec = {
 			name: "requires_approval",
 			required: false,
 			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
+			usage: "true or false",
 		},
 		{
 			name: "timeout",
@@ -63,4 +69,4 @@ const gpt: ClineToolSpec = {
 	],
 }
 
-export const execute_command_variants = [generic, gpt]
+export const execute_command_variants = [generic, nextGen, gpt, gemini]

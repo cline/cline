@@ -30,7 +30,7 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the directory to search in (relative to the current working directory {{CWD}}). This directory will be recursively searched.`,
+			instruction: `The path of the directory to search in (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}. This directory will be recursively searched.`,
 			usage: "Directory path here",
 		},
 		{
@@ -50,4 +50,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-export const search_files_variants = [generic]
+const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
+const gpt = { ...generic, variant: ModelFamily.GPT }
+const gemini = { ...generic, variant: ModelFamily.GEMINI }
+
+export const search_files_variants = [generic, nextGen, gpt, gemini]

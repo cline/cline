@@ -15,11 +15,15 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the directory (relative to the current working directory {{CWD}}) to list top level source code definitions for.`,
+			instruction: `The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for.`,
 			usage: "Directory path here",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],
 }
 
-export const list_code_definition_names_variants = [generic]
+const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
+const gpt = { ...generic, variant: ModelFamily.GPT }
+const gemini = { ...generic, variant: ModelFamily.GEMINI }
+
+export const list_code_definition_names_variants = [generic, nextGen, gpt, gemini]

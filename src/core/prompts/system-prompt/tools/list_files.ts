@@ -15,7 +15,8 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: "The path of the directory to list contents for (relative to the current working directory {{CWD}})",
+			instruction:
+				"The path of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}",
 			usage: "Directory path here",
 		},
 		{
@@ -28,4 +29,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-export const list_files_variants = [generic]
+const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
+const gpt = { ...generic, variant: ModelFamily.GPT }
+const gemini = { ...generic, variant: ModelFamily.GEMINI }
+
+export const list_files_variants = [generic, nextGen, gpt, gemini]
