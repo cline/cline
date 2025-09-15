@@ -3,24 +3,28 @@
 /**
  * Interactive Playwright launcher for the Cline VS Code extension.
  *
- * What this script does:
- *  - Starts the mock Cline API server (from the e2e test fixture).
+ * Overview:
+ *  - Starts the mock Cline API server (from the e2e test fixtures).
  *  - Downloads a stable build of VS Code (via @vscode/test-electron).
  *  - Creates a temporary VS Code user profile directory.
- *  - Launches VS Code with the Cline extension installed and development path linked.
- *  - Opens a test workspace and automatically shows the Cline sidebar.
- *  - Records **all gRPC calls** made during the session (for later inspection).
- *  - Keeps VS Code running for manual interactive testing until you close the window or press Ctrl+C.
- *  - Cleans up resources (mock server, temp profile, electron process) on exit.
+ *  - Installs and links the Cline extension (from dist/e2e.vsix and the dev path).
+ *  - Opens a test workspace and automatically reveals the Cline sidebar.
+ *  - Records **all gRPC calls** during the session for later inspection.
+ *  - Keeps VS Code running for manual interactive testing until the window is closed or Ctrl+C is pressed.
+ *  - Cleans up all resources (mock server, temp profile, Electron process) on exit.
  *
- * How to run:
- *   1. From the repo root, run:
+ * Usage:
+ *   1. (Optional) Build and install the e2e extension:
+ *        npm run install:e2e:extension
  *
+ *   2. From the repo root, start the interactive session:
  *        npm run test:playwright:interactive
  *
- *   2. VS Code will launch with the Cline extension loaded.
- *   3. Interact with it manually; all gRPC calls will be recorded automatically.
- *   4. Close VS Code or press Ctrl+C when finished.
+ *   3. VS Code will launch with the Cline extension loaded and gRPC recording enabled.
+ *
+ *   4. Interact with the extension manually.
+ *
+ *   5. Close the VS Code window or press Ctrl+C to end the session and trigger cleanup.
  */
 
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
@@ -45,7 +49,7 @@ async function main() {
 			TEMP_PROFILE: "true",
 			E2E_TEST: "true",
 			CLINE_ENVIRONMENT: "local",
-			GRPC_RECORDER_ENABLED: "false",
+			GRPC_RECORDER_ENABLED: "true",
 			GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true",
 		},
 		args: [
