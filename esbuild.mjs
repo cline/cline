@@ -129,14 +129,15 @@ const baseConfig = {
 	minify: production,
 	sourcemap: !production,
 	logLevel: "silent",
-	define: {
-		"import.meta.url": "_importMetaUrl",
-		"process.env.IS_DEV": JSON.stringify(!production),
-		// Inject environment variables at build time for production builds
-		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY || undefined),
-		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY || undefined),
-		"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT || undefined),
-	},
+	define: production
+		? {
+				"import.meta.url": "_importMetaUrl",
+				"process.env.IS_DEV": JSON.stringify(!production),
+				"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY || ""),
+				"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY || ""),
+			}
+		: { "import.meta.url": "_importMetaUrl" },
+
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,
