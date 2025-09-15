@@ -12,7 +12,7 @@ import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
@@ -33,7 +33,7 @@ export interface TaskConfig {
 	mode: Mode
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
-	context: vscode.ExtensionContext
+	context: ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
 	workspaceManager?: WorkspaceRootManager

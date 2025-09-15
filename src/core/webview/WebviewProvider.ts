@@ -4,8 +4,7 @@ import { findLast } from "@shared/array"
 import axios from "axios"
 import { readFile } from "fs/promises"
 import { v4 as uuidv4 } from "uuid"
-import * as vscode from "vscode"
-import { Uri } from "vscode"
+import { ExtensionContext, Uri } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { WebviewProviderType } from "@/shared/webview/types"
@@ -20,7 +19,7 @@ export abstract class WebviewProvider {
 	private static lastActiveControllerId: string | null = null
 
 	constructor(
-		readonly context: vscode.ExtensionContext,
+		readonly context: ExtensionContext,
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)

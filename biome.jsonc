@@ -134,14 +134,27 @@
 		{
 			"includes": [
 				"**",
+				// This where the platform specific code lives
 				"!**/hosts/vscode/**",
+				"!src/extension.ts",
+				// Webview is not included
+				"!webview-ui/**",
+				// Test and dev files are not included
 				"!**/test/**",
 				"!**/*.test.ts",
 				"!src/dev/**",
-				"!src/extension.ts",
+				// These files are using VSCode API calls that still need to be migrated.
+				// These should eventually be migrated to use cross-platform HostBridge
+				// calls instead of using vscode directly.
 				"!src/integrations/git/commit-message-generator.ts",
+				"!src/core/controller/ui/openWalkthrough.ts",
 				"!src/integrations/terminal/**",
-				"!src/core/controller/ui/openWalkthrough.ts"
+				// These are still using the vscode LLM API.
+				"!src/core/api/providers/vscode-lm.ts",
+				"!src/core/api/transform/vscode-lm-format.ts",
+				"!src/core/controller/models/getVsCodeLmModels.ts",
+				// Part of the VSCode stubs.
+				"!src/standalone/vscode-context-utils.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"

@@ -67,7 +67,7 @@ import { execa } from "execa"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
-import * as vscode from "vscode"
+import { ExtensionContext, workspace } from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -457,7 +457,7 @@ export class Task {
 
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
-	private getContext(): vscode.ExtensionContext {
+	private getContext(): ExtensionContext {
 		const context = this.controller.context
 		if (!context) {
 			throw new Error("Unable to access extension context")
@@ -1327,7 +1327,7 @@ export class Task {
 	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
 	 */
 	private async migrateDisableBrowserToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
+		const config = workspace.getConfiguration("cline")
 		const disableBrowserTool = config.get<boolean>("disableBrowserTool")
 
 		if (disableBrowserTool !== undefined) {

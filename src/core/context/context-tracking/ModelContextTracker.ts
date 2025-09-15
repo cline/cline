@@ -1,11 +1,11 @@
 import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 
 export class ModelContextTracker {
 	readonly taskId: string
-	private context: vscode.ExtensionContext
+	private context: ExtensionContext
 
-	constructor(context: vscode.ExtensionContext, taskId: string) {
+	constructor(context: ExtensionContext, taskId: string) {
 		this.context = context
 		this.taskId = taskId
 	}

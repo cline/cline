@@ -1,5 +1,5 @@
 import { PostHog } from "posthog-node"
-import * as vscode from "vscode"
+import { workspace } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
@@ -54,7 +54,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 		}
 
 		// Check extension-specific telemetry setting
-		const config = vscode.workspace.getConfiguration("cline")
+		const config = workspace.getConfiguration("cline")
 		if (config.get("telemetrySetting") === "disabled") {
 			this.errorSettings.enabled = false
 		}
@@ -139,7 +139,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
 		}
-		const config = vscode.workspace.getConfiguration("telemetry")
+		const config = workspace.getConfiguration("telemetry")
 		return config?.get<ErrorSettings["level"]>("telemetryLevel") || "all"
 	}
 

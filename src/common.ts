@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import {
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
@@ -12,6 +12,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { ExtensionRegistryInfo } from "./registry"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
@@ -25,10 +26,9 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  * @param context
  * @returns The webview provider
  */
-export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+export async function initialize(context: ExtensionContext): Promise<WebviewProvider> {
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
-
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance()
 
@@ -60,9 +60,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	return sidebarWebview
 }
 
-async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
+async function showVersionUpdateAnnouncement(context: ExtensionContext) {
 	// Version checking for autoupdate notification
-	const currentVersion = context.extension.packageJSON.version
+	const currentVersion = ExtensionRegistryInfo.version
 	const previousVersion = context.globalState.get<string>("clineVersion")
 	// Perform post-update actions if necessary
 	try {
@@ -71,7 +71,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 
 			// Use the same condition as announcements: focus when there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
-			const latestAnnouncementId = getLatestAnnouncementId(context)
+			const latestAnnouncementId = getLatestAnnouncementId()
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
 				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)

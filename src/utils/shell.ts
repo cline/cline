@@ -1,5 +1,5 @@
 import { userInfo } from "os"
-import * as vscode from "vscode"
+import { workspace } from "vscode"
 
 const SHELL_PATHS = {
 	// Windows paths
@@ -46,7 +46,7 @@ type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
 
 function getWindowsTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
+		const config = workspace.getConfiguration("terminal.integrated")
 		const defaultProfileName = config.get<string>("defaultProfile.windows")
 		const profiles = config.get<WindowsTerminalProfiles>("profiles.windows") || {}
 		return { defaultProfileName, profiles }
@@ -57,7 +57,7 @@ function getWindowsTerminalConfig() {
 
 function getMacTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
+		const config = workspace.getConfiguration("terminal.integrated")
 		const defaultProfileName = config.get<string>("defaultProfile.osx")
 		const profiles = config.get<MacTerminalProfiles>("profiles.osx") || {}
 		return { defaultProfileName, profiles }
@@ -68,7 +68,7 @@ function getMacTerminalConfig() {
 
 function getLinuxTerminalConfig() {
 	try {
-		const config = vscode.workspace.getConfiguration("terminal.integrated")
+		const config = workspace.getConfiguration("terminal.integrated")
 		const defaultProfileName = config.get<string>("defaultProfile.linux")
 		const profiles = config.get<LinuxTerminalProfiles>("profiles.linux") || {}
 		return { defaultProfileName, profiles }

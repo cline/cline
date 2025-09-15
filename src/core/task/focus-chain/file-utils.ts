@@ -1,7 +1,7 @@
 import { isFocusChainItem } from "@shared/focus-chain-utils"
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
 
 /**
@@ -50,7 +50,7 @@ export function extractFocusChainListFromText(text: string): string | null {
  * Returns the file path
  */
 export async function ensureFocusChainFile(
-	context: vscode.ExtensionContext,
+	context: ExtensionContext,
 	taskId: string,
 	initialFocusChainContent?: string,
 ): Promise<string> {

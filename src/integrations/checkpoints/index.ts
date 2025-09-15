@@ -12,7 +12,7 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { MessageStateHandler } from "../../core/task/message-state"
@@ -39,7 +39,7 @@ interface CheckpointManagerServices {
 	readonly fileContextTracker: FileContextTracker
 	readonly diffViewProvider: DiffViewProvider
 	readonly messageStateHandler: MessageStateHandler
-	readonly context: vscode.ExtensionContext
+	readonly context: ExtensionContext
 	readonly taskState: TaskState
 }
 interface CheckpointManagerCallbacks {
@@ -872,7 +872,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	/**
 	 * Gets the extension context with proper error handling
 	 */
-	private getContext(): vscode.ExtensionContext {
+	private getContext(): ExtensionContext {
 		if (!this.services.context) {
 			throw new Error("Unable to access extension context")
 		}

@@ -20,9 +20,10 @@ import axios from "axios"
 import fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -55,7 +56,7 @@ export class Controller {
 	private workspaceManager?: WorkspaceRootManager
 
 	constructor(
-		readonly context: vscode.ExtensionContext,
+		readonly context: ExtensionContext,
 		id: string,
 	) {
 		this.id = id
@@ -108,7 +109,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
-			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
@@ -683,11 +684,11 @@ export class Controller {
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
-		const version = this.context.extension?.packageJSON?.version ?? ""
+		const version = ExtensionRegistryInfo.version
 
 		return {
 			version,

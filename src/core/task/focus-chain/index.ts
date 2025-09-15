@@ -1,7 +1,7 @@
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSay } from "../../../shared/ExtensionMessage"
 import { Mode } from "../../../shared/storage/types"
@@ -21,7 +21,7 @@ export interface FocusChainDependencies {
 	taskId: string
 	taskState: TaskState
 	mode: Mode
-	context: vscode.ExtensionContext
+	context: ExtensionContext
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
@@ -32,7 +32,7 @@ export class FocusChainManager {
 	private taskId: string
 	private taskState: TaskState
 	private mode: Mode
-	private context: vscode.ExtensionContext
+	private context: ExtensionContext
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
 	private say: (

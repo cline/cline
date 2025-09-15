@@ -7,7 +7,7 @@ import * as path from "path"
 import PCR from "puppeteer-chromium-resolver"
 import { Browser, launch, Page } from "puppeteer-core"
 import TurndownService from "turndown"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -15,11 +15,11 @@ interface PCRStats {
 }
 
 export class UrlContentFetcher {
-	private context: vscode.ExtensionContext
+	private context: ExtensionContext
 	private browser?: Browser
 	private page?: Page
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(context: ExtensionContext) {
 		this.context = context
 	}
 

@@ -1,5 +1,5 @@
 import { PostHog } from "posthog-node"
-import * as vscode from "vscode"
+import { workspace } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
@@ -136,7 +136,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
 		}
-		const config = vscode.workspace.getConfiguration("telemetry")
+		const config = workspace.getConfiguration("telemetry")
 		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
 	}
 }

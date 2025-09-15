@@ -12,7 +12,7 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -66,7 +66,7 @@ export class ToolExecutor {
 
 	constructor(
 		// Core Services & Managers
-		private context: vscode.ExtensionContext,
+		private context: ExtensionContext,
 		private taskState: TaskState,
 		private messageStateHandler: MessageStateHandler,
 		private api: ApiHandler,

@@ -14,7 +14,7 @@ import * as path from "path"
 import PCR from "puppeteer-chromium-resolver"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
-import * as vscode from "vscode"
+import { ExtensionContext, workspace } from "vscode"
 import { telemetryService } from "@/services/telemetry"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 
@@ -42,7 +42,7 @@ function splitArgs(str?: string | null): string[] {
 }
 
 export class BrowserSession {
-	private context: vscode.ExtensionContext
+	private context: ExtensionContext
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
@@ -57,7 +57,7 @@ export class BrowserSession {
 	private browserActions: string[] = []
 	private ulid?: string
 
-	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
+	constructor(context: ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
 		this.context = context
 		this.browserSettings = browserSettings
 		this.useWebp = useWebp
@@ -83,8 +83,8 @@ export class BrowserSession {
 	 * Migrates the chromeExecutablePath setting from VSCode configuration to browserSettings
 	 */
 	private async migrateChromeExecutablePathSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
+		const config = workspace.getConfiguration("cline")
+		const configPath = workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
 
 		if (configPath !== undefined) {
 			this.browserSettings.chromeExecutablePath = configPath
