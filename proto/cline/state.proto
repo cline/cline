@@ -138,6 +138,7 @@ message UpdateSettingsRequest {
   optional string custom_prompt = 19;
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
+  optional bool yolo_mode_toggled = 22;
 }
 
 // Complete API Configuration message
