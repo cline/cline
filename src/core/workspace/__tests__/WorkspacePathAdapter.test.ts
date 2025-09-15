@@ -10,15 +10,7 @@ import * as sinon from "sinon"
 import { createWorkspacePathAdapter, WorkspacePathAdapter } from "../WorkspacePathAdapter"
 import { VcsType, WorkspaceRoot } from "../WorkspaceRoot"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
-
-/**
- * Helper function to normalize paths for cross-platform testing
- * Converts all backslashes to forward slashes for consistent comparison
- * This ensures tests work on Windows, macOS, and Linux
- */
-function normalizePath(p: string): string {
-	return p.replace(/\\/g, "/")
-}
+import "@utils/path"
 
 describe("WorkspacePathAdapter", () => {
 	let consoleWarnStub: sinon.SinonStub
@@ -68,7 +60,7 @@ describe("WorkspacePathAdapter", () => {
 
 		it("should get relative path from cwd", () => {
 			const result = adapter.getRelativePath("/test/workspace/src/file.ts")
-			expect(normalizePath(result)).to.equal("src/file.ts")
+			expect(result.toPosix()).to.equal("src/file.ts")
 		})
 
 		it("should return single workspace root", () => {
@@ -105,17 +97,17 @@ describe("WorkspacePathAdapter", () => {
 
 		it("should resolve path with workspace hint by name", () => {
 			const result = adapter.resolvePath("src/index.ts", "backend")
-			expect(normalizePath(result)).to.equal("/workspace/backend/src/index.ts")
+			expect(result.toPosix()).to.equal("/workspace/backend/src/index.ts")
 		})
 
 		it("should resolve path with workspace hint by path", () => {
 			const result = adapter.resolvePath("src/index.ts", "/workspace/shared")
-			expect(normalizePath(result)).to.equal("/workspace/shared/src/index.ts")
+			expect(result.toPosix()).to.equal("/workspace/shared/src/index.ts")
 		})
 
 		it("should default to primary workspace without hint", () => {
 			const result = adapter.resolvePath("src/index.ts")
-			expect(normalizePath(result)).to.equal("/workspace/frontend/src/index.ts")
+			expect(result.toPosix()).to.equal("/workspace/frontend/src/index.ts")
 		})
 
 		it("should handle absolute paths belonging to a workspace", () => {
@@ -137,7 +129,7 @@ describe("WorkspacePathAdapter", () => {
 			const paths = adapter.getAllPossiblePaths("src/config.ts")
 			expect(paths).to.have.length(3)
 			// Normalize each path for cross-platform comparison
-			const normalizedPaths = paths.map((p) => normalizePath(p))
+			const normalizedPaths = paths.map((p) => p.toPosix())
 			expect(normalizedPaths).to.deep.equal([
 				"/workspace/frontend/src/config.ts",
 				"/workspace/backend/src/config.ts",
@@ -155,7 +147,7 @@ describe("WorkspacePathAdapter", () => {
 
 		it("should get relative path from appropriate workspace", () => {
 			const result = adapter.getRelativePath("/workspace/backend/src/api.ts")
-			expect(normalizePath(result)).to.equal("src/api.ts")
+			expect(result.toPosix()).to.equal("src/api.ts")
 		})
 
 		it("should return all workspace roots", () => {
@@ -177,7 +169,7 @@ describe("WorkspacePathAdapter", () => {
 		it("should warn for invalid workspace hint", () => {
 			const result = adapter.resolvePath("src/file.ts", "nonexistent")
 
-			expect(normalizePath(result)).to.equal("/workspace/frontend/src/file.ts") // Falls back to primary
+			expect(result.toPosix()).to.equal("/workspace/frontend/src/file.ts") // Falls back to primary
 			expect(consoleWarnStub.calledOnce).to.be.true
 			expect(consoleWarnStub.firstCall.args[0]).to.include("not found")
 		})
@@ -193,7 +185,7 @@ describe("WorkspacePathAdapter", () => {
 			})
 
 			const result = adapter.resolvePath("src/file.ts")
-			expect(normalizePath(result)).to.include("/fallback/src/file.ts")
+			expect(result.toPosix()).to.include("/fallback/src/file.ts")
 			expect(consoleWarnStub.called).to.be.true
 		})
 
