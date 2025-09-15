@@ -736,6 +736,7 @@ export class TelemetryService {
 		ulid: string
 		model: string
 		errorMessage: string
+		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
 	}) {

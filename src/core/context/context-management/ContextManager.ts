@@ -297,7 +297,7 @@ export class ContextManager {
 
 		// Make sure that the last message being removed is a assistant message, so the next message after the initial user-assistant pair is an assistant message. This preserves the user-assistant-user-assistant structure.
 		// NOTE: anthropic format messages are always user-assistant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
-		if (apiMessages[rangeEndIndex].role !== "assistant") {
+		if (apiMessages[rangeEndIndex] && apiMessages[rangeEndIndex].role !== "assistant") {
 			rangeEndIndex -= 1
 		}
 

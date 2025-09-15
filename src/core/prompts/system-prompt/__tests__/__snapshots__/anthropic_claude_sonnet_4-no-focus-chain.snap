@@ -571,6 +571,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: macOS
+IDE: TestIde
 Default Shell: /bin/zsh
 Home Directory: /Users/tester
 Current Working Directory: /Users/tester/dev/project

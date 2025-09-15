@@ -144,6 +144,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
+		const yoloModeToggled = context.globalState.get<boolean | undefined>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 		const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined
@@ -203,7 +204,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 		const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 		const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
-		const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
 
 		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
 		const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
@@ -325,9 +325,16 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const taskHistory = await readTaskHistoryFromState(context)
 
 		// Multi-root workspace support
-		const workspaceRoots = context.globalState.get("workspaceRoots") as GlobalState["workspaceRoots"]
-		const primaryRootIndex = context.globalState.get("primaryRootIndex") as number | undefined
-		const multiRootEnabled = context.globalState.get("multiRootEnabled") as boolean | undefined
+		const workspaceRoots = context.globalState.get<GlobalState["workspaceRoots"]>("workspaceRoots")
+		/**
+		 * Get primary root index from global state.
+		 * The primary root is the main workspace folder that Cline focuses on when dealing with
+		 * multi-root workspaces. In VS Code, you can have multiple folders open in one workspace,
+		 * and the primary root index indicates which folder (by its position in the array, 0-based)
+		 * should be treated as the main/default working directory for operations.
+		 */
+		const primaryRootIndex = context.globalState.get<GlobalState["primaryRootIndex"]>("primaryRootIndex")
+		const multiRootEnabled = context.globalState.get<GlobalState["multiRootEnabled"]>("multiRootEnabled")
 
 		return {
 			// api configuration fields
@@ -434,8 +441,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
-			focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
+			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
@@ -465,8 +472,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			autoCondenseThreshold: autoCondenseThreshold || 75,
 			// Multi-root workspace support
 			workspaceRoots,
-			primaryRootIndex,
-			multiRootEnabled,
+			primaryRootIndex: primaryRootIndex ?? 0,
+			// Feature flag - defaults to false
+			// For now, always return false to disable multi-root support by default
+			multiRootEnabled: multiRootEnabled ?? false,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

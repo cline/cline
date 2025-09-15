@@ -2,6 +2,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
+import { HostProvider } from "../host-provider"
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 
@@ -38,7 +39,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUri(): Promise<string> {
+	public async getCallbackUrl(): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}
@@ -159,13 +160,14 @@ export class AuthHandler {
 		try {
 			// Convert HTTP URL to vscode.Uri and use shared handler directly
 			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
-			const uri = SharedUriHandler.convertHttpUrlToUri(fullUrl)
 
 			// Use SharedUriHandler directly - it handles all validation and processing
-			const success = await SharedUriHandler.handleUri(uri)
+			const success = await SharedUriHandler.handleUri(fullUrl)
+			const redirectUri = (await HostProvider.env.getIdeRedirectUri({})).value
+			const html = createAuthSucceededHtml(redirectUri)
 
 			if (success) {
-				this.sendResponse(res, 200, "text/html", TOKEN_REQUEST_VIEW)
+				this.sendResponse(res, 200, "text/html", html)
 			} else {
 				this.sendResponse(res, 400, "text/plain", "Bad request")
 			}
@@ -203,12 +205,16 @@ export class AuthHandler {
 	}
 }
 
-const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
+function createAuthSucceededHtml(redirectUri?: string): string {
+	const redirect = redirectUri ? `<script>setTimeout(() => { window.location.href = '${redirectUri}'; }, 1000);</script>` : ""
+
+	const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cline - Authentication Success</title>
+	${redirect}
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;700&display=swap');
         
@@ -305,3 +311,5 @@ const TOKEN_REQUEST_VIEW = `<!DOCTYPE html>
     </div>
 </body>
 </html>`
+	return html
+}

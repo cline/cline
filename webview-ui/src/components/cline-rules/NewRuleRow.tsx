@@ -1,4 +1,4 @@
-import { CreateRuleFileRequest } from "@shared/proto-conversions/file/rule-files-conversion"
+import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
@@ -63,7 +63,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 
 			try {
 				await FileServiceClient.createRuleFile(
-					CreateRuleFileRequest.create({
+					RuleFileRequest.create({
 						isGlobal,
 						filename: finalFilename,
 						type: ruleType || "cline",
@@ -133,7 +133,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								aria-label="New rule file"
+								aria-label={ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
 								onClick={(e) => {
 									e.stopPropagation()
 									setIsExpanded(true)

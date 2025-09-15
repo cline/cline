@@ -146,6 +146,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
+		// Update yolo mode setting
+		if (request.yoloModeToggled !== undefined) {
+			if (controller.task) {
+				controller.task.updateYoloModeToggled(request.yoloModeToggled)
+			}
+			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
+		}
+
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {
@@ -156,10 +164,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = controller.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
-			if (remoteEnabled === false) {
-				// No-op when feature flag disabled
-			} else {
+			{
 				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled

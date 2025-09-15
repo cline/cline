@@ -56,7 +56,6 @@ export interface ExtensionState {
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
 	defaultTerminalProfile?: string
-	uriScheme?: string
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
@@ -68,12 +67,11 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
+	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
 	autoCondenseThreshold?: number
-	extensionInfo: { name: string; publisher: string }
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
