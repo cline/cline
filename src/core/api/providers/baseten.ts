@@ -147,14 +147,6 @@ export class BasetenHandler implements ApiHandler {
 	}
 
 	/**
-	 * Checks if the current model supports vision/images
-	 */
-	supportsImages(): boolean {
-		// Baseten models do not currently support image input
-		return false
-	}
-
-	/**
 	 * Checks if the current model supports tools
 	 */
 	supportsTools(): boolean {
