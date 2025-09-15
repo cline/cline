@@ -62,9 +62,10 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 		WORKSPACE_TITLE = "Current Working Directory"
 		workingDirInfo = info.workingDir
 	}
+
 	const template = variant.componentOverrides?.[SystemPromptSection.SYSTEM_INFO]?.template || SYSTEM_INFO_TEMPLATE_TEXT
 
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		os: info.os,
 		ide: info.ide,
 		shell: info.shell,
