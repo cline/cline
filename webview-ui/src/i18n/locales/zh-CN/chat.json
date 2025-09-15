@@ -374,6 +374,7 @@
 		"tooltip": "管理斜杠命令",
 		"title": "斜杠命令",
 		"description": "使用内置斜杠命令或创建自定义命令，快速访问常用提示词和工作流程。<DocsLink>文档</DocsLink>",
+		"manageCommands": "在设置中管理斜杠命令",
 		"builtInCommands": "内置命令",
 		"globalCommands": "全局命令",
 		"workspaceCommands": "工作区命令",
@@ -388,6 +389,12 @@
 			"cancel": "取消",
 			"confirm": "删除"
 		}
+	},
+	"contextMenu": {
+		"noResults": "无结果",
+		"problems": "问题",
+		"terminal": "终端",
+		"url": "粘贴URL以获取内容"
 	},
 	"queuedMessages": {
 		"title": "队列消息:",

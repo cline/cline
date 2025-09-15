@@ -376,6 +376,7 @@
 		"tooltip": "Zarządzaj poleceniami slash",
 		"title": "Polecenia Slash",
 		"description": "Używaj wbudowanych poleceń slash lub twórz niestandardowe dla szybkiego dostępu do często używanych promptów i przepływów pracy. <DocsLink>Dokumentacja</DocsLink>",
+		"manageCommands": "Zarządzaj poleceniami slash w ustawieniach",
 		"builtInCommands": "Polecenia Wbudowane",
 		"globalCommands": "Polecenia Globalne",
 		"workspaceCommands": "Polecenia Obszaru Roboczego",
@@ -390,6 +391,12 @@
 			"cancel": "Anuluj",
 			"confirm": "Usuń"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Brak wyników",
+		"problems": "Problemy",
+		"terminal": "Terminal",
+		"url": "Wklej adres URL, aby pobrać zawartość"
 	},
 	"queuedMessages": {
 		"title": "Wiadomości w kolejce:",

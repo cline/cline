@@ -374,6 +374,7 @@
 		"tooltip": "슬래시 명령 관리",
 		"title": "슬래시 명령",
 		"description": "내장 슬래시 명령을 사용하거나 자주 사용하는 프롬프트와 워크플로우에 빠르게 액세스할 수 있는 사용자 정의 슬래시 명령을 만듭니다. <DocsLink>문서</DocsLink>",
+		"manageCommands": "설정에서 슬래시 명령 관리",
 		"builtInCommands": "내장 명령",
 		"globalCommands": "전역 명령",
 		"workspaceCommands": "작업 공간 명령",
@@ -388,6 +389,12 @@
 			"cancel": "취소",
 			"confirm": "삭제"
 		}
+	},
+	"contextMenu": {
+		"noResults": "결과 없음",
+		"problems": "문제",
+		"terminal": "터미널",
+		"url": "콘텐츠를 가져올 URL 붙여넣기"
 	},
 	"queuedMessages": {
 		"title": "대기열 메시지:",

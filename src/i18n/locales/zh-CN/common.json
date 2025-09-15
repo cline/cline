@@ -236,5 +236,9 @@
 		"preventCompletionWithOpenTodos": {
 			"description": "当待办事项列表中有未完成的待办事项时阻止任务完成"
 		}
+	},
+	"docsLink": {
+		"label": "Docs",
+		"url": "https://docs.roocode.com"
 	}
 }

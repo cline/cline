@@ -374,6 +374,7 @@
 		"tooltip": "Gestionar comandos de barra",
 		"title": "Comandos de Barra",
 		"description": "Usa comandos de barra integrados o crea personalizados para acceder rápidamente a prompts y flujos de trabajo utilizados con frecuencia. <DocsLink>Documentación</DocsLink>",
+		"manageCommands": "Administrar comandos de barra en la configuración",
 		"builtInCommands": "Comandos Integrados",
 		"globalCommands": "Comandos Globales",
 		"workspaceCommands": "Comandos del Espacio de Trabajo",
@@ -388,6 +389,12 @@
 			"cancel": "Cancelar",
 			"confirm": "Eliminar"
 		}
+	},
+	"contextMenu": {
+		"noResults": "No hay resultados",
+		"problems": "Problemas",
+		"terminal": "Terminal",
+		"url": "Pega la URL para obtener el contenido"
 	},
 	"queuedMessages": {
 		"title": "Mensajes en cola:",

@@ -30,7 +30,6 @@ import { AutoApproveDropdown } from "./AutoApproveDropdown"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import { IndexingStatusBadge } from "./IndexingStatusBadge"
-import { SlashCommandsPopover } from "./SlashCommandsPopover"
 import { usePromptHistory } from "./hooks/usePromptHistory"
 
 interface ChatTextAreaProps {
@@ -1232,7 +1231,6 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</button>
 							</StandardTooltip>
 						)}
-						{!isEditMode ? <SlashCommandsPopover /> : null}
 						{!isEditMode ? <IndexingStatusBadge /> : null}
 						<StandardTooltip content={t("chat:addImages")}>
 							<button

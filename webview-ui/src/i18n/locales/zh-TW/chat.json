@@ -374,6 +374,7 @@
 		"tooltip": "管理斜線命令",
 		"title": "斜線命令",
 		"description": "使用內建斜線命令或建立自訂命令，以便快速存取常用的提示詞和工作流程。<DocsLink>說明文件</DocsLink>",
+		"manageCommands": "在設定中管理斜線命令",
 		"builtInCommands": "內建命令",
 		"globalCommands": "全域命令",
 		"workspaceCommands": "工作區命令",
@@ -388,6 +389,12 @@
 			"cancel": "取消",
 			"confirm": "刪除"
 		}
+	},
+	"contextMenu": {
+		"noResults": "沒有結果",
+		"problems": "問題",
+		"terminal": "終端機",
+		"url": "貼上 URL 以擷取內容"
 	},
 	"queuedMessages": {
 		"title": "佇列中的訊息：",

@@ -374,6 +374,7 @@
 		"tooltip": "Slash-Befehle verwalten",
 		"title": "Slash-Befehle",
 		"description": "Verwende eingebaute Slash-Befehle oder erstelle benutzerdefinierte für schnellen Zugriff auf häufig verwendete Prompts und Workflows. <DocsLink>Dokumentation</DocsLink>",
+		"manageCommands": "Slash-Befehle in den Einstellungen verwalten",
 		"builtInCommands": "Eingebaute Befehle",
 		"globalCommands": "Globale Befehle",
 		"workspaceCommands": "Arbeitsbereich-Befehle",
@@ -388,6 +389,12 @@
 			"cancel": "Abbrechen",
 			"confirm": "Löschen"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Keine Ergebnisse",
+		"problems": "Probleme",
+		"terminal": "Terminal",
+		"url": "URL einfügen, um Inhalte abzurufen"
 	},
 	"queuedMessages": {
 		"title": "Warteschlange Nachrichten:",

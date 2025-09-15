@@ -28,10 +28,14 @@
 		"notifications": "알림",
 		"contextManagement": "컨텍스트",
 		"terminal": "터미널",
+		"slashCommands": "슬래시 명령",
 		"prompts": "프롬프트",
 		"experimental": "실험적",
 		"language": "언어",
 		"about": "Roo Code 정보"
+	},
+	"slashCommands": {
+		"description": "사용자 지정 워크플로와 작업을 신속하게 실행하기 위해 슬래시 명령을 관리합니다. <DocsLink>더 알아보기</DocsLink>"
 	},
 	"prompts": {
 		"description": "프롬프트 향상, 코드 설명, 문제 해결과 같은 빠른 작업에 사용되는 지원 프롬프트를 구성합니다. 이러한 프롬프트는 Roo가 일반적인 개발 작업에 대해 더 나은 지원을 제공하는 데 도움이 됩니다."

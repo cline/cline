@@ -28,10 +28,14 @@
 		"notifications": "通知",
 		"contextManagement": "上下文",
 		"terminal": "終端機",
+		"slashCommands": "斜線命令",
 		"prompts": "提示詞",
 		"experimental": "實驗性",
 		"language": "語言",
 		"about": "關於 Roo Code"
+	},
+	"slashCommands": {
+		"description": "管理您的斜線命令，以便快速執行自訂工作流程和動作。 <DocsLink>了解更多</DocsLink>"
 	},
 	"prompts": {
 		"description": "設定用於快速操作的支援提示詞，如增強提示詞、解釋程式碼和修復問題。這些提示詞幫助 Roo 為常見開發工作提供更好的支援。"

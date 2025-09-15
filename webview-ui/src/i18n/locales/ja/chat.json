@@ -374,6 +374,7 @@
 		"tooltip": "スラッシュコマンドを管理",
 		"title": "スラッシュコマンド",
 		"description": "組み込みスラッシュコマンドを使用するか、よく使用するプロンプトやワークフローに素早くアクセスするためのカスタムスラッシュコマンドを作成します。<DocsLink>ドキュメント</DocsLink>",
+		"manageCommands": "設定でスラッシュコマンドを管理",
 		"builtInCommands": "組み込みコマンド",
 		"globalCommands": "グローバルコマンド",
 		"workspaceCommands": "ワークスペースコマンド",
@@ -388,6 +389,12 @@
 			"cancel": "キャンセル",
 			"confirm": "削除"
 		}
+	},
+	"contextMenu": {
+		"noResults": "結果なし",
+		"problems": "問題",
+		"terminal": "ターミナル",
+		"url": "URLを貼り付けてコンテンツを取得"
 	},
 	"queuedMessages": {
 		"title": "キューメッセージ:",

@@ -374,6 +374,7 @@
 		"tooltip": "Slash-opdrachten beheren",
 		"title": "Slash-opdrachten",
 		"description": "Gebruik ingebouwde slash-opdrachten of maak aangepaste voor snelle toegang tot veelgebruikte prompts en workflows. <DocsLink>Documentatie</DocsLink>",
+		"manageCommands": "Beheer slash-opdrachten in instellingen",
 		"builtInCommands": "Ingebouwde Opdrachten",
 		"globalCommands": "Globale Opdrachten",
 		"workspaceCommands": "Werkruimte Opdrachten",
@@ -388,6 +389,12 @@
 			"cancel": "Annuleren",
 			"confirm": "Verwijderen"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Geen resultaten",
+		"problems": "Problemen",
+		"terminal": "Terminal",
+		"url": "Plak URL om inhoud op te halen"
 	},
 	"queuedMessages": {
 		"title": "Berichten in wachtrij:",

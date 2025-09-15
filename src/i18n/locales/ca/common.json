@@ -231,5 +231,9 @@
 		"preventCompletionWithOpenTodos": {
 			"description": "Evitar la finalització de tasques quan hi ha todos incomplets a la llista de todos"
 		}
+	},
+	"docsLink": {
+		"label": "Docs",
+		"url": "https://docs.roocode.com"
 	}
 }

@@ -374,6 +374,7 @@
 		"tooltip": "Eğik çizgi komutlarını yönet",
 		"title": "Eğik Çizgi Komutları",
 		"description": "Yerleşik eğik çizgi komutlarını kullanın veya sık kullanılan komut istemleri ve iş akışlarına hızlı erişim için özel komutlar oluşturun. <DocsLink>Belgeler</DocsLink>",
+		"manageCommands": "Ayarlarda eğik çizgi komutlarını yönet",
 		"builtInCommands": "Yerleşik Komutlar",
 		"globalCommands": "Genel Komutlar",
 		"workspaceCommands": "Çalışma Alanı Komutları",
@@ -388,6 +389,12 @@
 			"cancel": "İptal",
 			"confirm": "Sil"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Sonuç yok",
+		"problems": "Sorunlar",
+		"terminal": "Terminal",
+		"url": "İçeriği getirmek için URL'yi yapıştırın"
 	},
 	"queuedMessages": {
 		"title": "Sıradaki Mesajlar:",

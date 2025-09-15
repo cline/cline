@@ -374,6 +374,7 @@
 		"tooltip": "Gérer les commandes slash",
 		"title": "Commandes Slash",
 		"description": "Utilisez les commandes slash intégrées ou créez des personnalisées pour accéder rapidement aux prompts et flux de travail fréquemment utilisés. <DocsLink>Documentation</DocsLink>",
+		"manageCommands": "Gérer les commandes slash dans les paramètres",
 		"builtInCommands": "Commandes Intégrées",
 		"globalCommands": "Commandes Globales",
 		"workspaceCommands": "Commandes de l'Espace de Travail",
@@ -388,6 +389,12 @@
 			"cancel": "Annuler",
 			"confirm": "Supprimer"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Aucun résultat",
+		"problems": "Problèmes",
+		"terminal": "Terminal",
+		"url": "Coller l'URL pour récupérer le contenu"
 	},
 	"queuedMessages": {
 		"title": "Messages en file d'attente :",

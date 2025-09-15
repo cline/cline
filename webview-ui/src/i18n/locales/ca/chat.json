@@ -374,6 +374,7 @@
 		"tooltip": "Gestionar ordres de barra",
 		"title": "Ordres de Barra",
 		"description": "Utilitza ordres de barra integrades o crea personalitzades per accedir ràpidament a indicacions i fluxos de treball utilitzats amb freqüència. <DocsLink>Documentació</DocsLink>",
+		"manageCommands": "Gestiona les ordres de barra a la configuració",
 		"builtInCommands": "Ordres Integrades",
 		"globalCommands": "Ordres Globals",
 		"workspaceCommands": "Ordres de l'Espai de Treball",
@@ -396,5 +397,11 @@
 	"slashCommand": {
 		"wantsToRun": "Roo vol executar una comanda slash:",
 		"didRun": "Roo ha executat una comanda slash:"
+	},
+	"contextMenu": {
+		"noResults": "Sense resultats",
+		"problems": "Problemes",
+		"terminal": "Terminal",
+		"url": "Enganxa la URL per obtenir-ne el contingut"
 	}
 }

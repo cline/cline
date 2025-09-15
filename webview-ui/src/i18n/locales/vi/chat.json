@@ -374,6 +374,7 @@
 		"tooltip": "Quản lý lệnh gạch chéo",
 		"title": "Lệnh Gạch Chéo",
 		"description": "Sử dụng lệnh gạch chéo tích hợp sẵn hoặc tạo tùy chỉnh để truy cập nhanh vào các lời nhắc và quy trình làm việc thường dùng. <DocsLink>Tài liệu</DocsLink>",
+		"manageCommands": "Quản lý các lệnh slash trong cài đặt",
 		"builtInCommands": "Lệnh Tích Hợp",
 		"globalCommands": "Lệnh Toàn Cục",
 		"workspaceCommands": "Lệnh Không Gian Làm Việc",
@@ -388,6 +389,12 @@
 			"cancel": "Hủy",
 			"confirm": "Xóa"
 		}
+	},
+	"contextMenu": {
+		"noResults": "Không có kết quả",
+		"problems": "Vấn đề",
+		"terminal": "Terminal",
+		"url": "Dán URL để lấy nội dung"
 	},
 	"queuedMessages": {
 		"title": "Tin nhắn trong hàng đợi:",

@@ -143,7 +143,9 @@ const App = () => {
 				if (message.action === "switchTab" && message.tab) {
 					const targetTab = message.tab as Tab
 					switchTab(targetTab)
-					setCurrentSection(undefined)
+					// Extract targetSection from values if provided
+					const targetSection = message.values?.section as string | undefined
+					setCurrentSection(targetSection)
 					setCurrentMarketplaceTab(undefined)
 				} else {
 					// Handle other actions using the mapping
