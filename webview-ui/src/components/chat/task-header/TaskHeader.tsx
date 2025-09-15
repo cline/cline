@@ -133,6 +133,33 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	return (
 		<div className="p-2 flex flex-col gap-1.5 text-badge-foreground">
+			<style>
+				{`
+					.task-header-container {
+						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
+						border-radius: 4px;
+						position: relative;
+						overflow: hidden;
+						cursor: pointer;
+					}
+					
+					/* Hover effects only when collapsed */
+					.task-header-container.collapsed {
+						opacity: 0.8;
+						transition: all 0.2s ease;
+					}
+					.task-header-container.collapsed:hover {
+						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
+						opacity: 1;
+					}
+					
+					/* No hover effects when expanded, add border */
+					.task-header-container.expanded {
+						opacity: 1;
+						border: 1px solid rgba(255, 255, 255, 0.2);
+					}
+				`}
+			</style>
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -140,7 +167,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				key={checkpointManagerErrorMessage}
 			/>
 			{/* Task Header */}
-			<div className="bg-badge-background text-badge-foreground rounded-xs flex flex-col gap-1.5 relative z-10 py-1.5 px-2">
+			<div
+				className={`task-header-container ${isTaskExpanded ? "expanded" : "collapsed"} text-badge-foreground flex flex-col gap-1.5 relative z-10 pt-2 pb-2 px-2`}>
 				{/* Task Title */}
 				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
 					<div className="flex justify-between items-center">
@@ -174,15 +202,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
-					<div className="flex flex-col gap-1.5 break-words">
+					<div className="flex flex-col break-words">
 						<div
 							className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
 							ref={isTaskExpanded ? textContainerRef : null}
 							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
 							<div
 								className={cn(
-									"max-h-20 ph-no-capture overflow-hidden whitespace-pre-wrap break-words p-0.5 text-sm",
-									isTextExpanded ? "overflow-y-scroll" : "overflow-hidden",
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200",
+									isTextExpanded ? "py-1.5 max-h-20 overflow-y-scroll" : "overflow-hidden",
 								)}
 								onClick={toggleTextExpanded}
 								ref={textRef}
@@ -190,6 +218,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "-webkit-box",
 									WebkitLineClamp: isTextExpanded ? "unset" : 2,
 									WebkitBoxOrient: "vertical",
+									lineHeight: "1.2",
+									maxHeight: isTextExpanded ? undefined : "2.4em", // Exactly 2 lines at 1.2 line-height
+									paddingTop: isTextExpanded ? "6px" : "0px",
+									paddingBottom: isTextExpanded ? "6px" : "0px",
+									marginTop: "4px",
+									marginBottom: "6px",
 								}}>
 								{highlightedText}
 							</div>
@@ -199,20 +233,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<Thumbnails files={task.files ?? []} images={task.images ?? []} />
 						)}
 
-						<div className="flex flex-col">
-							<ContextWindow
-								autoCondenseThreshold={autoCondenseThreshold}
-								cacheReads={cacheReads}
-								cacheWrites={cacheWrites}
-								contextWindow={selectedModelInfo?.contextWindow}
-								lastApiReqTotalTokens={lastApiReqTotalTokens}
-								onSendMessage={onSendMessage}
-								size={currentTaskItem?.size}
-								tokensIn={tokensIn}
-								tokensOut={tokensOut}
-								useAutoCondense={useAutoCondense || false}
-							/>
-						</div>
+						<ContextWindow
+							autoCondenseThreshold={autoCondenseThreshold}
+							cacheReads={cacheReads}
+							cacheWrites={cacheWrites}
+							contextWindow={selectedModelInfo?.contextWindow}
+							lastApiReqTotalTokens={lastApiReqTotalTokens}
+							onSendMessage={onSendMessage}
+							size={currentTaskItem?.size}
+							tokensIn={tokensIn}
+							tokensOut={tokensOut}
+							useAutoCondense={useAutoCondense || false}
+						/>
 						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 					</div>
 				)}

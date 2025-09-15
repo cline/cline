@@ -21,9 +21,7 @@ export const AutoCondenseMarker: React.FC<{ threshold: number; usage: number }> 
 
 	return (
 		<div
-			className={cn(
-				"absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 rounded-r bg-badge-background/30",
-			)}
+			className={cn("absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 rounded-r bg-black/45")}
 			style={{ left: marker.start, width: marker.length }}
 			title={`Auto compact threshold at ${marker.rounded}% ${usage}`}
 		/>

@@ -37,17 +37,21 @@ const ToDoListHeader = memo<{
 	const displayText = isCompleted ? COMPLETED_MESSAGE : currentTodo?.text || TODO_LIST_LABEL
 
 	return (
-		<div className="relative w-full h-full">
+		<div className={`focus-chain-header ${isCompleted ? "completed" : ""} relative w-full h-full`}>
 			<div
-				className="absolute bg-success top-0 left-0 h-full transition-[width] duration-300 ease-in-out pointer-events-none z-1 opacity-0"
-				style={{ width: `${100 - progressPercentage}%` }}
+				className="absolute focus-chain-progress bottom-0 left-0 transition-[width] duration-300 ease-in-out pointer-events-none z-1"
+				style={{
+					width: `${progressPercentage}%`,
+					height: "4px",
+					opacity: progressPercentage > 0 && progressPercentage < 100 ? 1.0 : 0,
+				}}
 			/>
-			<div className="flex items-center justify-between gap-2 z-10 p-1.5">
+			<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5">
 				<div className="flex items-center gap-1.5 flex-1 min-w-0">
-					<span className="px-2 py-0.25 text-xs rounded-full inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground">
+					<span className="progress-chip px-2 py-0.25 text-xs rounded-full inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground">
 						{currentIndex}/{totalCount}
 					</span>
-					<span className="text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
+					<span className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
 						{displayText}
 					</span>
 				</div>
@@ -170,17 +174,46 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 		const isCompleted = todoInfo.completedCount === todoInfo.totalCount
 
 		return (
-			<div
-				className="flex flex-col gap-1.5 cursor-pointer rounded-xs select-none bg-badge-background"
-				onClick={handleToggle}
-				title={CLICK_TO_EDIT_TITLE}>
-				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
-				{isExpanded && (
-					<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
-						<ChecklistRenderer text={lastProgressMessageText!} />
-						{isCompleted && <div className="mt-2 text-xs font-semibold">{NEW_STEPS_MESSAGE}</div>}
-					</div>
-				)}
+			<div>
+				<style>
+					{`
+						.focus-chain-container {
+							background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
+							border-radius: 4px;
+							position: relative;
+							overflow: hidden;
+							opacity: 0.8;
+							cursor: pointer;
+							transition: all 0.2s ease;
+						}
+						.focus-chain-container:hover {
+							background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
+							opacity: 1;
+						}
+						.focus-chain-progress {
+							background: linear-gradient(to right, var(--vscode-charts-green) 0%, var(--vscode-charts-green) 75%, transparent 100%);
+						}
+						.focus-chain-header.completed .header-text {
+							color: var(--vscode-charts-green);
+						}
+						.focus-chain-header.completed .progress-chip {
+							background-color: var(--vscode-charts-green);
+							color: black;
+						}
+					`}
+				</style>
+				<div
+					className="focus-chain-container flex flex-col gap-1.5 select-none"
+					onClick={handleToggle}
+					title={CLICK_TO_EDIT_TITLE}>
+					<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
+					{isExpanded && (
+						<div className="mx-1 pb-2 px-1 rounded relative" onClick={handleEditClick}>
+							<ChecklistRenderer text={lastProgressMessageText!} />
+							{isCompleted && <div className="mt-2 text-xs font-semibold">{NEW_STEPS_MESSAGE}</div>}
+						</div>
+					)}
+				</div>
 			</div>
 		)
 	},

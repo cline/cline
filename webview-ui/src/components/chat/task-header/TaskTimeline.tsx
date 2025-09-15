@@ -10,7 +10,7 @@ import { getColor } from "./util"
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "12px"
 const BLOCK_WIDTH = "13px"
-const BLOCK_GAP = "3px"
+const BLOCK_GAP = "4px"
 const _TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
@@ -21,6 +21,7 @@ interface TaskTimelineProps {
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
+	const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
 
 	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
 		if (messages.length <= 1) {
@@ -103,10 +104,22 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				}
 			}
 
+			const handleMouseEnter = () => {
+				setHoveredIndex(index)
+			}
+
+			const handleMouseLeave = () => {
+				setHoveredIndex(null)
+			}
+
+			const isHovered = hoveredIndex === index
+
 			return (
 				<TaskTimelineTooltip message={message}>
 					<div
 						onClick={handleClick}
+						onMouseEnter={handleMouseEnter}
+						onMouseLeave={handleMouseLeave}
 						style={{
 							width: BLOCK_WIDTH,
 							height: "100%",
@@ -114,12 +127,14 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 							flexShrink: 0,
 							cursor: "pointer",
 							marginRight: BLOCK_GAP,
+							opacity: isHovered ? 0.7 : 1,
+							transition: "opacity 0.2s ease",
 						}}
 					/>
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages, messageIndexMap, onBlockClick],
+		[taskTimelinePropsMessages, messageIndexMap, onBlockClick, hoveredIndex],
 	)
 
 	// Scroll to the end when messages change

@@ -22,6 +22,8 @@ interface TaskContextWindowButtonsProps extends ContextWindowInfoProps {
 	tokenUsed: string
 	contextWindow: string
 	autoCompactThreshold?: number
+	isThresholdChanged?: boolean
+	isThresholdFadingOut?: boolean
 }
 
 const InfoRow = memo<{ label: string; value: React.ReactNode }>(({ label, value }) => (
@@ -83,11 +85,36 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	size,
 	percentage,
 	autoCompactThreshold = 0,
+	isThresholdChanged = false,
+	isThresholdFadingOut = false,
 }) => {
+	const getThresholdClass = () => {
+		if (isThresholdChanged && !isThresholdFadingOut) {
+			return "threshold-value-changed" // Instant green
+		} else if (isThresholdChanged && isThresholdFadingOut) {
+			return "threshold-value-fadeout" // Smooth fadeout
+		}
+		return "" // Normal color
+	}
+
 	return (
 		<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
+			<style>
+				{`
+					.threshold-value-changed {
+						color: var(--vscode-charts-green) !important;
+						transition: none;
+					}
+					.threshold-value-fadeout {
+						transition: color 2s ease-out;
+					}
+				`}
+			</style>
 			{autoCompactThreshold > 0 && (
-				<InfoRow label="Auto Condense Threshold" value={`${(autoCompactThreshold * 100).toFixed(2)}%`} />
+				<InfoRow
+					label="Auto Condense Threshold"
+					value={<span className={getThresholdClass()}>{`${(autoCompactThreshold * 100).toFixed(2)}%`}</span>}
+				/>
 			)}
 			<ContextWindowInfo
 				cacheReads={cacheReads}
