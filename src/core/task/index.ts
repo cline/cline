@@ -142,6 +142,7 @@ export class Task {
 	focusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
+	yoloModeToggled: boolean
 	mode: Mode
 
 	// Message and conversation state
@@ -165,6 +166,7 @@ export class Task {
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
+		yoloModeToggled: boolean,
 		useAutoCondense: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
@@ -215,6 +217,7 @@ export class Task {
 		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
+		this.yoloModeToggled = yoloModeToggled
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
@@ -413,6 +416,7 @@ export class Task {
 			this.ulid,
 			this.mode,
 			strictPlanModeEnabled,
+			yoloModeToggled,
 			this.workspaceManager,
 			featureFlagsService.getMultiRootEnabled(),
 			this.say.bind(this),
@@ -423,6 +427,7 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
+			this.switchToActModeCallback.bind(this),
 		)
 	}
 
@@ -432,6 +437,11 @@ export class Task {
 		if (this.FocusChainManager) {
 			this.FocusChainManager.updateMode(mode)
 		}
+	}
+
+	public updateYoloModeToggled(yoloModeToggled: boolean): void {
+		this.yoloModeToggled = yoloModeToggled
+		this.toolExecutor.updateYoloModeToggled(yoloModeToggled)
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
@@ -726,6 +736,10 @@ export class Task {
 
 	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
+	}
+
+	private async switchToActModeCallback(): Promise<boolean> {
+		return await this.controller.toggleActModeForYoloMode()
 	}
 
 	// Task lifecycle
@@ -1078,7 +1092,7 @@ export class Task {
 		}
 	}
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
@@ -1217,7 +1231,49 @@ export class Task {
 			await this.say("shell_integration_warning")
 		})
 
-		await process
+		//await process
+
+		if (timeoutSeconds) {
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					reject(new Error("COMMAND_TIMEOUT"))
+				}, timeoutSeconds * 1000)
+			})
+
+			try {
+				await Promise.race([process, timeoutPromise])
+			} catch (error) {
+				// This will continue running the command in the background
+				didContinue = true
+				process.continue()
+
+				// Clear all our timers
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
+				if (completionTimer) {
+					clearTimeout(completionTimer)
+					completionTimer = null
+				}
+
+				// Process any output we captured before timeout
+				await setTimeoutPromise(50)
+				const result = this.terminalManager.processOutput(outputLines)
+
+				if (error.message === "COMMAND_TIMEOUT") {
+					return [
+						false,
+						`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+					]
+				}
+
+				// Re-throw other errors
+				throw error
+			}
+		} else {
+			await process
+		}
 
 		// Clear timer if process completes normally
 		if (completionTimer) {
@@ -1383,6 +1439,7 @@ export class Task {
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.browserSettings,
+			yoloModeToggled: this.yoloModeToggled,
 			isMultiRootEnabled,
 			workspaceRoots,
 		}
