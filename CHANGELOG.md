@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.28.5]
+
+- Accessibility: Screen readers now properly announce buttons in history preview and history view screens.
+
 ## [3.28.4]
 
 - Fix bug where some Windows machines had API request hanging
