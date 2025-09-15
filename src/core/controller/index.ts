@@ -731,7 +731,7 @@ export class Controller {
 	async clearTask() {
 		if (this.task) {
 			// Clear task settings cache when task ends
-			this.stateManager.clearTaskSettings()
+			await this.stateManager.clearTaskSettings(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected

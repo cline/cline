@@ -170,9 +170,23 @@ export class StateManager {
 	}
 
 	/**
-	 * Clear task settings cache
+	 * Clear task settings cache - ensures pending changes are persisted first
 	 */
-	clearTaskSettings(): void {
+	async clearTaskSettings(taskId?: string): Promise<void> {
+		// If there are pending task settings, persist them first
+		if (this.pendingTaskState.size > 0 && taskId) {
+			try {
+				// Persist pending task state immediately
+				await this.persistTaskStateBatch(this.pendingTaskState, taskId)
+				// Clear pending set after successful persistence
+				this.pendingTaskState.clear()
+			} catch (error) {
+				console.error("[StateManager] Failed to persist task settings before clearing:", error)
+				// If persistence fails, we just move on with clearing the in-memory state.
+				// clearTaskSettings realistically probably won't be called in the small window of time between task settings being set and their persistence anyways
+			}
+		}
+
 		this.taskStateCache = {}
 		this.pendingTaskState.clear()
 	}
