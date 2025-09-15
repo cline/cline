@@ -11,7 +11,6 @@ import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
-import { featureFlagsService } from "@/services/feature-flags"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
@@ -157,10 +156,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = featureFlagsService.getFocusChainEnabled()
-			if (remoteEnabled === false) {
-				// No-op when feature flag disabled
-			} else {
+			{
 				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled

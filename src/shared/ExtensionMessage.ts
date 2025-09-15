@@ -70,7 +70,6 @@ export interface ExtensionState {
 	strictPlanModeEnabled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
 	extensionInfo: { name: string; publisher: string }
 	// NEW: Add workspace information
