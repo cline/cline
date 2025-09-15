@@ -1,11 +1,8 @@
 # Changelog
 
-## 3.28.5
+## [3.28.5]
 
-- fd3abdc: Screen readers now properly announce buttons in history preview and history view screens.
-- 7ecf395: Adding Workspace path adapter and workspace hints logic for tools
-- ac41b0d: Screen readers properly announce buttons in the MCP servers / Cline rules / workflows screens. Reflects the current selection of Cline rules / workflows tab to screen readers.
-- fe37ca9: Add environment variable injection to esbuild config
+- Accessibility: Screen readers now properly announce buttons in history preview and history view screens.
 
 ## [3.28.4]
 
