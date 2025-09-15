@@ -28,6 +28,39 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            - name: Verify Required Secrets
+              run: |
+                  echo "Checking if required secrets are configured..."
+                  
+                  MISSING_SECRETS=""
+                  
+                  if [ -z "${{ secrets.TELEMETRY_SERVICE_API_KEY }}" ]; then
+                      echo "❌ TELEMETRY_SERVICE_API_KEY is not set"
+                      MISSING_SECRETS="${MISSING_SECRETS}TELEMETRY_SERVICE_API_KEY "
+                  else
+                      echo "✅ TELEMETRY_SERVICE_API_KEY is configured"
+                  fi
+                  
+                  if [ -z "${{ secrets.ERROR_SERVICE_API_KEY }}" ]; then
+                      echo "❌ ERROR_SERVICE_API_KEY is not set"
+                      MISSING_SECRETS="${MISSING_SECRETS}ERROR_SERVICE_API_KEY "
+                  else
+                      echo "✅ ERROR_SERVICE_API_KEY is configured"
+                  fi
+                  
+                  if [ -n "$MISSING_SECRETS" ]; then
+                      echo ""
+                      echo "⚠️  WORKFLOW FAILURE: Required secrets are missing!"
+                      echo "Missing secrets: $MISSING_SECRETS"
+                      echo ""
+                      echo "Please configure the missing secrets in the repository settings:"
+                      echo "Settings → Secrets and variables → Actions → Repository secrets"
+                      exit 1
+                  fi
+                  
+                  echo ""
+                  echo "✅ All required secrets are configured"
+
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
