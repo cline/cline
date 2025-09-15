@@ -66,6 +66,10 @@ export class CredentialStorage extends ClineStorage {
 	protected async _store(key: string, value: string): Promise<void> {
 		const { service, account, target } = this.getCredentialIdentifiers(key)
 		try {
+			// Best-effort replace: delete first (ignore errors), then store
+			try {
+				await this.exec(this.commands.delete({ service, account, target }))
+			} catch {}
 			await this.exec(this.commands.store({ service, account, target, value }))
 		} catch (error) {
 			throw error
@@ -109,13 +113,17 @@ export class CredentialStorage extends ClineStorage {
 	}
 
 	private initWindowsCredentialManager(): void {
+		// Non-blocking setup; use -NoProfile to speed up and reduce side effects
 		this.exec({
 			command: "powershell.exe",
 			args: [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
 				"-Command",
-				"if (-not (Get-Module -ListAvailable -Name CredentialManager)) { Install-Module -Name CredentialManager -Force -Scope CurrentUser }",
+				"if (-not (Get-Module -ListAvailable -Name CredentialManager)) { Install-Module -Name CredentialManager -Force -Scope CurrentUser -AllowClobber -Confirm:$false }",
 			],
-		})
+		}).catch(() => {})
 	}
 }
 

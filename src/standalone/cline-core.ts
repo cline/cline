@@ -4,10 +4,12 @@ import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-cli
 import { WebviewProviderType } from "@shared/webview/types"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
+import { secretStorage } from "@/core/storage/secrets"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { AuthService } from "@/services/auth/AuthService"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
@@ -32,6 +34,19 @@ async function main() {
 	const webviewProvider = await initialize(extensionContext)
 
 	AuthHandler.getInstance().setEnabled(true)
+
+	// Mirror VS Code behavior: react to clineAccountId secret changes (login/logout)
+	secretStorage.onDidChange(async ({ key }) => {
+		if (key !== "clineAccountId") return
+		const value = await secretStorage.get("clineAccountId")
+		const controller = webviewProvider.controller
+		const authService = AuthService.getInstance(controller)
+		if (value) {
+			authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+		} else {
+			authService?.handleDeauth()
+		}
+	})
 
 	startProtobusService(webviewProvider.controller)
 }

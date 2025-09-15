@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { mkdirSync, readFileSync } from "fs"
 import os from "os"
 import path, { join } from "path"
@@ -5,6 +6,8 @@ import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
 import { CredentialStorage } from "@/core/storage/credential"
+import { FileBasedStorage } from "@/core/storage/file"
+import { secretStorage } from "@/core/storage/secrets"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
@@ -14,9 +17,19 @@ log("Running standalone cline", version)
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
+const SECRETS_FILE = path.join(DATA_DIR, "secrets.json")
 
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
+
+// Initialize the unified secret storage backend for standalone
+const standaloneBackend = selectStandaloneSecrets(DATA_DIR)
+secretStorage.init(standaloneBackend)
+
+// One-time migration: if using OS credentials and secrets.json exists, migrate entries
+if (standaloneBackend instanceof CredentialStorage) {
+	void migrateFileSecretsToOS(SECRETS_FILE)
+}
 
 const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
@@ -38,9 +51,8 @@ const extensionContext: ExtensionContext = {
 
 	// Set up KV stores.
 	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-	// Example using CredentialStorage with fallback to SecretStore
-	// TODO: Use storage based on host configurations. E.g. 'credential', 'stateless', 'file', 'client', etc.
-	secrets: new CredentialStorage() || new SecretStore(path.join(DATA_DIR, "secrets.json")),
+	// Note: core reads/writes secrets via the singleton; context.secrets remains for compatibility
+	secrets: new CredentialStorage() || new SecretStore(SECRETS_FILE),
 
 	// Set up URIs.
 	storageUri: URI.file(DATA_DIR),
@@ -66,6 +78,91 @@ const extensionContext: ExtensionContext = {
 function getPackageInfo() {
 	const packageJson = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"))
 	return { version: packageJson.version, name: packageJson.name, publisher: packageJson.publisher }
+}
+
+// Select the best standalone secret storage backend (OS keychain when available, else file)
+function selectStandaloneSecrets(dataDir: string) {
+	try {
+		if (isMacSecurityAvailable() || isLinuxSecretToolAvailable() || isWindowsPowerShellAvailable()) {
+			return new CredentialStorage()
+		}
+	} catch (error) {
+		log(`Credential backend selection error; falling back to file store: ${String(error)}`)
+	}
+	return new FileBasedStorage(path.join(dataDir, "secrets.json"))
+}
+
+function isMacSecurityAvailable(): boolean {
+	return process.platform === "darwin" && hasCommand("security")
+}
+
+function isLinuxSecretToolAvailable(): boolean {
+	return process.platform === "linux" && hasCommand("secret-tool")
+}
+
+function isWindowsPowerShellAvailable(): boolean {
+	return process.platform === "win32" // powershell is expected; CredentialStorage handles module setup
+}
+
+function hasCommand(cmd: string): boolean {
+	if (process.platform === "win32") return true
+	const result = spawnSync("sh", ["-c", `command -v ${cmd}`], { stdio: "ignore" })
+	return result.status === 0
+}
+
+// Migrate legacy secrets.json to OS credential storage atomically
+async function migrateFileSecretsToOS(filePath: string): Promise<void> {
+	try {
+		const fs = await import("fs")
+		if (!fs.existsSync(filePath)) return
+		const raw = fs.readFileSync(filePath, "utf-8")
+		const data = raw ? (JSON.parse(raw) as Record<string, string>) : {}
+		const entries = Object.entries(data).filter(([, v]) => typeof v === "string" && v.length > 0)
+		if (entries.length === 0) return fs.unlinkSync(filePath)
+
+		// Parallel pre-check: determine which entries already exist in OS storage
+		const existingValues = await Promise.all(entries.map(([key]) => secretStorage.get(key)))
+		const preexisting = new Set<string>()
+		const toWrite: Array<[string, string]> = []
+		for (let i = 0; i < entries.length; i++) {
+			const [key, value] = entries[i]
+			const existing = existingValues[i]
+			if (typeof existing === "string" && existing.length > 0) {
+				preexisting.add(key)
+			} else {
+				toWrite.push([key, value])
+			}
+		}
+
+		if (toWrite.length === 0) {
+			// Everything already present in OS; remove legacy file
+			fs.unlinkSync(filePath)
+			log("Secrets migration: all entries already present; removed secrets.json")
+			return
+		}
+
+		// Attempt to write all pending entries atomically: on any failure, roll back successful writes
+		const written: string[] = []
+		try {
+			for (const [key, value] of toWrite) {
+				await secretStorage.store(key, value)
+				written.push(key)
+			}
+			// Success: delete legacy file entirely
+			fs.unlinkSync(filePath)
+			log(`Secrets migration: migrated ${written.length + preexisting.size} entries; removed secrets.json`)
+		} catch (error) {
+			// Roll back only entries we wrote in this attempt; keep legacy file intact
+			for (const key of written) {
+				try {
+					await secretStorage.delete(key)
+				} catch {}
+			}
+			log(`Secrets migration aborted and rolled back; reason: ${String(error)}`)
+		}
+	} catch (error) {
+		log(`Migration from secrets.json failed or partial (non-fatal): ${String(error)}`)
+	}
 }
 
 console.log("Finished loading vscode context...")
