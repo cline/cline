@@ -97,6 +97,7 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 ## SYSTEM INFORMATION
 
 Operating System: macOS
+IDE: TestIde
 Default Shell: /bin/zsh
 Home Directory: /Users/tester
 Current Working Directory: /Users/tester/dev/project

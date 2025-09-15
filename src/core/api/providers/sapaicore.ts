@@ -495,7 +495,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
 				model_name: model.id,
-				model_params: { max_tokens: model.info.maxTokens },
 			}
 
 			const templating: TemplatingModuleConfig = {

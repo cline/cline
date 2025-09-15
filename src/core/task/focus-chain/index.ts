@@ -2,7 +2,6 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
 import * as vscode from "vscode"
-import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSay } from "../../../shared/ExtensionMessage"
 import { Mode } from "../../../shared/storage/types"
@@ -71,8 +70,6 @@ export class FocusChainManager {
 	 */
 	private async initializeRemoteFeatureFlags(): Promise<void> {
 		try {
-			const enabled = await featureFlagsService.getFocusChainEnabled()
-			this.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
 			await this.postStateToWebview()
 		} catch (error) {
 			console.error("Error initializing focus chain remote feature flags:", error)

@@ -76,12 +76,12 @@ export interface GlobalState {
 	claudeCodePath: string | undefined
 	qwenCodeOauthPath: string | undefined
 	strictPlanModeEnabled: boolean
+	yoloModeToggled: boolean
 	useAutoCondense: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled: boolean
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
 
