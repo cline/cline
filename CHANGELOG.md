@@ -2,8 +2,6 @@
 
 ## 3.28.4
 
-### Patch Changes
-
 - 9ae7c4f: Fix bug where some Windows machines had API request hanging
 - b676c5d: Fix bug where action buttons would be disabled
 - 4985d1d: fix: display prompt cache info in History"
