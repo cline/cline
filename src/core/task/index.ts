@@ -2127,6 +2127,12 @@ export class Task {
 			if (assistantMessage.length === 0 && reasoningMessage) {
 				// Check if reasoning contains tool usage that should be parsed
 				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
+				for (const b of reasoningContentBlocks) {
+					if (b.partial) {
+						console.log("partial tool call in reasoning message")
+					}
+					b.partial = false // needed to initiate tool execution
+				}
 				const reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
 				console.log("reasoningToolBlocks:", reasoningToolBlocks)
 				if (reasoningToolBlocks.length > 0) {
@@ -2136,7 +2142,7 @@ export class Task {
 					assistantMessage = reasoningMessage
 
 					if (this.taskState.assistantMessageContent.length > prevLength) {
-						this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+						this.taskState.userMessageContentReady = true // there's a pWaitFor on this later
 					}
 					// present content to user (executes tool use blocks)
 					this.presentAssistantMessage()
