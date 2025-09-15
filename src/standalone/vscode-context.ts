@@ -13,6 +13,11 @@ log("Running standalone cline", version)
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
+const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || DATA_DIR
+
+try {
+	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
+} catch {}
 
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
@@ -40,13 +45,13 @@ const extensionContext: ExtensionContext = {
 	secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
 	// Set up URIs.
-	storageUri: URI.file(DATA_DIR),
-	storagePath: DATA_DIR, // Deprecated, not used in cline.
+	storageUri: URI.file(WORKSPACE_STORAGE_DIR),
+	storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
 	globalStorageUri: URI.file(DATA_DIR),
 	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
 
-	logUri: URI.file(DATA_DIR),
-	logPath: DATA_DIR, // Deprecated, not used in cline.
+	logUri: URI.file(WORKSPACE_STORAGE_DIR),
+	logPath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
 
 	extensionUri: URI.file(EXTENSION_DIR),
 	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
@@ -56,8 +61,8 @@ const extensionContext: ExtensionContext = {
 
 	environmentVariableCollection: new EnvironmentVariableCollection(),
 
-	// TODO(sjf): Workspace state needs to be per project/workspace.
-	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
+	// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
+	workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
 }
 
 function getPackageInfo() {
