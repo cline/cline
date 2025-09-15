@@ -1,5 +1,5 @@
 import { EmptyRequest, String } from "@shared/proto/cline/common"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from "../index"
 
 /**
@@ -11,7 +11,6 @@ import { Controller } from "../index"
  * @returns The login URL as a string.
  */
 export async function getRedirectUrl(_controller: Controller, _: EmptyRequest): Promise<String> {
-	const uriScheme = vscode.env.uriScheme
-	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev`
-	return { value: callbackUrl }
+	const url = (await HostProvider.env.getIdeRedirectUri({})).value
+	return { value: url }
 }
