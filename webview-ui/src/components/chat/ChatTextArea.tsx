@@ -1095,6 +1095,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											"rounded-md min-w-[28px] min-h-[28px]",
 											"text-vscode-descriptionForeground hover:text-vscode-foreground",
 											"transition-all duration-1000",
+											"cursor-pointer",
 											hasInputContent
 												? "opacity-50 hover:opacity-100 delay-750 pointer-events-auto"
 												: "opacity-0 pointer-events-none duration-200 delay-0",
@@ -1102,7 +1103,6 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 												"hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)]",
 											"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 											hasInputContent && "active:bg-[rgba(255,255,255,0.1)]",
-											hasInputContent && "cursor-pointer",
 										)}>
 										<WandSparkles className={cn("w-4 h-4", isEnhancingPrompt && "animate-spin")} />
 									</button>
