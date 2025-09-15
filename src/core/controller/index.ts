@@ -664,16 +664,10 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = this.context.extension?.packageJSON?.version ?? ""
-		const uriScheme = vscode.env.uriScheme
-		const extensionInfo = {
-			name: this.context.extension?.packageJSON?.name,
-			publisher: this.context.extension?.packageJSON?.publisher,
-		}
 
 		return {
 			version,
 			apiConfiguration,
-			uriScheme,
 			currentTaskItem,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
@@ -710,7 +704,6 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
-			extensionInfo,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
