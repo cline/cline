@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.28.4]
+
+- Fix bug where some Windows machines had API request hanging
+- Fix bug where 'Proceed while running' action button would be disabled after running an interactive command
+- Fix prompt cache info not being displayed in History
+
 ## [3.28.3]
 
 - Fixed issue with start new task button

@@ -13,6 +13,7 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
@@ -33,6 +34,10 @@ export interface TaskConfig {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	context: vscode.ExtensionContext
+
+	// Multi-workspace support (optional for backward compatibility)
+	workspaceManager?: WorkspaceRootManager
+	isMultiRootEnabled?: boolean
 
 	// State management
 	taskState: TaskState
