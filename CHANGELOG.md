@@ -1,11 +1,10 @@
 # Changelog
 
-## 3.28.4
+## [3.28.4]
 
-- 9ae7c4f: Fix bug where some Windows machines had API request hanging
-- b676c5d: Fix bug where action buttons would be disabled
-- 4985d1d: fix: display prompt cache info in History"
-- 0b551de: remove model_params in orchestration mode
+- Fix bug where some Windows machines had API request hanging
+- Fix bug where 'Proceed while running' action button would be disabled after running an interactive command
+- Fix prompt cache info not being displayed in History
 
 ## [3.28.3]
 
