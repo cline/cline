@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.28.5]
+
+- Fixed issue with Posthog API key related to telemetry
+
 ## [3.28.4]
 
 - Fix bug where some Windows machines had API request hanging
