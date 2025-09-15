@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { VSCodeTextField, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 
-import type { ProviderSettings } from "@roo-code/types"
+import { zaiApiLineConfigs, zaiApiLineSchema, type ProviderSettings } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
@@ -33,15 +33,17 @@ export const ZAi = ({ apiConfiguration, setApiConfigurationField }: ZAiProps) =>
 			<div>
 				<label className="block font-medium mb-1">{t("settings:providers.zaiEntrypoint")}</label>
 				<VSCodeDropdown
-					value={apiConfiguration.zaiApiLine || "international"}
+					value={apiConfiguration.zaiApiLine || zaiApiLineSchema.enum.international_coding}
 					onChange={handleInputChange("zaiApiLine")}
 					className={cn("w-full")}>
-					<VSCodeOption value="international" className="p-2">
-						api.z.ai
-					</VSCodeOption>
-					<VSCodeOption value="china" className="p-2">
-						open.bigmodel.cn
-					</VSCodeOption>
+					{zaiApiLineSchema.options.map((zaiApiLine) => {
+						const config = zaiApiLineConfigs[zaiApiLine]
+						return (
+							<VSCodeOption key={zaiApiLine} value={zaiApiLine} className="p-2">
+								{config.name} ({config.baseUrl})
+							</VSCodeOption>
+						)
+					})}
 				</VSCodeDropdown>
 				<div className="text-xs text-vscode-descriptionForeground mt-1">
 					{t("settings:providers.zaiEntrypointDescription")}
@@ -62,7 +64,7 @@ export const ZAi = ({ apiConfiguration, setApiConfigurationField }: ZAiProps) =>
 				{!apiConfiguration?.zaiApiKey && (
 					<VSCodeButtonLink
 						href={
-							apiConfiguration.zaiApiLine === "china"
+							zaiApiLineConfigs[apiConfiguration.zaiApiLine ?? "international_coding"].isChina
 								? "https://open.bigmodel.cn/console/overview"
 								: "https://z.ai/manage-apikey/apikey-list"
 						}

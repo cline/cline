@@ -1,4 +1,5 @@
 import type { ModelInfo } from "../model.js"
+import { ZaiApiLine } from "../provider-settings.js"
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5
@@ -103,3 +104,14 @@ export const mainlandZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export const ZAI_DEFAULT_TEMPERATURE = 0
+
+export const zaiApiLineConfigs = {
+	international_coding: {
+		name: "International Coding Plan",
+		baseUrl: "https://api.z.ai/api/coding/paas/v4",
+		isChina: false,
+	},
+	international: { name: "International Standard", baseUrl: "https://api.z.ai/api/paas/v4", isChina: false },
+	china_coding: { name: "China Coding Plan", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", isChina: true },
+	china: { name: "China Standard", baseUrl: "https://open.bigmodel.cn/api/paas/v4", isChina: true },
+} satisfies Record<ZaiApiLine, { name: string; baseUrl: string; isChina: boolean }>

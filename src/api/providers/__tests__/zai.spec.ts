@@ -41,7 +41,11 @@ describe("ZAiHandler", () => {
 
 		it("should use the correct international Z AI base URL", () => {
 			new ZAiHandler({ zaiApiKey: "test-zai-api-key", zaiApiLine: "international" })
-			expect(OpenAI).toHaveBeenCalledWith(expect.objectContaining({ baseURL: "https://api.z.ai/api/paas/v4" }))
+			expect(OpenAI).toHaveBeenCalledWith(
+				expect.objectContaining({
+					baseURL: "https://api.z.ai/api/paas/v4",
+				}),
+			)
 		})
 
 		it("should use the provided API key for international", () => {
@@ -109,7 +113,11 @@ describe("ZAiHandler", () => {
 	describe("Default behavior", () => {
 		it("should default to international when no zaiApiLine is specified", () => {
 			const handlerDefault = new ZAiHandler({ zaiApiKey: "test-zai-api-key" })
-			expect(OpenAI).toHaveBeenCalledWith(expect.objectContaining({ baseURL: "https://api.z.ai/api/paas/v4" }))
+			expect(OpenAI).toHaveBeenCalledWith(
+				expect.objectContaining({
+					baseURL: "https://api.z.ai/api/coding/paas/v4",
+				}),
+			)
 
 			const model = handlerDefault.getModel()
 			expect(model.id).toBe(internationalZAiDefaultModelId)

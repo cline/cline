@@ -308,9 +308,13 @@ const sambaNovaSchema = apiModelIdProviderModelSchema.extend({
 	sambaNovaApiKey: z.string().optional(),
 })
 
+export const zaiApiLineSchema = z.enum(["international_coding", "international", "china_coding", "china"])
+
+export type ZaiApiLine = z.infer<typeof zaiApiLineSchema>
+
 const zaiSchema = apiModelIdProviderModelSchema.extend({
 	zaiApiKey: z.string().optional(),
-	zaiApiLine: z.union([z.literal("china"), z.literal("international")]).optional(),
+	zaiApiLine: zaiApiLineSchema.optional(),
 })
 
 const fireworksSchema = apiModelIdProviderModelSchema.extend({
