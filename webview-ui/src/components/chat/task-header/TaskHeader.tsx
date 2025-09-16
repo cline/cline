@@ -1,8 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useWindowSize } from "react-use"
+import React, { useCallback, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -16,7 +15,6 @@ import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
-import styles from "./TaskHeader.module.css"
 import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
@@ -61,13 +59,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	} = useExtensionState()
 
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
-	const [isTextExpanded, setIsTextExpanded] = useState(false)
-	const [showSeeMore, setShowSeeMore] = useState(false)
-
-	const textContainerRef = useRef<HTMLDivElement>(null)
-	const textRef = useRef<HTMLDivElement>(null)
-
-	const { height: windowHeight } = useWindowSize()
 
 	// Simplified computed values
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
@@ -83,17 +74,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => {
 		setIsTaskExpanded((prev) => {
-			if (prev) {
-				setIsTextExpanded(false) // Reset text expansion when collapsing
-			}
 			return !prev
 		})
-	}, [])
-
-	const toggleTextExpanded = useCallback((e: React.MouseEvent) => {
-		e?.preventDefault()
-		e.stopPropagation()
-		setIsTextExpanded((prev) => !prev)
 	}, [])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
@@ -107,33 +89,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}, 300)
 	}, [navigateToSettings])
 
-	// Handle text overflow detection
-	useEffect(() => {
-		if (!isTaskExpanded) {
-			return
-		}
-
-		const textContainer = textContainerRef.current
-		const textElement = textRef.current
-		if (!textContainer || !textElement) {
-			return
-		}
-
-		// Update max height for expanded text
-		if (isTextExpanded) {
-			textContainer.style.maxHeight = `${windowHeight * 0.5}px`
-		}
-
-		// Check for overflow
-		const containerHeight = textContainer.clientHeight || textContainer.getBoundingClientRect().height
-		const isOverflowing = textElement.scrollHeight > containerHeight
-		setShowSeeMore(isOverflowing)
-	}, [task.text, windowHeight, isTaskExpanded, isTextExpanded])
-
 	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 
 	return (
-		<div className="p-2 flex flex-col gap-1.5 text-badge-foreground">
+		<div className={"p-2 flex flex-col gap-1.5 text-badge-foreground"}>
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -142,12 +101,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			/>
 			{/* Task Header */}
 			<div
-				className={cn({
-					[styles.taskHeaderContainer]: true,
-					"opacity-100 border-1 border-muted-foreground": isTaskExpanded, // No hover effects when expanded, add border
-					"opacity-80 transition-opacity duration-200": !isTaskExpanded, // Hover effects only when collapsed
-					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100": true,
-				})}>
+				className={cn(
+					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
+					{
+						"opacity-100 border-1 border-muted-foreground": isTaskExpanded, // No hover effects when expanded, add border
+						"opacity-80 transition-opacity duration-200 hover:bg-[var(--vscode-toolbar-hoverBackground)]":
+							!isTaskExpanded, // Hover effects only when collapsed
+					},
+				)}>
 				{/* Task Title */}
 				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
 					<div className="flex justify-between items-center">
@@ -181,20 +142,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
-					<div className="flex flex-col break-words">
-						<div
-							className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0"
-							ref={isTaskExpanded ? textContainerRef : null}
-							title={showSeeMore ? (isTextExpanded ? "Show less" : "Click to show more") : task.text}>
+					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
+						<div className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 max-h-20 overflow-y-auto scroll-smooth">
 							<div
-								className={cn(
-									styles.taskHeaderContent,
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200 mt-1 mb-1.5",
-									isTextExpanded ? "pb-1.5 max-h-20 overflow-y-scroll" : "overflow-hidden",
-									isTextExpanded ? styles.taskHeaderTextExpanded : styles.taskHeaderTextCollapsed,
-								)}
-								onClick={toggleTextExpanded}
-								ref={textRef}>
+								className={
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200 mt-1"
+								}>
 								{highlightedText}
 							</div>
 						</div>
@@ -215,6 +168,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							tokensOut={tokensOut}
 							useAutoCondense={useAutoCondense || false}
 						/>
+
 						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 					</div>
 				)}

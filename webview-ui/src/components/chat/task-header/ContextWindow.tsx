@@ -1,4 +1,4 @@
-import { cn, Progress } from "@heroui/react"
+import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
@@ -29,7 +29,7 @@ const ConfirmationDialog = memo<{
 	onConfirm: (e: React.MouseEvent) => void
 	onCancel: (e: React.MouseEvent) => void
 }>(({ onConfirm, onCancel }) => (
-	<div className="text-xs -mt-1.5 pb-2 flex items-center gap-0 justify-between">
+	<div className="text-xs mt-1.5 pb-2 flex items-center gap-0 justify-between">
 		<span className="font-semibold text-xs">Compact the current task?</span>
 		<span className="flex gap-1">
 			<VSCodeButton
@@ -65,101 +65,18 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	cacheReads,
 	size,
 }) => {
-	const [threshold, setThreshold] = useState(autoCondenseThreshold * 100)
+	const [isOpened, setIsOpened] = useState(false)
+	const [threshold, setThreshold] = useState(useAutoCondense ? autoCondenseThreshold : 0)
 	const [confirmationNeeded, setConfirmationNeeded] = useState(false)
-	const [isTooltipOpen, setIsTooltipOpen] = useState(false)
-	const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
-	const [isThresholdChanged, setIsThresholdChanged] = useState(false)
-	const [isThresholdFadingOut, setIsThresholdFadingOut] = useState(false)
-	const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
-	const [greenFlashTimeout, setGreenFlashTimeout] = useState<NodeJS.Timeout | null>(null)
-	const [fadeOutTimeout, setFadeOutTimeout] = useState<NodeJS.Timeout | null>(null)
-	const [isHovering, setIsHovering] = useState(false)
-	const progressRef = React.useRef<HTMLDivElement>(null)
 
-	const handleContextWindowBarClick = useCallback(
-		(event: React.MouseEvent<HTMLDivElement>) => {
-			event.stopPropagation()
-
-			// Get the progress bar element bounds for smart boundary detection
-			if (!progressRef.current) {
-				return
-			}
-
-			const progressBarRect = progressRef.current.getBoundingClientRect()
-			const clickX = event.clientX
-
-			// Only process clicks within the progress bar's horizontal bounds
-			if (clickX < progressBarRect.left || clickX > progressBarRect.right) {
-				return // Ignore clicks outside progress bar area (like on token text)
-			}
-
-			// Calculate percentage relative to progress bar width
-			const relativeClickX = clickX - progressBarRect.left
-			const percentage = Math.max(0, Math.min(1, relativeClickX / progressBarRect.width))
-			setThreshold(percentage)
-			updateSetting("autoCondenseThreshold", percentage)
-
-			// Clear any existing animation timeouts
-			if (greenFlashTimeout) {
-				clearTimeout(greenFlashTimeout)
-				setGreenFlashTimeout(null)
-			}
-			if (fadeOutTimeout) {
-				clearTimeout(fadeOutTimeout)
-				setFadeOutTimeout(null)
-			}
-
-			// Trigger instant green, then smooth fadeout
-			setIsThresholdChanged(true)
-			setIsThresholdFadingOut(false)
-
-			// After a brief moment, start the fadeout transition
-			const flashTimeout = setTimeout(() => {
-				setIsThresholdFadingOut(true)
-				const fadeTimeout = setTimeout(() => {
-					setIsThresholdChanged(false)
-					setIsThresholdFadingOut(false)
-					setFadeOutTimeout(null)
-				}, 2000)
-				setFadeOutTimeout(fadeTimeout)
-				setGreenFlashTimeout(null)
-			}, 100)
-			setGreenFlashTimeout(flashTimeout)
-		},
-		[greenFlashTimeout, fadeOutTimeout],
-	)
-
-	const handleProgressBarHover = useCallback(
-		(event: React.MouseEvent<HTMLDivElement>) => {
-			event.stopPropagation()
-			// Clear any existing hover timeout
-			if (hoverTimeout) {
-				clearTimeout(hoverTimeout)
-				setHoverTimeout(null)
-			}
-
-			// Position tooltip at center of progress bar
-			if (progressRef.current) {
-				const rect = progressRef.current.getBoundingClientRect()
-				const tooltipX = rect.left + rect.width / 2
-				const tooltipY = rect.bottom + 4
-				setTooltipPosition({ x: tooltipX, y: tooltipY })
-			}
-
-			setIsHovering(true)
-			setIsTooltipOpen(true)
-		},
-		[hoverTimeout],
-	)
-
-	const handleProgressBarLeave = useCallback(() => {
-		// Close tooltip with delay for smooth UX
-		const timeout = setTimeout(() => {
-			setIsTooltipOpen(false)
-			setIsHovering(false)
-		}, 500) // 500ms delay
-		setHoverTimeout(timeout)
+	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+		const rect = event.currentTarget.getBoundingClientRect()
+		const clickX = event.clientX - rect.left
+		const percentage = Math.max(0, Math.min(1, clickX / rect.width))
+		const newThreshold = Math.round(percentage * 100) / 100
+		setConfirmationNeeded(false)
+		setThreshold(newThreshold)
+		updateSetting("autoCondenseThreshold", newThreshold)
 	}, [])
 
 	const handleCompactClick = useCallback((e: React.MouseEvent) => {
@@ -188,9 +105,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		if (!contextWindow) {
 			return null
 		}
-		const percentage = (lastApiReqTotalTokens / contextWindow) * 100
 		return {
-			percentage,
+			percentage: (lastApiReqTotalTokens / contextWindow) * 100,
 			max: formatTokenNumber(contextWindow),
 			used: formatTokenNumber(lastApiReqTotalTokens),
 		}
@@ -201,23 +117,32 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col">
+		<div className="flex flex-col my-1.5" onMouseEnter={() => setIsOpened(true)} onMouseLeave={() => setIsOpened(false)}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
-				<div
-					className="flex items-center flex-1 whitespace-nowrap text-xs pt-1 pb-2.5"
-					onClick={handleContextWindowBarClick}
-					onMouseEnter={handleProgressBarHover}
-					onMouseLeave={handleProgressBarLeave}>
-					<span className="cursor-pointer pr-1.5" title="Current tokens used in this request">
+				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap text-xs">
+					<span className="cursor-pointer" title="Current tokens used in this request">
 						{tokenData.used}
 					</span>
-					<div className="flex relative items-center flex-1 w-full pr-1">
-						<div className="relative w-full text-badge-foreground context-window-progress" ref={progressRef}>
-							<div
-								style={{
-									filter: isHovering ? "brightness(1.15)" : "brightness(1)",
-									transition: "filter 0.2s ease",
-								}}>
+					<div className="flex relative items-center gap-1 flex-1 w-full h-full">
+						<Tooltip
+							closeDelay={1000}
+							content={
+								<ContextWindowSummary
+									autoCompactThreshold={threshold}
+									cacheReads={cacheReads}
+									cacheWrites={cacheWrites}
+									contextWindow={tokenData.max}
+									percentage={tokenData.percentage}
+									size={size}
+									tokensIn={tokensIn}
+									tokensOut={tokensOut}
+									tokenUsed={tokenData.used}
+								/>
+							}
+							isOpen={isOpened}
+							placement="bottom"
+							showArrow={true}>
+							<div className="relative w-full text-badge-foreground context-window-progress brightness-100">
 								<Progress
 									aria-label="Context window usage progress"
 									classNames={{
@@ -228,42 +153,15 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 										value: "text-description",
 									}}
 									color="success"
+									onClick={handleContextWindowBarClick}
 									size="md"
 									value={tokenData.percentage}
 								/>
+								{useAutoCondense && (
+									<AutoCondenseMarker key={threshold} threshold={threshold} usage={tokenData.percentage} />
+								)}
 							</div>
-							{useAutoCondense && (
-								<AutoCondenseMarker key={threshold} threshold={threshold} usage={tokenData.percentage} />
-							)}
-
-							{/* Custom Tooltip */}
-							{isTooltipOpen && (
-								<div
-									className="fixed bg-menu text-menu-foreground p-2 rounded shadow-sm border border-menu-border"
-									onClick={(e) => e.stopPropagation()}
-									style={{
-										minWidth: "200px",
-										zIndex: 99999,
-										top: tooltipPosition.y,
-										left: tooltipPosition.x,
-										transform: "translateX(-50%)",
-									}}>
-									<ContextWindowSummary
-										autoCompactThreshold={threshold}
-										cacheReads={cacheReads}
-										cacheWrites={cacheWrites}
-										contextWindow={tokenData.max}
-										isThresholdChanged={isThresholdChanged}
-										isThresholdFadingOut={isThresholdFadingOut}
-										percentage={tokenData.percentage}
-										size={size}
-										tokensIn={tokensIn}
-										tokensOut={tokensOut}
-										tokenUsed={tokenData.used}
-									/>
-								</div>
-							)}
-						</div>
+						</Tooltip>
 					</div>
 					<span className="cursor-pointer" title="Maximum context window size for this model">
 						{tokenData.max}

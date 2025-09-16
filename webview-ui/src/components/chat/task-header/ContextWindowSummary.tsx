@@ -1,8 +1,7 @@
-import React, { memo, useMemo } from "react"
+import React, { memo, useEffect, useMemo, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { cn } from "@/utils/cn"
 import { formatSize } from "@/utils/format"
-import styles from "./ContextWindowSummary.module.css"
 import { formatTokenNumber } from "./util"
 
 interface TokenUsageInfoProps {
@@ -30,7 +29,7 @@ interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 
 const InfoRow = memo<{ label: string; value: React.ReactNode }>(({ label, value }) => (
 	<div className="flex justify-between gap-3">
-		<div>{label}</div>
+		<div className="font-semibold">{label}</div>
 		<div className="text-muted-foreground">{value}</div>
 	</div>
 ))
@@ -87,27 +86,54 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	size,
 	percentage,
 	autoCompactThreshold = 0,
-	isThresholdChanged = false,
-	isThresholdFadingOut = false,
-}) => (
-	<div className="flex flex-col gap-2.5 bg-menu text-menu-foreground p-2 rounded shadow-sm">
-		{autoCompactThreshold > 0 && (
+}) => {
+	const [thresholdDisplay, setThresholdDisplay] = useState(autoCompactThreshold)
+	const [isThresholdChanged, setIsThresholdChanged] = useState<"up" | "down" | undefined>(undefined)
+	const [isThresholdFadingOut, setIsThresholdFadingOut] = useState(false)
+
+	useEffect(() => {
+		if (autoCompactThreshold !== thresholdDisplay) {
+			const type = autoCompactThreshold > thresholdDisplay ? "up" : "down"
+			setIsThresholdChanged(type)
+			setThresholdDisplay(autoCompactThreshold)
+			setTimeout(() => {
+				setIsThresholdFadingOut(true)
+				setTimeout(() => {
+					setIsThresholdChanged(undefined)
+					setIsThresholdFadingOut(false)
+				}, 1000) // Duration of fade-out effect
+			}, 2000) // Duration to show the changed value before starting fade-out
+		}
+	}, [autoCompactThreshold, thresholdDisplay])
+
+	return (
+		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 min-w-xs p-4">
+			{thresholdDisplay > 0 && (
+				<InfoRow
+					label="Auto Condense Threshold"
+					value={
+						<span
+							className={cn({
+								"transition-all": !isThresholdChanged && !isThresholdFadingOut,
+								"text-success/50 transition-discrete": isThresholdChanged === "up" && !isThresholdFadingOut,
+								"text-error/50 transition-discrete": isThresholdChanged === "down" && !isThresholdFadingOut,
+								"text-muted-foreground transition-all": isThresholdFadingOut,
+							})}>{`${(thresholdDisplay * 100).toFixed(2)}%`}</span>
+					}
+				/>
+			)}
 			<InfoRow
-				label="Auto Condense Threshold"
-				value={
-					<span
-						className={cn({
-							[styles.thresholdValueChanged]: isThresholdChanged && !isThresholdFadingOut,
-							[styles.thresholdValueFadeout]: isThresholdChanged && isThresholdFadingOut,
-						})}>{`${(autoCompactThreshold * 100).toFixed(2)}%`}</span>
-				}
+				label="Context Window"
+				value={percentage ? `${tokenUsed} of ${contextWindow} (${percentage.toFixed(2)}%) used` : contextWindow}
 			/>
-		)}
-		<InfoRow
-			label="Context Window"
-			value={percentage ? `${tokenUsed} of ${contextWindow} (${percentage.toFixed(2)}%) used` : contextWindow}
-		/>
-		<TokenUsageInfo cacheReads={cacheReads} cacheWrites={cacheWrites} size={size} tokensIn={tokensIn} tokensOut={tokensOut} />
-		<InfoRow label="Size" value={formatSize(size)} />
-	</div>
-)
+			<TokenUsageInfo
+				cacheReads={cacheReads}
+				cacheWrites={cacheWrites}
+				size={size}
+				tokensIn={tokensIn}
+				tokensOut={tokensOut}
+			/>
+			<InfoRow label="Size" value={formatSize(size)} />
+		</div>
+	)
+}
