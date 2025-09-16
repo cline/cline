@@ -50,7 +50,6 @@ const gpt: ClineToolSpec = {
 			name: "requires_approval",
 			required: false,
 			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
-			usage: "true or false",
 		},
 		{
 			name: "timeout",
