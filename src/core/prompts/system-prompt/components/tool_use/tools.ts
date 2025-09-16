@@ -23,7 +23,7 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 		? ". In multi-workspace mode, you can specify a workspace using @workspace:path syntax (e.g., @frontend:src/index.ts)"
 		: ""
 
-	return new TemplateEngine().resolve(template,  {
+	return new TemplateEngine().resolve(template, {
 		TASK_PROGRESS: shouldIncludeTaskProgress ? TASK_PROGRESS : "",
 		FOCUS_CHAIN_ATTEMPT: shouldIncludeTaskProgress ? FOCUS_CHAIN_ATTEMPT : "",
 		FOCUS_CHAIN_USAGE: shouldIncludeTaskProgress ? FOCUS_CHAIN_USAGE : "",
