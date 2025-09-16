@@ -59,7 +59,7 @@ export interface GlobalState {
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting: boolean
 	mcpMarketplaceEnabled: boolean
-	favoritedModelIds: string[] | undefined
+	favoritedModelIds: string[]
 	requestTimeoutMs: number | undefined
 	shellIntegrationTimeout: number
 	mcpResponsesCollapsed: boolean
