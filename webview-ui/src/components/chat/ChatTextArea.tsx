@@ -908,12 +908,12 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div
 				className={cn(
-					"relative flex flex-col gap-1 bg-editor-background outline-none border border-none box-border",
-					isEditMode ? "p-2 w-full" : "px-1.5 pb-1 w-[calc(100%-16px)] ml-auto mr-auto",
+					"flex flex-col gap-1 bg-editor-background outline-none border border-none box-border",
+					isEditMode ? "p-2 w-full" : "relative px-1.5 pb-1 w-[calc(100%-16px)] ml-auto mr-auto",
 				)}>
-				<div className="relative">
+				<div className={cn(!isEditMode && "relative")}>
 					<div
-						className={cn("chat-text-area", "relative", "flex", "flex-col", "outline-none")}
+						className={cn("chat-text-area", !isEditMode && "relative", "flex", "flex-col", "outline-none")}
 						onDrop={handleDrop}
 						onDragOver={(e) => {
 							// Only allowed to drop images/files on shift key pressed.
@@ -945,10 +945,10 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								className={cn(
 									"absolute",
 									"bottom-full",
-									"left-0",
+									isEditMode ? "left-6" : "left-0",
 									"right-0",
 									"z-[1000]",
-									"mb-2",
+									isEditMode ? "-mb-3" : "mb-2",
 									"filter",
 									"drop-shadow-md",
 								)}>
