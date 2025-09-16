@@ -35,9 +35,6 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
-
 const gpt: ClineToolSpec = {
 	variant: ModelFamily.GPT,
 	id: ClineDefaultTool.BASH,
@@ -69,4 +66,4 @@ const gpt: ClineToolSpec = {
 	],
 }
 
-export const execute_command_variants = [generic, nextGen, gpt, gemini]
+export const execute_command_variants = [generic, gpt]
