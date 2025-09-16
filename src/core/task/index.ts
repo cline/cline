@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { parseAssistantMessageV2 } from "@core/assistant-message"
+import { AssistantMessageContent, parseAssistantMessageV2, TextContent } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -2133,8 +2133,31 @@ export class Task {
 					}
 					b.partial = false // needed to initiate tool execution
 				}
-				const reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
+				let reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
 				console.log("reasoningToolBlocks:", reasoningToolBlocks)
+				reasoningToolBlocks = reasoningToolBlocks.map((block) => {
+					// let's correct some common tool misuse in reasoning blocks (looking at you, grok-code-fast-1)
+					if (block.name == "search_files" && block.params.path && block.params.regex === undefined) {
+						;(block as AssistantMessageContent).type = "text" // don't attempt execution, it's malformed
+						;(block as AssistantMessageContent as TextContent).content = reasoningMessage
+						const formattedResponse = formatResponse.taskResumption(
+							this.mode,
+							"now",
+							this.cwd,
+							false,
+							"You need to try something different as that tool call attempt has failed multiple times.",
+						)
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: formattedResponse[0],
+						})
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: formattedResponse[1],
+						})
+					}
+					return block
+				})
 				if (reasoningToolBlocks.length > 0) {
 					// Found tools in reasoning - add them to assistant message content for execution
 					this.taskState.assistantMessageContent = [...this.taskState.assistantMessageContent, ...reasoningToolBlocks]
