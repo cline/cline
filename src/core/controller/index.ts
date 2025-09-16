@@ -23,6 +23,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -86,7 +87,7 @@ export class Controller {
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
 			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
-				await this.stateManager.reInitialize()
+				await this.stateManager.reInitialize(this.task?.taskId)
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
@@ -108,7 +109,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
-			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
@@ -185,6 +186,7 @@ export class Controller {
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalStateKey("strictPlanModeEnabled")
+		const yoloModeToggled = this.stateManager.getGlobalStateKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalStateKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -238,6 +240,7 @@ export class Controller {
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
+			yoloModeToggled,
 			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
@@ -252,6 +255,11 @@ export class Controller {
 			files,
 			historyItem,
 		)
+
+		// Load task settings after task creation
+		if (this.task.taskId) {
+			await this.stateManager.loadTaskSettings(this.task.taskId)
+		}
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -266,6 +274,28 @@ export class Controller {
 		const isOptedIn = telemetrySetting !== "disabled"
 		telemetryService.updateTelemetryState(isOptedIn)
 		await this.postStateToWebview()
+	}
+
+	async toggleActModeForYoloMode(): Promise<boolean> {
+		const modeToSwitchTo: Mode = "act"
+
+		// Switch to act mode
+		this.stateManager.setGlobalState("mode", modeToSwitchTo)
+
+		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
+		if (this.task) {
+			const apiConfiguration = this.stateManager.getApiConfiguration()
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
+		}
+
+		await this.postStateToWebview()
+
+		// Additional safety
+		if (this.task) {
+			this.task.updateMode(modeToSwitchTo)
+			return true
+		}
+		return false
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
@@ -659,21 +689,15 @@ export class Controller {
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
-		const version = this.context.extension?.packageJSON?.version ?? ""
-		const uriScheme = vscode.env.uriScheme
-		const extensionInfo = {
-			name: this.context.extension?.packageJSON?.name,
-			publisher: this.context.extension?.packageJSON?.publisher,
-		}
+		const version = ExtensionRegistryInfo.version
 
 		return {
 			version,
 			apiConfiguration,
-			uriScheme,
 			currentTaskItem,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
@@ -710,7 +734,6 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
-			extensionInfo,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
@@ -720,6 +743,8 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
+			// Clear task settings cache when task ends
+			await this.stateManager.clearTaskSettings(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
