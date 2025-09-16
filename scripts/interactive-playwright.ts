@@ -82,7 +82,7 @@ async function main() {
 			await ClineApiServerMock.stopGlobalServer?.()
 			await E2ETestHelper.rmForRetries(userDataDir, { recursive: true })
 		} catch (e) {
-			console.log(`We could teardown iteractive playwright propery, error:${e}`)
+			console.log(`We could teardown interactive playwright properly, error:${e}`)
 		}
 		console.log("Finished cleaning up resources...")
 	}
