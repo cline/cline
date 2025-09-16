@@ -168,7 +168,7 @@ export class BasetenHandler implements ApiHandler {
 			return true
 		}
 
-		// Default to true for Baseten models as they generally support tools
+		// Default to true because all Baseten Model API models support tools
 		return true
 	}
 }
