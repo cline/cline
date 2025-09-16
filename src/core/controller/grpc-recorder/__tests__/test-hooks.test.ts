@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
+import { Controller } from "@core/controller"
+import { IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
+import { GrpcRecorderBuilder } from "@core/controller/grpc-recorder/grpc-recorder.builder"
+import { testHooks } from "@core/controller/grpc-recorder/test-hooks"
+import { GrpcLogEntry } from "@core/controller/grpc-recorder/types"
 import * as sinon from "sinon"
-import { Controller } from ".."
-import { IRecorder } from "./grpc-recorder"
-import { GrpcRecorderBuilder } from "./grpc-recorder.builder"
-import { testHooks } from "./test-hooks"
-import { GrpcLogEntry } from "./types"
 
 describe("test-hooks", () => {
 	let cleanupSyntheticEntriesStub: sinon.SinonStub
