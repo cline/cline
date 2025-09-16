@@ -25,7 +25,6 @@ import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
-import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -222,7 +221,6 @@ export class Controller {
 		this.workspaceManager = await setupWorkspaceManager({
 			stateManager: this.stateManager,
 			detectRoots: detectWorkspaceRoots,
-			isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
 		})
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))

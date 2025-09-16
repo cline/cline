@@ -1,4 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
+import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -18,16 +19,14 @@ type DetectRoots = () => Promise<WorkspaceRoot[]>
 export async function setupWorkspaceManager({
 	stateManager,
 	detectRoots,
-	isMultiRootEnabled,
 }: {
 	stateManager: StateManager
 	historyItem?: HistoryItem
 	detectRoots: DetectRoots
-	isMultiRootEnabled: boolean
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
 	const startTime = performance.now()
-
+	const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
 	try {
 		let manager: WorkspaceRootManager
 		// Multi-root mode condition which is always false for now as isMultiRootEnabled is hardcoded to false
