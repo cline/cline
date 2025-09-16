@@ -213,6 +213,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 								/>
 							}
 							isOpen={isOpened}
+							offset={-2}
 							placement="bottom"
 							showArrow={true}>
 							<div
@@ -255,7 +256,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 				<HeroTooltip content="Summarize Task to Reduce Context Usage">
 					<VSCodeButton
 						appearance="icon"
-						className="text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80 -mt-1.5"
+						className="text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80"
 						onClick={handleCompactClick}
 						title="Summarize Task to Reduce Context Usage"
 						type="button">
