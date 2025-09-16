@@ -1,6 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
+import { parseWorkspaceInlinePath } from "@core/workspace/utils/parseWorkspaceInlinePath"
+import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
@@ -66,12 +68,40 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		let absolutePath: string
+		let displayPath: string = relPath!
+
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			// Parse workspace hint from the path (e.g., @frontend:src/index.ts)
+			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relPath!)
+
+			// Create adapter for multi-workspace path resolution
+			const adapter = new WorkspacePathAdapter({
+				cwd: config.cwd,
+				isMultiRootEnabled: true,
+				workspaceManager: config.workspaceManager,
+			})
+
+			// Resolve to the correct workspace root
+			absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
+
+			// Update display path for better user feedback
+			if (workspaceHint) {
+				displayPath = `@${workspaceHint}:${parsedPath}`
+			} else {
+				displayPath = parsedPath
+			}
+		} else {
+			// Fallback to single-workspace behavior
+			absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
+		}
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "readFile",
-			path: getReadablePath(config.cwd, relPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
 		} satisfies ClineSayTool
