@@ -1,3 +1,4 @@
+import { cn } from "@heroui/react"
 import type { Decorator } from "@storybook/react-vite"
 import React from "react"
 import { ClineAuthProvider } from "@/context/ClineAuthContext"
@@ -49,16 +50,26 @@ function StorybookDecoratorProvider(className = "relative"): Decorator {
 	}
 }
 
-export const StorybookWebview = StorybookDecoratorProvider()
+// Wrapper component to safely use useExtensionState inside the provider
+const ExtensionStateProviderWithOverrides: React.FC<{
+	overrideStates?: Partial<ExtensionStateContextType>
+	children: React.ReactNode
+}> = ({ overrideStates, children }) => {
+	const extensionState = useExtensionState()
+	return (
+		<ExtensionStateContext.Provider value={{ ...extensionState, ...overrideStates }}>
+			{children}
+		</ExtensionStateContext.Provider>
+	)
+}
 
-export const createStorybookDecorator = (overrideStates?: Partial<ExtensionStateContextType>) => (Story: any) => (
-	<ExtensionStateContext.Provider
-		value={{
-			...useExtensionState(),
-			...overrideStates,
-		}}>
-		<div className="max-w-lg m-x-auto">
-			<Story />
-		</div>
-	</ExtensionStateContext.Provider>
-)
+export const createStorybookDecorator =
+	(overrideStates?: Partial<ExtensionStateContextType>, classNames?: string) => (Story: any) => (
+		<ExtensionStateProviderWithOverrides overrideStates={overrideStates}>
+			<div className={cn("max-w-lg mx-auto", classNames)}>
+				<Story />
+			</div>
+		</ExtensionStateProviderWithOverrides>
+	)
+
+export const StorybookWebview = StorybookDecoratorProvider()
