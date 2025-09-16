@@ -4,7 +4,7 @@ import "tsconfig-paths/register"
 import { GrpcAdapter } from "@adapters/grpcAdapter"
 import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
 import { SpecFile } from "@harness/types"
-import { compareResponse, loadJson } from "@harness/utils"
+import { compareResponse, loadJson, retry } from "@harness/utils"
 import fs from "fs"
 import path from "path"
 
@@ -15,16 +15,18 @@ async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
-		await new Promise((resolve) => setTimeout(resolve, 50))
-		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
-		const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
-		if (!success) {
-			console.error("❌ Response mismatch! RequestID: %s", entry.requestId)
-			console.error(diffs.join("\n"))
-			process.exit(1)
-		}
-		console.log("✅ Response matched! RequestID: %s", entry.requestId)
+		await retry(async () => {
+			const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
+
+			const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
+
+			if (!success) {
+				const diffMsg = diffs.join("\n")
+				throw new Error(`❌ Response mismatch! RequestID: ${entry.requestId}\n${diffMsg}`)
+			}
+			console.log("✅ Response matched! RequestID: %s", entry.requestId)
+		})
 	}
 }
 

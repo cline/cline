@@ -50,3 +50,19 @@ export function compareResponse(actual: any, expected: any, ignoreFields: string
 
 	return { success: diffs.length === 0, diffs }
 }
+
+export async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 100): Promise<T> {
+	let lastError: any
+	for (let attempt = 1; attempt <= retries; attempt++) {
+		try {
+			return await fn()
+		} catch (err) {
+			lastError = err
+			if (attempt < retries) {
+				console.warn(`⚠️ Attempt ${attempt} failed, retrying in ${delay}ms...`)
+				await new Promise((r) => setTimeout(r, delay))
+			}
+		}
+	}
+	throw lastError
+}

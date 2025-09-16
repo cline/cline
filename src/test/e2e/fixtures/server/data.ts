@@ -169,8 +169,8 @@ export class ClineDataMock {
 		const firstUsage = orgId ? 6000 : 1000
 
 		for (let i = 0; i < max; i++) {
-			const completionTokens = Math.floor(Math.random() * 100) + 50 // 50-150 tokens
-			const randomCost = i === 0 ? firstUsage : Math.random() * 0.1 + 0.01 // $0.01-$0.11
+			const completionTokens = 50
+			const randomCost = 0.01
 
 			usages.push({
 				id: `usage-${i + 1}`,
@@ -203,8 +203,8 @@ export class ClineDataMock {
 		const currentTime = new Date().toISOString()
 
 		for (let i = 0; i < max; i++) {
-			const amountCents = Math.floor(Math.random() * 10000) + 1000 // $10.00-$110.00
-			const credits = Math.random() * 100 + 10 // 10-110 credits
+			const amountCents = 1000
+			const credits = 20
 
 			transactions.push({
 				paidAt: currentTime,
