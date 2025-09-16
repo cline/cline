@@ -2,7 +2,7 @@ import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "lodash/debounce"
 import { FoldVerticalIcon } from "lucide-react"
-import React, { memo, useCallback, useMemo, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { updateSetting } from "@/components/settings/utils/settingsHandlers"
 import { AutoCondenseMarker } from "./AutoCondenseMarker"
@@ -43,6 +43,7 @@ const ConfirmationDialog = memo<{
 			</VSCodeButton>
 			<VSCodeButton
 				appearance="primary"
+				autoFocus={true}
 				className="text-xs"
 				onClick={onConfirm}
 				title="Yes, compact the task"
@@ -69,6 +70,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	const [isOpened, setIsOpened] = useState(false)
 	const [threshold, setThreshold] = useState(useAutoCondense ? autoCondenseThreshold : 0)
 	const [confirmationNeeded, setConfirmationNeeded] = useState(false)
+	const progressBarRef = useRef<HTMLDivElement>(null)
 
 	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
 		const rect = event.currentTarget.getBoundingClientRect()
@@ -124,6 +126,65 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		return showHover(false)
 	}, [])
 
+	// Keyboard event handlers
+	const handleKeyDown = useCallback(
+		(event: React.KeyboardEvent<HTMLDivElement>) => {
+			if (!useAutoCondense) {
+				return
+			}
+
+			const step = event.shiftKey ? 0.1 : 0.05 // Larger step with Shift
+			let newThreshold = threshold
+
+			switch (event.key) {
+				case "ArrowLeft":
+				case "ArrowDown":
+					event.preventDefault()
+					event.stopPropagation()
+					setIsOpened(true) // Keep tooltip open on interaction
+					newThreshold = Math.max(0, threshold - step)
+					break
+				case "ArrowRight":
+				case "ArrowUp":
+					event.preventDefault()
+					event.stopPropagation()
+					setIsOpened(true) // Keep tooltip open on interaction
+					newThreshold = Math.min(1, threshold + step)
+					break
+				default:
+					return
+			}
+
+			if (newThreshold !== threshold) {
+				setThreshold(newThreshold)
+				updateSetting("autoCondenseThreshold", newThreshold)
+			}
+		},
+		[threshold, useAutoCondense, setIsOpened],
+	)
+
+	const handleFocus = useCallback(() => {
+		setIsOpened(true)
+	}, [])
+
+	const handleBlur = useCallback(() => {
+		setIsOpened(false)
+	}, [])
+
+	// Close tooltip when clicking outside
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (progressBarRef.current && !progressBarRef.current.contains(event.target as Node)) {
+				setIsOpened(false)
+			}
+		}
+
+		if (isOpened) {
+			document.addEventListener("mousedown", handleClickOutside)
+			return () => document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [isOpened])
+
 	if (!tokenData) {
 		return null
 	}
@@ -154,7 +215,19 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 							isOpen={isOpened}
 							placement="bottom"
 							showArrow={true}>
-							<div className="relative w-full text-badge-foreground context-window-progress brightness-100">
+							<div
+								aria-label="Auto condense threshold"
+								aria-valuemax={100}
+								aria-valuemin={0}
+								aria-valuenow={Math.round(threshold * 100)}
+								aria-valuetext={`${Math.round(threshold * 100)}% threshold`}
+								className="relative w-full text-badge-foreground context-window-progress brightness-100"
+								onBlur={handleBlur}
+								onFocus={handleFocus}
+								onKeyDown={handleKeyDown}
+								ref={progressBarRef}
+								role="slider"
+								tabIndex={useAutoCondense ? 0 : -1}>
 								<Progress
 									aria-label="Context window usage progress"
 									classNames={{
