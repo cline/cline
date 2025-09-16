@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "Otomatik onay yok",
 		"triggerLabel_one": "1 otomatik onaylandı",
 		"triggerLabel_other": "{{count}} otomatik onaylandı",
-		"triggerLabelAll": "YOLO"
+		"triggerLabelAll": "YOLO",
+		"triggerLabelOff": "Otomatik onay kapalı"
 	},
 	"reasoning": {
 		"thinking": "Düşünüyor",

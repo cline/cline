@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "कोई स्वतः-अनुमोदन नहीं",
 		"triggerLabel_one": "1 स्वतः-अनुमोदित",
 		"triggerLabel_other": "{{count}} स्वतः-अनुमोदित",
-		"triggerLabelAll": "योलो"
+		"triggerLabelAll": "योलो",
+		"triggerLabelOff": "स्वतः-अनुमोदन बंद"
 	},
 	"reasoning": {
 		"thinking": "विचार कर रहा है",

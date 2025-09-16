@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "Keine automatische Genehmigung",
 		"triggerLabel_one": "1 automatisch genehmigt",
 		"triggerLabel_other": "{{count}} automatisch genehmigt",
-		"triggerLabelAll": "YOLO"
+		"triggerLabelAll": "YOLO",
+		"triggerLabelOff": "Automatische Genehmigung aus"
 	},
 	"reasoning": {
 		"thinking": "Denke nach",

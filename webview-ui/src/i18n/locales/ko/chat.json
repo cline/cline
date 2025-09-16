@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "자동 승인 없음",
 		"triggerLabel_one": "1개 자동 승인됨",
 		"triggerLabel_other": "{{count}}개 자동 승인됨",
-		"triggerLabelAll": "욜로"
+		"triggerLabelAll": "욜로",
+		"triggerLabelOff": "자동 승인 꺼짐"
 	},
 	"reasoning": {
 		"thinking": "생각 중",

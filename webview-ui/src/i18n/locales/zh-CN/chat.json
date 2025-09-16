@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "无自动批准",
 		"triggerLabel_one": "1 个自动批准",
 		"triggerLabel_other": "{{count}} 个自动批准",
-		"triggerLabelAll": "人生只有一次"
+		"triggerLabelAll": "人生只有一次",
+		"triggerLabelOff": "自动批准已关闭"
 	},
 	"reasoning": {
 		"thinking": "思考中",

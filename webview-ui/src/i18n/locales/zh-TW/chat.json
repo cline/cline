@@ -282,7 +282,8 @@
 		"triggerLabel_zero": "無自動核准",
 		"triggerLabel_one": "1 個自動核准",
 		"triggerLabel_other": "{{count}} 個自動核准",
-		"triggerLabelAll": "人生只有一次"
+		"triggerLabelAll": "人生只有一次",
+		"triggerLabelOff": "自動批准已關閉"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",

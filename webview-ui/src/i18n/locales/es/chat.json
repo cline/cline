@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "Sin aprobación automática",
 		"triggerLabel_one": "1 aprobado automáticamente",
 		"triggerLabel_other": "{{count}} aprobados automáticamente",
-		"triggerLabelAll": "YOLO"
+		"triggerLabelAll": "YOLO",
+		"triggerLabelOff": "Auto-aprobar desactivado"
 	},
 	"reasoning": {
 		"thinking": "Pensando",

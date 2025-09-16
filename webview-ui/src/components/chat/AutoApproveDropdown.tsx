@@ -1,14 +1,15 @@
 import React from "react"
-import { ListChecks, LayoutList, Settings, CheckCheck } from "lucide-react"
+import { ListChecks, LayoutList, Settings, CheckCheck, X } from "lucide-react"
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useRooPortal } from "@/components/ui/hooks/useRooPortal"
-import { Popover, PopoverContent, PopoverTrigger, StandardTooltip } from "@/components/ui"
+import { Popover, PopoverContent, PopoverTrigger, StandardTooltip, ToggleSwitch } from "@/components/ui"
 import { AutoApproveSetting, autoApproveSettingsConfig } from "../settings/AutoApproveToggle"
 import { useAutoApprovalToggles } from "@/hooks/useAutoApprovalToggles"
+import { useAutoApprovalState } from "@/hooks/useAutoApprovalState"
 
 interface AutoApproveDropdownProps {
 	disabled?: boolean
@@ -124,12 +125,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 		Object.keys(autoApproveSettingsConfig).forEach((key) => {
 			onAutoApproveToggle(key as AutoApproveSetting, false)
 		})
-		// Disable master auto-approval
-		if (autoApprovalEnabled) {
-			setAutoApprovalEnabled(false)
-			vscode.postMessage({ type: "autoApprovalEnabled", bool: false })
-		}
-	}, [onAutoApproveToggle, autoApprovalEnabled, setAutoApprovalEnabled])
+	}, [onAutoApproveToggle])
 
 	const handleOpenSettings = React.useCallback(
 		() =>
@@ -137,7 +133,16 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 		[],
 	)
 
+	// Handle the main auto-approval toggle
+	const handleAutoApprovalToggle = React.useCallback(() => {
+		const newValue = !(autoApprovalEnabled ?? false)
+		setAutoApprovalEnabled(newValue)
+		vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
+	}, [autoApprovalEnabled, setAutoApprovalEnabled])
+
 	// Calculate enabled and total counts as separate properties
+	const settingsArray = Object.values(autoApproveSettingsConfig)
+
 	const enabledCount = React.useMemo(() => {
 		return Object.values(toggles).filter((value) => !!value).length
 	}, [toggles])
@@ -146,11 +151,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 		return Object.keys(toggles).length
 	}, [toggles])
 
-	// Split settings into two columns
-	const settingsArray = Object.values(autoApproveSettingsConfig)
-	const halfLength = Math.ceil(settingsArray.length / 2)
-	const firstColumn = settingsArray.slice(0, halfLength)
-	const secondColumn = settingsArray.slice(halfLength)
+	const { effectiveAutoApprovalEnabled } = useAutoApprovalState(toggles, autoApprovalEnabled)
 
 	return (
 		<Popover open={open} onOpenChange={setOpen} data-testid="auto-approve-dropdown-root">
@@ -167,11 +168,18 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							: "opacity-90 hover:opacity-100 hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] cursor-pointer",
 						triggerClassName,
 					)}>
-					<CheckCheck className="size-3 flex-shrink-0" />
+					{!effectiveAutoApprovalEnabled ? (
+						<X className="size-3 flex-shrink-0" />
+					) : (
+						<CheckCheck className="size-3 flex-shrink-0" />
+					)}
+
 					<span className="truncate min-w-0">
-						{enabledCount === totalCount
-							? t("chat:autoApprove.triggerLabelAll")
-							: t("chat:autoApprove.triggerLabel", { count: enabledCount })}
+						{!effectiveAutoApprovalEnabled
+							? t("chat:autoApprove.triggerLabelOff")
+							: enabledCount === totalCount
+								? t("chat:autoApprove.triggerLabelAll")
+								: t("chat:autoApprove.triggerLabel", { count: enabledCount })}
 					</span>
 				</PopoverTrigger>
 			</StandardTooltip>
@@ -179,7 +187,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 				align="start"
 				sideOffset={4}
 				container={portalContainer}
-				className="p-0 overflow-hidden min-w-96 max-w-9/10"
+				className="p-0 overflow-hidden min-w-90 max-w-9/10"
 				onOpenAutoFocus={(e) => e.preventDefault()}>
 				<div className="flex flex-col w-full">
 					{/* Header with description */}
@@ -197,66 +205,32 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							{t("chat:autoApprove.description")}
 						</p>
 					</div>
-
-					{/* Two-column layout for approval options */}
-					<div className="p-3">
-						<div className="grid grid-cols-2 gap-x-4 gap-y-2">
-							{/* First Column */}
-							<div className="space-y-2">
-								{firstColumn.map(({ key, labelKey, descriptionKey, icon }) => {
-									const isEnabled = toggles[key]
-									return (
-										<StandardTooltip key={key} content={t(descriptionKey)}>
-											<button
-												onClick={() => onAutoApproveToggle(key, !isEnabled)}
-												className={cn(
-													"w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left",
-													"transition-all duration-150",
-													"hover:bg-vscode-list-hoverBackground",
-													isEnabled
-														? "bg-vscode-button-background text-vscode-button-foreground"
-														: "bg-transparent text-vscode-foreground opacity-70 hover:opacity-100",
-												)}
-												data-testid={`auto-approve-${key}`}>
-												<span className={`codicon codicon-${icon} text-sm flex-shrink-0`} />
-												<span className="flex-1 truncate">{t(labelKey)}</span>
-												{isEnabled && (
-													<span className="codicon codicon-check text-xs flex-shrink-0" />
-												)}
-											</button>
-										</StandardTooltip>
-									)
-								})}
-							</div>
-
-							{/* Second Column */}
-							<div className="space-y-2">
-								{secondColumn.map(({ key, labelKey, descriptionKey, icon }) => {
-									const isEnabled = toggles[key]
-									return (
-										<StandardTooltip key={key} content={t(descriptionKey)}>
-											<button
-												onClick={() => onAutoApproveToggle(key, !isEnabled)}
-												className={cn(
-													"w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left",
-													"transition-all duration-150",
-													"hover:bg-vscode-list-hoverBackground",
-													isEnabled
-														? "bg-vscode-button-background text-vscode-button-foreground"
-														: "bg-transparent text-vscode-foreground opacity-70 hover:opacity-100",
-												)}
-												data-testid={`auto-approve-${key}`}>
-												<span className={`codicon codicon-${icon} text-sm flex-shrink-0`} />
-												<span className="flex-1 truncate">{t(labelKey)}</span>
-												{isEnabled && (
-													<span className="codicon codicon-check text-xs flex-shrink-0" />
-												)}
-											</button>
-										</StandardTooltip>
-									)
-								})}
-							</div>
-						</div>
+					<div className="grid grid-cols-2 gap-x-2 gap-y-2 p-3">
+						{settingsArray.map(({ key, labelKey, descriptionKey, icon }) => {
+							const isEnabled = toggles[key]
+							return (
+								<StandardTooltip key={key} content={t(descriptionKey)}>
+									<button
+										onClick={() => onAutoApproveToggle(key, !isEnabled)}
+										className={cn(
+											"flex items-center gap-2 px-2 py-2 rounded text-sm text-left",
+											"transition-all duration-150",
+											"opacity-100 hover:opacity-70",
+											"cursor-pointer",
+											!effectiveAutoApprovalEnabled &&
+												"opacity-50 cursor-not-allowed hover:opacity-50",
+											isEnabled
+												? "bg-vscode-button-background text-vscode-button-foreground"
+												: "bg-vscode-button-background/15 text-vscode-foreground hover:bg-vscode-list-hoverBackground",
+										)}
+										disabled={!effectiveAutoApprovalEnabled}
+										data-testid={`auto-approve-${key}`}>
+										<span className={`codicon codicon-${icon} text-sm flex-shrink-0`} />
+										<span className="flex-1 truncate">{t(labelKey)}</span>
+									</button>
+								</StandardTooltip>
+							)
+						})}
 					</div>
 
 					{/* Bottom bar with Select All/None buttons */}
@@ -265,6 +239,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							<button
 								aria-label={t("chat:autoApprove.selectAll")}
 								onClick={handleSelectAll}
+								disabled={!effectiveAutoApprovalEnabled}
 								className={cn(
 									"relative inline-flex items-center justify-center gap-1",
 									"bg-transparent border-none px-2 py-1",
@@ -275,6 +250,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 									"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 									"active:bg-[rgba(255,255,255,0.1)]",
 									"cursor-pointer",
+									!effectiveAutoApprovalEnabled && "opacity-50 hover:opacity-50 cursor-not-allowed",
 								)}>
 								<ListChecks className="w-3.5 h-3.5" />
 								<span>{t("chat:autoApprove.all")}</span>
@@ -282,6 +258,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							<button
 								aria-label={t("chat:autoApprove.selectNone")}
 								onClick={handleSelectNone}
+								disabled={!effectiveAutoApprovalEnabled}
 								className={cn(
 									"relative inline-flex items-center justify-center gap-1",
 									"bg-transparent border-none px-2 py-1",
@@ -292,11 +269,30 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 									"focus:outline-none focus-visible:ring-1 focus-visible:ring-vscode-focusBorder",
 									"active:bg-[rgba(255,255,255,0.1)]",
 									"cursor-pointer",
+									!effectiveAutoApprovalEnabled && "opacity-50 hover:opacity-50 cursor-not-allowed",
 								)}>
 								<LayoutList className="w-3.5 h-3.5" />
 								<span>{t("chat:autoApprove.none")}</span>
 							</button>
 						</div>
+
+						<label
+							className="flex items-center gap-2 pr-2 cursor-pointer"
+							onClick={(e) => {
+								// Prevent label click when clicking on the toggle switch itself
+								if ((e.target as HTMLElement).closest('[role="switch"]')) {
+									e.preventDefault()
+									return
+								}
+								handleAutoApprovalToggle()
+							}}>
+							<ToggleSwitch
+								checked={effectiveAutoApprovalEnabled}
+								aria-label="Toggle auto-approval"
+								onChange={handleAutoApprovalToggle}
+							/>
+							<span className={cn("text-sm font-bold select-none")}>Enabled</span>
+						</label>
 					</div>
 				</div>
 			</PopoverContent>

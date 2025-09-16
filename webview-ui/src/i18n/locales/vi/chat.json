@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "Không có tự động phê duyệt",
 		"triggerLabel_one": "1 được tự động phê duyệt",
 		"triggerLabel_other": "{{count}} được tự động phê duyệt",
-		"triggerLabelAll": "YOLO"
+		"triggerLabelAll": "YOLO",
+		"triggerLabelOff": "Tự động phê duyệt tắt"
 	},
 	"reasoning": {
 		"thinking": "Đang suy nghĩ",

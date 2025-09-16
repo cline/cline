@@ -279,7 +279,8 @@
 		"selectOptionsFirst": "Select at least one option below to enable auto-approval",
 		"toggleAriaLabel": "Toggle auto-approval",
 		"disabledAriaLabel": "Auto-approval disabled - select options first",
-		"triggerLabel_zero": "No auto-approve",
+		"triggerLabelOff": "Auto-approve off",
+		"triggerLabel_zero": "0 auto-approve",
 		"triggerLabel_one": "1 auto-approved",
 		"triggerLabel_other": "{{count}} auto-approved",
 		"triggerLabelAll": "YOLO"

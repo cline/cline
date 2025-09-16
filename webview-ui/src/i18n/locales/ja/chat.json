@@ -258,7 +258,8 @@
 		"triggerLabel_zero": "自動承認なし",
 		"triggerLabel_one": "1件自動承認済み",
 		"triggerLabel_other": "{{count}}件自動承認済み",
-		"triggerLabelAll": "YOLO"
+		"triggerLabelAll": "YOLO",
+		"triggerLabelOff": "自動承認オフ"
 	},
 	"reasoning": {
 		"thinking": "考え中",
