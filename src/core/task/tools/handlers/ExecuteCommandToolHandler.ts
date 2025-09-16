@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
@@ -88,9 +89,6 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			if (commandMatch) {
 				const workspaceHint = commandMatch[1]
 				actualCommand = commandMatch[2].trim()
-
-				// Import inline to avoid auto-formatter issues
-				const { WorkspacePathAdapter } = await import("@core/workspace/WorkspacePathAdapter")
 
 				// Find the workspace root for this hint
 				const adapter = new WorkspacePathAdapter({

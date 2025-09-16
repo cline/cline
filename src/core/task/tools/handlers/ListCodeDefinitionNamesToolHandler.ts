@@ -1,5 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
+import { parseWorkspaceInlinePath } from "@core/workspace/utils/parseWorkspaceInlinePath"
+import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { formatResponse } from "@/core/prompts/responses"
@@ -64,10 +66,6 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		let displayPath: string = relDirPath!
 
 		if (config.isMultiRootEnabled && config.workspaceManager) {
-			// Import inline to avoid auto-formatter issues
-			const { parseWorkspaceInlinePath } = await import("@core/workspace/utils/parseWorkspaceInlinePath")
-			const { WorkspacePathAdapter } = await import("@core/workspace/WorkspacePathAdapter")
-
 			// Parse workspace hint from the path (e.g., @frontend:src/)
 			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relDirPath!)
 

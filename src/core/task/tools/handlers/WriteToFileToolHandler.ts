@@ -3,6 +3,8 @@ import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
+import { parseWorkspaceInlinePath } from "@core/workspace/utils/parseWorkspaceInlinePath"
+import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
@@ -302,10 +304,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		let absolutePath: string
 
 		if (config.isMultiRootEnabled && config.workspaceManager) {
-			// Import inline to avoid auto-formatter issues
-			const { parseWorkspaceInlinePath } = await import("@core/workspace/utils/parseWorkspaceInlinePath")
-			const { WorkspacePathAdapter } = await import("@core/workspace/WorkspacePathAdapter")
-
 			// Parse workspace hint from the path (e.g., @frontend:src/index.ts)
 			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relPath)
 
