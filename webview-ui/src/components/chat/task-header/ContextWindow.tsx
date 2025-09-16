@@ -1,5 +1,6 @@
 import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import debounce from "debounce"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -29,8 +30,8 @@ const ConfirmationDialog = memo<{
 	onConfirm: (e: React.MouseEvent) => void
 	onCancel: (e: React.MouseEvent) => void
 }>(({ onConfirm, onCancel }) => (
-	<div className="text-xs mt-1.5 pb-2 flex items-center gap-0 justify-between">
-		<span className="font-semibold text-xs">Compact the current task?</span>
+	<div className="text-xs my-2 flex items-center gap-0 justify-between">
+		<span className="font-semibold text-sm">Compact the current task?</span>
 		<span className="flex gap-1">
 			<VSCodeButton
 				appearance="secondary"
@@ -79,11 +80,14 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		updateSetting("autoCondenseThreshold", newThreshold)
 	}, [])
 
-	const handleCompactClick = useCallback((e: React.MouseEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		setConfirmationNeeded(true)
-	}, [])
+	const handleCompactClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.preventDefault()
+			e.stopPropagation()
+			setConfirmationNeeded(!confirmationNeeded)
+		},
+		[confirmationNeeded],
+	)
 
 	const handleConfirm = useCallback(
 		(e: React.MouseEvent) => {
@@ -117,15 +121,15 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col my-1.5" onMouseEnter={() => setIsOpened(true)} onMouseLeave={() => setIsOpened(false)}>
+		<div className="flex flex-col my-1.5" onMouseLeave={() => debounce(() => setIsOpened(false), 500)()}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap text-xs">
 					<span className="cursor-pointer" title="Current tokens used in this request">
 						{tokenData.used}
 					</span>
-					<div className="flex relative items-center gap-1 flex-1 w-full h-full">
+					<div className="flex relative items-center gap-1 flex-1 w-full h-full" onMouseEnter={() => setIsOpened(true)}>
 						<Tooltip
-							closeDelay={1000}
+							closeDelay={2000}
 							content={
 								<ContextWindowSummary
 									autoCompactThreshold={threshold}

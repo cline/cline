@@ -1,7 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useMemo } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -56,9 +56,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		useAutoCondense,
 		autoCondenseThreshold,
 		mode,
+		expandTaskHeader: isTaskExpanded,
+		setExpandTaskHeader: setIsTaskExpanded,
 	} = useExtensionState()
-
-	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 
 	// Simplified computed values
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
@@ -72,11 +72,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		(modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio")
 
 	// Event handlers
-	const toggleTaskExpanded = useCallback(() => {
-		setIsTaskExpanded((prev) => {
-			return !prev
-		})
-	}, [])
+	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
 		navigateToSettings()

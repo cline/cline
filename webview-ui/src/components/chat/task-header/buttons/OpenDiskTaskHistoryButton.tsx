@@ -1,6 +1,6 @@
 import { Button } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
-import { DownloadIcon } from "lucide-react"
+import { ArrowRightFromLineIcon } from "lucide-react"
 import { FileServiceClient } from "@/services/grpc-client"
 import { cn } from "@/utils/cn"
 
@@ -23,13 +23,11 @@ const OpenDiskTaskHistoryButton: React.FC<{
 			aria-label="Open Disk Task History"
 			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
 			isIconOnly={true}
-			onPress={(e) => {
-				handleOpenDiskTaskHistory()
-			}}
+			onPress={() => handleOpenDiskTaskHistory()}
 			radius="sm"
 			size="sm"
-			title="Open Disk Task History">
-			<DownloadIcon size="14" />
+			title="Open Task in JSON">
+			<ArrowRightFromLineIcon size="14" />
 		</Button>
 	)
 }

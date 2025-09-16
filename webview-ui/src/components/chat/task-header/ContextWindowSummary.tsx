@@ -27,10 +27,18 @@ interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 	isThresholdFadingOut?: boolean
 }
 
-const InfoRow = memo<{ label: string; value: React.ReactNode }>(({ label, value }) => (
+const InfoRow = memo<{ label: string; value: React.ReactNode; tooltip?: string }>(({ label, value, tooltip }) => (
 	<div className="flex justify-between gap-3">
 		<div className="font-semibold">{label}</div>
-		<div className="text-muted-foreground">{value}</div>
+		<div className="text-muted-foreground">
+			{tooltip ? (
+				<HeroTooltip content={tooltip}>
+					<span>{value}</span>
+				</HeroTooltip>
+			) : (
+				<span>{value}</span>
+			)}
+		</div>
 	</div>
 ))
 InfoRow.displayName = "InfoRow"
@@ -51,7 +59,7 @@ const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWr
 
 	const TokenDetailItem = memo<TokenDetail>(({ title, value, icon }) => (
 		<HeroTooltip content={title} key={`${icon}-${value}`}>
-			<span className="flex items-center gap-0.5 cursor-pointer text-muted-foreground">
+			<span className="flex items-center gap-0.5 text-muted-foreground">
 				<i className={`codicon ${icon} font-semibold `} />
 				{formatTokenNumber(value)}
 			</span>
@@ -121,13 +129,14 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 								"text-success/50 transition-discrete": isThresholdChanged === "up" && !isThresholdFadingOut,
 								"text-error/50 transition-discrete": isThresholdChanged === "down" && !isThresholdFadingOut,
 								"text-muted-foreground transition-all": isThresholdFadingOut,
-							})}>{`${(thresholdDisplay * 100).toFixed(2)}%`}</span>
+							})}>{`${(thresholdDisplay * 100).toFixed(0)}%`}</span>
 					}
 				/>
 			)}
 			<InfoRow
 				label="Context Window"
-				value={percentage ? `${tokenUsed} of ${contextWindow} (${percentage.toFixed(2)}%) used` : contextWindow}
+				tooltip={`${tokenUsed} of ${contextWindow}`}
+				value={percentage ? `${percentage.toFixed(2)}% used` : contextWindow}
 			/>
 			<TokenUsageInfo
 				cacheReads={cacheReads}
