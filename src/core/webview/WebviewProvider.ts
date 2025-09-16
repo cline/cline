@@ -108,12 +108,12 @@ export abstract class WebviewProvider {
 	}
 
 	/**
-	 * Converts a local URI to a webview URI that can be used within the webview.
+	 * Converts a local filesystem path to a URL that can be used within the webview.
 	 *
 	 * @param uri - The local URI to convert
 	 * @returns A URI that can be used within the webview
 	 */
-	abstract getWebviewUri(uri: Uri): Uri
+	abstract getWebviewUri(path: string): Uri
 
 	/**
 	 * Gets the Content Security Policy source for the webview.
@@ -318,6 +318,7 @@ export abstract class WebviewProvider {
 	 * @returns A URI pointing to the file/resource
 	 */
 	private getExtensionUri(...pathList: string[]): Uri {
-		return this.getWebviewUri(Uri.joinPath(this.context.extensionUri, ...pathList))
+		const assetPath = path.resolve(HostProvider.get().extensionFsPath, ...pathList)
+		return this.getWebviewUri(assetPath)
 	}
 }

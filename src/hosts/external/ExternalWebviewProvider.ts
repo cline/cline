@@ -11,11 +11,8 @@ export class ExternalWebviewProvider extends WebviewProvider {
 		super(context, providerType)
 	}
 
-	override getWebviewUri(uri: URI) {
-		if (uri.scheme !== "file") {
-			return uri
-		}
-		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path: uri.fsPath })
+	override getWebviewUri(path: string) {
+		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path })
 	}
 	override getCspSource() {
 		return `'self' https://${this.RESOURCE_HOSTNAME}`
