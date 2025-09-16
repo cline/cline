@@ -18,19 +18,20 @@ type DetectRoots = () => Promise<WorkspaceRoot[]>
 export async function setupWorkspaceManager({
 	stateManager,
 	detectRoots,
+	isMultiRootEnabled,
 }: {
 	stateManager: StateManager
 	historyItem?: HistoryItem
 	detectRoots: DetectRoots
+	isMultiRootEnabled: boolean
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
-	const multiRootEnabled = stateManager.getGlobalStateKey("multiRootEnabled")
 	const startTime = performance.now()
 
 	try {
 		let manager: WorkspaceRootManager
 		// Multi-root mode condition which is always false for now as isMultiRootEnabled is hardcoded to false
-		if (multiRootEnabled) {
+		if (isMultiRootEnabled) {
 			// Multi-root: detect workspace folders
 			const roots = await detectRoots()
 			manager = new WorkspaceRootManager(roots, 0)
