@@ -47,4 +47,9 @@ export const ExtensionRegistryInfo = {
 	publisher,
 	commands: ClineCommands,
 	views: ClineViewIds,
+	extensionLocation: "",
+}
+
+export function initializeExtensionRegistryInfo(extensionLocation: string) {
+	ExtensionRegistryInfo.extensionLocation = extensionLocation
 }

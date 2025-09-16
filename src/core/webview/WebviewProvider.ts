@@ -318,6 +318,10 @@ export abstract class WebviewProvider {
 	 * @returns A URI pointing to the file/resource
 	 */
 	private getExtensionUri(...pathList: string[]): Uri {
-		return this.getWebviewUri(Uri.joinPath(this.context.extensionUri, ...pathList))
+		const uri = Uri.joinPath(this.context.extensionUri, ...pathList)
+		const res = this.getWebviewUri(uri)
+		console.log("sjfsjfsjf uri", uri.toString())
+		console.log("sjfsjfsjf res", res.toString())
+		return res
 	}
 }

@@ -8,6 +8,7 @@ import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { initializeExtensionRegistryInfo } from "@/registry"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
@@ -16,13 +17,9 @@ import { extensionContext } from "./vscode-context"
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
-	try {
-		await waitForHostBridgeReady()
-		log("HostBridge is serving; continuing startup")
-	} catch (err) {
-		log(`ERROR: HostBridge error: ${String(err)}`)
-		process.exit(1)
-	}
+	await waitForHostBridgeReady()
+
+	initializeExtensionRegistryInfo()
 
 	setupHostProvider()
 
