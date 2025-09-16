@@ -1,14 +1,14 @@
-import { mkdirSync, readFileSync } from "fs"
+import { mkdirSync } from "node:fs"
 import os from "os"
-import path, { join } from "path"
+import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
+import { ExtensionRegistryInfo } from "@/registry"
 import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
-export const { version, name, publisher } = getPackageInfo()
-log("Running standalone cline", version)
+log("Running standalone cline", ExtensionRegistryInfo.version)
 
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
@@ -23,7 +23,7 @@ export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {
-	id: `${publisher}.${name}`,
+	id: ExtensionRegistryInfo.id,
 	isActive: true,
 	extensionPath: EXTENSION_DIR,
 	extensionUri: URI.file(EXTENSION_DIR),
@@ -61,11 +61,6 @@ const extensionContext: ExtensionContext = {
 
 	// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
 	workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
-}
-
-function getPackageInfo() {
-	const packageJson = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"))
-	return { version: packageJson.version, name: packageJson.name, publisher: packageJson.publisher }
 }
 
 console.log("Finished loading vscode context...")
