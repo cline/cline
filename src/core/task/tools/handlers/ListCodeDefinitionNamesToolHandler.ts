@@ -58,14 +58,47 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		let absolutePath: string
+		let displayPath: string = relDirPath!
+
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			// Import inline to avoid auto-formatter issues
+			const { parseWorkspaceInlinePath } = await import("@core/workspace/utils/parseWorkspaceInlinePath")
+			const { WorkspacePathAdapter } = await import("@core/workspace/WorkspacePathAdapter")
+
+			// Parse workspace hint from the path (e.g., @frontend:src/)
+			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relDirPath!)
+
+			// Create adapter for multi-workspace path resolution
+			const adapter = new WorkspacePathAdapter({
+				cwd: config.cwd,
+				isMultiRootEnabled: true,
+				workspaceManager: config.workspaceManager,
+			})
+
+			// Resolve to the correct workspace root
+			absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
+
+			// Update display path for better user feedback
+			if (workspaceHint) {
+				displayPath = `@${workspaceHint}:${parsedPath}`
+			} else {
+				displayPath = parsedPath
+			}
+		} else {
+			// Fallback to single-workspace behavior
+			absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+		}
+
 		// Execute the actual parse source code operation
 		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
-			path: getReadablePath(config.cwd, relDirPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}
