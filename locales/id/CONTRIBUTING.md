@@ -13,16 +13,16 @@
 
 # Berkontribusi pada Roo Code
 
-Roo Code adalah proyek yang didorong oleh komunitas, dan kami sangat menghargai setiap kontribusi. Untuk memperlancar kolaborasi, kami beroperasi berdasarkan pendekatan [Issue-First](#issue-first-approach), yang berarti semua [Pull Request (PR)](#submitting-a-pull-request) harus terlebih dahulu ditautkan ke GitHub Issue. Harap tinjau panduan ini dengan cermat.
+Roo Code adalah proyek yang digerakkan oleh komunitas, dan kami sangat menghargai setiap kontribusi. Untuk menyederhanakan kolaborasi, kami beroperasi dengan dasar [Pendekatan Masalah-Dulu](#pendekatan-masalah-dulu), yang berarti semua [Pull Request (PR)](#mengajukan-pull-request) harus terlebih dahulu ditautkan ke Masalah GitHub. Harap tinjau panduan ini dengan cermat.
 
 ## Daftar Isi
 
-- [Sebelum Kamu Berkontribusi](#before-you-contribute)
-- [Mencari & Merencanakan Kontribusi Kamu](#finding--planning-your-contribution)
-- [Proses Pengembangan & Pengiriman](#development--submission-process)
-- [Legal](#legal)
+- [Sebelum Anda Berkontribusi](#sebelum-anda-berkontribusi)
+- [Menemukan & Merencanakan Kontribusi Anda](#menemukan--merencanakan-kontribusi-anda)
+- [Proses Pengembangan & Pengajuan](#proses-pengembangan--pengajuan)
+- [Hukum](#hukum)
 
-## Sebelum Kamu Berkontribusi
+## Sebelum Anda Berkontribusi
 
 ### 1. Kode Etik
 
@@ -30,34 +30,34 @@ Semua kontributor harus mematuhi [Kode Etik](./CODE_OF_CONDUCT.md) kami.
 
 ### 2. Peta Jalan Proyek
 
-Peta jalan kami memandu arah proyek. Selaraskan kontribusi kamu dengan tujuan utama ini:
+Peta jalan kami memandu arah proyek. Sejajarkan kontribusi Anda dengan tujuan-tujuan utama ini:
 
 ### Keandalan Utama
 
-- Pastikan pengeditan diff dan eksekusi perintah secara konsisten dapat diandalkan.
+- Pastikan pengeditan diff dan eksekusi perintah secara konsisten andal.
 - Kurangi titik gesekan yang menghalangi penggunaan rutin.
-- Jamin operasi yang lancar di semua lokal dan platform.
+- Jamin kelancaran operasi di semua lokal dan platform.
 - Perluas dukungan yang kuat untuk berbagai penyedia dan model AI.
 
 ### Pengalaman Pengguna yang Ditingkatkan
 
 - Sederhanakan UI/UX untuk kejelasan dan intuitivitas.
-- Terus tingkatkan alur kerja untuk memenuhi ekspektasi tinggi yang dimiliki developer terhadap tools penggunaan sehari-hari.
+- Terus tingkatkan alur kerja untuk memenuhi harapan tinggi yang dimiliki pengembang untuk alat yang digunakan sehari-hari.
 
-### Memimpin dalam Performa Agen
+### Memimpin dalam Kinerja Agen
 
-- Tetapkan benchmark evaluasi komprehensif (evals) untuk mengukur produktivitas dunia nyata.
-- Permudah semua orang untuk menjalankan dan menafsirkan evals ini.
-- Kirimkan perbaikan yang menunjukkan peningkatan jelas dalam skor eval.
+- Tetapkan tolok ukur evaluasi (eval) yang komprehensif untuk mengukur produktivitas dunia nyata.
+- Permudah semua orang untuk menjalankan dan menafsirkan eval ini dengan mudah.
+- Kirimkan perbaikan yang menunjukkan peningkatan yang jelas dalam skor eval.
 
-Sebutkan keselarasan dengan area ini di PR kamu.
+Sebutkan keselarasan dengan area-area ini di PR Anda.
 
-### 3. Bergabung dengan Komunitas Roo Code
+### 3. Bergabunglah dengan Komunitas Roo Code
 
-- **Utama:** Bergabunglah dengan [Discord](https://discord.gg/roocode) kami dan DM **Hannes Rudolph (`hrudolph`)**.
-- **Alternatif:** Kontributor berpengalaman dapat berinteraksi langsung melalui [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
+- **Utama:** Bergabunglah dengan [Discord](https://discord.gg/roocode) kami dan kirim DM ke **Hannes Rudolph (`hrudolph`)**.
+- **Alternatif:** Kontributor berpengalaman dapat terlibat langsung melalui [Proyek GitHub](https://github.com/orgs/RooCodeInc/projects/1).
 
-## Mencari & Merencanakan Kontribusi Kamu
+## Menemukan & Merencanakan Kontribusi Anda
 
 ### Jenis Kontribusi
 
@@ -65,40 +65,42 @@ Sebutkan keselarasan dengan area ini di PR kamu.
 - **Fitur Baru:** Menambahkan fungsionalitas.
 - **Dokumentasi:** Meningkatkan panduan dan kejelasan.
 
-### Pendekatan Issue-First
+### Pendekatan Masalah-Dulu
 
-Semua kontribusi harus dimulai dengan GitHub Issue.
+Semua kontribusi dimulai dengan Masalah GitHub menggunakan template ramping kami.
 
-- **Periksa isu yang ada**: Cari di [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
-- **Buat isu**: Gunakan template yang sesuai:
-    - **Bug:** Template "Bug Report".
-    - **Fitur:** Template "Detailed Feature Proposal". Persetujuan diperlukan sebelum memulai.
-- **Klaim isu**: Beri komentar dan tunggu penugasan resmi.
-
-**PR tanpa isu yang disetujui dapat ditutup.**
+- **Periksa masalah yang ada**: Cari di [Masalah GitHub](https://github.com/RooCodeInc/Roo-Code/issues).
+- **Buat masalah** menggunakan:
+    - **Penyempurnaan:** Template "Permintaan Penyempurnaan" (bahasa sederhana yang berfokus pada manfaat pengguna).
+    - **Bug:** Template "Laporan Bug" (repro minimal + yang diharapkan vs aktual + versi).
+- **Ingin mengerjakannya?** Beri komentar "Mengklaim" pada masalah tersebut dan kirim DM ke **Hannes Rudolph (`hrudolph`)** di [Discord](https://discord.gg/roocode) untuk ditugaskan. Penugasan akan dikonfirmasi di utas.
+- **PR harus menautkan ke masalah.** PR yang tidak tertaut dapat ditutup.
 
 ### Memutuskan Apa yang Akan Dikerjakan
 
-- Periksa [GitHub Project](https://github.com/orgs/RooCodeInc/projects/1) untuk "Good First Issues" yang belum ditugaskan.
-- Untuk dokumen, kunjungi [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
+- Periksa [Proyek GitHub](https://github.com/orgs/RooCodeInc/projects/1) untuk masalah "Masalah [Belum Ditugaskan]".
+- Untuk dokumentasi, kunjungi [Dokumentasi Roo Code](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Melaporkan Bug
 
 - Periksa laporan yang ada terlebih dahulu.
-- Buat bug baru menggunakan ["Bug Report" template](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
-- **Masalah keamanan**: Laporkan secara pribadi melalui [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
+- Buat bug baru menggunakan [template "Laporan Bug"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose) dengan:
+    - Langkah-langkah reproduksi yang jelas dan bernomor
+    - Hasil yang diharapkan vs aktual
+    - Versi Roo Code (wajib); penyedia/model API jika relevan
+- **Masalah keamanan**: Laporkan secara pribadi melalui [saran keamanan](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
-## Proses Pengembangan & Pengiriman
+## Proses Pengembangan & Pengajuan
 
-### Setup Pengembangan
+### Pengaturan Pengembangan
 
-1. **Fork & Clone:**
+1. **Fork & Klon:**
 
 ```
-git clone https://github.com/YOUR_USERNAME/Roo-Code.git
+git clone https://github.com/NAMA_PENGGUNA_ANDA/Roo-Code.git
 ```
 
-2. **Install Dependencies:**
+2. **Instal Ketergantungan:**
 
 ```
 pnpm install
@@ -106,33 +108,34 @@ pnpm install
 
 3. **Debugging:** Buka dengan VS Code (`F5`).
 
-### Panduan Menulis Kode
+### Pedoman Menulis Kode
 
-- Satu PR yang fokus per fitur atau perbaikan.
+- Satu PR terfokus per fitur atau perbaikan.
 - Ikuti praktik terbaik ESLint dan TypeScript.
-- Tulis commit yang jelas dan deskriptif yang merujuk pada isu (misalnya, `Fixes #123`).
+- Tulis komitmen yang jelas dan deskriptif yang merujuk pada masalah (mis., `Memperbaiki #123`).
 - Sediakan pengujian menyeluruh (`npm test`).
-- Rebase ke branch `main` terbaru sebelum pengiriman.
+- Rebase ke cabang `main` terbaru sebelum pengajuan.
 
-### Mengirimkan Pull Request
+### Mengajukan Pull Request
 
-- Mulai sebagai **Draft PR** jika mencari feedback awal.
-- Jelaskan perubahan kamu dengan jelas mengikuti Template Pull Request.
-- Sediakan screenshot/video untuk perubahan UI.
+- Mulailah sebagai **PR Draf** jika mencari umpan balik awal.
+- Jelaskan perubahan Anda dengan jelas mengikuti Templat Pull Request.
+- Tautkan masalah di deskripsi/judul PR (mis., "Memperbaiki #123").
+- Sediakan tangkapan layar/video untuk perubahan UI.
 - Tunjukkan jika pembaruan dokumentasi diperlukan.
 
 ### Kebijakan Pull Request
 
-- Harus merujuk pada isu yang telah disetujui dan ditugaskan sebelumnya.
-- PR tanpa kepatuhan terhadap kebijakan dapat ditutup.
+- Harus merujuk pada Masalah GitHub yang ditugaskan. Untuk ditugaskan: beri komentar "Mengklaim" pada masalah tersebut dan kirim DM ke **Hannes Rudolph (`hrudolph`)** di [Discord](https://discord.gg/roocode). Penugasan akan dikonfirmasi di utas.
+- PR yang tidak tertaut dapat ditutup.
 - PR harus lulus tes CI, selaras dengan peta jalan, dan memiliki dokumentasi yang jelas.
 
-### Proses Review
+### Proses Peninjauan
 
-- **Triage Harian:** Pemeriksaan cepat oleh maintainer.
-- **Review Mendalam Mingguan:** Penilaian komprehensif.
-- **Iterasi segera** berdasarkan feedback.
+- **Triase Harian:** Pemeriksaan cepat oleh pengelola.
+- **Tinjauan Mendalam Mingguan:** Penilaian komprehensif.
+- **Iterasi dengan cepat** berdasarkan umpan balik.
 
-## Legal
+## Hukum
 
-Dengan berkontribusi, kamu setuju kontribusi kamu akan dilisensikan di bawah Lisensi Apache 2.0, konsisten dengan lisensi Roo Code.
+Dengan berkontribusi, Anda setuju bahwa kontribusi Anda akan dilisensikan di bawah Lisensi Apache 2.0, sesuai dengan lisensi Roo Code.

@@ -1,12 +1,66 @@
 name: Bug Report
-description: Clearly report a bug with detailed repro steps
+description: Report a broken behavior in plain language with a minimal reproduction
 labels: ["bug"]
+title: "[BUG] "
 body:
   - type: markdown
     attributes:
       value: |
-        **Thanks for your report!** Please check existing issues first:  
-        👉 https://github.com/RooCodeInc/Roo-Code/issues
+        Thank you for your report! Please search existing issues first:
+        https://github.com/RooCodeInc/Roo-Code/issues
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem (one or two sentences)
+      description: Describe what went wrong in plain language.
+      placeholder: 'Example: "Expected the task to start, but nothing happened and no message appeared."'
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context (who is affected and when)
+      description: Who sees this and in what situation? Keep it non-technical.
+      placeholder: 'Example: "Happens to new users when starting a run from the New Run page with dark theme enabled."'
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide clear, numbered steps so we can reproduce.
+      placeholder: |
+        1) Environment/setup (OS, extension version, relevant settings)
+        2) Exact actions (clicks, inputs, commands)
+        3) What you observed after each step
+    validations:
+      required: true
+
+  - type: input
+    id: expected
+    attributes:
+      label: Expected result
+      placeholder: e.g., "The task starts and shows progress."
+    validations:
+      required: true
+
+  - type: input
+    id: actual
+    attributes:
+      label: Actual result
+      placeholder: e.g., "The button appears disabled and no progress is shown."
+    validations:
+      required: true
+
+  - type: textarea
+    id: variations
+    attributes:
+      label: Variations tried (optional)
+      description: Different browsers, devices, providers, or settings you tried.
+      placeholder: e.g., "Tried Chrome/Firefox, disabling dark theme, switching providers."
 
   - type: input
     id: version
@@ -19,7 +73,7 @@ body:
   - type: dropdown
     id: provider
     attributes:
-      label: API Provider
+      label: API Provider (optional)
       options:
         - Anthropic
         - AWS Bedrock
@@ -45,57 +99,23 @@ body:
         - VS Code Language Model API
         - xAI (Grok)
         - Not Applicable / Other
-    validations:
-      required: true
 
   - type: input
     id: model
     attributes:
-      label: Model Used
+      label: Model Used (optional)
       description: Exact model name (e.g., Claude 3.7 Sonnet). Use N/A if irrelevant.
-    validations:
-      required: true
 
   - type: textarea
     id: roo-code-tasks
     attributes:
-      label: Roo Code Task Links (Optional)
-      description: |
-        If you have any publicly shared task links that demonstrate the issue, please paste them here.
-        This helps maintainers understand the context.
-        Example: https://app.roocode.com/share/task-id
+      label: Roo Code Task Links (optional)
+      description: If you have any publicly shared Roo Code task links that demonstrate the issue, paste them here.
       placeholder: Paste your Roo Code share links here, one per line
-
-  - type: textarea
-    id: steps
-    attributes:
-      label: 🔁 Steps to Reproduce
-      description: |
-        Help us see what you saw. Give clear, numbered steps:
-
-        1. Setup (OS, extension version, settings)
-        2. Exact actions (clicks, input, files, commands)
-        3. What happened after each step
-
-        Think like you're writing a recipe. Without this, we can't reproduce the issue.
-    validations:
-      required: true
-
-  - type: textarea
-    id: what-happened
-    attributes:
-      label: 💥 Outcome Summary
-      description: |
-        Recap what went wrong in one or two lines.
-
-        Example: "Expected code to run, but got an empty response and no error."
-      placeholder: Expected ___, but got ___.
-    validations:
-      required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: 📄 Relevant Logs or Errors (Optional)
-      description: Paste API logs, terminal output, or errors here. Use triple backticks (```) for code formatting.
+      label: Relevant logs or errors (optional)
+      description: Paste relevant output or errors. Use triple backticks (```) for formatting.
       render: shell

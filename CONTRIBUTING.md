@@ -67,25 +67,27 @@ Mention alignment with these areas in your PRs.
 
 ### Issue-First Approach
 
-All contributions must begin with a GitHub Issue.
+All contributions start with a GitHub Issue using our skinny templates.
 
 - **Check existing issues**: Search [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
-- **Create an issue**: Use appropriate templates:
-    - **Bugs:** "Bug Report" template.
-    - **Features:** "Detailed Feature Proposal" template. Approval required before starting.
-- **Claim issues**: Comment and await official assignment.
-
-**PRs without approved issues may be closed.**
+- **Create an issue** using:
+    - **Enhancements:** "Enhancement Request" template (plain language focused on user benefit).
+    - **Bugs:** "Bug Report" template (minimal repro + expected vs actual + version).
+- **Want to work on it?** Comment "Claiming" on the issue and DM **Hannes Rudolph (`hrudolph`)** on [Discord](https://discord.gg/roocode) to get assigned. Assignment will be confirmed in the thread.
+- **PRs must link to the issue.** Unlinked PRs may be closed.
 
 ### Deciding What to Work On
 
-- Check the [GitHub Project](https://github.com/orgs/RooCodeInc/projects/1) for unassigned "Good First Issues."
+- Check the [GitHub Project](https://github.com/orgs/RooCodeInc/projects/1) for "Issue [Unassigned]" issues.
 - For docs, visit [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Reporting Bugs
 
 - Check for existing reports first.
-- Create new bugs using the ["Bug Report" template](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- Create a new bug using the ["Bug Report" template](https://github.com/RooCodeInc/Roo-Code/issues/new/choose) with:
+    - Clear, numbered reproduction steps
+    - Expected vs actual result
+    - Roo Code version (required); API provider/model if relevant
 - **Security issues**: Report privately via [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Development & Submission Process
@@ -118,13 +120,14 @@ pnpm install
 
 - Begin as a **Draft PR** if seeking early feedback.
 - Clearly describe your changes following the Pull Request Template.
+- Link the issue in the PR description/title (e.g., "Fixes #123").
 - Provide screenshots/videos for UI changes.
 - Indicate if documentation updates are necessary.
 
 ### Pull Request Policy
 
-- Must reference pre-approved, assigned issues.
-- PRs without adherence to the policy may be closed.
+- Must reference an assigned GitHub Issue. To get assigned: comment "Claiming" on the issue and DM **Hannes Rudolph (`hrudolph`)** on [Discord](https://discord.gg/roocode). Assignment will be confirmed in the thread.
+- Unlinked PRs may be closed.
 - PRs should pass CI tests, align with the roadmap, and have clear documentation.
 
 ### Review Process

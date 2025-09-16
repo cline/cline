@@ -1,71 +1,47 @@
-name: Detailed Feature Proposal
-description: Report a specific problem that needs solving in Roo Code
-labels: ["proposal", "enhancement"]
+name: Enhancement Request
+description: Propose an improvement in plain language focused on user benefit
+labels: ["enhancement"]
+title: "[ENHANCEMENT] "
 body:
   - type: markdown
     attributes:
       value: |
-        **Thank you for submitting a feature request for Roo Code!**
-        
-        This template helps you describe problems that need solving. Focus on the problem - the Roo team will work to design solutions unless you want to contribute the implementation yourself.
-        
-        **Quality over speed:** We prefer detailed, clear problem descriptions over quick ones. Vague requests often get closed or require multiple rounds of clarification, which wastes everyone's time.
-        
-        **Before submitting:**
-        - Search existing [Issues](https://github.com/RooCodeInc/Roo-Code/issues) and [Discussions](https://github.com/RooCodeInc/Roo-Code/discussions) to avoid duplicates
-        - For general ideas, use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests) instead of this template.
-
-  - type: markdown
-    attributes:
-      value: |
-        ## ❌ Common mistakes that lead to request rejection:
-        - **Vague problem descriptions:** "UI is bad" -> Should be: "Submit button is invisible on dark theme"
-        - **Missing user impact:** "This would be cool" -> Should explain who benefits and how
-        - **No specific context:** Describe exactly when and how the problem occurs
-
+        Thank you for helping improve Roo Code!
+        Please focus on the problem and the desired behavior in plain language.
 
   - type: textarea
-    id: problem-description
+    id: problem
     attributes:
-      label: What specific problem does this solve?
-      description: |
-        **Be concrete and detailed.** Explain the problem from a user's perspective.
-        
-        ✅ **Good examples (specific, clear impact):**
-        - "When running large tasks, users wait 5+ minutes because tasks execute sequentially instead of in parallel, blocking productivity"
-        - "AI can only read one file per request, forcing users to make multiple requests for multi-file projects, increasing wait time from 30s to 5+ minutes"
-        - "Dark theme users can't see the submit button because it uses white text on light grey background"
-        
-        ❌ **Poor examples (vague, unclear impact):**
-        - "The UI looks weird" -> What specifically looks weird? On which screen? What's the impact?
-        - "System prompt is not good" -> What's wrong with it? What behaviour does it cause? What should it do instead?
-        - "Performance could be better" -> Where? How slow is it currently? What's the user impact?
-        
-        **Your problem description should answer:**
-        - Who is affected? (all users, specific user types, etc.)
-        - When does this happen? (specific scenarios/steps)
-        - What's the current behaviour vs expected behaviour?
-        - What's the impact? (time wasted, errors caused, etc.)
-      placeholder: Be specific about the problem, who it affects, and the impact. Avoid generic statements like "it's slow" or "it's confusing."
+      label: Problem (one or two sentences)
+      description: What problem are users facing?
+      placeholder: e.g., "Users often click Copy Run by mistake and duplicate runs unintentionally."
     validations:
       required: true
 
+  - type: textarea
+    id: context
+    attributes:
+      label: Context (who is affected and when)
+      description: Who encounters this and in what situation?
+      placeholder: e.g., "Happens when browsing the Runs list; most visible for new users."
+    validations:
+      required: true
 
   - type: textarea
-    id: additional-context
+    id: desired
     attributes:
-      label: Additional context (optional)
-      description: Mockups, screenshots, links, user quotes, or other relevant information that supports your proposal.
+      label: Desired behavior (conceptual, not technical)
+      description: Describe what should happen in simple terms.
+      placeholder: e.g., "Ask for confirmation before copying a run."
+    validations:
+      required: true
 
   - type: textarea
-    id: roo-code-tasks
+    id: constraints
     attributes:
-      label: Roo Code Task Links (Optional)
-      description: |
-        If you used Roo Code to explore this feature request or develop solutions, share the public task links here.
-        This helps maintainers understand the context and any exploration you've done.
-        Example: https://app.roocode.com/share/task-id
-      placeholder: Paste your Roo Code share links here, one per line
+      label: Constraints / preferences (optional)
+      description: Any considerations like performance, accessibility, or UX expectations.
+      placeholder: e.g., "Keep it quick and unobtrusive; keyboard accessible."
 
   - type: checkboxes
     id: checklist
@@ -74,128 +50,42 @@ body:
       options:
         - label: I've searched existing Issues and Discussions for duplicates
           required: true
-        - label: This describes a specific problem with clear impact and context
+        - label: This describes a specific problem with clear context and impact
           required: true
+
+  - type: textarea
+    id: roo-code-tasks
+    attributes:
+      label: Roo Code Task Links (optional)
+      description: If you explored this with Roo Code, share public task links for context.
+      placeholder: Paste your Roo Code share links here, one per line
 
   - type: markdown
     attributes:
       value: |
         ---
-        
-        ## 🛠️ **Optional: Contributing & Technical Analysis**
-        
-        **🎯 Just reporting a problem?** You can click "Submit new issue" right now! The sections below are only needed if you want to contribute a solution via pull request.
-        
-        **⚠️ Only continue if you want to:**
-        - Propose a specific solution design
-        - Implement the feature yourself via pull request
-        - Provide technical analysis to help with implementation
-        
-        **For contributors who continue:**
-        - A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until approved and assigned.** We're a small team with limited resources, so every code addition needs careful consideration. We're always happy to receive clear, actionable proposals though!
-        - Join [Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`) for guidance on implementation
-        - Check our [Roadmap](https://github.com/orgs/RooCodeInc/projects/1/views/1?query=sort%3Aupdated-desc+is%3Aopen&filterQuery=is%3Aissue%2Copen%2Cclosed+label%3A%22feature+request%22+status%3A%22Issue+%5BUnassigned%5D%22%2C%22Issue+%5BIn+Progress%5D%22) to see open feature requests ready to be implemented or currently being worked on
-
-  - type: checkboxes
-    id: willingness-to-contribute
-    attributes:
-      label: Interested in implementing this?
-      description: |
-        **Important:** If you check "Yes" below, the technical sections become REQUIRED.
-        We need detailed technical analysis from contributors to ensure quality implementation.
-      options:
-        - label: Yes, I'd like to help implement this feature
-          required: false
-
-  - type: checkboxes
-    id: implementation-approval
-    attributes:
-      label: Implementation requirements
-      options:
-        - label: I understand this needs approval before implementation begins
-          required: false
-
-  - type: textarea
-    id: proposed-solution
-    attributes:
-      label: How should this be solved? (REQUIRED if contributing, optional otherwise)
-      description: |
-        **If you want to implement this feature, this section is REQUIRED.**
-        
-        **Describe your solution in detail.** Explain not just what to build, but how it should work.
-        
-        ✅ **Good examples:**
-        - "Add parallel task execution: Allow up to 3 tasks to run simultaneously with a queue system for additional tasks. Show progress for each active task in the UI."
-        - "Enable multi-file AI processing: Modify the request handler to accept multiple files in a single request and process them together, reducing round trips."
-        - "Fix button contrast: Change submit button to use primary colour on dark theme (white text on blue background) instead of current grey."
-        
-        ❌ **Poor examples:**
-        - "Make it faster" -> How? What specific changes?
-        - "Improve the UI" -> Which part? What specific improvements?
-        - "Fix the prompt" -> What should the new prompt do differently?
-        
-        **Your solution should explain:**
-        - What exactly will change?
-        - How will users interact with it?
-        - What will the new behaviour look like?
-      placeholder: Describe the specific changes and how they will work. Include user interaction details if relevant.
+        Optional (for contributors): You can stop here if you're just proposing the improvement.
 
   - type: textarea
     id: acceptance-criteria
     attributes:
-      label: How will we know it works? (Acceptance Criteria - REQUIRED if contributing, optional otherwise)
-      description: |
-        **If you want to implement this feature, this section is REQUIRED.**
-        
-        **This is crucial - don't skip it.** Define what "working" looks like with specific, testable criteria.
-        
-        **Format suggestion:**
-        ```
-        Given [context/situation]
+      label: Acceptance criteria (optional)
+      description: Define what “working” looks like with specific, testable outcomes.
+      placeholder: |
+        Given [context]
         When [user action]
         Then [expected result]
         And [additional expectations]
         But [what should NOT happen]
-        ```
-        
-        **Example:**
-        ```
-        Given I have 5 large tasks to run
-        When I start all of them
-        Then they execute in parallel (max 3 at once, can be configured)
-        And I see progress for each active task
-        And queued tasks show "waiting" status
-        But the UI doesn't freeze or become unresponsive
-        ```
-      placeholder: |
-        Define specific, testable criteria. What should users be able to do? What should happen? What should NOT happen?
-        Use the Given/When/Then format above or your own clear structure.
 
   - type: textarea
-    id: technical-considerations
+    id: proposed-solution
     attributes:
-      label: Technical considerations (REQUIRED if contributing, optional otherwise)
-      description: |
-        **If you want to implement this feature, this section is REQUIRED.**
-        
-        Share technical insights that could help planning:
-        - Implementation approach or architecture changes
-        - Performance implications
-        - Compatibility concerns
-        - Systems that might be affected
-        - Potential blockers you can foresee
-      placeholder: e.g., "Will need to refactor task manager", "Could impact memory usage on large files", "Requires a large portion of code to be rewritten"
+      label: Proposed approach (optional)
+      description: If you have an idea, describe it briefly in plain language.
 
   - type: textarea
-    id: trade-offs-and-risks
+    id: risks
     attributes:
-      label: Trade-offs and risks (REQUIRED if contributing, optional otherwise)
-      description: |
-        **If you want to implement this feature, this section is REQUIRED.**
-        
-        What could go wrong or what alternatives did you consider?
-        - Alternative approaches and why you chose this one
-        - Potential negative impacts (performance, UX, etc.)
-        - Breaking changes or migration concerns
-        - Edge cases that need careful handling
-      placeholder: 'e.g., "Alternative: use library X but it is 500KB larger", "Risk: might slow older devices", "Breaking: changes API response format"'
+      label: Trade-offs / risks (optional)
+      description: Potential downsides or alternatives considered.

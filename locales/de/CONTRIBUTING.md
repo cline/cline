@@ -13,13 +13,13 @@
 
 # Beitrag zu Roo Code
 
-Roo Code ist ein Community-getriebenes Projekt, und wir schätzen jeden Beitrag sehr. Für eine reibungslose Zusammenarbeit arbeiten wir nach dem [Issue-First-Ansatz](#issue-first-ansatz), was bedeutet, dass alle [Pull Requests (PRs)](#einen-pull-request-einreichen) zuerst mit einem GitHub Issue verknüpft werden müssen. Bitte lies diesen Leitfaden sorgfältig durch.
+Roo Code ist ein von der Community getragenes Projekt, und wir schätzen jeden Beitrag sehr. Um die Zusammenarbeit zu optimieren, arbeiten wir nach dem [Issue-First-Ansatz](#issue-first-ansatz), was bedeutet, dass alle [Pull Requests (PRs)](#einen-pull-request-einreichen) zuerst mit einem GitHub-Issue verknüpft sein müssen. Bitte lies diesen Leitfaden sorgfältig durch.
 
 ## Inhaltsverzeichnis
 
 - [Bevor du beiträgst](#bevor-du-beiträgst)
-- [Beitrag finden & planen](#beitrag-finden--planen)
-- [Entwicklung & Einreichung](#entwicklung--einreichung)
+- [Deinen Beitrag finden und planen](#deinen-beitrag-finden-und-planen)
+- [Entwicklungs- und Einreichungsprozess](#entwicklungs-und-einreichungsprozess)
 - [Rechtliches](#rechtliches)
 
 ## Bevor du beiträgst
@@ -30,109 +30,112 @@ Alle Mitwirkenden müssen sich an unseren [Verhaltenskodex](./CODE_OF_CONDUCT.md
 
 ### 2. Projekt-Roadmap
 
-Unsere Roadmap gibt die Richtung des Projekts vor. Richte deine Beiträge an diesen Schlüsselzielen aus:
+Unsere Roadmap gibt die Richtung des Projekts vor. Richte deine Beiträge an diesen Hauptzielen aus:
 
 ### Zuverlässigkeit an erster Stelle
 
-- Sicherstellen, dass Diff-Bearbeitung und Befehlsausführung durchgängig zuverlässig sind.
-- Reibungspunkte reduzieren, die von der regelmäßigen Nutzung abhalten.
-- Reibungslosen Betrieb in allen Sprachen und auf allen Plattformen garantieren.
-- Robuste Unterstützung für eine Vielzahl von KI-Anbietern und -Modellen ausbauen.
+- Stelle sicher, dass die Diff-Bearbeitung und die Befehlsausführung durchweg zuverlässig sind.
+- Reduziere Reibungspunkte, die von der regelmäßigen Nutzung abhalten.
+- Gewährleiste einen reibungslosen Betrieb in allen Gebietsschemata und auf allen Plattformen.
+- Erweitere die robuste Unterstützung für eine Vielzahl von KI-Anbietern und -Modellen.
 
 ### Verbesserte Benutzererfahrung
 
-- Die Benutzeroberfläche für mehr Klarheit und Intuitivität optimieren.
-- Den Workflow kontinuierlich verbessern, um den hohen Erwartungen gerecht zu werden, die Entwickler an täglich genutzte Tools stellen.
+- Optimiere die UI/UX für Klarheit und Intuitivität.
+- Verbessere kontinuierlich den Arbeitsablauf, um den hohen Erwartungen gerecht zu werden, die Entwickler an täglich genutzte Werkzeuge haben.
 
-### Führend bei der Agentenleistung
+### Führend in der Agentenleistung
 
-- Umfassende Evaluierungsmaßstäbe (Evals) etablieren, um die Produktivität in der realen Welt zu messen.
-- Es für jeden einfach machen, diese Evals durchzuführen und zu interpretieren.
-- Verbesserungen liefern, die klare Steigerungen der Eval-Ergebnisse zeigen.
+- Etabliere umfassende Bewertungsmaßstäbe (evals), um die Produktivität in der Praxis zu messen.
+- Mache es für jeden einfach, diese Bewertungen auszuführen und zu interpretieren.
+- Liefere Verbesserungen, die klare Steigerungen der Bewertungsergebnisse zeigen.
 
-Erwähne die Ausrichtung an diesen Bereichen in deinen PRs.
+Erwähne die Ausrichtung auf diese Bereiche in deinen PRs.
 
-### 3. Werde Teil der Roo Code Community
+### 3. Tritt der Roo Code Community bei
 
-- **Hauptweg:** Tritt unserem [Discord](https://discord.gg/roocode) bei und schreibe eine DM an **Hannes Rudolph (`hrudolph`)**.
-- **Alternative:** Erfahrene Mitwirkende können sich direkt über [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1) beteiligen.
+- **Primär:** Tritt unserem [Discord](https://discord.gg/roocode) bei und schreibe eine DM an **Hannes Rudolph (`hrudolph`)**.
+- **Alternative:** Erfahrene Mitwirkende können sich direkt über [GitHub-Projekte](https://github.com/orgs/RooCodeInc/projects/1) beteiligen.
 
-## Beitrag finden & planen
+## Deinen Beitrag finden und planen
 
-### Beitragsarten
+### Arten von Beiträgen
 
-- **Bugfixes:** Fehler im Code beheben.
-- **Neue Features:** Neue Funktionen hinzufügen.
-- **Dokumentation:** Anleitungen verbessern und klarer gestalten.
+- **Fehlerbehebungen:** Behebung von Code-Problemen.
+- **Neue Funktionen:** Hinzufügen von Funktionalität.
+- **Dokumentation:** Verbesserung von Anleitungen und Klarheit.
 
 ### Issue-First-Ansatz
 
-Alle Beiträge müssen mit einem GitHub Issue beginnen.
+Alle Beiträge beginnen mit einem GitHub-Issue unter Verwendung unserer schlanken Vorlagen.
 
-- **Bestehende Issues prüfen**: Durchsuche die [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
-- **Issue erstellen**: Nutze die passenden Vorlagen:
-    - **Bugs:** "Bug Report"-Vorlage.
-    - **Features:** "Detailed Feature Proposal"-Vorlage. Vor dem Start ist eine Genehmigung erforderlich.
-- **Issues beanspruchen**: Kommentiere und warte auf die offizielle Zuweisung.
+- **Überprüfe bestehende Issues**: Suche in den [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
+- **Erstelle ein Issue** mit:
+    - **Verbesserungen:** Vorlage „Verbesserungsvorschlag“ (einfache Sprache mit Fokus auf den Nutzen für den Benutzer).
+    - **Fehler:** Vorlage „Fehlerbericht“ (minimale Reproduktion + erwartet vs. tatsächlich + Version).
+- **Möchtest du daran arbeiten?** Kommentiere „Claiming“ im Issue und schreibe eine DM an **Hannes Rudolph (`hrudolph`)** auf [Discord](https://discord.gg/roocode), um zugewiesen zu werden. Die Zuweisung wird im Thread bestätigt.
+- **PRs müssen auf das Issue verweisen.** Nicht verknüpfte PRs können geschlossen werden.
 
-**PRs ohne genehmigte Issues können geschlossen werden.**
+### Entscheiden, woran du arbeiten möchtest
 
-### Was soll ich machen?
+- Überprüfe das [GitHub-Projekt](https://github.com/orgs/RooCodeInc/projects/1) auf „Issue [Unassigned]“-Issues.
+- Für Dokumentation besuche [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
-- Schau im [GitHub Project](https://github.com/orgs/RooCodeInc/projects/1) nach nicht zugewiesenen "Good First Issues".
-- Für Dokumentation besuche das [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs) Repository.
+### Fehler melden
 
-### Bugs melden
+- Überprüfe zuerst, ob bereits Berichte vorhanden sind.
+- Erstelle einen neuen Fehler mit der [Vorlage „Fehlerbericht“](https://github.com/RooCodeInc/Roo-Code/issues/new/choose) mit:
+    - Klaren, nummerierten Reproduktionsschritten
+    - Erwartetes vs. tatsächliches Ergebnis
+    - Roo Code-Version (erforderlich); API-Anbieter/Modell, falls relevant
+- **Sicherheitsprobleme**: Melde sie privat über [Sicherheitshinweise](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
-- Prüfe zuerst, ob der Bug bereits gemeldet wurde.
-- Erstelle neue Bug-Reports mit der ["Bug Report"-Vorlage](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
-- **Sicherheitslücken:** Melde diese privat über [Security Advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
+## Entwicklungs- und Einreichungsprozess
 
-## Entwicklung & Einreichung
+### Entwicklungseinrichtung
 
-### Entwicklungs-Setup
-
-1. **Fork & Clone:**
+1. **Fork & Klonen:**
 
 ```
-git clone https://github.com/DEIN_USERNAME/Roo-Code.git
+git clone https://github.com/DEIN_BENUTZERNAME/Roo-Code.git
 ```
 
 2. **Abhängigkeiten installieren:**
 
 ```
-npm run install:all
+pnpm install
 ```
 
-3. **Debugging:** Öffne mit VS Code (`F5`).
+3. **Debugging:** Mit VS Code öffnen (`F5`).
 
-### Code-Richtlinien
+### Richtlinien zum Schreiben von Code
 
-- Ein fokussierter PR pro Feature oder Fix.
-- Folge den ESLint und TypeScript Best Practices.
-- Schreibe klare, beschreibende Commits, die auf Issues verweisen (z.B. `Fixes #123`).
-- Liefere gründliche Tests (`npm test`).
-- Rebase auf den neuesten `main`-Branch vor dem Einreichen.
+- Ein fokussierter PR pro Funktion oder Fehlerbehebung.
+- Befolge die Best Practices von ESLint und TypeScript.
+- Schreibe klare, beschreibende Commits mit Verweis auf Issues (z. B. `Fixes #123`).
+- Stelle gründliche Tests bereit (`npm test`).
+- Rebase auf den neuesten `main`-Zweig vor der Einreichung.
 
 ### Einen Pull Request einreichen
 
-- Beginne als **Draft PR**, wenn du frühes Feedback suchst.
-- Beschreibe deine Änderungen klar und folge der Pull Request Vorlage.
+- Beginne als **Entwurfs-PR**, wenn du frühzeitig Feedback einholen möchtest.
+- Beschreibe deine Änderungen klar und deutlich gemäß der Pull-Request-Vorlage.
+- Verknüpfe das Issue in der PR-Beschreibung/Titel (z. B. „Fixes #123“).
 - Stelle Screenshots/Videos für UI-Änderungen bereit.
-- Gib an, ob Dokumentationsaktualisierungen notwendig sind.
+- Gib an, ob Dokumentationsaktualisierungen erforderlich sind.
 
-### Pull Request Richtlinie
+### Pull-Request-Richtlinie
 
-- Muss auf vorab genehmigte, zugewiesene Issues verweisen.
-- PRs ohne Einhaltung der Richtlinie können geschlossen werden.
-- PRs sollten CI-Tests bestehen, zur Roadmap passen und klare Dokumentation haben.
+- Muss auf ein zugewiesenes GitHub-Issue verweisen. Um zugewiesen zu werden: Kommentiere „Claiming“ im Issue und schreibe eine DM an **Hannes Rudolph (`hrudolph`)** auf [Discord](https://discord.gg/roocode). Die Zuweisung wird im Thread bestätigt.
+- Nicht verknüpfte PRs können geschlossen werden.
+- PRs müssen die CI-Tests bestehen, mit der Roadmap übereinstimmen und eine klare Dokumentation haben.
 
-### Review-Prozess
+### Überprüfungsprozess
 
-- **Tägliche Triage:** Schnelle Prüfungen durch Maintainer.
-- **Wöchentliche Tiefenprüfung:** Umfassende Bewertung.
-- **Zeitnah auf Feedback reagieren** und entsprechend iterieren.
+- **Tägliche Triage:** Schnelle Überprüfungen durch die Betreuer.
+- **Wöchentliche ausführliche Überprüfung:** Umfassende Bewertung.
+- **Iteriere umgehend** basierend auf dem Feedback.
 
 ## Rechtliches
 
-Mit deinem Beitrag erklärst du dich damit einverstanden, dass deine Beiträge unter der Apache 2.0 Lizenz lizenziert werden, konsistent mit der Lizenzierung von Roo Code.
+Indem du einen Beitrag leistest, stimmst du zu, dass deine Beiträge unter der Apache-2.0-Lizenz lizenziert werden, die mit der Lizenzierung von Roo Code übereinstimmt.

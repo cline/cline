@@ -11,128 +11,131 @@
 </sub>
 </div>
 
-# Współtworzenie Roo Code
+# Wkład w Roo Code
 
-Roo Code to projekt napędzany przez społeczność i bardzo cenimy każdy wkład. Aby usprawnić współpracę, działamy według zasady [Issue-First](#podejście-issue-first), co oznacza, że wszystkie [Pull Requesty (PR)](#zgłaszanie-pull-requesta) muszą najpierw być powiązane z GitHub Issue. Prosimy o uważne zapoznanie się z tym przewodnikiem.
+Roo Code to projekt społecznościowy i głęboko cenimy każdy wkład. Aby usprawnić współpracę, działamy w oparciu o [podejście „najpierw zgłoszenie”](#podejście-najpierw-zgłoszenie), co oznacza, że wszystkie [żądania ściągnięcia (PR)](#przesyłanie-żądania-ściągnięcia) muszą być najpierw połączone ze zgłoszeniem na GitHubie. Prosimy o uważne zapoznanie się z tym przewodnikiem.
 
 ## Spis treści
 
-- [Zanim zaczniesz współtworzyć](#zanim-zaczniesz-współtworzyć)
+- [Zanim zaczniesz wnosić wkład](#zanim-zaczniesz-wnosić-wkład)
 - [Znajdowanie i planowanie swojego wkładu](#znajdowanie-i-planowanie-swojego-wkładu)
-- [Proces rozwoju i zgłaszania](#proces-rozwoju-i-zgłaszania)
-- [Prawne](#prawne)
+- [Proces rozwoju i przesyłania](#proces-rozwoju-i-przesyłania)
+- [Kwestie prawne](#kwestie-prawne)
 
-## Zanim zaczniesz współtworzyć
+## Zanim zaczniesz wnosić wkład
 
 ### 1. Kodeks postępowania
 
 Wszyscy współtwórcy muszą przestrzegać naszego [Kodeksu postępowania](./CODE_OF_CONDUCT.md).
 
-### 2. Roadmapa projektu
+### 2. Mapa drogowa projektu
 
-Nasza roadmapa wyznacza kierunek projektu. Dostosuj swój wkład do tych kluczowych celów:
+Nasza mapa drogowa wyznacza kierunek projektu. Dostosuj swój wkład do tych kluczowych celów:
 
-### Niezawodność przede wszystkim
+### Niezawodność na pierwszym miejscu
 
-- Zapewnienie, że edycja różnic i wykonywanie poleceń są konsekwentnie niezawodne
-- Zmniejszenie punktów tarcia, które zniechęcają do regularnego użytkowania
-- Gwarancja płynnego działania we wszystkich językach i na wszystkich platformach
-- Rozszerzenie solidnego wsparcia dla szerokiej gamy dostawców i modeli AI
+- Zapewnij, że edycja różnic i wykonywanie poleceń są niezawodne.
+- Zmniejsz punkty tarcia, które zniechęcają do regularnego użytkowania.
+- Zagwarantuj płynne działanie we wszystkich lokalizacjach i na wszystkich platformach.
+- Rozszerz solidne wsparcie для szerokiej gamy dostawców i modeli sztucznej inteligencji.
 
-### Ulepszone doświadczenie użytkownika
+### Ulepszone wrażenia użytkownika
 
-- Uproszczenie interfejsu użytkownika dla większej przejrzystości i intuicyjności
-- Ciągłe doskonalenie przepływu pracy, aby spełnić wysokie oczekiwania programistów
+- Usprawnij interfejs użytkownika/doświadczenie użytkownika dla jasności i intuicyjności.
+- Ciągle ulepszaj przepływ pracy, aby sprostać wysokim oczekiwaniom, jakie programiści mają wobec narzędzi codziennego użytku.
 
-### Wiodąca pozycja w wydajności agentów
+### Lider w wydajności agentów
 
-- Ustanowienie kompleksowych punktów odniesienia (evals) do mierzenia produktywności w rzeczywistym świecie
-- Ułatwienie wszystkim łatwego uruchamiania i interpretowania tych ocen
-- Dostarczanie ulepszeń, które wykazują wyraźny wzrost wyników ocen
+- Ustanów kompleksowe wzorce oceny (ewaluacje) w celu pomiaru rzeczywistej produktywności.
+- Ułatw wszystkim łatwe uruchamianie i interpretowanie tych ewaluacji.
+- Dostarczaj ulepszenia, które wykazują wyraźny wzrost wyników ewaluacji.
 
-Wspomnij o powiązaniu z tymi obszarami w swoich PR.
+Wspomnij o dostosowaniu do tych obszarów w swoich PR-ach.
 
 ### 3. Dołącz do społeczności Roo Code
 
-- **Główna metoda:** Dołącz do naszego [Discorda](https://discord.gg/roocode) i wyślij wiadomość prywatną do **Hannes Rudolph (`hrudolph`)**.
-- **Alternatywa:** Doświadczeni współtwórcy mogą angażować się bezpośrednio przez [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
+- **Głównie:** Dołącz do naszego [Discorda](https://discord.gg/roocode) i wyślij wiadomość prywatną do **Hannes Rudolph (`hrudolph`)**.
+- **Alternatywa:** Doświadczeni współtwórcy mogą angażować się bezpośrednio za pośrednictwem [projektów na GitHubie](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Znajdowanie i planowanie swojego wkładu
 
-### Typy wkładów
+### Rodzaje wkładu
 
-- **Poprawki błędów:** Naprawianie problemów w kodzie.
-- **Nowe funkcje:** Dodawanie nowych funkcjonalności.
-- **Dokumentacja:** Ulepszanie przewodników i zwiększanie przejrzystości.
+- **Poprawki błędów:** rozwiązywanie problemów z kodem.
+- **Nowe funkcje:** dodawanie funkcjonalności.
+- **Dokumentacja:** ulepszanie przewodników i przejrzystości.
 
-### Podejście Issue-First
+### Podejście „najpierw zgłoszenie”
 
-Każdy wkład musi zaczynać się od GitHub Issue.
+Wszystkie wkłady zaczynają się od zgłoszenia na GitHubie przy użyciu naszych uproszczonych szablonów.
 
-- **Sprawdź istniejące issues:** Przeszukaj [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
-- **Utwórz issue:** Używaj odpowiednich szablonów:
-    - **Błędy:** Szablon "Bug Report".
-    - **Funkcje:** Szablon "Detailed Feature Proposal". Wymagane zatwierdzenie przed rozpoczęciem.
-- **Zgłoś chęć pracy:** Skomentuj i poczekaj na oficjalne przypisanie.
-
-**PR bez zatwierdzonego issue może zostać zamknięty.**
+- **Sprawdź istniejące zgłoszenia**: Przeszukaj [zgłoszenia на GitHubie](https://github.com/RooCodeInc/Roo-Code/issues).
+- **Utwórz zgłoszenie**, używając:
+    - **Ulepszenia:** szablon „Prośba o ulepszenie” (prosty język skoncentrowany na korzyściach dla użytkownika).
+    - **Błędy:** szablon „Zgłoszenie błędu” (minimalna reprodukcja + oczekiwane a rzeczywiste + wersja).
+- **Chcesz nad tym popracować?** Skomentuj „Zgłaszam się” w zgłoszeniu i wyślij wiadomość prywatną do **Hannes Rudolph (`hrudolph`)** na [Discordzie](https://discord.gg/roocode), aby zostać przypisanym. Przypisanie zostanie potwierdzone w wątku.
+- **PR-y muszą być połączone зі zgłoszeniem.** Niepołączone PR-y mogą zostać zamknięte.
 
 ### Decydowanie, nad czym pracować
 
-- Sprawdź [Projekt GitHub](https://github.com/orgs/RooCodeInc/projects/1) w poszukiwaniu nieprzypisanych "Good First Issues".
-- W kwestii dokumentacji odwiedź [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
+- Sprawdź [projekt na GitHubie](https://github.com/orgs/RooCodeInc/projects/1) pod kątem zgłoszeń „Zgłoszenie [Nieprzypisane]”.
+- Aby uzyskać dokumentację, odwiedź [dokumentację Roo Code](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Zgłaszanie błędów
 
-- Najpierw sprawdź istniejące zgłoszenia.
-- Twórz nowe zgłoszenia błędów używając [szablonu "Bug Report"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
-- **Luki bezpieczeństwa:** Zgłaszaj prywatnie przez [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
+- Najpierw sprawdź istniejące raporty.
+- Utwórz nowy błąd, używając szablonu [„Zgłoszenie błędu”](https://github.com/RooCodeInc/Roo-Code/issues/new/choose) z:
+    - Jasnymi, ponumerowanymi krokami reprodukcji
+    - Oczekiwanym a rzeczywistym wynikiem
+    - Wersją Roo Code (wymagane); dostawcą/modelem sztucznej inteligencji, jeśli ma to zastosowanie
+- **Problemy z bezpieczeństwem**: Zgłoś je prywatnie za pośrednictwem [zaleceń dotyczących bezpieczeństwa](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
-## Proces rozwoju i zgłaszania
+## Proces rozwoju i przesyłania
 
-### Konfiguracja środowiska
+### Konfiguracja środowiska programistycznego
 
-1. **Fork & Clone:**
-
-```
-git clone https://github.com/TWÓJ_UŻYTKOWNIK/Roo-Code.git
-```
-
-2. **Instalacja zależności:**
+1. **Sforkuj i sklonuj:**
 
 ```
-npm run install:all
+git clone https://github.com/TWOJA_NAZWA_UŻYTKOWNIKA/Roo-Code.git
 ```
 
-3. **Debugowanie:** Otwórz w VS Code (`F5`).
+2. **Zainstaluj zależności:**
+
+```
+pnpm install
+```
+
+3. **Debugowanie:** Otwórz za pomocą VS Code (`F5`).
 
 ### Wytyczne dotyczące pisania kodu
 
 - Jeden skoncentrowany PR na funkcję lub poprawkę.
-- Przestrzegaj dobrych praktyk ESLint i TypeScript.
-- Pisz jasne, opisowe commity odnoszące się do issues (np. `Fixes #123`).
+- Przestrzegaj najlepszych praktyk ESLint i TypeScript.
+- Pisz jasne, opisowe commity odwołujące się do zgłoszeń (np. `Naprawia #123`).
 - Zapewnij dokładne testy (`npm test`).
-- Zrebase'uj na najnowszą gałąź `main` przed zgłoszeniem.
+- Zrób rebase na najnowszą gałąź `main` przed przesłaniem.
 
-### Zgłaszanie Pull Requesta
+### Przesyłanie żądania ściągnięcia
 
-- Zacznij od **wersji roboczej PR**, jeśli szukasz wczesnego feedbacku.
-- Jasno opisz swoje zmiany, zgodnie z szablonem Pull Request.
-- Dostarcz zrzuty ekranu/wideo dla zmian UI.
-- Wskaż, czy potrzebne są aktualizacje dokumentacji.
+- Zacznij jako **wersja robocza PR**, jeśli szukasz wczesnej opinii.
+- Jasno opisz swoje zmiany, postępując zgodnie z szablonem żądania ściągnięcia.
+- Połącz zgłoszenie w opisie/tytule PR (np. „Naprawia #123”).
+- Udostępnij zrzuty ekranu/filmy wideo dotyczące zmian w interfejsie użytkownika.
+- Wskaż, czy konieczne są aktualizacje dokumentacji.
 
-### Polityka Pull Request
+### Polityka dotycząca żądań ściągnięcia
 
-- Musi odnosić się do wcześniej zatwierdzonych i przypisanych issues.
-- PR niezgodne z polityką mogą zostać zamknięte.
-- PR powinny przechodzić testy CI, być zgodne z roadmapą i mieć jasną dokumentację.
+- Musi odnosić się do przypisanego zgłoszenia na GitHubie. Aby zostać przypisanym: skomentuj „Zgłaszam się” w zgłoszeniu i wyślij wiadomość prywatną do **Hannes Rudolph (`hrudolph`)** na [Discordzie](https://discord.gg/roocode). Przypisanie zostanie potwierdzone w wątku.
+- Niepołączone PR-y mogą zostać zamknięte.
+- PR-y muszą przejść testy CI, być zgodne z mapą drogową i mieć przejrzystą dokumentację.
 
-### Proces recenzji
+### Proces przeglądu
 
-- **Codzienna selekcja:** Szybkie sprawdzenia przez maintainerów.
-- **Cotygodniowy dokładny przegląd:** Kompleksowa ocena.
-- **Szybko iteruj** na podstawie feedbacku.
+- **Codzienna selekcja:** Szybkie sprawdzanie przez opiekunów.
+- **Cotygodniowy dogłębny przegląd:** Kompleksowa ocena.
+- **Szybko iteruj** w oparciu o opinie.
 
-## Prawne
+## Kwestie prawne
 
-Zgłaszając pull request, zgadzasz się, że twój wkład będzie licencjonowany na licencji Apache 2.0, zgodnie z licencją Roo Code.
+Przesyłając wkład, zgadzasz się, że Twoje wkłady będą licencjonowane na podstawie licencji Apache 2.0, zgodnie z licencją Roo Code.
