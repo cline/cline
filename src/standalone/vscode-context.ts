@@ -19,7 +19,7 @@ mkdirSync(DATA_DIR, { recursive: true })
 mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
-const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
+export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {

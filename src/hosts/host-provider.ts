@@ -35,6 +35,10 @@ export class HostProvider {
 	// extension on Windows.
 	getBinaryLocation: (name: string) => Promise<string>
 
+	// The absolute file system path where the extension is installed.
+	// Use to this to get the location of extension assets.
+	extensionFsPath: string
+
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
@@ -43,6 +47,7 @@ export class HostProvider {
 		logToChannel: LogToChannel,
 		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
@@ -50,6 +55,7 @@ export class HostProvider {
 		this.logToChannel = logToChannel
 		this.getCallbackUrl = getCallbackUrl
 		this.getBinaryLocation = getBinaryLocation
+		this.extensionFsPath = extensionFsPath
 	}
 
 	public static initialize(
@@ -59,6 +65,7 @@ export class HostProvider {
 		logToChannel: LogToChannel,
 		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host provider has already been initialized.")
@@ -70,6 +77,7 @@ export class HostProvider {
 			logToChannel,
 			getCallbackUrl,
 			getBinaryLocation,
+			extensionFsPath,
 		)
 		return HostProvider.instance
 	}
