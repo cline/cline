@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.28.6]
+
+- Bump package version
+
 ## [3.28.5]
 
 - Fixed issue with Posthog API key related to telemetry
