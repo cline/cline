@@ -205,7 +205,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
-		extensionInfo: { name: "claude-dev", publisher: "saoudrizwan" },
+		favoritedModelIds: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],

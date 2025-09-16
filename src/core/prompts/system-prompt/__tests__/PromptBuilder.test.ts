@@ -31,6 +31,7 @@ describe("PromptBuilder", () => {
 		},
 		isTesting: true,
 		providerInfo: mockProviderInfo,
+		yoloModeToggled: false,
 	}
 
 	const mockComponents: ComponentRegistry = {
@@ -126,7 +127,12 @@ describe("PromptBuilder", () => {
 			const customComponents: ComponentRegistry = {
 				...mockComponents,
 				SYSTEM_INFO_SECTION: async (variant) => {
-					const template = variant.componentOverrides?.SYSTEM_INFO_SECTION?.template || "DEFAULT"
+					let template = variant.componentOverrides?.SYSTEM_INFO_SECTION?.template || "DEFAULT"
+
+					if (typeof template === "function") {
+						const mockContext = { cwd: "/test", yoloModeToggled: false } as SystemPromptContext
+						template = template(mockContext)
+					}
 					return template.replace("{{os}}", "Linux").replace("{{shell}}", "bash")
 				},
 			}
