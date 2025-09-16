@@ -12,7 +12,9 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	}
 
 	override getWebviewUri(path: string) {
-		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path })
+		// Avoid duplicate leading slash in the URL path.
+		const urlPath = path.startsWith("/") ? path.slice(1) : path
+		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path: urlPath })
 	}
 	override getCspSource() {
 		return `'self' https://${this.RESOURCE_HOSTNAME}`
