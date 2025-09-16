@@ -2137,15 +2137,12 @@ export class Task {
 				console.log("reasoningToolBlocks:", reasoningToolBlocks)
 				if (reasoningToolBlocks.length > 0) {
 					// Found tools in reasoning - add them to assistant message content for execution
-					const prevLength = this.taskState.assistantMessageContent.length
 					this.taskState.assistantMessageContent = [...this.taskState.assistantMessageContent, ...reasoningToolBlocks]
 					assistantMessage = reasoningMessage
-
-					if (this.taskState.assistantMessageContent.length > prevLength) {
-						this.taskState.userMessageContentReady = true // there's a pWaitFor on this later
-					}
 					// present content to user (executes tool use blocks)
-					this.presentAssistantMessage()
+					this.presentAssistantMessage().then(() => {
+						this.taskState.userMessageContentReady = true // allows task to progress
+					})
 				}
 			}
 
