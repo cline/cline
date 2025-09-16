@@ -180,7 +180,6 @@ export interface ApiHandlerOptions {
 export type ApiConfiguration = ApiHandlerOptions & {
 	planModeApiProvider?: ApiProvider
 	actModeApiProvider?: ApiProvider
-	favoritedModelIds?: string[]
 }
 
 // Models
