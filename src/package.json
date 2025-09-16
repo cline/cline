@@ -73,7 +73,7 @@
 			{
 				"command": "roo-cline.plusButtonClicked",
 				"title": "%command.newTask.title%",
-				"icon": "$(add)"
+				"icon": "$(edit)"
 			},
 			{
 				"command": "roo-cline.promptsButtonClicked",
