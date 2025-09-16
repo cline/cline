@@ -4,7 +4,7 @@ import { GitCompareIcon } from "lucide-react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { cn } from "@/utils/cn"
 
-const RetryTaskButton: React.FC<{
+const ForkTaskButton: React.FC<{
 	text?: string
 	images?: string[]
 	files?: string[]
@@ -12,7 +12,7 @@ const RetryTaskButton: React.FC<{
 }> = ({ text, images = [], files = [], className }) => {
 	return (
 		<Button
-			aria-label="Branch Task"
+			aria-label="Fork Task"
 			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
 			disabled={!text?.trim()}
 			isIconOnly={true}
@@ -28,10 +28,10 @@ const RetryTaskButton: React.FC<{
 			}
 			radius="sm"
 			size="sm"
-			title="Retry as New Task">
+			title="Fork Task">
 			<GitCompareIcon size="14" />
 		</Button>
 	)
 }
 
-export default RetryTaskButton
+export default ForkTaskButton

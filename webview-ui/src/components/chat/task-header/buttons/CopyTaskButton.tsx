@@ -22,7 +22,7 @@ const CopyTaskButton: React.FC<{
 
 	return (
 		<Button
-			aria-label="Copy Task"
+			aria-label="Copy"
 			className={cn("bg-transparent hover:opacity-100", className)}
 			isIconOnly={true}
 			onPress={() => {
@@ -30,7 +30,7 @@ const CopyTaskButton: React.FC<{
 			}}
 			radius="sm"
 			size="sm"
-			title="Copy Task">
+			title="Copy Text">
 			{copied ? <CheckIcon size="14" /> : <CopyIcon size="14" />}
 		</Button>
 	)

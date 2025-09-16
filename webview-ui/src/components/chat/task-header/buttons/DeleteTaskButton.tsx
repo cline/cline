@@ -9,7 +9,7 @@ const DeleteTaskButton: React.FC<{
 	className?: string
 }> = ({ taskId, className }) => (
 	<Button
-		aria-label="Delete task"
+		aria-label="Delete Task"
 		className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
 		isIconOnly={true}
 		onPress={() => {

@@ -9,8 +9,8 @@ import { UiServiceClient } from "@/services/grpc-client"
 import { cn } from "@/utils/cn"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
+import ForkTaskButton from "./buttons/ForkTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
-import RetryTaskButton from "./buttons/RetryTaskButton"
 import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
@@ -111,7 +111,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
 							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
-								<RetryTaskButton className={BUTTON_CLASS} text={task.text} />
+								<ForkTaskButton className={BUTTON_CLASS} text={task.text} />
 								<DeleteTaskButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
 								{IS_DEV && <OpenDiskTaskHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />}

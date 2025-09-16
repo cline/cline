@@ -26,7 +26,7 @@ const OpenDiskTaskHistoryButton: React.FC<{
 			onPress={() => handleOpenDiskTaskHistory()}
 			radius="sm"
 			size="sm"
-			title="Open Task in JSON">
+			title="Export Task">
 			<ArrowRightFromLineIcon size="14" />
 		</Button>
 	)
