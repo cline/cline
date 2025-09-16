@@ -1,0 +1,76 @@
+{
+	"hooks": {
+		"PreToolUse": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		],
+		"SessionStart": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node /Users/griever/Developer/cline/test-hooks/simple-logger.js",
+						"timeout": 60
+					}
+				]
+			}
+		]
+	}
+}
