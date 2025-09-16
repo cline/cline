@@ -30,8 +30,6 @@ const generic: ClineToolSpec = {
 				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
 			usage: "30",
 		},
-
-		TASK_PROGRESS_PARAMETER,
 	],
 }
 

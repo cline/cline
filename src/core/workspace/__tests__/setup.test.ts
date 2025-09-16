@@ -96,11 +96,13 @@ describe("setupWorkspaceManager", () => {
 	it("initializes multi-root manager when multi-root is enabled and persists roots + primary index", async () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().resolves(defaultRoots)
+		const isMultiRootEnabled = false
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
 			historyItem: undefined,
 			detectRoots,
+			isMultiRootEnabled,
 		})
 
 		// detectRoots used
@@ -120,11 +122,13 @@ describe("setupWorkspaceManager", () => {
 		const savedRoots: WorkspaceRoot[] = [{ path: "/saved/root", name: "saved", vcs: VcsType.None }]
 		const stateManager = makeStateManager({ multiRootEnabled: false, savedRoots, savedPrimaryIndex: 0 })
 		const detectRoots = sandbox.stub().resolves(defaultRoots) // not used
+		const isMultiRootEnabled = false
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
 			historyItem: { id: "h1", ulid: "u1" } as any,
 			detectRoots,
+			isMultiRootEnabled,
 		})
 
 		// detectRoots not used
@@ -141,12 +145,14 @@ describe("setupWorkspaceManager", () => {
 			multiRootEnabled: false,
 			savedRoots: undefined,
 		})
+		const isMultiRootEnabled = false
 		const detectRoots = sandbox.stub().resolves(defaultRoots) // not used
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
 			historyItem: { id: "h2", ulid: "u2" } as any,
 			detectRoots,
+			isMultiRootEnabled,
 		})
 
 		expect(detectRoots.called).to.equal(false)
@@ -161,11 +167,12 @@ describe("setupWorkspaceManager", () => {
 		// Multi-root enabled but detectRoots throws
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().rejects(new Error("boom"))
-
+		const isMultiRootEnabled = true
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
 			historyItem: undefined,
 			detectRoots,
+			isMultiRootEnabled,
 		})
 
 		// fell back to single-root manager from legacy cwd
