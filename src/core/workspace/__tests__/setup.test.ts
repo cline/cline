@@ -96,7 +96,7 @@ describe("setupWorkspaceManager", () => {
 	it("initializes multi-root manager when multi-root is enabled and persists roots + primary index", async () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().resolves(defaultRoots)
-		const isMultiRootEnabled = false
+		const isMultiRootEnabled = true
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
