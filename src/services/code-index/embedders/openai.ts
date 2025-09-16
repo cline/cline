@@ -13,6 +13,7 @@ import { t } from "../../../i18n"
 import { withValidationErrorHandling, formatEmbeddingError, HttpError } from "../shared/validation-helpers"
 import { TelemetryEventName } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
+import { handleOpenAIError } from "../../../api/providers/utils/openai-error-handler"
 
 /**
  * OpenAI implementation of the embedder interface with batching and rate limiting
@@ -28,7 +29,15 @@ export class OpenAiEmbedder extends OpenAiNativeHandler implements IEmbedder {
 	constructor(options: ApiHandlerOptions & { openAiEmbeddingModelId?: string }) {
 		super(options)
 		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
-		this.embeddingsClient = new OpenAI({ apiKey })
+
+		// Wrap OpenAI client creation to handle invalid API key characters
+		try {
+			this.embeddingsClient = new OpenAI({ apiKey })
+		} catch (error) {
+			// Use the error handler to transform ByteString conversion errors
+			throw handleOpenAIError(error, "OpenAI")
+		}
+
 		this.defaultModelId = options.openAiEmbeddingModelId || "text-embedding-3-small"
 	}
 

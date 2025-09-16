@@ -30,8 +30,23 @@ vitest.mock("../../../../i18n", () => ({
 			"embeddings:textExceedsTokenLimit": `Text at index ${params?.index} exceeds maximum token limit (${params?.itemTokens} > ${params?.maxTokens}). Skipping.`,
 			"embeddings:rateLimitRetry": `Rate limit hit, retrying in ${params?.delayMs}ms (attempt ${params?.attempt}/${params?.maxRetries})`,
 			"embeddings:unknownError": "Unknown error",
+			"common:errors.api.invalidKeyInvalidChars":
+				"API key contains invalid characters. Please check your API key for special characters.",
 		}
 		return translations[key] || key
+	},
+}))
+
+// Mock i18n/setup module used by the error handler
+vitest.mock("../../../../i18n/setup", () => ({
+	default: {
+		t: (key: string) => {
+			const translations: Record<string, string> = {
+				"common:errors.api.invalidKeyInvalidChars":
+					"API key contains invalid characters. Please check your API key for special characters.",
+			}
+			return translations[key] || key
+		},
 	},
 }))
 
@@ -112,6 +127,22 @@ describe("OpenAICompatibleEmbedder", () => {
 		it("should throw error when both baseUrl and apiKey are missing", () => {
 			expect(() => new OpenAICompatibleEmbedder("", "", testModelId)).toThrow(
 				"embeddings:validation.baseUrlRequired",
+			)
+		})
+
+		it("should handle API key with invalid characters (ByteString conversion error)", () => {
+			// API key with special characters that cause ByteString conversion error
+			const invalidApiKey = "sk-test•invalid" // Contains bullet character (U+2022)
+
+			// Mock the OpenAI constructor to throw ByteString error
+			MockedOpenAI.mockImplementationOnce(() => {
+				throw new Error(
+					"Cannot convert argument to a ByteString because the character at index 7 has a value of 8226 which is greater than 255.",
+				)
+			})
+
+			expect(() => new OpenAICompatibleEmbedder(testBaseUrl, invalidApiKey, testModelId)).toThrow(
+				"API key contains invalid characters",
 			)
 		})
 	})

@@ -12,6 +12,7 @@ import { withValidationErrorHandling, HttpError, formatEmbeddingError } from "..
 import { TelemetryEventName } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { Mutex } from "async-mutex"
+import { handleOpenAIError } from "../../../api/providers/utils/openai-error-handler"
 
 interface EmbeddingItem {
 	embedding: string | number[]
@@ -66,10 +67,18 @@ export class OpenAICompatibleEmbedder implements IEmbedder {
 
 		this.baseUrl = baseUrl
 		this.apiKey = apiKey
-		this.embeddingsClient = new OpenAI({
-			baseURL: baseUrl,
-			apiKey: apiKey,
-		})
+
+		// Wrap OpenAI client creation to handle invalid API key characters
+		try {
+			this.embeddingsClient = new OpenAI({
+				baseURL: baseUrl,
+				apiKey: apiKey,
+			})
+		} catch (error) {
+			// Use the error handler to transform ByteString conversion errors
+			throw handleOpenAIError(error, "OpenAI Compatible")
+		}
+
 		this.defaultModelId = modelId || getDefaultModelId("openai-compatible")
 		// Cache the URL type check for performance
 		this.isFullUrl = this.isFullEndpointUrl(baseUrl)
