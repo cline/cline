@@ -12,14 +12,14 @@ import { initializeExtensionRegistryInfo } from "@/registry"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { extensionContext } from "./vscode-context"
+import { EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
 	await waitForHostBridgeReady()
 
-	initializeExtensionRegistryInfo()
+	initializeExtensionRegistryInfo(EXTENSION_DIR)
 
 	setupHostProvider()
 
