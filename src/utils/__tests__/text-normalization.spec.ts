@@ -75,5 +75,30 @@ describe("Text normalization utilities", () => {
 			expect(unescapeHtmlEntities("")).toBe("")
 			expect(unescapeHtmlEntities(undefined as unknown as string)).toBe(undefined)
 		})
+
+		it("unescapes square bracket entities (numeric)", () => {
+			expect(unescapeHtmlEntities("string&#91;&#93;")).toBe("string[]")
+			expect(unescapeHtmlEntities("array&#91;0&#93;")).toBe("array[0]")
+			expect(unescapeHtmlEntities("matrix&#91;i&#93;&#91;j&#93;")).toBe("matrix[i][j]")
+		})
+
+		it("unescapes square bracket entities (named)", () => {
+			expect(unescapeHtmlEntities("string&lsqb;&rsqb;")).toBe("string[]")
+			expect(unescapeHtmlEntities("array&lsqb;0&rsqb;")).toBe("array[0]")
+			expect(unescapeHtmlEntities("matrix&lsqb;i&rsqb;&lsqb;j&rsqb;")).toBe("matrix[i][j]")
+		})
+
+		it("handles C# array syntax with escaped square brackets", () => {
+			// Test case based on the reported issue
+			const input = "string&#91;&#93; myArray = new string&#91;5&#93;;\nmyArray&#91;2&#93; = &quot;hello&quot;;"
+			const expected = 'string[] myArray = new string[5];\nmyArray[2] = "hello";'
+			expect(unescapeHtmlEntities(input)).toBe(expected)
+		})
+
+		it("handles mixed square bracket entities", () => {
+			const input = "array&#91;0&rsqb; and &lsqb;1&#93;"
+			const expected = "array[0] and [1]"
+			expect(unescapeHtmlEntities(input)).toBe(expected)
+		})
 	})
 })

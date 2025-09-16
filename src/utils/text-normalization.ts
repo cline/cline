@@ -91,5 +91,9 @@ export function unescapeHtmlEntities(text: string): string {
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'")
 		.replace(/&apos;/g, "'")
+		.replace(/&#91;/g, "[")
+		.replace(/&#93;/g, "]")
+		.replace(/&lsqb;/g, "[")
+		.replace(/&rsqb;/g, "]")
 		.replace(/&amp;/g, "&")
 }
