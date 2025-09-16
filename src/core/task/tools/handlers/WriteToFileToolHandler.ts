@@ -297,14 +297,41 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 *          or undefined if validation fails
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
+		// Parse workspace hint and resolve path for multi-workspace support
+		let resolvedPath: string = relPath
+		let absolutePath: string
+
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			// Import inline to avoid auto-formatter issues
+			const { parseWorkspaceInlinePath } = await import("@core/workspace/utils/parseWorkspaceInlinePath")
+			const { WorkspacePathAdapter } = await import("@core/workspace/WorkspacePathAdapter")
+
+			// Parse workspace hint from the path (e.g., @frontend:src/index.ts)
+			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relPath)
+
+			// Create adapter for multi-workspace path resolution
+			const adapter = new WorkspacePathAdapter({
+				cwd: config.cwd,
+				isMultiRootEnabled: true,
+				workspaceManager: config.workspaceManager,
+			})
+
+			// Resolve to the correct workspace root
+			absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
+			resolvedPath = parsedPath
+		} else {
+			// Fallback to single-workspace behavior
+			absolutePath = resolveWorkspacePath(config.cwd, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
+		}
+
 		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(relPath)
+		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {
 			// Show error and return early (full original behavior)
-			await config.callbacks.say("clineignore_error", relPath)
+			await config.callbacks.say("clineignore_error", resolvedPath)
 
 			// Push tool result and save checkpoint using existing utilities
-			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(relPath))
+			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
 			ToolResultUtils.pushToolResult(
 				errorResponse,
 				block,
@@ -324,11 +351,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
 		} else {
-			const absolutePath = resolveWorkspacePath(
-				config.cwd,
-				relPath,
-				"WriteToFileToolHandler.validateAndPrepareFileOperation",
-			)
 			fileExists = await fileExistsAtPath(absolutePath)
 			config.services.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}
