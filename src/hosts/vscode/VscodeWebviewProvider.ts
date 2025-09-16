@@ -26,12 +26,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		super(context, providerType)
 	}
 
-	override getWebviewUri(path: string) {
+	override getWebviewUrl(path: string) {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
 		}
-		const uri = vscode.Uri.file(path)
-		return this.webview.webview.asWebviewUri(uri)
+		const uri = this.webview.webview.asWebviewUri(vscode.Uri.file(path))
+		return uri.toString()
 	}
 
 	override getCspSource() {

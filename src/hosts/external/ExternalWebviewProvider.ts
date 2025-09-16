@@ -1,5 +1,4 @@
 import * as vscode from "vscode"
-import { URI } from "vscode-uri"
 import { WebviewProvider } from "@/core/webview"
 import { WebviewProviderType } from "@/shared/webview/types"
 
@@ -11,10 +10,10 @@ export class ExternalWebviewProvider extends WebviewProvider {
 		super(context, providerType)
 	}
 
-	override getWebviewUri(path: string) {
-		// Avoid duplicate leading slash in the URL path.
-		const urlPath = path.startsWith("/") ? path.slice(1) : path
-		return URI.from({ scheme: "https", authority: this.RESOURCE_HOSTNAME, path: urlPath })
+	override getWebviewUrl(path: string) {
+		const url = new URL(`https://${this.RESOURCE_HOSTNAME}/`)
+		url.pathname = path
+		return url.toString()
 	}
 	override getCspSource() {
 		return `'self' https://${this.RESOURCE_HOSTNAME}`
