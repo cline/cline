@@ -11,7 +11,7 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { EXTENSION_DIR, extensionContext } from "./vscode-context"
+import { DATA_DIR, EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -56,6 +56,7 @@ function setupHostProvider() {
 		getCallbackUrl,
 		getBinaryLocation,
 		EXTENSION_DIR,
+		DATA_DIR,
 	)
 }
 

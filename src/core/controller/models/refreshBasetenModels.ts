@@ -1,4 +1,4 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -19,7 +19,7 @@ export async function refreshBasetenModels(
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
 	console.log("=== refreshBasetenModels called ===")
-	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
+	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
 	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
@@ -122,7 +122,7 @@ export async function refreshBasetenModels(
 		console.error("Baseten API Error:", errorMessage)
 
 		// If we failed to fetch models, try to read cached models first
-		const cachedModels = await readBasetenModels(controller)
+		const cachedModels = await readBasetenModels()
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
 			console.log("Using cached Baseten models")
 			// Filter cached models to only include those in static basetenModels
@@ -172,19 +172,10 @@ export async function refreshBasetenModels(
 }
 
 /**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
-}
-
-/**
  * Reads cached Baseten models from disk
  */
-async function readBasetenModels(controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
-	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
+async function readBasetenModels(): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
+	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 	const fileExists = await fileExistsAtPath(basetenModelsFilePath)
 	if (fileExists) {
 		try {

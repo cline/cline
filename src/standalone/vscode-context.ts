@@ -11,7 +11,7 @@ export const { version, name, publisher } = getPackageInfo()
 log("Running standalone cline", version)
 
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
-const DATA_DIR = path.join(CLINE_DIR, "data")
+export const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
 const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
 
