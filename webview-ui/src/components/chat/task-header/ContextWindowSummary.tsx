@@ -117,7 +117,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	}, [autoCompactThreshold, thresholdDisplay])
 
 	return (
-		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 min-w-xs p-4">
+		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 max-w-xs p-4">
 			{thresholdDisplay > 0 && (
 				<InfoRow
 					key={thresholdDisplay}

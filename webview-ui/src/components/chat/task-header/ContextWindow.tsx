@@ -1,6 +1,6 @@
 import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import debounce from "debounce"
+import debounce from "lodash/debounce"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -116,12 +116,20 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		}
 	}, [contextWindow, lastApiReqTotalTokens])
 
+	const debounceCloseHover = useCallback((e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		const showHover = debounce((open: boolean) => setIsOpened(open), 100)
+
+		return showHover(false)
+	}, [])
+
 	if (!tokenData) {
 		return null
 	}
 
 	return (
-		<div className="flex flex-col my-1.5" onMouseLeave={() => debounce(() => setIsOpened(false), 500)()}>
+		<div className="flex flex-col my-1.5" onMouseLeave={debounceCloseHover}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap text-xs">
 					<span className="cursor-pointer" title="Current tokens used in this request">
