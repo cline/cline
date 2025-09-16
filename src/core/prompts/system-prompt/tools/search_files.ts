@@ -50,8 +50,4 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gpt = { ...generic, variant: ModelFamily.GPT }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
-
-export const search_files_variants = [generic, nextGen, gpt, gemini]
+export const search_files_variants = [generic]
