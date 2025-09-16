@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import { ExtensionRegistryInfo } from "@/registry"
 
 /**
  * Gets the latest announcement ID based on the extension version
@@ -7,6 +7,7 @@ import * as vscode from "vscode"
  * @param context The VSCode extension context
  * @returns The announcement ID string (major.minor version) or empty string if unavailable
  */
-export function getLatestAnnouncementId(context: vscode.ExtensionContext): string {
-	return context.extension?.packageJSON?.version?.split(".").slice(0, 2).join(".") ?? ""
+export function getLatestAnnouncementId(): string {
+	const version = ExtensionRegistryInfo.version
+	return version.split(".").slice(0, 2).join(".")
 }
