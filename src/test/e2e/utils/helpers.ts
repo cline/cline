@@ -16,6 +16,8 @@ interface E2ETestDirectories {
 export interface E2ETestConfigs {
 	workspaceType: "single" | "multi"
 	channel: "stable" | "insiders"
+	grpcRecorderEnabled?: boolean
+	grpcRecorderTestsFiltersEnabled?: boolean
 }
 
 export class E2ETestHelper {
@@ -234,9 +236,11 @@ export const e2e = test
 	.extend<E2ETestConfigs>({
 		workspaceType: "single",
 		channel: "stable",
+		grpcRecorderEnabled: false,
+		grpcRecorderTestsFiltersEnabled: false,
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
+		openVSCode: async ({ userDataDir, channel, grpcRecorderEnabled, grpcRecorderTestsFiltersEnabled }, use, testInfo) => {
 			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
@@ -248,10 +252,8 @@ export const e2e = test
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
-						// GRPC_RECORDER_ENABLED: "true",
-						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
-						// IS_DEV: "true",
-						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
+						GRPC_RECORDER_ENABLED: grpcRecorderEnabled ? "true" : "false",
+						GRPC_RECORDER_TESTS_FILTERS_ENABLED: grpcRecorderTestsFiltersEnabled ? "true" : "false",
 					},
 					recordVideo: {
 						dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings"),

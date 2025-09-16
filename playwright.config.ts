@@ -2,8 +2,9 @@ import { defineConfig } from "@playwright/test"
 
 const isCI = !!process?.env?.CI
 const isWindow = process?.platform?.startsWith("win")
+const isInteractive = process?.env?.INTERACTIVE_E2E === "true"
 
-export default defineConfig({
+const E2E_TEST_CONFIG = defineConfig({
 	workers: 1,
 	retries: 1,
 	forbidOnly: isCI,
@@ -29,3 +30,34 @@ export default defineConfig({
 		},
 	],
 })
+
+const INTERACTIVE_UI_CONFIG = defineConfig({
+	workers: 1,
+	retries: 0,
+	forbidOnly: isCI,
+	testDir: "src/test/e2e",
+	testMatch: "interactive.ui.ts", // Different pattern to avoid running actual tests
+	timeout: 0, // No timeout for interactive sessions
+	expect: {
+		timeout: isCI || isWindow ? 5000 : 2000,
+	},
+	fullyParallel: false,
+	reporter: [["list"]],
+	use: {
+		video: "retain-on-failure",
+		headless: false, // Always run in headed mode for UI interaction
+	},
+	projects: [
+		{
+			name: "setup test environment",
+			testMatch: /global\.setup\.ts/,
+		},
+		{
+			name: "interactive-ui",
+			testMatch: "interactive.ui.ts",
+			dependencies: ["setup test environment"],
+		},
+	],
+})
+
+export default isInteractive ? INTERACTIVE_UI_CONFIG : E2E_TEST_CONFIG
