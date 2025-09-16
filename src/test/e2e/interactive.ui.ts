@@ -11,5 +11,5 @@ e2e.extend<E2ETestConfigs>({
 	console.log("Close the VS Code window or press Ctrl+C to end the session.")
 
 	// Keep the session running for manual interaction
-	await page.pause()
+	await page.waitForEvent("close")
 })

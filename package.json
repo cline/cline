@@ -362,7 +362,7 @@
 		"e2e": "playwright test -c playwright.config.ts",
 		"install:e2e:extension": "vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix",
 		"test:e2e": "playwright install && npm run install:e2e:extension && node src/test/e2e/utils/build.mjs && playwright test",
-		"test:e2e:build": "playwright install && npm run test:e2e:optimal",
+		"test:e2e:build": "playwright install && npm run install:e2e:extension && node src/test/e2e/utils/build.mjs",
 		"test:e2e:optimal": "npm run install:e2e:extension && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:ui": "INTERACTIVE_E2E=true playwright test",
 		"install:all": "npm install && cd webview-ui && npm install",
