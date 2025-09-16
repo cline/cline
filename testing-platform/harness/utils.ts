@@ -13,13 +13,15 @@ export function pretty(obj: any): string {
 // Normalize object and ignore specified fields
 function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any {
 	if (Array.isArray(obj)) {
-		return obj.map((item, idx) => normalize(item, ignoreFields, parentPath)) // do not include index
+		return obj.map((item, _) => normalize(item, ignoreFields, parentPath)) // do not include index
 	}
 	if (obj && typeof obj === "object") {
 		const result: Record<string, any> = {}
 		for (const [k, v] of Object.entries(obj)) {
 			const currentPath = parentPath ? `${parentPath}.${k}` : k
-			if (ignoreFields.includes(currentPath) || ignoreFields.includes(k)) continue
+			if (ignoreFields.includes(currentPath) || ignoreFields.includes(k)) {
+				continue
+			}
 			result[k] = normalize(v, ignoreFields, currentPath)
 		}
 		return result
@@ -51,7 +53,7 @@ export function compareResponse(actual: any, expected: any, ignoreFields: string
 	return { success: diffs.length === 0, diffs }
 }
 
-export async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 100): Promise<T> {
+export async function retry<T>(fn: () => Promise<T>, retries = 3, delayMs = 100): Promise<T> {
 	let lastError: any
 	for (let attempt = 1; attempt <= retries; attempt++) {
 		try {
@@ -59,8 +61,8 @@ export async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 100): 
 		} catch (err) {
 			lastError = err
 			if (attempt < retries) {
-				console.warn(`⚠️ Attempt ${attempt} failed, retrying in ${delay}ms...`)
-				await new Promise((r) => setTimeout(r, delay))
+				console.warn(`⚠️ Attempt ${attempt} failed, retrying in ${delayMs}ms...`)
+				await new Promise((r) => setTimeout(r, delayMs))
 			}
 		}
 	}

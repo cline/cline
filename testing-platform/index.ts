@@ -1,33 +1,51 @@
 #!/usr/bin/env ts-node
+
+import fs from "fs"
+import path from "path"
 import "tsconfig-paths/register"
 
 import { GrpcAdapter } from "@adapters/grpcAdapter"
 import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
-import { SpecFile } from "@harness/types"
+import { Entry, SpecFile } from "@harness/types"
 import { compareResponse, loadJson, retry } from "@harness/utils"
-import fs from "fs"
-import path from "path"
 
 const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+const FIX_MODE = process.argv.includes("--fix")
 
 async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 	const spec: SpecFile = loadJson(specPath)
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
+		let actualResponse
+		try {
+			await retry(async () => {
+				actualResponse = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
-		await retry(async () => {
-			const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
+				const { success, diffs } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
 
-			const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
-
-			if (!success) {
-				const diffMsg = diffs.join("\n")
-				throw new Error(`❌ Response mismatch! RequestID: ${entry.requestId}\n${diffMsg}`)
-			}
-			console.log("✅ Response matched! RequestID: %s", entry.requestId)
-		})
+				if (!success) {
+					const diffMsg = diffs.join("\n")
+					throw new Error(`❌ Response mismatch! RequestID: ${entry.requestId}\n${diffMsg}`)
+				} else {
+					console.log("✅ Response matched! RequestID: %s", entry.requestId)
+				}
+			})
+		} catch (err) {
+			fixResponse(specPath, spec, entry, actualResponse)
+			throw err
+		}
 	}
+}
+
+function fixResponse(specPath: string, spec: SpecFile, entry: Entry, actualResponse: any) {
+	if (!FIX_MODE) {
+		return
+	}
+	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
+	entry.response.message = actualResponse
+	fs.writeFileSync(specPath, JSON.stringify(spec, null, 2) + "\n")
+	console.log(`💾 Spec file updated: ${specPath}`)
 }
 
 async function runSpecsFromFolder(folderPath: string, grpcAdapter: GrpcAdapter) {
@@ -48,7 +66,7 @@ async function runSpecsFromFolder(folderPath: string, grpcAdapter: GrpcAdapter) 
 async function main() {
 	const inputPath = process.argv[2]
 	if (!inputPath) {
-		console.error("Usage: ts-node runSpecs.ts <spec-file-or-folder>")
+		console.error("Usage: ts-node runSpecs.ts <spec-file-or-folder> [--fix]")
 		process.exit(1)
 	}
 
