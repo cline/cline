@@ -2124,6 +2124,7 @@ export class Task {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
+			let dontCheckForToolUse = false
 			if (assistantMessage.length === 0 && reasoningMessage) {
 				// Check if reasoning contains tool usage that should be parsed
 				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
@@ -2140,21 +2141,40 @@ export class Task {
 					if (block.name == "search_files" && block.params.path && block.params.regex === undefined) {
 						;(block as AssistantMessageContent).type = "text" // don't attempt execution, it's malformed
 						;(block as AssistantMessageContent as TextContent).content = reasoningMessage
-						const formattedResponse = formatResponse.taskResumption(
-							this.mode,
-							"now",
-							this.cwd,
-							false,
-							"You need to try something different as that tool call attempt has failed multiple times.",
-						)
-						this.taskState.userMessageContent.push({
-							type: "text",
-							text: formattedResponse[0],
-						})
-						this.taskState.userMessageContent.push({
-							type: "text",
-							text: formattedResponse[1],
-						})
+						// Increment the mistake counter, but don't send the no tool use message. It did attempt a tool usage.
+						this.taskState.consecutiveMistakeCount++
+						dontCheckForToolUse = true
+						if (this.taskState.consecutiveMistakeCount < 2) {
+							// it has just been incremented, so this is the first retry
+							console.log("First search_files failure")
+							// simulate task cancellation
+							const formattedResponse = formatResponse.taskResumption(
+								this.mode,
+								"now",
+								this.cwd,
+								false,
+								`You need to try something different as that tool call attempt has failed multiple times. You were previously stuck in a failure loop, repeating the message "${reasoningMessage}". Pick a different strategy. Do NOT repeat the previous message.`,
+							)
+							this.taskState.userMessageContent.push({
+								type: "text",
+								text: formattedResponse[0],
+							})
+							this.taskState.userMessageContent.push({
+								type: "text",
+								text: formattedResponse[1],
+							})
+						} else {
+							// There have already been 2 retries - this is getting serious.
+							console.log("Second search_files failure")
+							// simulate a user hitting "Proceed anyway" with a user message
+							const text = formatResponse.tooManyMistakes(
+								"Stop! You're getting off track. Your next thoughts should consist of re-evaluating your progress on the to-do list before you call a tool again. Then, resume progress on the to-do list.",
+							)
+							this.taskState.userMessageContent.push({
+								type: "text",
+								text: text,
+							})
+						}
 					}
 					return block
 				})
@@ -2210,7 +2230,8 @@ export class Task {
 				await pWaitFor(() => this.taskState.userMessageContentReady)
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
-				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
+				const didToolUse =
+					this.taskState.assistantMessageContent.some((block) => block.type === "tool_use") || dontCheckForToolUse
 
 				if (!didToolUse) {
 					// normal request where tool use is required
