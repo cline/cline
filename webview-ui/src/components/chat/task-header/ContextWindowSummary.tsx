@@ -96,13 +96,15 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 			const type = autoCompactThreshold > thresholdDisplay ? "up" : "down"
 			setIsThresholdChanged(type)
 			setThresholdDisplay(autoCompactThreshold)
-			setTimeout(() => {
-				setIsThresholdFadingOut(true)
+			return () => {
 				setTimeout(() => {
-					setIsThresholdChanged(undefined)
-					setIsThresholdFadingOut(false)
-				}, 1000) // Duration of fade-out effect
-			}, 2000) // Duration to show the changed value before starting fade-out
+					setIsThresholdFadingOut(true)
+					setTimeout(() => {
+						setIsThresholdChanged(undefined)
+						setIsThresholdFadingOut(false)
+					}, 1000) // Duration of fade-out effect
+				}, 2000) // Duration to show the changed value before starting fade-out
+			}
 		}
 	}, [autoCompactThreshold, thresholdDisplay])
 
@@ -110,6 +112,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 min-w-xs p-4">
 			{thresholdDisplay > 0 && (
 				<InfoRow
+					key={thresholdDisplay}
 					label="Auto Condense Threshold"
 					value={
 						<span
