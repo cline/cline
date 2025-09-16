@@ -372,7 +372,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			difyBaseUrl,
-			sapAiCoreUseOrchestrationMode,
+			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
