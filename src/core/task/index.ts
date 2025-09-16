@@ -75,6 +75,8 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
+import { HookManager } from "../hooks/HookManager"
+import { HookResponseHandler } from "../hooks/handlers/HookResponseHandler"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -109,6 +111,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
+	private hookManager: HookManager
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
@@ -355,6 +358,11 @@ export class Task {
 			telemetryService.captureTaskCreated(this.ulid, currentProvider)
 		}
 
+		// Initialize HookManager
+		this.hookManager = new HookManager(this.taskId, cwd, {
+			debug: false, // Can be made configurable later
+		})
+
 		this.toolExecutor = new ToolExecutor(
 			this.controller.context,
 			this.taskState,
@@ -368,6 +376,10 @@ export class Task {
 			this.clineIgnoreController,
 			this.contextManager,
 			this.stateManager,
+			this.hookManager,
+			this.autoApprovalSettings,
+			this.browserSettings,
+			this.focusChainSettings,
 			cwd,
 			this.taskId,
 			this.ulid,
@@ -525,6 +537,40 @@ export class Task {
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
+		// Execute UserPromptSubmit hooks if user is submitting a message
+		if (askResponse === "messageResponse" && text !== undefined) {
+			const hookEnabled = await this.hookManager.isEnabled()
+			if (hookEnabled) {
+				// Create hook response handler
+				const hookResponseHandler = new HookResponseHandler({
+					say: async (type, text) => {
+						await this.say(type, text)
+					},
+					addContext: (context: string) => {
+						console.log("Hook provided additional context:", context)
+						// Could be extended to add context to conversation
+					},
+				})
+
+				const hookResult = await this.hookManager.executeUserPromptSubmitHooks(text)
+				const { approved, modifiedPrompt } = await hookResponseHandler.handleUserPromptSubmitResponse(hookResult, text)
+
+				if (!approved) {
+					// Prompt was denied by hook - don't process it
+					this.taskState.askResponse = "noButtonClicked" // Treat as if they cancelled
+					this.taskState.askResponseText = undefined
+					this.taskState.askResponseImages = undefined
+					this.taskState.askResponseFiles = undefined
+					return
+				}
+
+				// Use modified prompt if provided
+				if (modifiedPrompt !== undefined) {
+					text = modifiedPrompt
+				}
+			}
+		}
+
 		this.taskState.askResponse = askResponse
 		this.taskState.askResponseText = text
 		this.taskState.askResponseImages = images
@@ -658,6 +704,22 @@ export class Task {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
+
+		// Execute SessionStart hooks
+		const hookEnabled = await this.hookManager.isEnabled()
+		if (hookEnabled) {
+			const hookResponseHandler = new HookResponseHandler({
+				say: async (type, text) => {
+					await this.say(type, text)
+				},
+				addContext: (context: string) => {
+					console.log("SessionStart hook provided context:", context)
+				},
+			})
+			const hookResult = await this.hookManager.executeSessionStartHooks("startup")
+			await hookResponseHandler.handleGenericResponse(hookResult)
+		}
+
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.messageStateHandler.setClineMessages([])
@@ -700,7 +762,26 @@ export class Task {
 			// Optionally, inform the user or handle the error appropriately
 		}
 
+<<<<<<< HEAD
 		const savedClineMessages = await getSavedClineMessages(this.taskId)
+=======
+		// Execute SessionStart hooks for resumed task
+		const hookEnabled = await this.hookManager.isEnabled()
+		if (hookEnabled) {
+			const hookResponseHandler = new HookResponseHandler({
+				say: async (type, text) => {
+					await this.say(type, text)
+				},
+				addContext: (context: string) => {
+					console.log("SessionStart hook provided context:", context)
+				},
+			})
+			const hookResult = await this.hookManager.executeSessionStartHooks("resume")
+			await hookResponseHandler.handleGenericResponse(hookResult)
+		}
+
+		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+>>>>>>> c5bfb3b77 (feat: Integrate hook system into tool execution pipeline (Milestone 3))
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
@@ -903,12 +984,41 @@ export class Task {
 			this.FocusChainManager.checkIncompleteProgressOnCompletion()
 		}
 
+		// Execute Stop hooks
+		const hookEnabled = await this.hookManager.isEnabled()
+		if (hookEnabled) {
+			const hookResponseHandler = new HookResponseHandler({
+				say: async (type, text) => {
+					await this.say(type, text)
+				},
+				addContext: (context: string) => {
+					console.log("Stop hook provided context:", context)
+				},
+			})
+			const hookResult = await this.hookManager.executeStopHooks(true)
+			await hookResponseHandler.handleGenericResponse(hookResult)
+		}
+
 		this.taskState.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		await this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
 		this.fileContextTracker.dispose()
+
+		// Execute SessionEnd hooks
+		if (hookEnabled) {
+			const hookResponseHandler = new HookResponseHandler({
+				say: async (type, text) => {
+					await this.say(type, text)
+				},
+				addContext: (context: string) => {
+					console.log("SessionEnd hook provided context:", context)
+				},
+			})
+			const sessionEndResult = await this.hookManager.executeSessionEndHooks()
+			await hookResponseHandler.handleGenericResponse(sessionEndResult)
+		}
 		// need to await for when we want to make sure directories/files are reverted before
 		// re-starting the task from a checkpoint
 		await this.diffViewProvider.revertChanges()

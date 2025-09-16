@@ -3,8 +3,7 @@
  * Handles the execution of hook commands with timeout and error handling
  */
 
-import type { ExecaChildProcess } from "execa"
-import { execa } from "execa"
+import { execa, type ResultPromise } from "execa"
 import { HookDefinition } from "./types/HookConfiguration"
 import { HookEvent } from "./types/HookEvent"
 import { HookExecutionResult, parseHookOutput } from "./types/HookResponse"
@@ -145,7 +144,7 @@ export class HookExecutor {
 	/**
 	 * Kill a running hook process
 	 */
-	async killProcess(childProcess: ExecaChildProcess): Promise<void> {
+	async killProcess(childProcess: ResultPromise<any>): Promise<void> {
 		if (!childProcess.killed) {
 			childProcess.kill("SIGTERM")
 

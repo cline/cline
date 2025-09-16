@@ -94,7 +94,7 @@ describe("HookResponseHandler", () => {
 			expect(result.approved).to.be.true
 			expect(result.modifiedBlock).to.not.be.undefined
 			expect(result.modifiedBlock?.params.path).to.equal("/modified/path.txt")
-			expect(result.modifiedBlock?.params.newParam).to.equal("value")
+			expect((result.modifiedBlock?.params as any).newParam).to.equal("value")
 		})
 
 		it("should add additional context", async () => {
