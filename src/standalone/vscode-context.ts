@@ -13,13 +13,10 @@ log("Running standalone cline", version)
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
 const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
-const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || DATA_DIR
-
-try {
-	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
-} catch {}
+const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
 
 mkdirSync(DATA_DIR, { recursive: true })
+mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
 const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
@@ -50,8 +47,9 @@ const extensionContext: ExtensionContext = {
 	globalStorageUri: URI.file(DATA_DIR),
 	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
 
-	logUri: URI.file(WORKSPACE_STORAGE_DIR),
-	logPath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
+	// Logs are global per extension, not per workspace.
+	logUri: URI.file(DATA_DIR),
+	logPath: DATA_DIR, // Deprecated, not used in cline.
 
 	extensionUri: URI.file(EXTENSION_DIR),
 	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
