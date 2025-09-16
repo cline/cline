@@ -37,81 +37,87 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 
+export interface ApiHandlerSecrets {
+	apiKey?: string // anthropic
+	liteLlmApiKey?: string
+	awsAccessKey?: string
+	awsSecretKey?: string
+	openRouterApiKey?: string
+
+	clineAccountId?: string
+	awsSessionToken?: string
+	awsBedrockApiKey?: string
+	openAiApiKey?: string
+	geminiApiKey?: string
+	openAiNativeApiKey?: string
+	ollamaApiKey?: string
+	deepSeekApiKey?: string
+	requestyApiKey?: string
+	togetherApiKey?: string
+	fireworksApiKey?: string
+	qwenApiKey?: string
+	doubaoApiKey?: string
+	mistralApiKey?: string
+	authNonce?: string
+	asksageApiKey?: string
+	xaiApiKey?: string
+	moonshotApiKey?: string
+	zaiApiKey?: string
+	huggingFaceApiKey?: string
+	nebiusApiKey?: string
+	sambanovaApiKey?: string
+	cerebrasApiKey?: string
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	groqApiKey?: string
+	huaweiCloudMaasApiKey?: string
+	basetenApiKey?: string
+	vercelAiGatewayApiKey?: string
+	difyApiKey?: string
+}
+
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
-	apiKey?: string // anthropic
-	clineAccountId?: string
 	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
-	openRouterApiKey?: string
 	openRouterProviderSorting?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
-	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
-	openAiApiKey?: string
 	ollamaBaseUrl?: string
-	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
-	geminiApiKey?: string
 	geminiBaseUrl?: string
-	openAiNativeApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
 	requestyBaseUrl?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
-	qwenApiKey?: string
 	qwenCodeOauthPath?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
 	azureApiVersion?: string
 	qwenApiLine?: string
 	moonshotApiLine?: string
-	moonshotApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
 	asksageApiUrl?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	groqApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
 	requestTimeoutMs?: number
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
 	sapAiCoreUseOrchestrationMode?: boolean
-	huaweiCloudMaasApiKey?: string
-	difyApiKey?: string
 	difyBaseUrl?: string
-	zaiApiKey?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
@@ -143,8 +149,8 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeVercelAiGatewayModelId?: string
 	planModeVercelAiGatewayModelInfo?: ModelInfo
-	// Act mode configurations
 
+	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
@@ -177,11 +183,12 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 }
 
-export type ApiConfiguration = ApiHandlerOptions & {
-	planModeApiProvider?: ApiProvider
-	actModeApiProvider?: ApiProvider
-	favoritedModelIds?: string[]
-}
+export type ApiConfiguration = ApiHandlerOptions &
+	ApiHandlerSecrets & {
+		planModeApiProvider?: ApiProvider
+		actModeApiProvider?: ApiProvider
+		favoritedModelIds?: string[]
+	}
 
 // Models
 
