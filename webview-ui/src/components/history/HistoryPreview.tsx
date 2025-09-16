@@ -186,6 +186,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								}}>
 								<VSCodeButton
 									appearance="icon"
+									aria-label="View all history"
 									onClick={() => showHistoryView()}
 									style={{
 										opacity: 0.9,

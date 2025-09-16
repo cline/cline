@@ -10,7 +10,7 @@ export async function getToolUseSection(variant: PromptVariant, context: SystemP
 	const template = variant.componentOverrides?.[SystemPromptSection.TOOL_USE]?.template || TOOL_USE_TEMPLATE_TEXT
 
 	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return templateEngine.resolve(template, context, {
 		TOOL_USE_FORMATTING_SECTION: await getToolUseFormattingSection(variant, context),
 		TOOLS_SECTION: await getToolUseToolsSection(variant, context),
 		TOOL_USE_EXAMPLES_SECTION: await getToolUseExamplesSection(variant, context),
