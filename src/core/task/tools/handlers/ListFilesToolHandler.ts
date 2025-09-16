@@ -1,8 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
-import { parseWorkspaceInlinePath } from "@core/workspace/utils/parseWorkspaceInlinePath"
-import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { listFiles } from "@services/glob/list-files"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
@@ -67,33 +65,9 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
-		let absolutePath: string
-		let displayPath: string = relDirPath!
-
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			// Parse workspace hint from the path (e.g., @frontend:src/)
-			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relDirPath!)
-
-			// Create adapter for multi-workspace path resolution
-			const adapter = new WorkspacePathAdapter({
-				cwd: config.cwd,
-				isMultiRootEnabled: true,
-				workspaceManager: config.workspaceManager,
-			})
-
-			// Resolve to the correct workspace root
-			absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
-
-			// Update display path for better user feedback
-			if (workspaceHint) {
-				displayPath = `@${workspaceHint}:${parsedPath}`
-			} else {
-				displayPath = parsedPath
-			}
-		} else {
-			// Fallback to single-workspace behavior
-			absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListFilesToolHandler.execute")
-		}
+		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)

@@ -3,8 +3,6 @@ import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
-import { parseWorkspaceInlinePath } from "@core/workspace/utils/parseWorkspaceInlinePath"
-import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
@@ -300,27 +298,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
 		// Parse workspace hint and resolve path for multi-workspace support
-		let resolvedPath: string = relPath
-		let absolutePath: string
-
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			// Parse workspace hint from the path (e.g., @frontend:src/index.ts)
-			const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relPath)
-
-			// Create adapter for multi-workspace path resolution
-			const adapter = new WorkspacePathAdapter({
-				cwd: config.cwd,
-				isMultiRootEnabled: true,
-				workspaceManager: config.workspaceManager,
-			})
-
-			// Resolve to the correct workspace root
-			absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
-			resolvedPath = parsedPath
-		} else {
-			// Fallback to single-workspace behavior
-			absolutePath = resolveWorkspacePath(config.cwd, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
-		}
+		const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
+		const { absolutePath, resolvedPath } =
+			typeof pathResult === "string"
+				? { absolutePath: pathResult, resolvedPath: relPath }
+				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
 
 		// Check clineignore access first
 		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
