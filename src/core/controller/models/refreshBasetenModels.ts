@@ -2,6 +2,7 @@ import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
+import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
@@ -205,21 +206,6 @@ function isValidChatModel(rawModel: any): boolean {
 	}
 
 	return false
-}
-
-/**
- * Converts string pricing from per-token to per-million-tokens
- */
-function parsePrice(priceString: string | undefined): number {
-	if (!priceString || priceString === "" || priceString === "0") {
-		return 0
-	}
-	const parsed = parseFloat(priceString)
-	if (isNaN(parsed)) {
-		return 0
-	}
-	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
-	return parsed * 1_000_000
 }
 
 /**
