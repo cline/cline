@@ -1,4 +1,4 @@
-import { mkdirSync } from "fs"
+import { mkdirSync } from "node:fs"
 import os from "os"
 import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
