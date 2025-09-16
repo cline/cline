@@ -64,3 +64,9 @@ old_docs/**
 e2e-build.mjs
 e2e.vsix
 test-results/
+
+# Ignore Storybook files
+**/*.stories.tsx
+*storybook.log
+storybook-static
+**/StorybookDecorator.tsx
