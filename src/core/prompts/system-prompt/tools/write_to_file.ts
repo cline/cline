@@ -21,6 +21,7 @@ Checklist here (optional)
 </task_progress>` : "" }
 </write_to_file>
  */
+
 const id = ClineDefaultTool.FILE_NEW
 
 const generic: ClineToolSpec = {
@@ -47,8 +48,4 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gpt = { ...generic, variant: ModelFamily.GPT }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
-
-export const write_to_file_variants = [generic, nextGen, gpt, gemini]
+export const write_to_file_variants = [generic]
