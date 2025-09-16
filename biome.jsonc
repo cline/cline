@@ -10,7 +10,7 @@
 		"enabled": true,
 		"actions": {
 			"source": {
-				"organizeImports": "on",
+				"organizeImports": "off",
 				"useSortedAttributes": "on"
 			}
 		}
@@ -38,7 +38,7 @@
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
 				"noSwitchDeclarations": "off",
-				"noUnusedImports": "error"
+				"noUnusedImports": "off"
 			},
 			"a11y": "off",
 			"style": {
