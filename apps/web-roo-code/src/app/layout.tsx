@@ -1,8 +1,8 @@
 import React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import Script from "next/script"
 import { SEO } from "@/lib/seo"
+import { CookieConsentWrapper } from "@/components/CookieConsentWrapper"
 
 import { Providers } from "@/components/providers"
 
@@ -93,22 +93,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 				/>
 			</head>
 			<body className={inter.className}>
-				{/* Google tag (gtag.js) */}
-				<Script src="https://www.googletagmanager.com/gtag/js?id=AW-17391954825" strategy="afterInteractive" />
-				<Script id="google-analytics" strategy="afterInteractive">
-					{`
-						window.dataLayer = window.dataLayer || [];
-						function gtag(){dataLayer.push(arguments);}
-						gtag('js', new Date());
-						gtag('config', 'AW-17391954825');
-					`}
-				</Script>
 				<div itemScope itemType="https://schema.org/WebSite">
 					<link itemProp="url" href={SEO.url} />
 					<meta itemProp="name" content={SEO.name} />
 				</div>
 				<Providers>
 					<Shell>{children}</Shell>
+					<CookieConsentWrapper />
 				</Providers>
 			</body>
 		</html>

@@ -1,6 +1,7 @@
 export * from "./api.js"
 export * from "./cloud.js"
 export * from "./codebase-index.js"
+export * from "./cookie-consent.js"
 export * from "./events.js"
 export * from "./experiment.js"
 export * from "./followup.js"
