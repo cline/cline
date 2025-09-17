@@ -118,7 +118,7 @@ export interface ApiHandlerOptions {
 	planModeReasoningEffort?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	planModeAwsBedrockCustomSelected?: boolean
-	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeAwsBedrockCustomModelBaseId?: string
 	planModeOpenRouterModelId?: string
 	planModeOpenRouterModelInfo?: ModelInfo
 	planModeOpenAiModelId?: string
@@ -150,7 +150,7 @@ export interface ApiHandlerOptions {
 	actModeReasoningEffort?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	actModeAwsBedrockCustomSelected?: boolean
-	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeAwsBedrockCustomModelBaseId?: string
 	actModeOpenRouterModelId?: string
 	actModeOpenRouterModelInfo?: ModelInfo
 	actModeOpenAiModelId?: string
@@ -180,7 +180,6 @@ export interface ApiHandlerOptions {
 export type ApiConfiguration = ApiHandlerOptions & {
 	planModeApiProvider?: ApiProvider
 	actModeApiProvider?: ApiProvider
-	favoritedModelIds?: string[]
 }
 
 // Models

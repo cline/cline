@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, BedrockModelId, fireworksDefaultModelId, ModelInfo } from "@shared/api"
 import { ExtensionContext, LanguageModelChatSelector } from "vscode"
 import { Controller } from "@/core/controller"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -184,7 +184,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const telemetrySetting = context.globalState.get("telemetrySetting") as TelemetrySetting | undefined
 		const asksageApiUrl = context.globalState.get("asksageApiUrl") as string | undefined
 		const planActSeparateModelsSettingRaw = context.globalState.get("planActSeparateModelsSetting") as boolean | undefined
-		const favoritedModelIds = context.globalState.get("favoritedModelIds") as string[] | undefined
+		const favoritedModelIds = context.globalState.get<GlobalState["favoritedModelIds"]>("favoritedModelIds")
 		const globalClineRulesToggles = context.globalState.get("globalClineRulesToggles") as ClineRulesToggles | undefined
 		const requestTimeoutMs = context.globalState.get("requestTimeoutMs") as number | undefined
 		const shellIntegrationTimeout = context.globalState.get("shellIntegrationTimeout") as number | undefined
@@ -366,13 +366,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			fireworksModelMaxCompletionTokens,
 			fireworksModelMaxTokens,
 			asksageApiUrl,
-			favoritedModelIds,
+			favoritedModelIds: favoritedModelIds || [],
 			requestTimeoutMs,
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			difyBaseUrl,
-			sapAiCoreUseOrchestrationMode,
+			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -392,7 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeRequestyModelId,
 			planModeRequestyModelInfo,
 			planModeTogetherModelId,
-			planModeFireworksModelId,
+			planModeFireworksModelId: planModeFireworksModelId || fireworksDefaultModelId,
 			planModeSapAiCoreModelId,
 			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
@@ -424,7 +424,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeRequestyModelId,
 			actModeRequestyModelInfo,
 			actModeTogetherModelId,
-			actModeFireworksModelId,
+			actModeFireworksModelId: actModeFireworksModelId || fireworksDefaultModelId,
 			actModeSapAiCoreModelId,
 			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,

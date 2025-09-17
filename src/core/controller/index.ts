@@ -23,6 +23,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -86,7 +87,7 @@ export class Controller {
 		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
 			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
-				await this.stateManager.reInitialize()
+				await this.stateManager.reInitialize(this.task?.taskId)
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
@@ -108,7 +109,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
-			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
@@ -254,6 +255,11 @@ export class Controller {
 			files,
 			historyItem,
 		)
+
+		// Load task settings after task creation
+		if (this.task.taskId) {
+			await this.stateManager.loadTaskSettings(this.task.taskId)
+		}
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -669,6 +675,8 @@ export class Controller {
 		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalStateKey("terminalOutputLineLimit")
+		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
+
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
@@ -683,11 +691,11 @@ export class Controller {
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
-		const version = this.context.extension?.packageJSON?.version ?? ""
+		const version = ExtensionRegistryInfo.version
 
 		return {
 			version,
@@ -728,6 +736,7 @@ export class Controller {
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
+			favoritedModelIds,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
@@ -737,6 +746,8 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
+			// Clear task settings cache when task ends
+			await this.stateManager.clearTaskSettings(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
