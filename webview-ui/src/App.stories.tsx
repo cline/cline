@@ -153,8 +153,8 @@ const createApiReqMessage = (minutesAgo: number, request: string, metrics: any =
 		"api_req_started",
 		JSON.stringify({
 			request,
-			tokensIn: 850,
-			tokensOut: 420,
+			tokensIn: 19500,
+			tokensOut: 4220,
 			cacheWrites: 120,
 			cacheReads: 60,
 			size: 12345,
@@ -173,7 +173,7 @@ const mockActiveMessages: ClineMessage[] = [
 		"I'll help you create a responsive navigation component for your React application. Let me start by examining your current project structure and then create a modern, accessible navigation component.",
 	),
 	createMessage(4.3, "say", "tool", JSON.stringify({ tool: "listFilesTopLevel", path: "src/components" })),
-	createApiReqMessage(4.2, "Component creation request", { tokensIn: 1200, tokensOut: 680, cost: 0.042 }),
+	createApiReqMessage(4.2, "Component creation request", { tokensIn: 12020, tokensOut: 6180, cost: 0.042 }),
 	createMessage(
 		4,
 		"say",
@@ -190,7 +190,7 @@ const mockActiveMessages: ClineMessage[] = [
 			content: "// Navigation component code...",
 		}),
 	),
-	createApiReqMessage(3.5, "Final response request", { tokensIn: 450, tokensOut: 320, cost: 0.018 }),
+	createApiReqMessage(3.5, "Final response request", { tokensIn: 41550, tokensOut: 3320, cost: 0.018 }),
 	createMessage(
 		3.3,
 		"say",
@@ -213,6 +213,8 @@ const mockStreamingMessages: ClineMessage[] = [
 // Reusable state and decorator factories
 const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
+	useAutoCondense: true,
+	autoCondenseThreshold: 0.5,
 	welcomeViewCompleted: true,
 	showWelcome: false,
 	clineMessages: mockActiveMessages,
@@ -414,14 +416,14 @@ export const AutoApprovalEnabled: Story = {
 
 const createPlanModeMessages = () => [
 	createMessage(5, "say", "task", "Help me refactor my React application to use TypeScript and improve performance"),
-	createApiReqMessage(4.9, "Planning analysis request", { tokensIn: 1800, tokensOut: 950, cost: 0.065 }),
+	createApiReqMessage(4.9, "Planning analysis request", { tokensIn: 20000, tokensOut: 19500, cost: 0.065 }),
 	createMessage(
 		4.7,
 		"say",
 		"text",
 		"I'll help you refactor your React application to use TypeScript and improve performance. Let me create a detailed plan for this migration.",
 	),
-	createApiReqMessage(4.5, "Detailed planning request", { tokensIn: 2200, tokensOut: 1400, cost: 0.095 }),
+	createApiReqMessage(4.5, "Detailed planning request", { tokensIn: 20002, tokensOut: 12500, cost: 0.095 }),
 	createAskMessage(
 		"plan_mode_respond",
 		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.",
