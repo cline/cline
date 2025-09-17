@@ -30,7 +30,7 @@ export class WorkspacePathAdapter {
 	resolvePath(relativePath: string, workspaceHint?: string): string {
 		// Single-root mode (backward compatible)
 		if (!this.config.isMultiRootEnabled || !this.config.workspaceManager) {
-			return resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter")
+			return resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter") as string
 		}
 
 		// Multi-root mode
@@ -73,7 +73,7 @@ export class WorkspacePathAdapter {
 
 		// Fallback to cwd if no roots (shouldn't happen, but defensive)
 		console.warn(`[WorkspacePathAdapter] No workspace roots found, falling back to cwd`)
-		return resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter-fallback")
+		return resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter-fallback") as string
 	}
 
 	/**
@@ -86,7 +86,7 @@ export class WorkspacePathAdapter {
 	getAllPossiblePaths(relativePath: string): string[] {
 		// Single-root mode
 		if (!this.config.isMultiRootEnabled || !this.config.workspaceManager) {
-			return [resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter-getAllPaths")]
+			return [resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter-getAllPaths") as string]
 		}
 
 		// Multi-root mode

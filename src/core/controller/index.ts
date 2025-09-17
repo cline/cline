@@ -593,7 +593,7 @@ export class Controller {
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
 			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
