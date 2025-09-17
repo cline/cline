@@ -455,7 +455,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
 			yield* this.createMessageWithDeployments(systemPrompt, messages)

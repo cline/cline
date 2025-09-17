@@ -73,7 +73,10 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "SearchFilesTool.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relDirPath!, "SearchFilesTool.execute")
+		const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
 
 		// Execute the actual regex search operation
 		const results = await regexSearchFiles(

@@ -143,7 +143,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const panel = vscode.window.createWebviewPanel(VscodeWebviewProvider.TAB_PANEL_ID, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
-			localResourceRoots: [context.extensionUri],
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		})
 		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 
@@ -536,6 +536,8 @@ function setupHostProvider(context: ExtensionContext) {
 		outputChannel.appendLine,
 		getCallbackUrl,
 		getBinaryLocation,
+		context.extensionUri.fsPath,
+		context.globalStorageUri.fsPath,
 	)
 }
 

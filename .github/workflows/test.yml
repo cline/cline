@@ -90,8 +90,14 @@ jobs:
             - name: Build Tests and Extension
               run: npm run pretest
 
-            - name: Unit Tests
-              run: npm run test:unit
+            - name: Unit Tests (with coverage on Linux)
+              run: |
+                if [ "${{ runner.os }}" = "Linux" ]; then
+                  npm install --no-save nyc
+                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                else
+                  npm run test:unit
+                fi
 
             # Run extension tests with coverage
             - name: Extension Integration Tests with Coverage
@@ -125,6 +131,8 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                      coverage-unit/lcov.info
+                      webview-ui/coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
@@ -219,3 +227,39 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    qlty:
+        needs: test
+        runs-on: ubuntu-latest
+        # Run on PRs to main, pushes to main, and manual dispatches
+        if: always() && needs.test.result == 'success'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for accurate comparison
+
+            - name: Download Coverage Reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: pr-coverage-reports
+                  path: .
+
+            - name: Upload core unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage-unit/lcov.info
+                  tag: unit:core
+
+            - name: Upload webview-ui unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    webview-ui/coverage/lcov.info
+                  tag: unit:webview-ui
+                  add-prefix: webview-ui/
