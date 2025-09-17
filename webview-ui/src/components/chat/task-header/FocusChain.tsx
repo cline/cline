@@ -188,21 +188,19 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 		const isCompleted = todoInfo.completedCount === todoInfo.totalCount
 
 		return (
-			<div>
-				<div
-					className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-all duration-200 cursor-pointer"
-					onClick={handleToggle}
-					title={CLICK_TO_EDIT_TITLE}>
-					<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
-					{isExpanded && (
-						<div className="mx-1 pb-2 px-1 relative" onClick={handleEditClick}>
-							<ChecklistRenderer text={lastProgressMessageText!} />
-							{isCompleted && (
-								<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
-							)}
-						</div>
-					)}
-				</div>
+			<div
+				className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-all duration-200 cursor-pointer"
+				onClick={handleToggle}
+				title={CLICK_TO_EDIT_TITLE}>
+				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
+				{isExpanded && (
+					<div className="mx-1 pb-2 px-1 relative" onClick={handleEditClick}>
+						<ChecklistRenderer text={lastProgressMessageText!} />
+						{isCompleted && (
+							<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
+						)}
+					</div>
+				)}
 			</div>
 		)
 	},

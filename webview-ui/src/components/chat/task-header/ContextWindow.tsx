@@ -5,9 +5,9 @@ import { FoldVerticalIcon } from "lucide-react"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { updateSetting } from "@/components/settings/utils/settingsHandlers"
+import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 import { AutoCondenseMarker } from "./AutoCondenseMarker"
 import { ContextWindowSummary } from "./ContextWindowSummary"
-import { formatTokenNumber } from "./util"
 
 // Type definitions
 interface ContextWindowInfoProps {

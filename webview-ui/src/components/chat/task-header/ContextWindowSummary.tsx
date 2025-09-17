@@ -1,8 +1,7 @@
 import React, { memo, useEffect, useMemo, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { cn } from "@/utils/cn"
-import { formatSize } from "@/utils/format"
-import { formatTokenNumber } from "./util"
+import { formatSize, formatLargeNumber as formatTokenNumber } from "@/utils/format"
 
 interface TokenUsageInfoProps {
 	tokensIn?: number
@@ -61,7 +60,7 @@ const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWr
 		<HeroTooltip content={title} key={`${icon}-${value}`}>
 			<span className="flex items-center gap-0.5 text-muted-foreground">
 				<i className={`codicon ${icon} font-semibold `} />
-				{formatTokenNumber(value)}
+				{value ? formatTokenNumber(value) : ""}
 			</span>
 		</HeroTooltip>
 	))
