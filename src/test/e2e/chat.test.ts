@@ -52,24 +52,24 @@ e2e.describe("Chat - can send messages and switch between modes", () => {
 			await expect(sidebar.getByText("API Request Failed")).toBeVisible()
 
 			// === slash commands preserve following text ===
+			await inputbox.fill("")
+			await expect(inputbox).toHaveValue("")
 			await inputbox.focus()
 
 			// Type partial slash command to trigger menu
-			await inputbox.type("/new")
+			await inputbox.pressSequentially("/new")
 
 			// Wait for menu to be visible and select first option with Tab
 			await inputbox.press("Tab")
 			await expect(inputbox).toHaveValue("/newtask ")
 
 			// Add following text to verify it works correctly
-			await inputbox.fill("following text should be preserved")
+			await inputbox.pressSequentially("following text should be preserved")
 			await expect(inputbox).toHaveValue("/newtask following text should be preserved")
 
-			await inputbox.press("Control+A")
-			await inputbox.press("Backspace")
-			await expect(inputbox).toHaveValue("")
-
 			// === @ mentions preserve following text ===
+			await inputbox.fill("")
+			await expect(inputbox).toHaveValue("")
 			await inputbox.focus()
 
 			// Type partial @ mention to trigger menu
@@ -80,7 +80,7 @@ e2e.describe("Chat - can send messages and switch between modes", () => {
 			await expect(inputbox).toHaveValue("@problems ")
 
 			// Add following text to verify it works correctly
-			await inputbox.type("following text should be preserved")
+			await inputbox.pressSequentially("following text should be preserved")
 			await expect(inputbox).toHaveValue("@problems following text should be preserved")
 
 			await page.close()
