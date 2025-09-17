@@ -1,9 +1,9 @@
 import { buildApiHandler } from "@core/api"
 import * as vscode from "vscode"
-import { readStateFromDisk } from "@/core/storage/utils/state-helpers"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { getWorkingState } from "@/utils/git"
+import { getGitDiff } from "@/utils/git"
 import { getCwd } from "@/utils/path"
 
 /**
@@ -16,6 +16,18 @@ export const GitCommitGenerator = {
 
 let commitGenerationAbortController: AbortController | undefined
 
+const PROMPT = {
+	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
+	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
+	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
+
+The commit message should:
+1. Has a short title (50-72 characters)
+2. The commit message should adhere to the conventional commit format
+3. Describe what was changed and why
+4. Be clear and informative`,
+}
+
 async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
 	const cwd = await getCwd()
 	if (!context || !cwd) {
@@ -26,61 +38,63 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 		return
 	}
 
-	const gitDiff = await getWorkingState(cwd)
-	if (gitDiff === "No changes in working directory") {
-		HostProvider.window.showMessage({
-			type: ShowMessageType.INFORMATION,
-			message: "No changes in workspace for commit message",
-		})
-		return
-	}
+	try {
+		const inputBox = scm?.inputBox
+		if (!inputBox) {
+			throw new Error("Git extension not found or no repositories available")
+		}
 
-	const inputBox = scm?.inputBox
-	if (!inputBox) {
+		const gitDiff = await getGitDiff(cwd)
+		if (!gitDiff) {
+			throw new Error("No changes in workspace for commit message")
+		}
+
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.SourceControl,
+				title: "Generating commit message...",
+				cancellable: true,
+			},
+			() => performCommitGeneration(context, gitDiff, inputBox),
+		)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Git extension not found or no repositories available",
+			message: `[Commit Generation Failed] ${errorMessage}`,
 		})
-		return
 	}
-
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.SourceControl,
-			title: "Generating commit message...",
-			cancellable: true,
-		},
-		() => performCommitGeneration(context, gitDiff, inputBox),
-	)
 }
 
 async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+		const prompts = [PROMPT.instruction]
 
-		const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
-${truncatedDiff}
-The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
-Commit message:`
+		const currentInput = inputBox?.value?.trim() || ""
+		if (currentInput) {
+			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
+		}
+
+		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+		prompts.push(truncatedDiff)
+		const prompt = prompts.join("\n\n")
 
 		// Get the current API configuration
-		const { apiConfiguration } = await readStateFromDisk(context)
+		const stateManager = new StateManager(context)
+		await stateManager.initialize()
+
 		// Set to use Act mode for now by default
 		// TODO: A new mode for commit generation
+		const apiConfiguration = stateManager.getApiConfiguration()
 		const currentMode = "act"
 
 		// Build the API handler
 		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
 
 		// Create a system prompt
-		const systemPrompt =
-			"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+		const systemPrompt = PROMPT.system
 
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]

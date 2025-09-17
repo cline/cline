@@ -1,8 +1,9 @@
+import fs from "fs/promises"
+import path from "path"
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
-
 /**
  * Singleton class that manages host-specific providers for dependency injection.
  *
@@ -26,8 +27,21 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
-	// Returns a callback URI that will redirect to Cline.
-	getCallbackUri: () => Promise<string>
+	// Returns a callback URL that will redirect to Cline.
+	getCallbackUrl: () => Promise<string>
+
+	// Returns the location of the binary `name`.
+	// Use `getBinaryLocation()` from utils/ts.ts instead of using
+	// this directly. The helper function correctly handles the file
+	// extension on Windows.
+	getBinaryLocation: (name: string) => Promise<string>
+
+	// The absolute file system path where the extension is installed.
+	// Use to this to get the location of extension assets.
+	extensionFsPath: string
+
+	// The absolute file system path where the extension can store global state.
+	globalStorageFsPath: string
 
 	// Private constructor to enforce singleton pattern
 	private constructor(
@@ -35,13 +49,19 @@ export class HostProvider {
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
+		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
+		globalStorageFsPath: string,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
-		this.getCallbackUri = getCallbackUri
+		this.getCallbackUrl = getCallbackUrl
+		this.getBinaryLocation = getBinaryLocation
+		this.extensionFsPath = extensionFsPath
+		this.globalStorageFsPath = globalStorageFsPath
 	}
 
 	public static initialize(
@@ -49,17 +69,23 @@ export class HostProvider {
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
+		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
+		globalStorageFsPath: string,
 	): HostProvider {
 		if (HostProvider.instance) {
-			throw new Error("Host providers have already been initialized.")
+			throw new Error("Host provider has already been initialized.")
 		}
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
 			diffViewProviderCreator,
 			hostBridgeProvider,
 			logToChannel,
-			getCallbackUri,
+			getCallbackUrl,
+			getBinaryLocation,
+			extensionFsPath,
+			globalStorageFsPath,
 		)
 		return HostProvider.instance
 	}
@@ -86,11 +112,6 @@ export class HostProvider {
 		HostProvider.instance = null
 	}
 
-	// Static service accessors for more concise access for callers.
-	public static get watch() {
-		return HostProvider.get().hostBridge.watchServiceClient
-	}
-
 	public static get workspace() {
 		return HostProvider.get().hostBridge.workspaceClient
 	}
@@ -105,6 +126,21 @@ export class HostProvider {
 
 	public static get diff() {
 		return HostProvider.get().hostBridge.diffClient
+	}
+
+	/**
+	 * Returns the global storage directory for the extension, or a sub-directory of the global storage dir.
+	 * If the directory does not exist, it is created.
+	 * @param subdirs
+	 * @returns
+	 */
+	public static async getGlobalStorageDir(subdirs?: string) {
+		if (!subdirs) {
+			return HostProvider.get().globalStorageFsPath
+		}
+		const fullPath = path.resolve(HostProvider.get().globalStorageFsPath, subdirs)
+		await fs.mkdir(fullPath, { recursive: true })
+		return fullPath
 	}
 }
 

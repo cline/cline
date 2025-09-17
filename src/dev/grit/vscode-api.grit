@@ -1,25 +1,117 @@
 or {
 	`$fn($args)` where {
 		or {
+			// File system operations
 			$fn <: `vscode.workspace.fs.stat`,
 			$fn <: `vscode.workspace.fs.writeFile`,
+			// Workspace operations
 			$fn <: `vscode.workspace.asRelativePath`,
 			$fn <: `vscode.workspace.getWorkspaceFolder`,
-			$fn <: `vscode.window.showTextDocument`,
 			$fn <: `vscode.workspace.applyEdit`,
+			$fn <: `vscode.workspace.findFiles`,
+			$fn <: `vscode.workspace.openTextDocument`,
+			$fn <: `vscode.workspace.createFileSystemWatcher`,
+			$fn <: `vscode.workspace.onDidCreateFiles`,
+			$fn <: `vscode.workspace.onDidDeleteFiles`,
+			$fn <: `vscode.workspace.onDidRenameFiles`,
+			$fn <: `vscode.workspace.registerTextDocumentContentProvider`,
+			// Window operations
+			$fn <: `vscode.window.showTextDocument`,
 			$fn <: `vscode.window.onDidChangeActiveTextEditor`,
-			$fn <: `vscode.env.openExternal`,
-			$fn <: `vscode.window.showWarningMessage`,
-			$fn <: `vscode.window.showOpenDialog`,
 			$fn <: `vscode.window.showErrorMessage`,
 			$fn <: `vscode.window.showInformationMessage`,
+			$fn <: `vscode.window.showWarningMessage`,
 			$fn <: `vscode.window.showInputBox`,
-			$fn <: `vscode.workspace.findFiles`
+			$fn <: `vscode.window.showOpenDialog`,
+			$fn <: `vscode.window.showSaveDialog`,
+			$fn <: `vscode.window.createTextEditorDecorationType`,
+			$fn <: `vscode.window.createOutputChannel`,
+			$fn <: `vscode.window.createWebviewPanel`,
+			$fn <: `vscode.window.registerWebviewViewProvider`,
+			$fn <: `vscode.window.registerUriHandler`,
+			//$fn <: `vscode.window.withProgress`,
+
+			// Environment operations
+			$fn <: `vscode.env.openExternal`,
+			$fn <: `vscode.env.clipboard.readText`,
+			$fn <: `vscode.env.clipboard.writeText`,
+			// Language operations
+			$fn <: `vscode.languages.onDidChangeDiagnostics`,
+			$fn <: `vscode.languages.registerCodeActionsProvider`,
+			$fn <: `vscode.languages.getDiagnostics`,
+			//$fn <: `vscode.lm.selectChatModels`,
+
+			// Debug operations
+			$fn <: `vscode.debug.onDidStartDebugSession`,
+			$fn <: `vscode.debug.onDidTerminateDebugSession`,
+			// Command operations
+			$fn <: `vscode.commands.registerCommand`,
+			// Note: executeCommand is handled separately with allowlist below
+
+			// Extension operations
+			$fn <: `vscode.extensions.getExtension`,
+			// Other operations
+			$fn <: `vscode.diff`,
+			//$fn <: `vscode.postMessage`,
+			$fn <: `vscode.Uri`,
+			// Text document operations
+			$fn <: `TextDocument.save`,
+			// Tab group operations
+			$fn <: `vscode.window.tabGroups.close`,
+			$fn <: `vscode.window.tabGroups.onDidChangeTabs`,
+			// Workspace text documents
+			$fn <: `vscode.workspace.textDocuments.find`
 		},
 		register_diagnostic(span=$fn, message="Replace this with methods from the host bridge provider or appropriate abstraction layer.")
 	},
+	// Block new vscode.commands.executeCommand usage (with allowlist for existing usage)
+	// This pattern matches executeCommand with any number of arguments using the spread operator
+	`vscode.commands.executeCommand($command, $...$args)` where {
+		not or {
+			// Allowed existing command strings
+			$command <: `"workbench.action.terminal.focus"`
+		},
+		register_diagnostic(span=$command, message="New usage of vscode.commands.executeCommand is not allowed. Replace this with methods from the host bridge provider.")
+	},
+	// Also handle executeCommand calls with no additional arguments
+	`vscode.commands.executeCommand($command)` where {
+		not or {
+			// Allowed existing command strings (single argument version)
+			$command <: `"workbench.action.terminal.focus"`
+		},
+		register_diagnostic(span=$command, message="New usage of vscode.commands.executeCommand is not allowed. Replace this with methods from the host bridge provider.")
+	},
+	// Property access patterns (nested properties)
 	`vscode.$method.$var` where {
-		$var <: `workspaceFolders`,
-		register_diagnostic(span=$var, message="Use HostProvider.workspace.getWorkspacePaths({}) instead.")
+		or {
+			$var <: `workspaceFolders`,
+			$var <: `appRoot`,
+			$var <: `machineId`,
+			$var <: `uriScheme`,
+			$var <: `isTelemetryEnabled`,
+			$var <: `onDidChangeTelemetryEnabled`,
+			$var <: `all`,
+			$var <: `activeTextEditor`,
+			$var <: `visibleTextEditors`,
+			$var <: `activeTabGroup`
+		},
+		register_diagnostic(span=$var, message="Use appropriate HostProvider methods or abstraction layer instead.")
+	},
+	// Direct vscode property access patterns
+	`vscode.$property` where {
+		or { $property <: `version` },
+		register_diagnostic(span=$property, message="Use appropriate HostProvider methods or abstraction layer instead.")
+	},
+	// Special case for vscode.window.tabGroups.all
+	`vscode.window.tabGroups.all` where {
+		register_diagnostic(message="Use appropriate HostProvider methods or abstraction layer instead.")
+	},
+	// Special case for vscode.extensions.all
+	`vscode.extensions.all` where {
+		register_diagnostic(message="Use appropriate HostProvider methods or abstraction layer instead.")
+	},
+	// Block all vscode.env.* access (catches any property or method)
+	`vscode.env.$anything` where {
+		register_diagnostic(message="Use appropriate HostProvider methods or abstraction layer instead of vscode.env API.")
 	}
 }

@@ -1,11 +1,9 @@
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
-import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 import { WebviewProvider } from "@core/webview"
-import { getTheme } from "@integrations/theme/getTheme"
-import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewMessage } from "@/shared/WebviewMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
@@ -18,8 +16,8 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class VscodeWebviewProvider extends WebviewProvider implements vscode.WebviewViewProvider {
 	// Used in package.json as the view's id. This value cannot be changed due to how vscode caches
 	// views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly SIDEBAR_ID = "claude-dev.SidebarProvider"
-	public static readonly TAB_PANEL_ID = "claude-dev.TabPanelProvider"
+	public static readonly SIDEBAR_ID = ExtensionRegistryInfo.views.Sidebar
+	public static readonly TAB_PANEL_ID = ExtensionRegistryInfo.views.TabPanel
 
 	private webview?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
@@ -28,11 +26,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		super(context, providerType)
 	}
 
-	override getWebviewUri(uri: Uri) {
+	override getWebviewUrl(path: string) {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
 		}
-		return this.webview.webview.asWebviewUri(uri)
+		const uri = this.webview.webview.asWebviewUri(vscode.Uri.file(path))
+		return uri.toString()
 	}
 
 	override getCspSource() {
@@ -69,7 +68,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
-			localResourceRoots: [this.context.extensionUri],
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		}
 
 		webviewView.webview.html =
@@ -130,13 +129,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
-				if (e && e.affectsConfiguration("workbench.colorTheme")) {
-					// Send theme update via gRPC subscription
-					const theme = await getTheme(this.context)
-					if (theme) {
-						await sendThemeEvent(JSON.stringify(theme))
-					}
-				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
 					await this.controller.postStateToWebview()

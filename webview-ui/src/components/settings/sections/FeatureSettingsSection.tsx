@@ -21,7 +21,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		useAutoCondense,
 		focusChainSettings,
-		focusChainFeatureFlagEnabled,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -104,6 +103,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const newValue = e.target.currentValue as OpenaiReasoningEffort
 								handleReasoningEffortChange(newValue)
 							}}>
+							<VSCodeOption value="minimal">Minimal</VSCodeOption>
 							<VSCodeOption value="low">Low</VSCodeOption>
 							<VSCodeOption value="medium">Medium</VSCodeOption>
 							<VSCodeOption value="high">High</VSCodeOption>
@@ -125,7 +125,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enforces strict tool use while in plan mode, preventing file edits.
 						</p>
 					</div>
-					{focusChainFeatureFlagEnabled && (
+					{
 						<div style={{ marginTop: 10 }}>
 							<VSCodeCheckbox
 								checked={focusChainSettings?.enabled || false}
@@ -140,8 +140,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								tasks.
 							</p>
 						</div>
-					)}
-					{focusChainFeatureFlagEnabled && focusChainSettings?.enabled && (
+					}
+					{focusChainSettings?.enabled && (
 						<div style={{ marginTop: 10, marginLeft: 20 }}>
 							<label
 								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"

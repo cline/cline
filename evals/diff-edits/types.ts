@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ToolUseName, ToolParamName } from "../../src/core/assistant-message"
+import { ToolParamName } from "../../src/core/assistant-message"
+import { ClineDefaultTool } from "../../src/shared/tools"
 
 export interface InputMessage {
 	role: "user" | "assistant"
@@ -88,7 +89,7 @@ export interface TestResult {
 }
 
 export interface ExtractedToolCall {
-	name: ToolUseName
+	name: ClineDefaultTool
 	input: Partial<Record<ToolParamName, string>>
 }
 

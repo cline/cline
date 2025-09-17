@@ -1,4 +1,4 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -77,7 +77,7 @@ export async function refreshOpenRouterModels(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 	try {
@@ -110,6 +110,12 @@ export async function refreshOpenRouterModels(
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4":
+						// NOTE: we artificially restrict the context window to 200k to keep costs low for users, and have a :1m model variant created below for users that want to use the full 1m.
+						modelInfo.contextWindow = 200_000
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 3.75
+						modelInfo.cacheReadsPrice = 0.3
+						break
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":
@@ -183,6 +189,10 @@ export async function refreshOpenRouterModels(
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
 						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
 						break
+					case "x-ai/grok-code-fast-1":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheReadsPrice = 0.02
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
@@ -249,7 +259,7 @@ export async function refreshOpenRouterModels(
  * Reads cached OpenRouter models from disk
  */
 async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 	if (fileExists) {
 		try {
@@ -261,13 +271,4 @@ async function readOpenRouterModels(controller: Controller): Promise<Record<stri
 		}
 	}
 	return undefined
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }

@@ -18,7 +18,6 @@ vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 				actModeRequestyModelId: "",
 			},
 			setApiConfiguration: vi.fn(),
-			uriScheme: "vscode",
 			requestyModels: {},
 			planActSeparateModelsSetting: false,
 		})),
@@ -29,7 +28,6 @@ const mockExtensionState = (apiConfiguration: Partial<ApiConfiguration>) => {
 	vi.mocked(useExtensionState).mockReturnValue({
 		apiConfiguration,
 		setApiConfiguration: vi.fn(),
-		uriScheme: "vscode",
 		requestyModels: {},
 		planActSeparateModelsSetting: false,
 	} as any)
@@ -140,7 +138,7 @@ describe("ApiOptions Component", () => {
 		)
 		const modelIdSelect = screen.getByLabelText("Model")
 		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2-instruct")
+		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2-instruct-0905")
 	})
 })
 

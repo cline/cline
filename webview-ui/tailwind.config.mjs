@@ -1,11 +1,10 @@
-import { heroui } from "@heroui/react"
-
 /** @type {import('tailwindcss').Config} */
+import heroui from "./src/hero.ts"
 
 export default {
 	content: {
 		relative: true,
-		files: ["./src/**/*.{jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{ts,tsx}"],
+		files: ["./src/**/*.{jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{js,jsx,ts,tsx}"],
 	},
 	theme: {
 		extend: {
@@ -13,7 +12,7 @@ export default {
 				"azeret-mono": ['"Azeret Mono"', "monospace"],
 			},
 			colors: {
-				background: "var(--vscode-editor-background)",
+				background: "var(--vscode-sidebar-background)",
 				border: {
 					DEFAULT: "var(--vscode-focusBorder)",
 					panel: "var(--vscode-panel-border)",
@@ -77,6 +76,11 @@ export default {
 					foreground: "var(--vscode-badge-foreground)",
 					background: "var(--vscode-badge-background)",
 				},
+				banner: {
+					background: "var(--vscode-banner-background)",
+					foreground: "var(--vscode-banner-foreground)",
+					icon: "var(--vscode-banner-iconForeground)",
+				},
 				error: "var(--vscode-errorForeground)",
 				description: "var(--vscode-descriptionForeground)",
 			},
@@ -88,17 +92,6 @@ export default {
 			},
 		},
 	},
-	darkMode: "class",
-	plugins: [
-		heroui({
-			defaultTheme: "vscode",
-			themes: {
-				vscode: {
-					colors: {
-						background: "",
-					},
-				},
-			},
-		}),
-	],
+	darkMode: ".vscode-dark",
+	plugins: [heroui],
 }

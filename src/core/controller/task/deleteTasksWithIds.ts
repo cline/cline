@@ -47,8 +47,6 @@ export async function deleteTasksWithIds(controller: Controller, request: String
  * @param id The task ID to delete
  */
 async function deleteTaskWithId(controller: Controller, id: string): Promise<void> {
-	console.info("deleteTaskWithId: ", id)
-
 	try {
 		// Clear current task if it matches the ID being deleted
 		if (id === controller.task?.taskId) {
@@ -82,8 +80,8 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 
 		// If no tasks remain, clean up everything
 		if (updatedTaskHistory.length === 0) {
-			const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
-			const checkpointsDirPath = path.join(controller.context.globalStorageUri.fsPath, "checkpoints")
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
+			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
 
 			if (await fileExistsAtPath(taskDirPath)) {
 				await fs.rm(taskDirPath, { recursive: true, force: true })
