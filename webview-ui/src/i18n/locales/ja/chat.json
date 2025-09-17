@@ -247,19 +247,20 @@
 		"issues": "Windows PowerShellに問題があるようです。こちらを参照してください"
 	},
 	"autoApprove": {
-		"tooltip": "自動承認設定を管理",
+		"tooltipManage": "自動承認設定を管理する",
+		"tooltipStatus": "自動承認が有効です: {{toggles}}",
 		"title": "自動承認",
 		"all": "すべて",
 		"none": "なし",
-		"description": "許可を求めずにこれらのアクションを実行します。完全に信頼できるアクションに対してのみ有効にしてください。",
+		"description": "許可を求めずにこれらのアクションを実行します。完全に信頼するアクションに対してのみ有効にしてください。",
 		"selectOptionsFirst": "自動承認を有効にするには、以下のオプションを少なくとも1つ選択してください",
-		"toggleAriaLabel": "自動承認の切り替え",
+		"toggleAriaLabel": "自動承認を切り替える",
 		"disabledAriaLabel": "自動承認が無効です - 最初にオプションを選択してください",
-		"triggerLabel_zero": "自動承認なし",
-		"triggerLabel_one": "1件自動承認済み",
-		"triggerLabel_other": "{{count}}件自動承認済み",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "自動承認オフ"
+		"triggerLabelOff": "自動承認オフ",
+		"triggerLabel_zero": "0個の自動承認",
+		"triggerLabel_one": "1個の自動承認済み",
+		"triggerLabel_other": "{{count}}個の自動承認済み",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "考え中",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Rooはスラッシュコマンドを実行したい:",
 		"didRun": "Rooはスラッシュコマンドを実行しました:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "自動承認されたリクエストの上限に達しました",
+			"description": "Rooは自動承認されたAPIリクエストの上限{{count}}件に達しました。カウントをリセットしてタスクを続行しますか？",
+			"button": "リセットして続行"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "自動承認されたコスト制限に達しました",
+			"description": "Rooは自動承認されたコスト制限の${{count}}に達しました。コストをリセットしてタスクを続行しますか？",
+			"button": "リセットして続行"
+		}
 	}
 }

@@ -247,19 +247,20 @@
 		"issues": "Es scheint, dass du Probleme mit Windows PowerShell hast, bitte sieh dir dies an"
 	},
 	"autoApprove": {
-		"tooltip": "Einstellungen für die automatische Genehmigung verwalten",
+		"tooltipManage": "Einstellungen für die automatische Genehmigung verwalten",
+		"tooltipStatus": "Automatische Genehmigung aktiviert für: {{toggles}}",
 		"title": "Automatische Genehmigung",
 		"all": "Alle",
 		"none": "Keine",
 		"description": "Führe diese Aktionen aus, ohne um Erlaubnis zu fragen. Aktiviere dies nur für Aktionen, denen du voll vertraust.",
-		"selectOptionsFirst": "Wähle zuerst mindestens eine Option unten aus, um die automatische Genehmigung zu aktivieren",
+		"selectOptionsFirst": "Wähle mindestens eine Option unten aus, um die automatische Genehmigung zu aktivieren",
 		"toggleAriaLabel": "Automatische Genehmigung umschalten",
 		"disabledAriaLabel": "Automatische Genehmigung deaktiviert - wähle zuerst Optionen aus",
-		"triggerLabel_zero": "Keine automatische Genehmigung",
+		"triggerLabelOff": "Automatische Genehmigung aus",
+		"triggerLabel_zero": "0 automatisch genehmigt",
 		"triggerLabel_one": "1 automatisch genehmigt",
 		"triggerLabel_other": "{{count}} automatisch genehmigt",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Automatische Genehmigung aus"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Denke nach",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo möchte einen Slash-Befehl ausführen:",
 		"didRun": "Roo hat einen Slash-Befehl ausgeführt:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Limit für automatisch genehmigte Anfragen erreicht",
+			"description": "Roo hat das Limit von {{count}} automatisch genehmigten API-Anfrage(n) erreicht. Möchtest du den Zähler zurücksetzen und mit der Aufgabe fortfahren?",
+			"button": "Zurücksetzen und fortfahren"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Automatisch genehmigtes Kostenlimit erreicht",
+			"description": "Roo hat das automatisch genehmigte Kostenlimit von ${{count}} erreicht. Möchtest du die Kosten zurücksetzen und mit der Aufgabe fortfahren?",
+			"button": "Zurücksetzen und fortfahren"
+		}
 	}
 }

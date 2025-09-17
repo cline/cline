@@ -274,19 +274,20 @@
 		"issues": "Sepertinya kamu mengalami masalah Windows PowerShell, silakan lihat ini"
 	},
 	"autoApprove": {
-		"tooltip": "Kelola pengaturan persetujuan otomatis",
-		"title": "Persetujuan otomatis",
+		"tooltipManage": "Kelola pengaturan persetujuan otomatis",
+		"tooltipStatus": "Persetujuan otomatis diaktifkan untuk: {{toggles}}",
+		"title": "Setujui Otomatis",
 		"all": "Semua",
-		"none": "Tidak Ada",
-		"description": "Jalankan tindakan ini tanpa meminta izin. Aktifkan hanya untuk tindakan yang Anda percayai sepenuhnya.",
-		"selectOptionsFirst": "Pilih setidaknya satu opsi di bawah untuk mengaktifkan persetujuan otomatis",
+		"none": "Tidak ada",
+		"description": "Jalankan tindakan ini tanpa meminta izin. Hanya aktifkan untuk tindakan yang Anda percayai sepenuhnya.",
+		"selectOptionsFirst": "Pilih setidaknya satu opsi di bawah ini untuk mengaktifkan persetujuan otomatis",
 		"toggleAriaLabel": "Beralih persetujuan otomatis",
 		"disabledAriaLabel": "Persetujuan otomatis dinonaktifkan - pilih opsi terlebih dahulu",
-		"triggerLabel_zero": "Tidak ada persetujuan otomatis",
+		"triggerLabelOff": "Persetujuan otomatis mati",
+		"triggerLabel_zero": "0 disetujui otomatis",
 		"triggerLabel_one": "1 disetujui otomatis",
 		"triggerLabel_other": "{{count}} disetujui otomatis",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Persetujuan otomatis nonaktif"
+		"triggerLabelAll": "YOLO"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Dirilis",
@@ -347,13 +348,13 @@
 	"ask": {
 		"autoApprovedRequestLimitReached": {
 			"title": "Batas Permintaan yang Disetujui Otomatis Tercapai",
-			"description": "Roo telah mencapai batas {{count}} permintaan API yang disetujui otomatis. Apakah kamu ingin mengatur ulang hitungan dan melanjutkan tugas?",
-			"button": "Atur Ulang dan Lanjutkan"
+			"description": "Roo telah mencapai batas {{count}} permintaan API yang disetujui otomatis. Apakah Anda ingin mengatur ulang hitungan dan melanjutkan tugas?",
+			"button": "Setel Ulang dan Lanjutkan"
 		},
 		"autoApprovedCostLimitReached": {
-			"description": "Roo telah mencapai batas biaya yang disetujui secara otomatis sebesar ${{count}}. Apakah Anda ingin mengatur ulang biaya dan melanjutkan tugas ini?",
-			"button": "Reset dan Lanjutkan",
-			"title": "Batas Biaya Otomatis-Disetujui Tercapai"
+			"title": "Batas Biaya yang Disetujui Otomatis Tercapai",
+			"description": "Roo telah mencapai batas biaya yang disetujui otomatis sebesar ${{count}}. Apakah Anda ingin mengatur ulang biaya dan melanjutkan tugas?",
+			"button": "Setel Ulang dan Lanjutkan"
 		}
 	},
 	"indexingStatus": {
@@ -410,5 +411,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo ingin menjalankan perintah slash:",
 		"didRun": "Roo telah menjalankan perintah slash:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Batas Permintaan yang Disetujui Otomatis Tercapai",
+			"description": "Roo telah mencapai batas {{count}} permintaan API yang disetujui otomatis. Apakah Anda ingin mengatur ulang hitungan dan melanjutkan tugas?",
+			"button": "Setel Ulang dan Lanjutkan"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Batas Biaya yang Disetujui Otomatis Tercapai",
+			"description": "Roo telah mencapai batas biaya yang disetujui otomatis sebesar ${{count}}. Apakah Anda ingin mengatur ulang biaya dan melanjutkan tugas?",
+			"button": "Setel Ulang dan Lanjutkan"
+		}
 	}
 }

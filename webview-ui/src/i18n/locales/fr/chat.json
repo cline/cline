@@ -247,19 +247,20 @@
 		"issues": "Il semble que vous rencontriez des problèmes avec Windows PowerShell, veuillez consulter ce"
 	},
 	"autoApprove": {
-		"tooltip": "Gérer les paramètres d'approbation automatique",
+		"tooltipManage": "Gérer les paramètres d'approbation automatique",
+		"tooltipStatus": "Approbation automatique activée pour : {{toggles}}",
 		"title": "Approbation automatique",
 		"all": "Tout",
 		"none": "Aucun",
 		"description": "Exécutez ces actions sans demander la permission. N'activez cette option que pour les actions en lesquelles vous avez entièrement confiance.",
 		"selectOptionsFirst": "Sélectionnez au moins une option ci-dessous pour activer l'approbation automatique",
-		"toggleAriaLabel": "Activer/désactiver l'approbation automatique",
+		"toggleAriaLabel": "Basculer l'approbation automatique",
 		"disabledAriaLabel": "Approbation automatique désactivée - sélectionnez d'abord les options",
-		"triggerLabel_zero": "Pas d'approbation automatique",
+		"triggerLabelOff": "Approbation automatique désactivée",
+		"triggerLabel_zero": "0 approuvé automatiquement",
 		"triggerLabel_one": "1 approuvé automatiquement",
 		"triggerLabel_other": "{{count}} approuvés automatiquement",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Approbation automatique désactivée"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Réflexion",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo veut exécuter une commande slash:",
 		"didRun": "Roo a exécuté une commande slash:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Limite de requêtes auto-approuvées atteinte",
+			"description": "Roo a atteint la limite de {{count}} requête(s) API auto-approuvée(s). Souhaitez-vous réinitialiser le compteur et poursuivre la tâche ?",
+			"button": "Réinitialiser et continuer"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Limite de coût auto-approuvé atteinte",
+			"description": "Roo a atteint la limite de coût auto-approuvé de ${{count}}. Souhaitez-vous réinitialiser le coût et poursuivre la tâche ?",
+			"button": "Réinitialiser et continuer"
+		}
 	}
 }

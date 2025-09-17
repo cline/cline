@@ -247,19 +247,20 @@
 		"issues": "Het lijkt erop dat je problemen hebt met Windows PowerShell, zie deze"
 	},
 	"autoApprove": {
-		"tooltip": "Beheer instellingen voor automatische goedkeuring",
+		"tooltipManage": "Beheer instellingen voor automatische goedkeuring",
+		"tooltipStatus": "Automatische goedkeuring ingeschakeld voor: {{toggles}}",
 		"title": "Automatisch goedkeuren",
 		"all": "Alles",
 		"none": "Geen",
-		"description": "Voer deze acties uit zonder toestemming te vragen. Schakel dit alleen in voor acties die je volledig vertrouwt.",
-		"selectOptionsFirst": "Selecteer hieronder minstens één optie om automatisch goedkeuren in te schakelen",
-		"toggleAriaLabel": "Automatisch goedkeuren in-/uitschakelen",
-		"disabledAriaLabel": "Automatisch goedkeuren uitgeschakeld - selecteer eerst opties",
-		"triggerLabel_zero": "Geen automatische goedkeuring",
+		"description": "Voer deze acties uit zonder om toestemming te vragen. Schakel dit alleen in voor acties die je volledig vertrouwt.",
+		"selectOptionsFirst": "Selecteer hieronder minstens één optie om automatische goedkeuring in te schakelen",
+		"toggleAriaLabel": "Automatische goedkeuring in-/uitschakelen",
+		"disabledAriaLabel": "Automatische goedkeuring uitgeschakeld - selecteer eerst opties",
+		"triggerLabelOff": "Automatisch goedkeuren uit",
+		"triggerLabel_zero": "0 automatisch goedgekeurd",
 		"triggerLabel_one": "1 automatisch goedgekeurd",
 		"triggerLabel_other": "{{count}} automatisch goedgekeurd",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Automatisch goedkeuren uit"
+		"triggerLabelAll": "YOLO"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} uitgebracht",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo wil een slash commando uitvoeren:",
 		"didRun": "Roo heeft een slash commando uitgevoerd:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Limiet voor automatisch goedgekeurde verzoeken bereikt",
+			"description": "Roo heeft de limiet van {{count}} automatisch goedgekeurde API-verzoek(en) bereikt. Wil je de teller resetten en doorgaan met de taak?",
+			"button": "Reset en ga door"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Automatisch goedgekeurde kostenlimiet bereikt",
+			"description": "Roo heeft de automatisch goedgekeurde kostenlimiet van ${{count}} bereikt. Wil je de kosten resetten en doorgaan met de taak?",
+			"button": "Reset en ga door"
+		}
 	}
 }

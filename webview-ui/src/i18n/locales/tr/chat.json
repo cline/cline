@@ -247,7 +247,8 @@
 		"issues": "Windows PowerShell ile ilgili sorunlar yaşıyor gibi görünüyorsunuz, lütfen şu konuya bakın"
 	},
 	"autoApprove": {
-		"tooltip": "Otomatik onay ayarlarını yönet",
+		"tooltipManage": "Otomatik onay ayarlarını yönet",
+		"tooltipStatus": "Otomatik onay şunlar için etkinleştirildi: {{toggles}}",
 		"title": "Otomatik onayla",
 		"all": "Tümü",
 		"none": "Hiçbiri",
@@ -255,11 +256,11 @@
 		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek seçin",
 		"toggleAriaLabel": "Otomatik onayı aç/kapat",
 		"disabledAriaLabel": "Otomatik onay devre dışı - önce seçenekleri seçin",
-		"triggerLabel_zero": "Otomatik onay yok",
+		"triggerLabelOff": "Otomatik onay kapalı",
+		"triggerLabel_zero": "0 otomatik onaylandı",
 		"triggerLabel_one": "1 otomatik onaylandı",
 		"triggerLabel_other": "{{count}} otomatik onaylandı",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Otomatik onay kapalı"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Düşünüyor",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo bir slash komutu çalıştırmak istiyor:",
 		"didRun": "Roo bir slash komutu çalıştırdı:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Otomatik Onaylanan İstek Limiti Aşıldı",
+			"description": "Roo, {{count}} API isteği/istekleri için otomatik onaylanan limite ulaştı. Sayacı sıfırlamak ve göreve devam etmek istiyor musunuz?",
+			"button": "Sıfırla ve Devam Et"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Otomatik Onaylanan Maliyet Sınırına Ulaşıldı",
+			"description": "Roo otomatik olarak onaylanmış ${{count}} maliyet sınırına ulaştı. Maliyeti sıfırlamak ve göreve devam etmek ister misiniz?",
+			"button": "Sıfırla ve Devam Et"
+		}
 	}
 }

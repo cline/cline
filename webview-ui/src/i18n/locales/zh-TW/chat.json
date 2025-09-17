@@ -271,7 +271,8 @@
 		"issues": "您似乎遇到了 Windows PowerShell 的問題，請參閱此說明文件"
 	},
 	"autoApprove": {
-		"tooltip": "管理自動批准設定",
+		"tooltipManage": "管理自動批准設定",
+		"tooltipStatus": "自動批准已啟用：{{toggles}}",
 		"title": "自動批准",
 		"all": "全部",
 		"none": "無",
@@ -279,11 +280,11 @@
 		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動批准",
 		"toggleAriaLabel": "切換自動批准",
 		"disabledAriaLabel": "自動批准已禁用 - 請先選擇選項",
-		"triggerLabel_zero": "無自動核准",
+		"triggerLabelOff": "自動批准已關閉",
+		"triggerLabel_zero": "0 個自動核准",
 		"triggerLabel_one": "1 個自動核准",
 		"triggerLabel_other": "{{count}} 個自動核准",
-		"triggerLabelAll": "人生只有一次",
-		"triggerLabelOff": "自動批准已關閉"
+		"triggerLabelAll": "YOLO"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已發布",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo 想要執行斜線指令:",
 		"didRun": "Roo 執行了斜線指令:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "已達自動核准請求上限",
+			"description": "Roo 已達到 {{count}} 次 API 請求的自動核准上限。您想重設計數並繼續工作嗎？",
+			"button": "重設並繼續"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "已達自動核准費用上限",
+			"description": "Roo 已達到 ${{count}} 的自動核准費用上限。您想重設費用並繼續工作嗎？",
+			"button": "重設並繼續"
+		}
 	}
 }

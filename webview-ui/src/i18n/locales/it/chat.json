@@ -247,19 +247,20 @@
 		"issues": "Sembra che tu stia avendo problemi con Windows PowerShell, consulta questa"
 	},
 	"autoApprove": {
-		"tooltip": "Gestisci le impostazioni di approvazione automatica",
-		"title": "Approvazione automatica",
+		"tooltipManage": "Gestisci impostazioni di approvazione automatica",
+		"tooltipStatus": "Approvazione automatica abilitata per: {{toggles}}",
+		"title": "Approvazione Automatica",
 		"all": "Tutti",
 		"none": "Nessuno",
-		"description": "Esegui queste azioni senza chiedere il permesso. Abilita questa opzione solo per le azioni di cui ti fidi completamente.",
+		"description": "Esegui queste azioni senza chiedere il permesso. Abilita solo per azioni di cui ti fidi completamente.",
 		"selectOptionsFirst": "Seleziona almeno un'opzione qui sotto per abilitare l'approvazione automatica",
-		"toggleAriaLabel": "Attiva/disattiva l'approvazione automatica",
+		"toggleAriaLabel": "Attiva/disattiva approvazione automatica",
 		"disabledAriaLabel": "Approvazione automatica disabilitata - seleziona prima le opzioni",
-		"triggerLabel_zero": "Nessuna approvazione automatica",
+		"triggerLabelOff": "Approvazione automatica disattivata",
+		"triggerLabel_zero": "0 approvati automaticamente",
 		"triggerLabel_one": "1 approvato automaticamente",
 		"triggerLabel_other": "{{count}} approvati automaticamente",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Approvazione automatica disattivata"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Sto pensando",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo vuole eseguire un comando slash:",
 		"didRun": "Roo ha eseguito un comando slash:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Limite Richieste Approvate Automaticamente Raggiunto",
+			"description": "Roo ha raggiunto il limite di {{count}} richiesta/e API approvata/e automaticamente. Vuoi reimpostare il contatore e procedere con l'attività?",
+			"button": "Reimposta e Continua"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Limite di Costo Approvato Automaticamente Raggiunto",
+			"description": "Roo ha raggiunto il limite di costo approvato automaticamente di ${{count}}. Vuoi reimpostare il costo e procedere con l'attività?",
+			"button": "Reimposta e Continua"
+		}
 	}
 }

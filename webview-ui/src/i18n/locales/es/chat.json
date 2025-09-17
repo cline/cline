@@ -247,19 +247,20 @@
 		"issues": "Parece que estás teniendo problemas con Windows PowerShell, por favor consulta esta"
 	},
 	"autoApprove": {
-		"tooltip": "Gestionar la configuración de aprobación automática",
+		"tooltipManage": "Administrar la configuración de aprobación automática",
+		"tooltipStatus": "Aprobación automática habilitada para: {{toggles}}",
 		"title": "Aprobación automática",
 		"all": "Todo",
 		"none": "Ninguno",
 		"description": "Ejecuta estas acciones sin pedir permiso. Habilita esto solo para acciones en las que confíes plenamente.",
 		"selectOptionsFirst": "Selecciona al menos una opción a continuación para habilitar la aprobación automática",
-		"toggleAriaLabel": "Alternar aprobación automática",
-		"disabledAriaLabel": "Aprobación automática deshabilitada - selecciona primero las opciones",
-		"triggerLabel_zero": "Sin aprobación automática",
-		"triggerLabel_one": "1 aprobado automáticamente",
-		"triggerLabel_other": "{{count}} aprobados automáticamente",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Auto-aprobar desactivado"
+		"toggleAriaLabel": "Conmutar la aprobación automática",
+		"disabledAriaLabel": "Aprobación automática deshabilitada: selecciona primero las opciones",
+		"triggerLabelOff": "Aprobación automática desactivada",
+		"triggerLabel_zero": "0 aprobaciones automáticas",
+		"triggerLabel_one": "1 aprobación automática",
+		"triggerLabel_other": "{{count}} aprobaciones automáticas",
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Pensando",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo quiere ejecutar un comando slash:",
 		"didRun": "Roo ejecutó un comando slash:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Límite de solicitudes aprobadas automáticamente alcanzado",
+			"description": "Roo ha alcanzado el límite de aprobación automática de {{count}} solicitud(es) de API. ¿Te gustaría restablecer el contador y continuar con la tarea?",
+			"button": "Restablecer y continuar"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Límite de costo de aprobación automática alcanzado",
+			"description": "Roo ha alcanzado el límite de costo de aprobación automática de ${{count}}. ¿Te gustaría restablecer el costo y continuar con la tarea?",
+			"button": "Restablecer y continuar"
+		}
 	}
 }

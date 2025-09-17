@@ -153,9 +153,19 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 
 	const { effectiveAutoApprovalEnabled } = useAutoApprovalState(toggles, autoApprovalEnabled)
 
+	const tooltipText =
+		!effectiveAutoApprovalEnabled || enabledCount === 0
+			? t("chat:autoApprove.tooltipManage")
+			: t("chat:autoApprove.tooltipStatus", {
+					toggles: settingsArray
+						.filter((setting) => toggles[setting.key])
+						.map((setting) => t(setting.labelKey))
+						.join(", "),
+				})
+
 	return (
 		<Popover open={open} onOpenChange={setOpen} data-testid="auto-approve-dropdown-root">
-			<StandardTooltip content={t("chat:autoApprove.tooltip")}>
+			<StandardTooltip content={tooltipText}>
 				<PopoverTrigger
 					disabled={disabled}
 					data-testid="auto-approve-dropdown-trigger"
@@ -187,7 +197,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 				align="start"
 				sideOffset={4}
 				container={portalContainer}
-				className="p-0 overflow-hidden min-w-90 max-w-9/10"
+				className="p-0 overflow-hidden w-[min(440px,calc(100vw-2rem))]"
 				onOpenAutoFocus={(e) => e.preventDefault()}>
 				<div className="flex flex-col w-full">
 					{/* Header with description */}
@@ -205,7 +215,7 @@ export const AutoApproveDropdown = ({ disabled = false, triggerClassName = "" }:
 							{t("chat:autoApprove.description")}
 						</p>
 					</div>
-					<div className="grid grid-cols-2 gap-x-2 gap-y-2 p-3">
+					<div className="grid grid-cols-1 min-[340px]:grid-cols-2 gap-x-2 gap-y-2 p-3">
 						{settingsArray.map(({ key, labelKey, descriptionKey, icon }) => {
 							const isEnabled = toggles[key]
 							return (

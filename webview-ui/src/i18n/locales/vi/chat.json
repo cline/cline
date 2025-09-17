@@ -247,7 +247,8 @@
 		"issues": "Có vẻ như bạn đang gặp vấn đề với Windows PowerShell, vui lòng xem"
 	},
 	"autoApprove": {
-		"tooltip": "Quản lý cài đặt tự động phê duyệt",
+		"tooltipManage": "Quản lý cài đặt tự động phê duyệt",
+		"tooltipStatus": "Tự động phê duyệt được bật cho: {{toggles}}",
 		"title": "Tự động phê duyệt",
 		"all": "Tất cả",
 		"none": "Không có",
@@ -255,11 +256,11 @@
 		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tính năng tự động phê duyệt",
 		"toggleAriaLabel": "Bật/tắt tự động phê duyệt",
 		"disabledAriaLabel": "Tự động phê duyệt đã tắt - trước tiên hãy chọn các tùy chọn",
-		"triggerLabel_zero": "Không có tự động phê duyệt",
+		"triggerLabelOff": "Tự động phê duyệt tắt",
+		"triggerLabel_zero": "0 được tự động phê duyệt",
 		"triggerLabel_one": "1 được tự động phê duyệt",
 		"triggerLabel_other": "{{count}} được tự động phê duyệt",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Tự động phê duyệt tắt"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Đang suy nghĩ",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo muốn chạy lệnh slash:",
 		"didRun": "Roo đã chạy lệnh slash:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Đã Đạt Giới Hạn Yêu Cầu Tự Động Phê Duyệt",
+			"description": "Roo đã đạt đến giới hạn tự động phê duyệt là {{count}} yêu cầu API. Bạn có muốn đặt lại bộ đếm và tiếp tục nhiệm vụ không?",
+			"button": "Đặt lại và Tiếp tục"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "Đã Đạt Giới Hạn Chi Phí Tự Động Phê Duyệt",
+			"description": "Roo đã đạt đến giới hạn chi phí tự động phê duyệt là ${{count}}. Bạn có muốn đặt lại chi phí và tiếp tục với nhiệm vụ không?",
+			"button": "Đặt lại và Tiếp tục"
+		}
 	}
 }

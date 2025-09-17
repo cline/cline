@@ -247,7 +247,8 @@
 		"issues": "看起来您遇到了Windows PowerShell问题，请参阅此"
 	},
 	"autoApprove": {
-		"tooltip": "管理自动批准设置",
+		"tooltipManage": "管理自动批准设置",
+		"tooltipStatus": "自动批准已启用：{{toggles}}",
 		"title": "自动批准",
 		"all": "全部",
 		"none": "无",
@@ -255,11 +256,11 @@
 		"selectOptionsFirst": "请至少选择以下一个选项以启用自动批准",
 		"toggleAriaLabel": "切换自动批准",
 		"disabledAriaLabel": "自动批准已禁用 - 请先选择选项",
-		"triggerLabel_zero": "无自动批准",
+		"triggerLabelOff": "自动批准已关闭",
+		"triggerLabel_zero": "0 个自动批准",
 		"triggerLabel_one": "1 个自动批准",
 		"triggerLabel_other": "{{count}} 个自动批准",
-		"triggerLabelAll": "人生只有一次",
-		"triggerLabelOff": "自动批准已关闭"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "思考中",
@@ -404,5 +405,17 @@
 	"slashCommand": {
 		"wantsToRun": "Roo 想要运行斜杠命令:",
 		"didRun": "Roo 运行了斜杠命令:"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "已达自动批准请求限制",
+			"description": "Roo 已达到 {{count}} 次 API 请求的自动批准限制。您想重置计数并继续任务吗？",
+			"button": "重置并继续"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "已达到自动批准的费用限额",
+			"description": "Roo已经达到了${{count}}的自动批准成本限制。您想重置成本并继续任务吗？",
+			"button": "重置并继续"
+		}
 	}
 }

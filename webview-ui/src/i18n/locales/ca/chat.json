@@ -247,19 +247,20 @@
 		"issues": "Sembla que estàs tenint problemes amb Windows PowerShell, si us plau consulta aquesta documentació per a més informació."
 	},
 	"autoApprove": {
-		"tooltip": "Gestiona la configuració d'aprovació automàtica",
+		"tooltipManage": "Gestiona la configuració d'aprovació automàtica",
+		"tooltipStatus": "Aprovació automàtica activada per a: {{toggles}}",
 		"title": "Aprovació automàtica",
-		"all": "Totes",
+		"all": "Tot",
 		"none": "Cap",
-		"description": "Executeu aquestes accions sense demanar permís. Activeu-ho només per a les accions en què confieu plenament.",
-		"selectOptionsFirst": "Seleccioneu almenys una opció a continuació per activar l'aprovació automàtica",
+		"description": "Executa aquestes accions sense demanar permís. Activa-ho només per a accions de confiança.",
+		"selectOptionsFirst": "Selecciona almenys una opció a continuació per activar l'aprovació automàtica",
 		"toggleAriaLabel": "Commuta l'aprovació automàtica",
-		"disabledAriaLabel": "Aprovació automàtica desactivada: seleccioneu primer les opcions",
-		"triggerLabel_zero": "Sense aprovació automàtica",
+		"disabledAriaLabel": "Aprovació automàtica desactivada - selecciona primer les opcions",
+		"triggerLabelOff": "Aprovació automàtica desactivada",
+		"triggerLabel_zero": "0 aprovacions automàtiques",
 		"triggerLabel_one": "1 aprovació automàtica",
 		"triggerLabel_other": "{{count}} aprovacions automàtiques",
-		"triggerLabelAll": "YOLO",
-		"triggerLabelOff": "Auto-approve desactivat"
+		"triggerLabelAll": "YOLO"
 	},
 	"reasoning": {
 		"thinking": "Pensant",
@@ -404,5 +405,17 @@
 		"problems": "Problemes",
 		"terminal": "Terminal",
 		"url": "Enganxa la URL per obtenir-ne el contingut"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "S'ha assolit el límit de sol·licituds aprovades automàticament",
+			"description": "Roo ha assolit el límit d'aprovació automàtica de {{count}} sol·licitud(s) d'API. Vols restablir el comptador i continuar amb la tasca?",
+			"button": "Restableix i Continua"
+		},
+		"autoApprovedCostLimitReached": {
+			"title": "S'ha assolit el límit de cost aprovat automàticament",
+			"description": "Roo ha assolit el límit de cost d'aprovació automàtica de ${{count}}. Vols restablir el cost i continuar amb la tasca?",
+			"button": "Restableix i Continua"
+		}
 	}
 }

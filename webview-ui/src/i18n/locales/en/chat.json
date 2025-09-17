@@ -271,7 +271,8 @@
 		"issues": "It seems like you're having Windows PowerShell issues, please see this"
 	},
 	"autoApprove": {
-		"tooltip": "Manage auto-approval settings",
+		"tooltipManage": "Manage auto-approval settings",
+		"tooltipStatus": "Auto-approval enabled for: {{toggles}}",
 		"title": "Auto-approve",
 		"all": "All",
 		"none": "None",
