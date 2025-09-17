@@ -59,6 +59,19 @@ const submenusSchema = z.array(
 
 export type Submenus = z.infer<typeof submenusSchema>
 
+const keybindingsSchema = z.array(
+	z.object({
+		command: z.string(),
+		key: z.string().optional(),
+		mac: z.string().optional(),
+		win: z.string().optional(),
+		linux: z.string().optional(),
+		when: z.string().optional(),
+	}),
+)
+
+export type Keybindings = z.infer<typeof keybindingsSchema>
+
 const configurationPropertySchema = z.object({
 	type: z.union([
 		z.literal("string"),
@@ -92,6 +105,7 @@ export const contributesSchema = z.object({
 	commands: commandsSchema,
 	menus: menusSchema,
 	submenus: submenusSchema,
+	keybindings: keybindingsSchema.optional(),
 	configuration: configurationSchema,
 })
 
