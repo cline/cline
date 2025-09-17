@@ -17,7 +17,6 @@ function shouldAttemptFix(): boolean {
 }
 
 function shouldThrowError(fixed: boolean): boolean {
-	// Only throw if we're not in fix mode, or fix mode didn't succeed
 	return !FIX_MODE || !fixed
 }
 
