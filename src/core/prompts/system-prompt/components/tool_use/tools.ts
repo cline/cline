@@ -20,7 +20,7 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 
 	// Define multi-root hint based on feature flag
 	const multiRootHint = context.isMultiRootEnabled
-		? "Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
+		? " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
 		: ""
 
 	return new TemplateEngine().resolve(template, context, {
