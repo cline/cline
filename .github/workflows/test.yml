@@ -179,7 +179,10 @@ jobs:
 
             - name: Compile standalone
               run: npm run compile-standalone
-            
+
+            - name: Install testing platform dependencies
+              run: cd testing-platform && npm ci
+
             - name: Running testing platform integration spec tests
               run: npm run test:tp-orchestrator -- tests/specs/
 
