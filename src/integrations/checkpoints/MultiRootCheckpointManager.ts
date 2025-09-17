@@ -47,7 +47,6 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 	constructor(
 		private workspaceManager: WorkspaceRootManager,
 		private taskId: string,
-		private globalStoragePath: string,
 		private enableCheckpoints: boolean,
 		private messageStateHandler: MessageStateHandler,
 	) {}
