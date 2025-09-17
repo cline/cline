@@ -92,6 +92,6 @@ export default {
 			},
 		},
 	},
-	darkMode: "class",
+	darkMode: ["class", "vscode-dark"],
 	plugins: [heroui],
 }
