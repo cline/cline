@@ -1,19 +1,7 @@
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import "../../../src/shared/webview/types"
+import "@shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { findLastIndex } from "@shared/array"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
-import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
-import type { UserInfo } from "@shared/proto/cline/account"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { type TerminalProfile } from "@shared/proto/cline/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
-import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import {
 	basetenDefaultModelId,
 	basetenModels,
@@ -26,8 +14,20 @@ import {
 	requestyDefaultModelInfo,
 	vercelAiGatewayDefaultModelId,
 	vercelAiGatewayDefaultModelInfo,
-} from "../../../src/shared/api"
-import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+} from "@shared/api"
+import { findLastIndex } from "@shared/array"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
+import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "@shared/mcp"
+import type { UserInfo } from "@shared/proto/cline/account"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { type TerminalProfile } from "@shared/proto/cline/state"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
