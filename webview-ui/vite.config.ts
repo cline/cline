@@ -46,6 +46,29 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			reportOnFailure: true,
+			reporter: ["html", "lcov", "text"],
+			reportsDirectory: "./coverage",
+			exclude: [
+				"**/*.{spec,test}.{js,jsx,ts,tsx,mjs,cjs}",
+
+				"**/*.d.ts",
+				"**/vite-env.d.ts",
+				"**/*.{config,setup}.{js,ts,mjs,cjs}",
+
+				"**/*.{css,scss,sass,less,styl}",
+				"**/*.{svg,png,jpg,jpeg,gif,ico}",
+
+				"**/*.{json,yaml,yml}",
+
+				"**/__mocks__/**",
+				"node_modules/**",
+				"build/**",
+				"coverage/**",
+				"dist/**",
+				"public/**",
+
+				"src/services/grpc-client.ts",
+			],
 		},
 	},
 	build: {
@@ -89,11 +112,18 @@ export default defineConfig({
 	},
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
-		"process.env": {
-			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
-			IS_DEV: JSON.stringify(process.env.IS_DEV),
-			IS_TEST: JSON.stringify(process.env.IS_TEST),
-		},
+		process: JSON.stringify({
+			env: {
+				NODE_ENV: JSON.stringify(process?.env?.IS_DEV ? "development" : "production"),
+				CLINE_ENVIRONMENT: JSON.stringify(process?.env?.CLINE_ENVIRONMENT ?? "production"),
+				IS_DEV: JSON.stringify(process?.env?.IS_DEV),
+				IS_TEST: JSON.stringify(process?.env?.IS_TEST),
+				CI: JSON.stringify(process?.env?.CI),
+				// PostHog environment variables
+				TELEMETRY_SERVICE_API_KEY: JSON.stringify(process?.env?.TELEMETRY_SERVICE_API_KEY),
+				ERROR_SERVICE_API_KEY: JSON.stringify(process?.env?.ERROR_SERVICE_API_KEY),
+			},
+		}),
 	},
 	resolve: {
 		alias: {

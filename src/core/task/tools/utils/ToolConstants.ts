@@ -15,6 +15,7 @@ export const TASK_CONFIG_KEYS = [
 	"cwd",
 	"mode",
 	"strictPlanModeEnabled",
+	"yoloModeToggled",
 	"context",
 	"taskState",
 	"messageState",
@@ -61,6 +62,7 @@ export const TASK_CALLBACKS_KEYS = [
 	"reinitExistingTaskFromId",
 	"cancelTask",
 	"updateTaskHistory",
+	"switchToActMode",
 ] as const
 
 /**

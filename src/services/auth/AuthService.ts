@@ -180,7 +180,11 @@ export class AuthService {
 			return String.create({ value: "Already authenticated" })
 		}
 
-		const callbackHost = await HostProvider.get().getCallbackUri()
+		if (!this._provider) {
+			throw new Error("Authentication provider is not configured")
+		}
+
+		const callbackHost = await HostProvider.get().getCallbackUrl()
 		const callbackUrl = `${callbackHost}/auth`
 
 		// GET /api/v1/auth/authorize
@@ -258,7 +262,7 @@ export class AuthService {
 
 		try {
 			// Get the callback URL that was used during the initial auth request
-			const callbackHost = await HostProvider.get().getCallbackUri()
+			const callbackHost = await HostProvider.get().getCallbackUrl()
 			const callbackUrl = `${callbackHost}/auth`
 
 			// Exchange the authorization code for tokens
@@ -424,10 +428,12 @@ export class AuthService {
 
 		await Promise.all(streamSends)
 
-		// Identify the user in telemetry and cache feature flags only once per broadcast
+		// Identify the user in telemetry if available
+		// Fetch the feature flags for the user
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
-			await featureFlagsService.cacheFeatureFlags()
+			featureFlagsService.reset()
+			await featureFlagsService.poll()
 		}
 
 		// Update state in webviews once per unique controller

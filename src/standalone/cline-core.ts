@@ -11,7 +11,7 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { extensionContext } from "./vscode-context"
+import { EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -43,8 +43,8 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
-	const getCallbackUri = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUri()
+	const getCallbackUrl = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUrl()
 	}
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
@@ -53,8 +53,9 @@ function setupHostProvider() {
 		createDiffView,
 		new ExternalHostBridgeClientManager(),
 		log,
-		getCallbackUri,
+		getCallbackUrl,
 		getBinaryLocation,
+		EXTENSION_DIR,
 	)
 }
 
