@@ -56,16 +56,23 @@ Z AI offers subscription plans specifically designed for coding applications. Th
 #### Plan Options
 
 **GLM Coding Lite** - $3/month
-- 120 prompts per 5-hour cycle
-- Access to GLM-4.5 model
+- Powered by GLM-4.5
+- Up to ~120 prompts every 5 hours (about 3× the usage quota of the Claude Pro plan)
 - Works exclusively through coding tools like Cline
 
-**GLM Coding Pro** - $15/month  
-- 600 prompts per 5-hour cycle
-- Access to GLM-4.5 model
-- Works exclusively through coding tools like Cline
+**GLM Coding Pro** - $15/month
+- All Lite plan benefits
+- 5× Lite plan usage (~600 prompts every 5 hours, about 3× the usage quota of the Claude Max (5x) plan)
+- 40%–60% faster compared to Lite
+- Built-in image & video understanding and web search MCP
 
-Both plans offer promotional pricing for the first month: Lite drops from \$6 to \$3, Pro drops from \$30 to \$15.
+**GLM Coding Max** - $30/month
+- All Pro plan benefits
+- 4× Pro plan usage (~2400 prompts every 5 hours)
+- Guaranteed peak-hour performance
+- Early access to new features
+
+All plans offer promotional pricing for the first month: Lite drops from $6 to $3, Pro drops from $30 to $15, and Max drops from $60 to $30.
 
 <Frame>
   <img src="https://storage.googleapis.com/cline_public_images/docs/assets/zAI-coding-plan.png" alt="zAI subscription page showing GLM Coding Lite and Pro plans with pricing" />
@@ -84,6 +91,14 @@ To use the GLM Coding Plans with Cline:
 <Frame>
   <img src="https://storage.googleapis.com/cline_public_images/docs/assets/zAI-provider.png" alt="Cline settings with zAI provider selected and API key field highlighted" />
 </Frame>
+
+#### Usage Details
+
+In terms of token consumption, each prompt typically allows 15–20 model calls, giving a total monthly allowance of tens of billions of tokens — all at only ~1% of standard API pricing, making it extremely cost-effective.
+
+Once subscribed, GLM-4.5 is automatically available in the supported tools using your plan's quota—no additional configuration required. If the quota is exhausted, it will automatically reset at the start of the next 5-hour cycle. The system will not consume other resource packs or account balance. Users with a Coding Plan can only use the plan's quota in supported tools and cannot call the model separately via API.
+
+**Note:** API calls are billed separately and do not use the Coding Plan quota. Please refer to the API pricing for details.
 
 The setup connects your subscription directly to Cline, giving you access to GLM-4.5's tool-calling capabilities optimized for coding workflows.
 
