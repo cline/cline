@@ -16,7 +16,7 @@ import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
+export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
