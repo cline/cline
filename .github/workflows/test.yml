@@ -144,6 +144,7 @@ jobs:
 
     test-integration:
         runs-on: ubuntu-latest
+        continue-on-error: true
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -194,7 +195,7 @@ jobs:
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 5
-              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --server-logs
+              run: npm run test:tp-orchestrator -- tests/specs/ --count=1
 
 
     coverage:

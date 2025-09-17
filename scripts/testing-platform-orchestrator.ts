@@ -103,6 +103,8 @@ async function runSpec(specFile: string): Promise<void> {
 		console.log(`✅ ${path.basename(specFile)} passed`)
 	} finally {
 		await stopServer(server)
+		// Add delay between tests to ensure ports are fully released
+		await new Promise((resolve) => setTimeout(resolve, 500))
 	}
 }
 
