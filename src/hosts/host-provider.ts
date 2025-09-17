@@ -134,11 +134,11 @@ export class HostProvider {
 	 * @param subdirs
 	 * @returns
 	 */
-	public static async getGlobalStorageDir(subdirs?: string) {
+	public static async ensureGlobalStorageDirExists(...subdirs: string[]) {
 		if (!subdirs) {
 			return HostProvider.get().globalStorageFsPath
 		}
-		const fullPath = path.resolve(HostProvider.get().globalStorageFsPath, subdirs)
+		const fullPath = path.resolve(HostProvider.get().globalStorageFsPath, ...subdirs)
 		await fs.mkdir(fullPath, { recursive: true })
 		return fullPath
 	}
