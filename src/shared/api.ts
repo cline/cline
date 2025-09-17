@@ -136,7 +136,7 @@ export interface ApiHandlerOptions {
 	planModeGroqModelId?: string
 	planModeGroqModelInfo?: ModelInfo
 	planModeBasetenModelId?: string
-	planModeBasetenModelInfo?: BasetenModelInfo
+	planModeBasetenModelInfo?: ModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
@@ -168,7 +168,7 @@ export interface ApiHandlerOptions {
 	actModeGroqModelId?: string
 	actModeGroqModelInfo?: ModelInfo
 	actModeBasetenModelId?: string
-	actModeBasetenModelInfo?: BasetenModelInfo
+	actModeBasetenModelInfo?: ModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string

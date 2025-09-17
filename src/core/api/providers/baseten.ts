@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { BasetenModelId, BasetenModelInfo, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
+import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -10,7 +10,7 @@ import { ApiStream } from "../transform/stream"
 interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 	basetenApiKey?: string
 	basetenModelId?: string
-	basetenModelInfo?: BasetenModelInfo
+	basetenModelInfo?: ModelInfo
 	apiModelId?: string // For backward compatibility
 }
 
@@ -52,7 +52,7 @@ export class BasetenHandler implements ApiHandler {
 		return 8192
 	}
 
-	getModel(): { id: BasetenModelId; info: BasetenModelInfo } {
+	getModel(): { id: BasetenModelId; info: ModelInfo } {
 		// First priority: basetenModelId and basetenModelInfo
 		const basetenModelId = this.options.basetenModelId
 		const basetenModelInfo = this.options.basetenModelInfo
@@ -154,7 +154,7 @@ export class BasetenHandler implements ApiHandler {
 		const modelInfo = model.info as any
 
 		// Use dynamic API data when available, fallback to true since all current Baseten models support tools
-		// (as of 2025-09-16 - could change if Baseten add non-tool models in future)
+		// (as of 2025-09-16 - could change if Baseten add non-tool models in future, currently no plans to do so)
 		return modelInfo.supportedFeatures ? modelInfo.supportedFeatures.includes("tools") : true
 	}
 }
