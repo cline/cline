@@ -382,7 +382,6 @@ export class StateManager {
 			groqApiKey,
 			moonshotApiKey,
 			nebiusApiKey,
-			favoritedModelIds,
 			fireworksApiKey,
 			fireworksModelMaxCompletionTokens,
 			fireworksModelMaxTokens,
@@ -563,7 +562,6 @@ export class StateManager {
 			moonshotApiLine,
 			zaiApiLine,
 			asksageApiUrl,
-			favoritedModelIds,
 			requestTimeoutMs,
 			fireworksModelMaxCompletionTokens,
 			fireworksModelMaxTokens,
@@ -886,7 +884,6 @@ export class StateManager {
 			moonshotApiLine: this.taskStateCache["moonshotApiLine"] || this.globalStateCache["moonshotApiLine"],
 			zaiApiLine: this.taskStateCache["zaiApiLine"] || this.globalStateCache["zaiApiLine"],
 			asksageApiUrl: this.taskStateCache["asksageApiUrl"] || this.globalStateCache["asksageApiUrl"],
-			favoritedModelIds: this.taskStateCache["favoritedModelIds"] || this.globalStateCache["favoritedModelIds"],
 			requestTimeoutMs: this.taskStateCache["requestTimeoutMs"] || this.globalStateCache["requestTimeoutMs"],
 			fireworksModelMaxCompletionTokens:
 				this.taskStateCache["fireworksModelMaxCompletionTokens"] ||
