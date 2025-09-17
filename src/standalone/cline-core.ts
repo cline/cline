@@ -11,19 +11,14 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { extensionContext } from "./vscode-context"
+import { DATA_DIR, EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
-	try {
-		await waitForHostBridgeReady()
-		log("HostBridge is serving; continuing startup")
-	} catch (err) {
-		log(`ERROR: HostBridge error: ${String(err)}`)
-		process.exit(1)
-	}
+	await waitForHostBridgeReady()
 
+	// The host bridge should be available before creating the host provider because it depends on the host bridge.
 	setupHostProvider()
 
 	// Set up global error handlers to prevent process crashes
@@ -31,6 +26,7 @@ async function main() {
 
 	const webviewProvider = await initialize(extensionContext)
 
+	// Enable the localhost HTTP server that handles auth redirects.
 	AuthHandler.getInstance().setEnabled(true)
 
 	startProtobusService(webviewProvider.controller)
@@ -46,6 +42,7 @@ function setupHostProvider() {
 	const getCallbackUrl = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUrl()
 	}
+	// cline-core expects the binaries to be unpacked in the directory where it is running.
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
 	HostProvider.initialize(
@@ -55,6 +52,8 @@ function setupHostProvider() {
 		log,
 		getCallbackUrl,
 		getBinaryLocation,
+		EXTENSION_DIR,
+		DATA_DIR,
 	)
 }
 
