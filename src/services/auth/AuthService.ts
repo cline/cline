@@ -230,6 +230,8 @@ export class AuthService {
 			throw new Error("Unexpected response from auth server")
 		} catch (error) {
 			console.error("Error during authentication request:", error)
+			this._authenticated = false
+			this._clineAuthInfo = null
 			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : "Unknown error"}`)
 		}
 	}
@@ -404,7 +406,9 @@ export class AuthService {
 		// Send the event to all active subscribers
 		const streamSends = Array.from(this._activeAuthStatusUpdateHandlers).map(async (responseStream) => {
 			const controller = this._handlerToController.get(responseStream)
-			if (controller) uniqueControllers.add(controller)
+			if (controller) {
+				uniqueControllers.add(controller)
+			}
 			try {
 				await responseStream(
 					authInfo,
