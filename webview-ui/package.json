@@ -30,7 +30,7 @@
 		"fzf": "^0.5.2",
 		"lodash": "^4.17.21",
 		"lucide-react": "^0.511.0",
-		"mermaid": "^11.4.1",
+		"mermaid": "^11.10.0",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
