@@ -26,7 +26,7 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 	const template =
 		variant.componentOverrides?.[SystemPromptSection.USER_INSTRUCTIONS]?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
 
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		CUSTOM_INSTRUCTIONS: customInstructions,
 	})
 }

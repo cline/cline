@@ -450,6 +450,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
 												<VSCodeButton
 													appearance="icon"
+													aria-label="Delete"
 													className="delete-button"
 													onClick={(e) => {
 														e.stopPropagation()
@@ -470,6 +471,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											)}
 											<VSCodeButton
 												appearance="icon"
+												aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
 												onClick={(e) => {
 													e.stopPropagation()
 													toggleFavorite(item.id, item.isFavorited || false)
@@ -586,7 +588,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
 
-										{!!item.cacheWrites && (
+										{!!(item.cacheWrites || item.cacheReads) && (
 											<div
 												style={{
 													display: "flex",
@@ -601,40 +603,44 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													}}>
 													Cache:
 												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-database"
+												{item.cacheWrites > 0 && (
+													<span
 														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-1px",
-														}}
-													/>
-													+{formatLargeNumber(item.cacheWrites || 0)}
-												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-arrow-right"
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														<i
+															className="codicon codicon-arrow-right"
+															style={{
+																fontSize: "12px",
+																fontWeight: "bold",
+																marginBottom: "-1px",
+															}}
+														/>
+														{formatLargeNumber(item.cacheWrites)}
+													</span>
+												)}
+												{item.cacheReads > 0 && (
+													<span
 														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: 0,
-														}}
-													/>
-													{formatLargeNumber(item.cacheReads || 0)}
-												</span>
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														<i
+															className="codicon codicon-arrow-left"
+															style={{
+																fontSize: "12px",
+																fontWeight: "bold",
+																marginBottom: 0,
+															}}
+														/>
+														{formatLargeNumber(item.cacheReads)}
+													</span>
+												)}
 											</div>
 										)}
 										{!!item.totalCost && (
@@ -685,6 +691,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}}>
 					{selectedItems.length > 0 ? (
 						<DangerButton
+							aria-label="Delete selected items"
 							onClick={() => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}
@@ -694,6 +701,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</DangerButton>
 					) : (
 						<DangerButton
+							aria-label="Delete all history"
 							disabled={deleteAllDisabled || taskHistory.length === 0}
 							onClick={() => {
 								setDeleteAllDisabled(true)
@@ -715,6 +723,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 const ExportButton = ({ itemId }: { itemId: string }) => (
 	<VSCodeButton
 		appearance="icon"
+		aria-label="Export"
 		className="export-button"
 		onClick={(e) => {
 			e.stopPropagation()

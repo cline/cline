@@ -1,6 +1,5 @@
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 import { WebviewProvider } from "@core/webview"
-import type { Uri } from "vscode"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -27,11 +26,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		super(context, providerType)
 	}
 
-	override getWebviewUri(uri: Uri) {
+	override getWebviewUrl(path: string) {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
 		}
-		return this.webview.webview.asWebviewUri(uri)
+		const uri = this.webview.webview.asWebviewUri(vscode.Uri.file(path))
+		return uri.toString()
 	}
 
 	override getCspSource() {
@@ -68,7 +68,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
-			localResourceRoots: [this.context.extensionUri],
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		}
 
 		webviewView.webview.html =
