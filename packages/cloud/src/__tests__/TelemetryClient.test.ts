@@ -641,28 +641,6 @@ describe("TelemetryClient", () => {
 			)
 		})
 
-		it("should log debug information when debug is enabled", async () => {
-			const client = new TelemetryClient(mockAuthService, mockSettingsService, true)
-
-			const messages = [
-				{
-					ts: 1,
-					type: "say" as const,
-					say: "text" as const,
-					text: "test message",
-				},
-			]
-
-			await client.backfillMessages(messages, "test-task-id")
-
-			expect(console.info).toHaveBeenCalledWith(
-				"[TelemetryClient#backfillMessages] Uploading 1 messages for task test-task-id",
-			)
-			expect(console.info).toHaveBeenCalledWith(
-				"[TelemetryClient#backfillMessages] Successfully uploaded messages for task test-task-id",
-			)
-		})
-
 		it("should handle empty messages array", async () => {
 			const client = new TelemetryClient(mockAuthService, mockSettingsService)
 

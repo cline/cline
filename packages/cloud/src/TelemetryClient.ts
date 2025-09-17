@@ -11,6 +11,7 @@ import {
 } from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./config.js"
+import type { RetryQueue } from "./retry-queue/index.js"
 
 abstract class BaseTelemetryClient implements TelemetryClient {
 	protected providerRef: WeakRef<TelemetryPropertiesProvider> | null = null
@@ -82,21 +83,21 @@ abstract class BaseTelemetryClient implements TelemetryClient {
 }
 
 export class CloudTelemetryClient extends BaseTelemetryClient {
+	private retryQueue: RetryQueue | null = null
+
 	constructor(
 		private authService: AuthService,
 		private settingsService: SettingsService,
-		debug = false,
+		retryQueue?: RetryQueue,
 	) {
-		super(
-			{
-				type: "exclude",
-				events: [TelemetryEventName.TASK_CONVERSATION_MESSAGE],
-			},
-			debug,
-		)
+		super({
+			type: "exclude",
+			events: [TelemetryEventName.TASK_CONVERSATION_MESSAGE],
+		})
+		this.retryQueue = retryQueue || null
 	}
 
-	private async fetch(path: string, options: RequestInit) {
+	private async fetch(path: string, options: RequestInit, allowQueueing = true) {
 		if (!this.authService.isAuthenticated()) {
 			return
 		}
@@ -108,18 +109,46 @@ export class CloudTelemetryClient extends BaseTelemetryClient {
 			return
 		}
 
-		const response = await fetch(`${getRooCodeApiUrl()}/api/${path}`, {
+		const url = `${getRooCodeApiUrl()}/api/${path}`
+		const fetchOptions: RequestInit = {
 			...options,
 			headers: {
 				Authorization: `Bearer ${token}`,
 				"Content-Type": "application/json",
 			},
-		})
+		}
 
-		if (!response.ok) {
-			console.error(
-				`[TelemetryClient#fetch] ${options.method} ${path} -> ${response.status} ${response.statusText}`,
-			)
+		try {
+			const response = await fetch(url, fetchOptions)
+
+			if (!response.ok) {
+				console.error(
+					`[TelemetryClient#fetch] ${options.method} ${path} -> ${response.status} ${response.statusText}`,
+				)
+
+				// Queue for retry on server errors (5xx) or rate limiting (429)
+				// Do NOT retry on client errors (4xx) except 429 - they won't succeed
+				if (this.retryQueue && allowQueueing && (response.status >= 500 || response.status === 429)) {
+					await this.retryQueue.enqueue(url, fetchOptions, "telemetry")
+				}
+			}
+
+			return response
+		} catch (error) {
+			console.error(`[TelemetryClient#fetch] Network error for ${options.method} ${path}: ${error}`)
+
+			// Queue for retry on network failures (typically TypeError with "fetch failed" message)
+			// These are transient network issues that may succeed on retry
+			if (
+				this.retryQueue &&
+				allowQueueing &&
+				error instanceof TypeError &&
+				error.message.includes("fetch failed")
+			) {
+				await this.retryQueue.enqueue(url, fetchOptions, "telemetry")
+			}
+
+			throw error
 		}
 	}
 
@@ -158,6 +187,7 @@ export class CloudTelemetryClient extends BaseTelemetryClient {
 			})
 		} catch (error) {
 			console.error(`[TelemetryClient#capture] Error sending telemetry event: ${error}`)
+			// Error is already queued for retry in the fetch method
 		}
 	}
 
@@ -199,22 +229,26 @@ export class CloudTelemetryClient extends BaseTelemetryClient {
 				)
 			}
 
-			// Custom fetch for multipart - don't set Content-Type header (let browser set it)
-			const response = await fetch(`${getRooCodeApiUrl()}/api/events/backfill`, {
+			const url = `${getRooCodeApiUrl()}/api/events/backfill`
+			const fetchOptions: RequestInit = {
 				method: "POST",
 				headers: {
 					Authorization: `Bearer ${token}`,
-					// Note: No Content-Type header - browser will set multipart/form-data with boundary
 				},
 				body: formData,
-			})
+			}
 
-			if (!response.ok) {
-				console.error(
-					`[TelemetryClient#backfillMessages] POST events/backfill -> ${response.status} ${response.statusText}`,
-				)
-			} else if (this.debug) {
-				console.info(`[TelemetryClient#backfillMessages] Successfully uploaded messages for task ${taskId}`)
+			try {
+				const response = await fetch(url, fetchOptions)
+
+				if (!response.ok) {
+					console.error(
+						`[TelemetryClient#backfillMessages] POST events/backfill -> ${response.status} ${response.statusText}`,
+					)
+				}
+			} catch (fetchError) {
+				console.error(`[TelemetryClient#backfillMessages] Network error: ${fetchError}`)
+				throw fetchError
 			}
 		} catch (error) {
 			console.error(`[TelemetryClient#backfillMessages] Error uploading messages: ${error}`)
