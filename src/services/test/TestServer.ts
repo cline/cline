@@ -49,7 +49,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  */
 async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const autoApprovalSettings = controller?.stateManager.getGlobalStateKey("autoApprovalSettings")
+		const autoApprovalSettings = controller?.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
