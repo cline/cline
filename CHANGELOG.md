@@ -2,12 +2,7 @@
 
 ## 3.29.0
 
-### Minor Changes
-
 - f37962b: Updated Baseten models to use dynamic fetching, added docs
-
-### Patch Changes
-
 - fd3abdc: Screen readers now properly announce buttons in history preview and history view screens.
 - e8ba3c3: dev: set up storybook
 - af0bc4d: Fix: CreditLimitError should use server returned url when available
