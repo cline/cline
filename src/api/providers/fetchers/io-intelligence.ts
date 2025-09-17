@@ -1,12 +1,10 @@
 import axios from "axios"
 import { z } from "zod"
-import type { ModelInfo } from "@roo-code/types"
-import { IO_INTELLIGENCE_CACHE_DURATION } from "@roo-code/types"
+
+import { type ModelInfo, IO_INTELLIGENCE_CACHE_DURATION } from "@roo-code/types"
+
 import type { ModelRecord } from "../../../shared/api"
 
-/**
- * IO Intelligence Model Schema
- */
 const ioIntelligenceModelSchema = z.object({
 	id: z.string(),
 	object: z.literal("model"),
@@ -35,9 +33,6 @@ const ioIntelligenceModelSchema = z.object({
 
 export type IOIntelligenceModel = z.infer<typeof ioIntelligenceModelSchema>
 
-/**
- * IO Intelligence API Response Schema
- */
 const ioIntelligenceApiResponseSchema = z.object({
 	object: z.literal("list"),
 	data: z.array(ioIntelligenceModelSchema),
@@ -45,9 +40,6 @@ const ioIntelligenceApiResponseSchema = z.object({
 
 type IOIntelligenceApiResponse = z.infer<typeof ioIntelligenceApiResponseSchema>
 
-/**
- * Cache entry for storing fetched models
- */
 interface CacheEntry {
 	data: ModelRecord
 	timestamp: number
@@ -66,21 +58,15 @@ const MODEL_CONTEXT_LENGTHS: Record<string, number> = {
 	"openai/gpt-oss-120b": 131072,
 }
 
-/**
- * Vision models that support images
- */
 const VISION_MODELS = new Set([
 	"Qwen/Qwen2.5-VL-32B-Instruct",
 	"meta-llama/Llama-3.2-90B-Vision-Instruct",
 	"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
 ])
 
-/**
- * Parse an IO Intelligence model into ModelInfo format
- */
 function parseIOIntelligenceModel(model: IOIntelligenceModel): ModelInfo {
 	const contextLength = MODEL_CONTEXT_LENGTHS[model.id] || 8192
-	// Cap maxTokens at 32k for very large context windows, or 20% of context length, whichever is smaller
+	// Cap maxTokens at 32k for very large context windows, or 20% of context length, whichever is smaller.
 	const maxTokens = Math.min(contextLength, Math.ceil(contextLength * 0.2), 32768)
 	const supportsImages = VISION_MODELS.has(model.id)
 
@@ -101,7 +87,6 @@ function parseIOIntelligenceModel(model: IOIntelligenceModel): ModelInfo {
 export async function getIOIntelligenceModels(apiKey?: string): Promise<ModelRecord> {
 	const now = Date.now()
 
-	// Check cache
 	if (cache && now - cache.timestamp < IO_INTELLIGENCE_CACHE_DURATION) {
 		return cache.data
 	}
@@ -113,7 +98,6 @@ export async function getIOIntelligenceModels(apiKey?: string): Promise<ModelRec
 			"Content-Type": "application/json",
 		}
 
-		// Add authorization header if API key is provided
 		if (apiKey) {
 			headers.Authorization = `Bearer ${apiKey}`
 		} else {
@@ -125,7 +109,7 @@ export async function getIOIntelligenceModels(apiKey?: string): Promise<ModelRec
 			"https://api.intelligence.io.solutions/api/v1/models",
 			{
 				headers,
-				timeout: 10000, // 10 second timeout
+				timeout: 10_000,
 			},
 		)
 
@@ -140,22 +124,16 @@ export async function getIOIntelligenceModels(apiKey?: string): Promise<ModelRec
 			models[model.id] = parseIOIntelligenceModel(model)
 		}
 
-		// Update cache
-		cache = {
-			data: models,
-			timestamp: now,
-		}
+		cache = { data: models, timestamp: now }
 
 		return models
 	} catch (error) {
 		console.error("Error fetching IO Intelligence models:", error)
 
-		// Return cached data if available
 		if (cache) {
 			return cache.data
 		}
 
-		// Re-throw with more context
 		if (axios.isAxiosError(error)) {
 			if (error.response) {
 				throw new Error(
@@ -174,16 +152,10 @@ export async function getIOIntelligenceModels(apiKey?: string): Promise<ModelRec
 	}
 }
 
-/**
- * Get cached models without making an API request
- */
 export function getCachedIOIntelligenceModels(): ModelRecord | null {
 	return cache?.data || null
 }
 
-/**
- * Clear the cache
- */
 export function clearIOIntelligenceCache(): void {
 	cache = null
 }

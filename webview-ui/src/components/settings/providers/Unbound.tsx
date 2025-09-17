@@ -90,11 +90,13 @@ export const Unbound = ({
 		const modelsPromise = new Promise<void>((resolve) => {
 			const messageHandler = (event: MessageEvent) => {
 				const message = event.data
+
 				if (message.type === "routerModels") {
 					window.removeEventListener("message", messageHandler)
 					resolve()
 				}
 			}
+
 			window.addEventListener("message", messageHandler)
 		})
 

@@ -19,8 +19,10 @@ export class IOIntelligenceHandler extends BaseOpenAiCompatibleProvider<IOIntell
 			apiKey: options.ioIntelligenceApiKey,
 		})
 	}
+
 	override getModel() {
 		const modelId = this.options.ioIntelligenceModelId || (ioIntelligenceDefaultModelId as IOIntelligenceModelId)
+
 		const modelInfo =
 			this.providerModels[modelId as IOIntelligenceModelId] ?? this.providerModels[ioIntelligenceDefaultModelId]
 
@@ -28,7 +30,7 @@ export class IOIntelligenceHandler extends BaseOpenAiCompatibleProvider<IOIntell
 			return { id: modelId as IOIntelligenceModelId, info: modelInfo }
 		}
 
-		// Return the requested model ID even if not found, with fallback info
+		// Return the requested model ID even if not found, with fallback info.
 		return {
 			id: modelId as IOIntelligenceModelId,
 			info: {

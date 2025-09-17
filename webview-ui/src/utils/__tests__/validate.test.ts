@@ -42,6 +42,7 @@ describe("Model Validation Functions", () => {
 		deepinfra: {},
 		"io-intelligence": {},
 		"vercel-ai-gateway": {},
+		huggingface: {},
 	}
 
 	const allowAllOrganization: OrganizationAllowList = {

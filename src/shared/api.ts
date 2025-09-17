@@ -1,8 +1,12 @@
 import {
 	type ModelInfo,
 	type ProviderSettings,
+	type DynamicProvider,
+	type LocalProvider,
 	ANTHROPIC_DEFAULT_MAX_TOKENS,
 	CLAUDE_CODE_DEFAULT_MAX_OUTPUT_TOKENS,
+	isDynamicProvider,
+	isLocalProvider,
 } from "@roo-code/types"
 
 // ApiHandlerOptions
@@ -18,22 +22,9 @@ export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider"> & {
 
 // RouterName
 
-const routerNames = [
-	"openrouter",
-	"requesty",
-	"glama",
-	"unbound",
-	"litellm",
-	"ollama",
-	"lmstudio",
-	"io-intelligence",
-	"deepinfra",
-	"vercel-ai-gateway",
-] as const
+export type RouterName = DynamicProvider | LocalProvider
 
-export type RouterName = (typeof routerNames)[number]
-
-export const isRouterName = (value: string): value is RouterName => routerNames.includes(value as RouterName)
+export const isRouterName = (value: string): value is RouterName => isDynamicProvider(value) || isLocalProvider(value)
 
 export function toRouterName(value?: string): RouterName {
 	if (value && isRouterName(value)) {
@@ -144,14 +135,32 @@ export const getModelMaxOutputTokens = ({
 
 // GetModelsOptions
 
-export type GetModelsOptions =
-	| { provider: "openrouter" }
-	| { provider: "glama" }
-	| { provider: "requesty"; apiKey?: string; baseUrl?: string }
-	| { provider: "unbound"; apiKey?: string }
-	| { provider: "litellm"; apiKey: string; baseUrl: string }
-	| { provider: "ollama"; baseUrl?: string; apiKey?: string }
-	| { provider: "lmstudio"; baseUrl?: string }
-	| { provider: "deepinfra"; apiKey?: string; baseUrl?: string }
-	| { provider: "io-intelligence"; apiKey: string }
-	| { provider: "vercel-ai-gateway" }
+// Allow callers to always pass apiKey/baseUrl without excess property errors,
+// while still enforcing required fields per provider where applicable.
+type CommonFetchParams = {
+	apiKey?: string
+	baseUrl?: string
+}
+
+// Exhaustive, value-level map for all dynamic providers.
+// If a new dynamic provider is added in packages/types, this will fail to compile
+// until a corresponding entry is added here.
+const dynamicProviderExtras = {
+	openrouter: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	"vercel-ai-gateway": {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	huggingface: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	litellm: {} as { apiKey: string; baseUrl: string },
+	deepinfra: {} as { apiKey?: string; baseUrl?: string },
+	"io-intelligence": {} as { apiKey: string },
+	requesty: {} as { apiKey?: string; baseUrl?: string },
+	unbound: {} as { apiKey?: string },
+	glama: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	ollama: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+	lmstudio: {} as {}, // eslint-disable-line @typescript-eslint/no-empty-object-type
+} as const satisfies Record<RouterName, object>
+
+// Build the dynamic options union from the map, intersected with CommonFetchParams
+// so extra fields are always allowed while required ones are enforced.
+export type GetModelsOptions = {
+	[P in keyof typeof dynamicProviderExtras]: ({ provider: P } & (typeof dynamicProviderExtras)[P]) & CommonFetchParams
+}[RouterName]

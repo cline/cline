@@ -1,27 +1,27 @@
-import { ModelInfo, lMStudioDefaultModelInfo } from "@roo-code/types"
-import { LLM, LLMInfo, LLMInstanceInfo, LMStudioClient } from "@lmstudio/sdk"
 import axios from "axios"
+import { LLM, LLMInfo, LLMInstanceInfo, LMStudioClient } from "@lmstudio/sdk"
+
+import { type ModelInfo, lMStudioDefaultModelInfo } from "@roo-code/types"
+
 import { flushModels, getModels } from "./modelCache"
 
 const modelsWithLoadedDetails = new Set<string>()
 
-export const hasLoadedFullDetails = (modelId: string): boolean => {
-	return modelsWithLoadedDetails.has(modelId)
-}
+export const hasLoadedFullDetails = (modelId: string): boolean => modelsWithLoadedDetails.has(modelId)
 
 export const forceFullModelDetailsLoad = async (baseUrl: string, modelId: string): Promise<void> => {
 	try {
-		// test the connection to LM Studio first
-		// errors will be caught further down
+		// Test the connection to LM Studio first
+		// Crrors will be caught further down.
 		await axios.get(`${baseUrl}/v1/models`)
 		const lmsUrl = baseUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://")
 
 		const client = new LMStudioClient({ baseUrl: lmsUrl })
 		await client.llm.model(modelId)
 		await flushModels("lmstudio")
-		await getModels({ provider: "lmstudio" }) // force cache update now
+		await getModels({ provider: "lmstudio" }) // Force cache update now.
 
-		// Mark this model as having full details loaded
+		// Mark this model as having full details loaded.
 		modelsWithLoadedDetails.add(modelId)
 	} catch (error) {
 		if (error.code === "ECONNREFUSED") {

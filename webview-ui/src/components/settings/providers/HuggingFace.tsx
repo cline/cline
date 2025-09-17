@@ -60,19 +60,19 @@ export const HuggingFace = ({ apiConfiguration, setApiConfigurationField }: Hugg
 		[setApiConfigurationField],
 	)
 
-	// Fetch models when component mounts
+	// Fetch models when component mounts.
 	useEffect(() => {
 		setLoading(true)
 		vscode.postMessage({ type: "requestHuggingFaceModels" })
 	}, [])
 
-	// Handle messages from extension
+	// Handle messages from extension.
 	const onMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 
 		switch (message.type) {
 			case "huggingFaceModels":
-				setModels(message.huggingFaceModels || [])
+				setModels(message.huggingFaceModels?.sort((a, b) => a.id.localeCompare(b.id)) || [])
 				setLoading(false)
 				break
 		}

@@ -1,3 +1,5 @@
+// npx vitest core/webview/__tests__/webviewMessageHandler.spec.ts
+
 import type { Mock } from "vitest"
 
 // Mock dependencies - must come before imports
@@ -227,6 +229,8 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			apiKey: "litellm-key",
 			baseUrl: "http://localhost:4000",
 		})
+		// Note: huggingface is not fetched in requestRouterModels - it has its own handler
+		// Note: io-intelligence is not fetched because no API key is provided in the mock state
 
 		// Verify response was sent
 		expect(mockClineProvider.postMessageToWebview).toHaveBeenCalledWith({
@@ -241,6 +245,8 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 				ollama: {},
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
+				huggingface: {},
+				"io-intelligence": {},
 			},
 		})
 	})
@@ -330,6 +336,8 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 				ollama: {},
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
+				huggingface: {},
+				"io-intelligence": {},
 			},
 		})
 	})
@@ -371,6 +379,8 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 				ollama: {},
 				lmstudio: {},
 				"vercel-ai-gateway": mockModels,
+				huggingface: {},
+				"io-intelligence": {},
 			},
 		})
 

@@ -85,6 +85,7 @@ export const LiteLLM = ({
 			setRefreshError(t("settings:providers.refreshModels.missingConfig"))
 			return
 		}
+
 		vscode.postMessage({ type: "requestRouterModels", values: { litellmApiKey: key, litellmBaseUrl: url } })
 	}, [apiConfiguration, setRefreshStatus, setRefreshError, t])
 
