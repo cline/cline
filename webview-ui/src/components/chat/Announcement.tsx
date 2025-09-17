@@ -80,21 +80,23 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
+			<h3 style={h3TitleStyle}>JetBrains Support is Live!</h3>
 			<ul style={ulStyle}>
+				<li>
+					Our #1 most requested feature is here! Use Cline natively in IntelliJ IDEA, PyCharm, WebStorm, Android Studio,
+					GoLand, PhpStorm, and all JetBrains IDEs. Same powerful AI coding, now in your preferred development
+					environment.
+				</li>
+				<a href="https://cline.bot/jetbrains">Install it here!</a>
+				<br></br>
+				<br></br>
+
 				<li>
 					<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
 					incredibly fast, and it's still available at no cost
 				</li>
 				<li>
-					<b>GPT-5 Optimizations:</b> Fine-tuned system prompts for improved performance across the GPT-5 model family
-				</li>
-				<li>
-					<b>ESC to Cancel:</b> Quick keyboard navigation to cancel operations with the ESC key
-				</li>
-				<li>
-					Fixed task sync across multiple Cline windows, <code>/deep-planning</code> improvements for
-					Windows/PowerShell, Dify.ai integration, DeepSeek-V3.1 support, enhanced Gemini rate limiting, and multiple
-					provider fixes
+					<b>Accesibility Improvements:</b> Improved screen reader support throughout Cline
 				</li>
 			</ul>
 			<div style={{ margin: "18px 0" }} />

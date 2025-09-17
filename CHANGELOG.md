@@ -1,17 +1,10 @@
 # Changelog
 
-## 3.29.0
+## [3.29.0]
 
-- f37962b: Updated Baseten models to use dynamic fetching, added docs
-- fd3abdc: Screen readers now properly announce buttons in history preview and history view screens.
-- e8ba3c3: dev: set up storybook
-- af0bc4d: Fix: CreditLimitError should use server returned url when available
-- 7ecf395: Adding Workspace path adapter and workspace hints logic for tools
-- ac41b0d: Screen readers properly announce buttons in the MCP servers / Cline rules / workflows screens. Reflects the current selection of Cline rules / workflows tab to screen readers.
-- fadcd7e: sap provider - set sapAiCoreUseOrchestrationMode in state-helper instead of in sap provider components
-- 0b5e8f5: Moving grpc recorder as unit tests
-- dfc660e: Setup QLTY Initial Coverage Metrics
-- fe37ca9: Add environment variable injection to esbuild config
+- Updated Baseten provider to fetch models from server
+- Fix: Updated insufficient balance URL for easy Cline balance top-ups
+- Accessibility: Improvements to screen readers in MCP, Cline Rules, workflows, and history views.
 
 ## [3.28.4]
 
