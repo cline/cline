@@ -20,6 +20,7 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 
 	// Define multi-root hint based on feature flag
 	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
+	const multiRootSearchHint = context.isMultiRootEnabled ? MULTI_ROOT_SEARCH_HINT : ""
 
 	return new TemplateEngine().resolve(template, context, {
 		TASK_PROGRESS: shouldIncludeTaskProgress ? TASK_PROGRESS : "",
@@ -29,6 +30,7 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 		BROWSER_VIEWPORT_HEIGHT: context.browserSettings?.viewport?.height || 0,
 		CWD: context.cwd,
 		MULTI_ROOT_HINT: multiRootHint,
+		MULTI_ROOT_SEARCH_HINT: multiRootSearchHint,
 	})
 }
 
@@ -40,3 +42,5 @@ Checklist here (optional)
 </task_progress>
 `
 const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
+const MULTI_ROOT_SEARCH_HINT =
+	" Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace. Without a workspace prefix, searches all workspaces in parallel. With a prefix, searches only that workspace."
