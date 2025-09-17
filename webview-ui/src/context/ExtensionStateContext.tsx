@@ -205,6 +205,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		favoritedModelIds: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
