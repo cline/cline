@@ -68,7 +68,7 @@ export function parsePrice(priceString: string | undefined): number {
 		return 0
 	}
 	const parsed = parseFloat(priceString)
-	if (isNaN(parsed)) {
+	if (Number.isNaN(parsed)) {
 		return 0
 	}
 	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
