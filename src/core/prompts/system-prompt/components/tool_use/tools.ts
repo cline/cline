@@ -19,9 +19,7 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 	const shouldIncludeTaskProgress = focusChainEnabled
 
 	// Define multi-root hint based on feature flag
-	const multiRootHint = context.isMultiRootEnabled
-		? " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
-		: ""
+	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
 
 	return new TemplateEngine().resolve(template, context, {
 		TASK_PROGRESS: shouldIncludeTaskProgress ? TASK_PROGRESS : "",
@@ -41,3 +39,4 @@ const FOCUS_CHAIN_USAGE = `<task_progress>
 Checklist here (optional)
 </task_progress>
 `
+const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
