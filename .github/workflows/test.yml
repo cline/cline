@@ -5,6 +5,7 @@ on:
     pull_request:
         branches:
             - main
+            - josec/testing-platform-run-coverage-on-github
     workflow_call:
 
 # Set default permissions for all jobs
@@ -143,8 +144,6 @@ jobs:
 
     test-integration:
         runs-on: ubuntu-latest
-        # Only run on PRs to main branch
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
