@@ -208,6 +208,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		customPrompt: undefined,
 		useAutoCondense: false,
 		autoCondenseThreshold: undefined,
+		favoritedModelIds: [],
+
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,

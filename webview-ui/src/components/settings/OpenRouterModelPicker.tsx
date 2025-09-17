@@ -64,7 +64,7 @@ const featuredModels = [
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -148,8 +148,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
-
 		// IMPORTANT: highlightjs has a bug where if you use sort/localCompare - "// results.sort((a, b) => a.id.localeCompare(b.id)) ...sorting like this causes ids in objects to be reordered and mismatched"
 
 		// First, get all favorited models
@@ -162,7 +160,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 		// Combine favorited models with search results
 		return [...favoritedModels, ...searchResults]
-	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
+	}, [searchableItems, searchTerm, fuse, favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) {
@@ -316,7 +314,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => {
-								const isFavorite = (apiConfiguration?.favoritedModelIds || []).includes(item.id)
+								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (
 									<DropdownItem
 										isSelected={index === selectedIndex}
