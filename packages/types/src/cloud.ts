@@ -134,6 +134,16 @@ export const organizationCloudSettingsSchema = z.object({
 export type OrganizationCloudSettings = z.infer<typeof organizationCloudSettingsSchema>
 
 /**
+ * OrganizationFeatures
+ */
+
+export const organizationFeaturesSchema = z.object({
+	roomoteControlEnabled: z.boolean().optional(),
+})
+
+export type OrganizationFeatures = z.infer<typeof organizationFeaturesSchema>
+
+/**
  * OrganizationSettings
  */
 
@@ -142,6 +152,7 @@ export const organizationSettingsSchema = z.object({
 	cloudSettings: organizationCloudSettingsSchema.optional(),
 	defaultSettings: organizationDefaultSettingsSchema,
 	allowList: organizationAllowListSchema,
+	features: organizationFeaturesSchema.optional(),
 	hiddenMcps: z.array(z.string()).optional(),
 	hideMarketplaceMcps: z.boolean().optional(),
 	mcps: z.array(mcpMarketplaceItemSchema).optional(),
