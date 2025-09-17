@@ -187,7 +187,6 @@ export type ApiConfiguration = ApiHandlerOptions &
 	ApiHandlerSecrets & {
 		planModeApiProvider?: ApiProvider
 		actModeApiProvider?: ApiProvider
-		favoritedModelIds?: string[]
 	}
 
 // Models
