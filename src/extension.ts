@@ -537,6 +537,7 @@ function setupHostProvider(context: ExtensionContext) {
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,
+		context.globalStorageUri.fsPath,
 	)
 }
 

@@ -8,7 +8,7 @@ import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalState, LocalState, SecretKey, Secrets } from "../state-keys"
+import { GlobalState, GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [
@@ -138,7 +138,7 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	}
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalState> {
+export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled = context.globalState.get<GlobalState["strictPlanModeEnabled"]>("strictPlanModeEnabled")
@@ -208,9 +208,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const preferredLanguage = context.globalState.get<GlobalState["preferredLanguage"]>("preferredLanguage")
 		const focusChainSettings = context.globalState.get<GlobalState["focusChainSettings"]>("focusChainSettings")
 
-		const mcpMarketplaceCatalog = context.globalState.get<GlobalState["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
-		const qwenCodeOauthPath = context.globalState.get<GlobalState["qwenCodeOauthPath"]>("qwenCodeOauthPath")
-		const customPrompt = context.globalState.get<GlobalState["customPrompt"]>("customPrompt")
+		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
+		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
+		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalState["mode"]>("mode")
