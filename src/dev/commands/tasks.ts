@@ -27,9 +27,6 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 			}
 
 			const tasksCount = parseInt(count)
-			const globalStoragePath = context.globalStorageUri.fsPath
-			const tasksDir = path.join(globalStoragePath, "tasks")
-
 			vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
@@ -41,9 +38,7 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 						// Generate a timestamp to ensure unique IDs
 						const timestamp = Date.now() + i
 						const taskId = `${timestamp}`
-						const taskDir = path.join(tasksDir, taskId)
-
-						await fs.mkdir(taskDir, { recursive: true })
+						const taskDir = await HostProvider.ensureGlobalStorageDirExists("tasks", taskId)
 
 						// Generate a task prompt
 						const taskName = getRandomTaskName(i)

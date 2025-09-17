@@ -20,7 +20,7 @@ export async function discoverBrowser(controller: Controller, _request: EmptyReq
 
 			// Test the connection to get the endpoint
 			const browserSettings = controller.stateManager.getGlobalStateKey("browserSettings")
-			const browserSession = new BrowserSession(controller.context, browserSettings)
+			const browserSession = new BrowserSession(browserSettings)
 			const result = await browserSession.testConnection(discoveredHost)
 
 			return BrowserConnection.create({

@@ -305,7 +305,7 @@ export function createTestServer(controller: Controller): http.Server {
 						let apiConversationHistory: any[] = []
 						try {
 							if (typeof taskId === "string") {
-								messages = await getSavedClineMessages(visibleWebview.controller.context, taskId)
+								messages = await getSavedClineMessages(taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved Cline messages: ${error}`)
@@ -313,10 +313,7 @@ export function createTestServer(controller: Controller): http.Server {
 
 						try {
 							if (typeof taskId === "string") {
-								apiConversationHistory = await getSavedApiConversationHistory(
-									visibleWebview.controller.context,
-									taskId,
-								)
+								apiConversationHistory = await getSavedApiConversationHistory(taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved API conversation history: ${error}`)

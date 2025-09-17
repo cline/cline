@@ -1,12 +1,14 @@
 import { workspaceResolver } from "@core/workspace"
 import getFolderSize from "get-folder-size"
+import { HostProvider } from "@/hosts/host-provider"
 
 /**
  * Gets the total size of tasks and checkpoints directories
  * @param storagePath The base storage path (typically globalStorageUri.fsPath)
  * @returns The total size in bytes, or null if calculation fails
  */
-export async function getTotalTasksSize(storagePath: string): Promise<number | null> {
+export async function getTotalTasksSize(): Promise<number | null> {
+	const storagePath = HostProvider.get().globalStorageFsPath
 	const tasksDirResult = workspaceResolver.resolveWorkspacePath(storagePath, "tasks", "Utils.storage.getTotalTasksSize")
 	const checkpointsDirResult = workspaceResolver.resolveWorkspacePath(
 		storagePath,

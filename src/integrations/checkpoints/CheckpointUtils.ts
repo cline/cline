@@ -1,6 +1,7 @@
 import { access, constants, mkdir } from "fs/promises"
 import os from "os"
 import * as path from "path"
+import { HostProvider } from "@/hosts/host-provider"
 import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
@@ -18,11 +19,8 @@ import { getCwd, getDesktopDir } from "@/utils/path"
  * @returns Promise<string> The absolute path to the shadow git directory
  * @throws Error if global storage path is invalid
  */
-export async function getShadowGitPath(globalStoragePath: string, _taskId: string, cwdHash: string): Promise<string> {
-	if (!globalStoragePath) {
-		throw new Error("Global storage uri is invalid")
-	}
-	const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
+export async function getShadowGitPath(_taskId: string, cwdHash: string): Promise<string> {
+	const checkpointsDir = path.join(HostProvider.get().globalStorageFsPath, "checkpoints", cwdHash)
 	await mkdir(checkpointsDir, { recursive: true })
 	const gitPath = path.join(checkpointsDir, ".git")
 	return gitPath

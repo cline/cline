@@ -94,7 +94,7 @@ export class FocusChainManager {
 	 */
 	public async setupFocusChainFileWatcher() {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const focusChainFilePath = getFocusChainFilePath(taskDir, this.taskId)
 
 			// Initialize chokidar watcher
@@ -342,7 +342,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async readFocusChainFromDisk(): Promise<string | null> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const markdownContent = await fs.readFile(todoFilePath, "utf8")
 			const todoList = extractFocusChainListFromText(markdownContent)
@@ -370,7 +370,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async writeFocusChainToDisk(todoList: string): Promise<void> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const fileContent = createFocusChainMarkdownContent(this.taskId, todoList)
 			await writeFile(todoFilePath, fileContent, "utf8")

@@ -8,7 +8,7 @@ import { Controller } from ".."
  * @param _request The empty request
  * @returns The total size as an Int64 value
  */
-export async function getTotalTasksSize(controller: Controller, _request: EmptyRequest): Promise<Int64> {
-	const totalSize = await calculateTotalTasksSize(controller.context.globalStorageUri.fsPath)
+export async function getTotalTasksSize(_controller: Controller, _request: EmptyRequest): Promise<Int64> {
+	const totalSize = await calculateTotalTasksSize()
 	return Int64.create({ value: totalSize || 0 })
 }

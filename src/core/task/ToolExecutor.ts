@@ -251,7 +251,7 @@ export class ToolExecutor {
 			await this.browserSession.dispose()
 			const apiHandlerModel = this.api.getModel()
 			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
+			this.browserSession = new BrowserSession(this.browserSettings, useWebp)
 		} else {
 			console.warn("no controller context available for browserSession")
 		}
