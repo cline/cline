@@ -15,7 +15,7 @@
  *
  * Usage:
  *   1. (Optional) Build and install the e2e extension:
- *        npm run install:e2e:extension
+ *        npm run test:e2e:build
  *
  *   2. From the repo root, start the interactive session:
  *        npm run test:playwright:interactive
