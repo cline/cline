@@ -15,7 +15,7 @@
  *
  * Usage:
  *   1. (Optional) Build and install the e2e extension:
- *        npm run install:e2e:extension
+ *        npm run test:e2e:build
  *
  *   2. From the repo root, start the interactive session:
  *        npm run test:playwright:interactive
@@ -82,7 +82,7 @@ async function main() {
 			await ClineApiServerMock.stopGlobalServer?.()
 			await E2ETestHelper.rmForRetries(userDataDir, { recursive: true })
 		} catch (e) {
-			console.log(`We could teardown iteractive playwright propery, error:${e}`)
+			console.log(`We could teardown interactive playwright properly, error:${e}`)
 		}
 		console.log("Finished cleaning up resources...")
 	}

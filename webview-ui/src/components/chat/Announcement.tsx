@@ -1,12 +1,11 @@
 import { Accordion, AccordionItem } from "@heroui/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CSSProperties, memo, useState } from "react"
+import { CSSProperties, memo } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
-import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface AnnouncementProps {
 	version: string
@@ -42,29 +41,8 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
-
-	const setGrokCodeFast1 = () => {
-		const modelId = "x-ai/grok-code-fast-1"
-		// set both plan and act modes to use grok-code-fast-1
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickGrokCodeButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
 
 	const handleShowAccount = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
@@ -80,31 +58,42 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
+			<h3 style={h3TitleStyle}>JetBrains Support is Live!</h3>
 			<ul style={ulStyle}>
+				<li>
+					Our #1 most requested feature is here! Use Cline natively in IntelliJ IDEA, PyCharm, WebStorm, Android Studio,
+					GoLand, PhpStorm, and all JetBrains IDEs. Same powerful AI coding, now in your preferred development
+					environment.
+				</li>
+				<br></br>
+				<VSCodeLink
+					href="https://cline.bot/jetbrains"
+					style={{
+						display: "inline-block",
+						padding: "8px 16px",
+						backgroundColor: "var(--vscode-button-background)",
+						color: "var(--vscode-button-foreground)",
+						border: "1px solid var(--vscode-button-border)",
+						borderRadius: "2px",
+						textDecoration: "none",
+						fontSize: "13px",
+						fontFamily: "var(--vscode-font-family)",
+						cursor: "pointer",
+						marginBottom: "16px",
+					}}>
+					Get Cline for JetBrains!
+				</VSCodeLink>
+
 				<li>
 					<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
 					incredibly fast, and it's still available at no cost
 				</li>
 				<li>
-					<b>GPT-5 Optimizations:</b> Fine-tuned system prompts for improved performance across the GPT-5 model family
-				</li>
-				<li>
-					<b>ESC to Cancel:</b> Quick keyboard navigation to cancel operations with the ESC key
-				</li>
-				<li>
-					Fixed task sync across multiple Cline windows, <code>/deep-planning</code> improvements for
-					Windows/PowerShell, Dify.ai integration, DeepSeek-V3.1 support, enhanced Gemini rate limiting, and multiple
-					provider fixes
+					<b>Accesibility Improvements:</b> Improved screen reader support throughout Cline
 				</li>
 			</ul>
 			<div style={{ margin: "18px 0" }} />
-			{user ? (
-				!didClickGrokCodeButton ? (
-					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1 free
-					</VSCodeButton>
-				) : null
-			) : (
+			{!user && (
 				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
 					Sign Up with Cline
 				</VSCodeButton>
