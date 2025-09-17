@@ -352,10 +352,6 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
 			})
 		case "dify": // Add Dify.ai handler
-			console.log("[DIFY DEBUG] Instantiating DifyHandler with options:", {
-				difyApiKeyPresent: !!options.difyApiKey,
-				difyBaseUrl: options.difyBaseUrl,
-			})
 			return new DifyHandler({
 				difyApiKey: options.difyApiKey,
 				difyBaseUrl: options.difyBaseUrl,
