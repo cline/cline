@@ -52,14 +52,29 @@ function startServer(): Promise<ChildProcess> {
 
 function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
-		server.once("exit", () => resolve())
-		server.kill("SIGINT")
-		setTimeout(() => {
-			if (!server.killed) {
-				server.kill("SIGKILL")
+		let resolved = false
+
+		const cleanup = () => {
+			if (!resolved) {
+				resolved = true
 				resolve()
 			}
-		}, 5000)
+		}
+
+		server.once("exit", cleanup)
+		server.once("close", cleanup)
+
+		// Try graceful shutdown first
+		server.kill("SIGINT")
+
+		// Force kill after shorter timeout
+		setTimeout(() => {
+			if (!resolved) {
+				server.kill("SIGKILL")
+				// Give it a moment to actually die
+				setTimeout(cleanup, 1000)
+			}
+		}, 2000)
 	})
 }
 

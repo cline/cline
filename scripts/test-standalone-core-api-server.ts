@@ -138,8 +138,26 @@ async function main(): Promise<void> {
 	// Handle graceful shutdown
 	const shutdown = async (): Promise<void> => {
 		console.log(`\n Shutting down services...\n${userDataDir}\n${extensionsDir}\n${clineTestWorkspace}\n`)
-		hostbridge.kill()
-		coreService.kill()
+
+		// Kill child processes more aggressively
+		if (hostbridge && !hostbridge.killed) {
+			hostbridge.kill("SIGINT")
+			setTimeout(() => {
+				if (!hostbridge.killed) {
+					hostbridge.kill("SIGKILL")
+				}
+			}, 1000)
+		}
+
+		if (coreService && !coreService.killed) {
+			coreService.kill("SIGINT")
+			setTimeout(() => {
+				if (!coreService.killed) {
+					coreService.kill("SIGKILL")
+				}
+			}, 1000)
+		}
+
 		await ClineApiServerMock.stopGlobalServer()
 
 		// Cleanup temp directories
@@ -151,7 +169,10 @@ async function main(): Promise<void> {
 			console.warn("Failed to cleanup temp directories:", error)
 		}
 
-		process.exit(0)
+		// Give processes time to exit before forcing exit
+		setTimeout(() => {
+			process.exit(0)
+		}, 2000)
 	}
 
 	process.on("SIGINT", shutdown)
