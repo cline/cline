@@ -28,6 +28,143 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		}]`
 	}
 
+	/**
+	 * Determines which paths to search based on workspace configuration and hints
+	 */
+	private determineSearchPaths(
+		config: TaskConfig,
+		parsedPath: string,
+		workspaceHint: string | undefined,
+		originalPath: string,
+	): Array<{ absolutePath: string; workspaceName?: string }> {
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			const adapter = new WorkspacePathAdapter({
+				cwd: config.cwd,
+				isMultiRootEnabled: true,
+				workspaceManager: config.workspaceManager,
+			})
+
+			if (workspaceHint) {
+				// Search only in the specified workspace
+				const absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
+				return [{ absolutePath, workspaceName: workspaceHint }]
+			} else {
+				// Search across all workspaces
+				const allPaths = adapter.getAllPossiblePaths(parsedPath)
+				const workspaceRoots = adapter.getWorkspaceRoots()
+				return allPaths.map((absPath, index) => ({
+					absolutePath: absPath,
+					workspaceName: workspaceRoots[index]?.name || path.basename(workspaceRoots[index]?.path || absPath),
+				}))
+			}
+		} else {
+			// Single-workspace mode (backward compatible)
+			const pathResult = resolveWorkspacePath(config, originalPath, "SearchFilesTool.execute")
+			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+			return [{ absolutePath }]
+		}
+	}
+
+	/**
+	 * Executes a single search operation in a workspace
+	 */
+	private async executeSearch(
+		config: TaskConfig,
+		absolutePath: string,
+		workspaceName: string | undefined,
+		regex: string,
+		filePattern: string | undefined,
+	) {
+		try {
+			const workspaceResults = await regexSearchFiles(
+				config.cwd,
+				absolutePath,
+				regex,
+				filePattern,
+				config.services.clineIgnoreController,
+			)
+
+			// Parse the result count from the first line
+			const firstLine = workspaceResults.split("\n")[0]
+			const resultMatch = firstLine.match(/Found (\d+) result/)
+			const resultCount = resultMatch ? parseInt(resultMatch[1], 10) : 0
+
+			return {
+				workspaceName,
+				workspaceResults,
+				resultCount,
+				success: true,
+			}
+		} catch (error) {
+			// If search fails in one workspace, return error info
+			console.error(`Search failed in ${absolutePath}:`, error)
+			return {
+				workspaceName,
+				workspaceResults: "",
+				resultCount: 0,
+				success: false,
+			}
+		}
+	}
+
+	/**
+	 * Formats search results based on workspace configuration
+	 */
+	private formatSearchResults(
+		config: TaskConfig,
+		searchResults: Array<{
+			workspaceName?: string
+			workspaceResults: string
+			resultCount: number
+			success: boolean
+		}>,
+		searchPaths: Array<{ absolutePath: string; workspaceName?: string }>,
+	): string {
+		const allResults: string[] = []
+		let totalResultCount = 0
+
+		for (const { workspaceName, workspaceResults, resultCount, success } of searchResults) {
+			if (!success || !workspaceResults) {
+				continue
+			}
+
+			totalResultCount += resultCount
+
+			// If multi-workspace and we have results, annotate with workspace name
+			if (
+				config.isMultiRootEnabled &&
+				searchPaths.length > 1 &&
+				workspaceName &&
+				workspaceResults &&
+				!workspaceResults.startsWith("Found 0 results")
+			) {
+				// Skip the "Found X results" line and add workspace annotation
+				const lines = workspaceResults.split("\n")
+				const resultsWithoutHeader = lines.slice(2).join("\n") // Skip first two lines (count and empty line)
+
+				if (resultsWithoutHeader.trim()) {
+					allResults.push(`## Workspace: ${workspaceName}\n${resultsWithoutHeader}`)
+				}
+			} else if (!config.isMultiRootEnabled || searchPaths.length === 1) {
+				// Single workspace mode or single workspace search
+				allResults.push(workspaceResults)
+			}
+		}
+
+		// Combine results
+		if (config.isMultiRootEnabled && searchPaths.length > 1) {
+			// Multi-workspace search result
+			if (allResults.length === 0 || totalResultCount === 0) {
+				return "Found 0 results."
+			} else {
+				return `Found ${totalResultCount === 1 ? "1 result" : `${totalResultCount.toLocaleString()} results`} across ${searchPaths.length} workspace${searchPaths.length > 1 ? "s" : ""}.\n\n${allResults.join("\n\n")}`
+			}
+		} else {
+			// Single workspace result
+			return allResults[0] || "Found 0 results."
+		}
+	}
+
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const relPath = block.params.path
 		const regex = block.params.regex
@@ -80,95 +217,19 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		// Parse workspace hint from the path
 		const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relDirPath!)
 
-		// Multi-workspace search logic
-		let results: string = ""
-		let searchPaths: Array<{ absolutePath: string; workspaceName?: string }> = []
+		// Determine which paths to search
+		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
 
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			const adapter = new WorkspacePathAdapter({
-				cwd: config.cwd,
-				isMultiRootEnabled: true,
-				workspaceManager: config.workspaceManager,
-			})
+		// Execute searches in all relevant workspaces in parallel
+		const searchPromises = searchPaths.map(({ absolutePath, workspaceName }) =>
+			this.executeSearch(config, absolutePath, workspaceName, regex, filePattern),
+		)
 
-			if (workspaceHint) {
-				// Search only in the specified workspace
-				const absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
-				searchPaths = [{ absolutePath, workspaceName: workspaceHint }]
-			} else {
-				// Search across all workspaces
-				const allPaths = adapter.getAllPossiblePaths(parsedPath)
-				const workspaceRoots = adapter.getWorkspaceRoots()
-				searchPaths = allPaths.map((absPath, index) => ({
-					absolutePath: absPath,
-					workspaceName: workspaceRoots[index]?.name || path.basename(workspaceRoots[index]?.path || absPath),
-				}))
-			}
-		} else {
-			// Single-workspace mode (backward compatible)
-			const pathResult = resolveWorkspacePath(config, relDirPath!, "SearchFilesTool.execute")
-			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
-			searchPaths = [{ absolutePath }]
-		}
+		// Wait for all searches to complete
+		const searchResults = await Promise.all(searchPromises)
 
-		// Execute searches in all relevant workspaces
-		const allResults: string[] = []
-		let totalResultCount = 0
-
-		for (const { absolutePath, workspaceName } of searchPaths) {
-			try {
-				const workspaceResults = await regexSearchFiles(
-					config.cwd,
-					absolutePath,
-					regex,
-					filePattern,
-					config.services.clineIgnoreController,
-				)
-
-				// Parse the result count from the first line
-				const firstLine = workspaceResults.split("\n")[0]
-				const resultMatch = firstLine.match(/Found (\d+) result/)
-				if (resultMatch) {
-					totalResultCount += parseInt(resultMatch[1], 10)
-				}
-
-				// If multi-workspace and we have results, annotate with workspace name
-				if (
-					config.isMultiRootEnabled &&
-					searchPaths.length > 1 &&
-					workspaceName &&
-					workspaceResults &&
-					!workspaceResults.startsWith("Found 0 results")
-				) {
-					// Skip the "Found X results" line and add workspace annotation
-					const lines = workspaceResults.split("\n")
-					const resultsWithoutHeader = lines.slice(2).join("\n") // Skip first two lines (count and empty line)
-
-					if (resultsWithoutHeader.trim()) {
-						allResults.push(`## Workspace: ${workspaceName}\n${resultsWithoutHeader}`)
-					}
-				} else if (!config.isMultiRootEnabled || searchPaths.length === 1) {
-					// Single workspace mode or single workspace search
-					allResults.push(workspaceResults)
-				}
-			} catch (error) {
-				// If search fails in one workspace, continue with others
-				console.error(`Search failed in ${absolutePath}:`, error)
-			}
-		}
-
-		// Combine results
-		if (config.isMultiRootEnabled && searchPaths.length > 1) {
-			// Multi-workspace search result
-			if (allResults.length === 0 || totalResultCount === 0) {
-				results = "Found 0 results."
-			} else {
-				results = `Found ${totalResultCount === 1 ? "1 result" : `${totalResultCount.toLocaleString()} results`} across ${searchPaths.length} workspace${searchPaths.length > 1 ? "s" : ""}.\n\n${allResults.join("\n\n")}`
-			}
-		} else {
-			// Single workspace result
-			results = allResults[0] || "Found 0 results."
-		}
+		// Format and combine results
+		const results = this.formatSearchResults(config, searchResults, searchPaths)
 
 		const sharedMessageProps = {
 			tool: "searchFiles",
