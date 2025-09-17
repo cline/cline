@@ -18,7 +18,31 @@ export type GlobalStateKey = keyof GlobalState
 
 export type LocalStateKey = keyof LocalState
 
+export type SettingsKey = keyof Settings
+
+export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
+
+export type GlobalStateAndSettings = GlobalState & Settings
+
 export interface GlobalState {
+	lastShownAnnouncementId: string | undefined
+	taskHistory: HistoryItem[]
+	userInfo: UserInfo | undefined
+	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
+	favoritedModelIds: string[]
+	mcpMarketplaceEnabled: boolean
+	mcpResponsesCollapsed: boolean
+	terminalReuseEnabled: boolean
+	isNewUser: boolean
+	welcomeViewCompleted: boolean | undefined
+	mcpDisplayMode: McpDisplayMode
+	// Multi-root workspace support
+	workspaceRoots: WorkspaceRoot[] | undefined
+	primaryRootIndex: number
+	multiRootEnabled: boolean
+}
+
+export interface Settings {
 	awsRegion: string | undefined
 	awsUseCrossRegionInference: boolean | undefined
 	awsBedrockUsePromptCache: boolean | undefined
@@ -28,8 +52,6 @@ export interface GlobalState {
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
-	lastShownAnnouncementId: string | undefined
-	taskHistory: HistoryItem[]
 	requestyBaseUrl: string | undefined
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
@@ -45,7 +67,6 @@ export interface GlobalState {
 	globalClineRulesToggles: ClineRulesToggles
 	globalWorkflowToggles: ClineRulesToggles
 	browserSettings: BrowserSettings
-	userInfo: UserInfo | undefined
 	liteLlmBaseUrl: string | undefined
 	liteLlmUsePromptCache: boolean | undefined
 	fireworksModelMaxCompletionTokens: number | undefined
@@ -53,22 +74,14 @@ export interface GlobalState {
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
 	zaiApiLine: string | undefined
-	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting: boolean
-	mcpMarketplaceEnabled: boolean
-	favoritedModelIds: string[] | undefined
 	requestTimeoutMs: number | undefined
 	shellIntegrationTimeout: number
-	mcpResponsesCollapsed: boolean
-	terminalReuseEnabled: boolean
 	defaultTerminalProfile: string
-	isNewUser: boolean
-	welcomeViewCompleted: boolean | undefined
 	terminalOutputLineLimit: number
-	mcpDisplayMode: McpDisplayMode
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
@@ -84,11 +97,6 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
-
-	// Multi-root workspace support
-	workspaceRoots: WorkspaceRoot[] | undefined
-	primaryRootIndex: number
-	multiRootEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider

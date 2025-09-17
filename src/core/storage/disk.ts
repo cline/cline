@@ -8,6 +8,7 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { GlobalState } from "./state-keys"
 
 export const GlobalFileNames = {
@@ -187,6 +188,10 @@ export async function ensureStateDirectoryExists(context: vscode.ExtensionContex
 	const stateDir = path.join(context.globalStorageUri.fsPath, "state")
 	await fs.mkdir(stateDir, { recursive: true })
 	return stateDir
+}
+
+export async function ensureCacheDirectoryExists(): Promise<string> {
+	return HostProvider.getGlobalStorageDir("cache")
 }
 
 export async function getTaskHistoryStateFilePath(context: vscode.ExtensionContext): Promise<string> {

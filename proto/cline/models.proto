@@ -343,7 +343,4 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
   optional string act_mode_vercel_ai_gateway_model_id = 229;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
-
-
-  repeated string favorited_model_ids = 300;
 }

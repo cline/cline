@@ -1,8 +1,10 @@
 # Changelog
 
-## [3.28.5]
+## [3.29.0]
 
-- Accessibility: Screen readers now properly announce buttons in history preview and history view screens.
+- Updated Baseten provider to fetch models from server
+- Fix: Updated insufficient balance URL for easy Cline balance top-ups
+- Accessibility: Improvements to screen readers in MCP, Cline Rules, workflows, and history views.
 
 ## [3.28.4]
 

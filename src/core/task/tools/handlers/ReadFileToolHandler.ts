@@ -66,12 +66,16 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath! } : pathResult
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "readFile",
-			path: getReadablePath(config.cwd, relPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
 		} satisfies ClineSayTool
@@ -110,16 +114,16 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const result = await extractFileContent(absolutePath, supportsImages)
+		const fileContent = await extractFileContent(absolutePath, supportsImages)
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
-		if (result.imageBlock) {
-			config.taskState.userMessageContent.push(result.imageBlock)
+		if (fileContent.imageBlock) {
+			config.taskState.userMessageContent.push(fileContent.imageBlock)
 		}
 
-		return result.text
+		return fileContent.text
 	}
 }
