@@ -5,6 +5,7 @@
 
 @import "tailwindcss";
 @plugin './hero.ts';
+@custom-variant dark (&:is(.vscode-dark *));
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);

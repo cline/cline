@@ -12,7 +12,7 @@ export default {
 				"azeret-mono": ['"Azeret Mono"', "monospace"],
 			},
 			colors: {
-				background: "var(--vscode-editor-background)",
+				background: "var(--vscode-sidebar-background)",
 				border: {
 					DEFAULT: "var(--vscode-focusBorder)",
 					panel: "var(--vscode-panel-border)",
@@ -92,6 +92,6 @@ export default {
 			},
 		},
 	},
-	darkMode: ["class", "vscode-dark"],
+	darkMode: ".vscode-dark",
 	plugins: [heroui],
 }
