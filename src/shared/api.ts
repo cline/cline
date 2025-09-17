@@ -3271,8 +3271,35 @@ export const huaweiCloudMaasModels = {
 
 // Baseten
 // https://baseten.co/products/model-apis/
+// Extended ModelInfo to include supportedFeatures, like tools
+export interface BasetenModelInfo extends ModelInfo {
+	supportedFeatures?: string[]
+}
+
 export const basetenModels = {
-	"deepseek-ai/DeepSeek-R1-0528": {
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with math and reasoning capabilities",
+	},
+	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
+		maxTokens: 131072,
+		contextWindow: 1000000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.19,
+		outputPrice: 0.72,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "High-efficiency language processing",
+	},
+	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 131072,
 		contextWindow: 163840,
 		supportsImages: false,
@@ -3281,8 +3308,7 @@ export const basetenModels = {
 		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"DeepSeek R1 0528 - A state-of-the-art 671B-parameter MoE LLM with o1-style reasoning licensed for commercial use.",
+		description: "DeepSeek's first-generation reasoning model",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 131072,
@@ -3293,64 +3319,84 @@ export const basetenModels = {
 		outputPrice: 0.77,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "DeepSeek V3 0324 - A state-of-the-art 671B-parameter MoE LLM licensed for commercial use.",
-	},
-	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
-		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.19,
-		outputPrice: 0.72,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Meta's Llama 4 Maverick - A SOTA mixture-of-experts multi-modal LLM with 400 billion total parameters.",
+		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
 	},
 	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
-		maxTokens: 8192,
-		contextWindow: 131072,
+		maxTokens: 131072,
+		contextWindow: 1000000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.13,
 		outputPrice: 0.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Meta's Llama 4 Scout - A SOTA mixture-of-experts multi-modal LLM with 109 billion total parameters.",
+		description: "Precise context understanding with efficient reasoning capabilities",
 	},
-	"moonshotai/Kimi-K2-Instruct": {
+	"deepseek-ai/DeepSeek-V3.1": {
 		maxTokens: 131072,
-		contextWindow: 131072,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.38,
+		outputPrice: 1.53,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with advanced coding and reasoning capabilities",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 128072,
+		contextWindow: 128072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Extremely capable general-purpose LLM with strong, controllable reasoning capabilities",
+	},
+	"moonshotai/Kimi-K2-Instruct-0905": {
+		maxTokens: 168000,
+		contextWindow: 262000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Moonshot AI's Kimi K2 - The world's first 1 trillion parameter open source model.",
+		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
 	},
-	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
-		maxTokens: 163800,
-		contextWindow: 163800,
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131000,
+		contextWindow: 131000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.8,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"Qwen3-235B-A22B-Instruct-2507 is a multilingual, instruction-tuned mixture-of-experts language model based on the Qwen3-235B architecture, with 22B active parameters per forward pass.",
+		description: "State of the art language model for agentic and coding tasks",
 	},
-	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
-		maxTokens: 163800,
-		contextWindow: 163800,
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 131072,
+		contextWindow: 163840,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 1.7,
-		outputPrice: 1.7,
+		inputPrice: 2.55,
+		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"Qwen3-Coder-480B-A35B-Instruct is a 480B parameter, instruction-tuned, agentic coding model that excels at function calling, tool use, and long-context reasoning over repositories.",
+		description: "The latest revision of DeepSeek's first-generation reasoning model",
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
