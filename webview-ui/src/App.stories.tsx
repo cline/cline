@@ -373,7 +373,13 @@ const createErrorMessages = () => [
 	),
 ]
 
-const createAskMessage = (type: string, text: string) => ({ ts: Date.now() - 60000, type: "ask" as const, ask: type, text })
+const createAskMessage = (type: string, text: string, streamingFailedMessage?: string) => ({
+	ts: Date.now() - 60000,
+	type: "ask" as const,
+	ask: type,
+	text,
+	streamingFailedMessage,
+})
 
 export const ErrorState: Story = {
 	decorators: [createStoryDecorator({ clineMessages: createErrorMessages() })],
@@ -524,13 +530,20 @@ export const ToolSave: Story = {
 }
 
 // Quick story generators for common patterns
-const quickStory = (name: string, askType: string, text: string, description: string): Story => ({
+const quickStory = (
+	name: string,
+	askType: string,
+	text: string,
+	description: string,
+	streamingFailedMessage?: string,
+): Story => ({
 	decorators: [
 		createStoryDecorator({
 			clineMessages: [
-				createMessage(5, "say", "task", `Help with ${name.toLowerCase()}`),
+				...createLongMessages(),
+				createMessage(6, "say", "task", `Help with ${name.toLowerCase()}`),
 				createMessage(4.7, "say", "text", `I'll help you with ${name.toLowerCase()}.`),
-				createAskMessage(askType, text),
+				createAskMessage(askType, text, streamingFailedMessage),
 			],
 		}),
 	],
@@ -614,8 +627,9 @@ export const NewTaskWithContext = quickStory(
 export const AutoApprovalMaxReached = quickStory(
 	"Auto-approval Limit",
 	"auto_approval_max_req_reached",
-	"The auto-approval limit has been reached for this task.",
+	"Cline has auto-approved 5 API requests. Would you like to reset the count and proceed with the task?",
 	"Shows auto-approval limit reached state with Proceed/Start New Task options.",
+	"Cline has auto-approved 5 API requests. Would you like to reset the count and proceed with the task?",
 )
 export const ApiRequestActive: Story = {
 	decorators: [
