@@ -51,6 +51,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
+	const [exportingSelected, setExportingSelected] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
@@ -91,7 +92,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
 			// Optimistic UI update
-			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
+			setPendingFavoriteToggles((prev) => ({
+				...prev,
+				[taskId]: !currentValue,
+			}))
 
 			try {
 				await TaskServiceClient.toggleTaskFavorite(
@@ -198,6 +202,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		},
 		[fetchTotalTasksSize],
 	)
+
+	const handleExportSelectedHistoryItems = useCallback(async (ids: string[]) => {
+		if (ids.length > 0) {
+			setExportingSelected(true)
+			try {
+				await TaskServiceClient.exportTasksWithIds(StringArrayRequest.create({ value: ids }))
+			} catch (error) {
+				console.error("Error exporting tasks:", error)
+			} finally {
+				setExportingSelected(false)
+			}
+		}
+	}, [])
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
@@ -690,15 +707,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
 					{selectedItems.length > 0 ? (
-						<DangerButton
-							aria-label="Delete selected items"
-							onClick={() => {
-								handleDeleteSelectedHistoryItems(selectedItems)
-							}}
-							style={{ width: "100%" }}>
-							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
-							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
-						</DangerButton>
+						<div style={{ display: "flex", gap: "10px" }}>
+							<VSCodeButton
+								disabled={exportingSelected}
+								onClick={() => {
+									handleExportSelectedHistoryItems(selectedItems)
+								}}
+								style={{ flex: 1 }}>
+								{exportingSelected ? "Exporting..." : "Export Selected"}
+							</VSCodeButton>
+							<DangerButton
+								aria-label="Delete selected items"
+								disabled={exportingSelected}
+								onClick={() => {
+									handleDeleteSelectedHistoryItems(selectedItems)
+								}}
+								style={{ flex: 1 }}>
+								Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
+								{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
+							</DangerButton>
+						</div>
 					) : (
 						<DangerButton
 							aria-label="Delete all history"
@@ -711,7 +739,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									.finally(() => setDeleteAllDisabled(false))
 							}}
 							style={{ width: "100%" }}>
-							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+							Delete All History
+							{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 						</DangerButton>
 					)}
 				</div>
