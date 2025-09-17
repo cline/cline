@@ -32,14 +32,17 @@ export default async function Home() {
 									<AnimatedText className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
 										AI-Powered
 									</AnimatedText>
-									<span className="block">Dev Team, Right in Your Editor.</span>
+									<span className="block">Dev Team, in Your Editor</span>
+									<AnimatedText className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+										and Beyond
+									</AnimatedText>
 								</h1>
 								<p className="mt-4 max-w-md text-base text-muted-foreground sm:mt-6 sm:text-lg">
-									Supercharge your editor with AI that{" "}
+									Supercharge your software development with AI that{" "}
 									<AnimatedText className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
 										understands your codebase
-									</AnimatedText>
-									, streamlines development, and helps you write, refactor, and debug with ease.
+									</AnimatedText>{" "}
+									and helps you write, refactor, and debug with ease in your editor and in the cloud.
 								</p>
 							</div>
 							<div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0">
