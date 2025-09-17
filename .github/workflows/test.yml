@@ -141,6 +141,39 @@ jobs:
                       exit 1
                   fi
 
+    test-integration:
+        runs-on: ubuntu-latest
+        # Only run on PRs to main branch
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Compile standalone
+              run: npm run compile-standalone
+            
+            - name: Running testing platform integration spec tests
+              run: npm run test:tp-orchestrator -- tests/specs/
+
+
     coverage:
         needs: test
         runs-on: ubuntu-latest
