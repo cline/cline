@@ -208,7 +208,8 @@ export class ClineHandler implements ApiHandler {
 				}
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${clineAccountAuthToken}`,
+						// Align with backend auth expectations
+						Authorization: `Bearer workos:${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})

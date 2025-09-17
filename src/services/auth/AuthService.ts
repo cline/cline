@@ -5,6 +5,7 @@ import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
+import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../feature-flags"
 import { ClineAuthApiTokenExchangeResponse, ClineAuthProvider } from "./providers/ClineAuthProvider"
@@ -112,15 +113,20 @@ export class AuthService {
 		this._setProvider(providerName)
 	}
 
+	/**
+	 * Returns the current authentication token with the appropriate prefix.
+	 * Refreshing it if necessary.
+	 */
 	async getAuthToken(): Promise<string | null> {
 		try {
-			if (!this._clineAuthInfo) {
-				console.log("No auth info available")
+			const clineAccountAuthToken = this._clineAuthInfo?.idToken
+			if (!this._clineAuthInfo || !clineAccountAuthToken) {
+				// Not authenticated
 				return null
 			}
 
-			// Check if token is expired
-			if (await this._provider?.shouldRefreshIdToken(this._clineAuthInfo.idToken, this._clineAuthInfo.expiresAt)) {
+			// Check if token has expired
+			if (await this._provider?.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
 				console.log("Provider indicates token needs refresh")
 				const updatedAuthInfo = await this._provider?.retrieveClineAuthInfo(this._controller)
 				if (updatedAuthInfo) {
@@ -132,15 +138,15 @@ export class AuthService {
 				}
 				await this.sendAuthStatusUpdate()
 			}
-
-			return this._clineAuthInfo?.idToken ?? null
+			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
+			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
 		} catch (error) {
 			console.error("Error getting auth token:", error)
 			return null
 		}
 	}
 
-	protected _setProvider(providerName: string): void {
+	protected _setProvider(_providerName: string): void {
 		// Only ClineAuthProvider is supported going forward
 		// Keeping the providerName param for forward compatibility/telemetry
 		this._provider = new ClineAuthProvider(clineEnvConfig)
@@ -181,7 +187,7 @@ export class AuthService {
 		// Query Parameters:
 		//   - client_type: "extension" (required)
 		//   - callback_url: Extension callback URL (required)
-		const authUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/authorize`)
+		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
 		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
 		// Ensure the redirect_uri is properly encoded and included
@@ -254,7 +260,7 @@ export class AuthService {
 			const callbackUrl = `${callbackHost}/auth`
 
 			// Exchange the authorization code for tokens
-			const tokenUrl = new URL(`${clineEnvConfig.apiBaseUrl}/api/v1/auth/token`)
+			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
 
 			const response = await fetch(tokenUrl.toString(), {
 				method: "POST",

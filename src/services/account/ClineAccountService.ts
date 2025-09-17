@@ -47,18 +47,16 @@ export class ClineAccountService {
 	 * @throws Error if the API key is not found or the request fails
 	 */
 	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
-		const url = `${this._baseUrl}${endpoint}`
-
+		const url = new URL(endpoint, this._baseUrl).toString() // Validate URL
+		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
 		const clineAccountAuthToken = await this._authService.getAuthToken()
-
 		if (!clineAccountAuthToken) {
 			throw new Error("No Cline account auth token found")
 		}
-
 		const requestConfig: AxiosRequestConfig = {
 			...config,
 			headers: {
-				Authorization: `Bearer workos:${clineAccountAuthToken}`,
+				Authorization: `Bearer ${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
 				...config.headers,
 			},
