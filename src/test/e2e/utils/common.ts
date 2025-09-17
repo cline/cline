@@ -11,7 +11,8 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 	await _page.locator("div:nth-child(4) > span > span").first().click()
 	await _page.getByRole("textbox", { name: "The editor is not accessible" }).press("ControlOrMeta+a")
 
-	await _page.getByRole("listbox", { name: /Show Code Actions / }).click()
+	await _page.getByRole("button", { name: /Show Code Actions/ }).click()
+	await _page.getByRole("listbox").first().waitFor({ state: "visible" })
 	await _page.keyboard.press("Enter", { delay: 100 }) // First action - "Add to Cline"
 }
 
