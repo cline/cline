@@ -9,11 +9,11 @@ import { HostProvider } from "@/hosts/host-provider"
  *
  * @param globalStoragePath - Path to the extension's global storage
  */
-export async function cleanupLegacyCheckpoints(globalStoragePath: string): Promise<void> {
+export async function cleanupLegacyCheckpoints(): Promise<void> {
 	try {
 		HostProvider.get().logToChannel("Checking for legacy checkpoints...")
 
-		const tasksDir = path.join(globalStoragePath, "tasks")
+		const tasksDir = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 
 		// Check if tasks directory exists
 		if (!(await fileExistsAtPath(tasksDir))) {

@@ -47,9 +47,7 @@ describe("FileContextTracker", () => {
 		chokidarWatchStub = sandbox.stub(chokidar, "watch").returns(mockFileSystemWatcher as any)
 
 		// Mock controller and context
-		mockController = {
-			context: { globalStorageUri: { fsPath: "/mock/storage" } } as vscode.ExtensionContext,
-		} as unknown as Controller
+		mockController = {} as unknown as Controller
 
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }

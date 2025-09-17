@@ -66,7 +66,7 @@ export class MessageStateHandler {
 
 	async saveClineMessagesAndUpdateHistory(): Promise<void> {
 		try {
-			await saveClineMessages(this.context, this.taskId, this.clineMessages)
+			await saveClineMessages(this.taskId, this.clineMessages)
 
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
@@ -78,7 +78,7 @@ export class MessageStateHandler {
 						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
 					)
 				]
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
 			try {
 				// getFolderSize.loose silently ignores errors
@@ -112,12 +112,12 @@ export class MessageStateHandler {
 
 	async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.context, this.taskId, this.apiConversationHistory)
+		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 	}
 
 	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
 		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.context, this.taskId, this.apiConversationHistory)
+		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 	}
 
 	async addToClineMessages(message: ClineMessage) {

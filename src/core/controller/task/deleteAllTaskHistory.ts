@@ -51,7 +51,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 
 				// Delete non-favorited task directories
 				const preserveTaskIds = favoritedTasks.map((task) => task.id)
-				await cleanupTaskFiles(controller, preserveTaskIds)
+				await cleanupTaskFiles(preserveTaskIds)
 
 				// Update webview
 				try {
@@ -91,13 +91,13 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 
 		try {
 			// Remove all contents of tasks directory
-			const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 			if (await fileExistsAtPath(taskDirPath)) {
 				await fs.rm(taskDirPath, { recursive: true, force: true })
 			}
 
 			// Remove checkpoints directory contents
-			const checkpointsDirPath = path.join(controller.context.globalStorageUri.fsPath, "checkpoints")
+			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
 			if (await fileExistsAtPath(checkpointsDirPath)) {
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
@@ -127,8 +127,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 /**
  * Helper function to cleanup task files while preserving specified tasks
  */
-async function cleanupTaskFiles(controller: Controller, preserveTaskIds: string[]) {
-	const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
+async function cleanupTaskFiles(preserveTaskIds: string[]) {
+	const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 
 	try {
 		if (await fileExistsAtPath(taskDirPath)) {

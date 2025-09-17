@@ -84,7 +84,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		let finalData: HistoryItem[]
 		let migrationAction: string
 
-		const newLocationData = await readTaskHistoryFromState(context)
+		const newLocationData = await readTaskHistoryFromState()
 
 		if (newLocationData.length === 0) {
 			// Move old data to new location
@@ -97,9 +97,9 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		}
 
 		// Perform migration operations sequentially - only clear old data if write succeeds
-		await writeTaskHistoryToState(context, finalData)
+		await writeTaskHistoryToState(finalData)
 
-		const successfullyWrittenData = await readTaskHistoryFromState(context)
+		const successfullyWrittenData = await readTaskHistoryFromState()
 
 		if (!Array.isArray(successfullyWrittenData)) {
 			console.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")

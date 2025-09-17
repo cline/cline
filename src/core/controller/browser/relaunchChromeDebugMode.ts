@@ -11,7 +11,7 @@ import { Controller } from "../index"
 export async function relaunchChromeDebugMode(controller: Controller, _: EmptyRequest): Promise<StringMessage> {
 	try {
 		const { browserSettings } = await controller.getStateToPostToWebview()
-		const browserSession = new BrowserSession(controller.context, browserSettings)
+		const browserSession = new BrowserSession(browserSettings)
 
 		// Relaunch Chrome in debug mode
 		await browserSession.relaunchChromeDebugMode(controller)
