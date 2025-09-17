@@ -24,10 +24,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
+      - name: Install root dependencies
+        run: npm ci --include=optional
+      - name: Install webview dependencies
+        run: cd webview-ui && npm ci --include=optional
       #👇 Add Storybook build and deploy to GitHub Pages as a step in the workflow
       - uses: bitovi/github-actions-storybook-to-github-pages@v1.0.3
         with:
-          install_command: cd webview-ui && npm ci
-          build_command: cd webview-ui && npm run build-storybook
+          build_command: npm run pretest && cd webview-ui && npm run build-storybook
           path: webview-ui/storybook-static
           checkout: false
