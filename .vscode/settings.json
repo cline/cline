@@ -27,8 +27,5 @@
 		"source.removeUnused.biome": "always",
 		"source.removeUnusedImports": "always",
 		"source.organizeImports.biome": "always"
-	},
-	"[github-actions-workflow]": {
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	}
 }
