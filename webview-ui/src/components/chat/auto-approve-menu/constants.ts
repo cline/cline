@@ -75,6 +75,13 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 		icon: "codicon-server",
 	},
+	{
+		id: "useDebug",
+		label: "Use debug tools",
+		shortName: "Debug",
+		description: "Allows Cline to start debugging sessions, set breakpoints, and evaluate expressions in the debug console.",
+		icon: "codicon-debug-alt",
+	},
 ]
 
 export const NOTIFICATIONS_SETTING: ActionMetadata = {

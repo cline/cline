@@ -21,6 +21,10 @@ export enum ClineDefaultTool {
 	SUMMARIZE_TASK = "summarize_task",
 	REPORT_BUG = "report_bug",
 	NEW_RULE = "new_rule",
+	DEBUG_FILE = "debug_file",
+	SET_BREAKPOINT = "set_breakpoint",
+	EVALUATE_EXPRESSION = "evaluate_expression",
+	STOP_DEBUGGING = "stop_debugging",
 }
 
 // Array of all tool names for compatibility

@@ -31,6 +31,10 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_FETCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.DEBUG_FILE:
+				case ClineDefaultTool.SET_BREAKPOINT:
+				case ClineDefaultTool.EVALUATE_EXPRESSION:
+				case ClineDefaultTool.STOP_DEBUGGING:
 					return true
 			}
 		}
@@ -64,6 +68,11 @@ export class AutoApprove {
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
 					return this.autoApprovalSettings.actions.useMcp
+				case ClineDefaultTool.DEBUG_FILE:
+				case ClineDefaultTool.SET_BREAKPOINT:
+				case ClineDefaultTool.EVALUATE_EXPRESSION:
+				case ClineDefaultTool.STOP_DEBUGGING:
+					return this.autoApprovalSettings.actions.useDebug ?? true
 			}
 		}
 		return false

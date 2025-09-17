@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+import "cline/error.proto";
+import "google/protobuf/empty.proto";
+
+// Debug-related services and messages
+service DebugService {
+  // Start debugging a file with optional debug configuration
+  rpc StartDebugging(StartDebuggingRequest) returns (StartDebuggingResponse);
+  
+  // Stop the current debug session
+  rpc StopDebugging(google.protobuf.Empty) returns (StopDebuggingResponse);
+  
+  // Set a breakpoint at a specific location
+  rpc SetBreakpoint(SetBreakpointRequest) returns (SetBreakpointResponse);
+  
+  // Remove a breakpoint
+  rpc RemoveBreakpoint(RemoveBreakpointRequest) returns (RemoveBreakpointResponse);
+  
+  // Evaluate an expression in the debug context
+  rpc EvaluateExpression(EvaluateExpressionRequest) returns (EvaluateExpressionResponse);
+  
+  // Get current debug session status
+  rpc GetDebugStatus(google.protobuf.Empty) returns (DebugStatusResponse);
+  
+  // Get current breakpoints
+  rpc GetBreakpoints(google.protobuf.Empty) returns (GetBreakpointsResponse);
+}
+
+// Request to start debugging
+message StartDebuggingRequest {
+  string file_path = 1;
+  optional string debug_config_name = 2;  // Optional launch.json config name
+  map<string, string> environment_variables = 3;
+  repeated string program_arguments = 4;
+}
+
+message StartDebuggingResponse {
+  oneof result {
+    string session_id = 1;
+    cline.Error error = 2;
+  }
+}
+
+// Response to stop debugging
+message StopDebuggingResponse {
+  oneof result {
+    bool success = 1;
+    cline.Error error = 2;
+  }
+}
+
+// Request to set a breakpoint
+message SetBreakpointRequest {
+  string file_path = 1;
+  int32 line_number = 2;  // 1-based line number
+  optional string condition = 3;  // Optional conditional breakpoint
+  optional string log_message = 4;  // Optional logpoint message
+}
+
+message SetBreakpointResponse {
+  oneof result {
+    Breakpoint breakpoint = 1;
+    cline.Error error = 2;
+  }
+}
+
+// Request to remove a breakpoint
+message RemoveBreakpointRequest {
+  string breakpoint_id = 1;
+}
+
+message RemoveBreakpointResponse {
+  oneof result {
+    bool success = 1;
+    cline.Error error = 2;
+  }
+}
+
+// Request to evaluate an expression
+message EvaluateExpressionRequest {
+  string expression = 1;
+  optional string frame_id = 2;  // Optional frame context
+  optional string context = 3;   // "watch", "repl", "hover", etc.
+}
+
+message EvaluateExpressionResponse {
+  oneof result {
+    EvaluationResult evaluation_result = 1;
+    cline.Error error = 2;
+  }
+}
+
+// Debug session status
+message DebugStatusResponse {
+  bool is_debugging = 1;
+  optional string session_id = 2;
+  optional string current_file = 3;
+  optional int32 current_line = 4;
+  DebugSessionState state = 5;
+}
+
+// Get breakpoints response
+message GetBreakpointsResponse {
+  repeated Breakpoint breakpoints = 1;
+}
+
+// Breakpoint information
+message Breakpoint {
+  string id = 1;
+  string file_path = 2;
+  int32 line_number = 3;
+  bool enabled = 4;
+  bool verified = 5;
+  optional string condition = 6;
+  optional string log_message = 7;
+}
+
+// Expression evaluation result
+message EvaluationResult {
+  string value = 1;
+  string type = 2;
+  bool success = 3;
+  optional string error_message = 4;
+  int32 variables_reference = 5;  // For expandable objects
+}
+
+// Debug session states
+enum DebugSessionState {
+  DEBUG_SESSION_STATE_UNKNOWN = 0;
+  DEBUG_SESSION_STATE_STOPPED = 1;
+  DEBUG_SESSION_STATE_RUNNING = 2;
+  DEBUG_SESSION_STATE_PAUSED = 3;
+  DEBUG_SESSION_STATE_TERMINATED = 4;
+}
