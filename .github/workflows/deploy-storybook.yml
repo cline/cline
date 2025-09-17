@@ -1,0 +1,33 @@
+# Source: https://storybook.js.org/docs/sharing/publish-storybook#github-pages
+name: Publish Storybook to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Manual Checkout
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Set up Node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+      #👇 Add Storybook build and deploy to GitHub Pages as a step in the workflow
+      - uses: bitovi/github-actions-storybook-to-github-pages@v1.0.3
+        with:
+          install_command: cd webview-ui && npm ci
+          build_command: cd webview-ui && npm run build-storybook
+          path: webview-ui/storybook-static
+          checkout: false
