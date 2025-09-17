@@ -1,29 +1,51 @@
-import { jwtDecode } from "jwt-decode"
 import { EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
-import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 
 interface ClineAuthApiUser {
-	Subject: string | null
-	Email: string
-	Name: string
-	ClineUserID: string | null
+	subject: string | null
+	email: string
+	name: string
+	clineUserId: string | null
+	accounts: string[] | null
+}
+
+// Unified API response data shape for token exchange/refresh
+interface ClineAuthResponseData {
+	/**
+	 * Auth token to be used for authenticated requests
+	 */
+	accessToken: string
+	/**
+	 * Refresh token to be used for refreshing the access token
+	 */
+	refreshToken?: string
+	/**
+	 * Token type
+	 * E.g. "Bearer"
+	 */
+	tokenType: string
+	/**
+	 * Access token expiration time in ISO 8601 format
+	 * E.g. "2025-09-17T04:32:24.842636548Z"
+	 */
+	expiresAt: string
+	/**
+	 * User information associated with the token
+	 */
+	userInfo: ClineAuthApiUser
 }
 
 export interface ClineAuthApiTokenExchangeResponse {
 	success: boolean
-	data: {
-		// Auth token to be used for authenticated requests
-		access_token: string
-		// Bearer
-		token_type: string
-		// Token expiration time in seconds
-		expires_at: number
-		user_info: ClineAuthApiUser
-	}
+	data: ClineAuthResponseData
+}
+
+export interface ClineAuthApiTokenRefreshResponse {
+	success: boolean
+	data: ClineAuthResponseData
 }
 
 export class ClineAuthProvider {
@@ -48,16 +70,15 @@ export class ClineAuthProvider {
 	 * @param existingAccessToken - The existing access token to check.
 	 * @returns {Promise<boolean>} True if the token is expired or about to expire.
 	 */
-	async shouldRefreshIdToken(existingAccessToken: string): Promise<boolean> {
+	async shouldRefreshIdToken(_refreshToken: string, expiresAt?: number): Promise<boolean> {
 		try {
-			const decodedToken = jwtDecode(existingAccessToken)
-			const exp = decodedToken.exp || 0
-			const expirationTime = exp * 1000
-			const currentTime = Date.now()
-			const fiveMinutesInMs = 5 * 60 * 1000
+			// expiresAt is in seconds
+			const expirationTime = expiresAt || 0
+			const currentTime = Date.now() / 1000
+			const next5Min = currentTime + 5 * 60
 
 			// Check if token is expired or will expire in the next 5 minutes
-			if (currentTime > expirationTime - fiveMinutesInMs) {
+			if (expirationTime < next5Min) {
 				return true // Access token is expired or about to expire
 			}
 			return false
@@ -92,19 +113,29 @@ export class ClineAuthProvider {
 				return null
 			}
 
-			// Check if we have a valid token
-			if (!storedAuthData?.idToken) {
-				console.error("No access token found in stored authentication data")
+			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
+				console.error("No valid token found in stored authentication data")
 				controller.stateManager.setSecret("clineAccountId", undefined)
 				return null
 			}
 
 			// Check if token is expired
 			const now = Date.now()
-			if (storedAuthData.expiresAt && storedAuthData.expiresAt < now) {
-				console.log(`Token expired at ${new Date(storedAuthData.expiresAt).toISOString()}`)
-				controller.stateManager.setSecret("clineAccountId", undefined)
+			// Stored auth data expiresAt example: 1758083043.166
+			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
+				console.log(`Token expired at ${new Date(storedAuthData.expiresAt || 0).toISOString()}`)
+				// Try to refresh the token using the refresh token
+				const authInfo = await this.exchangeCodeForToken(storedAuthData.refreshToken)
+				if (authInfo) {
+					controller.stateManager.setSecret("clineAccountId", JSON.stringify(authInfo))
+					return authInfo
+				}
 				return null
+			}
+
+			if (storedAuthData.idToken && storedAuthData.refreshToken && storedAuthData.userInfo.id) {
+				controller.stateManager.setSecret("clineAccountId", JSON.stringify(storedAuthData))
+				return storedAuthData
 			}
 
 			// Verify the token structure
@@ -123,6 +154,9 @@ export class ClineAuthProvider {
 					controller.stateManager.setSecret("clineAccountId", undefined)
 					return null
 				}
+				if (payload.external_id) {
+					storedAuthData.userInfo.id = payload.external_id
+				}
 			} catch (e) {
 				console.error("Invalid token format or content:", e)
 				controller.stateManager.setSecret("clineAccountId", undefined)
@@ -130,18 +164,7 @@ export class ClineAuthProvider {
 			}
 
 			console.log("Successfully retrieved and validated stored auth token")
-			return {
-				expiresAt: storedAuthData.expiresAt,
-				subject: storedAuthData.subject || storedAuthData.userInfo?.id || "",
-				idToken: storedAuthData.idToken,
-				userInfo: storedAuthData.userInfo || {
-					id: storedAuthData.subject || "",
-					email: "",
-					displayName: "",
-					createdAt: new Date().toISOString(),
-					organizations: [],
-				},
-			}
+			return storedAuthData
 		} catch (error) {
 			console.error("Error retrieving stored authentication credential:", error)
 			// Clear invalid stored data
@@ -159,23 +182,18 @@ export class ClineAuthProvider {
 	 * @param authorizationCode - The authorization code from callback.
 	 * @returns {Promise<{ accessToken: string, expiresIn: number, userInfo: any }>} Token and user info.
 	 */
-	private async exchangeCodeForToken(authorizationCode: string): Promise<ClineAuthInfo> {
+	private async exchangeCodeForToken(refreshToken: string): Promise<ClineAuthInfo> {
 		try {
 			// Get the callback URL that was used during the initial auth request
-			const callbackHost = await HostProvider.get().getCallbackUri()
-			const callbackUrl = `${callbackHost}/auth`
-			const endpoint = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, this._config.apiBaseUrl)
+			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this._config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					code: authorizationCode, // short_lived_auth_code
-					grant_type: "authorization_code", // must be "authorization_code"
-					client_type: "extension",
-					redirect_uri: callbackUrl,
-					provider: "cline",
+					refreshToken, // short_lived_auth_code
+					grantType: "refresh_token", // must be "authorization_code"
 				}),
 			})
 
@@ -190,22 +208,24 @@ export class ClineAuthProvider {
 
 			const data: ClineAuthApiTokenExchangeResponse = await response.json()
 
-			if (!data.success || !data.data.access_token) {
+			if (!data.success || !data.data.refreshToken || !data.data.accessToken) {
 				throw new Error("Failed to exchange authorization code for access token")
 			}
 
 			return {
-				idToken: data.data.access_token,
-				expiresAt: Date.now() + data.data.expires_at * 1000,
+				idToken: data.data.accessToken,
+				// data.data.expiresAt example: "2025-09-17T03:43:57Z"; store in seconds
+				expiresAt: new Date(data.data.expiresAt).getTime() / 1000,
+				refreshToken: data.data.refreshToken || refreshToken,
 				userInfo: {
 					createdAt: new Date().toISOString(),
-					email: data.data.user_info.Email,
-					id: data.data.user_info.Subject || "",
-					displayName: data.data.user_info.Name,
+					email: data.data.userInfo.email || "",
+					id: data.data.userInfo.clineUserId || "",
+					displayName: data.data.userInfo.name || "",
 					organizations: [],
 					appBaseUrl: this._config.appBaseUrl,
+					subject: data.data.userInfo.subject || "",
 				},
-				subject: data.data.user_info.Subject || "",
 			}
 		} catch (error: any) {
 			throw error
@@ -256,23 +276,10 @@ export class ClineAuthProvider {
 	async signIn(controller: Controller, authorizationCode: string, _provider: string): Promise<ClineAuthInfo | null> {
 		try {
 			console.log(authorizationCode, "auth provider:", _provider)
-			// Exchange the authorization code for an access token
-			const { idToken, expiresAt } = await this.exchangeCodeForToken(authorizationCode)
-			// 5 mins
-			const expiresIn = expiresAt || 5 * 60
-
-			// Fetch detailed user information
-			const detailedUserInfo = await this.fetchUserInfo(idToken)
-
-			// Calculate token expiration time
-			const expiration = Date.now() + expiresIn * 1000
-
-			// Store the access token and user info in secret storage
-			const authData: ClineAuthInfo = {
-				idToken,
-				expiresAt: expiration,
-				userInfo: detailedUserInfo,
-			}
+			// Exchange the authorization code for an access token and user info
+			const exchanged = await this.exchangeCodeForToken(authorizationCode)
+			// Store the access token and user info in secret storage (expiresAt already in seconds)
+			const authData: ClineAuthInfo = exchanged
 
 			try {
 				controller.stateManager.setSecret("clineAccountId", JSON.stringify(authData))
@@ -281,10 +288,7 @@ export class ClineAuthProvider {
 			}
 
 			// Return the auth info
-			return {
-				idToken, // Using idToken field for backward compatibility
-				userInfo: detailedUserInfo,
-			}
+			return authData
 		} catch (error) {
 			throw error
 		}

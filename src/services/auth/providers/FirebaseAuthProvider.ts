@@ -25,7 +25,7 @@ export class FirebaseAuthProvider {
 		this._config = value
 	}
 
-	async shouldRefreshIdToken(existingIdToken: string): Promise<boolean> {
+	async shouldRefreshIdToken(existingIdToken: string, _expiresAt?: number): Promise<boolean> {
 		const decodedToken = jwtDecode(existingIdToken)
 		const exp = decodedToken.exp || 0 // 1752297633
 		const expirationTime = exp * 1000

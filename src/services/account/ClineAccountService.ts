@@ -8,6 +8,7 @@ import type {
 } from "@shared/ClineAccount"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { clineEnvConfig } from "@/config"
+import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
@@ -50,10 +51,14 @@ export class ClineAccountService {
 
 		const clineAccountAuthToken = await this._authService.getAuthToken()
 
+		if (!clineAccountAuthToken) {
+			throw new Error("No Cline account auth token found")
+		}
+
 		const requestConfig: AxiosRequestConfig = {
 			...config,
 			headers: {
-				Authorization: `Bearer ${clineAccountAuthToken}`,
+				Authorization: `Bearer workos:${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
 				...config.headers,
 			},
@@ -145,7 +150,7 @@ export class ClineAccountService {
 	 */
 	async fetchMe(): Promise<UserResponse | undefined> {
 		try {
-			const data = await this.authenticatedRequest<UserResponse>(`/api/v1/users/me`)
+			const data = await this.authenticatedRequest<UserResponse>(CLINE_API_ENDPOINT.USER_INFO)
 			return data
 		} catch (error) {
 			console.error("Failed to fetch user data (RPC):", error)
@@ -223,7 +228,7 @@ export class ClineAccountService {
 		// Call API to switch account
 		try {
 			// make XHR request to switch account
-			const _response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+			const _response = await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",
