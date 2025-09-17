@@ -136,7 +136,7 @@ export interface ApiHandlerOptions {
 	planModeGroqModelId?: string
 	planModeGroqModelInfo?: ModelInfo
 	planModeBasetenModelId?: string
-	planModeBasetenModelInfo?: ModelInfo
+	planModeBasetenModelInfo?: BasetenModelInfo
 	planModeHuggingFaceModelId?: string
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
@@ -168,7 +168,7 @@ export interface ApiHandlerOptions {
 	actModeGroqModelId?: string
 	actModeGroqModelInfo?: ModelInfo
 	actModeBasetenModelId?: string
-	actModeBasetenModelInfo?: ModelInfo
+	actModeBasetenModelInfo?: BasetenModelInfo
 	actModeHuggingFaceModelId?: string
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
@@ -3265,6 +3265,11 @@ export const huaweiCloudMaasModels = {
 
 // Baseten
 // https://baseten.co/products/model-apis/
+// Extended ModelInfo to include supportedFeatures, like tools
+export interface BasetenModelInfo extends ModelInfo {
+	supportedFeatures?: string[]
+}
+
 export const basetenModels = {
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262144,

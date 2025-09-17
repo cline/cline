@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
+import { BasetenModelId, BasetenModelInfo, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -10,7 +10,7 @@ import { ApiStream } from "../transform/stream"
 interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 	basetenApiKey?: string
 	basetenModelId?: string
-	basetenModelInfo?: ModelInfo
+	basetenModelInfo?: BasetenModelInfo
 	apiModelId?: string // For backward compatibility
 }
 
@@ -52,7 +52,7 @@ export class BasetenHandler implements ApiHandler {
 		return 8192
 	}
 
-	getModel(): { id: BasetenModelId; info: ModelInfo } {
+	getModel(): { id: BasetenModelId; info: BasetenModelInfo } {
 		// First priority: basetenModelId and basetenModelInfo
 		const basetenModelId = this.options.basetenModelId
 		const basetenModelInfo = this.options.basetenModelInfo
@@ -151,24 +151,10 @@ export class BasetenHandler implements ApiHandler {
 	 */
 	supportsTools(): boolean {
 		const model = this.getModel()
+		const modelInfo = model.info as any
 
-		// Check model description for tool support indicators
-		const description = model.info.description?.toLowerCase() || ""
-		const modelId = model.id.toLowerCase()
-
-		// Look for explicit mentions of tool support in description
-		if (description.includes("tool") || description.includes("function calling") || description.includes("agentic")) {
-			return true
-		}
-
-		// Most modern chat models on Baseten support tools via OpenAI-compatible API
-		// Only exclude models that are clearly not designed for tool use
-		if (modelId.includes("coder") || modelId.includes("code") || description.includes("coding")) {
-			// Coding models typically support tools for code generation
-			return true
-		}
-
-		// Default to true because all Baseten Model API models support tools
-		return true
+		// Use dynamic API data when available, fallback to true since all current Baseten models support tools
+		// (as of 2025-09-16 - could change if Baseten add non-tool models in future)
+		return modelInfo.supportedFeatures ? modelInfo.supportedFeatures.includes("tools") : true
 	}
 }

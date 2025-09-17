@@ -25,7 +25,7 @@ export async function refreshBasetenModels(
 	// Get the Baseten API key from the controller's state
 	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
-	const models: Record<string, Partial<OpenRouterModelInfo>> = {}
+	const models: Record<string, Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] }> = {}
 	try {
 		if (!basetenApiKey) {
 			console.log("No Baseten API key found, using static models as fallback")
@@ -73,7 +73,7 @@ export async function refreshBasetenModels(
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 
-					const modelInfo: Partial<OpenRouterModelInfo> = {
+					const modelInfo: Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] } = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
 						contextWindow: rawModel.context_length || staticModelInfo?.contextWindow,
 						supportsImages: false, // Baseten model APIs does not support image input
@@ -83,6 +83,7 @@ export async function refreshBasetenModels(
 						cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
+						supportedFeatures: rawModel.supported_features || [],
 					}
 
 					models[rawModel.id] = modelInfo
@@ -158,6 +159,7 @@ export async function refreshBasetenModels(
 			cacheReadsPrice: model.cacheReadsPrice ?? 0,
 			description: model.description ?? "",
 			tiers: model.tiers ?? [],
+			// Note: supportedFeatures is preserved as custom property but not part of OpenRouterModelInfo proto
 		}
 	}
 

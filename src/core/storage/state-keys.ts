@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, BasetenModelInfo, BedrockModelId, ModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
 import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
@@ -115,7 +115,7 @@ export interface GlobalState {
 	planModeGroqModelId: string | undefined
 	planModeGroqModelInfo: ModelInfo | undefined
 	planModeBasetenModelId: string | undefined
-	planModeBasetenModelInfo: ModelInfo | undefined
+	planModeBasetenModelInfo: BasetenModelInfo | undefined
 	planModeHuggingFaceModelId: string | undefined
 	planModeHuggingFaceModelInfo: ModelInfo | undefined
 	planModeHuaweiCloudMaasModelId: string | undefined
@@ -145,7 +145,7 @@ export interface GlobalState {
 	actModeGroqModelId: string | undefined
 	actModeGroqModelInfo: ModelInfo | undefined
 	actModeBasetenModelId: string | undefined
-	actModeBasetenModelInfo: ModelInfo | undefined
+	actModeBasetenModelInfo: BasetenModelInfo | undefined
 	actModeHuggingFaceModelId: string | undefined
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
