@@ -169,6 +169,14 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
+            # Cache testing-platform dependencies
+            - name: Cache testing-platform dependencies
+              uses: actions/cache@v4
+              id: testing-platform-cache
+              with:
+                path: testing-platform/node_modules
+                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
+
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
@@ -181,10 +189,12 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
+              if: steps.testing-platform-cache.outputs.cache-hit != 'true'
               run: cd testing-platform && npm ci
 
             - name: Running testing platform integration spec tests
-              run: npm run test:tp-orchestrator -- tests/specs/
+              timeout-minutes: 5
+              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --server-logs
 
 
     coverage:
