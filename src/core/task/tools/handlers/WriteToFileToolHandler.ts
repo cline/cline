@@ -60,7 +60,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const partialMessage = JSON.stringify(sharedMessageProps)
 
 			// Handle auto-approval vs manual approval for partial
-			if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			// Pass the resolved absolute path for multi-workspace support
+			const absolutePath = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.handlePartialBlock")
+			const resolvedAbsolutePath = typeof absolutePath === "string" ? absolutePath : absolutePath.absolutePath
+			if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, resolvedAbsolutePath)) {
 				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 				await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
 			} else {
@@ -156,7 +159,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// : undefined,
 			} satisfies ClineSayTool)
 
-			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
+			// Pass the resolved absolute path for multi-workspace support
+			const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.execute")
+			const resolvedAbsolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, resolvedAbsolutePath)) {
 				// Auto-approval flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)

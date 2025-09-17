@@ -1,7 +1,7 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ClineDefaultTool } from "@shared/tools"
-import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
+import { getCwd, getDesktopDir } from "@/utils/path"
 
 export class AutoApprove {
 	autoApprovalSettings: AutoApprovalSettings
@@ -82,14 +82,30 @@ export class AutoApprove {
 
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = await getCwd(getDesktopDir())
-			// When called with a string cwd, resolveWorkspacePath returns a string
-			const absolutePath = resolveWorkspacePath(
-				cwd,
-				autoApproveActionpath,
-				"AutoApprove.shouldAutoApproveToolWithPath",
-			) as string
-			isLocalRead = isLocatedInPath(cwd, absolutePath)
+			// Import isLocatedInWorkspace inline to check against ALL workspace roots
+			const { isLocatedInWorkspace } = await import("@/utils/path")
+			const path = await import("path")
+
+			// If the path is already absolute, use it directly
+			// Otherwise, resolve it relative to the primary workspace
+			let absolutePath: string
+			if (path.isAbsolute(autoApproveActionpath)) {
+				// Path is already resolved by the tool handler
+				absolutePath = autoApproveActionpath
+			} else {
+				// Fallback for legacy code paths that might still pass relative paths
+				const cwd = await getCwd(getDesktopDir())
+				absolutePath = resolveWorkspacePath(
+					cwd,
+					autoApproveActionpath,
+					"AutoApprove.shouldAutoApproveToolWithPath",
+				) as string
+			}
+
+			// Check if the path is in ANY workspace root, not just the primary one
+			// This fixes the multi-workspace bug where files in secondary workspaces
+			// were incorrectly treated as external files
+			isLocalRead = await isLocatedInWorkspace(absolutePath)
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false

@@ -28,6 +28,10 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Get config access for services
 		const config = uiHelpers.getConfig()
 
+		// Resolve the absolute path for multi-workspace support
+		const pathResult = resolveWorkspacePath(config, relPath || "", "ListFilesToolHandler.handlePartialBlock")
+		const resolvedAbsolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+
 		// Create and show partial UI message
 		const recursiveRaw = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -41,7 +45,8 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
 		// Handle auto-approval vs manual approval for partial
-		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, relPath)) {
+		// Pass the resolved absolute path for multi-workspace support
+		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, resolvedAbsolutePath)) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
 		} else {
@@ -84,7 +89,8 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
-		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath)) {
+		// Pass the resolved absolute path for multi-workspace support
+		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, absolutePath)) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
