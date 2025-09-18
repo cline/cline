@@ -10,7 +10,7 @@ import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalState, LocalState, SecretKey, Secrets } from "../state-keys"
+import { GlobalState, GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [
@@ -140,7 +140,7 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	}
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalState> {
+export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
@@ -206,8 +206,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
 
 		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
-		const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
-		const customPrompt = context.globalState.get("customPrompt") as GlobalState["customPrompt"]
+		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
+		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get("mode") as Mode | undefined
