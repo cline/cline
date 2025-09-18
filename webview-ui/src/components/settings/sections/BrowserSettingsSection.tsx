@@ -5,6 +5,7 @@ import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { BrowserServiceClient } from "../../../services/grpc-client"
+import CollapsibleContent from "../CollapsibleContent"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -44,19 +45,6 @@ const ConnectionStatusIndicator = ({
 		</StatusContainer>
 	)
 }
-
-const CollapsibleContent = styled.div<{ isOpen: boolean }>`
-	overflow: hidden;
-	transition:
-		max-height 0.3s ease-in-out,
-		opacity 0.3s ease-in-out,
-		margin-top 0.3s ease-in-out,
-		visibility 0.3s ease-in-out;
-	max-height: ${({ isOpen }) => (isOpen ? "1000px" : "0")}; // Sufficiently large height
-	opacity: ${({ isOpen }) => (isOpen ? 1 : 0)};
-	margin-top: ${({ isOpen }) => (isOpen ? "15px" : "0")};
-	visibility: ${({ isOpen }) => (isOpen ? "visible" : "hidden")};
-`
 
 export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ renderSectionHeader }) => {
 	const { browserSettings } = useExtensionState()

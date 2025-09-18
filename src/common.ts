@@ -13,6 +13,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { ExtensionRegistryInfo } from "./registry"
+import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
@@ -99,6 +100,9 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
+	// Clean up audio recording service to ensure no orphaned processes
+	audioRecordingService.cleanup()
+
 	PostHogClientProvider.getInstance().dispose()
 	telemetryService.dispose()
 	ErrorService.get().dispose()
