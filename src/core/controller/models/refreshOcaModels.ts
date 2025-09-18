@@ -2,7 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
-import { AuthManager } from "@/services/auth/AuthManager"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { DEFAULT_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders, getProxyAgents } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
@@ -24,7 +24,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 	}
 	const models: Record<string, OcaModelInfo> = {}
 	let defaultModelId: string | undefined
-	const ocaAccessToken = await AuthManager.getInstance().ocaAuthService.getAuthToken()
+	const ocaAccessToken = await OcaAuthService.getInstance().getAuthToken()
 	const baseUrl = request.value || DEFAULT_OCA_BASE_URL
 	const modelsUrl = `${baseUrl}/v1/model/info`
 	const headers = await createOcaHeaders(ocaAccessToken!, "models-refresh")

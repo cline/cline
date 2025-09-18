@@ -24,7 +24,8 @@ import * as vscode from "vscode"
 import { clineEnvConfig } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { AuthManager } from "@/services/auth/AuthManager"
+import { AuthService } from "@/services/auth/AuthService"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -54,7 +55,8 @@ export class Controller {
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	authManager: AuthManager
+	authService: AuthService
+	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
 	// NEW: Add workspace manager (optional initially)
@@ -67,16 +69,16 @@ export class Controller {
 		this.id = id
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
-		this.accountService = ClineAccountService.getInstance()
 		this.stateManager = new StateManager(context)
-		AuthManager.initialize(this)
-		this.authManager = AuthManager.getInstance()
+		this.authService = AuthService.getInstance(this)
+		this.ocaAuthService = OcaAuthService.initialize(this)
+		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.stateManager
 			.initialize()
 			.then(() => {
-				this.authManager.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
 				console.error(
@@ -173,7 +175,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			this.authManager.ocaAuthService.handleDeauth()
+			this.ocaAuthService.handleDeauth()
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -392,7 +394,7 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await this.authManager.authService.handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -443,7 +445,7 @@ export class Controller {
 
 	async handleOcaAuthCallback(code: string, state: string) {
 		try {
-			await this.authManager.ocaAuthService.handleAuthCallback(code, state)
+			await this.ocaAuthService.handleAuthCallback(code, state)
 
 			const ocaProvider: ApiProvider = "oca"
 
@@ -735,7 +737,7 @@ export class Controller {
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const welcomeViewCompleted = Boolean(
-			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authManager.authService.getInfo()?.user?.uid,
+			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
 		)
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")

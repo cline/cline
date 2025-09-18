@@ -42,17 +42,24 @@ export class OcaAuthService {
 	}
 
 	/**
-	 * Gets the singleton instance of OcaAuthService.
-	 * First call must provide a Controller (or have been set previously).
+	 * Initializes the singleton with a Controller.
+	 * Safe to call multiple times; updates controller on existing instance.
 	 */
-	public static getInstance(controller?: Controller): OcaAuthService {
+	public static initialize(controller: Controller): OcaAuthService {
 		if (!OcaAuthService.instance) {
 			OcaAuthService.instance = new OcaAuthService()
 		}
-		if (controller) {
-			OcaAuthService.instance._controller = controller
-		} else if (!OcaAuthService.instance._controller) {
-			throw new Error("Controller must be provided on first call to OcaAuthService.getInstance")
+		OcaAuthService.instance._controller = controller
+		return OcaAuthService.instance
+	}
+
+	/**
+	 * Gets the singleton instance of OcaAuthService.
+	 * Throws if not initialized. Call initialize(controller) first.
+	 */
+	public static getInstance(): OcaAuthService {
+		if (!OcaAuthService.instance || !OcaAuthService.instance._controller) {
+			throw new Error("OcaAuthService not initialized. Call OcaAuthService.initialize(controller) first.")
 		}
 		return OcaAuthService.instance
 	}
