@@ -1,6 +1,5 @@
 import { geminiModels, ModelInfo } from "@shared/api"
 import { Fragment, useState } from "react"
-import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 import {
 	formatPrice,
 	formatTokenLimit,
@@ -10,6 +9,7 @@ import {
 	supportsImages,
 	supportsPromptCache,
 } from "../utils/pricingUtils"
+import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
 
 /**
  * Returns an array of formatted tier strings

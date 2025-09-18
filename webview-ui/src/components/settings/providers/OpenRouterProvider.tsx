@@ -7,9 +7,10 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
-import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
+import OpenRouterModelPicker from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
 
 /**
  * Component to display OpenRouter balance information
@@ -122,7 +123,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 
 					{providerSortingSelected && (
 						<div style={{ marginBottom: -6 }}>
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
+							<DropdownContainer className="dropdown-container" zIndex={SETTINGS_DROPDOWN_BASE_Z_INDEX + 1}>
 								<VSCodeDropdown
 									onChange={(e: any) => {
 										handleFieldChange("openRouterProviderSorting", e.target.value)

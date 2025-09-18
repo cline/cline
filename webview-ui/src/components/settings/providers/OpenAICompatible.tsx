@@ -10,8 +10,10 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -126,30 +128,32 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					{(() => {
 						const dropdownValue = availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""
 						return (
-							<VSCodeDropdown
-								id="openai-compatible-model-id"
-								onChange={(e: any) => {
-									const value = e.target.value
-									if (value === "__manual__") {
-										setUseManualModelEntry(true)
-										return
-									}
-									handleModeFieldChange(
-										{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-										value,
-										currentMode,
-									)
-								}}
-								style={{ width: "100%", marginBottom: 10 }}
-								value={dropdownValue}>
-								<VSCodeOption value="">Select a model...</VSCodeOption>
-								{availableModels.map((m) => (
-									<VSCodeOption key={m} value={m}>
-										{m}
-									</VSCodeOption>
-								))}
-								<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
-							</VSCodeDropdown>
+							<DropdownContainer className="dropdown-container" zIndex={SETTINGS_DROPDOWN_BASE_Z_INDEX + 3}>
+								<VSCodeDropdown
+									id="openai-compatible-model-id"
+									onChange={(e: any) => {
+										const value = e.target.value
+										if (value === "__manual__") {
+											setUseManualModelEntry(true)
+											return
+										}
+										handleModeFieldChange(
+											{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+											value,
+											currentMode,
+										)
+									}}
+									style={{ width: "100%", marginBottom: 10 }}
+									value={dropdownValue}>
+									<VSCodeOption value="">Select a model...</VSCodeOption>
+									{availableModels.map((m) => (
+										<VSCodeOption key={m} value={m}>
+											{m}
+										</VSCodeOption>
+									))}
+									<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
+								</VSCodeDropdown>
+							</DropdownContainer>
 						)
 					})()}
 				</div>

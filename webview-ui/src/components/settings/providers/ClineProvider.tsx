@@ -4,8 +4,9 @@ import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { DropdownContainer } from "../common/ModelSelector"
-import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
+import OpenRouterModelPicker from "../OpenRouterModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
 
 /**
  * Props for the ClineProvider component
@@ -50,7 +51,7 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineP
 
 					{providerSortingSelected && (
 						<div style={{ marginBottom: -6 }}>
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
+							<DropdownContainer className="dropdown-container" zIndex={SETTINGS_DROPDOWN_BASE_Z_INDEX + 1}>
 								<VSCodeDropdown
 									onChange={(e: any) => {
 										handleFieldChange("openRouterProviderSorting", e.target.value)
