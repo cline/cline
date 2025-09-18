@@ -1,9 +1,24 @@
 #!/usr/bin/env npx tsx
 /**
- * CI-Safe Test Orchestrator
+ * Test Orchestrator
  *
  * Automates server lifecycle for running spec files against the standalone server.
- * Ensures proper startup/shutdown even in non-interactive CI environments.
+ *
+ * Prerequisites:
+ *   Build standalone first: `npm run compile-standalone`
+ *
+ * Usage:
+ *   - Single file:   `npm run test:tp-orchestrator path/to/spec.json`
+ *   - All specs dir: `npm run test:tp-orchestrator tests/specs`
+ *
+ * Flags:
+ *   --server-logs        Show server logs (hidden by default)
+ *   --count=<number>     Repeat execution N times (default: 1)
+ *   --fix     			  Automatically update spec files with actual responses
+ *
+ * Environment Variables:
+ *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
+ *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
 import { ChildProcess, spawn } from "child_process"
@@ -16,10 +31,8 @@ import kill from "tree-kill"
 let showServerLogs = false
 let fix = false
 
-// Randomize port in CI to avoid conflicts
-function getGrpcPort(): string {
-	return process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
-}
+const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
 
 // Poll until port is accepting connections
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
@@ -44,7 +57,7 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
 	return new Promise(async (resolve, reject) => {
-		const grpcPort = getGrpcPort()
+		const grpcPort = STANDALONE_GRPC_SERVER_PORT
 
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 			stdio: showServerLogs ? "inherit" : "pipe",
@@ -54,7 +67,7 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 		server.once("error", reject)
 
 		try {
-			await waitForPort(Number(grpcPort), "127.0.0.1", 15000)
+			await waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT)
 			resolve({ server, grpcPort })
 		} catch (err) {
 			reject(err)

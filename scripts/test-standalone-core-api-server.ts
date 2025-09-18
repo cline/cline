@@ -2,6 +2,7 @@
 
 import { ChildProcess, spawn } from "child_process"
 import * as fs from "fs"
+import { mkdtempSync, rmSync } from "fs"
 /**
  * Simple Cline gRPC Server
  *
@@ -29,7 +30,6 @@ import * as fs from "fs"
  *
  * Ideal for local development, testing, or lightweight E2E scenarios.
  */
-import { mkdtempSync, rmSync } from "fs"
 import * as os from "os"
 import * as path from "path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
@@ -40,6 +40,7 @@ const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
 const E2E_TEST = process.env.E2E_TEST || "true"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
 
+// Locate the standalone build directory and core file with flexible path resolution
 const projectRoot = process.env.PROJECT_ROOT || path.resolve(__dirname, "..")
 const distDir = process.env.CLINE_DIST_DIR || path.join(projectRoot, "dist-standalone")
 const clineCoreFile = process.env.CLINE_CORE_FILE || "cline-core.js"
@@ -49,22 +50,37 @@ const childProcesses: ChildProcess[] = []
 
 async function main(): Promise<void> {
 	console.log("Starting Simple Cline gRPC Server...")
+	console.log(`Workspace: ${WORKSPACE_DIR}`)
+	console.log(`ProtoBus Port: ${PROTOBUS_PORT}`)
+	console.log(`HostBridge Port: ${HOSTBRIDGE_PORT}`)
+
+	console.log(`Looking for standalone build at: ${coreFile}`)
 
 	if (!fs.existsSync(coreFile)) {
 		console.error(`Standalone build not found at: ${coreFile}`)
+		console.error("Available environment variables for customization:")
+		console.error("  PROJECT_ROOT - Override project root directory")
+		console.error("  CLINE_DIST_DIR - Override distribution directory")
+		console.error("  CLINE_CORE_FILE - Override core file name")
+		console.error("")
+		console.error("To build the standalone version, run: npm run compile-standalone")
 		process.exit(1)
 	}
 
-	// Start in-process mock server
-	await ClineApiServerMock.startGlobalServer()
-	console.log("Cline API Server started in-process")
+	try {
+		await ClineApiServerMock.startGlobalServer()
+		console.log("Cline API Server started in-process")
+	} catch (error) {
+		console.error("Failed to start Cline API Server:", error)
+		process.exit(1)
+	}
 
 	const extensionsDir = path.join(distDir, "vsce-extension")
 	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
-	// HostBridge
-	const hostbridge = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
+	console.log("Starting HostBridge test server...")
+	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
 		stdio: "pipe",
 		env: {
 			...process.env,
@@ -74,6 +90,8 @@ async function main(): Promise<void> {
 	})
 	childProcesses.push(hostbridge)
 
+	console.log(`Temp user data dir: ${userDataDir}`)
+	console.log(`Temp extensions dir: ${extensionsDir}`)
 	// Extract standalone.zip if needed
 	const standaloneZipPath = path.join(distDir, "standalone.zip")
 	if (!fs.existsSync(standaloneZipPath)) {
@@ -86,8 +104,8 @@ async function main(): Promise<void> {
 		})
 	}
 
-	// Core service
-	const coreService = spawn("node", [clineCoreFile], {
+	console.log("Starting Cline Core Service...")
+	const coreService: ChildProcess = spawn("node", [clineCoreFile], {
 		cwd: distDir,
 		env: {
 			...process.env,
@@ -131,7 +149,6 @@ async function main(): Promise<void> {
 	process.on("SIGINT", shutdown)
 	process.on("SIGTERM", shutdown)
 
-	// Ensure process exits if any critical child exits
 	coreService.on("exit", (code) => {
 		console.log(`Core service exited with code ${code}`)
 		shutdown()
