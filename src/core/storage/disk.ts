@@ -9,6 +9,8 @@ import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { createDirectoriesForFile } from "@/utils/fs"
+import { isLocatedInPath } from "@/utils/path"
 import { GlobalState } from "./state-keys"
 
 export const GlobalFileNames = {
@@ -275,4 +277,61 @@ export async function writeTaskSettingsToStorage(
 		console.error("[Disk] Failed to write task settings:", error)
 		throw error
 	}
+}
+// === Attachments helpers ===
+
+/** Returns the per-task attachments root: <globalStorage>/tasks/<taskId>/attachments */
+export async function getAttachmentsRoot(context: vscode.ExtensionContext, taskId: string): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(context, taskId)
+	const attachmentsDir = path.join(taskDir, "attachments")
+	await fs.mkdir(attachmentsDir, { recursive: true })
+	return attachmentsDir
+}
+
+/**
+ * Writes an attachment under the per-task attachments root with traversal protection.
+ * If overwrite=false and the target exists, appends " (n)" before the extension.
+ * Returns the absolute saved path.
+ */
+export async function writeAttachment(
+	context: vscode.ExtensionContext,
+	taskId: string,
+	content: Uint8Array,
+	options: { baseDir?: string; suggestedPath?: string; filename?: string; overwrite?: boolean },
+): Promise<string> {
+	const attachmentsRoot = await getAttachmentsRoot(context, taskId)
+	const targetRel =
+		options.suggestedPath && options.suggestedPath.trim().length > 0
+			? options.suggestedPath
+			: options.filename || "attachment"
+
+	const relUnderBase = options.baseDir && options.baseDir.length > 0 ? path.join(options.baseDir, targetRel) : targetRel
+
+	// Normalize relative target and strip leading separators
+	const normalizedRel = path.normalize(relUnderBase).replace(/^([/\\])+/, "")
+	let absTarget = path.join(attachmentsRoot, normalizedRel)
+
+	// Guard against traversal
+	if (!isLocatedInPath(attachmentsRoot, absTarget)) {
+		absTarget = path.join(attachmentsRoot, path.basename(normalizedRel))
+	}
+
+	// Ensure directories exist
+	await createDirectoriesForFile(absTarget)
+
+	const shouldOverwrite = options.overwrite === undefined ? true : options.overwrite
+	if (!shouldOverwrite && (await fileExistsAtPath(absTarget))) {
+		const parsed = path.parse(absTarget)
+		let attempt = 1
+		let candidate = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
+		while (await fileExistsAtPath(candidate)) {
+			attempt += 1
+			candidate = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
+		}
+		await fs.writeFile(candidate, content)
+		return candidate
+	}
+
+	await fs.writeFile(absTarget, content)
+	return absTarget
 }

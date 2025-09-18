@@ -18,7 +18,9 @@ import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import fs from "node:fs/promises"
 import path from "node:path"
+import { getAttachmentsRoot } from "@core/storage/disk"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
@@ -54,6 +56,18 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
+
+	// One-time startup cleanup: clear the transient 'default' attachments bucket
+	try {
+		const defaultRoot = await getAttachmentsRoot(context, "default")
+		// Remove the entire default attachments directory contents if present
+		await fs.rm(defaultRoot, { recursive: true, force: true })
+		// Recreate the directory so future writes succeed without race conditions
+		await getAttachmentsRoot(context, "default")
+		Logger.log("Cleared 'default' attachments folder on startup")
+	} catch (err) {
+		Logger.log("Failed to clear 'default' attachments folder on startup: " + String(err))
+	}
 
 	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
 

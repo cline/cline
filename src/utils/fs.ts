@@ -2,6 +2,7 @@ import { workspaceResolver } from "@core/workspace"
 import fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { isLocatedInPath } from "@/utils/path"
 
 const IS_WINDOWS = /^win/.test(process.platform)
 
@@ -97,6 +98,73 @@ export async function writeFile(
 	} else {
 		await fs.writeFile(filePath, content, encoding)
 	}
+}
+
+/**
+ * Returns a unique file path by appending " (n)" before the extension if the path already exists.
+ * Example: "file.txt" -> "file (1).txt", "file (2).txt", ...
+ */
+export async function getUniquePath(candidatePath: string): Promise<string> {
+	if (!(await fileExistsAtPath(candidatePath))) return candidatePath
+	const parsed = path.parse(candidatePath)
+	let attempt = 1
+	let uniquePath = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
+	while (await fileExistsAtPath(uniquePath)) {
+		attempt += 1
+		uniquePath = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
+	}
+	return uniquePath
+}
+
+/**
+ * Moves a file from src to dest using fs.rename with a safe cross-device fallback (copy + unlink).
+ * The destination directory must already exist; caller is responsible for ensuring it.
+ */
+export async function moveFileSafely(src: string, dest: string): Promise<void> {
+	try {
+		await fs.rename(src, dest)
+	} catch (err: any) {
+		// Fallback for cross-device moves (EXDEV) or other rename limitations
+		try {
+			await fs.copyFile(src, dest)
+			await fs.unlink(src)
+		} catch (fallbackErr) {
+			// If fallback fails, attempt to clean up partial dest
+			try {
+				await fs.unlink(dest)
+			} catch {
+				// ignore
+			}
+			throw fallbackErr
+		}
+	}
+}
+
+/**
+ * For each absolute path in `paths`, if it is located under `sourceRoot`, move it to the
+ * corresponding location under `destRoot` (creating directories as needed and avoiding
+ * name collisions). Returns an array of resulting paths (unchanged for non-matching items).
+ */
+export async function reassignPathsBetweenRoots(paths: string[], sourceRoot: string, destRoot: string): Promise<string[]> {
+	const results: string[] = []
+	for (const absPath of paths) {
+		try {
+			if (absPath && isLocatedInPath(sourceRoot, absPath)) {
+				const rel = path.relative(sourceRoot, absPath)
+				let dest = path.join(destRoot, rel)
+				await fs.mkdir(path.dirname(dest), { recursive: true })
+				dest = await getUniquePath(dest)
+				await moveFileSafely(absPath, dest)
+				results.push(dest)
+			} else {
+				results.push(absPath)
+			}
+		} catch (err) {
+			console.error("[Utils.fs] Failed moving path between roots:", absPath, err)
+			results.push(absPath)
+		}
+	}
+	return results
 }
 
 // Common OS-generated files that would appear in an otherwise clean directory
