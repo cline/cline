@@ -524,8 +524,5 @@ export class ClineApiServerMock {
 		})
 
 		ClineApiServerMock.globalSharedServer = null
-
-		// Add a small delay to ensure the port is fully released
-		await new Promise((resolve) => setTimeout(resolve, 100))
 	}
 }

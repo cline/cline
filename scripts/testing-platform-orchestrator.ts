@@ -3,28 +3,49 @@
  * CI-Safe Test Orchestrator
  *
  * Automates server lifecycle for running spec files against the standalone server.
- * Handles proper shutdown even in non-interactive environments like GitHub Actions.
+ * Ensures proper startup/shutdown even in non-interactive CI environments.
  */
 
 import { ChildProcess, spawn } from "child_process"
 import fs from "fs"
 import minimist from "minimist"
+import net from "net"
 import path from "path"
 import kill from "tree-kill"
-
-const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 1300
 
 let showServerLogs = false
 let fix = false
 
-// Generate a CI-safe random port if needed
+// Randomize port in CI to avoid conflicts
 function getGrpcPort(): string {
 	return process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 }
 
-function startServer(): Promise<ChildProcess> {
-	return new Promise((resolve, reject) => {
+// Poll until port is accepting connections
+async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
+	const start = Date.now()
+	while (Date.now() - start < timeout) {
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const socket = net.connect(port, host, () => {
+					socket.destroy()
+					resolve()
+				})
+				socket.on("error", reject)
+			})
+			return
+		} catch {
+			// try again
+		}
+		await new Promise((res) => setTimeout(res, 100))
+	}
+	throw new Error(`Timeout waiting for ${host}:${port}`)
+}
+
+async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
+	return new Promise(async (resolve, reject) => {
 		const grpcPort = getGrpcPort()
+
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 			stdio: showServerLogs ? "inherit" : "pipe",
 			env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
@@ -32,10 +53,12 @@ function startServer(): Promise<ChildProcess> {
 
 		server.once("error", reject)
 
-		setTimeout(() => {
-			if (server.killed) reject(new Error("Server died during startup"))
-			else resolve(server)
-		}, SERVER_BOOT_DELAY)
+		try {
+			await waitForPort(Number(grpcPort), "127.0.0.1", 15000)
+			resolve({ server, grpcPort })
+		} catch (err) {
+			reject(err)
+		}
 	})
 }
 
@@ -45,7 +68,6 @@ function stopServer(server: ChildProcess): Promise<void> {
 
 		kill(server.pid, "SIGKILL", (err) => {
 			if (err) console.warn("Failed to kill server process:", err)
-			// Ensure we resolve after process exit
 			server.once("exit", () => resolve())
 		})
 	})
@@ -70,14 +92,12 @@ function runTestingPlatform(specFile: string, grpcPort: string): Promise<void> {
 }
 
 async function runSpec(specFile: string): Promise<void> {
-	const grpcPort = getGrpcPort()
-	const server = await startServer()
+	const { server, grpcPort } = await startServer()
 	try {
 		await runTestingPlatform(specFile, grpcPort)
 		console.log(`✅ ${path.basename(specFile)} passed`)
 	} finally {
 		await stopServer(server)
-		await new Promise((r) => setTimeout(r, 500)) // Small delay to release port
 	}
 }
 
