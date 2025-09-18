@@ -179,8 +179,6 @@ async function main() {
 }
 
 if (require.main === module) {
-	console.error("Forcing exit to test flow")
-	process.exit(1)
 	main().catch((err) => {
 		console.error("❌ Fatal error:", err)
 		process.exit(1)
