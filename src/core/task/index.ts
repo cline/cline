@@ -2140,31 +2140,22 @@ export class Task {
 					// let's correct some common tool misuse in reasoning blocks (looking at you, grok-code-fast-1)
 					if (block.name == "search_files" && block.params.path && block.params.regex === undefined) {
 						;(block as AssistantMessageContent).type = "text" // don't attempt execution, it's malformed
-						;(block as AssistantMessageContent as TextContent).content = reasoningMessage
+						;(block as AssistantMessageContent as TextContent).content = "<redacted></redacted>" //reasoningMessage
 						// Increment the mistake counter, but don't send the no tool use message. It did attempt a tool usage.
 						this.taskState.consecutiveMistakeCount++
 						dontCheckForToolUse = true
 						if (this.taskState.consecutiveMistakeCount < 2) {
 							// it has just been incremented, so this is the first retry
 							console.log("First search_files failure")
-							// simulate task cancellation
-							const formattedResponse = formatResponse.taskResumption(
-								this.mode,
-								"now",
-								this.cwd,
-								false,
-								`You need to try something different as that tool call attempt has failed multiple times. You were previously stuck in a failure loop, repeating the message "${reasoningMessage}". Pick a different strategy. Do NOT repeat the previous message.`,
+							const formattedResponse = formatResponse.tooManyMistakes(
+								`You're getting a little trigger-happy with the tool calls. Try to think through what you're trying to do, then use a tool after you've thought about it and decided your next step.`,
 							)
 							this.taskState.userMessageContent.push({
 								type: "text",
-								text: formattedResponse[0],
-							})
-							this.taskState.userMessageContent.push({
-								type: "text",
-								text: formattedResponse[1],
+								text: formattedResponse,
 							})
 						} else {
-							// There have already been 2 retries - this is getting serious.
+							// This is the 2nd retry - this is getting serious.
 							console.log("Second search_files failure")
 							// simulate a user hitting "Proceed anyway" with a user message
 							const text = formatResponse.tooManyMistakes(
