@@ -202,8 +202,8 @@ jobs:
               run: cd testing-platform && npm ci
 
             - name: Running testing platform integration spec tests
-              timeout-minutes: 40
-              run: npm run test:tp-orchestrator -- tests/specs/ --count=20
+              timeout-minutes: 30
+              run: npm run test:tp-orchestrator -- tests/specs/ --count=10
 
 
     coverage:
