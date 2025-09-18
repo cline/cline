@@ -1,15 +1,16 @@
-import { OpenRouterHandler } from "../../src/api/providers/openrouter"
-import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { OpenRouterHandler } from "../../src/core/api/providers/openrouter";
+import { OpenAiNativeHandler } from "../../src/core/api/providers/openai-native";
+import { Anthropic } from "@anthropic-ai/sdk";
 
 import {
-	parseAssistantMessageV2,
-	AssistantMessageContent,
-} from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
-import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
-import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
-import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
-import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
+    parseAssistantMessageV2,
+    AssistantMessageContent,
+} from "./parsing/parse-assistant-message-06-06-25"; // "../../src/core/assistant-message"
+import { formatToolCallXml } from "../../src/core/api/transform/tool-call";
+import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25";
+import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25";
+import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25";
+import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25";
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string | any>
@@ -25,8 +26,8 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	"diff-06-26-25": constructNewFileContent_06_26_25,
 }
 
-import { TestInput, TestResult, ExtractedToolCall } from "./types"
-import { log } from "./helpers"
+import { TestInput, TestResult, ExtractedToolCall } from "./types";
+import { log } from "./helpers";
 export { TestInput, TestResult, ExtractedToolCall }
 
 interface StreamResult {
@@ -44,6 +45,7 @@ interface StreamResult {
 		timeToFirstEditMs?: number
 		totalRoundTripMs: number
 	}
+    functionCalls?: { name: string; args: Record<string, unknown>; raw?: string }[]
 }
 
 /**
@@ -55,7 +57,7 @@ async function processStream(
 	messages: Anthropic.Messages.MessageParam[],
 ): Promise<StreamResult> {
 	const startTime = Date.now()
-	const stream = handler.createMessage(systemPrompt, messages)
+    const stream = handler.createMessage(systemPrompt, messages)
 
 	let assistantMessage = ""
 	let reasoningMessage = ""
@@ -69,7 +71,9 @@ async function processStream(
 	let timeToFirstTokenMs: number | null = null
 	let timeToFirstEditMs: number | null = null
 
-	for await (const chunk of stream) {
+    const functionCalls: { name: string; args: Record<string, unknown>; raw?: string }[] = []
+
+    for await (const chunk of stream) {
 		if (!chunk) {
 			continue
 		}
@@ -79,7 +83,7 @@ async function processStream(
 			timeToFirstTokenMs = Date.now() - startTime
 		}
 
-		switch (chunk.type) {
+        switch (chunk.type) {
 			case "usage":
 				inputTokens += chunk.inputTokens
 				outputTokens += chunk.outputTokens
@@ -89,9 +93,24 @@ async function processStream(
 					totalCost = chunk.totalCost
 				}
 				break
-			case "reasoning":
+            case "reasoning":
 				reasoningMessage += chunk.reasoning
 				break
+            case "tool_call": {
+                // Convert function call to legacy XML so existing parsing continues to work
+                try {
+                    const xml = formatToolCallXml((chunk as any).name, (chunk as any).rawArguments)
+                    if (xml) {
+                        assistantMessage += xml
+                        if (timeToFirstEditMs === null) {
+                            timeToFirstEditMs = Date.now() - startTime
+                        }
+                    }
+                    // Also record native function call so XML is not required for checks
+                    functionCalls.push({ name: (chunk as any).name, args: (chunk as any).arguments, raw: (chunk as any).rawArguments })
+                } catch {}
+                break
+            }
 			case "text":
 				assistantMessage += chunk.text
 				
@@ -128,6 +147,7 @@ async function processStream(
 			timeToFirstEditMs: timeToFirstEditMs || undefined,
 			totalRoundTripMs,
 		},
+        functionCalls,
 	}
 }
 
@@ -235,19 +255,22 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			}
 		}
 
-		// process the assistant message into its constituent tool calls & text blocks
-		const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessage(streamResult.assistantMessage)
-
-		const detectedToolCalls: ExtractedToolCall[] = []
-
-		for (const block of assistantContentBlocks) {
-			if (block.type === "tool_use") {
-				detectedToolCalls.push({
-					name: block.name,
-					input: block.params,
-				})
-			}
-		}
+        // Prefer native function calls when available to avoid requiring XML in GPT-5 mode
+        let detectedToolCalls: ExtractedToolCall[] = []
+        if (streamResult.functionCalls && streamResult.functionCalls.length > 0) {
+            detectedToolCalls = streamResult.functionCalls.map((fc) => ({ name: fc.name, input: fc.args as any }))
+        } else {
+            // Fallback: process the assistant message into tool calls via XML parsing
+            const assistantContentBlocks: AssistantMessageContent[] = parseAssistantMessage(streamResult.assistantMessage)
+            for (const block of assistantContentBlocks) {
+                if (block.type === "tool_use") {
+                    detectedToolCalls.push({
+                        name: block.name,
+                        input: block.params,
+                    })
+                }
+            }
+        }
 
 		// check if there are any tool calls, if there are none then its a clear error
 		if (detectedToolCalls.length === 0) {

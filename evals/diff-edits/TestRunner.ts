@@ -1,11 +1,11 @@
 import { runSingleEvaluation, TestInput, TestResult } from "./ClineWrapper"
-import { parseAssistantMessageV2, AssistantMessageContent } from "./parsing/parse-assistant-message-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
 import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
 import { constructNewFileContent as constructNewFileContentV3 } from "../../src/core/assistant-message/diff"
 import { basicSystemPrompt } from "./prompts/basicSystemPrompt-06-06-25"
+import { gpt5SystemPrompt } from "./prompts/gpt5SystemPrompt-2025-09"
 import { claude4SystemPrompt } from "./prompts/claude4SystemPrompt-06-06-25"
 import { formatResponse, log } from "./helpers"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -13,21 +13,18 @@ import * as fs from "fs"
 import * as path from "path"
 import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
-import { loadOpenRouterModelData, EvalOpenRouterModelInfo } from "./openRouterModelsHelper" // Added import
+import { loadOpenRouterModelData, EvalOpenRouterModelInfo } from "./openRouterModelsHelper"; // Added import
 import {
-	getDatabase,
-	upsertSystemPrompt,
-	upsertProcessingFunctions,
-	upsertFile,
-	createBenchmarkRun,
-	createCase,
-	insertResult,
-	DatabaseClient,
-	CreateResultInput,
-	getResultsByRun,
-	getCaseById,
-	getFileByHash,
-	getBenchmarkRun,
+    upsertSystemPrompt,
+    upsertProcessingFunctions,
+    upsertFile,
+    createBenchmarkRun,
+    createCase,
+    insertResult, CreateResultInput,
+    getResultsByRun,
+    getCaseById,
+    getFileByHash,
+    getBenchmarkRun
 } from "./database"
 
 // Load environment variables from .env file
@@ -35,14 +32,15 @@ import * as dotenv from "dotenv"
 dotenv.config({ path: path.join(__dirname, "../.env") })
 
 // tiktoken for token counting
-import { get_encoding } from "tiktoken";
+import { get_encoding } from "tiktoken"
 const encoding = get_encoding("cl100k_base"); 
 
 let openRouterModelDataGlobal: Record<string, EvalOpenRouterModelInfo> = {}; // Global to store fetched data
 
 const systemPromptGeneratorLookup: Record<string, ConstructSystemPromptFn> = {
-	basicSystemPrompt: basicSystemPrompt,
-	claude4SystemPrompt: claude4SystemPrompt,
+    basicSystemPrompt: basicSystemPrompt,
+    claude4SystemPrompt: claude4SystemPrompt,
+    gpt5SystemPrompt: gpt5SystemPrompt,
 }
 
 type TestResultSet = { [test_id: string]: (TestResult & { test_id?: string })[] }
@@ -444,7 +442,15 @@ class NodeTestRunner {
 			if (dirent.isFile() && dirent.name.endsWith(".json")) {
 				const testFilePath = path.join(testDirectoryPath, dirent.name)
 				const fileContent = fs.readFileSync(testFilePath, "utf8")
-				const testCase: TestCase = JSON.parse(fileContent)
+            let testCase: TestCase
+            try {
+                testCase = JSON.parse(fileContent)
+            } catch (e) {
+                // Fallback to JSON5 to support comments/trailing commas in spec files
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const JSON5 = require('json5')
+                testCase = JSON5.parse(fileContent)
+            }
 
 				// Use the filename (without extension) as the test_id if not provided
 				if (!testCase.test_id) {
