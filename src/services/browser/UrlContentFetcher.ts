@@ -1,18 +1,10 @@
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
-import { fileExistsAtPath } from "@utils/fs"
 import * as cheerio from "cheerio"
-import * as fs from "fs/promises"
-import * as path from "path"
 // @ts-ignore
-import PCR from "puppeteer-chromium-resolver"
-import { Browser, launch, Page } from "puppeteer-core"
+import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
 import * as vscode from "vscode"
-
-interface PCRStats {
-	puppeteer: { launch: typeof launch }
-	executablePath: string
-}
+import { ensureChromiumExists } from "./utils"
 
 export class UrlContentFetcher {
 	private context: vscode.ExtensionContext
@@ -23,29 +15,11 @@ export class UrlContentFetcher {
 		this.context = context
 	}
 
-	private async ensureChromiumExists(): Promise<PCRStats> {
-		const globalStoragePath = this.context?.globalStorageUri?.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fileExistsAtPath(puppeteerDir)
-		if (!dirExists) {
-			await fs.mkdir(puppeteerDir, { recursive: true })
-		}
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats: PCRStats = await PCR({
-			downloadPath: puppeteerDir,
-		})
-		return stats
-	}
-
 	async launchBrowser(): Promise<void> {
 		if (this.browser) {
 			return
 		}
-		const stats = await this.ensureChromiumExists()
+		const stats = await ensureChromiumExists()
 		// Read browser settings from globalState for custom args only
 		const browserSettings = this.context.globalState.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
 		const customArgsStr = browserSettings.customArgs || ""

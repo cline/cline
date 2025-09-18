@@ -6,22 +6,16 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import { spawn } from "child_process"
 import * as chromeLauncher from "chrome-launcher"
-import * as fs from "fs/promises"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 // @ts-ignore
-import PCR from "puppeteer-chromium-resolver"
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
 import * as vscode from "vscode"
 import { telemetryService } from "@/services/telemetry"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
-
-interface PCRStats {
-	puppeteer: { launch: typeof launch }
-	executablePath: string
-}
+import { ensureChromiumExists } from "./utils"
 
 // Define browser connection info interface
 export interface BrowserConnectionInfo {
@@ -115,26 +109,8 @@ export class BrowserSession {
 		}
 
 		// Finally fall back to PCR's bundled version
-		const stats = await this.ensureChromiumExists()
+		const stats = await ensureChromiumExists()
 		return { path: stats.executablePath, isBundled: true }
-	}
-
-	async ensureChromiumExists(): Promise<PCRStats> {
-		const globalStoragePath = this.context?.globalStorageUri?.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-
-		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fileExistsAtPath(puppeteerDir)
-		if (!dirExists) {
-			await fs.mkdir(puppeteerDir, { recursive: true })
-		}
-
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats = await PCR({ downloadPath: puppeteerDir })
-		return stats
 	}
 
 	async relaunchChromeDebugMode(_controller: Controller): Promise<string> {
