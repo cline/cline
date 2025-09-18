@@ -9,7 +9,7 @@ import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { createDirectoriesForFile } from "@/utils/fs"
+import { createDirectoriesForFile, getUniquePath } from "@/utils/fs"
 import { isLocatedInPath } from "@/utils/path"
 import { GlobalState } from "./state-keys"
 
@@ -319,19 +319,10 @@ export async function writeAttachment(
 	// Ensure directories exist
 	await createDirectoriesForFile(absTarget)
 
+	// If overwrite is false, get a unique path; otherwise use the target as-is
 	const shouldOverwrite = options.overwrite === undefined ? true : options.overwrite
-	if (!shouldOverwrite && (await fileExistsAtPath(absTarget))) {
-		const parsed = path.parse(absTarget)
-		let attempt = 1
-		let candidate = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
-		while (await fileExistsAtPath(candidate)) {
-			attempt += 1
-			candidate = path.join(parsed.dir, `${parsed.name} (${attempt})${parsed.ext}`)
-		}
-		await fs.writeFile(candidate, content)
-		return candidate
-	}
+	const finalTarget = shouldOverwrite ? absTarget : await getUniquePath(absTarget)
 
-	await fs.writeFile(absTarget, content)
-	return absTarget
+	await fs.writeFile(finalTarget, content)
+	return finalTarget
 }

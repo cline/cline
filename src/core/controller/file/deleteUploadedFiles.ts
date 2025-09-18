@@ -37,7 +37,14 @@ export async function deleteUploadedFiles(
 			await fs.unlink(absPath)
 			deleted.push(absPath)
 		} catch (err) {
-			console.error("Failed to delete uploaded attachment:", absPath, err)
+			const e = err as NodeJS.ErrnoException
+			const code = (e && (e as any).code) || "UNKNOWN"
+			const message = e instanceof Error ? e.message : String(e)
+			console.error("Failed to delete uploaded attachment:", {
+				path: absPath,
+				code,
+				message,
+			})
 			failed.push(absPath)
 		}
 	}

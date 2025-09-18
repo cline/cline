@@ -1377,7 +1377,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							return {
 								filename: file.name,
 								mimeType: file.type || "application/octet-stream",
-								content: Buffer.from(new Uint8Array(buffer)),
+								content: Buffer.from(buffer),
 								suggestedPath: undefined,
 							}
 						}),
