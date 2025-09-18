@@ -22,6 +22,7 @@ webview-ui/src/**/*.js.map
 coverage
 coverage-unit
 .nyc_output
+coverage-core
 # But don't ignore the coverage scripts in .github/scripts/
 !.github/scripts/coverage/
 

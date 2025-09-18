@@ -51,6 +51,7 @@ const childProcesses: ChildProcess[] = []
 
 async function main(): Promise<void> {
 	console.log("Starting Simple Cline gRPC Server...")
+	console.log(`Project Root: ${projectRoot}`)
 	console.log(`Workspace: ${WORKSPACE_DIR}`)
 	console.log(`ProtoBus Port: ${PROTOBUS_PORT}`)
 	console.log(`HostBridge Port: ${HOSTBRIDGE_PORT}`)
@@ -112,21 +113,40 @@ async function main(): Promise<void> {
 	}
 
 	console.log("Starting Cline Core Service...")
-	const coreService: ChildProcess = spawn("node", [clineCoreFile], {
-		cwd: distDir,
-		env: {
-			...process.env,
-			NODE_PATH: "./node_modules",
-			DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
-			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
-			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
-			E2E_TEST,
-			CLINE_ENVIRONMENT,
-			CLINE_DIR: userDataDir,
-			INSTALL_DIR: extensionsDir,
+
+	const covDir = path.join(projectRoot, "coverage-core")
+	// const includeDur = path.join(projectRoot, "src/**/*.ts")
+
+	const coreService: ChildProcess = spawn(
+		"npx",
+		[
+			"c8",
+			"--reporter=lcov",
+			"--reporter=text",
+			"--include=src/**",
+			"--report-dir",
+			covDir,
+			"--all",
+			"node",
+			"--enable-source-maps",
+			path.join(distDir, "cline-core.js"),
+		],
+		{
+			cwd: projectRoot,
+			env: {
+				...process.env,
+				NODE_PATH: "./node_modules",
+				DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
+				PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
+				HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
+				E2E_TEST,
+				CLINE_ENVIRONMENT,
+				CLINE_DIR: userDataDir,
+				INSTALL_DIR: extensionsDir,
+			},
+			stdio: "inherit",
 		},
-		stdio: "inherit",
-	})
+	)
 	childProcesses.push(coreService)
 
 	const shutdown = async () => {
