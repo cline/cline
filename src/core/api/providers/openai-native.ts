@@ -87,6 +87,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 
 			const messageContent: ResponseInputMessageContentList = []
+			const assistantTextParts: string[] = []
 			const flushMessage = () => {
 				if (messageContent.length > 0) {
 					inputItems.push({ role: m.role as any, content: [...messageContent] })
@@ -97,14 +98,22 @@ export class OpenAiNativeHandler implements ApiHandler {
 			for (const part of m.content) {
 				switch (part.type) {
 					case "text":
-						messageContent.push({ type: "input_text", text: part.text })
+						if (m.role === "assistant") {
+							assistantTextParts.push(part.text)
+						} else {
+							messageContent.push({ type: "input_text", text: part.text })
+						}
 						break
 					case "image":
-						messageContent.push({
-							type: "input_image",
-							detail: "auto",
-							image_url: `data:${part.source.media_type};base64,${part.source.data}`,
-						})
+						if (m.role === "assistant") {
+							assistantTextParts.push(`[image:${part.source.media_type}]`)
+						} else {
+							messageContent.push({
+								type: "input_image",
+								detail: "auto",
+								image_url: `data:${part.source.media_type};base64,${part.source.data}`,
+							})
+						}
 						break
 					case "tool_result": {
 						flushMessage()
@@ -132,6 +141,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 
 			flushMessage()
+			if (m.role === "assistant" && assistantTextParts.length > 0) {
+				const outputParts = assistantTextParts
+					.filter((text) => typeof text === "string" && text.length > 0)
+					.map((text) => ({ type: "output_text", text }))
+				if (outputParts.length > 0) {
+					inputItems.push({
+						type: "message",
+						role: "assistant",
+						content: outputParts,
+					} as any)
+				}
+			}
 		}
 
 		return inputItems
@@ -169,6 +190,132 @@ export class OpenAiNativeHandler implements ApiHandler {
 		return JSON.stringify(content)
 	}
 
+	private normalizeToolArgumentValue(value: unknown): unknown {
+		if (value === null || value === undefined) {
+			return ""
+		}
+		if (Array.isArray(value)) {
+			return value.map((item) => this.normalizeToolArgumentValue(item))
+		}
+		if (typeof value === "object") {
+			const record = value as Record<string, unknown>
+			if (record.value !== undefined) {
+				return this.normalizeToolArgumentValue(record.value)
+			}
+			if (record.text !== undefined) {
+				return this.normalizeToolArgumentValue(record.text)
+			}
+		}
+		return value
+	}
+
+	private normalizeToolArguments(input: unknown): { args: Record<string, unknown>; raw: string } {
+		let parsed: unknown = input
+		let raw = "{}"
+
+		if (typeof input === "string") {
+			raw = input
+			try {
+				parsed = JSON.parse(input)
+			} catch {
+				return { args: {}, raw: input }
+			}
+		} else if (input !== undefined) {
+			try {
+				raw = JSON.stringify(input)
+			} catch {
+				raw = "{}"
+			}
+		}
+
+		const args: Record<string, unknown> = {}
+
+		const assign = (key: string, value: unknown) => {
+			if (!key) {
+				return
+			}
+			args[key] = this.normalizeToolArgumentValue(value)
+		}
+
+		if (Array.isArray(parsed)) {
+			parsed.forEach((item, index) => {
+				if (item && typeof item === "object") {
+					const entry = item as Record<string, unknown>
+					const name = typeof entry.name === "string" ? entry.name : String(index)
+					const value = entry.value ?? entry.text ?? entry.argument ?? item
+					assign(name, value)
+				} else {
+					assign(String(index), item)
+				}
+			})
+		} else if (parsed && typeof parsed === "object") {
+			for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+				if (key === "tool_name" || key === "toolName" || key === "arguments") {
+					continue
+				}
+				assign(key, value)
+			}
+		} else {
+			const normalized = this.normalizeToolArgumentValue(parsed)
+			if (typeof normalized === "string" && normalized.length > 0) {
+				return { args: {}, raw: normalized }
+			}
+			return { args: {}, raw }
+		}
+
+		try {
+			raw = JSON.stringify(args)
+		} catch {
+			raw = "{}"
+		}
+		if (raw === "{}" && typeof parsed === "string") {
+			const trimmed = (parsed as string).trim()
+			if (trimmed.length > 0) {
+				raw = trimmed
+			}
+		}
+
+		try {
+			console.warn("[OpenAI Responses] normalizeToolArguments", { input, parsed, args, raw })
+		} catch (error) {
+			console.warn("[OpenAI Responses] normalizeToolArguments logging failed", error)
+		}
+		return { args, raw }
+	}
+
+	private sanitizeToolArguments(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
+		if (!args) {
+			return args
+		}
+		if (toolName === "read_file" && typeof args.path === "string") {
+			let path = args.path.trim()
+			path = path.replace(/^['"`]/, "")
+			const terminationTokens = [
+				"','",
+				"' ,",
+				"', ",
+				"';",
+				"'; ",
+				"\n",
+				"\r",
+				'"',
+				" does not exist",
+				" actual path is",
+				" File not found",
+			]
+			for (const token of terminationTokens) {
+				const idx = path.indexOf(token)
+				if (idx !== -1) {
+					path = path.slice(0, idx)
+					break
+				}
+			}
+			path = path.trim().replace(/['"`]$/, "")
+			return { ...args, path }
+		}
+		return args
+	}
+
 	private *iterateResponseOutput(output: any[] | undefined): Generator<ApiStreamChunk> {
 		if (!output) {
 			return
@@ -195,12 +342,54 @@ export class OpenAiNativeHandler implements ApiHandler {
 						parsedArguments = {}
 					}
 				}
+				const baseArgs = this.normalizeToolArguments(parsedArguments)
+				let toolName = functionCall.name
+				let toolArgs = baseArgs.args
+				let toolRawArgs = baseArgs.raw === "{}" && rawArguments ? rawArguments : baseArgs.raw
+				if (!toolRawArgs || toolRawArgs.length === 0) {
+					toolRawArgs = rawArguments
+				}
+				if (functionCall.name === "call_tool") {
+					const maybeToolName = (parsedArguments as any)?.tool_name || (parsedArguments as any)?.toolName
+					const maybeArgs = (parsedArguments as any)?.arguments
+					if (typeof maybeToolName === "string" && maybeToolName.length > 0) {
+						toolName = maybeToolName
+					}
+					const normalizedCallArgs = this.normalizeToolArguments(maybeArgs)
+					if (Object.keys(normalizedCallArgs.args).length > 0) {
+						toolArgs = normalizedCallArgs.args
+						toolRawArgs = normalizedCallArgs.raw
+					} else if (typeof maybeArgs === "string" && maybeArgs.trim().length > 0) {
+						toolRawArgs = maybeArgs
+						toolArgs = {}
+					} else {
+						toolArgs = {}
+						toolRawArgs = "{}"
+					}
+				}
+				toolArgs = this.sanitizeToolArguments(toolName, toolArgs)
+				try {
+					toolRawArgs = JSON.stringify(toolArgs)
+				} catch {
+					// ignore and keep previous raw string
+				}
+				try {
+					console.log("[OpenAI Responses] tool_call (snapshot)", {
+						callId: functionCall.call_id || functionCall.id,
+						name: toolName,
+						args: toolArgs,
+						raw: toolRawArgs,
+						original: rawArguments,
+					})
+				} catch (error) {
+					console.warn("[OpenAI Responses] tool_call (snapshot) logging failed", error)
+				}
 				yield {
 					type: "tool_call",
 					callId: functionCall.call_id || functionCall.id,
-					name: functionCall.name,
-					arguments: parsedArguments,
-					rawArguments,
+					name: toolName,
+					arguments: toolArgs,
+					rawArguments: toolRawArgs,
 				}
 			}
 		}
@@ -224,6 +413,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 				case "response.function_call_arguments.delta": {
 					const deltaEvent = event as ResponseFunctionCallArgumentsDeltaEvent
+					try {
+						console.warn("[OpenAI Responses] function_call_arguments.delta", {
+							itemId: deltaEvent.item_id,
+							delta: deltaEvent.delta,
+						})
+					} catch (error) {
+						console.warn("[OpenAI Responses] delta logging failed", error)
+					}
 					const pending = pendingFunctionCalls.get(deltaEvent.item_id)
 					if (pending) {
 						pending.arguments += deltaEvent.delta
@@ -232,6 +429,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 				case "response.function_call_arguments.done": {
 					const doneEvent = event as ResponseFunctionCallArgumentsDoneEvent
+					try {
+						console.warn("[OpenAI Responses] function_call_arguments.done", {
+							itemId: doneEvent.item_id,
+							arguments: doneEvent.arguments,
+						})
+					} catch (error) {
+						console.warn("[OpenAI Responses] done logging failed", error)
+					}
 					const pending = pendingFunctionCalls.get(doneEvent.item_id)
 					const functionName = pending?.name || "function_call"
 					const args = doneEvent.arguments || pending?.arguments || ""
@@ -244,12 +449,54 @@ export class OpenAiNativeHandler implements ApiHandler {
 							parsedArguments = {}
 						}
 					}
+					const baseArgs = this.normalizeToolArguments(parsedArguments)
+					let toolName = functionName
+					let toolArgs = baseArgs.args
+					let toolRawArgs = baseArgs.raw === "{}" && args ? args : baseArgs.raw
+					if (!toolRawArgs || toolRawArgs.length === 0) {
+						toolRawArgs = args
+					}
+					if (functionName === "call_tool") {
+						const maybeToolName = (parsedArguments as any)?.tool_name || (parsedArguments as any)?.toolName
+						const maybeArgs = (parsedArguments as any)?.arguments
+						if (typeof maybeToolName === "string" && maybeToolName.length > 0) {
+							toolName = maybeToolName
+						}
+						const normalizedCallArgs = this.normalizeToolArguments(maybeArgs)
+						if (Object.keys(normalizedCallArgs.args).length > 0) {
+							toolArgs = normalizedCallArgs.args
+							toolRawArgs = normalizedCallArgs.raw
+						} else if (typeof maybeArgs === "string" && maybeArgs.trim().length > 0) {
+							toolRawArgs = maybeArgs
+							toolArgs = {}
+						} else {
+							toolArgs = {}
+							toolRawArgs = "{}"
+						}
+					}
+					toolArgs = this.sanitizeToolArguments(toolName, toolArgs)
+					try {
+						toolRawArgs = JSON.stringify(toolArgs)
+					} catch {
+						// keep previous raw string
+					}
+					try {
+						console.log("[OpenAI Responses] tool_call (stream)", {
+							callId: pending?.callId || doneEvent.item_id,
+							name: toolName,
+							args: toolArgs,
+							raw: toolRawArgs,
+							original: args,
+						})
+					} catch (error) {
+						console.warn("[OpenAI Responses] tool_call (stream) logging failed", error)
+					}
 					yield {
 						type: "tool_call",
 						callId: pending?.callId || doneEvent.item_id,
-						name: functionName,
-						arguments: parsedArguments,
-						rawArguments: args,
+						name: toolName,
+						arguments: toolArgs,
+						rawArguments: toolRawArgs,
 					}
 					pendingFunctionCalls.delete(doneEvent.item_id)
 					break
@@ -271,6 +518,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		console.warn("[OpenAI Responses] createMessage", { systemPrompt, messages })
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -281,6 +529,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1-mini": {
 				// Non-streaming; o1 ignores system role, pass as user content
 				const input = this.convertAnthropicToResponsesInput("", [{ role: "user", content: systemPrompt }, ...messages])
+				console.warn("[OpenAI Responses] request input", { model: model.id, input })
 				const resp = await client.responses.create({
 					model: model.id,
 					input,
@@ -309,6 +558,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o3":
 			case "o3-mini": {
 				const input = this.convertAnthropicToResponsesInput(systemPrompt, messages, "developer")
+				console.warn("[OpenAI Responses] request input", { model: model.id, input })
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,
@@ -326,6 +576,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "gpt-5-mini-2025-08-07":
 			case "gpt-5-nano-2025-08-07": {
 				const input = this.convertAnthropicToResponsesInput(systemPrompt, messages, "developer")
+				console.warn("[OpenAI Responses] request input", { model: model.id, input })
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,
@@ -342,6 +593,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			default: {
 				const input = this.convertAnthropicToResponsesInput(systemPrompt, messages, "system")
+				console.warn("[OpenAI Responses] request input", { model: model.id, input })
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,

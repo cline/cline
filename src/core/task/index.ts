@@ -2062,6 +2062,7 @@ export class Task {
 			let didReceiveUsageChunk = false
 			try {
 				for await (const chunk of stream) {
+					console.warn("[Cline Task] stream chunk", chunk)
 					if (!chunk) {
 						continue
 					}
