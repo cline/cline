@@ -2,8 +2,6 @@
 
 ## 3.29.2
 
-### Patch Changes
-
 - 5db4970: Enhance Testing Framework - Add fix flag and add non-deterministic
 - fea8313: Fix: revert HeroUI package change that broke chat formatting.
 - 4b450f4: Pass max_tokens value to moonshot provider
