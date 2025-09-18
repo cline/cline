@@ -87,6 +87,12 @@ export class AudioRecordingService {
 
 	async startRecording(): Promise<{ success: boolean; error?: string }> {
 		try {
+			// Defensive cleanup before starting - ensures clean state
+			if (this.recordingProcess || this.outputFile) {
+				Logger.info("Performing pre-recording cleanup of stale resources...")
+				await this.performCleanup()
+			}
+
 			if (this.isRecording) {
 				return { success: false, error: "Already recording" }
 			}
