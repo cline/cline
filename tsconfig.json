@@ -18,6 +18,8 @@
 		"rootDir": ".",
 		"skipLibCheck": true,
 		"sourceMap": true,
+		"inlineSources": true,
+		"inlineSourceMap": false,
 		"strict": true,
 		"target": "es2022",
 		"useDefineForClassFields": true,
