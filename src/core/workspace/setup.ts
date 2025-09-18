@@ -1,4 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
+import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -24,13 +25,12 @@ export async function setupWorkspaceManager({
 	detectRoots: DetectRoots
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
-	const multiRootEnabled = stateManager.getGlobalStateKey("multiRootEnabled")
 	const startTime = performance.now()
-
+	const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
 	try {
 		let manager: WorkspaceRootManager
 		// Multi-root mode condition which is always false for now as isMultiRootEnabled is hardcoded to false
-		if (multiRootEnabled) {
+		if (isMultiRootEnabled) {
 			// Multi-root: detect workspace folders
 			const roots = await detectRoots()
 			manager = new WorkspaceRootManager(roots, 0)

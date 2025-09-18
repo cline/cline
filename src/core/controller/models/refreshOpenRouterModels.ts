@@ -1,4 +1,4 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -77,7 +77,7 @@ export async function refreshOpenRouterModels(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 	try {
@@ -259,7 +259,7 @@ export async function refreshOpenRouterModels(
  * Reads cached OpenRouter models from disk
  */
 async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 	if (fileExists) {
 		try {
@@ -271,13 +271,4 @@ async function readOpenRouterModels(controller: Controller): Promise<Record<stri
 		}
 	}
 	return undefined
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }

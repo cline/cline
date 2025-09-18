@@ -6,7 +6,7 @@ import {
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
-import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { HostProvider } from "@/hosts/host-provider"
@@ -25,14 +25,29 @@ import { Controller } from ".."
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
-		// Update API configuration
 		if (request.apiConfiguration) {
-			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			controller.stateManager.setApiConfiguration(apiConfiguration)
+			const protoApiConfiguration = request.apiConfiguration
+
+			const convertedApiConfigurationFromProto = {
+				...protoApiConfiguration,
+				// Convert proto ApiProvider enums to native string types
+				planModeApiProvider: protoApiConfiguration.planModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
+					: undefined,
+				actModeApiProvider: protoApiConfiguration.actModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
+					: undefined,
+			}
+
+			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
-				controller.task.api = buildApiHandler({ ...apiConfiguration, ulid: controller.task.ulid }, currentMode)
+				const apiConfigForHandler = {
+					...convertedApiConfigurationFromProto,
+					ulid: controller.task.ulid,
+				}
+				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
 			}
 		}
 
@@ -144,6 +159,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
 			}
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
+		}
+
+		// Update yolo mode setting
+		if (request.yoloModeToggled !== undefined) {
+			if (controller.task) {
+				controller.task.updateYoloModeToggled(request.yoloModeToggled)
+			}
+			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
 		// Update auto-condense setting

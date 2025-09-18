@@ -38,7 +38,6 @@ export const NON_DETERMINISTIC_FIELDS = [
 	"tasks.tokensOut",
 	"tasks.totalCost",
 
-	"value", // review this, group by grpc message
 	"stateJson.clineMessages",
 	"stateJson.autoApprovalSettings.version",
 	"stateJson.browserSettings.chromeExecutablePath",
