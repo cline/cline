@@ -12,7 +12,6 @@
 		"test": "vitest run",
 		"test:watch": "vitest dev",
 		"test:coverage": "vitest run --coverage",
-		"devtools": "react-devtools",
 		"storybook": "storybook dev -p 6006",
 		"build-storybook": "storybook build"
 	},
