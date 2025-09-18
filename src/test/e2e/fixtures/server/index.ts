@@ -517,10 +517,9 @@ export class ClineApiServerMock {
 				if (err) {
 					console.error("Error closing server:", err)
 					reject(err)
-				} else {
-					log("Server closed successfully")
-					resolve()
 				}
+				log("Server closed successfully")
+				resolve()
 			})
 		})
 

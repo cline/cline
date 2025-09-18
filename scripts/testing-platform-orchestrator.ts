@@ -1,91 +1,64 @@
 #!/usr/bin/env npx tsx
 /**
- * Test Orchestrator
+ * CI-Safe Test Orchestrator
  *
  * Automates server lifecycle for running spec files against the standalone server.
- *
- * Prerequisites:
- *   Build standalone first: `npm run compile-standalone`
- *
- * Usage:
- *   - Single file:   `npm run test:tp-orchestrator path/to/spec.json`
- *   - All specs dir: `npm run test:tp-orchestrator tests/specs`
- *
- * Flags:
- *   --server-logs        Show server logs (hidden by default)
- *   --count=<number>     Repeat execution N times (default: 1)
- *   --fix     			  Automatically update spec files with actual responses
- *
- * Environment Variables:
- *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
- *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
+ * Handles proper shutdown even in non-interactive environments like GitHub Actions.
  */
 
 import { ChildProcess, spawn } from "child_process"
 import fs from "fs"
 import minimist from "minimist"
 import path from "path"
+import kill from "tree-kill"
 
-const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 1300
 
 let showServerLogs = false
 let fix = false
 
+// Generate a CI-safe random port if needed
+function getGrpcPort(): string {
+	return process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+}
+
 function startServer(): Promise<ChildProcess> {
 	return new Promise((resolve, reject) => {
+		const grpcPort = getGrpcPort()
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-			stdio: showServerLogs ? "inherit" : "ignore",
+			stdio: showServerLogs ? "inherit" : "pipe",
+			env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
 		})
 
 		server.once("error", reject)
 
 		setTimeout(() => {
-			if (server.killed) {
-				reject(new Error("Server died during startup"))
-			} else {
-				resolve(server)
-			}
+			if (server.killed) reject(new Error("Server died during startup"))
+			else resolve(server)
 		}, SERVER_BOOT_DELAY)
 	})
 }
 
 function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
-		let resolved = false
+		if (!server.pid) return resolve()
 
-		const cleanup = () => {
-			if (!resolved) {
-				resolved = true
-				resolve()
-			}
-		}
-
-		server.once("exit", cleanup)
-		server.once("close", cleanup)
-
-		// Try graceful shutdown first
-		server.kill("SIGINT")
-
-		// Force kill after shorter timeout
-		setTimeout(() => {
-			if (!resolved) {
-				server.kill("SIGKILL")
-				// Give it a moment to actually die
-				setTimeout(cleanup, 1000)
-			}
-		}, 2000)
+		kill(server.pid, "SIGKILL", (err) => {
+			if (err) console.warn("Failed to kill server process:", err)
+			// Ensure we resolve after process exit
+			server.once("exit", () => resolve())
+		})
 	})
 }
 
-function runTestingPlatform(specFile: string): Promise<void> {
+function runTestingPlatform(specFile: string, grpcPort: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const testProcess = spawn("npx", ["ts-node", "index.ts", specFile, ...(fix ? ["--fix"] : [])], {
 			cwd: path.join(process.cwd(), "testing-platform"),
 			stdio: "inherit",
 			env: {
 				...process.env,
-				STANDALONE_GRPC_SERVER_PORT,
+				STANDALONE_GRPC_SERVER_PORT: grpcPort,
 			},
 		})
 
@@ -97,14 +70,14 @@ function runTestingPlatform(specFile: string): Promise<void> {
 }
 
 async function runSpec(specFile: string): Promise<void> {
+	const grpcPort = getGrpcPort()
 	const server = await startServer()
 	try {
-		await runTestingPlatform(specFile)
+		await runTestingPlatform(specFile, grpcPort)
 		console.log(`✅ ${path.basename(specFile)} passed`)
 	} finally {
 		await stopServer(server)
-		// Add delay between tests to ensure ports are fully released
-		await new Promise((resolve) => setTimeout(resolve, 500))
+		await new Promise((r) => setTimeout(r, 500)) // Small delay to release port
 	}
 }
 
@@ -152,8 +125,7 @@ async function runAll(inputPath: string, count: number) {
 	console.log(`✅ Passed: ${success}`)
 	if (failure > 0) console.log(`❌ Failed: ${failure}`)
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
-	const totalElapsed = ((Date.now() - totalStart) / 1000).toFixed(2)
-	console.log(`\n🏁 All runs completed in ${totalElapsed}s`)
+	console.log(`🏁 All runs completed in ${((Date.now() - totalStart) / 1000).toFixed(2)}s`)
 }
 
 async function main() {

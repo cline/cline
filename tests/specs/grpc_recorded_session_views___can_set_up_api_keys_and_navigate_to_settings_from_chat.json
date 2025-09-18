@@ -14,7 +14,7 @@
             "planModeApiProvider": 1,
             "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
             "actModeApiProvider": 1,
-            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905"
           }
         }
       },
@@ -40,7 +40,7 @@
             "planModeApiProvider": 16,
             "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
             "actModeApiProvider": 16,
-            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905"
           }
         }
       },
@@ -66,7 +66,7 @@
             "planModeApiProvider": 1,
             "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
             "actModeApiProvider": 1,
-            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905"
           }
         }
       },
@@ -92,7 +92,7 @@
             "planModeApiProvider": 1,
             "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
             "actModeApiProvider": 1,
-            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905"
           }
         }
       },
