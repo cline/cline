@@ -1,8 +1,5 @@
 #!/usr/bin/env npx tsx
 
-import { ChildProcess, execSync, spawn } from "child_process"
-import * as fs from "fs"
-import { mkdtempSync, rmSync } from "fs"
 /**
  * Simple Cline gRPC Server
  *
@@ -30,7 +27,11 @@ import { mkdtempSync, rmSync } from "fs"
  *
  * Ideal for local development, testing, or lightweight E2E scenarios.
  */
-import * as os from "os"
+
+import * as fs from "node:fs"
+import { mkdtempSync, rmSync } from "node:fs"
+import * as os from "node:os"
+import { ChildProcess, execSync, spawn } from "child_process"
 import * as path from "path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 
