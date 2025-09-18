@@ -16,18 +16,23 @@ function isExecutable(filePath: string): boolean {
 
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
-	private isRecording: boolean = false
 	private startTime: number = 0
 	private outputFile: string = ""
 
 	constructor() {}
 
 	/**
+	 * Determines if recording is currently active by checking process state
+	 */
+	private get isRecording(): boolean {
+		return this.recordingProcess !== null && !this.recordingProcess.killed && this.recordingProcess.exitCode === null
+	}
+
+	/**
 	 * Resets the recording state variables
 	 */
 	private resetRecordingState(): void {
 		this.recordingProcess = null
-		this.isRecording = false
 		this.startTime = 0
 	}
 
@@ -121,7 +126,6 @@ export class AudioRecordingService {
 
 			// Spawn the recording process
 			this.recordingProcess = spawn(recordProgram.path, args)
-			this.isRecording = true
 			this.startTime = Date.now()
 
 			// Handle process errors
@@ -155,7 +159,7 @@ export class AudioRecordingService {
 
 	async stopRecording(): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
 		try {
-			if (!this.isRecording || !this.recordingProcess) {
+			if (!this.isRecording) {
 				return { success: false, error: "Not currently recording" }
 			}
 
@@ -194,7 +198,7 @@ export class AudioRecordingService {
 
 	async cancelRecording(): Promise<{ success: boolean; error?: string }> {
 		try {
-			if (!this.isRecording || !this.recordingProcess) {
+			if (!this.isRecording) {
 				return { success: false, error: "Not currently recording" }
 			}
 
