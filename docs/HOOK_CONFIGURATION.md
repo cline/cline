@@ -6,12 +6,26 @@ This guide explains how to configure hooks for Cline to integrate with agent-man
 
 Cline uses the same hook system as Claude, allowing external tools to monitor and control its behavior. Hooks are configured via a `settings.json` file in the project's `.cline` directory.
 
-## Configuration Location
+## Configuration Locations
 
-Hooks are configured per-project in:
+Cline supports both global and project-level hook configurations:
+
+### Global Configuration
+```
+~/.cline/settings.json
+```
+Global hooks apply to all projects and are useful for organization-wide monitoring or policies.
+
+### Project Configuration
 ```
 <project_root>/.cline/settings.json
 ```
+Project-specific hooks apply only to the current project and can extend or override global hooks.
+
+### Configuration Precedence
+- Both global and project configurations are loaded if they exist
+- Hook arrays are merged: global hooks run first, then project hooks
+- Settings are merged with project settings taking precedence over global settings
 
 ## Configuration Structure
 
@@ -167,6 +181,79 @@ Hooks must output JSON to stdout:
   "additionalContext": ["Optional context strings"]
 }
 ```
+
+## Global vs Project Configuration Examples
+
+### Global Configuration Use Cases
+
+1. **Organization-wide monitoring**: Set up hooks that track all Cline usage across all projects
+2. **Security policies**: Enforce security checks before certain tool executions
+3. **Compliance logging**: Maintain audit logs for all AI interactions
+
+Example global configuration (`~/.cline/settings.json`):
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Execute",
+      "hooks": [{
+        "type": "command",
+        "command": "/usr/local/bin/security-check",
+        "timeout": 10
+      }]
+    }],
+    "SessionStart": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "/usr/local/bin/audit-logger --event=session-start",
+        "timeout": 5
+      }]
+    }]
+  }
+}
+```
+
+### Project Configuration Use Cases
+
+1. **Project-specific tooling**: Integrate with project-specific build or test systems
+2. **Custom validations**: Add project-specific checks for file modifications
+3. **Team notifications**: Alert team members about certain operations
+
+Example project configuration (`<project_root>/.cline/settings.json`):
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Write",
+      "hooks": [{
+        "type": "command",
+        "command": "./scripts/validate-write.sh",
+        "timeout": 15
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "Execute",
+      "hooks": [{
+        "type": "command",
+        "command": "./scripts/notify-team.sh",
+        "timeout": 5
+      }]
+    }]
+  },
+  "settings": {
+    "defaultTimeout": 30,
+    "parallel": true
+  }
+}
+```
+
+### Combined Effect
+
+When both global and project configurations exist:
+- Global `PreToolUse` hooks for "Execute" run first
+- Then project `PreToolUse` hooks for "Write" run
+- Settings from project override global settings (defaultTimeout: 30, parallel: true)
 
 ## Integration with agent-manager
 
@@ -324,9 +411,9 @@ chmod +x test-hook.sh
 
 The following features are planned:
 
-1. **Global Configuration**: Support for `~/.cline/settings.json`
-2. **Hook Templates**: Pre-built hooks for common scenarios
-3. **Hook Validation**: Validate hook configuration on load
-4. **Performance Metrics**: Track hook execution times
-5. **Additional Events**: SubagentStop, PreCompact, Notification
-6. **Hook Chaining**: Multiple hooks per event with ordering
+1. **Hook Templates**: Pre-built hooks for common scenarios
+2. **Hook Validation**: Validate hook configuration on load
+3. **Performance Metrics**: Track hook execution times
+4. **Additional Events**: SubagentStop, PreCompact, Notification
+5. **Hook Priority System**: Control execution order when merging global and project hooks
+6. **Hook Disable Flags**: Allow projects to selectively disable specific global hooks

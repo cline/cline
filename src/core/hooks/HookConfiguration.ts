@@ -10,70 +10,197 @@ import { DEFAULT_HOOK_CONFIG, HookConfiguration, validateHookConfiguration } fro
 
 export class HookConfigurationLoader {
 	private configCache: HookConfiguration | null = null
-	private configPath: string
-	private lastModified: number = 0
+	private globalConfigPath: string
+	private projectConfigPath?: string
+	private globalLastModified: number = 0
+	private projectLastModified: number = 0
 
-	constructor(configPath?: string) {
-		// Default to ~/.cline/hooks.json
-		this.configPath = configPath || path.join(os.homedir(), ".cline", "hooks.json")
+	constructor(projectRoot?: string) {
+		// Global config path: ~/.cline/settings.json
+		this.globalConfigPath = path.join(os.homedir(), ".cline", "settings.json")
+
+		// Project config path: <projectRoot>/.cline/settings.json
+		if (projectRoot) {
+			this.projectConfigPath = path.join(projectRoot, ".cline", "settings.json")
+		}
 	}
 
 	/**
 	 * Get the current hook configuration
-	 * Reloads if file has been modified
+	 * Loads and merges global and project-level configurations
 	 */
 	async getConfiguration(): Promise<HookConfiguration> {
 		try {
-			const stats = await fs.stat(this.configPath)
-			const mtime = stats.mtimeMs
+			// Check if we need to reload configurations
+			const needsReload = await this.checkIfNeedsReload()
 
-			// Return cached config if file hasn't changed
-			if (this.configCache && mtime === this.lastModified) {
+			if (!needsReload && this.configCache) {
 				return this.configCache
 			}
 
-			// Load and validate configuration
-			const configData = await fs.readFile(this.configPath, "utf-8")
-			const config = JSON.parse(configData)
+			// Load global configuration
+			const globalConfig = await this.loadConfigFile(this.globalConfigPath, "global")
 
-			if (!validateHookConfiguration(config)) {
-				console.error("Invalid hook configuration format")
-				return DEFAULT_HOOK_CONFIG
+			// Load project configuration if available
+			let projectConfig: HookConfiguration | null = null
+			if (this.projectConfigPath) {
+				projectConfig = await this.loadConfigFile(this.projectConfigPath, "project")
 			}
+
+			// Merge configurations (project overrides global)
+			const mergedConfig = this.mergeConfigurations(globalConfig, projectConfig)
 
 			// Update cache
-			this.configCache = config
-			this.lastModified = mtime
+			this.configCache = mergedConfig
 
-			return config
+			// Update modification times
+			await this.updateModificationTimes()
+
+			return mergedConfig
 		} catch (error) {
-			// Return default config if file doesn't exist or is invalid
-			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-				// File doesn't exist - this is normal for users without hooks
-				return DEFAULT_HOOK_CONFIG
-			}
-
 			console.error("Failed to load hook configuration:", error)
 			return DEFAULT_HOOK_CONFIG
 		}
 	}
 
 	/**
-	 * Save hook configuration
+	 * Load a configuration file
 	 */
-	async saveConfiguration(config: HookConfiguration): Promise<void> {
+	private async loadConfigFile(filePath: string, type: "global" | "project"): Promise<HookConfiguration | null> {
+		try {
+			const configData = await fs.readFile(filePath, "utf-8")
+			const config = JSON.parse(configData)
+
+			if (!validateHookConfiguration(config)) {
+				console.error(`Invalid ${type} hook configuration format in ${filePath}`)
+				return null
+			}
+
+			return config
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				// File doesn't exist - this is normal
+				return null
+			}
+
+			console.error(`Failed to load ${type} hook configuration from ${filePath}:`, error)
+			return null
+		}
+	}
+
+	/**
+	 * Check if configurations need to be reloaded
+	 */
+	private async checkIfNeedsReload(): Promise<boolean> {
+		try {
+			// Check global config modification time
+			const globalStats = await fs.stat(this.globalConfigPath).catch(() => null)
+			const globalMtime = globalStats?.mtimeMs || 0
+
+			if (globalMtime !== this.globalLastModified) {
+				return true
+			}
+
+			// Check project config modification time if applicable
+			if (this.projectConfigPath) {
+				const projectStats = await fs.stat(this.projectConfigPath).catch(() => null)
+				const projectMtime = projectStats?.mtimeMs || 0
+
+				if (projectMtime !== this.projectLastModified) {
+					return true
+				}
+			}
+
+			return false
+		} catch {
+			return true
+		}
+	}
+
+	/**
+	 * Update cached modification times
+	 */
+	private async updateModificationTimes(): Promise<void> {
+		try {
+			const globalStats = await fs.stat(this.globalConfigPath).catch(() => null)
+			this.globalLastModified = globalStats?.mtimeMs || 0
+
+			if (this.projectConfigPath) {
+				const projectStats = await fs.stat(this.projectConfigPath).catch(() => null)
+				this.projectLastModified = projectStats?.mtimeMs || 0
+			}
+		} catch {
+			// Ignore errors
+		}
+	}
+
+	/**
+	 * Merge global and project configurations
+	 * Project configuration takes precedence
+	 */
+	private mergeConfigurations(
+		globalConfig: HookConfiguration | null,
+		projectConfig: HookConfiguration | null,
+	): HookConfiguration {
+		// If neither exists, return default
+		if (!globalConfig && !projectConfig) {
+			return DEFAULT_HOOK_CONFIG
+		}
+
+		// If only one exists, use it
+		if (!globalConfig) {
+			return projectConfig!
+		}
+		if (!projectConfig) {
+			return globalConfig
+		}
+
+		// Merge configurations - project overrides global
+		const merged: HookConfiguration = {
+			hooks: { ...DEFAULT_HOOK_CONFIG.hooks },
+			settings: { ...globalConfig.settings, ...projectConfig.settings },
+		}
+
+		// Merge hook arrays for each event type
+		const hookEventTypes = [
+			"PreToolUse",
+			"PostToolUse",
+			"UserPromptSubmit",
+			"Stop",
+			"SessionStart",
+			"SessionEnd",
+			"SubagentStop",
+			"PreCompact",
+			"Notification",
+		] as const
+
+		for (const eventType of hookEventTypes) {
+			const globalHooks = globalConfig.hooks[eventType] || []
+			const projectHooks = projectConfig.hooks[eventType] || []
+
+			// Combine hooks - project hooks are executed after global hooks
+			merged.hooks[eventType] = [...globalHooks, ...projectHooks]
+		}
+
+		return merged
+	}
+
+	/**
+	 * Save hook configuration (saves to project config by default)
+	 */
+	async saveConfiguration(config: HookConfiguration, target: "global" | "project" = "project"): Promise<void> {
+		const configPath = target === "global" ? this.globalConfigPath : this.projectConfigPath || this.globalConfigPath
+
 		// Ensure directory exists
-		const dir = path.dirname(this.configPath)
+		const dir = path.dirname(configPath)
 		await fs.mkdir(dir, { recursive: true })
 
 		// Write configuration
 		const configData = JSON.stringify(config, null, 2)
-		await fs.writeFile(this.configPath, configData, "utf-8")
+		await fs.writeFile(configPath, configData, "utf-8")
 
-		// Update cache
-		this.configCache = config
-		const stats = await fs.stat(this.configPath)
-		this.lastModified = stats.mtimeMs
+		// Clear cache to force reload on next access
+		this.clearCache()
 	}
 
 	/**
@@ -81,14 +208,26 @@ export class HookConfigurationLoader {
 	 */
 	async hasHooks(): Promise<boolean> {
 		const config = await this.getConfiguration()
-		return Object.keys(config.hooks).length > 0
+
+		// Check if any hook arrays have content
+		for (const eventType of Object.keys(config.hooks)) {
+			const hooks = (config.hooks as any)[eventType]
+			if (Array.isArray(hooks) && hooks.length > 0) {
+				return true
+			}
+		}
+
+		return false
 	}
 
 	/**
-	 * Get the configuration file path
+	 * Get the configuration file paths
 	 */
-	getConfigPath(): string {
-		return this.configPath
+	getConfigPaths(): { global: string; project?: string } {
+		return {
+			global: this.globalConfigPath,
+			project: this.projectConfigPath,
+		}
 	}
 
 	/**
@@ -96,6 +235,7 @@ export class HookConfigurationLoader {
 	 */
 	clearCache(): void {
 		this.configCache = null
-		this.lastModified = 0
+		this.globalLastModified = 0
+		this.projectLastModified = 0
 	}
 }

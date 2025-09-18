@@ -12,7 +12,6 @@ import { HookEvent, HookEventNameType } from "./types/HookEvent"
 import { AggregatedHookResult, aggregateHookResults } from "./types/HookResponse"
 
 export interface HookManagerOptions {
-	configPath?: string
 	defaultTimeout?: number
 	debug?: boolean
 }
@@ -24,7 +23,8 @@ export class HookManager {
 	private debug: boolean
 
 	constructor(taskId: string, cwd: string, options: HookManagerOptions = {}) {
-		this.configLoader = new HookConfigurationLoader(options.configPath)
+		// Pass cwd as projectRoot to HookConfigurationLoader
+		this.configLoader = new HookConfigurationLoader(cwd)
 		this.executor = new HookExecutor(options.defaultTimeout)
 		this.transformer = new EventTransformer(taskId, cwd)
 		this.debug = options.debug || false
