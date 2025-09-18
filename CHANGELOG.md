@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.29.1
+
+### Patch Changes
+
+- 981fe9c: Changeset bump + Announcement banner update
+- 683096a: Interactive playwright script
+
 ## [3.29.0]
 
 - Updated Baseten provider to fetch models from server
