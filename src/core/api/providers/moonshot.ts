@@ -49,6 +49,7 @@ export class MoonshotHandler implements ApiHandler {
 			model: model.id,
 			messages: openAiMessages,
 			temperature: 0,
+			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
 		})
