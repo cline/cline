@@ -24,7 +24,6 @@ import {
 	SettingsKey,
 } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
-
 export interface PersistenceErrorEvent {
 	error: Error
 }

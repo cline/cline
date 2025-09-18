@@ -1,4 +1,5 @@
 import { buildApiHandler } from "@core/api"
+
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -160,7 +161,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
-
 		// Update yolo mode setting
 		if (request.yoloModeToggled !== undefined) {
 			if (controller.task) {
@@ -170,6 +170,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
+		if (request.dictationSettings !== undefined) {
+			controller.stateManager.setGlobalState("dictationSettings", request.dictationSettings)
+		}
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {
