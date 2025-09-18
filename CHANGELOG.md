@@ -1,11 +1,9 @@
 # Changelog
 
-## 3.29.2
+## [3.29.2]
 
-- 5db4970: Enhance Testing Framework - Add fix flag and add non-deterministic
-- fea8313: Fix: revert HeroUI package change that broke chat formatting.
-- 4b450f4: Pass max_tokens value to moonshot provider
-- 767b81b: Improve standalone startup times
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
 
 ## [3.29.1]
 
