@@ -287,33 +287,71 @@ export class OpenAiNativeHandler implements ApiHandler {
 		if (!args) {
 			return args
 		}
-		if (toolName === "read_file" && typeof args.path === "string") {
-			let path = args.path.trim()
-			path = path.replace(/^['"`]/, "")
-			const terminationTokens = [
-				"','",
-				"' ,",
-				"', ",
-				"';",
-				"'; ",
-				"\n",
-				"\r",
-				'"',
-				" does not exist",
-				" actual path is",
-				" File not found",
-			]
-			for (const token of terminationTokens) {
-				const idx = path.indexOf(token)
-				if (idx !== -1) {
-					path = path.slice(0, idx)
-					break
+		const sanitized: Record<string, unknown> = { ...args }
+		const pathLikeKeys = new Set(["path", "rel_path", "new_path", "target_path", "file_path", "dir_path", "uri"])
+		const terminationTokens = [
+			"','",
+			"' ,",
+			"', ",
+			"';",
+			"'; ",
+			"\n",
+			"\r",
+			'"',
+			" does not exist",
+			" actual path is",
+			" File not found",
+			',"task_progress":',
+		]
+
+		const decodeEntities = (value: string): string =>
+			value
+				.replace(/&quot;/g, '"')
+				.replace(/&#34;/g, '"')
+				.replace(/&#39;/g, "'")
+				.replace(/&apos;/g, "'")
+				.replace(/&amp;/g, "&")
+				.replace(/&lt;/g, "<")
+				.replace(/&gt;/g, ">")
+
+		const cleanString = (value: string, isPathLike: boolean): string => {
+			let result = decodeEntities(value).trim()
+			result = result.replace(/^['"`]+/, "")
+			if (isPathLike) {
+				for (const token of terminationTokens) {
+					const idx = result.indexOf(token)
+					if (idx !== -1) {
+						result = result.slice(0, idx)
+						break
+					}
 				}
 			}
-			path = path.trim().replace(/['"`]$/, "")
-			return { ...args, path }
+			result = result.trim().replace(/['"`]+$/, "")
+			return result
 		}
-		return args
+
+		for (const [key, value] of Object.entries(sanitized)) {
+			if (typeof value === "string") {
+				const isPathLike =
+					pathLikeKeys.has(key) || key.toLowerCase().includes("path") || key.toLowerCase().includes("uri")
+				sanitized[key] = cleanString(value, isPathLike)
+			} else if (Array.isArray(value)) {
+				const coerced = value.map((entry) => {
+					if (typeof entry === "string") {
+						const isPathLike = key.toLowerCase().includes("path") || key.toLowerCase().includes("uri")
+						return cleanString(entry, isPathLike)
+					}
+					return entry
+				})
+				sanitized[key] = coerced
+			}
+		}
+
+		if (toolName === "read_file" && typeof sanitized.path === "string") {
+			return sanitized
+		}
+
+		return sanitized
 	}
 
 	private *iterateResponseOutput(output: any[] | undefined): Generator<ApiStreamChunk> {
@@ -533,7 +571,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const resp = await client.responses.create({
 					model: model.id,
 					input,
-					store: false,
+					store: true,
 					include: ["reasoning.encrypted_content"],
 					tools: getOpenAiResponsesTools(),
 					tool_choice: "auto",
@@ -562,7 +600,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,
-					store: false,
+					store: true,
 					stream: true,
 					include: ["reasoning.encrypted_content"],
 					reasoning: { effort: (this.options.reasoningEffort as any) || "medium" },
@@ -580,7 +618,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,
-					store: false,
+					store: true,
 					stream: true,
 					include: ["reasoning.encrypted_content"],
 					temperature: 1,
@@ -597,7 +635,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const stream = (await client.responses.create({
 					model: model.id,
 					input,
-					store: false,
+					store: true,
 					stream: true,
 					include: ["reasoning.encrypted_content"],
 					temperature: 0,
