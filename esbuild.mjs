@@ -124,9 +124,12 @@ const copyWasmFiles = {
 }
 
 const buildEnvVars = { "import.meta.url": "_importMetaUrl" }
-if (!production) {
-	buildEnvVars["process.env.IS_DEV"] = "true"
+if (production) {
+	// IS_DEV is always disable in production builds.
+	buildEnvVars["process.env.IS_DEV"] = "false"
 }
+// Set the environment and telemetry env vars. The API key env vars need to be populated in the GitHub
+// workflows from the secrets.
 if (process.env.CLINE_ENVIRONMENT) {
 	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
 }
