@@ -14,6 +14,7 @@ import { log } from "./utils"
 import { DATA_DIR, EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
+	log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
 	await waitForHostBridgeReady()
