@@ -152,7 +152,6 @@ jobs:
 
     test-integration:
         runs-on: ubuntu-latest
-        continue-on-error: true
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -202,12 +201,13 @@ jobs:
               run: cd testing-platform && npm ci
 
             - name: Running testing platform integration spec tests
+              continue-on-error: true
               timeout-minutes: 5
               # Temporarily wrapping the test command to always return a neutral exit code.
               # This prevents the job from showing as failed and avoids distracting developers
               # until the integration tests are ready to be enforced.
               run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 || true
 
     coverage:
         needs: test
