@@ -25,6 +25,7 @@ function getGrpcPort(): string {
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
 	const start = Date.now()
 	while (Date.now() - start < timeout) {
+		await new Promise((res) => setTimeout(res, 100))
 		try {
 			await new Promise<void>((resolve, reject) => {
 				const socket = net.connect(port, host, () => {
@@ -37,7 +38,6 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 		} catch {
 			// try again
 		}
-		await new Promise((res) => setTimeout(res, 100))
 	}
 	throw new Error(`Timeout waiting for ${host}:${port}`)
 }
