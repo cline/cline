@@ -22,6 +22,69 @@ export class AudioRecordingService {
 
 	constructor() {}
 
+	/**
+	 * Resets the recording state variables
+	 */
+	private resetRecordingState(): void {
+		this.recordingProcess = null
+		this.isRecording = false
+		this.startTime = 0
+	}
+
+	/**
+	 * Cleans up the temporary audio file
+	 */
+	private async cleanupTempFile(): Promise<void> {
+		if (this.outputFile && fs.existsSync(this.outputFile)) {
+			try {
+				fs.unlinkSync(this.outputFile)
+				Logger.info("Temporary audio file cleaned up")
+			} catch (error) {
+				Logger.warn("Failed to cleanup temporary audio file: " + (error instanceof Error ? error.message : String(error)))
+			} finally {
+				this.outputFile = ""
+			}
+		}
+	}
+
+	/**
+	 * Terminates the recording process gracefully
+	 */
+	private async terminateProcess(): Promise<void> {
+		if (!this.recordingProcess) return
+
+		Logger.info("Terminating recording process...")
+		this.recordingProcess.kill("SIGINT")
+
+		// Wait for the process to finish with timeout
+		await new Promise<void>((resolve) => {
+			const timeoutId = setTimeout(() => {
+				Logger.warn("Process termination timed out after 5 seconds")
+				resolve()
+			}, 5000)
+
+			this.recordingProcess?.on("exit", (code) => {
+				clearTimeout(timeoutId)
+				Logger.info(`Recording process exited with code: ${code}`)
+				resolve()
+			})
+		})
+	}
+
+	/**
+	 * Performs comprehensive cleanup of recording resources
+	 * @param options - Cleanup options
+	 * @param options.keepFile - If true, preserves the temporary file
+	 */
+	private async performCleanup(options?: { keepFile?: boolean }): Promise<void> {
+		await this.terminateProcess()
+		this.resetRecordingState()
+
+		if (!options?.keepFile) {
+			await this.cleanupTempFile()
+		}
+	}
+
 	async startRecording(): Promise<{ success: boolean; error?: string }> {
 		try {
 			if (this.isRecording) {
@@ -58,7 +121,7 @@ export class AudioRecordingService {
 			// Handle process errors
 			this.recordingProcess.on("error", (error) => {
 				Logger.error(`Recording process error: ${error.message}`)
-				this.isRecording = false
+				this.resetRecordingState()
 			})
 
 			// Handle process exit
@@ -92,28 +155,9 @@ export class AudioRecordingService {
 
 			Logger.info("Stopping audio recording...")
 
-			// Send SIGINT to stop recording gracefully (like Ctrl+C)
-			this.recordingProcess.kill("SIGINT")
-
-			// Wait for the process to finish
-			await new Promise<void>((resolve) => {
-				if (this.recordingProcess) {
-					// Timeout after 5 seconds
-					const timeoutId = setTimeout(() => {
-						resolve()
-					}, 5000)
-
-					this.recordingProcess.on("exit", (code) => {
-						clearTimeout(timeoutId) // Clear the timeout since process exited
-						resolve()
-					})
-				} else {
-					resolve()
-				}
-			})
-
-			this.recordingProcess = null
-			this.isRecording = false
+			// Terminate the process but keep the file for reading
+			await this.terminateProcess()
+			this.resetRecordingState()
 
 			// Wait a moment for file to be fully written
 			await new Promise((resolve) => setTimeout(resolve, 500))
@@ -126,21 +170,18 @@ export class AudioRecordingService {
 			const audioBuffer = fs.readFileSync(this.outputFile)
 			const audioBase64 = audioBuffer.toString("base64")
 
-			// Clean up temporary file
-			try {
-				fs.unlinkSync(this.outputFile)
-			} catch (cleanupError) {
-				Logger.warn(
-					"Failed to cleanup temporary audio file: " +
-						(cleanupError instanceof Error ? cleanupError.message : String(cleanupError)),
-				)
-			}
+			// Clean up temporary file after reading
+			await this.cleanupTempFile()
 
 			Logger.info("Audio recording stopped and converted to base64")
 			return { success: true, audioBase64 }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			Logger.error("Failed to stop audio recording: " + errorMessage)
+
+			// Ensure cleanup happens even on error
+			await this.performCleanup()
+
 			return { success: false, error: `Failed to stop recording: ${errorMessage}` }
 		}
 	}
@@ -153,46 +194,18 @@ export class AudioRecordingService {
 
 			Logger.info("Canceling audio recording...")
 
-			// Send SIGINT to stop recording gracefully (like Ctrl+C)
-			this.recordingProcess.kill("SIGINT")
-
-			// Wait for the process to finish
-			await new Promise<void>((resolve) => {
-				if (this.recordingProcess) {
-					// Timeout after 5 seconds
-					const timeoutId = setTimeout(() => {
-						resolve()
-					}, 5000)
-
-					this.recordingProcess.on("exit", (code) => {
-						clearTimeout(timeoutId) // Clear the timeout since process exited
-						resolve()
-					})
-				} else {
-					resolve()
-				}
-			})
-
-			this.recordingProcess = null
-			this.isRecording = false
-
-			// Clean up temporary file without reading it
-			if (this.outputFile && fs.existsSync(this.outputFile)) {
-				try {
-					fs.unlinkSync(this.outputFile)
-				} catch (cleanupError) {
-					Logger.warn(
-						"Failed to cleanup temporary audio file during cancel: " +
-							(cleanupError instanceof Error ? cleanupError.message : String(cleanupError)),
-					)
-				}
-			}
+			// Perform full cleanup including file deletion
+			await this.performCleanup()
 
 			Logger.info("Audio recording canceled successfully")
 			return { success: true }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			Logger.error("Failed to cancel audio recording: " + errorMessage)
+
+			// Ensure cleanup happens even on error
+			await this.performCleanup()
+
 			return { success: false, error: `Failed to cancel recording: ${errorMessage}` }
 		}
 	}
@@ -243,29 +256,14 @@ export class AudioRecordingService {
 		return undefined
 	}
 
-	// Cleanup method
+	/**
+	 * Public cleanup method for service shutdown
+	 */
 	cleanup(): void {
-		if (this.isRecording && this.recordingProcess) {
-			try {
-				this.recordingProcess.kill("SIGINT")
-				this.recordingProcess = null
-				this.isRecording = false
-			} catch (error) {
-				Logger.error("Error during cleanup: " + (error instanceof Error ? error.message : String(error)))
-			}
-		}
-
-		// Clean up any leftover temp files
-		if (this.outputFile && fs.existsSync(this.outputFile)) {
-			try {
-				fs.unlinkSync(this.outputFile)
-			} catch (error) {
-				Logger.warn(
-					"Failed to cleanup temp file during service cleanup: " +
-						(error instanceof Error ? error.message : String(error)),
-				)
-			}
-		}
+		// Use async cleanup but don't await since this is often called in sync contexts
+		this.performCleanup().catch((error) => {
+			Logger.error("Error during cleanup: " + (error instanceof Error ? error.message : String(error)))
+		})
 	}
 }
 
