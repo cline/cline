@@ -206,6 +206,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		customPrompt: undefined,
 		useAutoCondense: false,
 		favoritedModelIds: [],
+		lastDismissedInfoBannerVersion: 0,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
