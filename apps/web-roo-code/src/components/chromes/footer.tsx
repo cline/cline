@@ -258,6 +258,13 @@ export function Footer() {
 									</li>
 									<li>
 										<Link
+											href="/legal/cookies"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Cookie Policy
+										</Link>
+									</li>
+									<li>
+										<Link
 											href="/legal/subprocessors"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
 											Subprocessors
