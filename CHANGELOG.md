@@ -1,9 +1,8 @@
 # Changelog
 
-## 3.29.1
+## [3.29.1]
 
-- 981fe9c: Changeset bump + Announcement banner update
-- 683096a: Interactive playwright script
+- Changeset bump + Announcement banner update
 
 ## [3.29.0]
 
