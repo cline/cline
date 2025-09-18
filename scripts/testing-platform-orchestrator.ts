@@ -37,8 +37,9 @@ const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
 // Poll until port is accepting connections
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
 	const start = Date.now()
+	const waitForPortSleepMs = 100
 	while (Date.now() - start < timeout) {
-		await new Promise((res) => setTimeout(res, 100))
+		await new Promise((res) => setTimeout(res, waitForPortSleepMs))
 		try {
 			await new Promise<void>((resolve, reject) => {
 				const socket = net.connect(port, host, () => {
