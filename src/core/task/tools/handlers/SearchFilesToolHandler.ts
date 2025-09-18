@@ -36,7 +36,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		parsedPath: string,
 		workspaceHint: string | undefined,
 		originalPath: string,
-	): Array<{ absolutePath: string; workspaceName?: string }> {
+	): Array<{ absolutePath: string; workspaceName?: string; workspaceRoot?: string }> {
 		if (config.isMultiRootEnabled && config.workspaceManager) {
 			const adapter = new WorkspacePathAdapter({
 				cwd: config.cwd,
@@ -47,7 +47,9 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			if (workspaceHint) {
 				// Search only in the specified workspace
 				const absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
-				return [{ absolutePath, workspaceName: workspaceHint }]
+				const workspaceRoots = adapter.getWorkspaceRoots()
+				const root = workspaceRoots.find((r) => r.name === workspaceHint)
+				return [{ absolutePath, workspaceName: workspaceHint, workspaceRoot: root?.path }]
 			} else {
 				// Search across all workspaces
 				const allPaths = adapter.getAllPossiblePaths(parsedPath)
@@ -55,13 +57,14 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 				return allPaths.map((absPath, index) => ({
 					absolutePath: absPath,
 					workspaceName: workspaceRoots[index]?.name || path.basename(workspaceRoots[index]?.path || absPath),
+					workspaceRoot: workspaceRoots[index]?.path,
 				}))
 			}
 		} else {
 			// Single-workspace mode (backward compatible)
 			const pathResult = resolveWorkspacePath(config, originalPath, "SearchFilesTool.execute")
 			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
-			return [{ absolutePath }]
+			return [{ absolutePath, workspaceRoot: config.cwd }]
 		}
 	}
 
@@ -72,12 +75,16 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		config: TaskConfig,
 		absolutePath: string,
 		workspaceName: string | undefined,
+		workspaceRoot: string | undefined,
 		regex: string,
 		filePattern: string | undefined,
 	) {
 		try {
+			// Use workspace root for relative path calculation, fallback to cwd
+			const basePathForRelative = workspaceRoot || config.cwd
+
 			const workspaceResults = await regexSearchFiles(
-				config.cwd,
+				basePathForRelative,
 				absolutePath,
 				regex,
 				filePattern,
@@ -221,8 +228,8 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
 
 		// Execute searches in all relevant workspaces in parallel
-		const searchPromises = searchPaths.map(({ absolutePath, workspaceName }) =>
-			this.executeSearch(config, absolutePath, workspaceName, regex, filePattern),
+		const searchPromises = searchPaths.map(({ absolutePath, workspaceName, workspaceRoot }) =>
+			this.executeSearch(config, absolutePath, workspaceName, workspaceRoot, regex, filePattern),
 		)
 
 		// Wait for all searches to complete

@@ -79,7 +79,8 @@ export class FeatureFlagsService {
 	 * Convenience: multi-root workspace remote gate
 	 */
 	public getMultiRootEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
+		return true
+		//return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
 	}
 
 	/**

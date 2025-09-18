@@ -34,6 +34,7 @@ import ErrorRow from "./ErrorRow"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
+import SearchResultsDisplay from "./SearchResultsDisplay"
 import UserMessage from "./UserMessage"
 
 const normalColor = "var(--vscode-foreground)"
@@ -588,12 +589,12 @@ export const ChatRowContent = memo(
 									Cline wants to search this directory for <code>{tool.regex}</code>:
 								</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
+							<SearchResultsDisplay
+								content={tool.content!}
+								filePattern={tool.filePattern}
 								isExpanded={isExpanded}
-								language="plaintext"
 								onToggleExpand={handleToggle}
-								path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
+								path={tool.path!}
 							/>
 						</>
 					)
