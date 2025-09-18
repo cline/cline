@@ -123,14 +123,18 @@ const copyWasmFiles = {
 	},
 }
 
-const buildEnvVars = {
-	"import.meta.url": "_importMetaUrl",
-	"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
-	"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
-	"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT),
-}
+const buildEnvVars = { "import.meta.url": "_importMetaUrl" }
 if (!production) {
-	buildEnvVars["process.env.IS_DEV"] = JSON.stringify(!production)
+	buildEnvVars["process.env.IS_DEV"] = "true"
+}
+if (process.env.CLINE_ENVIRONMENT) {
+	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
+}
+if (process.env.TELEMETRY_SERVICE_API_KEY) {
+	buildEnvVars["process.env.TELEMETRY_SERVICE_API_KEY"] = JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY)
+}
+if (process.env.ERROR_SERVICE_API_KEY) {
+	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
 }
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
