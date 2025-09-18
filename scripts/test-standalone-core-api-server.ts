@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 
-import { ChildProcess, spawn } from "child_process"
+import { ChildProcess, execSync, spawn } from "child_process"
 import * as fs from "fs"
 import { mkdtempSync, rmSync } from "fs"
 /**
@@ -98,10 +98,16 @@ async function main(): Promise<void> {
 		console.error(`standalone.zip not found at: ${standaloneZipPath}`)
 		process.exit(1)
 	}
-	if (!fs.existsSync(extensionsDir)) {
-		spawn("unzip", ["-q", standaloneZipPath, "-d", extensionsDir], { stdio: "inherit" }).on("exit", (code) => {
-			if (code !== 0) console.error("Failed to unzip standalone.zip")
-		})
+
+	console.log("Extracting standalone.zip to extensions directory...")
+	try {
+		if (!fs.existsSync(extensionsDir)) {
+			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+		}
+		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
+	} catch (error) {
+		console.error("Failed to extract standalone.zip:", error)
+		process.exit(1)
 	}
 
 	console.log("Starting Cline Core Service...")
@@ -122,19 +128,15 @@ async function main(): Promise<void> {
 	})
 	childProcesses.push(coreService)
 
-	// Unified shutdown
 	const shutdown = async () => {
 		console.log("\nShutting down services...")
 
-		// Kill all child processes
 		for (const child of childProcesses) {
 			if (!child.killed) child.kill("SIGINT")
 		}
 
-		// Stop in-process server
 		await ClineApiServerMock.stopGlobalServer()
 
-		// Cleanup temp dirs
 		try {
 			rmSync(userDataDir, { recursive: true, force: true })
 			rmSync(clineTestWorkspace, { recursive: true, force: true })
