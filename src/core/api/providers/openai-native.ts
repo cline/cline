@@ -15,7 +15,8 @@ import type {
 } from "openai/resources/responses/responses"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamChunk } from "../transform/stream"
+import { getOpenAiResponsesTools } from "./openai-native-tools"
 
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
@@ -73,10 +74,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 		roleForSystem: "system" | "developer" = "system",
 	): ResponseInput {
 		const inputItems: ResponseInput = []
-		// Add system/developer instructions first
 		if (systemPrompt && systemPrompt.length > 0) {
 			inputItems.push({ role: roleForSystem, content: [{ type: "input_text", text: systemPrompt }] })
 		}
+
+		let syntheticCallCounter = 0
 
 		for (const m of messages) {
 			if (typeof m.content === "string") {
@@ -84,76 +86,90 @@ export class OpenAiNativeHandler implements ApiHandler {
 				continue
 			}
 
-			const content: ResponseInputMessageContentList = []
-			for (const part of m.content) {
-				if (part.type === "text") {
-					content.push({ type: "input_text", text: part.text })
-				} else if (part.type === "image") {
-					// Map Anthropic image block -> Responses input_image with data URL
-					content.push({
-						type: "input_image",
-						detail: "auto",
-						image_url: `data:${part.source.media_type};base64,${part.source.data}`,
-					})
-				} else if (part.type === "tool_result") {
-				} else if (part.type === "tool_use") {
+			const messageContent: ResponseInputMessageContentList = []
+			const flushMessage = () => {
+				if (messageContent.length > 0) {
+					inputItems.push({ role: m.role as any, content: [...messageContent] })
+					messageContent.length = 0
 				}
 			}
 
-			// If no supported content was found, skip adding this message
-			if (content.length > 0) {
-				const role =
-					m.role === "assistant" || m.role === "user" || m.role === "system" || m.role === "developer"
-						? (m.role as "assistant" | "user" | "system" | "developer")
-						: (m.role as any)
-				inputItems.push({ role, content })
+			for (const part of m.content) {
+				switch (part.type) {
+					case "text":
+						messageContent.push({ type: "input_text", text: part.text })
+						break
+					case "image":
+						messageContent.push({
+							type: "input_image",
+							detail: "auto",
+							image_url: `data:${part.source.media_type};base64,${part.source.data}`,
+						})
+						break
+					case "tool_result": {
+						flushMessage()
+						const callId = part.tool_use_id || `tool_call_${syntheticCallCounter++}`
+						inputItems.push({
+							type: "function_call_output",
+							call_id: callId,
+							output: this.serializeToolResultContent(part.content),
+						} as any)
+						break
+					}
+					case "tool_use": {
+						flushMessage()
+						const callId = part.id || `tool_call_${syntheticCallCounter++}`
+						inputItems.push({
+							type: "function_call",
+							id: part.id,
+							call_id: callId,
+							name: part.name,
+							arguments: JSON.stringify(part.input ?? {}),
+						} as any)
+						break
+					}
+				}
 			}
+
+			flushMessage()
 		}
 
 		return inputItems
 	}
 
-	private escapeXml(value: string): string {
-		return value
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;")
-			.replace(/'/g, "&apos;")
+	private serializeToolResultContent(
+		content: Anthropic.Messages.ToolResultBlockParam["content"] | string | null | undefined,
+	): string {
+		if (!content) {
+			return ""
+		}
+		if (typeof content === "string") {
+			return content
+		}
+		if (Array.isArray(content)) {
+			return content
+				.map((part) => {
+					if (!part) {
+						return ""
+					}
+					if (typeof part === "string") {
+						return part
+					}
+					if (part.type === "text") {
+						return part.text ?? ""
+					}
+					if (part.type === "image") {
+						return `[image:${part.source?.media_type ?? "unknown"}]`
+					}
+					return JSON.stringify(part)
+				})
+				.filter(Boolean)
+				.join("\n")
+		}
+		return JSON.stringify(content)
 	}
 
-	private formatFunctionCallXml(name: string, argumentJson: string): string {
-		let parsedArgs: Record<string, unknown> | undefined
-		if (argumentJson && argumentJson.trim().length > 0) {
-			try {
-				const maybeParsed = JSON.parse(argumentJson)
-				if (maybeParsed && typeof maybeParsed === "object") {
-					parsedArgs = maybeParsed as Record<string, unknown>
-				}
-			} catch (error) {
-				console.error("Failed to parse function call arguments:", error)
-			}
-		}
-
-		let xml = `<${name}>`
-		if (parsedArgs) {
-			for (const [key, rawValue] of Object.entries(parsedArgs)) {
-				const stringValue =
-					rawValue === null || rawValue === undefined
-						? ""
-						: typeof rawValue === "string"
-							? rawValue
-							: JSON.stringify(rawValue)
-				xml += `<${key}>${this.escapeXml(stringValue)}</${key}>`
-			}
-		} else if (argumentJson && argumentJson.trim().length > 0) {
-			xml += `<arguments>${this.escapeXml(argumentJson)}</arguments>`
-		}
-		xml += `</${name}>`
-		return xml
-	}
-
-	private *iterateResponseOutputText(output: any[] | undefined): Generator<string> {
+	private *iterateResponseOutput(output: any[] | undefined): Generator<ApiStreamChunk> {
 		if (!output) {
 			return
 		}
@@ -164,28 +180,45 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (item.type === "message") {
 				for (const content of item.content ?? []) {
 					if (content?.type === "output_text" && content.text) {
-						yield content.text
+						yield { type: "text", text: content.text }
 					}
 				}
 			} else if (item.type === "function_call") {
 				const functionCall = item as ResponseFunctionToolCallItem
-				const xml = this.formatFunctionCallXml(functionCall.name, functionCall.arguments || "")
-				if (xml.length > 0) {
-					yield xml
+				const rawArguments = functionCall.arguments || ""
+				let parsedArguments: Record<string, unknown> = {}
+				if (rawArguments) {
+					try {
+						parsedArguments = JSON.parse(rawArguments)
+					} catch (error) {
+						console.error("Failed to parse function call arguments:", error)
+						parsedArguments = {}
+					}
+				}
+				yield {
+					type: "tool_call",
+					callId: functionCall.call_id || functionCall.id,
+					name: functionCall.name,
+					arguments: parsedArguments,
+					rawArguments,
 				}
 			}
 		}
 	}
 
 	private async *streamResponse(stream: AsyncIterable<ResponseStreamEvent>, modelInfo: ModelInfo): ApiStream {
-		const pendingFunctionCalls = new Map<string, { name: string; arguments: string }>()
+		const pendingFunctionCalls = new Map<string, { name: string; callId: string; arguments: string }>()
 		for await (const event of stream) {
 			switch (event.type) {
 				case "response.output_item.added": {
 					const added = event as ResponseOutputItemAddedEvent
 					if (added.item.type === "function_call") {
 						const functionCall = added.item as ResponseFunctionToolCallItem
-						pendingFunctionCalls.set(functionCall.id, { name: functionCall.name, arguments: "" })
+						pendingFunctionCalls.set(functionCall.id, {
+							name: functionCall.name,
+							callId: functionCall.call_id || functionCall.id,
+							arguments: "",
+						})
 					}
 					break
 				}
@@ -202,9 +235,21 @@ export class OpenAiNativeHandler implements ApiHandler {
 					const pending = pendingFunctionCalls.get(doneEvent.item_id)
 					const functionName = pending?.name || "function_call"
 					const args = doneEvent.arguments || pending?.arguments || ""
-					const xml = this.formatFunctionCallXml(functionName, args)
-					if (xml.length > 0) {
-						yield { type: "text", text: xml }
+					let parsedArguments: Record<string, unknown> = {}
+					if (args) {
+						try {
+							parsedArguments = JSON.parse(args)
+						} catch (error) {
+							console.error("Failed to parse function call arguments:", error)
+							parsedArguments = {}
+						}
+					}
+					yield {
+						type: "tool_call",
+						callId: pending?.callId || doneEvent.item_id,
+						name: functionName,
+						arguments: parsedArguments,
+						rawArguments: args,
 					}
 					pendingFunctionCalls.delete(doneEvent.item_id)
 					break
@@ -241,19 +286,21 @@ export class OpenAiNativeHandler implements ApiHandler {
 					input,
 					store: false,
 					include: ["reasoning.encrypted_content"],
+					tools: getOpenAiResponsesTools(),
+					tool_choice: "auto",
 				})
-				let emittedText = false
-				for (const chunk of this.iterateResponseOutputText((resp as any)?.output)) {
-					emittedText = true
-					yield { type: "text", text: chunk }
+				let emittedContent = false
+				for (const chunk of this.iterateResponseOutput((resp as any)?.output)) {
+					emittedContent = true
+					yield chunk
 				}
-				if (!emittedText) {
+				if (!emittedContent) {
 					const fallbackText = resp.output_text || ""
 					if (fallbackText.length > 0) {
 						yield { type: "text", text: fallbackText }
 					}
 				}
-				if ((resp as any).usage) {
+				if ((resp as any)?.usage) {
 					yield* this.yieldUsage(model.info, (resp as any).usage)
 				}
 				break
@@ -269,6 +316,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 					stream: true,
 					include: ["reasoning.encrypted_content"],
 					reasoning: { effort: (this.options.reasoningEffort as any) || "medium" },
+					tools: getOpenAiResponsesTools(),
+					tool_choice: "auto",
 				})) as any
 				yield* this.streamResponse(stream as AsyncIterable<ResponseStreamEvent>, model.info)
 				break
@@ -285,6 +334,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 					include: ["reasoning.encrypted_content"],
 					temperature: 1,
 					reasoning: { effort: (this.options.reasoningEffort as any) || "medium" },
+					tools: getOpenAiResponsesTools(),
+					tool_choice: "auto",
 				})) as any
 				yield* this.streamResponse(stream as AsyncIterable<ResponseStreamEvent>, model.info)
 				break
@@ -298,6 +349,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 					stream: true,
 					include: ["reasoning.encrypted_content"],
 					temperature: 0,
+					tools: getOpenAiResponsesTools(),
+					tool_choice: "auto",
 				})) as any
 				yield* this.streamResponse(stream as AsyncIterable<ResponseStreamEvent>, model.info)
 			}
