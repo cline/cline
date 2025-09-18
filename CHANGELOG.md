@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.29.1]
+
+- Changeset bump + Announcement banner update
+
 ## [3.29.0]
 
 - Updated Baseten provider to fetch models from server
