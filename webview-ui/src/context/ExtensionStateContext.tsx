@@ -30,7 +30,7 @@ import {
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
-interface ExtensionStateContextType extends ExtensionState {
+export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	openRouterModels: Record<string, ModelInfo>
@@ -100,7 +100,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	onRelinquishControl: (callback: () => void) => () => void
 }
 
-const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
+export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
@@ -180,7 +180,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
-		focusChainFeatureFlagEnabled: false,
 		preferredLanguage: "English",
 		openaiReasoningEffort: "medium",
 		mode: "act",
@@ -206,6 +205,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		favoritedModelIds: [],
+
+		// NEW: Add workspace information with defaults
+		workspaceRoots: [],
+		primaryRootIndex: 0,
+		isMultiRootWorkspace: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

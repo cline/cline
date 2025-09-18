@@ -23,7 +23,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 
 	constructor(clientConfig: PostHogClientValidConfig) {
 		// Use shared PostHog client if provided, otherwise create a new one
-		this.client = new PostHog(clientConfig.apiKey, {
+		this.client = new PostHog(clientConfig.errorTrackingApiKey, {
 			host: clientConfig.host,
 			enableExceptionAutocapture: false, // NOTE: Re-enable it once the api key is set to env var
 			before_send: (event) => PostHogClientProvider.eventFilter(event),

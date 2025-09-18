@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { WorkspaceRoot } from "../core/workspace"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
@@ -55,7 +56,6 @@ export interface ExtensionState {
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
 	defaultTerminalProfile?: string
-	uriScheme?: string
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
@@ -67,10 +67,15 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
+	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
-	focusChainFeatureFlagEnabled?: boolean
 	customPrompt?: string
+	favoritedModelIds: string[]
+	// NEW: Add workspace information
+	workspaceRoots: WorkspaceRoot[]
+	primaryRootIndex: number
+	isMultiRootWorkspace: boolean
 }
 
 export interface ClineMessage {

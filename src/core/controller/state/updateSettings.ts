@@ -6,7 +6,7 @@ import {
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
-import { convertProtoApiConfigurationToApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
+import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { HostProvider } from "@/hosts/host-provider"
@@ -25,14 +25,29 @@ import { Controller } from ".."
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
-		// Update API configuration
 		if (request.apiConfiguration) {
-			const apiConfiguration = convertProtoApiConfigurationToApiConfiguration(request.apiConfiguration)
-			controller.stateManager.setApiConfiguration(apiConfiguration)
+			const protoApiConfiguration = request.apiConfiguration
+
+			const convertedApiConfigurationFromProto = {
+				...protoApiConfiguration,
+				// Convert proto ApiProvider enums to native string types
+				planModeApiProvider: protoApiConfiguration.planModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
+					: undefined,
+				actModeApiProvider: protoApiConfiguration.actModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
+					: undefined,
+			}
+
+			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
 			if (controller.task) {
 				const currentMode = await controller.getCurrentMode()
-				controller.task.api = buildApiHandler({ ...apiConfiguration, ulid: controller.task.ulid }, currentMode)
+				const apiConfigForHandler = {
+					...convertedApiConfigurationFromProto,
+					ulid: controller.task.ulid,
+				}
+				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
 			}
 		}
 
@@ -146,6 +161,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
+		// Update yolo mode setting
+		if (request.yoloModeToggled !== undefined) {
+			if (controller.task) {
+				controller.task.updateYoloModeToggled(request.yoloModeToggled)
+			}
+			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
+		}
+
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {
@@ -156,11 +179,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			const remoteEnabled = controller.stateManager.getGlobalStateKey("focusChainFeatureFlagEnabled")
-			if (remoteEnabled === false) {
-				// No-op when feature flag disabled
-			} else {
-				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
+			{
+				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled
 
@@ -186,7 +206,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update browser settings
 		if (request.browserSettings !== undefined) {
 			// Get current browser settings to preserve fields not in the request
-			const currentSettings = controller.stateManager.getGlobalStateKey("browserSettings")
+			const currentSettings = controller.stateManager.getGlobalSettingsKey("browserSettings")
 
 			// Convert from protobuf format to shared format, merging with existing settings
 			const newBrowserSettings: SharedBrowserSettings = {

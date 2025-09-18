@@ -22,8 +22,8 @@ const containerStyle: CSSProperties = {
 	flexShrink: 0,
 }
 const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
-const h3TitleStyle: CSSProperties = { margin: "0 0 8px" }
-const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px" }
+const h3TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
+const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
 const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
 	height: "1px",
@@ -80,25 +80,30 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<b>Cline is now available in JetBrains IDEs!</b>
-			<div style={{ margin: "0.3rem 0" }} />
-			Cline is now officially available for JetBrains IDEs including IntelliJ IDEA, PyCharm, WebStorm, and more! Experience
-			the same powerful AI coding assistant you love in VSCode, now in your favorite JetBrains environment. Get started at:{" "}
-			<a href="https://plugins.jetbrains.com/plugin/26861-cline">JetBrains Marketplace</a>
+			<h3 style={h3TitleStyle}>JetBrains Support is Live!</h3>
+			Our #1 most requested feature is here! Use Cline natively in IntelliJ IDEA, PyCharm, WebStorm, Android Studio, GoLand,
+			PhpStorm, and all JetBrains IDEs. Same powerful AI coding, now in your preferred development environment.
 			<div style={{ margin: "12px 0" }} />
-			<b>
-				Plus: Free <code>grok-code-fast-1</code> Until Sept 10th
-			</b>
-			<div style={{ margin: "0.3rem 0" }} />
-			We partnered with xAI to help build this model from the ground up for agentic coding, and so far–community feedback
-			has been incredible. xAI is continuously improving the model's intelligence with more usage, so give it a try today
-			and let us know what you think! Read more about it here:{" "}
-			<a href="https://x.ai/news/grok-code-fast-1">https://x.ai/news/grok-code-fast-1</a>
+			<VSCodeLink
+				href="https://cline.bot/jetbrains"
+				style={{
+					padding: "4px 8px",
+					backgroundColor: "var(--vscode-button-background)",
+					color: "var(--vscode-button-foreground)",
+					borderRadius: "2px",
+				}}>
+				Get Cline for JetBrains!
+			</VSCodeLink>
+			<div style={{ margin: "12px 0" }} />
+			<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
+			incredibly fast, and it's still available at no cost
+			<div style={{ margin: "12px 0" }} />
+			<b>Accesibility Improvements:</b> Improved screen reader support throughout Cline
 			<div style={{ margin: "18px 0" }} />
 			{user ? (
 				!didClickGrokCodeButton ? (
 					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1
+						Try grok-code-fast-1 (free)
 					</VSCodeButton>
 				) : null
 			) : (
@@ -106,6 +111,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Sign Up with Cline
 				</VSCodeButton>
 			)}
+			<div style={{ margin: "12px 0" }} />
 			<div style={{ margin: "-8px 0 -3px 0" }}>
 				<Accordion className="pl-0" isCompact>
 					<AccordionItem
@@ -120,6 +126,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						title="Previous Updates:">
 						<ul style={ulStyle}>
 							<li>
+								<b>Free grok-code-fast-1:</b> Partnered with xAI to provide free usage of grok. Community feedback
+								has been incredible and xAI is continuously improving the model's intelligence.
+							</li>
+							<li>
 								<b>Focus Chain:</b> Keeps cline focused on long-horizon tasks with automatic todo list management,
 								breaking down complex tasks into manageable steps with real-time progress tracking and passive
 								reminders.
@@ -133,10 +143,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 								<b>Deep Planning:</b> New <code>/deep-planning</code> slash command transforms Cline into an
 								architect who investigates your codebase, asks clarifying questions, and creates a comprehensive
 								plan before writing any code.
-							</li>
-							<li>
-								<b>1M Context for Claude Sonnet 4:</b> Cline/OpenRouter users get instant access, Anthropic users
-								need Tier 4, and Bedrock users must be on a supported region.
 							</li>
 						</ul>
 					</AccordionItem>

@@ -1,4 +1,4 @@
-import { ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
+import { ApiProvider, BedrockModelId, fireworksDefaultModelId, ModelInfo } from "@shared/api"
 import { ExtensionContext, LanguageModelChatSelector } from "vscode"
 import { Controller } from "@/core/controller"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -10,7 +10,7 @@ import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalState, LocalState, SecretKey, Secrets } from "../state-keys"
+import { GlobalState, GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [
@@ -140,10 +140,11 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	}
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalState> {
+export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled = context.globalState.get("strictPlanModeEnabled") as boolean | undefined
+		const yoloModeToggled = context.globalState.get<boolean | undefined>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get("useAutoCondense") as boolean | undefined
 		const isNewUser = context.globalState.get("isNewUser") as boolean | undefined
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted") as boolean | undefined
@@ -183,7 +184,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const telemetrySetting = context.globalState.get("telemetrySetting") as TelemetrySetting | undefined
 		const asksageApiUrl = context.globalState.get("asksageApiUrl") as string | undefined
 		const planActSeparateModelsSettingRaw = context.globalState.get("planActSeparateModelsSetting") as boolean | undefined
-		const favoritedModelIds = context.globalState.get("favoritedModelIds") as string[] | undefined
+		const favoritedModelIds = context.globalState.get<GlobalState["favoritedModelIds"]>("favoritedModelIds")
 		const globalClineRulesToggles = context.globalState.get("globalClineRulesToggles") as ClineRulesToggles | undefined
 		const requestTimeoutMs = context.globalState.get("requestTimeoutMs") as number | undefined
 		const shellIntegrationTimeout = context.globalState.get("shellIntegrationTimeout") as number | undefined
@@ -203,11 +204,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 		const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 		const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
-		const focusChainFeatureFlagEnabled = context.globalState.get("focusChainFeatureFlagEnabled") as boolean | undefined
 
 		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
-		const qwenCodeOauthPath = context.globalState.get("qwenCodeOauthPath") as GlobalState["qwenCodeOauthPath"]
-		const customPrompt = context.globalState.get("customPrompt") as GlobalState["customPrompt"]
+		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
+		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get("mode") as Mode | undefined
@@ -323,6 +323,18 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 		const taskHistory = await readTaskHistoryFromState(context)
 
+		// Multi-root workspace support
+		const workspaceRoots = context.globalState.get<GlobalState["workspaceRoots"]>("workspaceRoots")
+		/**
+		 * Get primary root index from global state.
+		 * The primary root is the main workspace folder that Cline focuses on when dealing with
+		 * multi-root workspaces. In VS Code, you can have multiple folders open in one workspace,
+		 * and the primary root index indicates which folder (by its position in the array, 0-based)
+		 * should be treated as the main/default working directory for operations.
+		 */
+		const primaryRootIndex = context.globalState.get<GlobalState["primaryRootIndex"]>("primaryRootIndex")
+		const multiRootEnabled = context.globalState.get<GlobalState["multiRootEnabled"]>("multiRootEnabled")
+
 		return {
 			// api configuration fields
 			claudeCodePath,
@@ -354,13 +366,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			fireworksModelMaxCompletionTokens,
 			fireworksModelMaxTokens,
 			asksageApiUrl,
-			favoritedModelIds,
+			favoritedModelIds: favoritedModelIds || [],
 			requestTimeoutMs,
 			sapAiCoreBaseUrl,
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			difyBaseUrl,
-			sapAiCoreUseOrchestrationMode,
+			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -380,7 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeRequestyModelId,
 			planModeRequestyModelInfo,
 			planModeTogetherModelId,
-			planModeFireworksModelId,
+			planModeFireworksModelId: planModeFireworksModelId || fireworksDefaultModelId,
 			planModeSapAiCoreModelId,
 			planModeSapAiCoreDeploymentId,
 			planModeGroqModelId,
@@ -412,7 +424,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeRequestyModelId,
 			actModeRequestyModelInfo,
 			actModeTogetherModelId,
-			actModeFireworksModelId,
+			actModeFireworksModelId: actModeFireworksModelId || fireworksDefaultModelId,
 			actModeSapAiCoreModelId,
 			actModeSapAiCoreDeploymentId,
 			actModeGroqModelId,
@@ -428,8 +440,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
-			focusChainFeatureFlagEnabled: focusChainFeatureFlagEnabled ?? false,
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
+			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
@@ -456,6 +468,12 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			// Multi-root workspace support
+			workspaceRoots,
+			primaryRootIndex: primaryRootIndex ?? 0,
+			// Feature flag - defaults to false
+			// For now, always return false to disable multi-root support by default
+			multiRootEnabled: multiRootEnabled ?? false,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
