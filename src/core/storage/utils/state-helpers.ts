@@ -204,6 +204,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openaiReasoningEffort = context.globalState.get("openaiReasoningEffort") as OpenaiReasoningEffort | undefined
 		const preferredLanguage = context.globalState.get("preferredLanguage") as string | undefined
 		const focusChainSettings = context.globalState.get("focusChainSettings") as FocusChainSettings | undefined
+		const lastDismissedInfoBannerVersion =
+			context.globalState.get<GlobalState["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
 
 		const mcpMarketplaceCatalog = context.globalState.get("mcpMarketplaceCatalog") as GlobalState["mcpMarketplaceCatalog"]
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
@@ -468,6 +470,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
