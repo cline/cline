@@ -247,11 +247,11 @@ export async function deleteRuleFile(
 		// Update the appropriate toggles
 		if (isGlobal) {
 			if (type === "workflow") {
-				const toggles = controller.stateManager.getGlobalStateKey("globalWorkflowToggles")
+				const toggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
+				const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 			}
