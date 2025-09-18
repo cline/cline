@@ -1,10 +1,11 @@
+import { heroui } from "@heroui/react"
+
 /** @type {import('tailwindcss').Config} */
-import heroui from "./src/hero.ts"
 
 export default {
 	content: {
 		relative: true,
-		files: ["./src/**/*.{jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{js,jsx,ts,tsx}"],
+		files: ["./src/**/*.{jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{ts,tsx}"],
 	},
 	theme: {
 		extend: {
@@ -12,7 +13,7 @@ export default {
 				"azeret-mono": ['"Azeret Mono"', "monospace"],
 			},
 			colors: {
-				background: "var(--vscode-sidebar-background)",
+				background: "var(--vscode-editor-background)",
 				border: {
 					DEFAULT: "var(--vscode-focusBorder)",
 					panel: "var(--vscode-panel-border)",
@@ -92,6 +93,17 @@ export default {
 			},
 		},
 	},
-	darkMode: ".vscode-dark",
-	plugins: [heroui],
+	darkMode: "class",
+	plugins: [
+		heroui({
+			defaultTheme: "vscode",
+			themes: {
+				vscode: {
+					colors: {
+						background: "",
+					},
+				},
+			},
+		}),
+	],
 }
