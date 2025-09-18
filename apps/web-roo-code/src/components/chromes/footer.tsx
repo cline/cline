@@ -256,6 +256,13 @@ export function Footer() {
 											)}
 										</div>
 									</li>
+									<li>
+										<Link
+											href="/legal/subprocessors"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Subprocessors
+										</Link>
+									</li>
 								</ul>
 							</div>
 							<div className="mt-10 md:mt-0">
