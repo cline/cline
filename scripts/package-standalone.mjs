@@ -246,4 +246,9 @@ function log_verbose(...args) {
 	}
 }
 
+if (process.env.SKIP_STANDALONE_PACKAGE === "true") {
+	console.log("Skipping standalone packaging (SKIP_STANDALONE_PACKAGE=true)")
+	process.exit(0)
+}
+
 await main()
