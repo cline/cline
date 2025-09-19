@@ -1227,7 +1227,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			// Check if files are being dragged
 			// If files are being dragged, do not show an error overlay anymore; we support non-image uploads on drop
-			// Previously we surfaced an error for non-image files here.
 		}
 		/**
 		 * Handles the drag over event to allow dropping.
