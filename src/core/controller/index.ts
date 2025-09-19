@@ -38,6 +38,7 @@ import {
 	GlobalFileNames,
 } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
+import { Settings } from "../storage/state-keys"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
@@ -173,7 +174,13 @@ export class Controller {
 		this.stateManager.setGlobalState("userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
+	async initTask(
+		task?: string,
+		images?: string[],
+		files?: string[],
+		historyItem?: HistoryItem,
+		taskSettings?: Partial<Settings>,
+	) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const apiConfiguration = this.stateManager.getApiConfiguration()
@@ -261,10 +268,21 @@ export class Controller {
 			historyItem,
 		)
 
+		console.log("[Controller] taskSettings", taskSettings)
+
 		// Load task settings after task creation
 		if (this.task.taskId) {
 			await this.stateManager.loadTaskSettings(this.task.taskId)
+			if (taskSettings) {
+				this.stateManager.setTaskSettingsBatch(this.task.taskId, taskSettings)
+			}
 		}
+
+		this.task.updateYoloModeToggled(this.stateManager.getGlobalSettingsKey("yoloModeToggled"))
+		this.task.updateStrictPlanMode(this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"))
+		this.task.updateUseAutoCondense(this.stateManager.getGlobalSettingsKey("useAutoCondense"))
+
+		console.log("[Controller] yoloModeToggled", this.task.yoloModeToggled)
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {

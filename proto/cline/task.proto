@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package cline;
 import "cline/common.proto";
+import "cline/state.proto";
+import "cline/models.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -36,12 +38,96 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
 }
 
+// Task-specific API configuration
+message TaskApiConfiguration {
+  // Plan mode configurations
+  optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_model_id = 101;
+  optional int64 plan_mode_thinking_budget_tokens = 102;
+  optional string plan_mode_reasoning_effort = 103;
+  optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 104;
+  optional bool plan_mode_aws_bedrock_custom_selected = 105;
+  optional string plan_mode_aws_bedrock_custom_model_base_id = 106;
+  optional string plan_mode_open_router_model_id = 107;
+  optional OpenRouterModelInfo plan_mode_open_router_model_info = 108;
+  optional string plan_mode_open_ai_model_id = 109;
+  optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 110;
+  optional string plan_mode_ollama_model_id = 111;
+  optional string plan_mode_lm_studio_model_id = 112;
+  optional string plan_mode_lite_llm_model_id = 113;
+  optional LiteLLMModelInfo plan_mode_lite_llm_model_info = 114;
+  optional string plan_mode_requesty_model_id = 115;
+  optional OpenRouterModelInfo plan_mode_requesty_model_info = 116;
+  optional string plan_mode_together_model_id = 117;
+  optional string plan_mode_fireworks_model_id = 118;
+  optional string plan_mode_sap_ai_core_model_id = 119;
+  optional string plan_mode_sap_ai_core_deployment_id = 120;
+  optional string plan_mode_groq_model_id = 121;
+  optional OpenRouterModelInfo plan_mode_groq_model_info = 122;
+  optional string plan_mode_hugging_face_model_id = 123;
+  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
+  optional string plan_mode_huawei_cloud_maas_model_id = 125;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126;
+  optional string plan_mode_baseten_model_id = 127;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
+  optional string plan_mode_vercel_ai_gateway_model_id = 129;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
+
+  // Act mode configurations
+  optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_model_id = 201;
+  optional int64 act_mode_thinking_budget_tokens = 202;
+  optional string act_mode_reasoning_effort = 203;
+  optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 204;
+  optional bool act_mode_aws_bedrock_custom_selected = 205;
+  optional string act_mode_aws_bedrock_custom_model_base_id = 206;
+  optional string act_mode_open_router_model_id = 207;
+  optional OpenRouterModelInfo act_mode_open_router_model_info = 208;
+  optional string act_mode_open_ai_model_id = 209;
+  optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 210;
+  optional string act_mode_ollama_model_id = 211;
+  optional string act_mode_lm_studio_model_id = 212;
+  optional string act_mode_lite_llm_model_id = 213;
+  optional LiteLLMModelInfo act_mode_lite_llm_model_info = 214;
+  optional string act_mode_requesty_model_id = 215;
+  optional OpenRouterModelInfo act_mode_requesty_model_info = 216;
+  optional string act_mode_together_model_id = 217;
+  optional string act_mode_fireworks_model_id = 218;
+  optional string act_mode_sap_ai_core_model_id = 219;
+  optional string act_mode_sap_ai_core_deployment_id = 220;
+  optional string act_mode_groq_model_id = 221;
+  optional OpenRouterModelInfo act_mode_groq_model_info = 222;
+  optional string act_mode_hugging_face_model_id = 223;
+  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 224;
+  optional string act_mode_huawei_cloud_maas_model_id = 225;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 226;
+  optional string act_mode_baseten_model_id = 227;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
+  optional string act_mode_vercel_ai_gateway_model_id = 229;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
+}
+
+// Task-specific settings
+message TaskSettings {
+  optional bool plan_act_separate_models_setting = 2;
+  optional PlanActMode mode = 3;
+  optional OpenaiReasoningEffort openai_reasoning_effort = 4;
+  optional string preferred_language = 5;
+  optional bool strict_plan_mode_enabled = 6;
+  optional bool use_auto_condense = 7;
+  optional FocusChainSettings focus_chain_settings = 8;
+  optional string custom_prompt = 9;
+  optional bool yolo_mode_toggled = 10;
+  optional bool enable_checkpoints_setting = 11;
+}
+
 // Request message for creating a new task
 message NewTaskRequest {
   Metadata metadata = 1;
   string text = 2;
   repeated string images = 3;
   repeated string files = 4;
+  optional TaskSettings task_settings = 5;
 }
 
 // Request message for toggling task favorite status
