@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.30.0]
+
+- Add code-supernova stealth model
+
 ## [3.29.2]
 
 - Fix: Reverted change that caused formatting issues
