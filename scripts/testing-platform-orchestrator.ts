@@ -31,17 +31,8 @@ import kill from "tree-kill"
 let showServerLogs = false
 let fix = false
 
-const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
 
-const PORT_POOL = [26040, 26042, 26043, 26044]
-let portIndex = 0
-
-function getNextPort(): number {
-	const port = PORT_POOL[portIndex]
-	portIndex = (portIndex + 1) % PORT_POOL.length
-	return port
-}
 function getAvailablePort(min = 20000, max = 49151): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const tryPort = () => {

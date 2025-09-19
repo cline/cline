@@ -20,7 +20,6 @@ jobs:
             fail-fast: false
             matrix:
                 os: [ubuntu-latest, windows-latest]
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         runs-on: ${{ matrix.os }}
         name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
         defaults:
@@ -296,7 +295,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     qlty:
-        needs: test-integration
+        needs: [test, test-integration]
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
@@ -305,15 +304,40 @@ jobs:
               with:
                   fetch-depth: 0 # Fetch all history for accurate comparison
 
-            - name: Download core-coverage artifact
+            - name: Download unit tests coverage reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: pr-coverage-reports
+                  path: .
+
+            - name: Upload core unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage-unit/lcov.info
+                  tag: unit:core
+
+            - name: Upload webview-ui unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    webview-ui/coverage/lcov.info
+                  tag: unit:webview-ui
+                  add-prefix: webview-ui/
+
+            - name: Download integration core coverage artifact
               uses: actions/download-artifact@v4
               with:
                 name: core-coverage
-                path: coverage-reports
+                path: integration-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: coverage-reports/**/lcov.info
+                files: integration-coverage-reports/**/lcov.info
                 tag: integration:core
