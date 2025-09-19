@@ -40,6 +40,7 @@ const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
 const E2E_TEST = process.env.E2E_TEST || "true"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
+const USE_C8 = process.env.USE_C8 === "true"
 
 // Locate the standalone build directory and core file with flexible path resolution
 const projectRoot = process.env.PROJECT_ROOT || path.resolve(__dirname, "..")
@@ -112,70 +113,29 @@ async function main(): Promise<void> {
 		process.exit(1)
 	}
 
-	console.log("Starting Cline Core Service...")
-
 	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
 
-	const coreService: ChildProcess = spawn(
-		"npx",
-		[
-			"c8",
-			"--reporter=lcov",
-			// "--reporter=text",
-			"--reporter=html",
-			"--exclude=**/testing-platform/**",
-			"--exclude=**/webview-ui/**",
-			"--exclude=**/.vscode-test/**",
-			"--exclude=**/node_modules/**",
-			"--exclude=node_modules",
-			"--exclude=**/dist-standalone/src/**",
-			"--exclude=**/dist-standalone/vsce-extension/https:/**",
-			"--exclude=**/dist-standalone/vsce-extension/**",
-			"--exclude=**/dist-standalone/https:/**",
-			"--exclude=**/dist-standalone/LIB/src/**",
-			"--exclude=**/dist-standalone/pdfjs-dist/**",
+	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
 
-			"--exclude=**/*.d.ts",
-			"--exclude=**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}",
-			"--exclude=**/__tests__/**",
-			"--exclude=**/test/**",
-			"--exclude=**/tests/**",
-			"--exclude=**/.nyc_output/**",
-			"--exclude=**/.vscode-test/**",
-			"--exclude=**/tests-results/**",
-			"--exclude=src/test/**",
+	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
 
-			"--exclude=**/src/xml/**",
-			"--exclude=**/standalone/**",
+	console.log(`Starting Cline Core Service... (useC8=${USE_C8})`)
 
-			"--exclude=**/src/generated/**",
-			"--exclude=**/evals/cli/dist/**",
-			"--exclude=**/evals/cli/src/**",
-			"--exclude=dist",
-			"--report-dir",
-			covDir,
-			"--all",
-			"--exclude-after-remap",
-			"node",
-			"--enable-source-maps",
-			path.join(distDir, "cline-core.js"),
-		],
-		{
-			cwd: projectRoot,
-			env: {
-				...process.env,
-				NODE_PATH: "./node_modules",
-				DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
-				PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
-				HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
-				E2E_TEST,
-				CLINE_ENVIRONMENT,
-				CLINE_DIR: userDataDir,
-				INSTALL_DIR: extensionsDir,
-			},
-			stdio: "inherit",
+	const coreService: ChildProcess = spawn("npx", spawnArgs, {
+		cwd: projectRoot,
+		env: {
+			...process.env,
+			NODE_PATH: "./node_modules",
+			DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
+			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
+			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
+			E2E_TEST,
+			CLINE_ENVIRONMENT,
+			CLINE_DIR: userDataDir,
+			INSTALL_DIR: extensionsDir,
 		},
-	)
+		stdio: "inherit",
+	})
 	childProcesses.push(coreService)
 
 	const shutdown = async () => {

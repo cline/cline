@@ -30,11 +30,11 @@ import kill from "tree-kill"
 
 let showServerLogs = false
 let fix = false
-
+let coverage = false
 const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
 
 function getAvailablePort(min = 20000, max = 49151): Promise<number> {
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve, _) => {
 		const tryPort = () => {
 			const port = Math.floor(Math.random() * (max - min + 1)) + min
 			const server = net.createServer()
@@ -77,7 +77,12 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 			stdio: showServerLogs ? "inherit" : "pipe",
-			env: { ...process.env, PROTOBUS_PORT: grpcPort, HOSTBRIDGE_PORT: hostbridgePort },
+			env: {
+				...process.env,
+				PROTOBUS_PORT: grpcPort,
+				HOSTBRIDGE_PORT: hostbridgePort,
+				USE_C8: coverage ? "true" : "false",
+			},
 		})
 
 		server.once("error", reject)
@@ -183,10 +188,11 @@ async function main() {
 	const count = Number(args.count)
 	showServerLogs = Boolean(args["server-logs"])
 	fix = Boolean(args["fix"])
+	coverage = Boolean(args["coverage"])
 
 	if (!inputPath) {
 		console.error(
-			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix]",
+			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix] [--coverage]",
 		)
 		process.exit(1)
 	}
