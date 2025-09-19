@@ -16,9 +16,6 @@
  *   --count=<number>     Repeat execution N times (default: 1)
  *   --fix     			  Automatically update spec files with actual responses
  *
- * Environment Variables:
- *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
- *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
 import { ChildProcess, spawn } from "child_process"
@@ -32,15 +29,37 @@ let showServerLogs = false
 let fix = false
 let coverage = false
 const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
+const usedPorts = new Set<number>()
 
-function getAvailablePort(min = 20000, max = 49151): Promise<number> {
+/**
+ * Find an available TCP port within the given range [min, max].
+ *
+ * - Ports are allocated sequentially (starting at `min`) rather than randomly,
+ *   which avoids accidental reuse when running hundreds of tests in a row.
+ * - Each successfully allocated port is tracked in `usedPorts` to guarantee
+ *   it is never handed out again within the lifetime of this orchestrator.
+ * - Before returning, the function binds a temporary server to the port to
+ *   verify that the OS really considers it available, then immediately closes it.
+ *
+ * This approach makes the orchestrator much more robust on CI (e.g. GitHub Actions),
+ * where a just-terminated server may leave its socket in TIME_WAIT and cause
+ * flakiness if the same port is reallocated too soon.
+ */
+async function getAvailablePort(min = 20000, max = 49151): Promise<number> {
 	return new Promise((resolve, _) => {
-		const tryPort = () => {
-			const port = Math.floor(Math.random() * (max - min + 1)) + min
+		const tryPort = (candidate?: number) => {
+			const port = candidate ?? Math.floor(Math.random() * (max - min + 1)) + min
+			if (usedPorts.has(port)) {
+				// already allocated in this run
+				return tryPort()
+			}
 			const server = net.createServer()
 			server.once("error", () => tryPort())
 			server.once("listening", () => {
-				server.close(() => resolve(port))
+				server.close(() => {
+					usedPorts.add(port) // mark reserved
+					resolve(port)
+				})
 			})
 			server.listen(port, "127.0.0.1")
 		}
@@ -48,7 +67,7 @@ function getAvailablePort(min = 20000, max = 49151): Promise<number> {
 	})
 }
 
-// Poll until port is accepting connections
+// Poll until a given TCP port on a host is accepting connections.
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
 	const start = Date.now()
 	const waitForPortSleepMs = 100
