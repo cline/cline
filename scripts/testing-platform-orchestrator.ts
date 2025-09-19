@@ -34,6 +34,29 @@ let fix = false
 const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
 const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
 
+const PORT_POOL = [26040, 26042, 26043, 26044]
+let portIndex = 0
+
+function getNextPort(): number {
+	const port = PORT_POOL[portIndex]
+	portIndex = (portIndex + 1) % PORT_POOL.length
+	return port
+}
+function getAvailablePort(min = 20000, max = 49151): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const tryPort = () => {
+			const port = Math.floor(Math.random() * (max - min + 1)) + min
+			const server = net.createServer()
+			server.once("error", () => tryPort())
+			server.once("listening", () => {
+				server.close(() => resolve(port))
+			})
+			server.listen(port, "127.0.0.1")
+		}
+		tryPort()
+	})
+}
+
 // Poll until port is accepting connections
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
 	const start = Date.now()
@@ -58,11 +81,13 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
 	return new Promise(async (resolve, reject) => {
-		const grpcPort = STANDALONE_GRPC_SERVER_PORT
+		// const grpcPort = STANDALONE_GRPC_SERVER_PORT
+		// const grpcPort = `${await getNextPort()}`
+		const grpcPort = `${await getAvailablePort()}`
 
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 			stdio: showServerLogs ? "inherit" : "pipe",
-			env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
+			env: { ...process.env, PROTOBUS_PORT: grpcPort },
 		})
 
 		server.once("error", reject)
@@ -80,7 +105,7 @@ function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
 		if (!server.pid) return resolve()
 
-		kill(server.pid, "SIGKILL", (err) => {
+		kill(server.pid, "SIGINT", (err) => {
 			if (err) console.warn("Failed to kill server process:", err)
 			server.once("exit", () => resolve())
 		})

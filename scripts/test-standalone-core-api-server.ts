@@ -114,7 +114,7 @@ async function main(): Promise<void> {
 
 	console.log("Starting Cline Core Service...")
 
-	const covDir = path.join(projectRoot, "coverage-core")
+	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
 	// const includeDur = path.join(projectRoot, "src/**/*.ts")
 
 	const coreService: ChildProcess = spawn(
@@ -135,6 +135,19 @@ async function main(): Promise<void> {
 			"--exclude=**/dist-standalone/https:/**",
 			"--exclude=**/dist-standalone/LIB/src/**",
 			"--exclude=**/dist-standalone/pdfjs-dist/**",
+
+			"--exclude=**/*.d.ts",
+			"--exclude=**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}",
+			"--exclude=**/__tests__/**",
+			"--exclude=**/test/**",
+			"--exclude=**/tests/**",
+			"--exclude=**/.nyc_output/**",
+			"--exclude=**/.vscode-test/**",
+			"--exclude=**/tests-results/**",
+			"--exclude=src/test/**",
+
+			"--exclude=**/src/xml/**",
+			"--exclude=**/standalone/**",
 
 			"--exclude=**/src/generated/**",
 			"--exclude=**/evals/cli/dist/**",

@@ -5,6 +5,7 @@ on:
     pull_request:
         branches:
             - main
+            - josec/testing-platform-run-coverage-on-github
     workflow_call:
 
 # Set default permissions for all jobs
@@ -207,6 +208,12 @@ jobs:
               # until the integration tests are ready to be enforced.
               run: |
                 npm run test:tp-orchestrator -- tests/specs/ --count=1 || true
+
+            - name: Save Coverage Reports
+              uses: actions/upload-artifact@v4
+              with:
+                name: core-coverage
+                path: coverage/**/lcov.info
 
     coverage:
         needs: test
