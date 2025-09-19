@@ -2353,7 +2353,6 @@ export class Task {
 								this.fileContextTracker,
 							)
 
-							// Note: Attachment contents are included via the explicit `files` list; no need to inject by scanning text.
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
 							const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
