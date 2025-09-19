@@ -44,8 +44,7 @@ const ToDoListHeader = memo<{
 			})}>
 			<div
 				className={cn(
-					"absolute bottom-0 left-0 transition-[width] duration-300 ease-in-out pointer-events-none z-1 h-1",
-					"bg-[linear-gradient(to_right,_var(--vscode-charts-green)_0%,_var(--vscode-charts-green)_75%,_transparent_100%)]",
+					"absolute bottom-0 left-0 transition-[width] duration-300 ease-in-out pointer-events-none z-1 h-1 bg-success",
 					{
 						"opacity-0": progressPercentage === 0 || progressPercentage === 100,
 					},
@@ -69,7 +68,7 @@ const ToDoListHeader = memo<{
 						{displayText}
 					</span>
 				</div>
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between text-foreground">
 					{isExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
 				</div>
 			</div>

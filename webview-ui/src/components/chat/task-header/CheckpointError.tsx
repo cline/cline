@@ -12,17 +12,17 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 	handleCheckpointSettingsClick,
 }) => {
 	const [dismissed, setDismissed] = useState(false)
-	if (!checkpointManagerErrorMessage || dismissed) {
-		return null
-	}
 
 	const messages = useMemo(() => {
-		const message = checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")
-		const showDisableButton = checkpointManagerErrorMessage.endsWith("disabling checkpoints.")
-		const showGitInstructions = checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.")
+		const message = checkpointManagerErrorMessage?.replace(/disabling checkpoints\.$/, "")
+		const showDisableButton = checkpointManagerErrorMessage?.endsWith("disabling checkpoints.")
+		const showGitInstructions = checkpointManagerErrorMessage?.includes("Git must be installed to use checkpoints.")
 		return { message, showDisableButton, showGitInstructions }
 	}, [checkpointManagerErrorMessage])
 
+	if (!checkpointManagerErrorMessage || dismissed) {
+		return null
+	}
 	return (
 		<div className="flex items-center justify-center w-full opacity-80 hover:opacity-100 transition-opacity duration-200">
 			<Alert

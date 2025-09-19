@@ -1,12 +1,11 @@
 import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "lodash/debounce"
-import { FoldVerticalIcon } from "lucide-react"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import { updateSetting } from "@/components/settings/utils/settingsHandlers"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 import { AutoCondenseMarker } from "./AutoCondenseMarker"
+import CompactTaskButton from "./buttons/CompactTaskButton"
 import { ContextWindowSummary } from "./ContextWindowSummary"
 
 // Type definitions
@@ -65,7 +64,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	tokensOut,
 	cacheWrites,
 	cacheReads,
-	size,
 }) => {
 	const [isOpened, setIsOpened] = useState(false)
 	const [threshold, setThreshold] = useState(useAutoCondense ? autoCondenseThreshold : 0)
@@ -206,7 +204,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									cacheWrites={cacheWrites}
 									contextWindow={tokenData.max}
 									percentage={tokenData.percentage}
-									size={size}
 									tokensIn={tokensIn}
 									tokensOut={tokensOut}
 									tokenUsed={tokenData.used}
@@ -233,8 +230,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									aria-label="Context window usage progress"
 									classNames={{
 										base: "drop-shadow-md w-full cursor-pointer",
-										track: cn("rounded max-h-2 h-3 bg-warning"),
-										indicator: "bg-success rounded-r",
+										track: cn("rounded max-h-2 h-3 bg-foreground/10"),
+										indicator: "bg-foreground rounded-r",
 										label: "tracking-wider font-medium text-foreground/80",
 										value: "text-description",
 									}}
@@ -244,8 +241,14 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									value={tokenData.percentage}
 								/>
 								{useAutoCondense && (
-									<AutoCondenseMarker key={threshold} threshold={threshold} usage={tokenData.percentage} />
+									<AutoCondenseMarker
+										isContextWindowHoverOpen={isOpened}
+										key={threshold}
+										threshold={threshold}
+										usage={tokenData.percentage}
+									/>
 								)}
+								{isOpened}
 							</div>
 						</Tooltip>
 					</div>
@@ -253,16 +256,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 						{tokenData.max}
 					</span>
 				</div>
-				<HeroTooltip content="Summarize Task to Reduce Context Usage">
-					<VSCodeButton
-						appearance="icon"
-						className="text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80"
-						onClick={handleCompactClick}
-						title="Summarize Task to Reduce Context Usage"
-						type="button">
-						<FoldVerticalIcon size={12} />
-					</VSCodeButton>
-				</HeroTooltip>
+				<CompactTaskButton onClick={handleCompactClick} />
 			</div>
 			{confirmationNeeded && <ConfirmationDialog onCancel={handleCancel} onConfirm={handleConfirm} />}
 		</div>

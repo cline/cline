@@ -9,7 +9,7 @@ import { UiServiceClient } from "@/services/grpc-client"
 import { cn } from "@/utils/cn"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
-import ForkTaskButton from "./buttons/ForkTaskButton"
+import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
 import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
@@ -44,6 +44,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
+	onClose,
 	onScrollToMessage,
 	onSendMessage,
 }) => {
@@ -93,7 +94,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
 				handleCheckpointSettingsClick={handleCheckpointSettingsClick}
-				key={checkpointManagerErrorMessage}
 			/>
 			{/* Task Header */}
 			<div
@@ -111,9 +111,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
 							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
-								<ForkTaskButton className={BUTTON_CLASS} text={task.text} />
-								<DeleteTaskButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
+								<DeleteTaskButton
+									className={BUTTON_CLASS}
+									taskId={currentTaskItem?.id}
+									taskSize={currentTaskItem?.size}
+								/>
+								{/* Only visible in development mode */}
 								{IS_DEV && <OpenDiskTaskHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />}
 							</div>
 						)}
@@ -125,7 +129,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 					</div>
-					<div>
+					<div className="inline-flex items-center justify-end select-none flex-shrink-0">
 						{isCostAvailable && (
 							<div
 								className="mr-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
@@ -133,6 +137,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								<span className="text-xs">${totalCost?.toFixed(4)}</span>
 							</div>
 						)}
+						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />
 					</div>
 				</div>
 
@@ -142,7 +147,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<div className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 max-h-20 overflow-y-auto scroll-smooth">
 							<div
 								className={
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer hover:opacity-60 transition-opacity duration-200 mt-1"
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer opacity-80 hover:opacity-100 transition-opacity duration-200 mt-1"
 								}>
 								{highlightedText}
 							</div>
@@ -159,7 +164,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							contextWindow={selectedModelInfo?.contextWindow}
 							lastApiReqTotalTokens={lastApiReqTotalTokens}
 							onSendMessage={onSendMessage}
-							size={currentTaskItem?.size}
 							tokensIn={tokensIn}
 							tokensOut={tokensOut}
 							useAutoCondense={useAutoCondense || false}

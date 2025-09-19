@@ -1,5 +1,6 @@
 import { Tooltip } from "@heroui/react"
-import React from "react"
+import React, { useMemo } from "react"
+import { cn } from "@/utils/cn"
 
 interface HeroTooltipProps {
 	content: React.ReactNode
@@ -9,6 +10,7 @@ interface HeroTooltipProps {
 	closeDelay?: number
 	placement?: "top" | "bottom" | "left" | "right"
 	showArrow?: boolean
+	disabled?: boolean
 }
 
 /**
@@ -23,34 +25,35 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 	delay = 0,
 	closeDelay = 500,
 	placement = "top",
+	disabled = false,
 }) => {
 	// If content is a simple string, wrap it in the tailwind styled divs
-	const formattedContent =
-		typeof content === "string" ? (
+	const formattedContent = useMemo(() => {
+		return typeof content === "string" ? (
 			<div
-				className={`bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] 
-      border border-[var(--vscode-widget-border)] rounded p-2 w-full shadow-md text-xs max-w-[250px] ${className}`}>
-				<div
-					className="whitespace-pre-wrap break-words max-h-[150px] overflow-y-auto text-[11px] 
-        font-[var(--vscode-editor-font-family)]  p-1 rounded">
-					{content}
-				</div>
+				className={cn(
+					"bg-code-background text-code-foreground border-1 rounded shadow-md max-w-[250px] text-sm",
+					className,
+					"p-2",
+				)}>
+				<span className="whitespace-pre-wrap break-words overflow-y-auto">{content}</span>
 			</div>
 		) : (
 			// If content is already a React node, assume it's pre-formatted
 			content
 		)
+	}, [content, className])
 
 	return (
 		<Tooltip
 			classNames={{
 				content: "hero-tooltip-content pointer-events-none", // Prevent hovering over tooltip
 			}}
-			closeDelay={0}
+			closeDelay={closeDelay}
 			content={formattedContent} // Immediate close when cursor moves away
 			delay={delay}
 			disableAnimation={true}
-			isDisabled={false}
+			isDisabled={disabled}
 			placement={placement} // Disable animation for immediate appearance/disappearance
 			showArrow={showArrow}>
 			{children}

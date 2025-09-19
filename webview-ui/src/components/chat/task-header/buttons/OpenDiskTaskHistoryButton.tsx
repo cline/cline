@@ -1,6 +1,6 @@
 import { Button } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ArrowRightFromLineIcon } from "lucide-react"
+import { ArrowDownToLineIcon } from "lucide-react"
 import { FileServiceClient } from "@/services/grpc-client"
 import { cn } from "@/utils/cn"
 
@@ -27,7 +27,7 @@ const OpenDiskTaskHistoryButton: React.FC<{
 			radius="sm"
 			size="sm"
 			title="Export Task">
-			<ArrowRightFromLineIcon size="14" />
+			<ArrowDownToLineIcon size="14" />
 		</Button>
 	)
 }

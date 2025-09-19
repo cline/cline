@@ -1,14 +1,13 @@
 import React, { memo, useEffect, useMemo, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { cn } from "@/utils/cn"
-import { formatSize, formatLargeNumber as formatTokenNumber } from "@/utils/format"
+import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 
 interface TokenUsageInfoProps {
 	tokensIn?: number
 	tokensOut?: number
 	cacheWrites?: number
 	cacheReads?: number
-	size?: number
 }
 
 interface TokenDetail {
@@ -26,12 +25,24 @@ interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 	isThresholdFadingOut?: boolean
 }
 
-const InfoRow = memo<{ label: string; value: React.ReactNode; tooltip?: string }>(({ label, value, tooltip }) => (
+const InfoRow = memo<{
+	label: string
+	value: React.ReactNode
+	tooltip?: string
+	labelTooltip?: string
+	placement: "top" | "bottom" | "left" | "right"
+}>(({ label, value, tooltip, labelTooltip, placement }) => (
 	<div className="flex justify-between gap-3">
-		<div className="font-semibold">{label}</div>
-		<div className="text-muted-foreground">
+		{labelTooltip ? (
+			<HeroTooltip content={labelTooltip} placement={placement}>
+				<div className="font-semibold">{label}</div>
+			</HeroTooltip>
+		) : (
+			<div className="font-semibold">{label}</div>
+		)}
+		<div className="text-muted-foreground cursor-auto">
 			{tooltip ? (
-				<HeroTooltip content={tooltip}>
+				<HeroTooltip content={tooltip} placement={placement}>
 					<span>{value}</span>
 				</HeroTooltip>
 			) : (
@@ -46,8 +57,8 @@ InfoRow.displayName = "InfoRow"
 const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
 	{ title: "Prompt Tokens", icon: "codicon-arrow-up" },
 	{ title: "Completion Tokens", icon: "codicon-arrow-down" },
-	{ title: "Tokens written to cache", icon: "codicon-arrow-left" },
-	{ title: "Tokens read from cache", icon: "codicon-arrow-right" },
+	{ title: "Cache Writes", icon: "codicon-arrow-left" },
+	{ title: "Cache Reads", icon: "codicon-arrow-right" },
 ]
 
 const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
@@ -57,7 +68,7 @@ const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWr
 	}, [tokensIn, tokensOut, cacheWrites, cacheReads])
 
 	const TokenDetailItem = memo<TokenDetail>(({ title, value, icon }) => (
-		<HeroTooltip content={title} key={`${icon}-${value}`}>
+		<HeroTooltip content={title} key={`${icon}-${value}`} placement="bottom">
 			<span className="flex items-center gap-0.5 text-muted-foreground">
 				<i className={`codicon ${icon} font-semibold `} />
 				{value ? formatTokenNumber(value) : ""}
@@ -72,7 +83,7 @@ const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWr
 
 	return (
 		<div className="flex items-center justify-between flex-wrap">
-			<div className="font-semibold">Token Usage</div>
+			<div className="font-semibold mr-1">Token Usage</div>
 			<div className="flex items-center justify-between flex-wrap gap-1 opacity-80">
 				{contextTokenDetails.map((item) => (
 					<TokenDetailItem key={item.icon} {...item} />
@@ -90,7 +101,6 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	tokensOut,
 	cacheWrites,
 	cacheReads,
-	size,
 	percentage,
 	autoCompactThreshold = 0,
 }) => {
@@ -121,6 +131,9 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 				<InfoRow
 					key={thresholdDisplay}
 					label="Auto Condense Threshold"
+					labelTooltip="When the context window usage exceeds current threshold, the task will be automatically condensed."
+					placement="right"
+					tooltip="Click on the context window bar to set a new auto condense threshold."
 					value={
 						<span
 							className={cn({
@@ -134,17 +147,11 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 			)}
 			<InfoRow
 				label="Context Window"
+				placement="bottom"
 				tooltip={`${tokenUsed} of ${contextWindow}`}
 				value={percentage ? `${percentage.toFixed(2)}% used` : contextWindow}
 			/>
-			<TokenUsageInfo
-				cacheReads={cacheReads}
-				cacheWrites={cacheWrites}
-				size={size}
-				tokensIn={tokensIn}
-				tokensOut={tokensOut}
-			/>
-			<InfoRow label="Size" value={formatSize(size)} />
+			<TokenUsageInfo cacheReads={cacheReads} cacheWrites={cacheWrites} tokensIn={tokensIn} tokensOut={tokensOut} />
 		</div>
 	)
 }
