@@ -16,7 +16,7 @@ import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "./zIndex"
+
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -401,7 +401,7 @@ const DropdownWrapper = styled.div`
 	width: 100%;
 `
 
-export const OPENROUTER_MODEL_PICKER_Z_INDEX = SETTINGS_DROPDOWN_BASE_Z_INDEX
+export const OPENROUTER_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
 	position: absolute;

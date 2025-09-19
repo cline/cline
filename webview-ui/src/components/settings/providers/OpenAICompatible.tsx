@@ -13,7 +13,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -128,7 +128,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					{(() => {
 						const dropdownValue = availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""
 						return (
-							<DropdownContainer className="dropdown-container" zIndex={SETTINGS_DROPDOWN_BASE_Z_INDEX + 3}>
+							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
 								<VSCodeDropdown
 									id="openai-compatible-model-id"
 									onChange={(e: any) => {

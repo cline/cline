@@ -46,7 +46,7 @@ import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { mapOptionToProviderAndDefaults, mapProviderToOption } from "./utils/providerPresets"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "./zIndex"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -57,7 +57,7 @@ interface ApiOptionsProps {
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-export const DROPDOWN_Z_INDEX = SETTINGS_DROPDOWN_BASE_Z_INDEX + 2 // Higher than other dropdowns/tooltips
+export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;

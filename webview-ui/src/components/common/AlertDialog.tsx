@@ -1,7 +1,7 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle } from "lucide-react"
 import React, { ReactNode } from "react"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../settings/zIndex"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
 
 interface AlertDialogProps {
 	open: boolean
@@ -25,7 +25,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
 		<div
 			className={`fixed inset-0 bg-black/50 flex items-center justify-center`}
 			onClick={handleBackdropClick}
-			style={{ zIndex: SETTINGS_DROPDOWN_BASE_Z_INDEX + 50 }}>
+			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 50 }}>
 			{children}
 		</div>
 	)

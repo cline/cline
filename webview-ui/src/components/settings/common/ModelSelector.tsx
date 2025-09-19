@@ -1,7 +1,6 @@
 import { ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
 
 /**
  * Container for dropdowns that ensures proper z-index handling
@@ -9,7 +8,7 @@ import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "../zIndex"
  */
 export const DropdownContainer = styled.div.attrs<{ zIndex?: number }>(({ zIndex }) => ({
 	style: {
-		zIndex: zIndex || SETTINGS_DROPDOWN_BASE_Z_INDEX,
+		zIndex: zIndex || 1000,
 	},
 }))`
 	position: relative;

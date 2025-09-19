@@ -16,7 +16,6 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { SETTINGS_DROPDOWN_BASE_Z_INDEX } from "./zIndex"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
@@ -204,7 +203,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 						placeholder="Search and select a model..."
 						style={{
 							width: "100%",
-							zIndex: SETTINGS_DROPDOWN_BASE_Z_INDEX,
+							zIndex: REQUESTY_MODEL_PICKER_Z_INDEX,
 							position: "relative",
 						}}
 						value={searchTerm}>
@@ -287,7 +286,7 @@ const DropdownWrapper = styled.div`
   width: 100%;
 `
 
-export const REQUESTY_MODEL_PICKER_Z_INDEX = SETTINGS_DROPDOWN_BASE_Z_INDEX
+export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
   position: absolute;

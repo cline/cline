@@ -9,7 +9,7 @@ import {
 	supportsImages,
 	supportsPromptCache,
 } from "../utils/pricingUtils"
-import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
+import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 
 /**
  * Returns an array of formatted tier strings
