@@ -72,13 +72,12 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
 	return new Promise(async (resolve, reject) => {
-		// const grpcPort = STANDALONE_GRPC_SERVER_PORT
-		// const grpcPort = `${await getNextPort()}`
-		const grpcPort = `${await getAvailablePort()}`
+		const grpcPort = (await getAvailablePort()).toString()
+		const hostbridgePort = (await getAvailablePort()).toString()
 
 		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 			stdio: showServerLogs ? "inherit" : "pipe",
-			env: { ...process.env, PROTOBUS_PORT: grpcPort },
+			env: { ...process.env, PROTOBUS_PORT: grpcPort, HOSTBRIDGE_PORT: hostbridgePort },
 		})
 
 		server.once("error", reject)

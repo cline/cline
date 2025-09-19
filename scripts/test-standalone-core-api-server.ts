@@ -115,7 +115,6 @@ async function main(): Promise<void> {
 	console.log("Starting Cline Core Service...")
 
 	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
-	// const includeDur = path.join(projectRoot, "src/**/*.ts")
 
 	const coreService: ChildProcess = spawn(
 		"npx",
