@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.29.2]
+
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
+
 ## [3.29.1]
 
 - Changeset bump + Announcement banner update
