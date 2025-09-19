@@ -582,14 +582,14 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 
 // Cline custom model - code-supernova
 export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 262144,
+	contextWindow: 200000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
 	cacheReadsPrice: 0,
 	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
-	description: "Stealth model for complex coding tasks with image support",
+	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
