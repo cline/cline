@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.30.2]
+
+- Fix UI tests
+
 ## [3.30.1]
 
 - Fix model list not being updated in time for user to use shortcut button to update model to stealth model
