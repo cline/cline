@@ -602,7 +602,7 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	cacheReadsPrice: 0,
-	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
+	cacheWritesPrice: 0,
 	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 // Vertex AI
