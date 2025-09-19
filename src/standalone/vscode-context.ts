@@ -9,9 +9,10 @@ import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 log("Running standalone cline", ExtensionRegistryInfo.version)
+log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
 
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
-const DATA_DIR = path.join(CLINE_DIR, "data")
+export const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
 const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
 

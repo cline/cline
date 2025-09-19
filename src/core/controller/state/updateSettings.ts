@@ -180,7 +180,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
 			{
-				const currentSettings = controller.stateManager.getGlobalStateKey("focusChainSettings")
+				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
 				const wasEnabled = currentSettings?.enabled ?? false
 				const isEnabled = request.focusChainSettings.enabled
 
@@ -206,7 +206,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update browser settings
 		if (request.browserSettings !== undefined) {
 			// Get current browser settings to preserve fields not in the request
-			const currentSettings = controller.stateManager.getGlobalStateKey("browserSettings")
+			const currentSettings = controller.stateManager.getGlobalSettingsKey("browserSettings")
 
 			// Convert from protobuf format to shared format, merging with existing settings
 			const newBrowserSettings: SharedBrowserSettings = {

@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react"
 import type { Decorator } from "@storybook/react-vite"
 import React from "react"
-import { ClineAuthProvider } from "@/context/ClineAuthContext"
+import { ClineAuthContext, ClineAuthContextType, ClineAuthProvider, useClineAuth } from "@/context/ClineAuthContext"
 import {
 	ExtensionStateContext,
 	ExtensionStateContextProvider,
@@ -52,23 +52,30 @@ function StorybookDecoratorProvider(className = "relative"): Decorator {
 
 // Wrapper component to safely use useExtensionState inside the provider
 const ExtensionStateProviderWithOverrides: React.FC<{
-	overrideStates?: Partial<ExtensionStateContextType>
+	overrides?: Partial<ExtensionStateContextType>
 	children: React.ReactNode
-}> = ({ overrideStates, children }) => {
+}> = ({ overrides, children }) => {
 	const extensionState = useExtensionState()
-	return (
-		<ExtensionStateContext.Provider value={{ ...extensionState, ...overrideStates }}>
-			{children}
-		</ExtensionStateContext.Provider>
-	)
+	return <ExtensionStateContext.Provider value={{ ...extensionState, ...overrides }}>{children}</ExtensionStateContext.Provider>
+}
+
+const ClineAuthProviderWithOverrides: React.FC<{
+	overrides?: Partial<ClineAuthContextType>
+	children: React.ReactNode
+}> = ({ overrides, children }) => {
+	const authContext = useClineAuth()
+	return <ClineAuthContext.Provider value={{ ...authContext, ...overrides }}>{children}</ClineAuthContext.Provider>
 }
 
 export const createStorybookDecorator =
-	(overrideStates?: Partial<ExtensionStateContextType>, classNames?: string) => (Story: any) => (
-		<ExtensionStateProviderWithOverrides overrideStates={overrideStates}>
-			<div className={cn("max-w-lg mx-auto", classNames)}>
-				<Story />
-			</div>
+	(overrideStates?: Partial<ExtensionStateContextType>, classNames?: string, authOverrides?: Partial<ClineAuthContextType>) =>
+	(Story: any) => (
+		<ExtensionStateProviderWithOverrides overrides={overrideStates}>
+			<ClineAuthProviderWithOverrides overrides={authOverrides}>
+				<div className={cn("max-w-lg mx-auto", classNames)}>
+					<Story />
+				</div>
+			</ClineAuthProviderWithOverrides>
 		</ExtensionStateProviderWithOverrides>
 	)
 

@@ -1,4 +1,4 @@
-import { ApiProvider, ModelInfo } from "@shared/api"
+import { ApiProvider, ModelInfo, type OcaModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
 import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
@@ -18,7 +18,31 @@ export type GlobalStateKey = keyof GlobalState
 
 export type LocalStateKey = keyof LocalState
 
+export type SettingsKey = keyof Settings
+
+export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
+
+export type GlobalStateAndSettings = GlobalState & Settings
+
 export interface GlobalState {
+	lastShownAnnouncementId: string | undefined
+	taskHistory: HistoryItem[]
+	userInfo: UserInfo | undefined
+	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
+	favoritedModelIds: string[]
+	mcpMarketplaceEnabled: boolean
+	mcpResponsesCollapsed: boolean
+	terminalReuseEnabled: boolean
+	isNewUser: boolean
+	welcomeViewCompleted: boolean | undefined
+	mcpDisplayMode: McpDisplayMode
+	// Multi-root workspace support
+	workspaceRoots: WorkspaceRoot[] | undefined
+	primaryRootIndex: number
+	multiRootEnabled: boolean
+}
+
+export interface Settings {
 	awsRegion: string | undefined
 	awsUseCrossRegionInference: boolean | undefined
 	awsBedrockUsePromptCache: boolean | undefined
@@ -28,8 +52,6 @@ export interface GlobalState {
 	awsUseProfile: boolean | undefined
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
-	lastShownAnnouncementId: string | undefined
-	taskHistory: HistoryItem[]
 	requestyBaseUrl: string | undefined
 	openAiBaseUrl: string | undefined
 	openAiHeaders: Record<string, string>
@@ -45,7 +67,6 @@ export interface GlobalState {
 	globalClineRulesToggles: ClineRulesToggles
 	globalWorkflowToggles: ClineRulesToggles
 	browserSettings: BrowserSettings
-	userInfo: UserInfo | undefined
 	liteLlmBaseUrl: string | undefined
 	liteLlmUsePromptCache: boolean | undefined
 	fireworksModelMaxCompletionTokens: number | undefined
@@ -53,22 +74,14 @@ export interface GlobalState {
 	qwenApiLine: string | undefined
 	moonshotApiLine: string | undefined
 	zaiApiLine: string | undefined
-	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	telemetrySetting: TelemetrySetting
 	asksageApiUrl: string | undefined
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting: boolean
-	mcpMarketplaceEnabled: boolean
-	favoritedModelIds: string[]
 	requestTimeoutMs: number | undefined
 	shellIntegrationTimeout: number
-	mcpResponsesCollapsed: boolean
-	terminalReuseEnabled: boolean
 	defaultTerminalProfile: string
-	isNewUser: boolean
-	welcomeViewCompleted: boolean | undefined
 	terminalOutputLineLimit: number
-	mcpDisplayMode: McpDisplayMode
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
@@ -84,12 +97,8 @@ export interface GlobalState {
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
-	autoCondenseThreshold: number | undefined // percentage 0-100
-
-	// Multi-root workspace support
-	workspaceRoots: WorkspaceRoot[] | undefined
-	primaryRootIndex: number
-	multiRootEnabled: boolean
+	autoCondenseThreshold: number | undefined // number from 0 to 1
+	ocaBaseUrl: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -121,6 +130,8 @@ export interface GlobalState {
 	planModeHuggingFaceModelInfo: ModelInfo | undefined
 	planModeHuaweiCloudMaasModelId: string | undefined
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeOcaModelId: string | undefined
+	planModeOcaModelInfo: OcaModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -155,6 +166,8 @@ export interface GlobalState {
 	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeVercelAiGatewayModelId: string | undefined
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeOcaModelId: string | undefined
+	actModeOcaModelInfo: OcaModelInfo | undefined
 }
 
 export interface Secrets {
@@ -193,6 +206,8 @@ export interface Secrets {
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
+	ocaApiKey: string | undefined
+	ocaRefreshToken: string | undefined
 }
 
 export interface LocalState {

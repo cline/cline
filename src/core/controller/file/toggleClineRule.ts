@@ -24,7 +24,7 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 
 	// This is the same core logic as in the original handler
 	if (isGlobal) {
-		const toggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
+		const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		toggles[rulePath] = enabled
 		controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 	} else {
@@ -41,7 +41,7 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	}
 
 	// Get the current state to return in the response
-	const globalToggles = controller.stateManager.getGlobalStateKey("globalClineRulesToggles")
+	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const localToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 
 	return ToggleClineRules.create({

@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
@@ -76,8 +77,37 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			command = fixModelHtmlEscaping(command)
 		}
 
+		// Handle multi-workspace command execution
+		let executionDir: string = config.cwd
+		let actualCommand: string = command
+
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			// Check if command has a workspace hint prefix
+			// e.g., "@backend:npm install" or just "npm install"
+			const commandMatch = command.match(/^@(\w+):(.+)$/)
+
+			if (commandMatch) {
+				const workspaceHint = commandMatch[1]
+				actualCommand = commandMatch[2].trim()
+
+				// Find the workspace root for this hint
+				const adapter = new WorkspacePathAdapter({
+					cwd: config.cwd,
+					isMultiRootEnabled: true,
+					workspaceManager: config.workspaceManager,
+				})
+
+				// Resolve to get the workspace directory
+				executionDir = adapter.resolvePath(".", workspaceHint)
+
+				// Update command to remove the workspace prefix for display
+				command = actualCommand
+			}
+			// If no hint, use primary workspace (cwd)
+		}
+
 		// Check clineignore validation for command
-		const ignoredFileAttemptedToAccess = config.services.clineIgnoreController.validateCommand(command)
+		const ignoredFileAttemptedToAccess = config.services.clineIgnoreController.validateCommand(actualCommand)
 		if (ignoredFileAttemptedToAccess) {
 			await config.callbacks.say("clineignore_error", ignoredFileAttemptedToAccess)
 			return formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
@@ -95,21 +125,21 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
-			await config.callbacks.say("command", command, undefined, undefined, false)
+			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 			didAutoApprove = true
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
 			showNotificationForApprovalIfAutoApprovalEnabled(
-				`Cline wants to execute a command: ${command}`,
+				`Cline wants to execute a command: ${actualCommand}`,
 				config.autoApprovalSettings.enabled,
 				config.autoApprovalSettings.enableNotifications,
 			)
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
 				"command",
-				command + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
+				actualCommand + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
 				config,
 			)
 			if (!didApprove) {
@@ -131,8 +161,15 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			}, 30_000)
 		}
 
-		// Execute the command
-		const [userRejected, result] = await config.callbacks.executeCommandTool(command, timeoutSeconds)
+		// Execute the command in the correct directory
+		// If executionDir is different from cwd, prepend cd command
+		let finalCommand: string = actualCommand
+		if (executionDir !== config.cwd) {
+			// Use && to chain commands so they run in sequence
+			finalCommand = `cd "${executionDir}" && ${actualCommand}`
+		}
+
+		const [userRejected, result] = await config.callbacks.executeCommandTool(finalCommand, timeoutSeconds)
 
 		if (timeoutId) {
 			clearTimeout(timeoutId)
