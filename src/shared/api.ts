@@ -541,6 +541,14 @@ export const bedrockModels = {
 		inputPrice: 1.35,
 		outputPrice: 5.4,
 	},
+	"deepseek.v3-v1:0": {
+		maxTokens: 8_000,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.58,
+		outputPrice: 1.68,
+	},
 	"openai.gpt-oss-120b-1:0": {
 		maxTokens: 8192,
 		contextWindow: 128_000,
