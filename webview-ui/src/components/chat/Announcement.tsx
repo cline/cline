@@ -109,11 +109,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						Try code-supernova
 					</VSCodeButton>
 				) : null
-			) : (
-				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
-					Sign Up with Cline
-				</VSCodeButton>
-			)}
+			) : null}
 			<div style={{ margin: "12px 0" }} />
 			<b>Continued Grok Promotion:</b> Free grok-code-fast-1 access extended!
 			<div style={{ margin: "10px 0" }} />
@@ -124,7 +120,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					</VSCodeButton>
 				) : null
 			) : (
-				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
+				<VSCodeButton appearance="primary" onClick={handleShowAccount}>
 					Sign Up with Cline
 				</VSCodeButton>
 			)}
