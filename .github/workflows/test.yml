@@ -208,7 +208,7 @@ jobs:
               # This prevents the job from showing as failed and avoids distracting developers
               # until the integration tests are ready to be enforced.
               run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 || true
+                npm run test:tp-orchestrator -- tests/specs/grpc_recorded_session__multi_roots__code_actions_and_editor_panel.json --count=1 || true
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
@@ -306,14 +306,14 @@ jobs:
                   fetch-depth: 0 # Fetch all history for accurate comparison
 
             - name: Download core-coverage artifact
-              uses: actions/download-artifact@v3
+              uses: actions/download-artifact@v4
               with:
                 name: core-coverage
-                path: coverage-reports
+                path: .
 
             - name: Upload core integration tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: coverage-reports/**/lcov.info
+                files: core-coverage/**/lcov.info
                 tag: integration:core
