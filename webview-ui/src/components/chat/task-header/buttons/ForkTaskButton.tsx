@@ -1,8 +1,7 @@
-import { Button } from "@heroui/react"
+import { Button, cn } from "@heroui/react"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { GitCompareIcon } from "lucide-react"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { cn } from "@/utils/cn"
 
 const ForkTaskButton: React.FC<{
 	text?: string

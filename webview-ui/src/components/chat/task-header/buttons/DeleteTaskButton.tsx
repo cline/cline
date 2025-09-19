@@ -1,9 +1,8 @@
-import { Button } from "@heroui/react"
+import { Button, cn } from "@heroui/react"
 import { StringArrayRequest } from "@shared/proto/cline/common"
 import { TrashIcon } from "lucide-react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { cn } from "@/utils/cn"
 import { formatSize } from "@/utils/format"
 
 const DeleteTaskButton: React.FC<{

@@ -1,6 +1,5 @@
-import { Tooltip } from "@heroui/react"
+import { cn, Tooltip } from "@heroui/react"
 import React, { useMemo } from "react"
-import { cn } from "@/utils/cn"
 
 interface HeroTooltipProps {
 	content: React.ReactNode

@@ -43,7 +43,6 @@
 		"rehype-remark": "^10.0.1",
 		"remark-stringify": "^11.0.0",
 		"styled-components": "^6.1.15",
-		"tailwind-merge": "^3.3.1",
 		"unified": "^11.0.5",
 		"uuid": "^9.0.1"
 	},

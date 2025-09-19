@@ -1,8 +1,8 @@
 import { Button } from "@heroui/button"
+import { cn } from "@heroui/react"
 import { CheckIcon, CopyIcon } from "lucide-react"
 import { useCallback, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
-import { cn } from "@/utils/cn"
 
 const CopyTaskButton: React.FC<{
 	taskText?: string
