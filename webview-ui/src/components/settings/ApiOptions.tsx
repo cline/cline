@@ -52,6 +52,47 @@ type OpenAICompatiblePreset = {
 	defaults?: { openAiBaseUrl?: string }
 }
 
+function renderHighlightedLabel(html: string): JSX.Element[] {
+    const OPEN = '<span class="provider-item-highlight">'
+    const CLOSE = '</span>'
+    const nodes: JSX.Element[] = []
+    let i = 0
+    let key = 0
+
+    while (i < html.length) {
+        const start = html.indexOf(OPEN, i)
+        if (start === -1) {
+            const text = html.slice(i)
+            if (text) {
+                nodes.push(<span key={`t-${key++}`}>{text}</span>)
+            }
+            break
+        }
+        const pre = html.slice(i, start)
+        if (pre) {
+            nodes.push(<span key={`t-${key++}`}>{pre}</span>)
+        }
+
+        const end = html.indexOf(CLOSE, start + OPEN.length)
+        if (end === -1) {
+            const rest = html.slice(start)
+            if (rest) {
+                nodes.push(<span key={`t-${key++}`}>{rest}</span>)
+            }
+            break
+        }
+        const highlighted = html.slice(start + OPEN.length, end)
+        nodes.push(
+            <span className="provider-item-highlight" key={`h-${key++}`}>
+                {highlighted}
+            </span>,
+        )
+        i = end + CLOSE.length
+    }
+
+    return nodes
+}
+
 const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
 	portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
 }
@@ -448,7 +489,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									ref={(el) => {
 										itemRefs.current[index] = el
 									}}>
-									<span dangerouslySetInnerHTML={{ __html: item.html }} />
+									{renderHighlightedLabel(item.html)}
 								</ProviderDropdownItem>
 							))}
 						</ProviderDropdownList>
