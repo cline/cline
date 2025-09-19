@@ -478,7 +478,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<ProviderDropdownList ref={dropdownListRef}>
+						<ProviderDropdownList
+							ref={dropdownListRef}
+							onWheel={(e) => {
+								const el = e.currentTarget
+								const delta = e.deltaY
+								const atTop = el.scrollTop === 0
+								const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+								// When the list is at its boundaries, prevent default to avoid scroll chaining
+								if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+									e.preventDefault()
+								}
+								// Always stop propagation so parent containers don't react to wheel
+								e.stopPropagation()
+							}}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
 									data-testid={`provider-option-${item.value}`}
