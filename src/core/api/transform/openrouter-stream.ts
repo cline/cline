@@ -139,10 +139,6 @@ export async function createOpenRouterStream(
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
-		case "cline/sonic":
-			temperature = 0.7
-			topP = 0.95
-			break
 		default:
 			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
 				temperature = undefined // extended thinking does not support non-1 temperature
