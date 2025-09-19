@@ -45,7 +45,69 @@ import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
-import { mapOptionToProviderAndDefaults, mapProviderToOption } from "./utils/providerPresets"
+// Inline OpenAI-compatible provider presets (minimize external file churn)
+type OpenAICompatiblePreset = {
+    provider: "openai"
+    defaults?: { openAiBaseUrl?: string }
+}
+
+const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
+    portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
+}
+
+function mapOptionToProviderAndDefaults(optionValue: string): {
+    provider: string
+    defaults?: { openAiBaseUrl?: string }
+} {
+    const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
+    if (preset) {
+        return { provider: preset.provider, defaults: preset.defaults }
+    }
+    return { provider: optionValue }
+}
+
+function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
+    if (provider !== "openai") {
+        return provider
+    }
+
+    const base = (openAiBaseUrl || "").trim()
+    try {
+        const input = new URL(base)
+        const host = input.hostname.toLowerCase()
+        // Any gateway under the Portkey domain should be treated as the Portkey preset
+        if (host === "portkey.ai" || host.endsWith(".portkey.ai")) {
+            return "portkey"
+        }
+    } catch {
+        // ignore parse errors and fall back to preset loop below
+    }
+
+    // Fallback: attempt exact preset matching (useful if other presets are added later)
+    for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
+        const presetUrl = preset.defaults?.openAiBaseUrl
+        if (!presetUrl) continue
+        try {
+            const input = new URL(base)
+            const presetParsed = new URL(presetUrl)
+            const inputHost = input.hostname.toLowerCase()
+            const presetHost = presetParsed.hostname.toLowerCase()
+            const inputPath = input.pathname || "/"
+            const presetPath = presetParsed.pathname || "/"
+
+            const isSameHost = inputHost === presetHost
+            const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+            const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+            if ((isSameHost || isSubdomain) && isPathCompatible) {
+                return option
+            }
+        } catch {
+            // Fall through; if parsing fails we won't match this preset
+        }
+    }
+    return provider
+}
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
