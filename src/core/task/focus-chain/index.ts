@@ -31,7 +31,6 @@ export interface FocusChainDependencies {
 export class FocusChainManager {
 	private taskId: string
 	private taskState: TaskState
-	private mode: Mode
 	private context: vscode.ExtensionContext
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
@@ -50,7 +49,6 @@ export class FocusChainManager {
 	constructor(dependencies: FocusChainDependencies) {
 		this.taskId = dependencies.taskId
 		this.taskState = dependencies.taskState
-		this.mode = dependencies.mode
 		this.context = dependencies.context
 		this.stateManager = dependencies.stateManager
 		this.postStateToWebview = dependencies.postStateToWebview
@@ -74,16 +72,6 @@ export class FocusChainManager {
 		} catch (error) {
 			console.error("Error initializing focus chain remote feature flags:", error)
 		}
-	}
-
-	/**
-	 * Updates the local mode state to reflect the current Plan/Act mode.
-	 * Called when the task switches between planning and execution modes.
-	 * @param mode - The new Mode value ("plan" or "act")
-	 * @returns void - No return value
-	 */
-	public updateMode(mode: Mode) {
-		this.mode = mode
 	}
 
 	/**
@@ -307,7 +295,7 @@ ${this.taskState.currentFocusChainChecklist}
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
-		else if (this.mode === "plan") {
+		else if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
 			return `\n
 # Todo List (Optional - Plan Mode)\n
 \n
@@ -454,7 +442,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	public shouldIncludeFocusChainInstructions(): boolean {
 		// Always include when in Plan mode
-		const inPlanMode = this.mode === "plan"
+		const inPlanMode = this.stateManager.getGlobalSettingsKey("mode") === "plan"
 		// Always include when switching from Plan > Act
 		const justSwitchedFromPlanMode = this.taskState.didRespondToPlanAskBySwitchingMode
 		// Always include when user had edited the list manually

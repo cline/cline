@@ -237,16 +237,6 @@ export class Controller {
 			() => this.postStateToWebview(),
 			(taskId) => this.reinitExistingTaskFromId(taskId),
 			() => this.cancelTask(),
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			effectiveFocusChainSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled ?? true,
-			yoloModeToggled,
-			useAutoCondense ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
@@ -297,7 +287,6 @@ export class Controller {
 
 		// Additional safety
 		if (this.task) {
-			this.task.updateMode(modeToSwitchTo)
 			return true
 		}
 		return false
@@ -321,7 +310,6 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.updateMode(modeToSwitchTo)
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
