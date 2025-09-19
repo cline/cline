@@ -332,25 +332,25 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node scripts/run-esbuild.mjs",
-		"compile-standalone": "npm run check-types && npm run lint && node scripts/run-esbuild.mjs --standalone",
+		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
+		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node scripts/run-esbuild.mjs --watch",
+		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node scripts/run-esbuild.mjs --production",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
-		"postprotos": "node scripts/run-biome.mjs format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
+		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"clean:deps": "rimraf node_modules webview-ui/node_modules",
 		"clean:all": "npm run clean:build && npm run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b",
-		"lint": "node scripts/run-biome.mjs lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && node scripts/run-buf.mjs lint",
-		"format": "node scripts/run-biome.mjs format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
-		"format:fix": "node scripts/run-biome.mjs check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
-		"fix:all": "node scripts/run-biome.mjs check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
+		"lint": "biome lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && buf lint",
+		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
+		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
+		"fix:all": "biome check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:ci": "node scripts/test-ci.js",
@@ -379,7 +379,7 @@
 	},
 	"lint-staged": {
 		"*": [
-			"node scripts/run-biome.mjs check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
 	},
 	"devDependencies": {
