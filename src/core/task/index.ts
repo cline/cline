@@ -76,6 +76,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
 import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
+import { DEFAULT_ATTACHMENTS_TASK_ID } from "@/shared/attachments"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -756,7 +757,7 @@ export class Task {
 	private async reassignDefaultAttachmentsToThisTask(files?: string[]): Promise<string[] | undefined> {
 		if (!files || files.length === 0) return files
 		try {
-			const defaultRoot = await getAttachmentsRoot(this.controller.context, "default")
+			const defaultRoot = await getAttachmentsRoot(this.controller.context, DEFAULT_ATTACHMENTS_TASK_ID)
 			const destRoot = await getAttachmentsRoot(this.controller.context, this.taskId)
 			return await reassignPathsBetweenRoots(files, defaultRoot, destRoot)
 		} catch (err) {
@@ -2352,7 +2353,6 @@ export class Task {
 								this.urlContentFetcher,
 								this.fileContextTracker,
 							)
-
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
 							const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(

@@ -2,7 +2,7 @@ import { Controller } from "@core/controller"
 import { getAttachmentsRoot } from "@core/storage/disk"
 import { DeleteUploadedFilesRequest, DeleteUploadedFilesResponse } from "@shared/proto/cline/file"
 import * as fs from "fs/promises"
-import { extractTaskIdFromAttachmentPath } from "@/shared/attachments"
+import { DEFAULT_ATTACHMENTS_TASK_ID, extractTaskIdFromAttachmentPath } from "@/shared/attachments"
 import { isLocatedInPath } from "@/utils/path"
 
 /**
@@ -15,10 +15,6 @@ export async function deleteUploadedFiles(
 	const deleted: string[] = []
 	const failed: string[] = []
 
-	// Helper to extract taskId from an absolute attachment path, expecting:
-	// <globalStorage>/tasks/{taskId}/attachments/...
-	const extractTaskId = (p: string): string | undefined => extractTaskIdFromAttachmentPath(p)
-
 	for (const absPath of request.paths) {
 		try {
 			if (!absPath) {
@@ -27,7 +23,7 @@ export async function deleteUploadedFiles(
 			}
 
 			// Prefer deriving the taskId from the provided path to avoid relying on ambient state
-			const derivedTaskId = extractTaskId(absPath) || request.taskId || "default"
+			const derivedTaskId = extractTaskIdFromAttachmentPath(absPath) || request.taskId || DEFAULT_ATTACHMENTS_TASK_ID
 			const root = await getAttachmentsRoot(controller.context, derivedTaskId)
 
 			if (!isLocatedInPath(root, absPath)) {

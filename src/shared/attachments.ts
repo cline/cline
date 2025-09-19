@@ -1,5 +1,8 @@
 // Shared helpers for working with attachment paths across extension and webview
 
+// Default task bucket used for transient uploads before a task is created/selected
+export const DEFAULT_ATTACHMENTS_TASK_ID = "default"
+
 // Matches (optionally) .../globalStorage/<extensionId>/ followed by tasks/{taskId}/attachments
 // We normalize to forward slashes before testing.
 const ATTACHMENT_PATH_RE = /(?:^|\/)\/?(?:globalStorage\/[^/]+\/)?tasks\/([^/]+)\/attachments(?:\/.+|$)/
