@@ -286,7 +286,6 @@ export class Task {
 				taskState: this.taskState,
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
-				globalStoragePath: controller.context.globalStorageUri.fsPath,
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
@@ -1342,7 +1341,7 @@ export class Task {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
+		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt }
 	}
 

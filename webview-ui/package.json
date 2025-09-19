@@ -12,7 +12,9 @@
 		"test": "vitest run",
 		"test:watch": "vitest dev",
 		"test:coverage": "vitest run --coverage",
-		"devtools": "react-devtools"
+		"devtools": "react-devtools",
+		"storybook": "storybook dev -p 6006",
+		"build-storybook": "storybook build"
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
@@ -45,6 +47,7 @@
 		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
+		"@storybook/react-vite": "^9.1.6",
 		"@tailwindcss/vite": "^4.1.4",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
@@ -61,6 +64,7 @@
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
 		"react-devtools": "^6.1.2",
+		"storybook": "^9.1.6",
 		"tailwindcss": "^4.1.5",
 		"typescript": "^5.7.3",
 		"vite": "^6.3.4",

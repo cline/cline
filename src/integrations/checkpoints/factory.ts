@@ -37,7 +37,6 @@ type BuildArgs = {
 	context: vscode.ExtensionContext
 	// multi-root deps
 	workspaceManager?: WorkspaceRootManager
-	globalStoragePath: string
 
 	// callbacks for single-root TaskCheckpointManager
 	updateTaskHistory: (historyItem: any) => Promise<any[]>
@@ -65,7 +64,6 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		taskState,
 		context,
 		workspaceManager,
-		globalStoragePath,
 		updateTaskHistory,
 		say,
 		cancelTask,
@@ -76,13 +74,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 
 	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints })) {
 		// Multi-root manager (init should be kicked off externally, non-blocking)
-		return new MultiRootCheckpointManager(
-			workspaceManager!,
-			taskId,
-			globalStoragePath,
-			enableCheckpoints,
-			messageStateHandler,
-		)
+		return new MultiRootCheckpointManager(workspaceManager!, taskId, enableCheckpoints, messageStateHandler)
 	}
 
 	// Single-root manager

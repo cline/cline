@@ -7,6 +7,8 @@
 
 import * as path from "path"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"
+import { parseWorkspaceInlinePath } from "./utils/parseWorkspaceInlinePath"
+import { WorkspacePathAdapter } from "./WorkspacePathAdapter"
 import { WorkspaceRoot } from "./WorkspaceRoot"
 
 /**
@@ -251,11 +253,77 @@ export class WorkspaceResolver {
 export const workspaceResolver = new WorkspaceResolver()
 
 /**
- * Phase 0: Convenience function for easy migration from path.resolve()
- * This is what we'll use to replace existing path.resolve(cwd, ...) calls
+ * Result type for multi-root workspace path resolution
  */
-export function resolveWorkspacePath(cwd: string, relativePath: string, context?: string): string {
-	return workspaceResolver.resolveWorkspacePath(cwd, relativePath, context) as string
+export interface WorkspacePathResult {
+	absolutePath: string
+	displayPath: string
+	resolvedPath: string
+}
+
+/**
+ * Configuration for workspace path resolution
+ */
+export interface WorkspaceConfig {
+	cwd: string
+	isMultiRootEnabled?: boolean
+	workspaceManager?: any
+}
+
+/**
+ * Enhanced workspace path resolution that handles both single and multi-root workspaces
+ *
+ * @param cwdOrConfig - Either a string (for backward compatibility) or a config object
+ * @param relativePath - The relative path to resolve
+ * @param context - Component/handler name for tracking usage
+ * @returns Either a string (for backward compatibility) or a WorkspacePathResult object
+ */
+export function resolveWorkspacePath(
+	cwdOrConfig: string | WorkspaceConfig,
+	relativePath: string,
+	context?: string,
+): string | WorkspacePathResult {
+	// Backward compatibility: if first param is a string, return string
+	if (typeof cwdOrConfig === "string") {
+		return workspaceResolver.resolveWorkspacePath(cwdOrConfig, relativePath, context) as string
+	}
+
+	// New behavior: handle multi-root workspaces
+	const config = cwdOrConfig
+
+	// If multi-root is enabled and we have a workspace manager
+	if (config.isMultiRootEnabled && config.workspaceManager) {
+		// Parse workspace hint from the path (e.g., @frontend:src/index.ts)
+		const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relativePath)
+
+		// Create adapter for multi-workspace path resolution
+		const adapter = new WorkspacePathAdapter({
+			cwd: config.cwd,
+			isMultiRootEnabled: true,
+			workspaceManager: config.workspaceManager,
+		})
+
+		// Resolve to the correct workspace root
+		const absolutePath = adapter.resolvePath(parsedPath, workspaceHint)
+
+		// Build display path with workspace hint if present
+		const displayPath = workspaceHint ? `@${workspaceHint}:${parsedPath}` : parsedPath
+
+		return {
+			absolutePath,
+			displayPath,
+			resolvedPath: parsedPath,
+		}
+	}
+
+	// Fallback to single-workspace behavior
+	const absolutePath = workspaceResolver.resolveWorkspacePath(config.cwd, relativePath, context) as string
+
+	return {
+		absolutePath,
+		displayPath: relativePath,
+		resolvedPath: relativePath,
+	}
 }
 
 /**

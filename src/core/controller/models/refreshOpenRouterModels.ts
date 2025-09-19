@@ -1,4 +1,4 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -6,7 +6,7 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import { CLAUDE_SONNET_4_1M_TIERS, clineMicrowaveAlphaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { CLAUDE_SONNET_4_1M_TIERS, clineCodeSupernovaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
 import { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -77,7 +77,7 @@ export async function refreshOpenRouterModels(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 	try {
@@ -222,20 +222,20 @@ export async function refreshOpenRouterModels(
 				}
 			}
 
-			// Add hardcoded cline/sonic model
-			models["cline/sonic"] = OpenRouterModelInfo.create({
-				maxTokens: clineMicrowaveAlphaModelInfo.maxTokens ?? 0,
-				contextWindow: clineMicrowaveAlphaModelInfo.contextWindow ?? 0,
-				supportsImages: clineMicrowaveAlphaModelInfo.supportsImages ?? false,
-				supportsPromptCache: clineMicrowaveAlphaModelInfo.supportsPromptCache ?? false,
-				inputPrice: clineMicrowaveAlphaModelInfo.inputPrice ?? 0,
-				outputPrice: clineMicrowaveAlphaModelInfo.outputPrice ?? 0,
-				cacheWritesPrice: clineMicrowaveAlphaModelInfo.cacheWritesPrice ?? 0,
-				cacheReadsPrice: clineMicrowaveAlphaModelInfo.cacheReadsPrice ?? 0,
-				description: clineMicrowaveAlphaModelInfo.description ?? "",
-				thinkingConfig: clineMicrowaveAlphaModelInfo.thinkingConfig ?? undefined,
-				supportsGlobalEndpoint: clineMicrowaveAlphaModelInfo.supportsGlobalEndpoint ?? undefined,
-				tiers: clineMicrowaveAlphaModelInfo.tiers ?? [],
+			// Add hardcoded stealth model
+			models["cline/code-supernova"] = OpenRouterModelInfo.create({
+				maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
+				contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
+				supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
+				supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
+				inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
+				outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
+				cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
+				cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
+				description: clineCodeSupernovaModelInfo.description ?? "",
+				thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
+				supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
+				tiers: clineCodeSupernovaModelInfo.tiers ?? [],
 			})
 		} else {
 			console.error("Invalid response from OpenRouter API")
@@ -259,7 +259,7 @@ export async function refreshOpenRouterModels(
  * Reads cached OpenRouter models from disk
  */
 async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 	if (fileExists) {
 		try {
@@ -271,13 +271,4 @@ async function readOpenRouterModels(controller: Controller): Promise<Record<stri
 		}
 	}
 	return undefined
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }

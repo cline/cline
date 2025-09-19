@@ -14,10 +14,11 @@
  * Flags:
  *   --server-logs        Show server logs (hidden by default)
  *   --count=<number>     Repeat execution N times (default: 1)
+ *   --fix     			  Automatically update spec files with actual responses
  *
  * Environment Variables:
- *   HOSTBRIDGE_PORT      gRPC server port (default: 26040)
- *   SERVER_BOOT_DELAY    Server startup delay in ms (default: 3000)
+ *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
+ *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
 import { ChildProcess, spawn } from "child_process"
@@ -26,9 +27,10 @@ import minimist from "minimist"
 import path from "path"
 
 const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
-const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 3000
+const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 1300
 
 let showServerLogs = false
+let fix = false
 
 function startServer(): Promise<ChildProcess> {
 	return new Promise((resolve, reject) => {
@@ -63,12 +65,12 @@ function stopServer(server: ChildProcess): Promise<void> {
 
 function runTestingPlatform(specFile: string): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const testProcess = spawn("npx", ["ts-node", "index.ts", specFile], {
+		const testProcess = spawn("npx", ["ts-node", "index.ts", specFile, ...(fix ? ["--fix"] : [])], {
 			cwd: path.join(process.cwd(), "testing-platform"),
 			stdio: "inherit",
 			env: {
 				...process.env,
-				HOSTBRIDGE_PORT: STANDALONE_GRPC_SERVER_PORT,
+				STANDALONE_GRPC_SERVER_PORT,
 			},
 		})
 
@@ -142,9 +144,12 @@ async function main() {
 	const inputPath = args._[0]
 	const count = Number(args.count)
 	showServerLogs = Boolean(args["server-logs"])
+	fix = Boolean(args["fix"])
 
 	if (!inputPath) {
-		console.error("Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs]")
+		console.error(
+			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix]",
+		)
 		process.exit(1)
 	}
 

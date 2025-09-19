@@ -75,9 +75,11 @@ async function main(): Promise<void> {
 		process.exit(1)
 	}
 
+	// Fixed extension directory
+	const extensionsDir = path.join(distDir, "vsce-extension")
+
 	// Create temporary directories like e2e tests
 	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
-	const extensionsDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
 	// Start hostbridge test server in background.
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
 		env: {
 			...process.env,
 			TEST_HOSTBRIDGE_WORKSPACE_DIR: clineTestWorkspace,
+			HOST_BRIDGE_ADDRESS: `127.0.0.1:${HOSTBRIDGE_PORT}`,
 		},
 	})
 
@@ -104,7 +107,9 @@ async function main(): Promise<void> {
 
 	console.log("Extracting standalone.zip to extensions directory...")
 	try {
-		execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+		if (!fs.existsSync(extensionsDir)) {
+			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+		}
 		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
 	} catch (error) {
 		console.error("Failed to extract standalone.zip:", error)
@@ -140,7 +145,6 @@ async function main(): Promise<void> {
 		// Cleanup temp directories
 		try {
 			rmSync(userDataDir, { recursive: true, force: true })
-			rmSync(extensionsDir, { recursive: true, force: true })
 			rmSync(clineTestWorkspace, { recursive: true, force: true })
 			console.log("Cleaned up temporary directories")
 		} catch (error) {
