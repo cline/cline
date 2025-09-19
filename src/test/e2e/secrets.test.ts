@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
 import os from "node:os"
-import { expect } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { CredentialStorage } from "../../core/storage/credential"
 import { e2e } from "./utils/helpers"
 
@@ -34,4 +34,22 @@ e2e("Secrets - keychain get/store/delete via CredentialStorage", async () => {
 	await store.delete(key)
 	const afterDelete = await store.get(key)
 	expect(afterDelete).toBeUndefined()
+})
+
+test.describe("Standalone deps warning", () => {
+	e2e("Toast presence matches EXPECT_DEPS env", async ({ page }) => {
+		const expectDeps = process.env.EXPECT_DEPS === "true"
+		const toastLocator = page.locator(".monaco-workbench .notifications-toasts .notification-list-item")
+		if (expectDeps) {
+			// With deps provisioned, no toast expected
+			await page.waitForTimeout(2000)
+			await expect(toastLocator).toHaveCount(0)
+		} else {
+			// Without deps, expect fallback toast
+			await expect(toastLocator).toContainText(
+				/Falling back to file storage|CredentialManager PowerShell module not available|secret-tool\/libsecret/i,
+				{ timeout: 10000 },
+			)
+		}
+	})
 })

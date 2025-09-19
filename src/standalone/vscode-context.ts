@@ -22,6 +22,9 @@ const SECRETS_FILE = path.join(DATA_DIR, "secrets.json")
 mkdirSync(DATA_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
+// If OS keychain deps are missing, we populate a warning to show non-blocking in the host
+let STANDALONE_DEPS_WARNING: string | undefined
+
 // Initialize the unified secret storage backend for standalone
 const standaloneBackend = selectStandaloneSecrets(DATA_DIR)
 secretStorage.init(standaloneBackend)
@@ -52,7 +55,7 @@ const extensionContext: ExtensionContext = {
 	// Set up KV stores.
 	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
 	// Note: core reads/writes secrets via the singleton; context.secrets remains for compatibility
-	secrets: new CredentialStorage() || new SecretStore(SECRETS_FILE),
+	secrets: new SecretStore(SECRETS_FILE),
 
 	// Set up URIs.
 	storageUri: URI.file(DATA_DIR),
@@ -83,8 +86,22 @@ function getPackageInfo() {
 // Select the best standalone secret storage backend (OS keychain when available, else file)
 function selectStandaloneSecrets(dataDir: string) {
 	try {
-		if (isMacSecurityAvailable() || isLinuxSecretToolAvailable() || isWindowsPowerShellAvailable()) {
+		if (isMacSecurityAvailable()) {
 			return new CredentialStorage()
+		}
+
+		if (isLinuxSecretToolAvailable()) {
+			return new CredentialStorage()
+		} else if (process.platform === "linux") {
+			STANDALONE_DEPS_WARNING =
+				"OS keychain tools not found (secret-tool/libsecret). Falling back to file storage. Install: sudo apt-get install -y libsecret-1-0 libsecret-tools dbus gnome-keyring"
+		}
+
+		if (isWindowsCredentialManagerReady()) {
+			return new CredentialStorage()
+		} else if (process.platform === "win32") {
+			STANDALONE_DEPS_WARNING =
+				"Windows CredentialManager PowerShell module not available. Falling back to file storage. Install in PowerShell: Install-Module -Name CredentialManager -Scope CurrentUser; then restart Cline"
 		}
 	} catch (error) {
 		log(`Credential backend selection error; falling back to file store: ${String(error)}`)
@@ -100,8 +117,20 @@ function isLinuxSecretToolAvailable(): boolean {
 	return process.platform === "linux" && hasCommand("secret-tool")
 }
 
-function isWindowsPowerShellAvailable(): boolean {
-	return process.platform === "win32" // powershell is expected; CredentialStorage handles module setup
+function isWindowsCredentialManagerReady(): boolean {
+	if (process.platform !== "win32") return false
+	try {
+		const result = spawnSync("powershell.exe", [
+			"-NoProfile",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-Command",
+			"if (Get-Module -ListAvailable -Name CredentialManager) { exit 0 } else { exit 1 }",
+		])
+		return result.status === 0
+	} catch {
+		return false
+	}
 }
 
 function hasCommand(cmd: string): boolean {
@@ -168,3 +197,8 @@ async function migrateFileSecretsToOS(filePath: string): Promise<void> {
 console.log("Finished loading vscode context...")
 
 export { extensionContext }
+
+// Expose any dependency warning to be shown by the host after initialization
+export function getStandaloneDepsWarning(): string | undefined {
+	return STANDALONE_DEPS_WARNING
+}

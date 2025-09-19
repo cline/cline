@@ -39,10 +39,6 @@ export class CredentialStorage extends ClineStorage {
 			throw new Error(`Unsupported platform: ${platform}`)
 		}
 
-		if (platform === PLATFORM_OS.Win32) {
-			this.initWindowsCredentialManager()
-		}
-
 		this.commands = commands
 	}
 
@@ -110,20 +106,6 @@ export class CredentialStorage extends ClineStorage {
 
 			child.once("error", reject)
 		})
-	}
-
-	private initWindowsCredentialManager(): void {
-		// Non-blocking setup; use -NoProfile to speed up and reduce side effects
-		this.exec({
-			command: "powershell.exe",
-			args: [
-				"-NoProfile",
-				"-ExecutionPolicy",
-				"Bypass",
-				"-Command",
-				"if (-not (Get-Module -ListAvailable -Name CredentialManager)) { Install-Module -Name CredentialManager -Force -Scope CurrentUser -AllowClobber -Confirm:$false }",
-			],
-		}).catch(() => {})
 	}
 }
 

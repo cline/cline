@@ -10,10 +10,11 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { extensionContext } from "./vscode-context"
+import { extensionContext, getStandaloneDepsWarning } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -34,6 +35,12 @@ async function main() {
 	const webviewProvider = await initialize(extensionContext)
 
 	AuthHandler.getInstance().setEnabled(true)
+
+	// Non-blocking info when OS keychain deps are missing (Linux/Windows)
+	const depsWarning = getStandaloneDepsWarning()
+	if (depsWarning) {
+		void HostProvider.window.showMessage({ type: ShowMessageType.INFORMATION, message: depsWarning })
+	}
 
 	// Mirror VS Code behavior: react to clineAccountId secret changes (login/logout)
 	secretStorage.onDidChange(async ({ key }) => {
