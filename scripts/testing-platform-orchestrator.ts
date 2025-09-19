@@ -15,6 +15,7 @@
  *   --server-logs        Show server logs (hidden by default)
  *   --count=<number>     Repeat execution N times (default: 1)
  *   --fix     			  Automatically update spec files with actual responses
+ *   --coverage     	  Generate integration test coverage information
  *
  */
 

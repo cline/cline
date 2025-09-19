@@ -5,7 +5,6 @@ on:
     pull_request:
         branches:
             - main
-            - josec/testing-platform-run-coverage-on-github
     workflow_call:
 
 # Set default permissions for all jobs
