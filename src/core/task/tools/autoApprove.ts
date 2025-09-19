@@ -83,7 +83,12 @@ export class AutoApprove {
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
 			const cwd = await getCwd(getDesktopDir())
-			const absolutePath = resolveWorkspacePath(cwd, autoApproveActionpath, "AutoApprove.shouldAutoApproveToolWithPath")
+			// When called with a string cwd, resolveWorkspacePath returns a string
+			const absolutePath = resolveWorkspacePath(
+				cwd,
+				autoApproveActionpath,
+				"AutoApprove.shouldAutoApproveToolWithPath",
+			) as string
 			isLocalRead = isLocatedInPath(cwd, absolutePath)
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
