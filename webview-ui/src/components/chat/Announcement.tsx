@@ -2,6 +2,7 @@ import { Accordion, AccordionItem } from "@heroui/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo, useState } from "react"
+import { useMount } from "react-use"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
@@ -43,12 +44,15 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector } = useExtensionState()
+	const { apiConfiguration, openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
 	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
 	const [didClickCodeSupernovaButton, setDidClickCodeSupernovaButton] = useState(false)
+
+	// Need to get latest model list in case user hits shortcut button to set model
+	useMount(refreshOpenRouterModels)
 
 	const setGrokCodeFast1 = () => {
 		const modelId = "x-ai/grok-code-fast-1"
