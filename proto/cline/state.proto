@@ -210,6 +210,9 @@ message ApiConfiguration {
   optional string qwen_code_oauth_path = 63;
   optional string dify_api_key = 64;
   optional string dify_base_url = 65;
+  optional string oca_base_url = 66;
+  optional string oca_api_key = 67;
+  optional string oca_refresh_token = 68;
   
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -236,6 +239,8 @@ message ApiConfiguration {
   optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 121;
   optional string plan_mode_vercel_ai_gateway_model_id = 122;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 123;
+  optional string plan_mode_oca_model_id = 124;
+  optional OcaModelInfo plan_mode_oca_model_info = 125;
   
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -262,6 +267,8 @@ message ApiConfiguration {
   optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 221;
   optional string act_mode_vercel_ai_gateway_model_id = 222;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 223;
+  optional string act_mode_oca_model_id = 224;
+  optional OcaModelInfo act_mode_oca_model_info = 225;
 
   // Extension fields for Bedrock Api Keys
   optional string aws_authentication = 301;
