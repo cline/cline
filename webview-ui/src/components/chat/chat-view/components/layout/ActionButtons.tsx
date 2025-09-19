@@ -2,7 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -31,7 +31,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	scrollBehavior,
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
-	const isProcessingRef = useRef(false)
+	const [isProcessing, setIsProcessing] = useState(false)
 
 	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
@@ -47,7 +47,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	// Single effect to handle all configuration updates
 	useEffect(() => {
 		setSendingDisabled(buttonConfig.sendingDisabled)
-		isProcessingRef.current = false
+		setIsProcessing(false)
 	}, [buttonConfig, setSendingDisabled])
 
 	// Clear input when transitioning from command_output to api_req
@@ -60,16 +60,15 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		}
 	}, [lastMessage?.type, lastMessage?.say, secondLastMessage?.ask, chatState])
 
-	// Optimized action handler with ref to avoid processing state updates
 	const handleActionClick = useCallback(
 		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
-			if (isProcessingRef.current) {
+			if (isProcessing) {
 				return
 			}
-			isProcessingRef.current = true
+			setIsProcessing(true)
 			messageHandlers.executeButtonAction(action, text, images, files)
 		},
-		[messageHandlers],
+		[messageHandlers, isProcessing],
 	)
 
 	// Keyboard event handler
@@ -124,7 +123,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
 	const hasButtons = primaryText || secondaryText
 	const isStreaming = task.partial === true
-	const canInteract = enableButtons && !isProcessingRef.current
+	const canInteract = enableButtons && !isProcessing
 
 	if (!hasButtons) {
 		return null

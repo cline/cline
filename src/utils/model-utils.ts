@@ -58,6 +58,23 @@ export function isLocalModel(providerInfo: ApiProviderInfo): boolean {
 	return localProviders.includes(normalize(providerInfo.providerId))
 }
 
+/**
+ * Parses a price string and converts it from per-token to per-million-tokens
+ * @param priceString The price string to parse (e.g. from API responses)
+ * @returns The price multiplied by 1,000,000 for per-million-token pricing, or 0 if invalid
+ */
+export function parsePrice(priceString: string | undefined): number {
+	if (!priceString || priceString === "" || priceString === "0") {
+		return 0
+	}
+	const parsed = parseFloat(priceString)
+	if (Number.isNaN(parsed)) {
+		return 0
+	}
+	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
+	return parsed * 1_000_000
+}
+
 function normalize(text: string): string {
 	return text.trim().toLowerCase()
 }

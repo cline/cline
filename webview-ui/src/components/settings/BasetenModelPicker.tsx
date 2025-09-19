@@ -30,12 +30,6 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
-		// Only allow selection of models that are in the static basetenModels
-		if (!(newModelId in basetenModels)) {
-			console.warn(`Model ${newModelId} is not in the static basetenModels list`)
-			return
-		}
-
 		// Use dynamic models if available, otherwise fall back to static models
 		const modelInfo = dynamicBasetenModels?.[newModelId] || basetenModels[newModelId as keyof typeof basetenModels]
 
@@ -60,27 +54,13 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	useMount(() => {
 		ModelsServiceClient.refreshBasetenModels(EmptyRequest.create({}))
 			.then((response) => {
-				// Filter to only include models that are listed in the static basetenModels
-				const filteredModels: Record<string, any> = {}
-
-				// Always include the default model
-				filteredModels[basetenDefaultModelId] = basetenModels[basetenDefaultModelId]
-
-				// Only include models from the API response that exist in static basetenModels
-				for (const [modelId, modelInfo] of Object.entries(response.models)) {
-					if (modelId in basetenModels) {
-						filteredModels[modelId] = modelInfo
-					}
-				}
-
-				setBasetenModels(filteredModels)
+				setBasetenModels({
+					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
+					...response.models,
+				})
 			})
 			.catch((err) => {
 				console.error("Failed to refresh Baseten models:", err)
-				// On error, fall back to only static models
-				setBasetenModels({
-					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-				})
 			})
 	})
 
@@ -113,24 +93,8 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}, [])
 
 	const allBasetenModels = useMemo(() => {
-		// Only include models that are listed in the static basetenModels
-		const filteredModels: Record<string, any> = {}
-
-		// Start with static models
-		for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
-			filteredModels[modelId] = modelInfo
-		}
-
-		// Override with dynamic models, but only if they exist in static basetenModels
-		if (dynamicBasetenModels) {
-			for (const [modelId, modelInfo] of Object.entries(dynamicBasetenModels)) {
-				if (modelId in basetenModels) {
-					filteredModels[modelId] = modelInfo
-				}
-			}
-		}
-
-		return filteredModels
+		// Merge static models with dynamic models, with dynamic taking precedence
+		return { ...basetenModels, ...(dynamicBasetenModels || {}) }
 	}, [dynamicBasetenModels])
 
 	const modelIds = useMemo(() => {
@@ -162,6 +126,28 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 			: searchableItems
 		return results
 	}, [searchableItems, debouncedSearchTerm, fuse])
+
+	// Safe HTML parser for highlighted search results
+	const parseHighlightedText = React.useCallback((htmlString: string) => {
+		// Split by highlight spans and reconstruct as React elements
+		const parts = htmlString.split(/(<span class="model-item-highlight">.*?<\/span>)/g)
+
+		return parts
+			.map((part) => {
+				if (part.startsWith('<span class="model-item-highlight">')) {
+					// Extract text content from span
+					const text = part.replace(/<span class="model-item-highlight">(.*?)<\/span>/, "$1")
+					return (
+						<span className="model-item-highlight" key={`highlight-${text}`}>
+							{text}
+						</span>
+					)
+				}
+				// Return plain text without wrapping in span
+				return part || null
+			})
+			.filter((part) => part !== null && part !== "")
+	}, [])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) {
@@ -266,17 +252,17 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-[var(--vscode-list-activeSelectionBackground)] ${
 										index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
 									}`}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
 									key={item.id}
 									onClick={() => {
 										handleModelChange(item.id)
 										setIsDropdownVisible(false)
 									}}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el: HTMLDivElement | null) => (itemRefs.current[index] = el)}
-								/>
+									ref={(el: HTMLDivElement | null) => {
+										itemRefs.current[index] = el
+									}}>
+									{parseHighlightedText(item.html)}
+								</div>
 							))}
 						</div>
 					)}

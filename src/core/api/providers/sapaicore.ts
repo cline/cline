@@ -455,7 +455,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
@@ -495,7 +495,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
 				model_name: model.id,
-				model_params: { max_tokens: model.info.maxTokens },
 			}
 
 			const templating: TemplatingModuleConfig = {
