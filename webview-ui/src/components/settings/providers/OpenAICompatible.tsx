@@ -11,9 +11,9 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -195,8 +195,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							</VSCodeButton>
 						</div>
 						<div>
-							{headerEntries.map(([key, value], index) => (
-								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+							{headerEntries.map(([key, value]) => (
+								<div key={key} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										initialValue={key}
 										onChange={(newValue) => {

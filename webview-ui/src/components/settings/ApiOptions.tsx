@@ -45,69 +45,72 @@ import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
-// Inline OpenAI-compatible provider presets (minimize external file churn)
+
+// Inline OpenAI-compatible provider presets
 type OpenAICompatiblePreset = {
-    provider: "openai"
-    defaults?: { openAiBaseUrl?: string }
+	provider: "openai"
+	defaults?: { openAiBaseUrl?: string }
 }
 
 const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
-    portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
+	portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
 }
 
 function mapOptionToProviderAndDefaults(optionValue: string): {
-    provider: string
-    defaults?: { openAiBaseUrl?: string }
+	provider: string
+	defaults?: { openAiBaseUrl?: string }
 } {
-    const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
-    if (preset) {
-        return { provider: preset.provider, defaults: preset.defaults }
-    }
-    return { provider: optionValue }
+	const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
+	if (preset) {
+		return { provider: preset.provider, defaults: preset.defaults }
+	}
+	return { provider: optionValue }
 }
 
 function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
-    if (provider !== "openai") {
-        return provider
-    }
+	if (provider !== "openai") {
+		return provider
+	}
 
-    const base = (openAiBaseUrl || "").trim()
-    try {
-        const input = new URL(base)
-        const host = input.hostname.toLowerCase()
-        // Any gateway under the Portkey domain should be treated as the Portkey preset
-        if (host === "portkey.ai" || host.endsWith(".portkey.ai")) {
-            return "portkey"
-        }
-    } catch {
-        // ignore parse errors and fall back to preset loop below
-    }
+	const base = (openAiBaseUrl || "").trim()
+	try {
+		const input = new URL(base)
+		const host = input.hostname.toLowerCase()
+		if (host === "portkey.ai" || host.endsWith(".portkey.ai")) {
+			return "portkey"
+		}
+	} catch {
+		// ignore parse errors and fall back to preset loop below
+	}
 
-    // Fallback: attempt exact preset matching (useful if other presets are added later)
-    for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
-        const presetUrl = preset.defaults?.openAiBaseUrl
-        if (!presetUrl) continue
-        try {
-            const input = new URL(base)
-            const presetParsed = new URL(presetUrl)
-            const inputHost = input.hostname.toLowerCase()
-            const presetHost = presetParsed.hostname.toLowerCase()
-            const inputPath = input.pathname || "/"
-            const presetPath = presetParsed.pathname || "/"
+	// Fallback: attempt exact preset matching (useful if other presets are added later)
+	for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
+		const presetUrl = preset.defaults?.openAiBaseUrl
+		if (!presetUrl) {
+			continue
+		}
+		try {
+			const input = new URL(base)
+			const presetParsed = new URL(presetUrl)
+			const inputHost = input.hostname.toLowerCase()
+			const presetHost = presetParsed.hostname.toLowerCase()
+			const inputPath = input.pathname || "/"
+			const presetPath = presetParsed.pathname || "/"
 
-            const isSameHost = inputHost === presetHost
-            const isSubdomain = inputHost.endsWith(`.${presetHost}`)
-            const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+			const isSameHost = inputHost === presetHost
+			const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+			const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
 
-            if ((isSameHost || isSubdomain) && isPathCompatible) {
-                return option
-            }
-        } catch {
-            // Fall through; if parsing fails we won't match this preset
-        }
-    }
-    return provider
+			if ((isSameHost || isSubdomain) && isPathCompatible) {
+				return option
+			}
+		} catch {
+			// Fall through; if parsing fails we won't match this preset
+		}
+	}
+	return provider
 }
+
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
@@ -185,9 +188,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	// Track the last chosen option value (e.g., "portkey") so the UI reflects the intended label immediately
-	// while the provider/base URL update round-trips through the backend. This prevents the selection
-	// from appearing to "deselect" momentarily.
 	const [lastChosenOption, setLastChosenOption] = useState<string | null>(null)
 
 	const providerOptions = useMemo(
@@ -238,10 +238,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		return providerOptions.find((option) => option.value === optionValue)?.label || optionValue
 	}, [providerOptions, selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
 
-	// Once the persisted config maps back to the same option as the last chosen option,
-	// clear the temporary override.
+	// Clear temporary override once config matches last chosen option
 	useEffect(() => {
-		if (!lastChosenOption) return
+		if (!lastChosenOption) {
+			return
+		}
 		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
 		if (mapped === lastChosenOption) {
 			setLastChosenOption(null)
@@ -444,7 +445,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => (itemRefs.current[index] = el)}>
+									ref={(el) => {
+										itemRefs.current[index] = el
+									}}>
 									<span dangerouslySetInnerHTML={{ __html: item.html }} />
 								</ProviderDropdownItem>
 							))}
