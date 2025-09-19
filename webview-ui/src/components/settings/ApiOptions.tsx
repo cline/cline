@@ -630,6 +630,7 @@ const ProviderDropdownList = styled.div`
 	width: calc(100% - 2px);
 	max-height: 200px;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 	background-color: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-list-activeSelectionBackground);
 	z-index: ${DROPDOWN_Z_INDEX - 1};
