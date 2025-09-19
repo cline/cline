@@ -203,8 +203,8 @@
 	},
 	"commandOutput": "명령 출력",
 	"commandExecution": {
-		"running": "실행 중",
 		"abort": "중단",
+		"running": "실행 중",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "상태 {{exitCode}}(으)로 종료됨",
 		"manageCommands": "자동 승인된 명령",

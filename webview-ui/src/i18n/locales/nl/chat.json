@@ -200,6 +200,7 @@
 	"commandExecution": {
 		"running": "Lopend",
 		"abort": "Afbreken",
+		"running": "Lopend",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Afgesloten met status {{exitCode}}",
 		"manageCommands": "Automatisch goedgekeurde commando's",

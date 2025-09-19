@@ -69,7 +69,7 @@
 		}
 	},
 	"runCommand": {
-		"title": "Command",
+		"title": "Run",
 		"tooltip": "Execute this command"
 	},
 	"proceedWhileRunning": {
@@ -222,8 +222,8 @@
 	},
 	"commandOutput": "Command Output",
 	"commandExecution": {
-		"running": "Running",
 		"abort": "Abort",
+		"running": "Running",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Exited with status {{exitCode}}",
 		"manageCommands": "Auto-approved commands",

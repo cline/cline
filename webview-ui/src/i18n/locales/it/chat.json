@@ -203,8 +203,8 @@
 	},
 	"commandOutput": "Output del Comando",
 	"commandExecution": {
-		"running": "In esecuzione",
 		"abort": "Interrompi",
+		"running": "In esecuzione",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Uscito con stato {{exitCode}}",
 		"manageCommands": "Comandi approvati automaticamente",

@@ -205,6 +205,7 @@
 	"commandExecution": {
 		"running": "Wykonywanie",
 		"abort": "Przerwij",
+		"running": "Uruchomiony",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Zakończono ze statusem {{exitCode}}",
 		"manageCommands": "Polecenia zatwierdzone automatycznie",

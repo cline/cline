@@ -205,6 +205,7 @@
 	"commandExecution": {
 		"running": "Đang chạy",
 		"abort": "Hủy bỏ",
+		"running": "Đang chạy",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Đã thoát với trạng thái {{exitCode}}",
 		"manageCommands": "Quản lý quyền lệnh",

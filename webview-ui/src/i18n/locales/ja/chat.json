@@ -203,8 +203,8 @@
 	},
 	"commandOutput": "コマンド出力",
 	"commandExecution": {
-		"running": "実行中",
 		"abort": "中止",
+		"running": "実行中",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "ステータス {{exitCode}} で終了しました",
 		"manageCommands": "自動承認されたコマンド",

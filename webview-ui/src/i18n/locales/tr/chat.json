@@ -205,6 +205,7 @@
 	"commandExecution": {
 		"running": "Çalışıyor",
 		"abort": "İptal Et",
+		"running": "Çalışıyor",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "{{exitCode}} durumuyla çıkıldı",
 		"manageCommands": "Komut İzinlerini Yönet",

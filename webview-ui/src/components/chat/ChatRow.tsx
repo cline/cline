@@ -232,7 +232,9 @@ export const ChatRowContent = ({
 					) : (
 						<TerminalSquare className="size-4" aria-label="Terminal icon" />
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>{t("chat:runCommand.title")}</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						{t("chat:commandExecution.running")}
+					</span>,
 				]
 			case "use_mcp_server":
 				const mcpServerUse = safeJsonParse<ClineAskUseMcpServer>(message.text)

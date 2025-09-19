@@ -200,6 +200,7 @@
 	"commandExecution": {
 		"running": "Выполняется",
 		"abort": "Прервать",
+		"running": "Выполняется",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Завершено со статусом {{exitCode}}",
 		"manageCommands": "Управление разрешениями команд",

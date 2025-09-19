@@ -224,6 +224,7 @@
 	"commandExecution": {
 		"running": "正在執行",
 		"abort": "中止",
+		"running": "執行中",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "已結束，狀態碼 {{exitCode}}",
 		"manageCommands": "管理命令權限",
