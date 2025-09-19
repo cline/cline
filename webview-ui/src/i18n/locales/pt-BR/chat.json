@@ -61,7 +61,7 @@
 		"tooltip": "Aprovar esta ação"
 	},
 	"runCommand": {
-		"title": "Executar comando",
+		"title": "Comando",
 		"tooltip": "Executar este comando"
 	},
 	"proceedWhileRunning": {
@@ -125,7 +125,7 @@
 		"searchPlaceholder": "Pesquisar modos...",
 		"noResults": "Nenhum resultado encontrado"
 	},
-	"errorReadingFile": "Erro ao ler arquivo:",
+	"errorReadingFile": "Erro ao ler arquivo",
 	"noValidImages": "Nenhuma imagem válida foi processada",
 	"separator": "Separador",
 	"edit": "Editar...",
@@ -163,51 +163,51 @@
 		"wantsToFetch": "Roo quer buscar instruções detalhadas para ajudar com a tarefa atual"
 	},
 	"fileOperations": {
-		"wantsToRead": "Roo quer ler este arquivo:",
-		"wantsToReadOutsideWorkspace": "Roo quer ler este arquivo fora do espaço de trabalho:",
-		"didRead": "Roo leu este arquivo:",
-		"wantsToEdit": "Roo quer editar este arquivo:",
-		"wantsToEditOutsideWorkspace": "Roo quer editar este arquivo fora do espaço de trabalho:",
-		"wantsToEditProtected": "Roo quer editar um arquivo de configuração protegido:",
-		"wantsToCreate": "Roo quer criar um novo arquivo:",
-		"wantsToSearchReplace": "Roo quer realizar busca e substituição neste arquivo:",
-		"didSearchReplace": "Roo realizou busca e substituição neste arquivo:",
-		"wantsToInsert": "Roo quer inserir conteúdo neste arquivo:",
-		"wantsToInsertWithLineNumber": "Roo quer inserir conteúdo neste arquivo na linha {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo quer adicionar conteúdo ao final deste arquivo:",
-		"wantsToReadAndXMore": "Roo quer ler este arquivo e mais {{count}}:",
-		"wantsToReadMultiple": "Roo deseja ler múltiplos arquivos:",
-		"wantsToApplyBatchChanges": "Roo quer aplicar alterações a múltiplos arquivos:",
-		"wantsToGenerateImage": "Roo quer gerar uma imagem:",
-		"wantsToGenerateImageOutsideWorkspace": "Roo quer gerar uma imagem fora do espaço de trabalho:",
-		"wantsToGenerateImageProtected": "Roo quer gerar uma imagem em um local protegido:",
-		"didGenerateImage": "Roo gerou uma imagem:"
+		"wantsToRead": "Roo quer ler este arquivo",
+		"wantsToReadOutsideWorkspace": "Roo quer ler este arquivo fora do espaço de trabalho",
+		"didRead": "Roo leu este arquivo",
+		"wantsToEdit": "Roo quer editar este arquivo",
+		"wantsToEditOutsideWorkspace": "Roo quer editar este arquivo fora do espaço de trabalho",
+		"wantsToEditProtected": "Roo quer editar um arquivo de configuração protegido",
+		"wantsToCreate": "Roo quer criar um novo arquivo",
+		"wantsToSearchReplace": "Roo quer realizar busca e substituição neste arquivo",
+		"didSearchReplace": "Roo realizou busca e substituição neste arquivo",
+		"wantsToInsert": "Roo quer inserir conteúdo neste arquivo",
+		"wantsToInsertWithLineNumber": "Roo quer inserir conteúdo neste arquivo na linha {{lineNumber}}",
+		"wantsToInsertAtEnd": "Roo quer adicionar conteúdo ao final deste arquivo",
+		"wantsToReadAndXMore": "Roo quer ler este arquivo e mais {{count}}",
+		"wantsToReadMultiple": "Roo deseja ler múltiplos arquivos",
+		"wantsToApplyBatchChanges": "Roo quer aplicar alterações a múltiplos arquivos",
+		"wantsToGenerateImage": "Roo quer gerar uma imagem",
+		"wantsToGenerateImageOutsideWorkspace": "Roo quer gerar uma imagem fora do espaço de trabalho",
+		"wantsToGenerateImageProtected": "Roo quer gerar uma imagem em um local protegido",
+		"didGenerateImage": "Roo gerou uma imagem"
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Roo quer visualizar os arquivos de nível superior neste diretório:",
-		"didViewTopLevel": "Roo visualizou os arquivos de nível superior neste diretório:",
-		"wantsToViewRecursive": "Roo quer visualizar recursivamente todos os arquivos neste diretório:",
-		"didViewRecursive": "Roo visualizou recursivamente todos os arquivos neste diretório:",
-		"wantsToViewDefinitions": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório:",
-		"didViewDefinitions": "Roo visualizou nomes de definição de código-fonte usados neste diretório:",
-		"wantsToSearch": "Roo quer pesquisar neste diretório por <code>{{regex}}</code>:",
-		"didSearch": "Roo pesquisou neste diretório por <code>{{regex}}</code>:",
-		"wantsToSearchOutsideWorkspace": "Roo quer pesquisar neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>:",
-		"didSearchOutsideWorkspace": "Roo pesquisou neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>:",
-		"wantsToViewTopLevelOutsideWorkspace": "Roo quer visualizar os arquivos de nível superior neste diretório (fora do espaço de trabalho):",
-		"didViewTopLevelOutsideWorkspace": "Roo visualizou os arquivos de nível superior neste diretório (fora do espaço de trabalho):",
-		"wantsToViewRecursiveOutsideWorkspace": "Roo quer visualizar recursivamente todos os arquivos neste diretório (fora do espaço de trabalho):",
-		"didViewRecursiveOutsideWorkspace": "Roo visualizou recursivamente todos os arquivos neste diretório (fora do espaço de trabalho):",
-		"wantsToViewDefinitionsOutsideWorkspace": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho):",
-		"didViewDefinitionsOutsideWorkspace": "Roo visualizou nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho):"
+		"wantsToViewTopLevel": "Roo quer visualizar os arquivos de nível superior neste diretório",
+		"didViewTopLevel": "Roo visualizou os arquivos de nível superior neste diretório",
+		"wantsToViewRecursive": "Roo quer visualizar recursivamente todos os arquivos neste diretório",
+		"didViewRecursive": "Roo visualizou recursivamente todos os arquivos neste diretório",
+		"wantsToViewDefinitions": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório",
+		"didViewDefinitions": "Roo visualizou nomes de definição de código-fonte usados neste diretório",
+		"wantsToSearch": "Roo quer pesquisar neste diretório por <code>{{regex}}</code>",
+		"didSearch": "Roo pesquisou neste diretório por <code>{{regex}}</code>",
+		"wantsToSearchOutsideWorkspace": "Roo quer pesquisar neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>",
+		"didSearchOutsideWorkspace": "Roo pesquisou neste diretório (fora do espaço de trabalho) por <code>{{regex}}</code>",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo quer visualizar os arquivos de nível superior neste diretório (fora do espaço de trabalho)",
+		"didViewTopLevelOutsideWorkspace": "Roo visualizou os arquivos de nível superior neste diretório (fora do espaço de trabalho)",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo quer visualizar recursivamente todos os arquivos neste diretório (fora do espaço de trabalho)",
+		"didViewRecursiveOutsideWorkspace": "Roo visualizou recursivamente todos os arquivos neste diretório (fora do espaço de trabalho)",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho)",
+		"didViewDefinitionsOutsideWorkspace": "Roo visualizou nomes de definição de código-fonte usados neste diretório (fora do espaço de trabalho)"
 	},
 	"commandOutput": "Saída do comando",
 	"commandExecution": {
 		"running": "Executando",
+		"abort": "Interromper",
 		"pid": "PID: {{pid}}",
-		"exited": "Encerrado ({{exitCode}})",
-		"manageCommands": "Gerenciar Permissões de Comando",
-		"commandManagementDescription": "Gerencie as permissões de comando: Clique em ✓ para permitir a execução automática, ✗ para negar a execução. Os padrões podem ser ativados/desativados ou removidos das listas. <settingsLink>Ver todas as configurações</settingsLink>",
+		"exitStatus": "Saiu com o status {{exitCode}}",
+		"manageCommands": "Comandos aprovados automaticamente",
 		"addToAllowed": "Adicionar à lista de permitidos",
 		"removeFromAllowed": "Remover da lista de permitidos",
 		"addToDenied": "Adicionar à lista de negados",
@@ -220,9 +220,12 @@
 	},
 	"response": "Resposta",
 	"arguments": "Argumentos",
+	"feedback": {
+		"youSaid": "Você disse"
+	},
 	"mcp": {
-		"wantsToUseTool": "Roo quer usar uma ferramenta no servidor MCP {{serverName}}:",
-		"wantsToAccessResource": "Roo quer acessar um recurso no servidor MCP {{serverName}}:"
+		"wantsToUseTool": "Roo quer usar uma ferramenta no servidor MCP {{serverName}}",
+		"wantsToAccessResource": "Roo quer acessar um recurso no servidor MCP {{serverName}}"
 	},
 	"modes": {
 		"wantsToSwitch": "Roo quer mudar para o modo <code>{{mode}}</code>",
@@ -231,7 +234,7 @@
 		"didSwitchWithReason": "Roo mudou para o modo <code>{{mode}}</code> porque: {{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Roo quer criar uma nova subtarefa no modo <code>{{mode}}</code>:",
+		"wantsToCreate": "Roo quer criar uma nova subtarefa no modo <code>{{mode}}</code>",
 		"wantsToFinish": "Roo quer finalizar esta subtarefa",
 		"newTaskContent": "Instruções da subtarefa",
 		"completionContent": "Subtarefa concluída",
@@ -240,7 +243,7 @@
 		"completionInstructions": "Subtarefa concluída! Você pode revisar os resultados e sugerir correções ou próximos passos. Se tudo parecer bom, confirme para retornar o resultado à tarefa principal."
 	},
 	"questions": {
-		"hasQuestion": "Roo tem uma pergunta:"
+		"hasQuestion": "Roo tem uma pergunta"
 	},
 	"taskCompleted": "Tarefa concluída",
 	"powershell": {
@@ -287,7 +290,7 @@
 		"socialLinks": "Junte-se a nós no <xLink>X</xLink>, <discordLink>Discord</discordLink>, ou <redditLink>r/RooCode</redditLink>"
 	},
 	"browser": {
-		"rooWantsToUse": "Roo quer usar o navegador:",
+		"rooWantsToUse": "Roo quer usar o navegador",
 		"consoleLogs": "Logs do console",
 		"noNewLogs": "(Sem novos logs)",
 		"screenshot": "Captura de tela do navegador",
@@ -337,8 +340,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo quer pesquisar na base de código por <code>{{query}}</code>:",
-		"wantsToSearchWithPath": "Roo quer pesquisar na base de código por <code>{{query}}</code> em <code>{{path}}</code>:",
+		"wantsToSearch": "Roo quer pesquisar na base de código por <code>{{query}}</code>",
+		"wantsToSearchWithPath": "Roo quer pesquisar na base de código por <code>{{query}}</code> em <code>{{path}}</code>",
 		"didSearch_one": "Encontrado 1 resultado",
 		"didSearch_other": "Encontrados {{count}} resultados",
 		"resultTooltip": "Pontuação de similaridade: {{score}} (clique para abrir o arquivo)"
@@ -399,12 +402,12 @@
 		"url": "Cole o URL para buscar o conteúdo"
 	},
 	"queuedMessages": {
-		"title": "Mensagens na fila:",
+		"title": "Mensagens na fila",
 		"clickToEdit": "Clique para editar a mensagem"
 	},
 	"slashCommand": {
-		"wantsToRun": "Roo quer executar um comando slash:",
-		"didRun": "Roo executou um comando slash:"
+		"wantsToRun": "Roo quer executar um comando slash",
+		"didRun": "Roo executou um comando slash"
 	},
 	"ask": {
 		"autoApprovedRequestLimitReached": {

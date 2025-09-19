@@ -16,12 +16,21 @@ interface MarkdownBlockProps {
 }
 
 const StyledMarkdown = styled.div`
+	* {
+		font-weight: 400;
+	}
+
+	strong {
+		font-weight: 600;
+	}
+
 	code:not(pre > code) {
 		font-family: var(--vscode-editor-font-family, monospace);
+		font-size: 0.85em;
 		filter: saturation(110%) brightness(95%);
 		color: var(--vscode-textPreformat-foreground) !important;
 		background-color: var(--vscode-textPreformat-background) !important;
-		padding: 0px 2px;
+		padding: 1px 2px;
 		white-space: pre-line;
 		word-break: break-word;
 		overflow-wrap: anywhere;
@@ -80,12 +89,16 @@ const StyledMarkdown = styled.div`
 	li,
 	ol,
 	ul {
-		line-height: 1.25;
+		line-height: 1.35em;
+	}
+
+	li {
+		margin: 0.5em 0;
 	}
 
 	ol,
 	ul {
-		padding-left: 2.5em;
+		padding-left: 2em;
 		margin-left: 0;
 	}
 
@@ -95,15 +108,6 @@ const StyledMarkdown = styled.div`
 
 	ul {
 		list-style-type: disc;
-	}
-
-	/* Nested list styles */
-	ul ul {
-		list-style-type: circle;
-	}
-
-	ul ul ul {
-		list-style-type: square;
 	}
 
 	ol ol {
@@ -116,7 +120,7 @@ const StyledMarkdown = styled.div`
 
 	p {
 		white-space: pre-wrap;
-		margin: 0.5em 0;
+		margin: 1em 0 0.25em;
 	}
 
 	/* Prevent layout shifts during streaming */
@@ -129,18 +133,28 @@ const StyledMarkdown = styled.div`
 	div:has(> pre) {
 		position: relative;
 		contain: layout style;
+		padding: 0.5em 1em;
 	}
 
 	a {
 		color: var(--vscode-textLink-foreground);
-		text-decoration-line: underline;
-		text-decoration-style: dotted;
+		text-decoration: none;
 		text-decoration-color: var(--vscode-textLink-foreground);
 		&:hover {
 			color: var(--vscode-textLink-activeForeground);
-			text-decoration-style: solid;
-			text-decoration-color: var(--vscode-textLink-activeForeground);
+			text-decoration: underline;
 		}
+	}
+
+	h2 {
+		font-size: 1.35em;
+		font-weight: 500;
+		margin: 1.35em 0 0.5em;
+	}
+
+	h3 {
+		font-size: 1.2em;
+		font-weight: 500;
 	}
 
 	/* Table styles for remark-gfm */

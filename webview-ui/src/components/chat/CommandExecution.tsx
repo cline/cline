@@ -1,6 +1,6 @@
 import { useCallback, useState, memo, useMemo } from "react"
 import { useEvent } from "react-use"
-import { ChevronDown, Skull } from "lucide-react"
+import { ChevronDown, OctagonX } from "lucide-react"
 
 import { CommandExecutionStatus, commandExecutionStatusSchema } from "@roo-code/types"
 
@@ -12,11 +12,12 @@ import { COMMAND_OUTPUT_STRING } from "@roo/combineCommandSequences"
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { cn } from "@src/lib/utils"
-import { Button } from "@src/components/ui"
+import { Button, StandardTooltip } from "@src/components/ui"
 import CodeBlock from "../common/CodeBlock"
 import { CommandPatternSelector } from "./CommandPatternSelector"
 import { parseCommand } from "../../utils/command-validation"
 import { extractPatternsFromCommand } from "../../utils/command-parser"
+import { t } from "i18next"
 
 interface CommandPattern {
 	pattern: string
@@ -140,44 +141,50 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 	return (
 		<>
 			<div className="flex flex-row items-center justify-between gap-2 mb-1">
-				<div className="flex flex-row items-center gap-1">
+				<div className="flex flex-row items-center gap-2">
 					{icon}
 					{title}
+					{status?.status === "exited" && (
+						<div className="flex flex-row items-center gap-2 font-mono text-xs">
+							<StandardTooltip
+								content={t("chat.commandExecution.exitStatus", { exitStatus: status.exitCode })}>
+								<div
+									className={cn(
+										"rounded-full size-2",
+										status.exitCode === 0 ? "bg-green-600" : "bg-red-600",
+									)}
+								/>
+							</StandardTooltip>
+						</div>
+					)}
 				</div>
-				<div className="flex flex-row items-center justify-between gap-2 px-1">
+				<div className=" flex flex-row items-center justify-between gap-2 px-1">
 					<div className="flex flex-row items-center gap-1">
 						{status?.status === "started" && (
 							<div className="flex flex-row items-center gap-2 font-mono text-xs">
-								<div className="rounded-full size-1.5 bg-lime-400" />
-								<div>Running</div>
 								{status.pid && <div className="whitespace-nowrap">(PID: {status.pid})</div>}
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() =>
-										vscode.postMessage({ type: "terminalOperation", terminalOperation: "abort" })
-									}>
-									<Skull />
-								</Button>
-							</div>
-						)}
-						{status?.status === "exited" && (
-							<div className="flex flex-row items-center gap-2 font-mono text-xs">
-								<div
-									className={cn(
-										"rounded-full size-1.5",
-										status.exitCode === 0 ? "bg-lime-400" : "bg-red-400",
-									)}
-								/>
-								<div className="whitespace-nowrap">Exited ({status.exitCode})</div>
+								<StandardTooltip content={t("chat:commandExecution.abort")}>
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={() =>
+											vscode.postMessage({
+												type: "terminalOperation",
+												terminalOperation: "abort",
+											})
+										}>
+										<OctagonX className="size-4" />
+									</Button>
+								</StandardTooltip>
 							</div>
 						)}
 						{output.length > 0 && (
 							<Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
 								<ChevronDown
-									className={cn("size-4 transition-transform duration-300", {
-										"rotate-180": isExpanded,
-									})}
+									className={cn(
+										"size-4 transition-transform duration-300",
+										isExpanded && "rotate-180",
+									)}
 								/>
 							</Button>
 						)}
@@ -185,7 +192,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 				</div>
 			</div>
 
-			<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs">
+			<div className="bg-vscode-editor-background border border-vscode-border rounded-xs ml-6 mt-2">
 				<div className="p-2">
 					<CodeBlock source={command} language="shell" />
 					<OutputContainer isExpanded={isExpanded} output={output} />

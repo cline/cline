@@ -61,7 +61,7 @@
 		"tooltip": "Deze actie goedkeuren"
 	},
 	"runCommand": {
-		"title": "Commando uitvoeren",
+		"title": "Commando",
 		"tooltip": "Voer dit commando uit"
 	},
 	"proceedWhileRunning": {
@@ -125,7 +125,7 @@
 	"addContext": "@ om context toe te voegen, / voor commando's",
 	"dragFiles": "houd shift ingedrukt om bestanden te slepen",
 	"dragFilesImages": "houd shift ingedrukt om bestanden/afbeeldingen te slepen",
-	"errorReadingFile": "Fout bij het lezen van bestand:",
+	"errorReadingFile": "Fout bij het lezen van bestand",
 	"noValidImages": "Er zijn geen geldige afbeeldingen verwerkt",
 	"separator": "Scheidingsteken",
 	"edit": "Bewerken...",
@@ -158,51 +158,51 @@
 		"wantsToFetch": "Roo wil gedetailleerde instructies ophalen om te helpen met de huidige taak"
 	},
 	"fileOperations": {
-		"wantsToRead": "Roo wil dit bestand lezen:",
-		"wantsToReadOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte lezen:",
-		"didRead": "Roo heeft dit bestand gelezen:",
-		"wantsToEdit": "Roo wil dit bestand bewerken:",
-		"wantsToEditOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte bewerken:",
-		"wantsToEditProtected": "Roo wil een beveiligd configuratiebestand bewerken:",
-		"wantsToCreate": "Roo wil een nieuw bestand aanmaken:",
-		"wantsToSearchReplace": "Roo wil zoeken en vervangen in dit bestand:",
-		"didSearchReplace": "Roo heeft zoeken en vervangen uitgevoerd op dit bestand:",
-		"wantsToInsert": "Roo wil inhoud invoegen in dit bestand:",
-		"wantsToInsertWithLineNumber": "Roo wil inhoud invoegen in dit bestand op regel {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:",
-		"wantsToReadAndXMore": "Roo wil dit bestand en nog {{count}} andere lezen:",
-		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen:",
-		"wantsToApplyBatchChanges": "Roo wil wijzigingen toepassen op meerdere bestanden:",
-		"wantsToGenerateImage": "Roo wil een afbeelding genereren:",
-		"wantsToGenerateImageOutsideWorkspace": "Roo wil een afbeelding genereren buiten de werkruimte:",
-		"wantsToGenerateImageProtected": "Roo wil een afbeelding genereren op een beschermde locatie:",
-		"didGenerateImage": "Roo heeft een afbeelding gegenereerd:"
+		"wantsToRead": "Roo wil dit bestand lezen",
+		"wantsToReadOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte lezen",
+		"didRead": "Roo heeft dit bestand gelezen",
+		"wantsToEdit": "Roo wil dit bestand bewerken",
+		"wantsToEditOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte bewerken",
+		"wantsToEditProtected": "Roo wil een beveiligd configuratiebestand bewerken",
+		"wantsToCreate": "Roo wil een nieuw bestand aanmaken",
+		"wantsToSearchReplace": "Roo wil zoeken en vervangen in dit bestand",
+		"didSearchReplace": "Roo heeft zoeken en vervangen uitgevoerd op dit bestand",
+		"wantsToInsert": "Roo wil inhoud invoegen in dit bestand",
+		"wantsToInsertWithLineNumber": "Roo wil inhoud invoegen in dit bestand op regel {{lineNumber}}",
+		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand",
+		"wantsToReadAndXMore": "Roo wil dit bestand en nog {{count}} andere lezen",
+		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen",
+		"wantsToApplyBatchChanges": "Roo wil wijzigingen toepassen op meerdere bestanden",
+		"wantsToGenerateImage": "Roo wil een afbeelding genereren",
+		"wantsToGenerateImageOutsideWorkspace": "Roo wil een afbeelding genereren buiten de werkruimte",
+		"wantsToGenerateImageProtected": "Roo wil een afbeelding genereren op een beschermde locatie",
+		"didGenerateImage": "Roo heeft een afbeelding gegenereerd"
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken:",
-		"didViewTopLevel": "Roo heeft de bovenliggende bestanden in deze map bekeken:",
-		"wantsToViewRecursive": "Roo wil alle bestanden in deze map recursief bekijken:",
-		"didViewRecursive": "Roo heeft alle bestanden in deze map recursief bekeken:",
-		"wantsToViewDefinitions": "Roo wil broncode-definitienamen bekijken die in deze map worden gebruikt:",
-		"didViewDefinitions": "Roo heeft broncode-definitienamen bekeken die in deze map worden gebruikt:",
-		"wantsToSearch": "Roo wil deze map doorzoeken op <code>{{regex}}</code>:",
-		"didSearch": "Roo heeft deze map doorzocht op <code>{{regex}}</code>:",
-		"wantsToSearchOutsideWorkspace": "Roo wil deze map (buiten werkruimte) doorzoeken op <code>{{regex}}</code>:",
-		"didSearchOutsideWorkspace": "Roo heeft deze map (buiten werkruimte) doorzocht op <code>{{regex}}</code>:",
-		"wantsToViewTopLevelOutsideWorkspace": "Roo wil de bovenliggende bestanden in deze map (buiten werkruimte) bekijken:",
-		"didViewTopLevelOutsideWorkspace": "Roo heeft de bovenliggende bestanden in deze map (buiten werkruimte) bekeken:",
-		"wantsToViewRecursiveOutsideWorkspace": "Roo wil alle bestanden in deze map (buiten werkruimte) recursief bekijken:",
-		"didViewRecursiveOutsideWorkspace": "Roo heeft alle bestanden in deze map (buiten werkruimte) recursief bekeken:",
-		"wantsToViewDefinitionsOutsideWorkspace": "Roo wil broncode-definitienamen bekijken die in deze map (buiten werkruimte) worden gebruikt:",
-		"didViewDefinitionsOutsideWorkspace": "Roo heeft broncode-definitienamen bekeken die in deze map (buiten werkruimte) worden gebruikt:"
+		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken",
+		"didViewTopLevel": "Roo heeft de bovenliggende bestanden in deze map bekeken",
+		"wantsToViewRecursive": "Roo wil alle bestanden in deze map recursief bekijken",
+		"didViewRecursive": "Roo heeft alle bestanden in deze map recursief bekeken",
+		"wantsToViewDefinitions": "Roo wil broncode-definitienamen bekijken die in deze map worden gebruikt",
+		"didViewDefinitions": "Roo heeft broncode-definitienamen bekeken die in deze map worden gebruikt",
+		"wantsToSearch": "Roo wil deze map doorzoeken op <code>{{regex}}</code>",
+		"didSearch": "Roo heeft deze map doorzocht op <code>{{regex}}</code>",
+		"wantsToSearchOutsideWorkspace": "Roo wil deze map (buiten werkruimte) doorzoeken op <code>{{regex}}</code>",
+		"didSearchOutsideWorkspace": "Roo heeft deze map (buiten werkruimte) doorzocht op <code>{{regex}}</code>",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo wil de bovenliggende bestanden in deze map (buiten werkruimte) bekijken",
+		"didViewTopLevelOutsideWorkspace": "Roo heeft de bovenliggende bestanden in deze map (buiten werkruimte) bekeken",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo wil alle bestanden in deze map (buiten werkruimte) recursief bekijken",
+		"didViewRecursiveOutsideWorkspace": "Roo heeft alle bestanden in deze map (buiten werkruimte) recursief bekeken",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo wil broncode-definitienamen bekijken die in deze map (buiten werkruimte) worden gebruikt",
+		"didViewDefinitionsOutsideWorkspace": "Roo heeft broncode-definitienamen bekeken die in deze map (buiten werkruimte) worden gebruikt"
 	},
 	"commandOutput": "Commando-uitvoer",
 	"commandExecution": {
 		"running": "Lopend",
+		"abort": "Afbreken",
 		"pid": "PID: {{pid}}",
-		"exited": "Afgesloten ({{exitCode}})",
-		"manageCommands": "Beheer Commando Toestemmingen",
-		"commandManagementDescription": "Beheer commando toestemmingen: Klik op ✓ om automatische uitvoering toe te staan, ✗ om uitvoering te weigeren. Patronen kunnen worden in- of uitgeschakeld of uit lijsten worden verwijderd. <settingsLink>Bekijk alle instellingen</settingsLink>",
+		"exitStatus": "Afgesloten met status {{exitCode}}",
+		"manageCommands": "Automatisch goedgekeurde commando's",
 		"addToAllowed": "Toevoegen aan toegestane lijst",
 		"removeFromAllowed": "Verwijderen van toegestane lijst",
 		"addToDenied": "Toevoegen aan geweigerde lijst",
@@ -215,9 +215,12 @@
 	},
 	"response": "Antwoord",
 	"arguments": "Argumenten",
+	"feedback": {
+		"youSaid": "Jij zei"
+	},
 	"mcp": {
-		"wantsToUseTool": "Roo wil een tool gebruiken op de {{serverName}} MCP-server:",
-		"wantsToAccessResource": "Roo wil een bron benaderen op de {{serverName}} MCP-server:"
+		"wantsToUseTool": "Roo wil een tool gebruiken op de {{serverName}} MCP-server",
+		"wantsToAccessResource": "Roo wil een bron benaderen op de {{serverName}} MCP-server"
 	},
 	"modes": {
 		"wantsToSwitch": "Roo wil overschakelen naar {{mode}} modus",
@@ -226,7 +229,7 @@
 		"didSwitchWithReason": "Roo is overgeschakeld naar {{mode}} modus omdat: {{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Roo wil een nieuwe subtaak aanmaken in {{mode}} modus:",
+		"wantsToCreate": "Roo wil een nieuwe subtaak aanmaken in {{mode}} modus",
 		"wantsToFinish": "Roo wil deze subtaak voltooien",
 		"newTaskContent": "Subtaak-instructies",
 		"completionContent": "Subtaak voltooid",
@@ -235,7 +238,7 @@
 		"completionInstructions": "Subtaak voltooid! Je kunt de resultaten bekijken en eventuele correcties of volgende stappen voorstellen. Als alles goed is, bevestig dan om het resultaat terug te sturen naar de hoofdtaak."
 	},
 	"questions": {
-		"hasQuestion": "Roo heeft een vraag:"
+		"hasQuestion": "Roo heeft een vraag"
 	},
 	"taskCompleted": "Taak voltooid",
 	"error": "Fout",
@@ -287,7 +290,7 @@
 		"countdownDisplay": "{{count}}s"
 	},
 	"browser": {
-		"rooWantsToUse": "Roo wil de browser gebruiken:",
+		"rooWantsToUse": "Roo wil de browser gebruiken",
 		"consoleLogs": "Console-logboeken",
 		"noNewLogs": "(Geen nieuwe logboeken)",
 		"screenshot": "Browserschermopname",
@@ -337,8 +340,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo wil de codebase doorzoeken op <code>{{query}}</code>:",
-		"wantsToSearchWithPath": "Roo wil de codebase doorzoeken op <code>{{query}}</code> in <code>{{path}}</code>:",
+		"wantsToSearch": "Roo wil de codebase doorzoeken op <code>{{query}}</code>",
+		"wantsToSearchWithPath": "Roo wil de codebase doorzoeken op <code>{{query}}</code> in <code>{{path}}</code>",
 		"didSearch_one": "1 resultaat gevonden",
 		"didSearch_other": "{{count}} resultaten gevonden",
 		"resultTooltip": "Gelijkenisscore: {{score}} (klik om bestand te openen)"
@@ -399,12 +402,12 @@
 		"url": "Plak URL om inhoud op te halen"
 	},
 	"queuedMessages": {
-		"title": "Berichten in wachtrij:",
+		"title": "Berichten in wachtrij",
 		"clickToEdit": "Klik om bericht te bewerken"
 	},
 	"slashCommand": {
-		"wantsToRun": "Roo wil een slash commando uitvoeren:",
-		"didRun": "Roo heeft een slash commando uitgevoerd:"
+		"wantsToRun": "Roo wil een slash commando uitvoeren",
+		"didRun": "Roo heeft een slash commando uitgevoerd"
 	},
 	"ask": {
 		"autoApprovedRequestLimitReached": {

@@ -115,7 +115,8 @@ const TaskHeader = ({
 					"px-2.5 pt-2.5 pb-2 flex flex-col gap-1.5 relative z-1 cursor-pointer",
 					"bg-vscode-input-background hover:bg-vscode-input-background/90",
 					"text-vscode-foreground/80 hover:text-vscode-foreground",
-					hasTodos ? "rounded-t-xs border-b-0" : "rounded-xs",
+					"shadow-sm shadow-black/30 rounded-md",
+					hasTodos && "border-b-0",
 				)}
 				onClick={(e) => {
 					// Don't expand if clicking on buttons or interactive elements

@@ -125,8 +125,8 @@ export const StyledPre = styled.div<{
 	max-height: ${({ windowshade, collapsedHeight }) =>
 		windowshade === "true" ? `${collapsedHeight || WINDOW_SHADE_SETTINGS.collapsedHeight}px` : "none"};
 	overflow-y: auto;
-	padding: 10px;
-	border-radius: 5px;
+	padding: 8px 3px;
+	border-radius: 6px;
 	${({ preStyle }) => preStyle && { ...preStyle }}
 
 	pre {
@@ -144,7 +144,7 @@ export const StyledPre = styled.div<{
 		white-space: ${({ wordwrap }) => (wordwrap === "false" ? "pre" : "pre-wrap")};
 		word-break: ${({ wordwrap }) => (wordwrap === "false" ? "normal" : "normal")};
 		overflow-wrap: ${({ wordwrap }) => (wordwrap === "false" ? "normal" : "break-word")};
-		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
+		font-size: 0.95em;
 		font-family: var(--vscode-editor-font-family);
 	}
 
@@ -219,7 +219,7 @@ const CodeBlock = memo(
 		rawSource,
 		language,
 		preStyle,
-		initialWordWrap = true,
+		initialWordWrap = false,
 		initialWindowShade = true,
 		collapsedHeight,
 		onLanguageChange,

@@ -61,7 +61,7 @@
 		"tooltip": "このアクションを承認"
 	},
 	"runCommand": {
-		"title": "コマンド実行",
+		"title": "コマンド",
 		"tooltip": "このコマンドを実行"
 	},
 	"proceedWhileRunning": {
@@ -125,7 +125,7 @@
 		"searchPlaceholder": "モードを検索...",
 		"noResults": "結果が見つかりません"
 	},
-	"errorReadingFile": "ファイル読み込みエラー:",
+	"errorReadingFile": "ファイル読み込みエラー",
 	"noValidImages": "有効な画像が処理されませんでした",
 	"separator": "区切り",
 	"edit": "編集...",
@@ -163,51 +163,51 @@
 		"wantsToFetch": "Rooは現在のタスクを支援するための詳細な指示を取得したい"
 	},
 	"fileOperations": {
-		"wantsToRead": "Rooはこのファイルを読みたい:",
-		"wantsToReadOutsideWorkspace": "Rooはワークスペース外のこのファイルを読みたい:",
-		"didRead": "Rooはこのファイルを読みました:",
-		"wantsToEdit": "Rooはこのファイルを編集したい:",
-		"wantsToEditOutsideWorkspace": "Rooはワークスペース外のこのファイルを編集したい:",
-		"wantsToEditProtected": "Rooは保護された設定ファイルを編集したい:",
-		"wantsToCreate": "Rooは新しいファイルを作成したい:",
-		"wantsToSearchReplace": "Rooはこのファイルで検索と置換を行う:",
-		"didSearchReplace": "Rooはこのファイルで検索と置換を実行しました:",
-		"wantsToInsert": "Rooはこのファイルにコンテンツを挿入したい:",
-		"wantsToInsertWithLineNumber": "Rooはこのファイルの{{lineNumber}}行目にコンテンツを挿入したい:",
-		"wantsToInsertAtEnd": "Rooはこのファイルの末尾にコンテンツを追加したい:",
-		"wantsToReadAndXMore": "Roo はこのファイルと他に {{count}} 個のファイルを読み込もうとしています:",
-		"wantsToReadMultiple": "Rooは複数のファイルを読み取ろうとしています：",
-		"wantsToApplyBatchChanges": "Rooは複数のファイルに変更を適用したい:",
-		"wantsToGenerateImage": "Rooは画像を生成したい:",
-		"wantsToGenerateImageOutsideWorkspace": "Rooはワークスペース外で画像を生成したい:",
-		"wantsToGenerateImageProtected": "Rooは保護された場所で画像を生成したい:",
-		"didGenerateImage": "Rooは画像を生成しました:"
+		"wantsToRead": "Rooはこのファイルを読みたい",
+		"wantsToReadOutsideWorkspace": "Rooはワークスペース外のこのファイルを読みたい",
+		"didRead": "Rooはこのファイルを読みました",
+		"wantsToEdit": "Rooはこのファイルを編集したい",
+		"wantsToEditOutsideWorkspace": "Rooはワークスペース外のこのファイルを編集したい",
+		"wantsToEditProtected": "Rooは保護された設定ファイルを編集したい",
+		"wantsToCreate": "Rooは新しいファイルを作成したい",
+		"wantsToSearchReplace": "Rooはこのファイルで検索と置換を行う",
+		"didSearchReplace": "Rooはこのファイルで検索と置換を実行しました",
+		"wantsToInsert": "Rooはこのファイルにコンテンツを挿入したい",
+		"wantsToInsertWithLineNumber": "Rooはこのファイルの{{lineNumber}}行目にコンテンツを挿入したい",
+		"wantsToInsertAtEnd": "Rooはこのファイルの末尾にコンテンツを追加したい",
+		"wantsToReadAndXMore": "Roo はこのファイルと他に {{count}} 個のファイルを読み込もうとしています",
+		"wantsToReadMultiple": "Rooは複数のファイルを読み取ろうとしています",
+		"wantsToApplyBatchChanges": "Rooは複数のファイルに変更を適用したい",
+		"wantsToGenerateImage": "Rooは画像を生成したい",
+		"wantsToGenerateImageOutsideWorkspace": "Rooはワークスペース外で画像を生成したい",
+		"wantsToGenerateImageProtected": "Rooは保護された場所で画像を生成したい",
+		"didGenerateImage": "Rooは画像を生成しました"
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい:",
-		"didViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示しました:",
-		"wantsToViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示したい:",
-		"didViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示しました:",
-		"wantsToViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示したい:",
-		"didViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示しました:",
-		"wantsToSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索したい:",
-		"didSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索しました:",
-		"wantsToSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索したい:",
-		"didSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索しました:",
-		"wantsToViewTopLevelOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のトップレベルファイルを表示したい:",
-		"didViewTopLevelOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のトップレベルファイルを表示しました:",
-		"wantsToViewRecursiveOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のすべてのファイルを再帰的に表示したい:",
-		"didViewRecursiveOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のすべてのファイルを再帰的に表示しました:",
-		"wantsToViewDefinitionsOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で使用されているソースコード定義名を表示したい:",
-		"didViewDefinitionsOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で使用されているソースコード定義名を表示しました:"
+		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい",
+		"didViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示しました",
+		"wantsToViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示したい",
+		"didViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示しました",
+		"wantsToViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示したい",
+		"didViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示しました",
+		"wantsToSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索したい",
+		"didSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索しました",
+		"wantsToSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索したい",
+		"didSearchOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で <code>{{regex}}</code> を検索しました",
+		"wantsToViewTopLevelOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のトップレベルファイルを表示したい",
+		"didViewTopLevelOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のトップレベルファイルを表示しました",
+		"wantsToViewRecursiveOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のすべてのファイルを再帰的に表示したい",
+		"didViewRecursiveOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）のすべてのファイルを再帰的に表示しました",
+		"wantsToViewDefinitionsOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で使用されているソースコード定義名を表示したい",
+		"didViewDefinitionsOutsideWorkspace": "Rooはこのディレクトリ（ワークスペース外）で使用されているソースコード定義名を表示しました"
 	},
 	"commandOutput": "コマンド出力",
 	"commandExecution": {
 		"running": "実行中",
+		"abort": "中止",
 		"pid": "PID: {{pid}}",
-		"exited": "終了しました ({{exitCode}})",
-		"manageCommands": "コマンド権限の管理",
-		"commandManagementDescription": "コマンドの権限を管理します：✓ をクリックして自動実行を許可し、✗ をクリックして実行を拒否します。パターンはオン/オフの切り替えやリストからの削除が可能です。<settingsLink>すべての設定を表示</settingsLink>",
+		"exitStatus": "ステータス {{exitCode}} で終了しました",
+		"manageCommands": "自動承認されたコマンド",
 		"addToAllowed": "許可リストに追加",
 		"removeFromAllowed": "許可リストから削除",
 		"addToDenied": "拒否リストに追加",
@@ -220,9 +220,12 @@
 	},
 	"response": "応答",
 	"arguments": "引数",
+	"feedback": {
+		"youSaid": "あなたの発言"
+	},
 	"mcp": {
-		"wantsToUseTool": "RooはMCPサーバー{{serverName}}でツールを使用したい:",
-		"wantsToAccessResource": "RooはMCPサーバー{{serverName}}のリソースにアクセスしたい:"
+		"wantsToUseTool": "RooはMCPサーバー{{serverName}}でツールを使用したい",
+		"wantsToAccessResource": "RooはMCPサーバー{{serverName}}のリソースにアクセスしたい"
 	},
 	"modes": {
 		"wantsToSwitch": "Rooは<code>{{mode}}</code>モードに切り替えたい",
@@ -231,7 +234,7 @@
 		"didSwitchWithReason": "Rooは次の理由で<code>{{mode}}</code>モードに切り替えました: {{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Rooは<code>{{mode}}</code>モードで新しいサブタスクを作成したい:",
+		"wantsToCreate": "Rooは<code>{{mode}}</code>モードで新しいサブタスクを作成したい",
 		"wantsToFinish": "Rooはこのサブタスクを終了したい",
 		"newTaskContent": "サブタスク指示",
 		"completionContent": "サブタスク完了",
@@ -240,7 +243,7 @@
 		"completionInstructions": "サブタスク完了！結果を確認し、修正や次のステップを提案できます。問題なければ、親タスクに結果を返すために確認してください。"
 	},
 	"questions": {
-		"hasQuestion": "Rooは質問があります:"
+		"hasQuestion": "Rooは質問があります"
 	},
 	"taskCompleted": "タスク完了",
 	"powershell": {
@@ -287,7 +290,7 @@
 		"socialLinks": "<xLink>X</xLink>、<discordLink>Discord</discordLink>、または<redditLink>r/RooCode</redditLink>でフォローしてください"
 	},
 	"browser": {
-		"rooWantsToUse": "Rooはブラウザを使用したい:",
+		"rooWantsToUse": "Rooはブラウザを使用したい",
 		"consoleLogs": "コンソールログ",
 		"noNewLogs": "(新しいログはありません)",
 		"screenshot": "ブラウザのスクリーンショット",
@@ -337,8 +340,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Rooはコードベースで <code>{{query}}</code> を検索したい:",
-		"wantsToSearchWithPath": "Rooは <code>{{path}}</code> 内のコードベースで <code>{{query}}</code> を検索したい:",
+		"wantsToSearch": "Rooはコードベースで <code>{{query}}</code> を検索したい",
+		"wantsToSearchWithPath": "Rooは <code>{{path}}</code> 内のコードベースで <code>{{query}}</code> を検索したい",
 		"didSearch_one": "1件の結果が見つかりました",
 		"didSearch_other": "{{count}}件の結果が見つかりました",
 		"resultTooltip": "類似度スコア: {{score}} (クリックしてファイルを開く)"
@@ -399,12 +402,12 @@
 		"url": "URLを貼り付けてコンテンツを取得"
 	},
 	"queuedMessages": {
-		"title": "キューメッセージ:",
+		"title": "キューメッセージ",
 		"clickToEdit": "クリックしてメッセージを編集"
 	},
 	"slashCommand": {
-		"wantsToRun": "Rooはスラッシュコマンドを実行したい:",
-		"didRun": "Rooはスラッシュコマンドを実行しました:"
+		"wantsToRun": "Rooはスラッシュコマンドを実行したい",
+		"didRun": "Rooはスラッシュコマンドを実行しました"
 	},
 	"ask": {
 		"autoApprovedRequestLimitReached": {

@@ -75,8 +75,8 @@
 		}
 	},
 	"runCommand": {
-		"title": "Jalankan Perintah",
-		"tooltip": "Eksekusi perintah ini"
+		"title": "Perintah",
+		"tooltip": "Jalankan perintah ini"
 	},
 	"proceedWhileRunning": {
 		"title": "Lanjutkan Saat Berjalan",
@@ -139,7 +139,7 @@
 	"addContext": "@ untuk menambah konteks, / untuk perintah",
 	"dragFiles": "tahan shift untuk drag file",
 	"dragFilesImages": "tahan shift untuk drag file/gambar",
-	"errorReadingFile": "Error membaca file:",
+	"errorReadingFile": "Error membaca file",
 	"noValidImages": "Tidak ada gambar valid yang diproses",
 	"separator": "Pemisah",
 	"edit": "Edit...",
@@ -178,73 +178,76 @@
 		"wantsToFetch": "Roo ingin mengambil instruksi detail untuk membantu tugas saat ini"
 	},
 	"fileOperations": {
-		"wantsToRead": "Roo ingin membaca file ini:",
-		"wantsToReadMultiple": "Roo ingin membaca beberapa file:",
-		"wantsToReadAndXMore": "Roo ingin membaca file ini dan {{count}} lainnya:",
-		"wantsToReadOutsideWorkspace": "Roo ingin membaca file ini di luar workspace:",
-		"didRead": "Roo membaca file ini:",
-		"wantsToEdit": "Roo ingin mengedit file ini:",
-		"wantsToEditOutsideWorkspace": "Roo ingin mengedit file ini di luar workspace:",
-		"wantsToEditProtected": "Roo ingin mengedit file konfigurasi yang dilindungi:",
-		"wantsToApplyBatchChanges": "Roo ingin menerapkan perubahan ke beberapa file:",
-		"wantsToGenerateImage": "Roo ingin menghasilkan gambar:",
-		"wantsToGenerateImageOutsideWorkspace": "Roo ingin menghasilkan gambar di luar workspace:",
-		"wantsToGenerateImageProtected": "Roo ingin menghasilkan gambar di lokasi yang dilindungi:",
-		"didGenerateImage": "Roo telah menghasilkan gambar:",
-		"wantsToCreate": "Roo ingin membuat file baru:",
-		"wantsToSearchReplace": "Roo ingin mencari dan mengganti di file ini:",
-		"didSearchReplace": "Roo melakukan pencarian dan penggantian pada file ini:",
-		"wantsToInsert": "Roo ingin menyisipkan konten ke file ini:",
-		"wantsToInsertWithLineNumber": "Roo ingin menyisipkan konten ke file ini di baris {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo ingin menambahkan konten ke akhir file ini:"
+		"wantsToRead": "Roo ingin membaca file ini",
+		"wantsToReadMultiple": "Roo ingin membaca beberapa file",
+		"wantsToReadAndXMore": "Roo ingin membaca file ini dan {{count}} lainnya",
+		"wantsToReadOutsideWorkspace": "Roo ingin membaca file ini di luar workspace",
+		"didRead": "Roo membaca file ini",
+		"wantsToEdit": "Roo ingin mengedit file ini",
+		"wantsToEditOutsideWorkspace": "Roo ingin mengedit file ini di luar workspace",
+		"wantsToEditProtected": "Roo ingin mengedit file konfigurasi yang dilindungi",
+		"wantsToApplyBatchChanges": "Roo ingin menerapkan perubahan ke beberapa file",
+		"wantsToGenerateImage": "Roo ingin menghasilkan gambar",
+		"wantsToGenerateImageOutsideWorkspace": "Roo ingin menghasilkan gambar di luar workspace",
+		"wantsToGenerateImageProtected": "Roo ingin menghasilkan gambar di lokasi yang dilindungi",
+		"didGenerateImage": "Roo telah menghasilkan gambar",
+		"wantsToCreate": "Roo ingin membuat file baru",
+		"wantsToSearchReplace": "Roo ingin mencari dan mengganti di file ini",
+		"didSearchReplace": "Roo melakukan pencarian dan penggantian pada file ini",
+		"wantsToInsert": "Roo ingin menyisipkan konten ke file ini",
+		"wantsToInsertWithLineNumber": "Roo ingin menyisipkan konten ke file ini di baris {{lineNumber}}",
+		"wantsToInsertAtEnd": "Roo ingin menambahkan konten ke akhir file ini"
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Roo ingin melihat file tingkat atas di direktori ini:",
-		"didViewTopLevel": "Roo melihat file tingkat atas di direktori ini:",
-		"wantsToViewRecursive": "Roo ingin melihat semua file secara rekursif di direktori ini:",
-		"didViewRecursive": "Roo melihat semua file secara rekursif di direktori ini:",
-		"wantsToViewDefinitions": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini:",
-		"didViewDefinitions": "Roo melihat nama definisi source code yang digunakan di direktori ini:",
-		"wantsToSearch": "Roo ingin mencari direktori ini untuk <code>{{regex}}</code>:",
-		"didSearch": "Roo mencari direktori ini untuk <code>{{regex}}</code>:",
-		"wantsToSearchOutsideWorkspace": "Roo ingin mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>:",
-		"didSearchOutsideWorkspace": "Roo mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>:",
-		"wantsToViewTopLevelOutsideWorkspace": "Roo ingin melihat file tingkat atas di direktori ini (di luar workspace):",
-		"didViewTopLevelOutsideWorkspace": "Roo melihat file tingkat atas di direktori ini (di luar workspace):",
-		"wantsToViewRecursiveOutsideWorkspace": "Roo ingin melihat semua file secara rekursif di direktori ini (di luar workspace):",
-		"didViewRecursiveOutsideWorkspace": "Roo melihat semua file secara rekursif di direktori ini (di luar workspace):",
-		"wantsToViewDefinitionsOutsideWorkspace": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini (di luar workspace):",
-		"didViewDefinitionsOutsideWorkspace": "Roo melihat nama definisi source code yang digunakan di direktori ini (di luar workspace):"
+		"wantsToViewTopLevel": "Roo ingin melihat file tingkat atas di direktori ini",
+		"didViewTopLevel": "Roo melihat file tingkat atas di direktori ini",
+		"wantsToViewRecursive": "Roo ingin melihat semua file secara rekursif di direktori ini",
+		"didViewRecursive": "Roo melihat semua file secara rekursif di direktori ini",
+		"wantsToViewDefinitions": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini",
+		"didViewDefinitions": "Roo melihat nama definisi source code yang digunakan di direktori ini",
+		"wantsToSearch": "Roo ingin mencari direktori ini untuk <code>{{regex}}</code>",
+		"didSearch": "Roo mencari direktori ini untuk <code>{{regex}}</code>",
+		"wantsToSearchOutsideWorkspace": "Roo ingin mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>",
+		"didSearchOutsideWorkspace": "Roo mencari direktori ini (di luar workspace) untuk <code>{{regex}}</code>",
+		"wantsToViewTopLevelOutsideWorkspace": "Roo ingin melihat file tingkat atas di direktori ini (di luar workspace)",
+		"didViewTopLevelOutsideWorkspace": "Roo melihat file tingkat atas di direktori ini (di luar workspace)",
+		"wantsToViewRecursiveOutsideWorkspace": "Roo ingin melihat semua file secara rekursif di direktori ini (di luar workspace)",
+		"didViewRecursiveOutsideWorkspace": "Roo melihat semua file secara rekursif di direktori ini (di luar workspace)",
+		"wantsToViewDefinitionsOutsideWorkspace": "Roo ingin melihat nama definisi source code yang digunakan di direktori ini (di luar workspace)",
+		"didViewDefinitionsOutsideWorkspace": "Roo melihat nama definisi source code yang digunakan di direktori ini (di luar workspace)"
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo ingin mencari codebase untuk <code>{{query}}</code>:",
-		"wantsToSearchWithPath": "Roo ingin mencari codebase untuk <code>{{query}}</code> di <code>{{path}}</code>:",
+		"wantsToSearch": "Roo ingin mencari codebase untuk <code>{{query}}</code>",
+		"wantsToSearchWithPath": "Roo ingin mencari codebase untuk <code>{{query}}</code> di <code>{{path}}</code>",
 		"didSearch_one": "Ditemukan 1 hasil",
 		"didSearch_other": "Ditemukan {{count}} hasil",
 		"resultTooltip": "Skor kemiripan: {{score}} (klik untuk membuka file)"
 	},
-	"commandOutput": "Output Perintah",
+	"commandOutput": "Keluaran Perintah",
 	"commandExecution": {
-		"running": "Menjalankan",
+		"running": "Sedang berjalan",
+		"abort": "Batalkan",
 		"pid": "PID: {{pid}}",
-		"exited": "Keluar ({{exitCode}})",
-		"manageCommands": "Kelola Izin Perintah",
-		"commandManagementDescription": "Kelola izin perintah: Klik ✓ untuk mengizinkan eksekusi otomatis, ✗ untuk menolak eksekusi. Pola dapat diaktifkan/dinonaktifkan atau dihapus dari daftar. <settingsLink>Lihat semua pengaturan</settingsLink>",
+		"exitStatus": "Keluar dengan status {{exitCode}}",
+		"manageCommands": "Perintah yang disetujui secara otomatis",
 		"addToAllowed": "Tambahkan ke daftar yang diizinkan",
 		"removeFromAllowed": "Hapus dari daftar yang diizinkan",
 		"addToDenied": "Tambahkan ke daftar yang ditolak",
 		"removeFromDenied": "Hapus dari daftar yang ditolak",
 		"abortCommand": "Batalkan eksekusi perintah",
-		"expandOutput": "Perluas output",
-		"collapseOutput": "Ciutkan output",
+		"expandOutput": "Perluas keluaran",
+		"collapseOutput": "Ciutkan keluaran",
 		"expandManagement": "Perluas bagian manajemen perintah",
 		"collapseManagement": "Ciutkan bagian manajemen perintah"
 	},
 	"response": "Respons",
 	"arguments": "Argumen",
+	"feedback": {
+		"youSaid": "Anda bilang"
+	},
 	"mcp": {
-		"wantsToUseTool": "Roo ingin menggunakan tool di server MCP {{serverName}}:",
-		"wantsToAccessResource": "Roo ingin mengakses resource di server MCP {{serverName}}:"
+		"wantsToUseTool": "Roo ingin menggunakan tool di server MCP {{serverName}}",
+		"wantsToAccessResource": "Roo ingin mengakses resource di server MCP {{serverName}}"
 	},
 	"modes": {
 		"wantsToSwitch": "Roo ingin beralih ke mode {{mode}}",
@@ -253,7 +256,7 @@
 		"didSwitchWithReason": "Roo beralih ke mode {{mode}} karena: {{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Roo ingin membuat subtugas baru dalam mode {{mode}}:",
+		"wantsToCreate": "Roo ingin membuat subtugas baru dalam mode {{mode}}",
 		"wantsToFinish": "Roo ingin menyelesaikan subtugas ini",
 		"newTaskContent": "Instruksi Subtugas",
 		"completionContent": "Subtugas Selesai",
@@ -262,7 +265,7 @@
 		"completionInstructions": "Subtugas selesai! Kamu bisa meninjau hasilnya dan menyarankan koreksi atau langkah selanjutnya. Jika semuanya terlihat baik, konfirmasi untuk mengembalikan hasil ke tugas induk."
 	},
 	"questions": {
-		"hasQuestion": "Roo punya pertanyaan:"
+		"hasQuestion": "Roo punya pertanyaan"
 	},
 	"taskCompleted": "Tugas Selesai",
 	"error": "Error",
@@ -308,7 +311,7 @@
 		"countdownDisplay": "{{count}}dtk"
 	},
 	"browser": {
-		"rooWantsToUse": "Roo ingin menggunakan browser:",
+		"rooWantsToUse": "Roo ingin menggunakan browser",
 		"consoleLogs": "Log Konsol",
 		"noNewLogs": "(Tidak ada log baru)",
 		"screenshot": "Screenshot browser",
@@ -405,12 +408,12 @@
 		"url": "Tempel URL untuk mengambil konten"
 	},
 	"queuedMessages": {
-		"title": "Pesan Antrian:",
+		"title": "Pesan Antrian",
 		"clickToEdit": "Klik untuk mengedit pesan"
 	},
 	"slashCommand": {
-		"wantsToRun": "Roo ingin menjalankan perintah slash:",
-		"didRun": "Roo telah menjalankan perintah slash:"
+		"wantsToRun": "Roo ingin menjalankan perintah slash",
+		"didRun": "Roo telah menjalankan perintah slash"
 	},
 	"ask": {
 		"autoApprovedRequestLimitReached": {

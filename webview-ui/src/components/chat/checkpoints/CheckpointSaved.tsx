@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 
 import { CheckpointMenu } from "./CheckpointMenu"
 import { checkpointSchema } from "./schema"
+import { GitCommitVertical } from "lucide-react"
 
 type CheckpointSavedProps = {
 	ts: number
@@ -34,13 +35,22 @@ export const CheckpointSaved = ({ checkpoint, ...props }: CheckpointSavedProps) 
 	}
 
 	return (
-		<div className="flex items-center justify-between">
-			<div className="flex gap-2">
-				<span className="codicon codicon-git-commit text-blue-400" />
-				<span className="font-bold">{t("chat:checkpoint.regular")}</span>
-				{isCurrent && <span className="text-muted text-sm">{t("chat:checkpoint.current")}</span>}
+		<div className="group flex items-center justify-between gap-2 pt-2 pb-3 ">
+			<div className="flex items-center gap-2 text-blue-400">
+				<GitCommitVertical className="w-4" />
+				<span className="font-semibold">{t("chat:checkpoint.regular")}</span>
+				{isCurrent && <span className="text-muted">({t("chat:checkpoint.current")})</span>}
 			</div>
-			<CheckpointMenu {...props} checkpoint={metadata} />
+			<span
+				className="block w-full h-[2px] mt-[2px] text-xs"
+				style={{
+					backgroundImage:
+						"linear-gradient(90deg, rgba(0, 188, 255, .65), rgba(0, 188, 255, .65) 80%, rgba(0, 188, 255, 0) 99%)",
+				}}></span>
+
+			<div className="hidden group-hover:block h-4 -mt-2">
+				<CheckpointMenu {...props} checkpoint={metadata} />
+			</div>
 		</div>
 	)
 }

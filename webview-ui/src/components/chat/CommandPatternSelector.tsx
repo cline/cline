@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from "react"
-import { Check, ChevronDown, Info, X } from "lucide-react"
+import { Check, CheckCheck, ChevronUp, X } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { useTranslation, Trans } from "react-i18next"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { StandardTooltip } from "../ui/standard-tooltip"
 
 interface CommandPattern {
@@ -28,10 +27,6 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 	const { t } = useTranslation()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [editingStates, setEditingStates] = useState<Record<string, { isEditing: boolean; value: string }>>({})
-
-	const handleOpenSettings = () => {
-		window.postMessage({ type: "action", action: "settingsButtonClicked", values: { section: "autoApprove" } })
-	}
 
 	// Create a combined list with full command first, then patterns
 	const allPatterns = useMemo(() => {
@@ -68,50 +63,36 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 	}
 
 	return (
-		<div className="border-t border-vscode-panel-border bg-vscode-sideBar-background/30">
+		<div className="border-t border-vscode-panel-border/50 bg-vscode-sideBar-background/30">
 			<button
 				onClick={() => setIsExpanded(!isExpanded)}
 				className="w-full px-3 py-2 flex items-center justify-between hover:bg-vscode-list-hoverBackground transition-colors">
-				<div className="flex items-center gap-2">
-					<ChevronDown
-						className={cn("size-4 transition-transform", {
-							"-rotate-90": !isExpanded,
-						})}
+				<div className="group flex items-center gap-2 cursor-pointer w-full text-left">
+					<span
+						className={cn(
+							"text-sm flex-1 group-hover:opacity-100",
+							isExpanded ? "opacity-100" : "opacity-40",
+						)}>
+						<CheckCheck className="size-3 inline-block mr-2" />
+						{t("chat:commandExecution.manageCommands")}
+					</span>
+					<ChevronUp
+						className={cn(
+							"group-hover:opacity-100 size-4 transition-transform",
+							isExpanded ? "opacity-100" : "opacity-40 -rotate-180",
+						)}
 					/>
-					<span className="text-sm font-medium">{t("chat:commandExecution.manageCommands")}</span>
-					<StandardTooltip
-						content={
-							<div className="max-w-xs">
-								<Trans
-									i18nKey="chat:commandExecution.commandManagementDescription"
-									components={{
-										settingsLink: (
-											<VSCodeLink
-												href="#"
-												onClick={(e) => {
-													e.preventDefault()
-													handleOpenSettings()
-												}}
-												className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground"
-											/>
-										),
-									}}
-								/>
-							</div>
-						}>
-						<Info className="size-3.5 text-vscode-descriptionForeground" />
-					</StandardTooltip>
 				</div>
 			</button>
 
 			{isExpanded && (
-				<div className="px-3 pb-3 space-y-2">
+				<div className="pl-6 pr-2 pt-1 pb-2 space-y-2">
 					{allPatterns.map((item) => {
 						const editState = getEditState(item.pattern)
 						const status = getPatternStatus(editState.value)
 
 						return (
-							<div key={item.pattern} className="ml-5 flex items-center gap-2">
+							<div key={item.pattern} className="flex items-center gap-2">
 								<div className="flex-1">
 									{editState.isEditing ? (
 										<input
@@ -146,35 +127,49 @@ export const CommandPatternSelector: React.FC<CommandPatternSelectorProps> = ({
 									)}
 								</div>
 								<div className="flex items-center gap-1">
-									<button
-										className={cn("p-1 rounded transition-all", {
-											"bg-green-500/20 text-green-500 hover:bg-green-500/30":
-												status === "allowed",
-											"text-vscode-descriptionForeground hover:text-green-500 hover:bg-green-500/10":
-												status !== "allowed",
-										})}
-										onClick={() => onAllowPatternChange(editState.value)}
-										aria-label={t(
+									<StandardTooltip
+										content={t(
 											status === "allowed"
 												? "chat:commandExecution.removeFromAllowed"
 												: "chat:commandExecution.addToAllowed",
 										)}>
-										<Check className="size-3.5" />
-									</button>
-									<button
-										className={cn("p-1 rounded transition-all", {
-											"bg-red-500/20 text-red-500 hover:bg-red-500/30": status === "denied",
-											"text-vscode-descriptionForeground hover:text-red-500 hover:bg-red-500/10":
-												status !== "denied",
-										})}
-										onClick={() => onDenyPatternChange(editState.value)}
-										aria-label={t(
+										<button
+											className={cn("p-1 rounded transition-all cursor-pointer", {
+												"bg-green-500/20 text-green-500 hover:bg-green-500/30":
+													status === "allowed",
+												"text-vscode-descriptionForeground hover:text-green-500 hover:bg-green-500/10":
+													status !== "allowed",
+											})}
+											onClick={() => onAllowPatternChange(editState.value)}
+											aria-label={t(
+												status === "allowed"
+													? "chat:commandExecution.removeFromAllowed"
+													: "chat:commandExecution.addToAllowed",
+											)}>
+											<Check className="size-3.5" />
+										</button>
+									</StandardTooltip>
+									<StandardTooltip
+										content={t(
 											status === "denied"
 												? "chat:commandExecution.removeFromDenied"
 												: "chat:commandExecution.addToDenied",
 										)}>
-										<X className="size-3.5" />
-									</button>
+										<button
+											className={cn("p-1 rounded transition-all cursor-pointer", {
+												"bg-red-500/20 text-red-500 hover:bg-red-500/30": status === "denied",
+												"text-vscode-descriptionForeground hover:text-red-500 hover:bg-red-500/10":
+													status !== "denied",
+											})}
+											onClick={() => onDenyPatternChange(editState.value)}
+											aria-label={t(
+												status === "denied"
+													? "chat:commandExecution.removeFromDenied"
+													: "chat:commandExecution.addToDenied",
+											)}>
+											<X className="size-3.5" />
+										</button>
+									</StandardTooltip>
 								</div>
 							</div>
 						)

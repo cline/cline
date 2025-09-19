@@ -14,6 +14,7 @@ import { useExtensionState } from "@src/context/ExtensionStateContext"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent } from "./ChatRow"
 import { ProgressIndicator } from "./ProgressIndicator"
+import { Globe, Pointer, SquareTerminal } from "lucide-react"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -237,51 +238,42 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [browserSessionRow, { height: rowHeight }] = useSize(
 		<div style={{ padding: "10px 6px 10px 15px", marginBottom: -10 }}>
 			<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
-				{isBrowsing ? (
-					<ProgressIndicator />
-				) : (
-					<span
-						className={`codicon codicon-inspect`}
-						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
-				)}
+				{isBrowsing ? <ProgressIndicator /> : <Pointer className="w-4" aria-label="Browser action indicator" />}
 				<span style={{ fontWeight: "bold" }}>
 					<>{t("chat:browser.rooWantsToUse")}</>
 				</span>
 			</div>
 			<div
+				className="ml-6 mb-4 border-border"
 				style={{
-					borderRadius: 3,
-					border: "1px solid var(--vscode-editorGroup-border)",
+					borderRadius: 6,
 					overflow: "hidden",
 					backgroundColor: CODE_BLOCK_BG_COLOR,
-					marginBottom: 10,
 				}}>
 				{/* URL Bar */}
 				<div
 					style={{
-						margin: "5px auto",
-						width: "calc(100% - 10px)",
+						margin: "0px auto",
+						width: "calc(100%)",
 						boxSizing: "border-box", // includes padding in width calculation
-						backgroundColor: "var(--vscode-input-background)",
-						border: "1px solid var(--vscode-input-border)",
-						borderRadius: "4px",
-						padding: "3px 5px",
+						borderRadius: "4px 4px 0 0",
+						padding: "5px",
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
-						color: displayState.url
-							? "var(--vscode-input-foreground)"
-							: "var(--vscode-descriptionForeground)",
+						color: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 					}}>
 					<div
 						style={{
+							cursor: "default",
 							textOverflow: "ellipsis",
 							overflow: "hidden",
 							whiteSpace: "nowrap",
 							width: "100%",
 							textAlign: "center",
 						}}>
+						<Globe className="w-3 inline -mt-0.5 mr-2 opacity-50" />
 						{displayState.url || "http"}
 					</div>
 				</div>
@@ -289,6 +281,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{/* Screenshot Area */}
 				<div
 					data-testid="screenshot-container"
+					className="hover:opacity-90 transition-all"
 					style={{
 						width: "100%",
 						paddingBottom: `${aspectRatio}%`, // height/width ratio
@@ -341,27 +334,24 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					)}
 				</div>
 
-				<div style={{ width: "100%" }}>
-					<div
-						onClick={() => {
-							setConsoleLogsExpanded(!consoleLogsExpanded)
-						}}
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "4px",
-							width: "100%",
-							justifyContent: "flex-start",
-							cursor: "pointer",
-							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
-						}}>
-						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span style={{ fontSize: "0.8em" }}>{t("chat:browser.consoleLogs")}</span>
-					</div>
-					{consoleLogsExpanded && (
-						<CodeBlock source={displayState.consoleLogs || t("chat:browser.noNewLogs")} language="shell" />
-					)}
+				{/* Console Logs Accordion */}
+				<div
+					onClick={() => {
+						setConsoleLogsExpanded(!consoleLogsExpanded)
+					}}
+					className="flex items-center justify-between gap-2 text-vscode-editor-foreground/50 hover:text-vscode-editor-foreground transition-colors"
+					style={{
+						width: "100%",
+						cursor: "pointer",
+						padding: `9px 10px ${consoleLogsExpanded ? 0 : 8}px 10px`,
+					}}>
+					<SquareTerminal className="w-3" />
+					<span className="grow text-xs">{t("chat:browser.consoleLogs")}</span>
+					<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
 				</div>
+				{consoleLogsExpanded && (
+					<CodeBlock source={displayState.consoleLogs || t("chat:browser.noNewLogs")} language="shell" />
+				)}
 			</div>
 
 			{/* Action content with min height */}
