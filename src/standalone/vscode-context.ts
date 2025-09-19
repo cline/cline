@@ -1,25 +1,28 @@
 import { spawnSync } from "node:child_process"
-import { mkdirSync, readFileSync } from "fs"
+import { mkdirSync } from "fs"
 import os from "os"
-import path, { join } from "path"
+import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
 import { CredentialStorage } from "@/core/storage/credential"
 import { FileBasedStorage } from "@/core/storage/file"
 import { secretStorage } from "@/core/storage/secrets"
+import { ExtensionRegistryInfo } from "@/registry"
 import { log } from "./utils"
-import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
+import { DelegatingSecretStore, EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
-export const { version, name, publisher } = getPackageInfo()
-log("Running standalone cline", version)
+log("Running standalone cline", ExtensionRegistryInfo.version)
+log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
 
 export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
-const DATA_DIR = path.join(CLINE_DIR, "data")
+export const DATA_DIR = path.join(CLINE_DIR, "data")
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
 const SECRETS_FILE = path.join(DATA_DIR, "secrets.json")
+const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
 
 mkdirSync(DATA_DIR, { recursive: true })
+mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
 log("Using settings dir:", DATA_DIR)
 
 // If OS keychain deps are missing, we populate a warning to show non-blocking in the host
@@ -34,11 +37,11 @@ if (standaloneBackend instanceof CredentialStorage) {
 	void migrateFileSecretsToOS(SECRETS_FILE)
 }
 
-const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
+export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 const extension: Extension<void> = {
-	id: `${publisher}.${name}`,
+	id: ExtensionRegistryInfo.id,
 	isActive: true,
 	extensionPath: EXTENSION_DIR,
 	extensionUri: URI.file(EXTENSION_DIR),
@@ -55,14 +58,16 @@ const extensionContext: ExtensionContext = {
 	// Set up KV stores.
 	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
 	// Note: core reads/writes secrets via the singleton; context.secrets remains for compatibility
-	secrets: new SecretStore(SECRETS_FILE),
+	secrets:
+		standaloneBackend instanceof CredentialStorage ? new DelegatingSecretStore(secretStorage) : new SecretStore(SECRETS_FILE),
 
 	// Set up URIs.
-	storageUri: URI.file(DATA_DIR),
-	storagePath: DATA_DIR, // Deprecated, not used in cline.
+	storageUri: URI.file(WORKSPACE_STORAGE_DIR),
+	storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
 	globalStorageUri: URI.file(DATA_DIR),
 	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
 
+	// Logs are global per extension, not per workspace.
 	logUri: URI.file(DATA_DIR),
 	logPath: DATA_DIR, // Deprecated, not used in cline.
 
@@ -74,13 +79,8 @@ const extensionContext: ExtensionContext = {
 
 	environmentVariableCollection: new EnvironmentVariableCollection(),
 
-	// TODO(sjf): Workspace state needs to be per project/workspace.
-	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
-}
-
-function getPackageInfo() {
-	const packageJson = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"))
-	return { version: packageJson.version, name: packageJson.name, publisher: packageJson.publisher }
+	// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
+	workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
 }
 
 // Select the best standalone secret storage backend (OS keychain when available, else file)

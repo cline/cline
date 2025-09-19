@@ -17,5 +17,5 @@ export async function getFeedbackSection(variant: PromptVariant, context: System
 
 	const template = variant.componentOverrides?.[SystemPromptSection.FEEDBACK]?.template || FEEDBACK_TEMPLATE_TEXT
 
-	return new TemplateEngine().resolve(template, {})
+	return new TemplateEngine().resolve(template, context, {})
 }

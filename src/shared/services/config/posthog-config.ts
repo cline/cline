@@ -1,30 +1,57 @@
 export interface PostHogClientConfig {
+	/**
+	 * The main API key for PostHog telemetry service.
+	 */
 	apiKey?: string | undefined
+	/**
+	 * The API key for PostHog used only for error tracking service.
+	 */
 	errorTrackingApiKey?: string | undefined
 	host: string
 	uiHost: string
 }
 
+/**
+ * Helper type for a valid PostHog client configuration.
+ * Must contains api keys for both telemetry and error tracking.
+ */
 export interface PostHogClientValidConfig extends PostHogClientConfig {
 	apiKey: string
 	errorTrackingApiKey: string
 }
 
-// Public PostHog key (safe for open source)
-const posthogProdConfig = {
-	apiKey: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
-	errorTrackingApiKey: "phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K",
-	host: "https://data.cline.bot",
-	uiHost: "https://us.posthog.com",
-} satisfies PostHogClientConfig
+/**
+ * NOTE: Ensure that dev environment is not used in production.
+ * process.env.CI will always be true in the CI environment, during both testing and publishing step,
+ * so it is not a reliable indicator of the environment.
+ */
+const useDevEnv = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
 
-// Public PostHog key for Development Environment project
-const posthogDevEnvConfig = {
-	apiKey: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
-	errorTrackingApiKey: "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4",
+/**
+ * PostHog configuration for Production Environment.
+ * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
+ * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
+ * defined in the .github/workflows/publish.yml workflow.
+ * NOTE: The development environment variables should be retrieved from 1password shared vault.
+ */
+export const posthogConfig: PostHogClientConfig = {
+	apiKey: process.env.TELEMETRY_SERVICE_API_KEY,
+	errorTrackingApiKey: process.env.ERROR_SERVICE_API_KEY,
 	host: "https://data.cline.bot",
-	uiHost: "https://us.i.posthog.com",
-} satisfies PostHogClientConfig
+	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
+}
 
-// NOTE: Ensure that dev environment is used when process.env.IS_DEV is "true"
-export const posthogConfig = process.env.IS_DEV === "true" ? posthogDevEnvConfig : posthogProdConfig
+const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
+
+export function isPostHogConfigValid(config: PostHogClientConfig): config is PostHogClientValidConfig {
+	// Allow invalid config in test environment to enable mocking and stubbing
+	if (isTestEnv) {
+		return false
+	}
+	return (
+		typeof config.apiKey === "string" &&
+		typeof config.errorTrackingApiKey === "string" &&
+		typeof config.host === "string" &&
+		typeof config.uiHost === "string"
+	)
+}

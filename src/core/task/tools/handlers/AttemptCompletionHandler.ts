@@ -107,7 +107,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			}
 
 			// User approved, execute the command
-			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!)
+			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!, undefined) // no timeout for attempt_completion command
 			if (userRejected) {
 				config.taskState.didRejectTool = true
 				return execCommandResult

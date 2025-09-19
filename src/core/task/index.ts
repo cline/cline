@@ -72,6 +72,7 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
+import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -141,6 +142,7 @@ export class Task {
 	focusChainSettings: FocusChainSettings
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
+	yoloModeToggled: boolean
 	mode: Mode
 
 	// Message and conversation state
@@ -164,6 +166,7 @@ export class Task {
 		openaiReasoningEffort: OpenaiReasoningEffort,
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
+		yoloModeToggled: boolean,
 		useAutoCondense: boolean,
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
@@ -214,6 +217,7 @@ export class Task {
 		this.focusChainSettings = focusChainSettings
 		this.preferredLanguage = preferredLanguage
 		this.openaiReasoningEffort = openaiReasoningEffort
+		this.yoloModeToggled = yoloModeToggled
 		this.mode = mode
 		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
@@ -281,8 +285,6 @@ export class Task {
 				taskState: this.taskState,
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
-				globalStoragePath: controller.context.globalStorageUri.fsPath,
-				isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
@@ -294,9 +296,9 @@ export class Task {
 			// If multi-root, kick off non-blocking initialization
 			if (
 				shouldUseMultiRoot({
-					isMultiRootEnabled: stateManager.getGlobalStateKey("multiRootEnabled"),
 					workspaceManager: this.workspaceManager,
 					enableCheckpoints: enableCheckpointsSetting,
+					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
 				})
 			) {
 				this.checkpointManager.initialize?.().catch((error: Error) => {
@@ -413,6 +415,9 @@ export class Task {
 			this.ulid,
 			this.mode,
 			strictPlanModeEnabled,
+			yoloModeToggled,
+			this.workspaceManager,
+			featureFlagsService.getMultiRootEnabled(),
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpointCallback.bind(this),
@@ -421,6 +426,7 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
+			this.switchToActModeCallback.bind(this),
 		)
 	}
 
@@ -430,6 +436,11 @@ export class Task {
 		if (this.FocusChainManager) {
 			this.FocusChainManager.updateMode(mode)
 		}
+	}
+
+	public updateYoloModeToggled(yoloModeToggled: boolean): void {
+		this.yoloModeToggled = yoloModeToggled
+		this.toolExecutor.updateYoloModeToggled(yoloModeToggled)
 	}
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
@@ -724,6 +735,10 @@ export class Task {
 
 	private async saveCheckpointCallback(isAttemptCompletionMessage?: boolean, completionMessageTs?: number): Promise<void> {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
+	}
+
+	private async switchToActModeCallback(): Promise<boolean> {
+		return await this.controller.toggleActModeForYoloMode()
 	}
 
 	// Task lifecycle
@@ -1076,7 +1091,7 @@ export class Task {
 		}
 	}
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
@@ -1215,7 +1230,49 @@ export class Task {
 			await this.say("shell_integration_warning")
 		})
 
-		await process
+		//await process
+
+		if (timeoutSeconds) {
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					reject(new Error("COMMAND_TIMEOUT"))
+				}, timeoutSeconds * 1000)
+			})
+
+			try {
+				await Promise.race([process, timeoutPromise])
+			} catch (error) {
+				// This will continue running the command in the background
+				didContinue = true
+				process.continue()
+
+				// Clear all our timers
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
+				if (completionTimer) {
+					clearTimeout(completionTimer)
+					completionTimer = null
+				}
+
+				// Process any output we captured before timeout
+				await setTimeoutPromise(50)
+				const result = this.terminalManager.processOutput(outputLines)
+
+				if (error.message === "COMMAND_TIMEOUT") {
+					return [
+						false,
+						`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+					]
+				}
+
+				// Re-throw other errors
+				throw error
+			}
+		} else {
+			await process
+		}
 
 		// Clear timer if process completes normally
 		if (completionTimer) {
@@ -1283,7 +1340,7 @@ export class Task {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const providerId = (this.mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const customPrompt = this.stateManager.getGlobalStateKey("customPrompt")
+		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt }
 	}
 
@@ -1322,6 +1379,7 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
+		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
 		await this.migrateDisableBrowserToolSetting()
 		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1354,8 +1412,20 @@ export class Task {
 			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
 		}
 
+		// Prepare multi-root workspace information if enabled
+		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		if (isMultiRootEnabled && this.workspaceManager) {
+			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
+				path: root.path,
+				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
+				vcs: root.vcs as string | undefined, // Cast VcsType to string
+			}))
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
+			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
@@ -1368,6 +1438,9 @@ export class Task {
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.browserSettings,
+			yoloModeToggled: this.yoloModeToggled,
+			isMultiRootEnabled,
+			workspaceRoots,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)
@@ -2303,11 +2376,74 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
+	/**
+	 * Format workspace roots section for multi-root workspaces
+	 */
+	private formatWorkspaceRootsSection(): string {
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const hasWorkspaceManager = !!this.workspaceManager
+		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
+
+		// Only show workspace roots if multi-root is enabled and there are multiple roots
+		if (!isMultiRootEnabled || roots.length <= 1) {
+			return ""
+		}
+
+		let section = "\n\n# Workspace Roots"
+
+		// Format each root with its name, path, and VCS info
+		for (const root of roots) {
+			const name = root.name || path.basename(root.path)
+			const vcs = root.vcs ? ` (${String(root.vcs)})` : ""
+			section += `\n- ${name}: ${root.path}${vcs}`
+		}
+
+		// Add primary workspace information
+		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primaryName = this.getPrimaryWorkspaceName(primary)
+		section += `\n\nPrimary workspace: ${primaryName}`
+
+		return section
+	}
+
+	/**
+	 * Get the display name for the primary workspace
+	 */
+	private getPrimaryWorkspaceName(primary?: ReturnType<WorkspaceRootManager["getRoots"]>[0]): string {
+		if (primary?.name) {
+			return primary.name
+		}
+		if (primary?.path) {
+			return path.basename(primary.path)
+		}
+		return path.basename(this.cwd)
+	}
+
+	/**
+	 * Format the file details header based on workspace configuration
+	 */
+	private formatFileDetailsHeader(): string {
+		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const roots = this.workspaceManager?.getRoots() || []
+
+		if (isMultiRootEnabled && roots.length > 1) {
+			const primary = this.workspaceManager?.getPrimaryRoot()
+			const primaryName = this.getPrimaryWorkspaceName(primary)
+			return `\n\n# Current Working Directory (Primary: ${primaryName}) Files\n`
+		} else {
+			return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+		}
+	}
+
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 
+		// Workspace roots (multi-root)
+		details += this.formatWorkspaceRootsSection()
+
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
-		details += "\n\n# VSCode Visible Files"
+		details += `\n\n# ${host.platform} Visible Files`
 		const visibleFilePaths = (await HostProvider.window.getVisibleTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2324,7 +2460,7 @@ export class Task {
 			details += "\n(No visible files)"
 		}
 
-		details += "\n\n# VSCode Open Tabs"
+		details += `\n\n# ${host.platform} Open Tabs`
 		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths.map((absolutePath) =>
 			path.relative(this.cwd, absolutePath),
 		)
@@ -2398,13 +2534,6 @@ export class Task {
 			}
 		}
 
-		// details += "\n\n# VSCode Workspace Errors"
-		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
-		// } else {
-		// 	details += "\n(No errors detected)"
-		// }
-
 		if (terminalDetails) {
 			details += terminalDetails
 		}
@@ -2436,7 +2565,7 @@ export class Task {
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+			details += this.formatFileDetailsHeader()
 			const isDesktop = arePathsEqual(this.cwd, getDesktopDir())
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup

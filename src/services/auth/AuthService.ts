@@ -191,7 +191,7 @@ export class AuthService {
 			throw new Error("Authentication URI is not configured")
 		}
 
-		const callbackHost = await HostProvider.get().getCallbackUri()
+		const callbackHost = await HostProvider.get().getCallbackUrl()
 		const callbackUrl = `${callbackHost}/auth`
 
 		// Use URL object for more graceful query construction
@@ -324,7 +324,8 @@ export class AuthService {
 				// Fetch the feature flags for the user
 				if (this._clineAuthInfo?.userInfo?.id) {
 					telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
-					await featureFlagsService.cacheFeatureFlags()
+					featureFlagsService.reset()
+					await featureFlagsService.poll()
 				}
 
 				// Update the state in the webview

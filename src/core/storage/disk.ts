@@ -8,6 +8,8 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { GlobalState } from "./state-keys"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -188,6 +190,10 @@ export async function ensureStateDirectoryExists(context: vscode.ExtensionContex
 	return stateDir
 }
 
+export async function ensureCacheDirectoryExists(): Promise<string> {
+	return HostProvider.getGlobalStorageDir("cache")
+}
+
 export async function getTaskHistoryStateFilePath(context: vscode.ExtensionContext): Promise<string> {
 	return path.join(await ensureStateDirectoryExists(context), "taskHistory.json")
 }
@@ -223,6 +229,50 @@ export async function writeTaskHistoryToState(context: vscode.ExtensionContext, 
 		await fs.writeFile(filePath, JSON.stringify(items))
 	} catch (error) {
 		console.error("[Disk] Failed to write task history:", error)
+		throw error
+	}
+}
+
+export async function readTaskSettingsFromStorage(
+	context: vscode.ExtensionContext,
+	taskId: string,
+): Promise<Partial<GlobalState>> {
+	try {
+		const taskDirectoryFilePath = await ensureTaskDirectoryExists(context, taskId)
+		const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
+
+		if (await fileExistsAtPath(settingsFilePath)) {
+			const settingsContent = await fs.readFile(settingsFilePath, "utf8")
+			return JSON.parse(settingsContent)
+		}
+
+		// Return empty object if settings file doesn't exist (new task)
+		return {}
+	} catch (error) {
+		console.error("[Disk] Failed to read task settings:", error)
+		throw error
+	}
+}
+
+export async function writeTaskSettingsToStorage(
+	context: vscode.ExtensionContext,
+	taskId: string,
+	settings: Partial<GlobalState>,
+) {
+	try {
+		const taskDirectoryFilePath = await ensureTaskDirectoryExists(context, taskId)
+		const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
+
+		let existingSettings = {}
+		if (await fileExistsAtPath(settingsFilePath)) {
+			const existingSettingsContent = await fs.readFile(settingsFilePath, "utf8")
+			existingSettings = JSON.parse(existingSettingsContent)
+		}
+
+		const updatedSettings = { ...existingSettings, ...settings }
+		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
+	} catch (error) {
+		console.error("[Disk] Failed to write task settings:", error)
 		throw error
 	}
 }

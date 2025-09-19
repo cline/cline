@@ -14,19 +14,14 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { extensionContext, getStandaloneDepsWarning } from "./vscode-context"
+import { DATA_DIR, EXTENSION_DIR, extensionContext, getStandaloneDepsWarning } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
-	try {
-		await waitForHostBridgeReady()
-		log("HostBridge is serving; continuing startup")
-	} catch (err) {
-		log(`ERROR: HostBridge error: ${String(err)}`)
-		process.exit(1)
-	}
+	await waitForHostBridgeReady()
 
+	// The host bridge should be available before creating the host provider because it depends on the host bridge.
 	setupHostProvider()
 
 	// Set up global error handlers to prevent process crashes
@@ -34,6 +29,7 @@ async function main() {
 
 	const webviewProvider = await initialize(extensionContext)
 
+	// Enable the localhost HTTP server that handles auth redirects.
 	AuthHandler.getInstance().setEnabled(true)
 
 	// Non-blocking info when OS keychain deps are missing (Linux/Windows)
@@ -65,9 +61,10 @@ function setupHostProvider() {
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
-	const getCallbackUri = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUri()
+	const getCallbackUrl = (): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUrl()
 	}
+	// cline-core expects the binaries to be unpacked in the directory where it is running.
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
 	HostProvider.initialize(
@@ -75,8 +72,10 @@ function setupHostProvider() {
 		createDiffView,
 		new ExternalHostBridgeClientManager(),
 		log,
-		getCallbackUri,
+		getCallbackUrl,
 		getBinaryLocation,
+		EXTENSION_DIR,
+		DATA_DIR,
 	)
 }
 

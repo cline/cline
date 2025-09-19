@@ -189,12 +189,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "new_task":
 					if (clineAsk === "new_task") {
-						console.info("new task button clicked!", {
-							lastMessage,
-							messages,
-							clineAsk,
-							text,
-						})
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
 								text: lastMessage?.text,
@@ -234,50 +228,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState],
 	)
 
-	// Unified button click handler that takes action directly
-	const handleButtonClick = useCallback(
-		async (action: string, text?: string, images?: string[], files?: string[]) => {
-			// Map action strings to ButtonActionType
-			let actionType: ButtonActionType
-
-			switch (action) {
-				case "Approve":
-				case "Save":
-				case "Run Command":
-				case "Retry":
-				case "Switch to Act Mode":
-					actionType = "approve"
-					break
-				case "Reject":
-					actionType = "reject"
-					break
-				case "Proceed":
-				case "Proceed Anyways":
-				case "Proceed While Running":
-				case "Resume Task":
-					actionType = "proceed"
-					break
-				case "Start New Task":
-				case "Start New Task with Context":
-					actionType = "new_task"
-					break
-				case "Cancel":
-					actionType = "cancel"
-					break
-				case "Condense Conversation":
-				case "Report GitHub issue":
-					actionType = "utility"
-					break
-				default:
-					console.warn(`Unknown action: ${action}`)
-					return
-			}
-
-			await executeButtonAction(actionType, text, images, files)
-		},
-		[executeButtonAction],
-	)
-
 	// Handle task close button click
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -285,7 +235,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 	return {
 		handleSendMessage,
-		handleButtonClick,
+		executeButtonAction,
 		handleTaskCloseButtonClick,
 		startNewTask,
 	}

@@ -274,7 +274,6 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						try {
 							this.state.checkpointTracker = await CheckpointTracker.create(
 								this.task.taskId,
-								this.services.context.globalStorageUri.fsPath,
 								this.config.enableCheckpoints,
 							)
 							this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
@@ -424,11 +423,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// Initialize checkpoint tracker if needed
 			if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointManagerErrorMessage) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(
-						this.task.taskId,
-						this.services.context.globalStorageUri.fsPath,
-						this.config.enableCheckpoints,
-					)
+					this.state.checkpointTracker = await CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints)
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -591,11 +586,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 			if (this.config.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointManagerErrorMessage) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(
-						this.task.taskId,
-						this.services.context.globalStorageUri.fsPath,
-						this.config.enableCheckpoints,
-					)
+					this.state.checkpointTracker = await CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints)
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -797,18 +788,11 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}, 7_000)
 
 			// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
-			const tracker = await pTimeout(
-				CheckpointTracker.create(
-					this.task.taskId,
-					this.services.context.globalStorageUri.fsPath,
-					this.config.enableCheckpoints,
-				),
-				{
-					milliseconds: 15_000,
-					message:
-						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-				},
-			)
+			const tracker = await pTimeout(CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints), {
+				milliseconds: 15_000,
+				message:
+					"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+			})
 
 			// Update the state with the created tracker
 			this.state.checkpointTracker = tracker

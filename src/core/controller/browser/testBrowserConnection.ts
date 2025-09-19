@@ -12,7 +12,7 @@ import { Controller } from "../index"
  */
 export async function testBrowserConnection(controller: Controller, request: StringRequest): Promise<BrowserConnection> {
 	try {
-		const browserSettings = controller.stateManager.getGlobalStateKey("browserSettings")
+		const browserSettings = controller.stateManager.getGlobalSettingsKey("browserSettings")
 		const browserSession = new BrowserSession(controller.context, browserSettings)
 		const text = request.value || ""
 
