@@ -38,7 +38,6 @@ import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./Checkpo
  */
 
 class CheckpointTracker {
-	private globalStoragePath: string
 	private taskId: string
 	private cwd: string
 	private cwdHash: string
@@ -61,8 +60,7 @@ class CheckpointTracker {
 	 * @param cwd - The current working directory to track files in
 	 * @param cwdHash - Hash of the working directory path for shadow git organization
 	 */
-	private constructor(globalStoragePath: string, taskId: string, cwd: string, cwdHash: string) {
-		this.globalStoragePath = globalStoragePath
+	private constructor(taskId: string, cwd: string, cwdHash: string) {
 		this.taskId = taskId
 		this.cwd = cwd
 		this.cwdHash = cwdHash
@@ -89,14 +87,7 @@ class CheckpointTracker {
 	 * Configuration:
 	 * - Respects 'cline.enableCheckpoints' VS Code setting
 	 */
-	public static async create(
-		taskId: string,
-		globalStoragePath: string | undefined,
-		enableCheckpointsSetting: boolean,
-	): Promise<CheckpointTracker | undefined> {
-		if (!globalStoragePath) {
-			throw new Error("Global storage path is required to create a checkpoint tracker")
-		}
+	public static async create(taskId: string, enableCheckpointsSetting: boolean): Promise<CheckpointTracker | undefined> {
 		try {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 			const startTime = performance.now()
@@ -118,9 +109,9 @@ class CheckpointTracker {
 			const cwdHash = hashWorkingDir(workingDir)
 			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
-			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
+			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
 
-			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
+			const gitPath = await getShadowGitPath(newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
 
 			const durationMs = Math.round(performance.now() - startTime)
@@ -163,7 +154,7 @@ class CheckpointTracker {
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
 
 			console.info(`Using shadow git at: ${gitPath}`)
@@ -224,7 +215,7 @@ class CheckpointTracker {
 			return this.lastRetrievedShadowGitConfigWorkTree
 		}
 		try {
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
@@ -253,7 +244,7 @@ class CheckpointTracker {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 		console.debug(`Using shadow git at: ${gitPath}`)
 		await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
@@ -289,7 +280,7 @@ class CheckpointTracker {
 	> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
@@ -354,7 +345,7 @@ class CheckpointTracker {
 	public async getDiffCount(lhsHash: string, rhsHash?: string): Promise<number> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)

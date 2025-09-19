@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.29.2]
+
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
+
+## [3.29.1]
+
+- Changeset bump + Announcement banner update
+
+## [3.29.0]
+
+- Updated Baseten provider to fetch models from server
+- Fix: Updated insufficient balance URL for easy Cline balance top-ups
+- Accessibility: Improvements to screen readers in MCP, Cline Rules, workflows, and history views.
+
 ## [3.28.4]
 
 - Fix bug where some Windows machines had API request hanging

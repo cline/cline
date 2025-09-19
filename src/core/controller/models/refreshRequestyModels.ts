@@ -21,7 +21,7 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
 		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
-		const baseUrl = controller.stateManager.getGlobalStateKey("requestyBaseUrl")
+		const baseUrl = controller.stateManager.getGlobalSettingsKey("requestyBaseUrl")
 
 		const resolvedUrl = toRequestyServiceUrl(baseUrl)
 		const url = new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString()

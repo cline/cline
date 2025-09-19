@@ -22,8 +22,8 @@ const containerStyle: CSSProperties = {
 	flexShrink: 0,
 }
 const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
-const h3TitleStyle: CSSProperties = { margin: "0 0 8px" }
-const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px" }
+const h3TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
+const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
 const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
 	height: "1px",
@@ -80,28 +80,30 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<ul style={ulStyle}>
-				<li>
-					<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
-					incredibly fast, and it's still available at no cost
-				</li>
-				<li>
-					<b>GPT-5 Optimizations:</b> Fine-tuned system prompts for improved performance across the GPT-5 model family
-				</li>
-				<li>
-					<b>ESC to Cancel:</b> Quick keyboard navigation to cancel operations with the ESC key
-				</li>
-				<li>
-					Fixed task sync across multiple Cline windows, <code>/deep-planning</code> improvements for
-					Windows/PowerShell, Dify.ai integration, DeepSeek-V3.1 support, enhanced Gemini rate limiting, and multiple
-					provider fixes
-				</li>
-			</ul>
+			<h3 style={h3TitleStyle}>JetBrains Support is Live!</h3>
+			Our #1 most requested feature is here! Use Cline natively in IntelliJ IDEA, PyCharm, WebStorm, Android Studio, GoLand,
+			PhpStorm, and all JetBrains IDEs. Same powerful AI coding, now in your preferred development environment.
+			<div style={{ margin: "12px 0" }} />
+			<VSCodeLink
+				href="https://cline.bot/jetbrains"
+				style={{
+					padding: "4px 8px",
+					backgroundColor: "var(--vscode-button-background)",
+					color: "var(--vscode-button-foreground)",
+					borderRadius: "2px",
+				}}>
+				Get Cline for JetBrains!
+			</VSCodeLink>
+			<div style={{ margin: "12px 0" }} />
+			<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
+			incredibly fast, and it's still available at no cost
+			<div style={{ margin: "12px 0" }} />
+			<b>Accesibility Improvements:</b> Improved screen reader support throughout Cline
 			<div style={{ margin: "18px 0" }} />
 			{user ? (
 				!didClickGrokCodeButton ? (
 					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1 free
+						Try grok-code-fast-1 (free)
 					</VSCodeButton>
 				) : null
 			) : (
@@ -109,6 +111,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Sign Up with Cline
 				</VSCodeButton>
 			)}
+			<div style={{ margin: "12px 0" }} />
 			<div style={{ margin: "-8px 0 -3px 0" }}>
 				<Accordion className="pl-0" isCompact>
 					<AccordionItem
