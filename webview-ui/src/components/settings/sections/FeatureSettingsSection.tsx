@@ -198,8 +198,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Yolo Mode
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							⚠️ EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
+						<p className="text-xs text-[var(--vscode-errorForeground)]">
+							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>
