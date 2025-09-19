@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.30.1
+
+### Patch Changes
+
+- c6e5b15: Fix flicker issue when switching modes
+- 07f944b: Fix: Sticky header in settings view overlaping with content on scroll
+- b11e617: Add experimental yolo mode feature that disables all user approvals and automatically executes a task and navigates through plan to act mode until the task is complete
+- 91deede: fix: model list not being updated in time for user to use shortcut button to update model to stealth model
+
 ## [3.30.0]
 
 - Add code-supernova stealth model
