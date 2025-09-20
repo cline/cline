@@ -9,7 +9,7 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 			"/users/{userId}/usages",
 			"/users/{userId}/payments",
 		],
-		POST: ["/chat/completions"],
+		POST: ["/chat/completions", "/auth/token"],
 		PUT: ["/users/active-account"],
 	},
 	"/.test": {

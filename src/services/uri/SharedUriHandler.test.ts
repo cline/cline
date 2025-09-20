@@ -2,6 +2,8 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { WebviewProvider } from "@/core/webview"
+import { ErrorService } from "../error"
+import { Logger } from "../logging/Logger"
 import { SharedUriHandler } from "./SharedUriHandler"
 
 describe("SharedUriHandler", () => {
@@ -9,8 +11,26 @@ describe("SharedUriHandler", () => {
 	let handleOpenRouterCallbackStub: sinon.SinonStub
 	let handleAuthCallbackStub: sinon.SinonStub
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
+
+		// Mock Logger methods to avoid HostProvider dependency
+		sandbox.stub(Logger, "info").returns()
+		sandbox.stub(Logger, "error").returns()
+		// Mock ErrorService to avoid telemetry dependency
+		const mockErrorService = {
+			logMessage: sandbox.stub(),
+			logException: sandbox.stub(),
+			toClineError: sandbox.stub(),
+			isEnabled: sandbox.stub().returns(false),
+			getSettings: sandbox.stub().returns({ enabled: false, hostEnabled: false }),
+			getProvider: sandbox.stub(),
+			dispose: sandbox.stub().resolves(),
+		}
+		sandbox.stub(ErrorService, "initialize").resolves(mockErrorService as any)
+		sandbox.stub(ErrorService, "get").returns(mockErrorService as any)
+
+		await ErrorService.initialize()
 
 		handleOpenRouterCallbackStub = sandbox.stub().resolves()
 		handleAuthCallbackStub = sandbox.stub().resolves()
