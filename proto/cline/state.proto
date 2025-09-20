@@ -140,6 +140,7 @@ message UpdateSettingsRequest {
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
+  optional int32 auto_condense_threshold = 23;
 }
 
 // Complete API Configuration message

@@ -71,6 +71,7 @@ export interface ExtensionState {
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
 	customPrompt?: string
+	autoCondenseThreshold?: number
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]

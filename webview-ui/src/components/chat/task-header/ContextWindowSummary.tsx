@@ -1,0 +1,157 @@
+import { cn } from "@heroui/react"
+import React, { memo, useEffect, useMemo, useState } from "react"
+import HeroTooltip from "@/components/common/HeroTooltip"
+import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
+
+interface TokenUsageInfoProps {
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+}
+
+interface TokenDetail {
+	title: string
+	value?: number
+	icon: string
+}
+
+interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
+	percentage: number
+	tokenUsed: string
+	contextWindow: string
+	autoCompactThreshold?: number
+	isThresholdChanged?: boolean
+	isThresholdFadingOut?: boolean
+}
+
+const InfoRow = memo<{
+	label: string
+	value: React.ReactNode
+	tooltip?: string
+	labelTooltip?: string
+	placement: "top" | "bottom" | "left" | "right"
+}>(({ label, value, tooltip, labelTooltip, placement }) => (
+	<div className="flex justify-between gap-3">
+		{labelTooltip ? (
+			<HeroTooltip content={labelTooltip} placement={placement}>
+				<div className="font-semibold">{label}</div>
+			</HeroTooltip>
+		) : (
+			<div className="font-semibold">{label}</div>
+		)}
+		<div className="text-muted-foreground cursor-auto">
+			{tooltip ? (
+				<HeroTooltip content={tooltip} placement={placement}>
+					<span>{value}</span>
+				</HeroTooltip>
+			) : (
+				<span>{value}</span>
+			)}
+		</div>
+	</div>
+))
+InfoRow.displayName = "InfoRow"
+
+// Constants
+const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
+	{ title: "Prompt Tokens", icon: "codicon-arrow-up" },
+	{ title: "Completion Tokens", icon: "codicon-arrow-down" },
+	{ title: "Cache Writes", icon: "codicon-arrow-left" },
+	{ title: "Cache Reads", icon: "codicon-arrow-right" },
+]
+
+const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
+	const contextTokenDetails = useMemo(() => {
+		const values = [tokensIn, tokensOut, cacheWrites || 0, cacheReads || 0]
+		return TOKEN_DETAILS_CONFIG.map((config, index) => ({ ...config, value: values[index] })).filter((item) => item.value)
+	}, [tokensIn, tokensOut, cacheWrites, cacheReads])
+
+	const TokenDetailItem = memo<TokenDetail>(({ title, value, icon }) => (
+		<HeroTooltip content={title} key={`${icon}-${value}`} placement="bottom">
+			<span className="flex items-center gap-0.5 text-muted-foreground">
+				<i className={`codicon ${icon} font-semibold `} />
+				{value ? formatTokenNumber(value) : "--"}
+			</span>
+		</HeroTooltip>
+	))
+	TokenDetailItem.displayName = "TokenDetailItem"
+
+	if (!tokensIn) {
+		return null
+	}
+
+	return (
+		<div className="flex items-center justify-between flex-wrap">
+			<div className="font-semibold mr-1">Token Usage</div>
+			<div className="flex items-center justify-between flex-wrap gap-1 opacity-80">
+				{contextTokenDetails.map((item) => (
+					<TokenDetailItem key={item.icon} {...item} />
+				))}
+			</div>
+		</div>
+	)
+})
+TokenUsageInfo.displayName = "TokenUsageInfo"
+
+export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
+	contextWindow,
+	tokenUsed,
+	tokensIn,
+	tokensOut,
+	cacheWrites,
+	cacheReads,
+	percentage,
+	autoCompactThreshold = 0,
+}) => {
+	const [thresholdDisplay, setThresholdDisplay] = useState(autoCompactThreshold)
+	const [isThresholdChanged, setIsThresholdChanged] = useState<"up" | "down" | undefined>(undefined)
+	const [isThresholdFadingOut, setIsThresholdFadingOut] = useState(false)
+
+	useEffect(() => {
+		if (autoCompactThreshold !== thresholdDisplay) {
+			const type = autoCompactThreshold > thresholdDisplay ? "up" : "down"
+			setIsThresholdChanged(type)
+			setThresholdDisplay(autoCompactThreshold)
+			return () => {
+				setTimeout(() => {
+					setIsThresholdFadingOut(true)
+					setTimeout(() => {
+						setIsThresholdChanged(undefined)
+						setIsThresholdFadingOut(false)
+					}, 1000) // Duration of fade-out effect
+				}, 2000) // Duration to show the changed value before starting fade-out
+			}
+		}
+	}, [autoCompactThreshold, thresholdDisplay])
+
+	return (
+		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 max-w-xs p-4">
+			{thresholdDisplay > 0 && (
+				<InfoRow
+					key={thresholdDisplay}
+					label="Auto Condense Threshold"
+					labelTooltip="When the context window usage exceeds current threshold, the task will be automatically condensed."
+					placement="right"
+					tooltip="Click on the context window bar to set a new auto condense threshold."
+					value={
+						<span
+							className={cn({
+								"transition-all": !isThresholdChanged && !isThresholdFadingOut,
+								"text-success/50 transition-discrete": isThresholdChanged === "up" && !isThresholdFadingOut,
+								"text-error/50 transition-discrete": isThresholdChanged === "down" && !isThresholdFadingOut,
+								"text-muted-foreground transition-all": isThresholdFadingOut,
+							})}>{`${(thresholdDisplay * 100).toFixed(0)}%`}</span>
+					}
+				/>
+			)}
+			<InfoRow
+				label="Context Window"
+				placement="bottom"
+				tooltip={`${tokenUsed} of ${contextWindow}`}
+				value={percentage ? `${percentage.toFixed(2)}% used` : contextWindow}
+			/>
+			<TokenUsageInfo cacheReads={cacheReads} cacheWrites={cacheWrites} tokensIn={tokensIn} tokensOut={tokensOut} />
+		</div>
+	)
+}

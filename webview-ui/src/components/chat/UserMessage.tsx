@@ -5,7 +5,7 @@ import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
-import { highlightText } from "./task-header/TaskHeader"
+import { highlightText } from "./task-header/Highlights"
 
 interface UserMessageProps {
 	text?: string
