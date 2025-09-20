@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.28.5
+
+### Patch Changes
+
+-   - Add an announcement for Supernova (thanks @mrubens!)
+
 ## [3.28.4] - 2025-09-19
 
 ![3.28.4 Release - Supernova Discovery](/releases/3.28.4-release.png)
