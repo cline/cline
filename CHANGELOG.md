@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.30.3]
+
+- Add Oracle Code Assist provider
+
+## [3.30.2]
+
+- Fix UI tests
+
+## [3.30.1]
+
+- Fix model list not being updated in time for user to use shortcut button to update model to stealth model
+- Fix flicker issue when switching modes
+- Fix Sticky header in settings view overlaping with content on scroll
+- Add experimental yolo mode feature that disables all user approvals and automatically executes a task and navigates through plan to act mode until the task is complete
+
+## [3.30.0]
+
+- Add code-supernova stealth model
+
+## [3.29.2]
+
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
+
+## [3.29.1]
+
+- Changeset bump + Announcement banner update
+
 ## [3.29.0]
 
 - Updated Baseten provider to fetch models from server

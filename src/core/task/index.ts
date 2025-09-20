@@ -285,7 +285,6 @@ export class Task {
 				taskState: this.taskState,
 				context: controller.context,
 				workspaceManager: this.workspaceManager,
-				globalStoragePath: controller.context.globalStorageUri.fsPath,
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
 				cancelTask: this.cancelTask,
