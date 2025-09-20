@@ -2,12 +2,7 @@
 
 ## 3.31.0
 
-### Minor Changes
-
 - 428cdb6: Adding OCA Front End Components
-
-### Patch Changes
-
 - d858fb9: Changeset bump
 
 ## [3.30.2]
