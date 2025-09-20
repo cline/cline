@@ -134,7 +134,9 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 
 					{/* Workspace sections */}
 					{sections?.map((section: any, index: number) => (
-						<div key={index} style={{ marginBottom: index < sections.length - 1 ? "16px" : 0 }}>
+						<div
+							key={`workspace-${section.workspace}`}
+							style={{ marginBottom: index < sections.length - 1 ? "16px" : 0 }}>
 							<div
 								style={{
 									display: "flex",
