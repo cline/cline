@@ -1,6 +1,6 @@
 import { cn } from "@heroui/react"
-import React, { memo, useEffect, useMemo, useState } from "react"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 
 interface TokenUsageInfoProps {
@@ -25,33 +25,39 @@ interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 	isThresholdFadingOut?: boolean
 }
 
-const InfoRow = memo<{
-	label: string
+// New accordion item component
+const AccordionItem = memo<{
+	title: string
 	value: React.ReactNode
-	tooltip?: string
-	labelTooltip?: string
-	placement: "top" | "bottom" | "left" | "right"
-}>(({ label, value, tooltip, labelTooltip, placement }) => (
-	<div className="flex justify-between gap-3">
-		{labelTooltip ? (
-			<HeroTooltip content={labelTooltip} placement={placement}>
-				<div className="font-semibold">{label}</div>
-			</HeroTooltip>
-		) : (
-			<div className="font-semibold">{label}</div>
-		)}
-		<div className="text-muted-foreground cursor-auto">
-			{tooltip ? (
-				<HeroTooltip content={tooltip} placement={placement}>
-					<span>{value}</span>
-				</HeroTooltip>
-			) : (
-				<span>{value}</span>
-			)}
+	isExpanded: boolean
+	onToggle: (event?: React.MouseEvent) => void
+	children?: React.ReactNode
+}>(({ title, value, isExpanded, onToggle, children }) => {
+	const handleClick = useCallback(
+		(event: React.MouseEvent) => {
+			event.preventDefault()
+			event.stopPropagation()
+			onToggle(event)
+		},
+		[onToggle],
+	)
+
+	return (
+		<div className="flex flex-col">
+			<div
+				className="flex justify-between items-center gap-3 cursor-pointer hover:bg-foreground/5 rounded px-1 py-0.5 transition-colors"
+				onClick={handleClick}>
+				<div className="flex items-center gap-1">
+					{isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+					<div className="font-semibold text-sm">{title}</div>
+				</div>
+				<div className="text-muted-foreground text-sm">{value}</div>
+			</div>
+			{isExpanded && children && <div className="ml-4 mt-2 mb-1 text-xs text-muted-foreground">{children}</div>}
 		</div>
-	</div>
-))
-InfoRow.displayName = "InfoRow"
+	)
+})
+AccordionItem.displayName = "AccordionItem"
 
 // Constants
 const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
@@ -61,38 +67,31 @@ const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
 	{ title: "Cache Reads", icon: "codicon-arrow-right" },
 ]
 
-const TokenUsageInfo = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
+const TokenUsageDetails = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
 	const contextTokenDetails = useMemo(() => {
 		const values = [tokensIn, tokensOut, cacheWrites || 0, cacheReads || 0]
 		return TOKEN_DETAILS_CONFIG.map((config, index) => ({ ...config, value: values[index] })).filter((item) => item.value)
 	}, [tokensIn, tokensOut, cacheWrites, cacheReads])
 
-	const TokenDetailItem = memo<TokenDetail>(({ title, value, icon }) => (
-		<HeroTooltip content={title} key={`${icon}-${value}`} placement="bottom">
-			<span className="flex items-center gap-0.5 text-muted-foreground">
-				<i className={`codicon ${icon} font-semibold `} />
-				{value ? formatTokenNumber(value) : "--"}
-			</span>
-		</HeroTooltip>
-	))
-	TokenDetailItem.displayName = "TokenDetailItem"
-
 	if (!tokensIn) {
-		return null
+		return <div>No token usage data available</div>
 	}
 
 	return (
-		<div className="flex items-center justify-between flex-wrap">
-			<div className="font-semibold mr-1">Token Usage</div>
-			<div className="flex items-center justify-between flex-wrap gap-1 opacity-80">
-				{contextTokenDetails.map((item) => (
-					<TokenDetailItem key={item.icon} {...item} />
-				))}
-			</div>
+		<div className="space-y-2">
+			{contextTokenDetails.map((item) => (
+				<div className="flex items-center justify-between" key={item.icon}>
+					<div className="flex items-center gap-1">
+						<i className={`codicon ${item.icon} text-xs`} />
+						<span>{item.title}</span>
+					</div>
+					<span className="font-mono">{formatTokenNumber(item.value || 0)}</span>
+				</div>
+			))}
 		</div>
 	)
 })
-TokenUsageInfo.displayName = "TokenUsageInfo"
+TokenUsageDetails.displayName = "TokenUsageDetails"
 
 export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	contextWindow,
@@ -107,6 +106,25 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	const [thresholdDisplay, setThresholdDisplay] = useState(autoCompactThreshold)
 	const [isThresholdChanged, setIsThresholdChanged] = useState<"up" | "down" | undefined>(undefined)
 	const [isThresholdFadingOut, setIsThresholdFadingOut] = useState(false)
+
+	// Accordion state
+	const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+
+	const toggleSection = useCallback((section: string, event?: React.MouseEvent) => {
+		if (event) {
+			event.preventDefault()
+			event.stopPropagation()
+		}
+		setExpandedSections((prev) => {
+			const newSet = new Set(prev)
+			if (newSet.has(section)) {
+				newSet.delete(section)
+			} else {
+				newSet.add(section)
+			}
+			return newSet
+		})
+	}, [])
 
 	useEffect(() => {
 		if (autoCompactThreshold !== thresholdDisplay) {
@@ -125,15 +143,15 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 		}
 	}, [autoCompactThreshold, thresholdDisplay])
 
+	const totalTokens = (tokensIn || 0) + (tokensOut || 0)
+
 	return (
-		<div className="flex flex-col gap-2.5 bg-menu rounded shadow-sm border border-menu-border z-100 max-w-xs p-4">
+		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm border border-menu-border z-100 w-60 p-4">
 			{thresholdDisplay > 0 && (
-				<InfoRow
-					key={thresholdDisplay}
-					label="Auto Condense Threshold"
-					labelTooltip="When the context window usage exceeds current threshold, the task will be automatically condensed."
-					placement="right"
-					tooltip="Click on the context window bar to set a new auto condense threshold."
+				<AccordionItem
+					isExpanded={expandedSections.has("threshold")}
+					onToggle={(event) => toggleSection("threshold", event)}
+					title="Auto Condense Threshold"
 					value={
 						<span
 							className={cn({
@@ -141,17 +159,58 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 								"text-success/50 transition-discrete": isThresholdChanged === "up" && !isThresholdFadingOut,
 								"text-error/50 transition-discrete": isThresholdChanged === "down" && !isThresholdFadingOut,
 								"text-muted-foreground transition-all": isThresholdFadingOut,
-							})}>{`${(thresholdDisplay * 100).toFixed(0)}%`}</span>
-					}
-				/>
+							})}>
+							{`${(thresholdDisplay * 100).toFixed(0)}%`}
+						</span>
+					}>
+					<div className="space-y-1">
+						<p className="text-xs leading-relaxed">
+							When the context window usage exceeds this threshold, the task will be automatically condensed.
+						</p>
+						<p className="text-xs opacity-75 leading-relaxed">
+							Click on the context window bar to set a new threshold.
+						</p>
+					</div>
+				</AccordionItem>
 			)}
-			<InfoRow
-				label="Context Window"
-				placement="bottom"
-				tooltip={`${tokenUsed} of ${contextWindow}`}
-				value={percentage ? `${percentage.toFixed(2)}% used` : contextWindow}
-			/>
-			<TokenUsageInfo cacheReads={cacheReads} cacheWrites={cacheWrites} tokensIn={tokensIn} tokensOut={tokensOut} />
+
+			<AccordionItem
+				isExpanded={expandedSections.has("context")}
+				onToggle={(event) => toggleSection("context", event)}
+				title="Context Window"
+				value={percentage ? `${percentage.toFixed(1)}% used` : contextWindow}>
+				<div className="space-y-1">
+					<div className="flex justify-between">
+						<span>Used:</span>
+						<span className="font-mono">{tokenUsed}</span>
+					</div>
+					<div className="flex justify-between">
+						<span>Total:</span>
+						<span className="font-mono">{contextWindow}</span>
+					</div>
+					<div className="flex justify-between">
+						<span>Remaining:</span>
+						<span className="font-mono">
+							{formatTokenNumber(parseInt(contextWindow.replace(/,/g, "")) - parseInt(tokenUsed.replace(/,/g, "")))}
+						</span>
+					</div>
+				</div>
+			</AccordionItem>
+
+			{totalTokens > 0 && (
+				<AccordionItem
+					isExpanded={expandedSections.has("tokens")}
+					onToggle={(event) => toggleSection("tokens", event)}
+					title="Token Usage"
+					value={`${formatTokenNumber(totalTokens)} total`}>
+					<TokenUsageDetails
+						cacheReads={cacheReads}
+						cacheWrites={cacheWrites}
+						tokensIn={tokensIn}
+						tokensOut={tokensOut}
+					/>
+				</AccordionItem>
+			)}
 		</div>
 	)
 }

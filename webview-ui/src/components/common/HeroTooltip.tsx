@@ -31,7 +31,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 		return typeof content === "string" ? (
 			<div
 				className={cn(
-					"bg-code-background text-code-foreground border-1 rounded shadow-md max-w-[250px] text-sm",
+					"bg-code-background text-code-foreground border border-code-foreground/20 rounded shadow-md max-w-[250px] text-sm",
 					className,
 					"p-2",
 				)}>

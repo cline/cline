@@ -69,6 +69,19 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	const [threshold, setThreshold] = useState(useAutoCondense ? autoCondenseThreshold : 0)
 	const [confirmationNeeded, setConfirmationNeeded] = useState(false)
 	const progressBarRef = useRef<HTMLDivElement>(null)
+	const [shouldAnimateMarker, setShouldAnimateMarker] = useState(false)
+
+	// Trigger marker animation when component first mounts (TaskHeader expands)
+	useEffect(() => {
+		if (useAutoCondense && threshold > 0) {
+			setShouldAnimateMarker(true)
+			// Reset animation flag after animation completes
+			const timer = setTimeout(() => {
+				setShouldAnimateMarker(false)
+			}, 1400) // Slightly longer than animation duration (1200ms + buffer)
+			return () => clearTimeout(timer)
+		}
+	}, []) // Empty dependency array means this only runs on mount
 
 	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
 		const rect = event.currentTarget.getBoundingClientRect()
@@ -172,7 +185,13 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	// Close tooltip when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (progressBarRef.current && !progressBarRef.current.contains(event.target as Node)) {
+			const target = event.target as Element
+			const isInsideProgressBar = progressBarRef.current && progressBarRef.current.contains(target as Node)
+
+			// Check if click is inside any tooltip content by looking for our custom class
+			const isInsideTooltipContent = target.closest(".context-window-tooltip-content") !== null
+
+			if (!isInsideProgressBar && !isInsideTooltipContent) {
 				setIsOpened(false)
 			}
 		}
@@ -196,7 +215,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 					</span>
 					<div className="flex relative items-center gap-1 flex-1 w-full h-full" onMouseEnter={() => setIsOpened(true)}>
 						<Tooltip
-							closeDelay={2000}
+							closeDelay={0}
 							content={
 								<ContextWindowSummary
 									autoCompactThreshold={threshold}
@@ -209,9 +228,12 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									tokenUsed={tokenData.used}
 								/>
 							}
+							disableAnimation={true}
 							isOpen={isOpened}
 							offset={-2}
 							placement="bottom"
+							shouldCloseOnBlur={false}
+							shouldCloseOnInteractOutside={() => false}
 							showArrow={true}>
 							<div
 								aria-label="Auto condense threshold"
@@ -236,6 +258,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 										value: "text-description",
 									}}
 									color="success"
+									disableAnimation={true}
 									onClick={handleContextWindowBarClick}
 									size="md"
 									value={tokenData.percentage}
@@ -243,7 +266,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 								{useAutoCondense && (
 									<AutoCondenseMarker
 										isContextWindowHoverOpen={isOpened}
-										key={threshold}
+										shouldAnimate={shouldAnimateMarker}
 										threshold={threshold}
 										usage={tokenData.percentage}
 									/>
