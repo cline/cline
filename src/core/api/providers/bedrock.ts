@@ -13,6 +13,7 @@ import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1
 import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
+import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
@@ -315,7 +316,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using the Deepseek R1 model through AWS Bedrock
+	 * Creates a message using the Deepseek models through AWS Bedrock
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
@@ -326,19 +327,38 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
 
-		// Format prompt for DeepSeek R1 according to documentation
-		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
+		// Check if this is a V3 model or R1 model
+		const isV3Model = modelId.includes("deepseek.v3")
 
-		// Prepare the request based on DeepSeek R1's expected format
+		let requestBody: any
+
+		if (isV3Model) {
+			// V3 uses OpenAI-compatible message format - direct conversion
+			const openAIMessages = convertToOpenAiMessages(messages)
+			if (systemPrompt) {
+				openAIMessages.unshift({ role: "system", content: systemPrompt })
+			}
+			requestBody = {
+				messages: openAIMessages,
+				max_tokens: model.info.maxTokens || 8000,
+				temperature: 0,
+			}
+		} else {
+			// R1 uses the prompt format
+			const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
+			requestBody = {
+				prompt: formattedPrompt,
+				max_tokens: model.info.maxTokens || 8000,
+				temperature: 0,
+			}
+		}
+
+		// Prepare the request
 		const command = new InvokeModelWithResponseStreamCommand({
 			modelId: modelId,
 			contentType: "application/json",
 			accept: "application/json",
-			body: JSON.stringify({
-				prompt: formattedPrompt,
-				max_tokens: model.info.maxTokens || 8000,
-				temperature: 0,
-			}),
+			body: JSON.stringify(requestBody),
 		})
 
 		// Track token usage
@@ -371,18 +391,17 @@ export class AwsBedrockHandler implements ApiHandler {
 							}
 						}
 
-						// Handle DeepSeek R1 response format
-						if (parsedChunk.choices && parsedChunk.choices.length > 0) {
-							// For non-streaming response (full response)
-							const text = parsedChunk.choices[0].text
-							if (text) {
-								const chunkTokens = this.estimateTokenCount(text)
+						// Handle DeepSeek V3 response format (OpenAI-compatible)
+						if (isV3Model) {
+							const delta = parsedChunk.choices[0]?.delta
+							if (delta?.content) {
+								const chunkTokens = this.estimateTokenCount(delta.content)
 								outputTokens += chunkTokens
 								accumulatedTokens += chunkTokens
 
 								yield {
 									type: "text",
-									text: text,
+									text: delta.content,
 								}
 
 								if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
@@ -396,27 +415,54 @@ export class AwsBedrockHandler implements ApiHandler {
 									accumulatedTokens = 0
 								}
 							}
-						} else if (parsedChunk.delta?.text) {
-							// For streaming response (delta updates)
-							const text = parsedChunk.delta.text
-							const chunkTokens = this.estimateTokenCount(text)
-							outputTokens += chunkTokens
-							accumulatedTokens += chunkTokens
+						} else {
+							// Handle DeepSeek R1 response format
+							if (parsedChunk.choices && parsedChunk.choices.length > 0) {
+								// For non-streaming response (full response)
+								const text = parsedChunk.choices[0].text
+								if (text) {
+									const chunkTokens = this.estimateTokenCount(text)
+									outputTokens += chunkTokens
+									accumulatedTokens += chunkTokens
 
-							yield {
-								type: "text",
-								text: text,
-							}
-							// Report aggregated token usage only when threshold is reached
-							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
-								const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
-								yield {
-									type: "usage",
-									inputTokens: 0,
-									outputTokens: accumulatedTokens,
-									totalCost: totalCost,
+									yield {
+										type: "text",
+										text: text,
+									}
+
+									if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+										const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+										yield {
+											type: "usage",
+											inputTokens: 0,
+											outputTokens: accumulatedTokens,
+											totalCost: totalCost,
+										}
+										accumulatedTokens = 0
+									}
 								}
-								accumulatedTokens = 0
+							} else if (parsedChunk.delta?.text) {
+								// For streaming response (delta updates)
+								const text = parsedChunk.delta.text
+								const chunkTokens = this.estimateTokenCount(text)
+								outputTokens += chunkTokens
+								accumulatedTokens += chunkTokens
+
+								yield {
+									type: "text",
+									text: text,
+								}
+								// Report aggregated token usage only when threshold is reached
+								if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+									const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+									yield {
+										type: "usage",
+										inputTokens: 0,
+										outputTokens: accumulatedTokens,
+										totalCost: totalCost,
+									}
+									accumulatedTokens = 0
+								}
 							}
 						}
 					} catch (error) {
@@ -479,7 +525,8 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 
-			combinedContent += message.role === "user" ? "User: " + content + "\n" : "Assistant: " + content + "\n"
+			const rolePrefix = message.role === "user" ? "User: " : "Assistant: "
+			combinedContent += rolePrefix + content + "\n"
 		}
 
 		// Format according to DeepSeek R1's expected prompt format
@@ -878,7 +925,14 @@ export class AwsBedrockHandler implements ApiHandler {
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
 			} else if (item.source.data && typeof item.source.data === "object") {
 				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+				if (Buffer.isBuffer(item.source.data)) {
+					imageData = new Uint8Array(item.source.data)
+				} else if (item.source.data instanceof Uint8Array) {
+					imageData = item.source.data
+				} else {
+					// Try to convert fro array-like object
+					imageData = new Uint8Array(item.source.data as ArrayLike<number>)
+				}
 			} else {
 				throw new Error("Unsupported image data format")
 			}
