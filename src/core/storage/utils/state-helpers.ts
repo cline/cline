@@ -7,6 +7,7 @@ import { ClineRulesToggles } from "@/shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
+
 import { readTaskHistoryFromState } from "../disk"
 import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 

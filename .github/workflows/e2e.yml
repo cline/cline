@@ -20,7 +20,7 @@ jobs:
         steps:
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+          echo 'matrix=[{"runner":"ubuntu","deps":"true"},{"runner":"ubuntu","deps":"false"},{"runner":"windows","deps":"true"},{"runner":"windows","deps":"false"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
 
     e2e:
         needs: matrix_prep
@@ -92,13 +92,40 @@ jobs:
               run: sudo apt-get update && sudo apt-get install -y xvfb
 
             # Run optimized E2E tests (eliminates redundant builds)
+            - name: Provision Linux keychain deps
+              if: matrix.runner == 'ubuntu' && matrix.deps == 'true'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y dbus gnome-keyring libsecret-1-0 libsecret-tools xvfb
+                  echo "Provisioned libsecret and keyring"
+
+      - name: Install CredentialManager module (Windows)
+        if: matrix.runner == 'windows' && matrix.deps == 'true'
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+          Install-Module -Name CredentialManager -Scope CurrentUser -Force -AllowClobber
+          Import-Module CredentialManager
+
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
-              run: xvfb-run -a npm run test:e2e:optimal
+              env:
+                  EXPECT_DEPS: ${{ matrix.deps || 'false' }}
+              run: |
+                  if [ "${{ matrix.deps }}" = "true" ]; then
+                    eval "$(dbus-launch --sh-syntax)"
+                    gnome-keyring-daemon --start
+                  fi
+                  sudo apt-get update && sudo apt-get install -y xvfb
+                  xvfb-run -a npm run test:e2e:optimal
 
             - name: Run E2E tests - Non-Linux
               if: matrix.runner != 'ubuntu'
-              run: npm run test:e2e:optimal
+        env:
+          EXPECT_DEPS: ${{ matrix.deps || 'false' }}
+        run: npm run test:e2e:optimal
+
 
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}

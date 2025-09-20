@@ -4,14 +4,17 @@ import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-cli
 import { WebviewProviderType } from "@shared/webview/types"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
+import { secretStorage } from "@/core/storage/secrets"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { DATA_DIR, EXTENSION_DIR, extensionContext } from "./vscode-context"
+import { DATA_DIR, EXTENSION_DIR, extensionContext, getStandaloneDepsWarning } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -28,6 +31,25 @@ async function main() {
 
 	// Enable the localhost HTTP server that handles auth redirects.
 	AuthHandler.getInstance().setEnabled(true)
+
+	// Non-blocking info when OS keychain deps are missing (Linux/Windows)
+	const depsWarning = getStandaloneDepsWarning()
+	if (depsWarning) {
+		void HostProvider.window.showMessage({ type: ShowMessageType.INFORMATION, message: depsWarning })
+	}
+
+	// Mirror VS Code behavior: react to clineAccountId secret changes (login/logout)
+	secretStorage.onDidChange(async ({ key }) => {
+		if (key !== "clineAccountId") return
+		const value = await secretStorage.get("clineAccountId")
+		const controller = webviewProvider.controller
+		const authService = AuthService.getInstance(controller)
+		if (value) {
+			authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+		} else {
+			authService?.handleDeauth()
+		}
+	})
 
 	startProtobusService(webviewProvider.controller)
 }
