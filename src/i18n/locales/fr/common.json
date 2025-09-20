@@ -161,6 +161,10 @@
 		"incomplete": "Tâche #{{taskNumber}} (Incomplète)",
 		"no_messages": "Tâche #{{taskNumber}} (Aucun message)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Réponse interrompue par l'utilisateur",
+		"responseInterruptedByApiError": "Réponse interrompue par une erreur d'API"
+	},
 	"storage": {
 		"prompt_custom_path": "Entrez le chemin de stockage personnalisé pour l'historique des conversations, laissez vide pour utiliser l'emplacement par défaut",
 		"path_placeholder": "D:\\RooCodeStorage",

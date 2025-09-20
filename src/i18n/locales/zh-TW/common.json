@@ -161,6 +161,10 @@
 		"incomplete": "工作 #{{taskNumber}} (未完成)",
 		"no_messages": "工作 #{{taskNumber}} (無訊息)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "回應被使用者中斷",
+		"responseInterruptedByApiError": "回應被 API 錯誤中斷"
+	},
 	"storage": {
 		"prompt_custom_path": "輸入自訂會話歷史儲存路徑，留空以使用預設位置",
 		"path_placeholder": "D:\\RooCodeStorage",

@@ -212,6 +212,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	didFinishAbortingStream = false
 	abandoned = false
+	abortReason?: ClineApiReqCancelReason
 	isInitialized = false
 	isPaused: boolean = false
 	pausedModeSlug: string = defaultModeSlug
@@ -1264,6 +1265,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			modifiedClineMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
+		// Remove any trailing reasoning-only UI messages that were not part of the persisted API conversation
+		while (modifiedClineMessages.length > 0) {
+			const last = modifiedClineMessages[modifiedClineMessages.length - 1]
+			if (last.type === "say" && last.say === "reasoning") {
+				modifiedClineMessages.pop()
+			} else {
+				break
+			}
+		}
+
 		// Since we don't use `api_req_finished` anymore, we need to check if the
 		// last `api_req_started` has a cost value, if it doesn't and no
 		// cancellation reason to present, then we remove it since it indicates
@@ -1884,28 +1895,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						lastMessage.partial = false
 						// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 						console.log("updating partial message", lastMessage)
-						// await this.saveClineMessages()
 					}
 
-					// Let assistant know their response was interrupted for when task is resumed
-					await this.addToApiConversationHistory({
-						role: "assistant",
-						content: [
-							{
-								type: "text",
-								text:
-									assistantMessage +
-									`\n\n[${
-										cancelReason === "streaming_failed"
-											? "Response interrupted by API Error"
-											: "Response interrupted by user"
-									}]`,
-							},
-						],
-					})
-
 					// Update `api_req_started` to have cancelled and cost, so that
-					// we can display the cost of the partial stream.
+					// we can display the cost of the partial stream and the cancellation reason
 					updateApiReqMsg(cancelReason, streamingFailedMessage)
 					await this.saveClineMessages()
 
@@ -2187,24 +2180,23 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						// may have executed), so we just resort to replicating a
 						// cancel task.
 
-						// Check if this was a user-initiated cancellation BEFORE calling abortTask
-						// If this.abort is already true, it means the user clicked cancel, so we should
-						// treat this as "user_cancelled" rather than "streaming_failed"
-						const cancelReason = this.abort ? "user_cancelled" : "streaming_failed"
+						// Determine cancellation reason BEFORE aborting to ensure correct persistence
+						const cancelReason: ClineApiReqCancelReason = this.abort ? "user_cancelled" : "streaming_failed"
 
 						const streamingFailedMessage = this.abort
 							? undefined
 							: (error.message ?? JSON.stringify(serializeError(error), null, 2))
 
-						// Now call abortTask after determining the cancel reason.
-						await this.abortTask()
+						// Persist interruption details first to both UI and API histories
 						await abortStream(cancelReason, streamingFailedMessage)
 
-						const history = await provider?.getTaskWithId(this.taskId)
+						// Record reason for provider to decide rehydration path
+						this.abortReason = cancelReason
 
-						if (history) {
-							await provider?.createTaskWithHistoryItem(history.historyItem)
-						}
+						// Now abort (emits TaskAborted which provider listens to)
+						await this.abortTask()
+
+						// Do not rehydrate here; provider owns rehydration to avoid duplication races
 					}
 				} finally {
 					this.isStreaming = false

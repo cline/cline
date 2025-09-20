@@ -161,6 +161,10 @@
 		"incomplete": "टास्क #{{taskNumber}} (अधूरा)",
 		"no_messages": "टास्क #{{taskNumber}} (कोई संदेश नहीं)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "उपयोगकर्ता द्वारा प्रतिक्रिया बाधित",
+		"responseInterruptedByApiError": "API त्रुटि द्वारा प्रतिक्रिया बाधित"
+	},
 	"storage": {
 		"prompt_custom_path": "वार्तालाप इतिहास के लिए कस्टम स्टोरेज पाथ दर्ज करें, डिफ़ॉल्ट स्थान का उपयोग करने के लिए खाली छोड़ दें",
 		"path_placeholder": "D:\\RooCodeStorage",

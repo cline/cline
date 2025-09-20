@@ -161,6 +161,10 @@
 		"incomplete": "작업 #{{taskNumber}} (미완료)",
 		"no_messages": "작업 #{{taskNumber}} (메시지 없음)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "사용자에 의해 응답이 중단됨",
+		"responseInterruptedByApiError": "API 오류로 인해 응답이 중단됨"
+	},
 	"storage": {
 		"prompt_custom_path": "대화 내역을 위한 사용자 지정 저장 경로를 입력하세요. 기본 위치를 사용하려면 비워두세요",
 		"path_placeholder": "D:\\RooCodeStorage",

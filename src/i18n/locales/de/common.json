@@ -161,6 +161,10 @@
 		"incomplete": "Aufgabe #{{taskNumber}} (Unvollständig)",
 		"no_messages": "Aufgabe #{{taskNumber}} (Keine Nachrichten)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Antwort vom Benutzer unterbrochen",
+		"responseInterruptedByApiError": "Antwort durch API-Fehler unterbrochen"
+	},
 	"storage": {
 		"prompt_custom_path": "Gib den benutzerdefinierten Speicherpfad für den Gesprächsverlauf ein, leer lassen für Standardspeicherort",
 		"path_placeholder": "D:\\RooCodeStorage",

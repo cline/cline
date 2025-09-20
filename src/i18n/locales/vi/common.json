@@ -161,6 +161,10 @@
 		"incomplete": "Nhiệm vụ #{{taskNumber}} (Chưa hoàn thành)",
 		"no_messages": "Nhiệm vụ #{{taskNumber}} (Không có tin nhắn)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Phản hồi bị gián đoạn bởi người dùng",
+		"responseInterruptedByApiError": "Phản hồi bị gián đoạn bởi lỗi API"
+	},
 	"storage": {
 		"prompt_custom_path": "Nhập đường dẫn lưu trữ tùy chỉnh cho lịch sử hội thoại, để trống để sử dụng vị trí mặc định",
 		"path_placeholder": "D:\\RooCodeStorage",

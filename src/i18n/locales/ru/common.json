@@ -161,6 +161,10 @@
 		"incomplete": "Задача #{{taskNumber}} (Незавершенная)",
 		"no_messages": "Задача #{{taskNumber}} (Нет сообщений)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Ответ прерван пользователем",
+		"responseInterruptedByApiError": "Ответ прерван ошибкой API"
+	},
 	"storage": {
 		"prompt_custom_path": "Введите пользовательский путь хранения истории разговоров, оставьте пустым для использования расположения по умолчанию",
 		"path_placeholder": "D:\\RooCodeStorage",

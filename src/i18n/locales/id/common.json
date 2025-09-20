@@ -161,6 +161,10 @@
 		"incomplete": "Tugas #{{taskNumber}} (Tidak lengkap)",
 		"no_messages": "Tugas #{{taskNumber}} (Tidak ada pesan)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Respons diinterupsi oleh pengguna",
+		"responseInterruptedByApiError": "Respons diinterupsi oleh error API"
+	},
 	"storage": {
 		"prompt_custom_path": "Masukkan path penyimpanan riwayat percakapan kustom, biarkan kosong untuk menggunakan lokasi default",
 		"path_placeholder": "D:\\RooCodeStorage",

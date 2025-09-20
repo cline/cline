@@ -161,6 +161,10 @@
 		"incomplete": "Attività #{{taskNumber}} (Incompleta)",
 		"no_messages": "Attività #{{taskNumber}} (Nessun messaggio)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Risposta interrotta dall'utente",
+		"responseInterruptedByApiError": "Risposta interrotta da errore API"
+	},
 	"storage": {
 		"prompt_custom_path": "Inserisci il percorso di archiviazione personalizzato per la cronologia delle conversazioni, lascia vuoto per utilizzare la posizione predefinita",
 		"path_placeholder": "D:\\RooCodeStorage",

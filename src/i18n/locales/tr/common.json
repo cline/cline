@@ -161,6 +161,10 @@
 		"incomplete": "Görev #{{taskNumber}} (Tamamlanmamış)",
 		"no_messages": "Görev #{{taskNumber}} (Mesaj yok)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "Yanıt kullanıcı tarafından kesildi",
+		"responseInterruptedByApiError": "Yanıt API hatası nedeniyle kesildi"
+	},
 	"storage": {
 		"prompt_custom_path": "Konuşma geçmişi için özel depolama yolunu girin, varsayılan konumu kullanmak için boş bırakın",
 		"path_placeholder": "D:\\RooCodeStorage",

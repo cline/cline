@@ -166,6 +166,10 @@
 		"incomplete": "任务 #{{taskNumber}} (未完成)",
 		"no_messages": "任务 #{{taskNumber}} (无消息)"
 	},
+	"interruption": {
+		"responseInterruptedByUser": "响应被用户中断",
+		"responseInterruptedByApiError": "响应被 API 错误中断"
+	},
 	"storage": {
 		"prompt_custom_path": "输入自定义会话历史存储路径，留空以使用默认位置",
 		"path_placeholder": "D:\\RooCodeStorage",
