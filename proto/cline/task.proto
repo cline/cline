@@ -63,6 +63,7 @@ message TaskResponse {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
+  string model_id = 11;
 }
 
 // Request for getting task history with filtering
@@ -92,6 +93,7 @@ message TaskItem {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
+  string model_id = 11;
 }
 
 // Request for ask response operation

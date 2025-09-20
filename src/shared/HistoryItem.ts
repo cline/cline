@@ -15,4 +15,7 @@ export type HistoryItem = {
 	conversationHistoryDeletedRange?: [number, number]
 	isFavorited?: boolean
 	checkpointManagerErrorMessage?: string
+
+	// The last model ID used for this task
+	modelId?: string
 }

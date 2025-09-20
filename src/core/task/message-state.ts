@@ -64,7 +64,7 @@ export class MessageStateHandler {
 		this.clineMessages = newMessages
 	}
 
-	async saveClineMessagesAndUpdateHistory(): Promise<void> {
+	async saveClineMessagesAndUpdateHistory(modelId?: string): Promise<void> {
 		try {
 			await saveClineMessages(this.context, this.taskId, this.clineMessages)
 
@@ -104,6 +104,7 @@ export class MessageStateHandler {
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
 				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				modelId,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
