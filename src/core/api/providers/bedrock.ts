@@ -215,7 +215,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const providerChain = fromNodeProviderChain(providerOptions)
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
-				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
+				AwsBedrockHandler.setEnv("AWS_REGION", this.getRegion())
 				if (useProfile) {
 					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
 				} else {

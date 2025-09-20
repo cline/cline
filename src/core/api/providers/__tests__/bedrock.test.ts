@@ -330,6 +330,73 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
+	describe("global region handling", () => {
+		it("should return us-east-1 when awsRegion is global", () => {
+			const handler = new AwsBedrockHandler({
+				...mockOptions,
+				awsRegion: "global",
+			} as any)
+
+			const region = handler["getRegion"]()
+			region.should.equal("us-east-1")
+			region.should.not.equal("global")
+		})
+
+		it("should use us-east-1 for environment variable when global is selected", async () => {
+			const handler = new AwsBedrockHandler({
+				...mockOptions,
+				awsRegion: "global",
+			} as any)
+
+			let capturedRegion: string | undefined
+			await AwsBedrockHandler["withTempEnv"](
+				() => {
+					AwsBedrockHandler["setEnv"]("AWS_REGION", handler["getRegion"]())
+				},
+				async () => {
+					capturedRegion = process.env.AWS_REGION
+					return "test"
+				},
+			)
+
+			capturedRegion!.should.equal("us-east-1")
+		})
+
+		it("should override existing AWS_REGION when global is selected", async () => {
+			// Store original environment
+			const originalRegion = process.env.AWS_REGION
+
+			// Set conflicting environment variable
+			process.env.AWS_REGION = "eu-west-1"
+
+			const handler = new AwsBedrockHandler({
+				...mockOptions,
+				awsRegion: "global",
+			} as any)
+
+			let capturedRegion: string | undefined
+			await AwsBedrockHandler["withTempEnv"](
+				() => {
+					AwsBedrockHandler["setEnv"]("AWS_REGION", handler["getRegion"]())
+				},
+				async () => {
+					capturedRegion = process.env.AWS_REGION
+					return "test"
+				},
+			)
+
+			// Should override to us-east-1, not use existing eu-west-1
+			capturedRegion!.should.equal("us-east-1")
+
+			// Restore original environment
+			if (originalRegion === undefined) {
+				delete process.env.AWS_REGION
+			} else {
+				process.env.AWS_REGION = originalRegion
+			}
+		})
+	})
+
 	describe("executeConverseStream", () => {
 		let handler: AwsBedrockHandler
 
