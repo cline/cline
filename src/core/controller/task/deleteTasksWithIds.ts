@@ -71,6 +71,16 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 			await fs.rm(filePath, { force: true })
 		}
 
+		// Delete the attachments directory for this task if it exists
+		try {
+			const attachmentsDirPath = path.join(taskDirPath, "attachments")
+			if (await fileExistsAtPath(attachmentsDirPath)) {
+				await fs.rm(attachmentsDirPath, { recursive: true, force: true })
+			}
+		} catch (error) {
+			console.debug("Could not remove attachments directory:", error)
+		}
+
 		// Remove empty task directory
 		try {
 			await fs.rmdir(taskDirPath) // succeeds if the dir is empty

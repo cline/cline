@@ -63,6 +63,12 @@ service FileService {
   
   // Opens or creates a focus chain checklist markdown file for editing
   rpc openFocusChainFile(StringRequest) returns (Empty);
+
+  // Upload one or more file blobs from the webview to the backend
+  rpc uploadFiles(UploadFilesRequest) returns (UploadFilesResponse);
+
+  // Delete previously uploaded attachment files by absolute saved paths
+  rpc deleteUploadedFiles(DeleteUploadedFilesRequest) returns (DeleteUploadedFilesResponse);
 }
 
 // Response for refreshRules operation
@@ -183,4 +189,50 @@ message ToggleWorkflowRequest {
   string workflow_path = 2;
   bool enabled = 3;
   bool is_global = 4;
+}
+
+// Webview -> backend: send file blobs to be persisted server-side
+message UploadFilesRequest {
+  Metadata metadata = 1;
+  // Files to upload
+  repeated UploadedFile files = 2;
+  // If true, allow overwriting an existing file at the same target path
+  optional bool overwrite = 3;
+  // Optional base directory (workspace-relative) to save files under
+  optional string base_dir = 4;
+  // Optional task id to scope uploads under tasks/{task_id}/attachments
+  optional string task_id = 5;
+}
+
+// Single file payload for upload
+message UploadedFile {
+  string filename = 1;      // Original filename (no directories)
+  string mime_type = 2;     // e.g. "image/png", "text/plain"
+  bytes content = 3;        // Raw file bytes
+  // Optional workspace-relative path suggestion (e.g., "assets/img/logo.png").
+  // If provided, the backend may use this as the target path, subject to security checks.
+  optional string suggested_path = 4;
+}
+
+// Backend -> webview: results of upload
+message UploadFilesResponse {
+  // Workspace-relative paths where files were saved (one per input file)
+  repeated string saved_paths = 1;
+}
+
+// Request to delete uploaded attachment files by absolute paths
+message DeleteUploadedFilesRequest {
+  Metadata metadata = 1;
+  // Absolute file paths returned previously in UploadFilesResponse.saved_paths
+  repeated string paths = 2;
+  // Optional task id scope; if omitted, uses current task
+  optional string task_id = 3;
+}
+
+// Response for deleteUploadedFiles
+message DeleteUploadedFilesResponse {
+  // Absolute paths that were successfully deleted
+  repeated string deleted_paths = 1;
+  // Absolute paths that could not be deleted (permission, not found, invalid)
+  repeated string failed_paths = 2;
 }
