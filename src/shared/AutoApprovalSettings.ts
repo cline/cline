@@ -13,6 +13,7 @@ export interface AutoApprovalSettings {
 		executeAllCommands?: boolean // Execute all commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
+		useDebug?: boolean // Use debug tools (start debugging, set breakpoints, evaluate expressions)
 	}
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
@@ -32,6 +33,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		executeAllCommands: false,
 		useBrowser: false,
 		useMcp: false,
+		useDebug: true, // Enable debug tools by default since they're generally safe
 	},
 	maxRequests: 20,
 	enableNotifications: false,

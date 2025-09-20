@@ -28,6 +28,8 @@ import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQues
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
+import { DebugFileToolHandler } from "./tools/handlers/DebugFileToolHandler"
+import { EvaluateExpressionToolHandler } from "./tools/handlers/EvaluateExpressionToolHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
@@ -37,6 +39,8 @@ import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
+import { SetBreakpointToolHandler } from "./tools/handlers/SetBreakpointToolHandler"
+import { StopDebuggingToolHandler } from "./tools/handlers/StopDebuggingToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
@@ -214,6 +218,12 @@ export class ToolExecutor {
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler())
 		this.coordinator.register(new ReportBugHandler())
+
+		// Register debug tool handlers
+		this.coordinator.register(new DebugFileToolHandler(validator))
+		this.coordinator.register(new SetBreakpointToolHandler(validator))
+		this.coordinator.register(new EvaluateExpressionToolHandler(validator))
+		this.coordinator.register(new StopDebuggingToolHandler(validator))
 	}
 
 	/**

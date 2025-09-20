@@ -5,6 +5,13 @@ import * as path from "path"
 import { writeFileWithMkdirs } from "./file-utils.mjs"
 import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
+/**
+ * Convert PascalCase to camelCase
+ */
+function toCamelCase(str) {
+	return str.charAt(0).toLowerCase() + str.slice(1)
+}
+
 // Contains the interface definitions for the host bridge clients.
 const TYPES_FILE = path.resolve("src/generated/hosts/host-bridge-client-types.ts")
 // Contains the ExternalHostBridgeClientManager for the external host bridge clients (using nice-grpc).
@@ -123,7 +130,7 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 
 			if (!isStreamingResponse) {
 				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
-      return this.makeRequest((client) => client.${methodName}(request))
+      return this.makeRequest((client) => client.${toCamelCase(methodName)}(request))
     }`
 			} else {
 				// Generate streaming method
@@ -133,7 +140,7 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 	): () => void {
 		const client = this.getClient()
 		const abortController = new AbortController()
-		const stream: AsyncIterable<${responseType}> = client.${methodName}(request, {
+		const stream: AsyncIterable<${responseType}> = client.${toCamelCase(methodName)}(request, {
 			signal: abortController.signal,
 		})
 		const wrappedCallbacks: StreamingCallbacks<${responseType}> = {

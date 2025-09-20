@@ -49,6 +49,10 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
+		ClineDefaultTool.DEBUG_FILE,
+		ClineDefaultTool.SET_BREAKPOINT,
+		ClineDefaultTool.EVALUATE_EXPRESSION,
+		ClineDefaultTool.STOP_DEBUGGING,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NEXT_GEN,

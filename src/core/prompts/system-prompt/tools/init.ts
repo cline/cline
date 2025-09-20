@@ -4,6 +4,8 @@ import { access_mcp_resource_variants } from "./access_mcp_resource"
 import { ask_followup_question_variants } from "./ask_followup_question"
 import { attempt_completion_variants } from "./attempt_completion"
 import { browser_action_variants } from "./browser_action"
+import { debug_file_variants } from "./debug_file"
+import { evaluate_expression_variants } from "./evaluate_expression"
 import { execute_command_variants } from "./execute_command"
 import { focus_chain_variants } from "./focus_chain"
 import { list_code_definition_names_variants } from "./list_code_definition_names"
@@ -14,6 +16,8 @@ import { plan_mode_respond_variants } from "./plan_mode_respond"
 import { read_file_variants } from "./read_file"
 import { replace_in_file_variants } from "./replace_in_file"
 import { search_files_variants } from "./search_files"
+import { set_breakpoint_variants } from "./set_breakpoint"
+import { stop_debugging_variants } from "./stop_debugging"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
 import { web_fetch_variants } from "./web_fetch"
 import { write_to_file_variants } from "./write_to_file"
@@ -30,6 +34,8 @@ export function registerClineToolSets(): void {
 		...ask_followup_question_variants,
 		...attempt_completion_variants,
 		...browser_action_variants,
+		...debug_file_variants,
+		...evaluate_expression_variants,
 		...execute_command_variants,
 		...focus_chain_variants,
 		...list_code_definition_names_variants,
@@ -40,6 +46,8 @@ export function registerClineToolSets(): void {
 		...read_file_variants,
 		...replace_in_file_variants,
 		...search_files_variants,
+		...set_breakpoint_variants,
+		...stop_debugging_variants,
 		...use_mcp_tool_variants,
 		...web_fetch_variants,
 		...write_to_file_variants,
