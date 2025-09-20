@@ -165,6 +165,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.yoloModeToggled !== undefined) {
 			if (controller.task) {
 				controller.task.updateYoloModeToggled(request.yoloModeToggled)
+				telemetryService.captureYoloModeToggle(controller.task.ulid, request.yoloModeToggled)
 			}
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
