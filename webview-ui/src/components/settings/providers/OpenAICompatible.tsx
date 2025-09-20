@@ -1,8 +1,8 @@
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -32,7 +32,68 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
-	const [useManualModelEntry, setUseManualModelEntry] = useState(false)
+	const [modelSearchTerm, setModelSearchTerm] = useState("")
+
+	// Local minimal preset + matcher (kept scoped to this file to avoid new shared files)
+	type OpenAICompatiblePresetLocal = {
+		provider: "openai"
+		defaults?: { openAiBaseUrl?: string }
+		apiKeyLabel?: string
+	}
+
+	const OPENAI_COMPATIBLE_PRESETS_LOCAL: Readonly<Record<string, OpenAICompatiblePresetLocal>> = {
+		portkey: {
+			provider: "openai",
+			defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
+			apiKeyLabel: "Your Portkey",
+		},
+	}
+
+	function matchPresetFromBaseUrlLocal(openAiBaseUrl?: string): string | null {
+		const base = (openAiBaseUrl || "").trim()
+		if (!base) {
+			return null
+		}
+		try {
+			const input = new URL(base)
+			const inputHost = input.hostname.toLowerCase()
+			const inputPath = input.pathname || "/"
+
+			for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS_LOCAL)) {
+				const presetUrl = preset.defaults?.openAiBaseUrl
+				if (!presetUrl) {
+					continue
+				}
+				try {
+					const presetParsed = new URL(presetUrl)
+					const presetHost = presetParsed.hostname.toLowerCase()
+					const presetPath = presetParsed.pathname || "/"
+
+					const isSameHost = inputHost === presetHost
+					const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+					const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+					if ((isSameHost || isSubdomain) && isPathCompatible) {
+						return key
+					}
+				} catch {
+					// ignore
+				}
+			}
+		} catch {
+			// ignore
+		}
+		return null
+	}
+
+	// Derive a friendlier API key label using local preset matcher
+	const apiKeyProviderName = useMemo(() => {
+		const key = matchPresetFromBaseUrlLocal(apiConfiguration?.openAiBaseUrl)
+		if (key && OPENAI_COMPATIBLE_PRESETS_LOCAL[key]?.apiKeyLabel) {
+			return OPENAI_COMPATIBLE_PRESETS_LOCAL[key].apiKeyLabel as string
+		}
+		return "OpenAI Compatible"
+	}, [apiConfiguration?.openAiBaseUrl])
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -87,14 +148,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
-	// Auto-switch to manual entry if the current selection is not in the fetched list
-	useEffect(() => {
-		if (availableModels.length > 0 && selectedModelId) {
-			if (!availableModels.includes(selectedModelId)) {
-				setUseManualModelEntry(true)
-			}
-		}
-	}, [availableModels, selectedModelId])
+	// (Manual entry branch removed) – searchable dropdown supports custom model IDs directly
 
 	return (
 		<div>
@@ -116,65 +170,71 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					handleFieldChange("openAiApiKey", value)
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
-				providerName="OpenAI Compatible"
+				providerName={apiKeyProviderName}
 			/>
 
-			{/* Model ID chooser: show either dropdown (when fetched) or manual input, not both */}
-			{availableModels.length > 0 && !useManualModelEntry ? (
-				<div style={{ width: "100%", marginBottom: 10 }}>
-					<label htmlFor="openai-compatible-model-id">
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</label>
-					{(() => {
-						const dropdownValue = availableModels.includes(selectedModelId || "") ? selectedModelId || "" : ""
-						return (
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
-								<VSCodeDropdown
-									id="openai-compatible-model-id"
-									onChange={(e: any) => {
-										const value = e.target.value
-										if (value === "__manual__") {
-											setUseManualModelEntry(true)
-											return
-										}
-										handleModeFieldChange(
-											{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-											value,
-											currentMode,
-										)
-									}}
-									style={{ width: "100%", marginBottom: 10 }}
-									value={dropdownValue}>
-									<VSCodeOption value="">Select a model...</VSCodeOption>
-									{availableModels.map((m) => (
-										<VSCodeOption key={m} value={m}>
-											{m}
-										</VSCodeOption>
-									))}
-									<VSCodeOption value="__manual__">Add manually…</VSCodeOption>
-								</VSCodeDropdown>
-							</DropdownContainer>
-						)
-					})()}
-				</div>
-			) : (
-				<DebouncedTextField
-					initialValue={selectedModelId || ""}
-					onChange={(value) =>
-						handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-					}
-					placeholder={availableModels.length > 0 ? "Enter a custom model ID..." : "Enter Model ID..."}
-					style={{ width: "100%", marginBottom: 10 }}>
-					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-						{availableModels.length > 0 && (
-							<VSCodeButton appearance="secondary" onClick={() => setUseManualModelEntry(false)}>
-								Pick from list
-							</VSCodeButton>
-						)}
-					</div>
-				</DebouncedTextField>
-			)}
+			{/* Model ID */}
+			<div style={{ width: "100%", marginBottom: 10 }}>
+				<label htmlFor="openai-compatible-model-id">
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</label>
+				{(() => {
+					const trimmed = modelSearchTerm.trim()
+					const filteredModels = trimmed
+						? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+						: availableModels
+					const exactMatch =
+						trimmed.length > 0 && availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+					const showCustomOption = trimmed.length > 0 && !exactMatch
+					// Ensure currently selected value stays visible even when filtered out
+					const displayModels =
+						selectedModelId && !filteredModels.includes(selectedModelId)
+							? [selectedModelId, ...filteredModels]
+							: filteredModels
+					const dropdownValue = selectedModelId && displayModels.includes(selectedModelId) ? selectedModelId : ""
+					return (
+						<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
+							<VSCodeTextField
+								onInput={(e) => setModelSearchTerm((e.target as HTMLInputElement).value || "")}
+								placeholder="Search models..."
+								style={{ width: "100%", marginBottom: 6 }}
+								value={modelSearchTerm}
+							/>
+							{showCustomOption && (
+								<p style={{ fontSize: "12px", margin: "0 0 6px 0", color: getAsVar(VSC_DESCRIPTION_FOREGROUND) }}>
+									No matches found. Select the option below to use "{trimmed}" as a custom model ID.
+								</p>
+							)}
+							<VSCodeDropdown
+								id="openai-compatible-model-id"
+								onChange={(e: any) => {
+									const value = e.target.value
+									// Clear search after selection to avoid stale filters
+									setModelSearchTerm("")
+									handleModeFieldChange(
+										{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+										value,
+										currentMode,
+									)
+								}}
+								style={{ width: "100%", marginBottom: 10 }}
+								value={dropdownValue}>
+								<VSCodeOption value="">Select a model...</VSCodeOption>
+								{displayModels.map((m) => (
+									<VSCodeOption key={m} value={m}>
+										{m}
+									</VSCodeOption>
+								))}
+								{showCustomOption && (
+									<VSCodeOption key={`__custom__${trimmed}`} value={trimmed}>
+										Use "{trimmed}" (custom)
+									</VSCodeOption>
+								)}
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)
+				})()}
+			</div>
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {

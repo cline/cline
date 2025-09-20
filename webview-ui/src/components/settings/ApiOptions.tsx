@@ -47,55 +47,99 @@ import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 
-// Inline OpenAI-compatible provider presets
+// OpenAI-compatible provider presets (kept scoped to ApiOptions)
 type OpenAICompatiblePreset = {
 	provider: "openai"
 	defaults?: { openAiBaseUrl?: string }
-}
-
-function renderHighlightedLabel(html: string): JSX.Element[] {
-    const OPEN = '<span class="provider-item-highlight">'
-    const CLOSE = '</span>'
-    const nodes: JSX.Element[] = []
-    let i = 0
-    let key = 0
-
-    while (i < html.length) {
-        const start = html.indexOf(OPEN, i)
-        if (start === -1) {
-            const text = html.slice(i)
-            if (text) {
-                nodes.push(<span key={`t-${key++}`}>{text}</span>)
-            }
-            break
-        }
-        const pre = html.slice(i, start)
-        if (pre) {
-            nodes.push(<span key={`t-${key++}`}>{pre}</span>)
-        }
-
-        const end = html.indexOf(CLOSE, start + OPEN.length)
-        if (end === -1) {
-            const rest = html.slice(start)
-            if (rest) {
-                nodes.push(<span key={`t-${key++}`}>{rest}</span>)
-            }
-            break
-        }
-        const highlighted = html.slice(start + OPEN.length, end)
-        nodes.push(
-            <span className="provider-item-highlight" key={`h-${key++}`}>
-                {highlighted}
-            </span>,
-        )
-        i = end + CLOSE.length
-    }
-
-    return nodes
+	apiKeyLabel?: string
 }
 
 const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
-	portkey: { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } },
+	portkey: {
+		provider: "openai",
+		defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
+		apiKeyLabel: "Your Portkey",
+	},
+}
+
+// Determine which preset matches a given OpenAI-compatible base URL
+function matchPresetFromBaseUrl(openAiBaseUrl?: string): string | null {
+	const base = (openAiBaseUrl || "").trim()
+	if (!base) {
+		return null
+	}
+	try {
+		const input = new URL(base)
+		const inputHost = input.hostname.toLowerCase()
+		const inputPath = input.pathname || "/"
+
+		for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
+			const presetUrl = preset.defaults?.openAiBaseUrl
+			if (!presetUrl) {
+				continue
+			}
+			try {
+				const presetParsed = new URL(presetUrl)
+				const presetHost = presetParsed.hostname.toLowerCase()
+				const presetPath = presetParsed.pathname || "/"
+
+				const isSameHost = inputHost === presetHost
+				const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+				const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+				if ((isSameHost || isSubdomain) && isPathCompatible) {
+					return key
+				}
+			} catch {
+				// ignore invalid preset URL
+			}
+		}
+	} catch {
+		// ignore invalid input URL
+	}
+	return null
+}
+
+// Render highlighted label without using dangerouslySetInnerHTML
+function renderHighlightedLabel(html: string): JSX.Element[] {
+	const OPEN = '<span class="provider-item-highlight">'
+	const CLOSE = "</span>"
+	const nodes: JSX.Element[] = []
+	let i = 0
+	let key = 0
+
+	while (i < html.length) {
+		const start = html.indexOf(OPEN, i)
+		if (start === -1) {
+			const text = html.slice(i)
+			if (text) {
+				nodes.push(<span key={`t-${key++}`}>{text}</span>)
+			}
+			break
+		}
+		const pre = html.slice(i, start)
+		if (pre) {
+			nodes.push(<span key={`t-${key++}`}>{pre}</span>)
+		}
+
+		const end = html.indexOf(CLOSE, start + OPEN.length)
+		if (end === -1) {
+			const rest = html.slice(start)
+			if (rest) {
+				nodes.push(<span key={`t-${key++}`}>{rest}</span>)
+			}
+			break
+		}
+		const highlighted = html.slice(start + OPEN.length, end)
+		nodes.push(
+			<span className="provider-item-highlight" key={`h-${key++}`}>
+				{highlighted}
+			</span>,
+		)
+		i = end + CLOSE.length
+	}
+
+	return nodes
 }
 
 function mapOptionToProviderAndDefaults(optionValue: string): {
@@ -113,44 +157,8 @@ function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
 	if (provider !== "openai") {
 		return provider
 	}
-
-	const base = (openAiBaseUrl || "").trim()
-	try {
-		const input = new URL(base)
-		const host = input.hostname.toLowerCase()
-		if (host === "portkey.ai" || host.endsWith(".portkey.ai")) {
-			return "portkey"
-		}
-	} catch {
-		// ignore parse errors and fall back to preset loop below
-	}
-
-	// Fallback: attempt exact preset matching (useful if other presets are added later)
-	for (const [option, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
-		const presetUrl = preset.defaults?.openAiBaseUrl
-		if (!presetUrl) {
-			continue
-		}
-		try {
-			const input = new URL(base)
-			const presetParsed = new URL(presetUrl)
-			const inputHost = input.hostname.toLowerCase()
-			const presetHost = presetParsed.hostname.toLowerCase()
-			const inputPath = input.pathname || "/"
-			const presetPath = presetParsed.pathname || "/"
-
-			const isSameHost = inputHost === presetHost
-			const isSubdomain = inputHost.endsWith(`.${presetHost}`)
-			const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
-
-			if ((isSameHost || isSubdomain) && isPathCompatible) {
-				return option
-			}
-		} catch {
-			// Fall through; if parsing fails we won't match this preset
-		}
-	}
-	return provider
+	const matched = matchPresetFromBaseUrl(openAiBaseUrl)
+	return matched || provider
 }
 
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
@@ -481,7 +489,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<ProviderDropdownList
-							ref={dropdownListRef}
 							onWheel={(e) => {
 								const el = e.currentTarget
 								const delta = e.deltaY
@@ -493,7 +500,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}
 								// Always stop propagation so parent containers don't react to wheel
 								e.stopPropagation()
-							}}>
+							}}
+							ref={dropdownListRef}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
 									data-testid={`provider-option-${item.value}`}
