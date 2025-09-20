@@ -286,10 +286,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		outputTokens: number
 		cacheReadTokens?: number
 	}) {
-		if (!info.inputPrice || !info.outputPrice || !info.cacheReadsPrice) {
-			return undefined
-		}
-
+		// For models with tiered pricing, prices might only be defined in tiers
 		let inputPrice = info.inputPrice
 		let outputPrice = info.outputPrice
 		let cacheReadsPrice = info.cacheReadsPrice
@@ -304,6 +301,16 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				outputPrice = tier.outputPrice ?? outputPrice
 				cacheReadsPrice = tier.cacheReadsPrice ?? cacheReadsPrice
 			}
+		}
+
+		// Check if we have the required prices after considering tiers
+		if (!inputPrice || !outputPrice) {
+			return undefined
+		}
+
+		// cacheReadsPrice is optional - if not defined, treat as 0
+		if (!cacheReadsPrice) {
+			cacheReadsPrice = 0
 		}
 
 		// Subtract the cached input tokens from the total input tokens.
