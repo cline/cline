@@ -87,6 +87,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 			messageStateHandler,
 			fileContextTracker,
 			taskState,
+			workspaceManager,
 		},
 		{
 			updateTaskHistory,

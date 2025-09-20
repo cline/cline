@@ -87,7 +87,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 		const initPromises = gitRoots.map(async (root) => {
 			try {
 				console.log(`[MultiRootCheckpointManager] Creating tracker for ${root.name} at ${root.path}`)
-				const tracker = await CheckpointTracker.create(this.taskId, this.enableCheckpoints)
+				const tracker = await CheckpointTracker.create(this.taskId, this.enableCheckpoints, root.path)
 				if (tracker) {
 					this.trackers.set(root.path, tracker)
 					console.log(`[MultiRootCheckpointManager] Successfully initialized tracker for ${root.name}`)
