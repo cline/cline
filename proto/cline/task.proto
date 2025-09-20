@@ -20,6 +20,8 @@ service TaskService {
   rpc showTaskWithId(StringRequest) returns (TaskResponse);
   // Exports a task with the given ID to markdown
   rpc exportTaskWithId(StringRequest) returns (Empty);
+  // Exports multiple tasks with the given IDs to markdown
+  rpc exportTasksWithIds(StringArrayRequest) returns (Empty);
   // Toggles the favorite status of a task
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
   // Gets filtered task history
