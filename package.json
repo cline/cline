@@ -200,6 +200,11 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.addToContext",
+				"title": "Add to Context",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -322,6 +327,22 @@
 				{
 					"command": "cline.abortGitCommitMessage",
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.addToContext",
+					"when": "false"
+				}
+			],
+            "explorer/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline"
 				}
 			]
 		},
