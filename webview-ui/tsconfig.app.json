@@ -45,6 +45,9 @@
 			],
 			"@utils/*": [
 				"src/utils/*"
+			],
+			"@webview/*": [
+				"src/*"
 			]
 		}
 	},

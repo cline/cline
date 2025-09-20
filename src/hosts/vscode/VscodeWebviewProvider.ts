@@ -1,12 +1,13 @@
+import { handleGrpcRequest, handleGrpcRequestCancel } from "@core/controller/grpc-handler"
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
 import { WebviewProvider } from "@core/webview"
 import type { Uri } from "vscode"
 import * as vscode from "vscode"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
-import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { WebviewMessage } from "@/shared/WebviewMessage"
-import type { WebviewProviderType } from "@/shared/webview/types"
+import { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -171,40 +172,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
-			(message) => {
-				this.handleWebviewMessage(message)
+			async (message: any) => {
+				await this.handleWebviewMessage(message)
 			},
-			null,
+			undefined,
 			this.disposables,
 		)
-	}
-
-	/**
-	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is received.
-	 *
-	 * @param webview A reference to the extension webview
-	 */
-	async handleWebviewMessage(message: WebviewMessage) {
-		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
-
-		switch (message.type) {
-			case "grpc_request": {
-				if (message.grpc_request) {
-					await handleGrpcRequest(this.controller, postMessageToWebview, message.grpc_request)
-				}
-				break
-			}
-			case "grpc_request_cancel": {
-				if (message.grpc_request_cancel) {
-					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
-				}
-				break
-			}
-			default: {
-				console.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
-			}
-		}
 	}
 
 	/**
@@ -215,6 +188,137 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 */
 	private async postMessageToWebview(message: ExtensionMessage): Promise<boolean | undefined> {
 		return this.webview?.webview.postMessage(message)
+	}
+
+	/**
+	 * Handles messages from the webview
+	 */
+	private handleWebviewMessage = async (message: any) => {
+		console.log("Received webview message:", message)
+
+		// 处理返回CAN工具集的请求
+		if (message.type === "switchToCanView") {
+			// 重新加载webview内容，显示CanView
+			if (this.webview) {
+				this.webview.webview.html = this.getHtmlContent()
+			}
+			return
+		}
+
+		// Handle gRPC requests
+		if (message.type === "grpc_request") {
+			// 验证gRPC请求是否包含必要的字段
+			const grpcRequest = message.grpc_request || message
+
+			if (!grpcRequest.service || !grpcRequest.method) {
+				console.error("Invalid gRPC request: missing service or method", message)
+				return
+			}
+
+			await handleGrpcRequest(this.controller, this.postMessageToWebview.bind(this), grpcRequest)
+		} else if (message.type === "grpc_request_cancel") {
+			handleGrpcRequestCancel(this.postMessageToWebview.bind(this), message)
+		} else if (message.type === "openInNewTab") {
+			// Handle opening content in a new tab
+			await this.handleOpenInNewTab(message.command)
+		} else {
+			console.log("Unknown message type received:", message.type, message)
+		}
+	}
+
+	/**
+	 * Handle opening components in a new tab
+	 * @param command The command indicating which component to open
+	 */
+	private async handleOpenInNewTab(command: string): Promise<void> {
+		try {
+			// Create a new webview panel
+			const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+			const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
+			const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
+
+			let title = "CAN 工具"
+			if (command === "matrix-parse") {
+				title = "矩阵报文解析"
+			} else if (command === "uds-diag") {
+				title = "UDS诊断"
+			}
+
+			const panel = vscode.window.createWebviewPanel("cline.canTool", title, targetCol, {
+				enableScripts: true,
+				retainContextWhenHidden: true,
+				localResourceRoots: [
+					vscode.Uri.joinPath(this.context.extensionUri, "dist"),
+					vscode.Uri.joinPath(this.context.extensionUri, "assets"),
+				],
+			})
+
+			// Set icon for the panel
+			panel.iconPath = {
+				light: vscode.Uri.joinPath(this.context.extensionUri, "assets", "icons", "robot_panel_light.png"),
+				dark: vscode.Uri.joinPath(this.context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
+			}
+
+			// Get the webview content
+			const webviewContent = await this.getCanToolWebviewContent(command)
+			panel.webview.html = webviewContent
+
+			// Handle messages from the webview
+			panel.webview.onDidReceiveMessage(
+				async (message) => {
+					// Forward messages to the main handler
+					await this.handleWebviewMessage(message)
+				},
+				null,
+				this.disposables,
+			)
+		} catch (error) {
+			console.error("Error opening CAN tool in new tab:", error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to open CAN tool: ${error instanceof Error ? error.message : String(error)}`,
+			})
+		}
+	}
+
+	/**
+	 * Generate webview content for CAN tools
+	 * @param tool The tool to display (matrix-parse or uds-diag)
+	 * @returns The HTML content for the webview
+	 */
+	private async getCanToolWebviewContent(tool: string): Promise<string> {
+		// Get the path to the webview dist directory
+		const webviewDistPath = vscode.Uri.joinPath(this.context.extensionUri, "dist")
+		const webviewDistUri = this.webview?.webview.asWebviewUri(webviewDistPath)
+
+		// Read the index.html file
+		const indexPath = vscode.Uri.joinPath(webviewDistPath, "index.html")
+		const indexContent = await vscode.workspace.fs.readFile(indexPath)
+		let htmlContent = indexContent.toString()
+
+		// Replace the root div with the specific component
+		if (tool === "matrix-parse") {
+			htmlContent = htmlContent.replace('<div id="root"></div>', `<div id="root" data-can-tool="matrix-parse"></div>`)
+		} else if (tool === "uds-diag") {
+			htmlContent = htmlContent.replace('<div id="root"></div>', `<div id="root" data-can-tool="uds-diag"></div>`)
+		}
+
+		// Add CSP and other security policies
+		htmlContent = htmlContent.replace(
+			"<head>",
+			`<head>
+			<meta http-equiv="Content-Security-Policy" 
+				content="default-src 'none'; 
+				script-src 'unsafe-eval' 'unsafe-inline' vscode-resource: https:; 
+				font-src https: data:; 
+				img-src vscode-resource: https: data:; 
+				style-src 'unsafe-inline' vscode-resource: https:; 
+				connect-src https:; 
+				frame-src https:;">
+			`,
+		)
+
+		return htmlContent
 	}
 
 	override async dispose() {

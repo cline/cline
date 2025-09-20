@@ -126,6 +126,11 @@
 		},
 		"commands": [
 			{
+				"command": "cline.plusButtonClicked",
+				"title": "新对话",
+				"icon": "$(add)"
+			},
+			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
@@ -140,7 +145,11 @@
 				"title": "Open in Editor",
 				"icon": "$(link-external)"
 			},
-
+			{
+				"command": "cline.accountButtonClicked",
+				"title": "账号",
+				"icon": "$(account)"
+			},
 			{
 				"command": "cline.settingsButtonClicked",
 				"title": "设置",

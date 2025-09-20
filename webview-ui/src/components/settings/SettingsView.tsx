@@ -206,11 +206,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
+					<h3 className="text-[var(--vscode-foreground)] m-0">设置</h3>
 				</div>
 				<div className="flex gap-2">
 					{/* All settings now save immediately, so only show Done button */}
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<VSCodeButton onClick={onDone}>应用</VSCodeButton>
 				</div>
 			</TabHeader>
 

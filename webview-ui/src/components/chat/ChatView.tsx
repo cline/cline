@@ -11,7 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
-// Import utilities and hooks from the new structure
+// 从新结构中导入实用程序和钩子
 import {
 	ActionButtons,
 	CHAT_CONSTANTS,
@@ -35,7 +35,7 @@ interface ChatViewProps {
 	showHistoryView: () => void
 }
 
-// Use constants from the imported module
+// 使用从导入模块获取的常量
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
@@ -57,9 +57,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const task = useMemo(() => messages.at(0), [messages]) // 保留此不安全示例：如果第一条消息不是任务，扩展将处于错误状态，需要调试（参见 Cline.abort）
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
-	// has to be after api_req_finished are all reduced into api_req_started messages
+	// 必须在 api_req_finished 全部合并为 api_req_started 消息之后
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const lastApiReqTotalTokens = useMemo(() => {
@@ -82,7 +82,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
 	}, [modifiedMessages])
 
-	// Use custom hooks for state management
+	// 使用自定义钩子进行状态管理
 	const chatState = useChatState(messages)
 	const {
 		setInputValue,
@@ -100,8 +100,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
 			const targetElement = e.target as HTMLElement | null
-			// If the copy event originated from an input or textarea,
-			// let the default browser behavior handle it.
+			// 如果复制事件源自输入框或文本区域，
+			// 则让默认的浏览器行为处理它。
 			if (
 				targetElement &&
 				(targetElement.tagName === "INPUT" || targetElement.tagName === "TEXTAREA" || targetElement.isContentEditable)
@@ -116,7 +116,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const commonAncestor = range.commonAncestorContainer
 					let textToCopy: string | null = null
 
-					// Check if the selection is inside an element where plain text copy is preferred
+					// 检查选区是否位于优先使用纯文本复制的元素内
 					let currentElement =
 						commonAncestor.nodeType === Node.ELEMENT_NODE
 							? (commonAncestor as HTMLElement)
@@ -127,21 +127,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							preferPlainTextCopy = true
 							break
 						}
-						// Check computed white-space style
+						// 检查计算后的 white-space 样式
 						const computedStyle = window.getComputedStyle(currentElement)
 						if (
 							computedStyle.whiteSpace === "pre" ||
 							computedStyle.whiteSpace === "pre-wrap" ||
 							computedStyle.whiteSpace === "pre-line"
 						) {
-							// If the element itself or an ancestor has pre-like white-space,
-							// and the selection is likely contained within it, prefer plain text.
-							// This helps with elements like the TaskHeader's text display.
+							// 如果元素本身或其祖先具有类似 pre 的 white-space 样式，
+							// 且选区很可能包含在其中，则优先使用纯文本
+							// 这有助于类似 TaskHeader 这类元素的文本显示
 							preferPlainTextCopy = true
 							break
 						}
 
-						// Stop searching if we reach a known chat message boundary or body
+						// 如果到达已知的聊天消息边界或 body，则停止搜索
 						if (
 							currentElement.classList.contains("chat-row-assistant-message-container") ||
 							currentElement.classList.contains("chat-row-user-message-container") ||
@@ -153,10 +153,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 
 					if (preferPlainTextCopy) {
-						// For code blocks or elements with pre-formatted white-space, get plain text.
+						// 对于代码块或具有预格式化空白的元素，获取纯文本。
 						textToCopy = selection.toString()
 					} else {
-						// For other content, use the existing HTML-to-Markdown conversion
+						// 对于其他内容，使用现有的 HTML 转 Markdown 转换
 						const clonedSelection = range.cloneContents()
 						const div = document.createElement("div")
 						div.appendChild(clonedSelection)
@@ -183,13 +183,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			document.removeEventListener("copy", handleCopy)
 		}
 	}, [])
-	// Button state is now managed by useButtonState hook
+	// 现在按钮状态由 useButtonState 钩子管理
 
 	useEffect(() => {
 		setExpandedRows({})
 	}, [task?.ts])
 
-	// handleFocusChange is already provided by chatState
+	// handleFocusChange 已由 chatState 提供
 
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState)
@@ -235,7 +235,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
-	// Listen for local focusChatInput event
+	// 监听本地 focusChatInput 事件
 	useEffect(() => {
 		const handleFocusChatInput = () => {
 			if (isHidden) {
@@ -251,7 +251,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [isHidden])
 
-	// Set up addToInput subscription
+	// 设置 addToInput 订阅
 	useEffect(() => {
 		const clientId = (window as { clineClientId?: string }).clineClientId
 		if (!clientId) {
@@ -268,8 +268,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						const newTextWithNewline = newText + "\n"
 						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 					})
-					// Add scroll to bottom after state update
-					// Auto focus the input and start the cursor on a new line for easy typing
+					// 在状态更新后添加滚动到底部
+					// 自动聚焦输入并在新行开始光标，便于输入
 					setTimeout(() => {
 						if (textAreaRef.current) {
 							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
@@ -290,7 +290,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 
 	useMount(() => {
-		// NOTE: the vscode window needs to be focused for this to work
+		/* 注意：VSCode 窗口需要聚焦才能使此功能正常工作 */
 		textAreaRef.current?.focus()
 	})
 
@@ -310,12 +310,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const lastProgressMessageText = useMemo(() => {
-		// First check if we have a current focus chain list from the extension state
+		// 首先检查扩展状态中是否有当前 focus chain 列表
 		if (currentFocusChainChecklist) {
 			return currentFocusChainChecklist
 		}
 
-		// Fall back to the last task_progress message if no state focus chain list
+		// 如果没有状态 focus chain 列表，则回退到最后的 task_progress 消息
 		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
 		return lastProgressMessage?.text
 	}, [modifiedMessages, currentFocusChainChecklist])
@@ -324,7 +324,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return groupMessages(visibleMessages)
 	}, [visibleMessages])
 
-	// Use scroll behavior hook
+	// 使用滚动行为钩子
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {

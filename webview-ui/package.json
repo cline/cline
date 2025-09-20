@@ -19,6 +19,7 @@
 		"@fontsource/azeret-mono": "^5.2.9",
 		"@heroui/react": "^2.8.0-beta.2",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
+		"antd": "^5.27.4",
 		"debounce": "^2.1.1",
 		"dompurify": "^3.2.4",
 		"fast-deep-equal": "^3.1.3",
