@@ -51,7 +51,8 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 				const root = workspaceRoots.find((r) => r.name === workspaceHint)
 				return [{ absolutePath, workspaceName: workspaceHint, workspaceRoot: root?.path }]
 			} else {
-				// Search across all workspaces
+				// As a fallback, perform the search across all available workspaces.
+				// Typically, models should provide explicit hints to target specific workspaces for searching.
 				const allPaths = adapter.getAllPossiblePaths(parsedPath)
 				const workspaceRoots = adapter.getWorkspaceRoots()
 				return allPaths.map((absPath, index) => ({
