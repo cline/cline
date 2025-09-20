@@ -56,24 +56,6 @@ export class FocusChainManager {
 		this.postStateToWebview = dependencies.postStateToWebview
 		this.say = dependencies.say
 		this.focusChainSettings = dependencies.focusChainSettings
-
-		this.initializeRemoteFeatureFlags().catch((err) =>
-			console.error("Failed to initialize focus chain remote feature flags", err),
-		)
-	}
-
-	/**
-	 * Fetches and caches PostHog remote feature flag for focus chain.
-	 * Updates global state with the current feature flag value and refreshes the webview.
-	 * This method is called during FocusChainManager initialization.
-	 * @returns Promise<void> - Resolves when feature flag is updated, logs errors on failure
-	 */
-	private async initializeRemoteFeatureFlags(): Promise<void> {
-		try {
-			await this.postStateToWebview()
-		} catch (error) {
-			console.error("Error initializing focus chain remote feature flags:", error)
-		}
 	}
 
 	/**
