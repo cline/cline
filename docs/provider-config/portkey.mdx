@@ -1,0 +1,73 @@
+---
+title: Portkey
+description: Use Cline with 2,000+ models that Portkey supports with enterprise-grade model access, governance, guardrails, and observability
+---
+
+## Overview
+
+[Portkey](https://portkey.ai/) turns Cline into a **multi-model, enterprise-ready** workspace by providing one OpenAI-compatible gateway for 2,000+ LLMs and layering rich observability, governance, and security on every request.
+
+### Why use Portkey with Cline?
+
+- **Unified AI Gateway:** Consolidate Cline traffic through one endpoint that supports multiple LLMs/providers
+- **Observability:** Real-time usage dashboards, structured logs, 40+ metrics, and request tracing
+- **Governance & Cost control:** Budgets, RBAC, API-key lifecycle management, and spend tracking
+- **Security guardrails:** PII detection, content filtering, jailbreak protection, and compliance controls
+
+### Typical Scenarios
+
+- **Multi-cloud / multi-vendor:** Quickly switch models across vendors (OpenAI, Anthropic, Google, local) without changing your Cline workflow.
+- **Enterprise compliance:** Need audit trails, RBAC, or per-team budgets on top of raw model access.
+- **Self-hosted gateway:** Run Portkey on-prem or in your VPC to keep traffic within your network boundaries.
+- **Advanced routing:** Experiment with ensemble or fallback routing between models using Portkey's policies.
+
+## Prerequisites
+
+- A Portkey account and an API key
+
+### Getting a Portkey API Key
+
+1. Sign up or log in at the [Portkey Console](https://app.portkey.ai/).
+2. Navigate to **"API Keys"** in the left sidebar.
+3. Click **"Create Key"** (or copy an existing one) and give it a descriptive name like "Cline".
+4. Copy the key!
+
+## Configuration in Cline
+
+1. Open Cline Settings → API Provider
+2. Select "Portkey"
+3. Fill in the fields:
+
+- **Gateway URL (optional)**: Defaults to `https://api.portkey.ai/v1` OR add your self-hosted Portkey Gateway URL
+- **Portkey API Key**: Your Portkey API key [from here](https://app.portkey.ai/)
+- **Model ID**: Choose from the dropdown
+
+When both Gateway URL and API key are present, Cline will fetch available models for you automatically.
+
+### Supported Models
+
+Portkey exposes every model listed in your [model catalog](https://app.portkey.ai/model-catalog/models) through a single endpoint.  Cline will automatically fetch the list for you once **Gateway URL** and **API Key** are provided, so you can simply pick the model from the dropdown.  
+If a model is missing from the dropdown, paste its full ID manually (e.g. `anthropic/claude-3-haiku-20240229`).
+
+### Notes
+
+- Portkey is implemented using the OpenAI‑compatible backend in Cline, so no additional setup is required beyond providing base URL and API key
+- You can point Cline to a self‑hosted Portkey gateway by replacing the default Gateway URL
+
+## Using Portkey with Cline
+
+Once configured:
+
+- Start tasks as usual in Cline; requests will route via your Portkey gateway
+- You’ll get Portkey’s enterprise features (observability, governance, guardrails) without changing your Cline workflow
+
+## Troubleshooting
+
+- Verify that your **Gateway URL** is reachable; open it in the browser – you should see a JSON greeting.
+- Check that the **API Key** has the correct scopes (Model Access).
+- Open **Portkey → Logs** in the console to inspect request/response details.
+
+## Support
+
+- **Portkey Community:** [Discord](https://portkey.wiki/community) or the in-app chat.
+- **Cline Issues:** If you run into problems specific to the Cline integration, open an issue in the Cline repo and tag it with `provider:portkey`.
