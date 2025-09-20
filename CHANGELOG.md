@@ -1,9 +1,8 @@
 # Changelog
 
-## 3.31.0
+## [3.30.3]
 
-- 428cdb6: Adding OCA Front End Components
-- d858fb9: Changeset bump
+- Add Oracle Code Assist provider
 
 ## [3.30.2]
 
