@@ -46,7 +46,7 @@ export default function Privacy() {
 					<h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
 						Roo Code Cloud Privacy Policy
 					</h1>
-					<p className="text-muted-foreground">Last Updated: August 20, 2025</p>
+					<p className="text-muted-foreground">Last Updated: September 19, 2025</p>
 
 					<p className="lead">
 						This Privacy Policy explains how Roo Code, Inc. (&quot;Roo Code,&quot; &quot;we,&quot;
@@ -86,8 +86,8 @@ export default function Privacy() {
 								Your source code does not transit Roo Code servers unless you explicitly choose Roo Code
 								as a model provider (proxy mode).
 							</strong>{" "}
-							When Roo Code Cloud is your model provider, your code briefly transits Roo Code servers only to
-							forward it to the upstream model, is not stored, and is deleted immediately after
+							When Roo Code Cloud is your model provider, your code briefly transits Roo Code servers only
+							to forward it to the upstream model, is not stored, and is deleted immediately after
 							forwarding. Otherwise, your code is sent <strong>directly</strong>—via client‑to‑provider
 							TLS—to the model you select. Roo Code never stores, inspects, or trains on your code.
 						</li>
@@ -184,6 +184,13 @@ export default function Privacy() {
 						<li>
 							<strong>Send product updates and roadmap communications</strong> (opt‑out available)
 						</li>
+						<li>
+							<strong>Send onboarding, educational, and promotional communications</strong>. We may use
+							your account information (such as your name and email address) to send you onboarding
+							messages, product tutorials, feature announcements, newsletters, and other marketing
+							communications. You can opt out of non‑transactional emails at any time (see “Your Choices”
+							below).
+						</li>
 					</ul>
 
 					<h2 className="mt-12 text-2xl font-bold">3. Where Your Data Goes (And Doesn&apos;t)</h2>
@@ -276,6 +283,12 @@ export default function Privacy() {
 						<li>
 							<strong>Delete your Cloud account</strong> at any time from{" "}
 							<strong>Security Settings</strong> inside Roo Code Cloud.
+						</li>
+						<li>
+							<strong>Marketing communications:</strong> You can unsubscribe from marketing and
+							promotional emails by clicking the unsubscribe link in those emails. Transactional or
+							service‑related emails (such as password resets, billing notices, or security alerts) will
+							continue even if you opt out.
 						</li>
 					</ul>
 
