@@ -1,5 +1,5 @@
 import { String } from "@shared/proto/cline/common"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
 import type { UserResponse } from "@/shared/ClineAccount"
@@ -13,7 +13,7 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._config = { URI: clineEnvConfig.apiBaseUrl }
+		this._config = { URI: ClineEnv.config().apiBaseUrl }
 		this._setProvider("firebase")
 		this._controller = controller
 	}
@@ -44,7 +44,7 @@ export class AuthServiceMock extends AuthService {
 
 	override async createAuthRequest(): Promise<String> {
 		// Use URL object for more graceful query construction
-		const authUrl = new URL(clineEnvConfig.apiBaseUrl)
+		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
 		if (this._authenticated && this._clineAuthInfo) {
@@ -54,7 +54,7 @@ export class AuthServiceMock extends AuthService {
 
 		try {
 			// Fetch user data from mock server
-			const meUri = new URL("/api/v1/users/me", clineEnvConfig.apiBaseUrl)
+			const meUri = new URL("/api/v1/users/me", ClineEnv.config().apiBaseUrl)
 			const tokenType = "personal"
 			const testToken = `test-${tokenType}-token`
 			const response = await fetch(meUri, {
