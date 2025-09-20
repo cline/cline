@@ -119,7 +119,9 @@ export const AutoCondenseMarker: React.FC<{
 	return (
 		<div className="flex-1" id="auto-condense-threshold-marker">
 			<div
-				className="absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 bg-button-background shadow-lg outline-button-background/80 outline-0.5 w-1.5 transition-all duration-75"
+				className={`absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 bg-button-background shadow-lg outline-button-background/80 outline-0.5 w-1.5 ${
+					isAnimating ? "" : "transition-all duration-75"
+				}`}
 				style={{ left: marker.start }}>
 				{(isContextWindowHoverOpen || isAnimating || showPercentageAfterAnimation) && (
 					<div
