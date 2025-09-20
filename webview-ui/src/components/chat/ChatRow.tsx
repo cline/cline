@@ -34,6 +34,7 @@ import ErrorRow from "./ErrorRow"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
+import SearchResultsDisplay from "./SearchResultsDisplay"
 import UserMessage from "./UserMessage"
 
 const normalColor = "var(--vscode-foreground)"
@@ -103,7 +104,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
+		const { isLast, onHeightChange, message } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -147,7 +148,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -588,12 +589,12 @@ export const ChatRowContent = memo(
 									Cline wants to search this directory for <code>{tool.regex}</code>:
 								</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
+							<SearchResultsDisplay
+								content={tool.content!}
+								filePattern={tool.filePattern}
 								isExpanded={isExpanded}
-								language="plaintext"
 								onToggleExpand={handleToggle}
-								path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
+								path={tool.path!}
 							/>
 						</>
 					)
