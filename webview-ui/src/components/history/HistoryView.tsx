@@ -202,16 +202,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
 		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
+			?.toLocaleString("zh-CN", {
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
 				minute: "2-digit",
-				hour12: true,
+				hour12: false,
 			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
+			.replace(/\//g, "-")
 	}, [])
 
 	const presentableTasks = useMemo(() => filteredTasks, [filteredTasks])
@@ -322,9 +321,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							color: "var(--vscode-foreground)",
 							margin: 0,
 						}}>
-						History
+						历史记录
 					</h3>
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<VSCodeButton onClick={onDone}>完成</VSCodeButton>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
 					<div
@@ -342,7 +341,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									setSortOption("mostRelevant")
 								}
 							}}
-							placeholder="Fuzzy search history..."
+							placeholder="模糊搜索历史记录..."
 							style={{ width: "100%" }}
 							value={searchQuery}>
 							<div
@@ -372,23 +371,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
 							style={{ display: "flex", flexWrap: "wrap" }}
 							value={sortOption}>
-							<VSCodeRadio value="newest">Newest</VSCodeRadio>
-							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
+							<VSCodeRadio value="newest">最新</VSCodeRadio>
+							<VSCodeRadio value="oldest">最早</VSCodeRadio>
+							<VSCodeRadio value="mostExpensive">费用最高</VSCodeRadio>
+							<VSCodeRadio value="mostTokens">令牌最多</VSCodeRadio>
 							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
-								Most Relevant
+								最相关
 							</VSCodeRadio>
 							<CustomFilterRadio
 								checked={showCurrentWorkspaceOnly}
 								icon="workspace"
-								label="Workspace"
+								label="工作区"
 								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
 							/>
 							<CustomFilterRadio
 								checked={showFavoritesOnly}
 								icon="star-full"
-								label="Favorites"
+								label="收藏"
 								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
 							/>
 						</VSCodeRadioGroup>
@@ -398,13 +397,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								onClick={() => {
 									handleBatchHistorySelect(true)
 								}}>
-								Select All
+								全选
 							</VSCodeButton>
 							<VSCodeButton
 								onClick={() => {
 									handleBatchHistorySelect(false)
 								}}>
-								Select None
+								取消选择
 							</VSCodeButton>
 						</div>
 					</div>
@@ -574,7 +573,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														fontWeight: 500,
 														color: "var(--vscode-descriptionForeground)",
 													}}>
-													Tokens:
+													Token:
 												</span>
 												<span
 													style={{
@@ -627,7 +626,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														fontWeight: 500,
 														color: "var(--vscode-descriptionForeground)",
 													}}>
-													Cache:
+													缓存:
 												</span>
 												<span
 													style={{
@@ -684,7 +683,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															fontWeight: 500,
 															color: "var(--vscode-descriptionForeground)",
 														}}>
-														API Cost:
+														API 费用:
 													</span>
 													<span
 														style={{
@@ -717,7 +716,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}
 							style={{ width: "100%" }}>
-							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
+							删除 {selectedItems.length > 1 ? selectedItems.length : ""} 个已选中项
 							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
 						</DangerButton>
 					) : (
@@ -730,7 +729,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									.finally(() => setDeleteAllDisabled(false))
 							}}
 							style={{ width: "100%" }}>
-							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+							删除所有历史记录{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 						</DangerButton>
 					)}
 				</div>
@@ -749,7 +748,7 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 				console.error("Failed to export task:", err),
 			)
 		}}>
-		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
+		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>导出</div>
 	</VSCodeButton>
 )
 

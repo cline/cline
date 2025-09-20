@@ -26,16 +26,15 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
 		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
+			?.toLocaleString("zh-CN", {
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
 				minute: "2-digit",
-				hour12: true,
+				hour12: false,
 			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
+			.replace(/\//g, "-")
 	}
 
 	return (
@@ -93,7 +92,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						fontSize: "0.85em",
 						textTransform: "uppercase",
 					}}>
-					Recent Tasks
+					最近的任务
 				</span>
 			</div>
 
@@ -195,7 +194,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											fontSize: "var(--vscode-font-size)",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										View all history
+										查看全部历史记录
 									</div>
 								</VSCodeButton>
 							</div>
