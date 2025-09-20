@@ -41,10 +41,10 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
 
 	// Modify placeholder text to show queuing behavior
-	const effectivePlaceholderText = sendingDisabled && chatState.queuedMessages.length > 0 
-		? `${placeholderText} (messages will be queued)`
-		: sendingDisabled
-		? placeholderText
+	const effectivePlaceholderText = sendingDisabled 
+		? chatState.queuedMessages.length > 0 
+			? `${placeholderText} (will be queued - ${chatState.queuedMessages.length} already queued)`
+			: `${placeholderText} (will be queued until Cline is available)`
 		: placeholderText
 
 	return (
