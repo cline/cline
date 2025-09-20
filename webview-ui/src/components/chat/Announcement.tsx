@@ -6,11 +6,8 @@ import { Package } from "@roo/package"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@src/components/ui"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@src/components/ui"
 import { Button } from "@src/components/ui"
-
-// Define the production URL constant locally to avoid importing from cloud package in webview
-const PRODUCTION_ROO_CODE_API_URL = "https://app.roocode.com"
 
 interface AnnouncementProps {
 	hideAnnouncement: () => void
@@ -28,8 +25,7 @@ interface AnnouncementProps {
 const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 	const { t } = useAppTranslation()
 	const [open, setOpen] = useState(true)
-	const { cloudApiUrl } = useExtensionState()
-	const cloudUrl = cloudApiUrl || PRODUCTION_ROO_CODE_API_URL
+	const { cloudIsAuthenticated } = useExtensionState()
 
 	return (
 		<Dialog
@@ -44,71 +40,57 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			<DialogContent className="max-w-96">
 				<DialogHeader>
 					<DialogTitle>{t("chat:announcement.title", { version: Package.version })}</DialogTitle>
-					<DialogDescription>
+				</DialogHeader>
+				<div>
+					<div className="mb-3">
 						<Trans
-							i18nKey="chat:announcement.description"
+							i18nKey="chat:announcement.stealthModel.feature"
 							components={{
 								bold: <b />,
 							}}
 						/>
-					</DialogDescription>
-				</DialogHeader>
-				<div>
-					<ul className="space-y-2">
-						<li>
-							•{" "}
-							<Trans
-								i18nKey="chat:announcement.feature1"
-								components={{
-									bold: <b />,
-								}}
-							/>
-						</li>
-						<li>
-							•{" "}
-							<Trans
-								i18nKey="chat:announcement.feature2"
-								components={{
-									bold: <b />,
-								}}
-							/>
-						</li>
-					</ul>
-
-					<div className="mt-4">
-						<Trans
-							i18nKey="chat:announcement.learnMore"
-							components={{
-								learnMoreLink: (
-									<VSCodeLink
-										href="https://docs.roocode.com/update-notes/v3.28.0#task-sync--roomote-control"
-										onClick={(e) => {
-											e.preventDefault()
-											window.postMessage(
-												{
-													type: "action",
-													action: "openExternal",
-													data: {
-														url: "https://docs.roocode.com/update-notes/v3.28.0#task-sync--roomote-control",
-													},
-												},
-												"*",
-											)
-										}}
-									/>
-								),
-							}}
-						/>
 					</div>
 
+					<p className="mt-3 text-sm text-vscode-descriptionForeground">
+						{t("chat:announcement.stealthModel.note")}
+					</p>
+
 					<div className="mt-4">
-						<Button
-							onClick={() => {
-								vscode.postMessage({ type: "openExternal", url: cloudUrl })
-							}}
-							className="w-full">
-							{t("chat:announcement.visitCloudButton")}
-						</Button>
+						{!cloudIsAuthenticated ? (
+							<Button
+								onClick={() => {
+									vscode.postMessage({
+										type: "cloudLandingPageSignIn",
+										text: "supernova",
+									})
+								}}
+								className="w-full">
+								{t("chat:announcement.stealthModel.connectButton")}
+							</Button>
+						) : (
+							<>
+								<p className="mb-3">
+									<Trans
+										i18nKey="chat:announcement.stealthModel.selectModel"
+										components={{
+											code: <code />,
+										}}
+									/>
+								</p>
+								<Button
+									onClick={() => {
+										setOpen(false)
+										hideAnnouncement()
+										vscode.postMessage({
+											type: "switchTab",
+											tab: "settings",
+										})
+									}}
+									className="w-full">
+									{t("chat:announcement.stealthModel.goToSettingsButton")}
+								</Button>
+							</>
+						)}
 					</div>
 
 					<div className="mt-4 text-sm text-center">
@@ -132,7 +114,7 @@ const XLink = () => (
 		href="https://x.com/roo_code"
 		onClick={(e) => {
 			e.preventDefault()
-			window.postMessage({ type: "action", action: "openExternal", data: { url: "https://x.com/roo_code" } }, "*")
+			vscode.postMessage({ type: "openExternal", url: "https://x.com/roo_code" })
 		}}>
 		X
 	</VSCodeLink>
@@ -143,10 +125,7 @@ const DiscordLink = () => (
 		href="https://discord.gg/rCQcvT7Fnt"
 		onClick={(e) => {
 			e.preventDefault()
-			window.postMessage(
-				{ type: "action", action: "openExternal", data: { url: "https://discord.gg/rCQcvT7Fnt" } },
-				"*",
-			)
+			vscode.postMessage({ type: "openExternal", url: "https://discord.gg/rCQcvT7Fnt" })
 		}}>
 		Discord
 	</VSCodeLink>
@@ -157,10 +136,7 @@ const RedditLink = () => (
 		href="https://www.reddit.com/r/RooCode/"
 		onClick={(e) => {
 			e.preventDefault()
-			window.postMessage(
-				{ type: "action", action: "openExternal", data: { url: "https://www.reddit.com/r/RooCode/" } },
-				"*",
-			)
+			vscode.postMessage({ type: "openExternal", url: "https://www.reddit.com/r/RooCode/" })
 		}}>
 		r/RooCode
 	</VSCodeLink>

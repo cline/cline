@@ -170,9 +170,9 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 
 	// AuthService
 
-	public async login(): Promise<void> {
+	public async login(landingPageSlug?: string): Promise<void> {
 		this.ensureInitialized()
-		return this.authService!.login()
+		return this.authService!.login(landingPageSlug)
 	}
 
 	public async logout(): Promise<void> {

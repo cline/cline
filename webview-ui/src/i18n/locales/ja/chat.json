@@ -282,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} リリース",
-		"description": "<bold>Roo Code Cloud</bold>のご紹介：RooのパワーをIDEを超えて",
-		"feature1": "<bold>どこからでもタスクの進行状況を追跡（無料）：</bold>IDEに縛られることなく、長時間実行タスクのリアルタイム更新を取得",
-		"feature2": "<bold>Roo拡張機能をリモート制御（Pro）：</bold>チャットベースのブラウザインターフェースからタスクを開始、停止、操作。",
-		"learnMore": "制御を取る準備はできましたか？詳細は<learnMoreLink>こちら</learnMoreLink>。",
-		"visitCloudButton": "Roo Code Cloudを訪問",
-		"socialLinks": "<xLink>X</xLink>、<discordLink>Discord</discordLink>、または<redditLink>r/RooCode</redditLink>でフォローしてください"
+		"stealthModel": {
+			"feature": "<bold>期間限定無料ステルスモデル</bold> - Code Supernova：画像入力をサポートする多目的エージェントコーディングモデル、Roo Code Cloud 経由で利用可能。",
+			"note": "(注意：プロンプトと補完はモデル作成者によってログに記録され、モデルの改善に使用されます)",
+			"connectButton": "Roo Code Cloud に接続",
+			"selectModel": "設定で Roo Code Cloud プロバイダーから <code>roo/code-supernova</code> を選択して開始してください。",
+			"goToSettingsButton": "設定に移動"
+		},
+		"socialLinks": "<xLink>X</xLink>、<discordLink>Discord</discordLink>、または<redditLink>r/RooCode</redditLink>でフォローしてください 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Rooはブラウザを使用したい",
@@ -408,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Rooはスラッシュコマンドを実行したい",
 		"didRun": "Rooはスラッシュコマンドを実行しました"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "自動承認されたリクエストの上限に達しました",
-			"description": "Rooは自動承認されたAPIリクエストの上限{{count}}件に達しました。カウントをリセットしてタスクを続行しますか？",
-			"button": "リセットして続行"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "自動承認されたコスト制限に達しました",
-			"description": "Rooは自動承認されたコスト制限の${{count}}に達しました。コストをリセットしてタスクを続行しますか？",
-			"button": "リセットして続行"
-		}
 	}
 }

@@ -205,7 +205,6 @@
 	"commandExecution": {
 		"running": "Wykonywanie",
 		"abort": "Przerwij",
-		"running": "Uruchomiony",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Zakończono ze statusem {{exitCode}}",
 		"manageCommands": "Polecenia zatwierdzone automatycznie",
@@ -283,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} wydany",
-		"description": "Przedstawiamy <bold>Roo Code Cloud:</bold> Przenosimy moc Roo poza IDE",
-		"feature1": "<bold>Śledź postęp zadań z dowolnego miejsca (Bezpłatnie):</bold> Otrzymuj aktualizacje w czasie rzeczywistym długotrwałych zadań bez utknięcia w IDE",
-		"feature2": "<bold>Kontroluj rozszerzenie Roo zdalnie (Pro):</bold> Uruchamiaj, zatrzymuj i wchodź w interakcje z zadaniami z interfejsu przeglądarki opartego na czacie.",
-		"learnMore": "Gotowy przejąć kontrolę? Dowiedz się więcej <learnMoreLink>tutaj</learnMoreLink>.",
-		"visitCloudButton": "Odwiedź Roo Code Cloud",
-		"socialLinks": "Dołącz do nas na <xLink>X</xLink>, <discordLink>Discord</discordLink>, lub <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Darmowy model stealth na ograniczony czas</bold> - Code Supernova: Wszechstronny model kodowania agentowego, który obsługuje wprowadzanie obrazów, dostępny przez Roo Code Cloud.",
+			"note": "(Uwaga: prompty i uzupełnienia są rejestrowane przez twórcę modelu i używane do jego ulepszania)",
+			"connectButton": "Połącz z Roo Code Cloud",
+			"selectModel": "Wybierz <code>roo/code-supernova</code> od dostawcy Roo Code Cloud w Ustawieniach, aby rozpocząć.",
+			"goToSettingsButton": "Przejdź do Ustawień"
+		},
+		"socialLinks": "Dołącz do nas na <xLink>X</xLink>, <discordLink>Discord</discordLink>, lub <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo chce użyć przeglądarki",
@@ -409,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo chce uruchomić komendę slash",
 		"didRun": "Roo uruchomił komendę slash"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Osiągnięto limit automatycznie zatwierdzonych żądań",
-			"description": "Roo osiągnął automatycznie zatwierdzony limit {{count}} żądania/żądań API. Czy chcesz zresetować licznik i kontynuować zadanie?",
-			"button": "Zresetuj i kontynuuj"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Osiągnięto limit kosztów z automatycznym zatwierdzaniem",
-			"description": "Roo osiągnął automatycznie zatwierdzony limit kosztów wynoszący ${{count}}. Czy chcesz zresetować koszt i kontynuować zadanie?",
-			"button": "Zresetuj i Kontynuuj"
-		}
 	}
 }

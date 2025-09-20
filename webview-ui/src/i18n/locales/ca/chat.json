@@ -282,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Llançat",
-		"description": "Presentem <bold>Roo Code Cloud:</bold> Portant el poder de Roo més enllà de l'IDE",
-		"feature1": "<bold>Segueix el progrés de les tasques des de qualsevol lloc (Gratuït):</bold> Obté actualitzacions en temps real de tasques de llarga durada sense quedar-te atrapat a la teva IDE",
-		"feature2": "<bold>Controla l'Extensió Roo remotament (Pro):</bold> Inicia, atura i interactua amb tasques des d'una interfície de navegador basada en xat.",
-		"learnMore": "Llest per prendre el control? Aprèn més <learnMoreLink>aquí</learnMoreLink>.",
-		"visitCloudButton": "Visita Roo Code Cloud",
-		"socialLinks": "Uneix-te a nosaltres a <xLink>X</xLink>, <discordLink>Discord</discordLink>, o <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Model stealth GRATUÏT per temps limitat</bold> - Code Supernova: Un model de codificació agèntica versàtil que suporta entrades d'imatges, disponible a través de Roo Code Cloud.",
+			"note": "(Nota: els prompts i completacions són registrats pel creador del model i utilitzats per millorar-lo)",
+			"connectButton": "Connectar a Roo Code Cloud",
+			"selectModel": "Selecciona <code>roo/code-supernova</code> del proveïdor Roo Code Cloud a Configuració per començar.",
+			"goToSettingsButton": "Anar a Configuració"
+		},
+		"socialLinks": "Uneix-te a nosaltres a <xLink>X</xLink>, <discordLink>Discord</discordLink>, o <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo vol utilitzar el navegador",
@@ -408,17 +410,5 @@
 		"problems": "Problemes",
 		"terminal": "Terminal",
 		"url": "Enganxa la URL per obtenir-ne el contingut"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "S'ha assolit el límit de sol·licituds aprovades automàticament",
-			"description": "Roo ha assolit el límit d'aprovació automàtica de {{count}} sol·licitud(s) d'API. Vols restablir el comptador i continuar amb la tasca?",
-			"button": "Restableix i Continua"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "S'ha assolit el límit de cost aprovat automàticament",
-			"description": "Roo ha assolit el límit de cost d'aprovació automàtica de ${{count}}. Vols restablir el cost i continuar amb la tasca?",
-			"button": "Restableix i Continua"
-		}
 	}
 }

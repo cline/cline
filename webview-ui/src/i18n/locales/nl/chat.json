@@ -200,7 +200,6 @@
 	"commandExecution": {
 		"running": "Lopend",
 		"abort": "Afbreken",
-		"running": "Lopend",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Afgesloten met status {{exitCode}}",
 		"manageCommands": "Automatisch goedgekeurde commando's",
@@ -268,12 +267,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} uitgebracht",
-		"description": "Introductie van <bold>Roo Code Cloud:</bold> De kracht van Roo brengen voorbij de IDE",
-		"feature1": "<bold>Volg taakvoortgang overal (Gratis):</bold> Krijg realtime updates van langlopende taken zonder vast te zitten in je IDE",
-		"feature2": "<bold>Bestuur de Roo Extensie op afstand (Pro):</bold> Start, stop en interacteer met taken vanuit een chat-gebaseerde browserinterface.",
-		"learnMore": "Klaar om de controle te nemen? Leer meer <learnMoreLink>hier</learnMoreLink>.",
-		"visitCloudButton": "Bezoek Roo Code Cloud",
-		"socialLinks": "Sluit je bij ons aan op <xLink>X</xLink>, <discordLink>Discord</discordLink>, of <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Beperkt tijd GRATIS stealth model</bold> - Code Supernova: Een veelzijdig agentisch codeermodel dat beeldinvoer ondersteunt, beschikbaar via Roo Code Cloud.",
+			"note": "(Opmerking: prompts en aanvullingen worden gelogd door de modelmaker en gebruikt om het model te verbeteren)",
+			"connectButton": "Verbinden met Roo Code Cloud",
+			"selectModel": "Selecteer <code>roo/code-supernova</code> van de Roo Code Cloud provider in Instellingen om te beginnen.",
+			"goToSettingsButton": "Ga naar Instellingen"
+		},
+		"socialLinks": "Sluit je bij ons aan op <xLink>X</xLink>, <discordLink>Discord</discordLink>, of <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"reasoning": {
 		"thinking": "Denkt na",
@@ -409,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo wil een slash commando uitvoeren",
 		"didRun": "Roo heeft een slash commando uitgevoerd"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Limiet voor automatisch goedgekeurde verzoeken bereikt",
-			"description": "Roo heeft de limiet van {{count}} automatisch goedgekeurde API-verzoek(en) bereikt. Wil je de teller resetten en doorgaan met de taak?",
-			"button": "Reset en ga door"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Automatisch goedgekeurde kostenlimiet bereikt",
-			"description": "Roo heeft de automatisch goedgekeurde kostenlimiet van ${{count}} bereikt. Wil je de kosten resetten en doorgaan met de taak?",
-			"button": "Reset en ga door"
-		}
 	}
 }

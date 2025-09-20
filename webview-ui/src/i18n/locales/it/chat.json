@@ -282,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Rilasciato Roo Code {{version}}",
-		"description": "Presentazione di <bold>Roo Code Cloud:</bold> Portare la potenza di Roo oltre l'IDE",
-		"feature1": "<bold>Traccia il progresso delle attività ovunque (Gratuito):</bold> Ricevi aggiornamenti in tempo reale su attività di lunga durata senza rimanere bloccato nel tuo IDE",
-		"feature2": "<bold>Controlla l'estensione Roo da remoto (Pro):</bold> Avvia, ferma e interagisci con le attività da un'interfaccia browser basata su chat.",
-		"learnMore": "Pronto a prendere il controllo? Scopri di più <learnMoreLink>qui</learnMoreLink>.",
-		"visitCloudButton": "Visita Roo Code Cloud",
-		"socialLinks": "Unisciti a noi su <xLink>X</xLink>, <discordLink>Discord</discordLink>, o <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Modello stealth GRATUITO per tempo limitato</bold> - Code Supernova: Un modello di codificazione agentiva versatile che supporta input di immagini, accessibile tramite Roo Code Cloud.",
+			"note": "(Nota: i prompt e le completazioni vengono registrati dal creatore del modello e utilizzati per migliorarlo)",
+			"connectButton": "Connetti a Roo Code Cloud",
+			"selectModel": "Seleziona <code>roo/code-supernova</code> dal provider Roo Code Cloud nelle Impostazioni per iniziare.",
+			"goToSettingsButton": "Vai alle Impostazioni"
+		},
+		"socialLinks": "Unisciti a noi su <xLink>X</xLink>, <discordLink>Discord</discordLink>, o <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo vuole utilizzare il browser",
@@ -408,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo vuole eseguire un comando slash",
 		"didRun": "Roo ha eseguito un comando slash"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Limite Richieste Approvate Automaticamente Raggiunto",
-			"description": "Roo ha raggiunto il limite di {{count}} richiesta/e API approvata/e automaticamente. Vuoi reimpostare il contatore e procedere con l'attività?",
-			"button": "Reimposta e Continua"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Limite di Costo Approvato Automaticamente Raggiunto",
-			"description": "Roo ha raggiunto il limite di costo approvato automaticamente di ${{count}}. Vuoi reimpostare il costo e procedere con l'attività?",
-			"button": "Reimposta e Continua"
-		}
 	}
 }

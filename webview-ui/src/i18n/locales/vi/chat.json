@@ -205,7 +205,6 @@
 	"commandExecution": {
 		"running": "Đang chạy",
 		"abort": "Hủy bỏ",
-		"running": "Đang chạy",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "Đã thoát với trạng thái {{exitCode}}",
 		"manageCommands": "Quản lý quyền lệnh",
@@ -284,12 +283,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Đã phát hành",
-		"description": "Giới thiệu <bold>Roo Code Cloud:</bold> Mang sức mạnh của Roo vượt ra ngoài IDE",
-		"feature1": "<bold>Theo dõi tiến trình tác vụ từ bất kỳ đâu (Miễn phí):</bold> Nhận cập nhật thời gian thực về các tác vụ chạy dài mà không bị mắc kẹt trong IDE của bạn",
-		"feature2": "<bold>Điều khiển Tiện ích Roo từ xa (Pro):</bold> Bắt đầu, dừng và tương tác với các tác vụ từ giao diện trình duyệt dựa trên chat.",
-		"learnMore": "Sẵn sàng nắm quyền kiểm soát? Tìm hiểu thêm <learnMoreLink>tại đây</learnMoreLink>.",
-		"visitCloudButton": "Truy cập Roo Code Cloud",
-		"socialLinks": "Tham gia với chúng tôi trên <xLink>X</xLink>, <discordLink>Discord</discordLink>, hoặc <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Mô hình stealth MIỄN PHÍ có thời hạn</bold> - Code Supernova: Một mô hình lập trình agentic đa năng hỗ trợ đầu vào hình ảnh, có sẵn qua Roo Code Cloud.",
+			"note": "(Lưu ý: các prompt và completion được ghi lại bởi người tạo mô hình và được sử dụng để cải thiện mô hình)",
+			"connectButton": "Kết nối với Roo Code Cloud",
+			"selectModel": "Chọn <code>roo/code-supernova</code> từ nhà cung cấp Roo Code Cloud trong Cài đặt để bắt đầu.",
+			"goToSettingsButton": "Đi tới Cài đặt"
+		},
+		"socialLinks": "Tham gia với chúng tôi trên <xLink>X</xLink>, <discordLink>Discord</discordLink>, hoặc <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo muốn sử dụng trình duyệt",
@@ -410,17 +411,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo muốn chạy lệnh slash",
 		"didRun": "Roo đã chạy lệnh slash"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Đã Đạt Giới Hạn Yêu Cầu Tự Động Phê Duyệt",
-			"description": "Roo đã đạt đến giới hạn tự động phê duyệt là {{count}} yêu cầu API. Bạn có muốn đặt lại bộ đếm và tiếp tục nhiệm vụ không?",
-			"button": "Đặt lại và Tiếp tục"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Đã Đạt Giới Hạn Chi Phí Tự Động Phê Duyệt",
-			"description": "Roo đã đạt đến giới hạn chi phí tự động phê duyệt là ${{count}}. Bạn có muốn đặt lại chi phí và tiếp tục với nhiệm vụ không?",
-			"button": "Đặt lại và Tiếp tục"
-		}
 	}
 }

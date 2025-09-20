@@ -282,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Lançado",
-		"description": "Apresentando <bold>Roo Code Cloud:</bold> Levando o poder do Roo além da IDE",
-		"feature1": "<bold>Acompanhe o progresso das tarefas de qualquer lugar (Grátis):</bold> Receba atualizações em tempo real de tarefas de longa duração sem ficar preso na sua IDE",
-		"feature2": "<bold>Controle a Extensão Roo remotamente (Pro):</bold> Inicie, pare e interaja com tarefas de uma interface de navegador baseada em chat.",
-		"learnMore": "Pronto para assumir o controle? Saiba mais <learnMoreLink>aqui</learnMoreLink>.",
-		"visitCloudButton": "Visite Roo Code Cloud",
-		"socialLinks": "Junte-se a nós no <xLink>X</xLink>, <discordLink>Discord</discordLink>, ou <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Modelo stealth GRATUITO por tempo limitado</bold> - Code Supernova: Um modelo de codificação agêntica versátil que suporta entradas de imagem, acessível através do Roo Code Cloud.",
+			"note": "(Nota: prompts e completações são registrados pelo criador do modelo e usados para melhorá-lo)",
+			"connectButton": "Conectar ao Roo Code Cloud",
+			"selectModel": "Selecione <code>roo/code-supernova</code> do provedor Roo Code Cloud em Configurações para começar.",
+			"goToSettingsButton": "Ir para Configurações"
+		},
+		"socialLinks": "Junte-se a nós no <xLink>X</xLink>, <discordLink>Discord</discordLink>, ou <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo quer usar o navegador",
@@ -408,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo quer executar um comando slash",
 		"didRun": "Roo executou um comando slash"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Limite de Solicitações Auto-aprovadas Atingido",
-			"description": "Roo atingiu o limite auto-aprovado de {{count}} solicitação(ões) de API. Deseja redefinir a contagem e prosseguir com a tarefa?",
-			"button": "Redefinir e Continuar"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Limite de Custo com Aprovação Automática Atingido",
-			"description": "Roo atingiu o limite de custo com aprovação automática de US${{count}}. Você gostaria de redefinir o custo e prosseguir com a tarefa?",
-			"button": "Redefinir e Continuar"
-		}
 	}
 }

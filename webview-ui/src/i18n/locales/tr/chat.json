@@ -205,7 +205,6 @@
 	"commandExecution": {
 		"running": "Çalışıyor",
 		"abort": "İptal Et",
-		"running": "Çalışıyor",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "{{exitCode}} durumuyla çıkıldı",
 		"manageCommands": "Komut İzinlerini Yönet",
@@ -284,12 +283,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
-		"description": "<bold>Roo Code Cloud</bold> Tanıtımı: Roo'nun gücünü IDE'nin ötesine taşıyoruz",
-		"feature1": "<bold>Görev ilerlemesini her yerden takip edin (Ücretsiz):</bold> IDE'nizde sıkışıp kalmadan uzun süren görevlerin gerçek zamanlı güncellemelerini alın",
-		"feature2": "<bold>Roo Uzantısını uzaktan kontrol edin (Pro):</bold> Sohbet tabanlı tarayıcı arayüzünden görevleri başlatın, durdurun ve etkileşime geçin.",
-		"learnMore": "Kontrolü ele almaya hazır mısınız? Daha fazlasını <learnMoreLink>buradan</learnMoreLink> öğrenin.",
-		"visitCloudButton": "Roo Code Cloud'u Ziyaret Et",
-		"socialLinks": "Bize <xLink>X</xLink>, <discordLink>Discord</discordLink>, veya <redditLink>r/RooCode</redditLink>'da katılın"
+		"stealthModel": {
+			"feature": "<bold>Sınırlı süre ÜCRETSİZ gizli model</bold> - Code Supernova: Görüntü girişlerini destekleyen çok amaçlı acentik kodlama modeli, Roo Code Cloud üzerinden kullanılabilir.",
+			"note": "(Not: istemler ve tamamlamalar model yaratıcısı tarafından kaydedilir ve modeli geliştirmek için kullanılır)",
+			"connectButton": "Roo Code Cloud'a bağlan",
+			"selectModel": "Başlamak için Ayarlar'da Roo Code Cloud sağlayıcısından <code>roo/code-supernova</code>'yı seçin.",
+			"goToSettingsButton": "Ayarlar'a Git"
+		},
+		"socialLinks": "Bize <xLink>X</xLink>, <discordLink>Discord</discordLink>, veya <redditLink>r/RooCode</redditLink>'da katılın 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo tarayıcıyı kullanmak istiyor",
@@ -410,17 +411,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo bir slash komutu çalıştırmak istiyor",
 		"didRun": "Roo bir slash komutu çalıştırdı"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Otomatik Onaylanan İstek Limiti Aşıldı",
-			"description": "Roo, {{count}} API isteği/istekleri için otomatik onaylanan limite ulaştı. Sayacı sıfırlamak ve göreve devam etmek istiyor musunuz?",
-			"button": "Sıfırla ve Devam Et"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Otomatik Onaylanan Maliyet Sınırına Ulaşıldı",
-			"description": "Roo otomatik olarak onaylanmış ${{count}} maliyet sınırına ulaştı. Maliyeti sıfırlamak ve göreve devam etmek ister misiniz?",
-			"button": "Sıfırla ve Devam Et"
-		}
 	}
 }

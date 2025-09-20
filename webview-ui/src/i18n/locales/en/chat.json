@@ -291,12 +291,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",
-		"description": "Introducing <bold>Roo Code Cloud:</bold> Bringing the power of Roo beyond the IDE",
-		"feature1": "<bold>Track task progress from anywhere (Free):</bold> Get real-time updates on long-running tasks without being stuck in your IDE",
-		"feature2": "<bold>Control the Roo Extension remotely (Pro):</bold> Start, stop, and interact with tasks from a chat-based browser interface.",
-		"learnMore": "Ready to take control? Learn more <learnMoreLink>here</learnMoreLink>.",
-		"visitCloudButton": "Visit Roo Code Cloud",
-		"socialLinks": "Join us on <xLink>X</xLink>, <discordLink>Discord</discordLink>, or <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Limited-time FREE stealth model</bold> - Code Supernova: A versatile agentic coding model that supports image inputs, accessible through Roo Code Cloud.",
+			"note": "(Note: prompts and completions are logged by the model creator and used to improve the model)",
+			"connectButton": "Connect to Roo Code Cloud",
+			"selectModel": "Select <code>roo/code-supernova</code> from the Roo Code Cloud provider in Settings to get started.",
+			"goToSettingsButton": "Go to Settings"
+		},
+		"socialLinks": "Join us on <xLink>X</xLink>, <discordLink>Discord</discordLink>, or <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"reasoning": {
 		"thinking": "Thinking",

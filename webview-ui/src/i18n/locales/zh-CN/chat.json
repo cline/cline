@@ -205,7 +205,6 @@
 	"commandExecution": {
 		"running": "正在运行",
 		"abort": "中止",
-		"running": "运行中",
 		"pid": "PID: {{pid}}",
 		"exitStatus": "已退出，状态码 {{exitCode}}",
 		"manageCommands": "管理命令权限",
@@ -284,12 +283,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 已发布",
-		"description": "介绍 <bold>Roo Code Cloud：</bold>将 Roo 的强大功能扩展到 IDE 之外",
-		"feature1": "<bold>随时随地跟踪任务进度（免费）：</bold>获取长时间运行任务的实时更新，无需困在 IDE 中",
-		"feature2": "<bold>远程控制 Roo 扩展（Pro）：</bold>通过基于聊天的浏览器界面启动、停止和与任务交互。",
-		"learnMore": "准备掌控一切？在<learnMoreLink>这里</learnMoreLink>了解更多。",
-		"visitCloudButton": "访问 Roo Code Cloud",
-		"socialLinks": "在 <xLink>X</xLink>、<discordLink>Discord</discordLink> 或 <redditLink>r/RooCode</redditLink> 上关注我们"
+		"stealthModel": {
+			"feature": "<bold>限时免费隐形模型</bold> - Code Supernova：一个支持图像输入的多功能代理编程模型，通过 Roo Code Cloud 提供。",
+			"note": "(注意：提示词和补全内容会被模型创建者记录并用于改进模型)",
+			"connectButton": "连接到 Roo Code Cloud",
+			"selectModel": "在设置中从 Roo Code Cloud 提供商选择 <code>roo/code-supernova</code> 开始使用。",
+			"goToSettingsButton": "前往设置"
+		},
+		"socialLinks": "在 <xLink>X</xLink>、<discordLink>Discord</discordLink> 或 <redditLink>r/RooCode</redditLink> 上关注我们 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo想使用浏览器",
@@ -410,17 +411,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo 想要运行斜杠命令",
 		"didRun": "Roo 运行了斜杠命令"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "已达自动批准请求限制",
-			"description": "Roo 已达到 {{count}} 次 API 请求的自动批准限制。您想重置计数并继续任务吗？",
-			"button": "重置并继续"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "已达到自动批准的费用限额",
-			"description": "Roo已经达到了${{count}}的自动批准成本限制。您想重置成本并继续任务吗？",
-			"button": "重置并继续"
-		}
 	}
 }

@@ -282,12 +282,14 @@
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} veröffentlicht",
-		"description": "Wir stellen vor: <bold>Roo Code Cloud:</bold> Die Macht von Roo über die IDE hinaus bringen",
-		"feature1": "<bold>Aufgabenfortschritt von überall verfolgen (Kostenlos):</bold> Erhalte Echtzeit-Updates zu lang laufenden Aufgaben, ohne in deiner IDE festzustecken",
-		"feature2": "<bold>Die Roo-Erweiterung fernsteuern (Pro):</bold> Starte, stoppe und interagiere mit Aufgaben über eine chat-basierte Browser-Oberfläche.",
-		"learnMore": "Bereit, die Kontrolle zu übernehmen? Erfahre mehr <learnMoreLink>hier</learnMoreLink>.",
-		"visitCloudButton": "Roo Code Cloud besuchen",
-		"socialLinks": "Folge uns auf <xLink>X</xLink>, <discordLink>Discord</discordLink> oder <redditLink>r/RooCode</redditLink>"
+		"stealthModel": {
+			"feature": "<bold>Zeitlich begrenztes KOSTENLOSES Stealth-Modell</bold> - Code Supernova: Ein vielseitiges agentisches Coding-Modell, das Bildeingaben unterstützt und über Roo Code Cloud zugänglich ist.",
+			"note": "(Hinweis: Prompts und Vervollständigungen werden vom Modellersteller protokolliert und zur Verbesserung des Modells verwendet)",
+			"connectButton": "Mit Roo Code Cloud verbinden",
+			"selectModel": "Wähle <code>roo/code-supernova</code> vom Roo Code Cloud-Provider in den Einstellungen aus, um zu beginnen.",
+			"goToSettingsButton": "Zu den Einstellungen"
+		},
+		"socialLinks": "Folge uns auf <xLink>X</xLink>, <discordLink>Discord</discordLink> oder <redditLink>r/RooCode</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo möchte den Browser verwenden",
@@ -408,17 +410,5 @@
 	"slashCommand": {
 		"wantsToRun": "Roo möchte einen Slash-Befehl ausführen",
 		"didRun": "Roo hat einen Slash-Befehl ausgeführt"
-	},
-	"ask": {
-		"autoApprovedRequestLimitReached": {
-			"title": "Limit für automatisch genehmigte Anfragen erreicht",
-			"description": "Roo hat das Limit von {{count}} automatisch genehmigten API-Anfrage(n) erreicht. Möchtest du den Zähler zurücksetzen und mit der Aufgabe fortfahren?",
-			"button": "Zurücksetzen und fortfahren"
-		},
-		"autoApprovedCostLimitReached": {
-			"title": "Automatisch genehmigtes Kostenlimit erreicht",
-			"description": "Roo hat das automatisch genehmigte Kostenlimit von ${{count}} erreicht. Möchtest du die Kosten zurücksetzen und mit der Aufgabe fortfahren?",
-			"button": "Zurücksetzen und fortfahren"
-		}
 	}
 }

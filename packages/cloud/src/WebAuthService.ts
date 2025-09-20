@@ -248,8 +248,10 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 	 *
 	 * This method initiates the authentication flow by generating a state parameter
 	 * and opening the browser to the authorization URL.
+	 *
+	 * @param landingPageSlug Optional slug of a specific landing page (e.g., "supernova", "special-offer", etc.)
 	 */
-	public async login(): Promise<void> {
+	public async login(landingPageSlug?: string): Promise<void> {
 		try {
 			const vscode = await importVscode()
 
@@ -267,11 +269,17 @@ export class WebAuthService extends EventEmitter<AuthServiceEvents> implements A
 				state,
 				auth_redirect: `${vscode.env.uriScheme}://${publisher}.${name}`,
 			})
-			const url = `${getRooCodeApiUrl()}/extension/sign-in?${params.toString()}`
+
+			// Use landing page URL if slug is provided, otherwise use default sign-in URL
+			const url = landingPageSlug
+				? `${getRooCodeApiUrl()}/l/${landingPageSlug}?${params.toString()}`
+				: `${getRooCodeApiUrl()}/extension/sign-in?${params.toString()}`
+
 			await vscode.env.openExternal(vscode.Uri.parse(url))
 		} catch (error) {
-			this.log(`[auth] Error initiating Roo Code Cloud auth: ${error}`)
-			throw new Error(`Failed to initiate Roo Code Cloud authentication: ${error}`)
+			const context = landingPageSlug ? ` (landing page: ${landingPageSlug})` : ""
+			this.log(`[auth] Error initiating Roo Code Cloud auth${context}: ${error}`)
+			throw new Error(`Failed to initiate Roo Code Cloud authentication${context}: ${error}`)
 		}
 	}
 

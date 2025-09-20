@@ -2302,6 +2302,17 @@ export const webviewMessageHandler = async (
 
 			break
 		}
+		case "cloudLandingPageSignIn": {
+			try {
+				const landingPageSlug = message.text || "supernova"
+				TelemetryService.instance.captureEvent(TelemetryEventName.AUTHENTICATION_INITIATED)
+				await CloudService.instance.login(landingPageSlug)
+			} catch (error) {
+				provider.log(`CloudService#login failed: ${error}`)
+				vscode.window.showErrorMessage("Sign in failed.")
+			}
+			break
+		}
 		case "rooCloudSignOut": {
 			try {
 				await CloudService.instance.logout()
