@@ -22,7 +22,7 @@ const preview: Preview = {
 		},
 		docs: {
 			theme: {
-				base: "dark",
+				base: "vs_dark",
 				colorPrimary: "#3794ff",
 				colorSecondary: "#0e639c",
 				appBg: "#1e1e1e",
@@ -44,6 +44,8 @@ const preview: Preview = {
 				items: [
 					{ value: "vs_dark", title: "VS Code Dark" },
 					{ value: "vs_light", title: "VS Code Light" },
+					{ value: "jb_dark", title: "JetBrains Dark" },
+					{ value: "jb_light", title: "JetBrains Light" },
 				],
 			},
 		},
