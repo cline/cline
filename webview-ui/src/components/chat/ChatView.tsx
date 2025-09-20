@@ -10,8 +10,10 @@ import { normalizeApiConfiguration } from "@/components/settings/utils/providerU
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { useShortcut } from "@/utils/hooks"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
+import { QueuedMessagesIndicator } from "./QueuedMessagesIndicator"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -193,6 +195,29 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState)
 
+	// Process queued messages when sending becomes enabled
+	useEffect(() => {
+		if (!sendingDisabled && chatState.queuedMessages.length > 0) {
+			console.log(`[ChatView] Processing ${chatState.queuedMessages.length} queued messages`)
+			// Small delay to ensure the UI state is properly updated
+			setTimeout(() => {
+				messageHandlers.processQueue()
+			}, 100)
+		}
+	}, [sendingDisabled, chatState.queuedMessages.length, messageHandlers])
+
+	// Keyboard shortcut to clear queue (Escape key when queue is visible)
+	useShortcut(
+		["Escape"],
+		() => {
+			if (chatState.queuedMessages.length > 0) {
+				console.log(`[ChatView] Clearing ${chatState.queuedMessages.length} queued messages via keyboard shortcut`)
+				chatState.clearQueue()
+			}
+		},
+		{ disableTextInputs: false }
+	)
+
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode)
 	}, [apiConfiguration, mode])
@@ -372,6 +397,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
+				<QueuedMessagesIndicator 
+					queuedMessages={chatState.queuedMessages}
+					onRemove={chatState.removeFromQueue}
+					onClearAll={chatState.clearQueue}
+				/>
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

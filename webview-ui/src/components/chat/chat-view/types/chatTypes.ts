@@ -17,6 +17,17 @@ export interface ChatViewProps {
 }
 
 /**
+ * Queued message interface
+ */
+export interface QueuedMessage {
+	id: string
+	text: string
+	images: string[]
+	files: string[]
+	timestamp: number
+}
+
+/**
  * Chat state interface
  */
 export interface ChatState {
@@ -42,6 +53,10 @@ export interface ChatState {
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 
+	// Queued messages state
+	queuedMessages: QueuedMessage[]
+	setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>
+
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
 
@@ -55,6 +70,11 @@ export interface ChatState {
 	handleFocusChange: (isFocused: boolean) => void
 	clearExpandedRows: () => void
 	resetState: () => void
+
+	// Queue handlers
+	addToQueue: (text: string, images: string[], files: string[]) => void
+	clearQueue: () => void
+	removeFromQueue: (id: string) => void
 
 	// Scroll-related state (will be moved to scroll hook)
 	showScrollToBottom?: boolean
@@ -70,6 +90,7 @@ export interface MessageHandlers {
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
+	processQueue: () => Promise<void>
 }
 
 /**

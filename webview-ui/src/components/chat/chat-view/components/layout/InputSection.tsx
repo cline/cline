@@ -40,6 +40,13 @@ export const InputSection: React.FC<InputSectionProps> = ({
 
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
 
+	// Modify placeholder text to show queuing behavior
+	const effectivePlaceholderText = sendingDisabled 
+		? chatState.queuedMessages.length > 0 
+			? `${placeholderText} (will be queued - ${chatState.queuedMessages.length} already queued)`
+			: `${placeholderText} (will be queued until Cline is available)`
+		: placeholderText
+
 	return (
 		<>
 			{activeQuote && (
@@ -63,7 +70,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 				}}
 				onSelectFilesAndImages={selectFilesAndImages}
 				onSend={() => messageHandlers.handleSendMessage(inputValue, selectedImages, selectedFiles)}
-				placeholderText={placeholderText}
+				placeholderText={effectivePlaceholderText}
 				ref={textAreaRef}
 				selectedFiles={selectedFiles}
 				selectedImages={selectedImages}
