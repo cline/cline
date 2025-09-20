@@ -33,6 +33,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [modelSearchTerm, setModelSearchTerm] = useState("")
+	const dropdownRef = useRef<any>(null)
+	const lastPickedModelIdRef = useRef<string | null>(null)
+	const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+	const [activeIndex, setActiveIndex] = useState(-1)
 
 	// Local minimal preset + matcher (kept scoped to this file to avoid new shared files)
 	type OpenAICompatiblePresetLocal = {
@@ -94,6 +98,23 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 		return "OpenAI Compatible"
 	}, [apiConfiguration?.openAiBaseUrl])
+
+	// Keep suggestions visible while typing; reset on clear
+	useEffect(() => {
+		const hasQuery = (modelSearchTerm || "").trim().length > 0
+		setSuggestionsOpen(hasQuery)
+		setActiveIndex(-1)
+	}, [modelSearchTerm])
+
+	const selectAndApplyModel = useCallback(
+		(value: string) => {
+			lastPickedModelIdRef.current = value
+			setModelSearchTerm("")
+			setSuggestionsOpen(false)
+			handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+		},
+		[currentMode, handleModeFieldChange],
+	)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -183,32 +204,151 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					const filteredModels = trimmed
 						? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
 						: availableModels
-					const exactMatch =
-						trimmed.length > 0 && availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
-					const showCustomOption = trimmed.length > 0 && !exactMatch
-					// Ensure currently selected value stays visible even when filtered out
-					const displayModels =
-						selectedModelId && !filteredModels.includes(selectedModelId)
-							? [selectedModelId, ...filteredModels]
-							: filteredModels
-					const dropdownValue = selectedModelId && displayModels.includes(selectedModelId) ? selectedModelId : ""
+					// Show custom option when there's no exact match (even if there are partial matches)
+					const showCustomOption =
+						trimmed.length > 0 && !availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+					// Include the selected model at the top ONLY when there is no active search
+					let displayModels = filteredModels
+					if (trimmed === "") {
+						const pin = selectedModelId || lastPickedModelIdRef.current || ""
+						if (pin && !displayModels.includes(pin)) {
+							displayModels = [pin, ...displayModels]
+						}
+					}
+					// Prefer lastPicked immediately after selection (ensures instant visual update),
+					// otherwise clear selection during search and show selected when search is empty
+					const dropdownValue = lastPickedModelIdRef.current ?? (trimmed === "" ? selectedModelId || "" : "")
 					return (
 						<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
 							<VSCodeTextField
-								onInput={(e) => setModelSearchTerm((e.target as HTMLInputElement).value || "")}
+								onInput={(e) => {
+									setModelSearchTerm((e.target as HTMLInputElement).value || "")
+									// Once user starts typing again, drop the last picked so the list resets to pure search
+									lastPickedModelIdRef.current = null
+								}}
+								onKeyDown={(e) => {
+									const trimmed = modelSearchTerm.trim()
+									const filteredModels = trimmed
+										? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+										: availableModels
+									const hasExact =
+										trimmed.length > 0 &&
+										availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+									const showCustom = trimmed.length > 0 && !hasExact
+									const MAX_SUGGESTIONS = 30
+									const itemsForKeys = suggestionsOpen ? filteredModels.slice(0, MAX_SUGGESTIONS) : []
+									const total = itemsForKeys.length + (showCustom ? 1 : 0)
+									if (e.key === "ArrowDown" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										setActiveIndex((prev) => (prev + 1) % total)
+										return
+									}
+									if (e.key === "ArrowUp" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										setActiveIndex((prev) => (prev - 1 + total) % total)
+										return
+									}
+									if (e.key === "Enter" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										const idx = activeIndex >= 0 ? activeIndex : 0
+										if (idx < itemsForKeys.length) {
+											selectAndApplyModel(itemsForKeys[idx])
+										} else if (showCustom) {
+											selectAndApplyModel(trimmed)
+										}
+										return
+									}
+									if (e.key === "Escape" && suggestionsOpen) {
+										e.preventDefault()
+										setSuggestionsOpen(false)
+										return
+									}
+								}}
 								placeholder="Search models..."
 								style={{ width: "100%", marginBottom: 6 }}
 								value={modelSearchTerm}
 							/>
-							{showCustomOption && (
-								<p style={{ fontSize: "12px", margin: "0 0 6px 0", color: getAsVar(VSC_DESCRIPTION_FOREGROUND) }}>
-									No matches found. Select the option below to use "{trimmed}" as a custom model ID.
-								</p>
-							)}
+							{/* Inline suggestions popover */}
+							{(() => {
+								if (!suggestionsOpen) {
+									return null
+								}
+								const trimmed = modelSearchTerm.trim()
+								const filteredModels = trimmed
+									? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+									: availableModels
+								const hasExact =
+									trimmed.length > 0 && availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+								const showCustom = trimmed.length > 0 && !hasExact
+								const MAX_SUGGESTIONS = 30
+								const items = filteredModels.slice(0, MAX_SUGGESTIONS)
+								return (
+									<div
+										onWheel={(e) => {
+											const el = e.currentTarget
+											const delta = e.deltaY
+											const atTop = el.scrollTop === 0
+											const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+											if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+												e.preventDefault()
+											}
+											e.stopPropagation()
+										}}
+										style={{
+											marginBottom: 6,
+											maxHeight: 200,
+											overflowY: "auto",
+											overscrollBehavior: "contain",
+											border: "1px solid var(--vscode-dropdown-border)",
+											borderRadius: 4,
+											background: "var(--vscode-dropdown-background)",
+											color: "var(--vscode-dropdown-foreground)",
+										}}>
+										{items.map((m, i) => (
+											<div
+												key={m}
+												onClick={() => selectAndApplyModel(m)}
+												onMouseDown={(e) => e.preventDefault()}
+												style={{
+													padding: "6px 8px",
+													cursor: "pointer",
+													background:
+														i === activeIndex
+															? "var(--vscode-list-activeSelectionBackground)"
+															: "transparent",
+												}}>
+												{m}
+											</div>
+										))}
+										{showCustom && (
+											<div
+												key={`__custom__${trimmed}`}
+												onClick={() => selectAndApplyModel(trimmed)}
+												onMouseDown={(e) => e.preventDefault()}
+												style={{
+													padding: "6px 8px",
+													cursor: "pointer",
+													background:
+														activeIndex === items.length
+															? "var(--vscode-list-activeSelectionBackground)"
+															: "transparent",
+													borderTop: items.length
+														? "1px solid var(--vscode-dropdown-border)"
+														: undefined,
+												}}>
+												Add Custom Model "{trimmed}"
+											</div>
+										)}
+									</div>
+								)
+							})()}
 							<VSCodeDropdown
 								id="openai-compatible-model-id"
+								key={selectedModelId || "empty"}
 								onChange={(e: any) => {
 									const value = e.target.value
+									// Record picked value first for immediate visual feedback
+									lastPickedModelIdRef.current = value
 									// Clear search after selection to avoid stale filters
 									setModelSearchTerm("")
 									handleModeFieldChange(
@@ -217,6 +357,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 										currentMode,
 									)
 								}}
+								ref={dropdownRef}
 								style={{ width: "100%", marginBottom: 10 }}
 								value={dropdownValue}>
 								<VSCodeOption value="">Select a model...</VSCodeOption>
@@ -227,7 +368,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								))}
 								{showCustomOption && (
 									<VSCodeOption key={`__custom__${trimmed}`} value={trimmed}>
-										Use "{trimmed}" (custom)
+										Add Custom Model "{trimmed}"
 									</VSCodeOption>
 								)}
 							</VSCodeDropdown>
