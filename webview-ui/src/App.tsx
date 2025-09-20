@@ -39,6 +39,19 @@ const AppContent = () => {
 
 	const [showCanView, setShowCanView] = useState(true) // 默认显示 CanView
 
+	// 监听来自ChatView的返回CanView消息
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data || event.data?.data // 处理不同的消息格式
+			if (message?.type === "switchToCanView") {
+				setShowCanView(true)
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [])
+
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
 	useEffect(() => {

@@ -1,10 +1,13 @@
+// 添加返回按钮相关的导入
+import { ArrowLeftOutlined } from "@ant-design/icons"
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo } from "react"
+import { Button } from "antd"
+import React, { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -332,8 +335,40 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return text
 	}, [task])
 
+	// 添加返回CanView的处理函数
+	const handleBackToCanView = () => {
+		if (typeof window !== "undefined" && (window as any).vscode) {
+			;(window as any).vscode.postMessage({
+				type: "switchToCanView",
+			})
+		} else {
+			// 如果不在VS Code环境中，使用标准的postMessage
+			window.postMessage(
+				{
+					type: "switchToCanView",
+				},
+				"*",
+			)
+		}
+	}
+
+	const header = (
+		<div className="flex items-center p-2 border-b border-gray-200 dark:border-gray-700" style={{ gridRow: "1" }}>
+			<Button
+				className="flex items-center"
+				icon={<ArrowLeftOutlined />}
+				onClick={handleBackToCanView}
+				style={{
+					color: "var(--vscode-textLink-foreground)",
+				}}
+				type="text">
+				返回CAN工具集
+			</Button>
+		</div>
+	)
+
 	return (
-		<ChatLayout isHidden={isHidden}>
+		<ChatLayout header={header} isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
 				{IS_STANDALONE && <Navbar />}
 				{task ? (
