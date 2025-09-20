@@ -512,8 +512,15 @@ export class ClineApiServerMock {
 		ClineApiServerMock.globalSockets.forEach((socket) => socket.destroy())
 		ClineApiServerMock.globalSockets.clear()
 
-		await new Promise<void>((resolve) => {
-			server.close(() => resolve())
+		await new Promise<void>((resolve, reject) => {
+			server.close((err) => {
+				if (err) {
+					console.error("Error closing server:", err)
+					reject(err)
+				}
+				log("Server closed successfully")
+				resolve()
+			})
 		})
 
 		ClineApiServerMock.globalSharedServer = null
