@@ -13,6 +13,21 @@ type PkceState = {
 	redirect_uri: string
 }
 
+export class OcaRefreshError extends Error {
+	status?: number
+	code?: string
+	invalidGrant?: boolean
+	data?: unknown
+	constructor(message: string, status?: number, code?: string, invalidGrant?: boolean, data?: unknown) {
+		super(message)
+		this.name = "OcaRefreshError"
+		this.status = status
+		this.code = code
+		this.invalidGrant = invalidGrant
+		this.data = data
+	}
+}
+
 export class OcaAuthProvider {
 	// Map state -> { code_verifier, nonce, createdAt }
 	private static pkceStateMap: Map<string, PkceState> = new Map()
@@ -92,9 +107,17 @@ export class OcaAuthProvider {
 			const accessToken = tokenResponse.data.access_token
 			const userInfo: OcaUserInfo = await this.getUserAccountInfo(accessToken)
 			return { user: userInfo, apiKey: accessToken }
-		} catch (error) {
-			console.error("OCA restore token error", error)
-			throw error
+		} catch (err: unknown) {
+			const isAxios = (axios as any)?.isAxiosError?.(err)
+			const status = isAxios ? (err as any).response?.status : undefined
+			const data: any = isAxios ? (err as any).response?.data : undefined
+			const code = data?.error || (isAxios ? (err as any).code : undefined)
+			const desc = data?.error_description || (isAxios ? (err as any).message : undefined)
+			const invalidGrant = (status === 400 && code === "invalid_grant") || status === 401
+
+			console.error("OCA refresh failed", { status, code, desc })
+
+			throw new OcaRefreshError(desc || "OCA refresh failed", status, code, invalidGrant, data)
 		}
 	}
 
