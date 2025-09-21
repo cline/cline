@@ -4,12 +4,11 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
 import type { TaskMetadata } from "./ContextTrackerTypes"
-import { ModelContextTracker } from "./ModelContextTracker"
+import { recordModelUsage } from "./model-context-tracking"
 
-describe("ModelContextTracker", () => {
+describe("recordModelUsage", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockContext: vscode.ExtensionContext
-	let tracker: ModelContextTracker
 	let taskId: string
 	let mockTaskMetadata: TaskMetadata
 	let getTaskMetadataStub: sinon.SinonStub
@@ -28,9 +27,8 @@ describe("ModelContextTracker", () => {
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 
-		// Create tracker instance
+		// Set up test data
 		taskId = "test-task-id"
-		tracker = new ModelContextTracker(mockContext, taskId)
 	})
 
 	afterEach(() => {
@@ -48,11 +46,12 @@ describe("ModelContextTracker", () => {
 		const clock = sandbox.useFakeTimers(fakeNow)
 
 		try {
-			// Call the method being tested
-			await tracker.recordModelUsage(apiProviderId, modelId, mode)
+			// Call the function being tested
+			await recordModelUsage(mockContext, taskId, apiProviderId, modelId, mode)
 
 			// Verify getTaskMetadata was called with correct parameters
 			expect(getTaskMetadataStub.calledOnce).to.be.true
+			expect(getTaskMetadataStub.firstCall.args[0]).to.equal(mockContext)
 			expect(getTaskMetadataStub.firstCall.args[1]).to.equal(taskId)
 
 			// Verify saveTaskMetadata was called with the correct data
@@ -98,8 +97,8 @@ describe("ModelContextTracker", () => {
 		const clock = sandbox.useFakeTimers(newTimestamp)
 
 		try {
-			// Call the method being tested
-			await tracker.recordModelUsage(apiProviderId, modelId, mode)
+			// Call the function being tested
+			await recordModelUsage(mockContext, taskId, apiProviderId, modelId, mode)
 
 			// Verify saveTaskMetadata was called
 			expect(saveTaskMetadataStub.calledOnce).to.be.true
@@ -158,8 +157,8 @@ describe("ModelContextTracker", () => {
 				// Reset mock metadata for each iteration to avoid accumulation
 				mockTaskMetadata.model_usage = []
 
-				// Call the method
-				await tracker.recordModelUsage(provider, model, mode)
+				// Call the function
+				await recordModelUsage(mockContext, taskId, provider, model, mode)
 
 				// Verify interaction with disk module
 				expect(getTaskMetadataStub.calledOnce).to.be.true
