@@ -1,16 +1,15 @@
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { FOCUS_CHAIN_ITEM_REGEX, isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
+import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { FileServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import CopyTaskButton from "./buttons/CopyTaskButton"
@@ -82,8 +81,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 	onScrollToMessage,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointManagerErrorMessage, clineMessages, navigateToSettings, mode } =
-		useExtensionState()
+	const { apiConfiguration, currentTaskItem, clineMessages, navigateToSettings, mode } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
@@ -93,15 +91,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration, mode), [apiConfiguration, mode])
 	const contextWindow = selectedModelInfo?.contextWindow
-
-	// Open task header when checkpoint tracker error message is set
-	const prevErrorMessageRef = useRef(checkpointManagerErrorMessage)
-	useEffect(() => {
-		if (checkpointManagerErrorMessage !== prevErrorMessageRef.current) {
-			setIsTaskExpanded(true)
-			prevErrorMessageRef.current = checkpointManagerErrorMessage
-		}
-	}, [checkpointManagerErrorMessage])
 
 	// Reset isTextExpanded when task is collapsed
 	useEffect(() => {
@@ -686,119 +675,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</div>
 								)
 							})()}
-
-							{/* Expanded focus chain list */}
-							{isTodoExpanded && lastProgressMessageText && (
-								<div
-									style={{
-										marginTop: "6px",
-										padding: "8px",
-										backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 5%, transparent)",
-										borderRadius: "3px",
-										position: "relative",
-									}}>
-									<ChecklistRenderer text={lastProgressMessageText} />
-									{/* Edit button for focus chain list */}
-									{parseCurrentTodoInfo(lastProgressMessageText)?.hasItems &&
-										(() => {
-											// Used to adjust the position of the focus chain edit button as needed
-											const lines = lastProgressMessageText.split("\n").filter((line) => line.trim())
-											const items = lines.filter((line) => {
-												const trimmedLine = line.trim()
-												return trimmedLine.match(FOCUS_CHAIN_ITEM_REGEX)
-											})
-											const hasScrollbar = items.length >= 10
-
-											return (
-												<VSCodeButton
-													appearance="icon"
-													onClick={async () => {
-														try {
-															await FileServiceClient.openFocusChainFile(
-																StringRequest.create({ value: currentTaskItem?.id || "" }),
-															)
-														} catch (error) {
-															console.error("Error opening todo file:", error)
-														}
-													}}
-													style={{
-														position: "absolute",
-														top: "3px",
-														right: hasScrollbar ? "22px" : "4px",
-														width: "20px",
-														height: "20px",
-														minWidth: "20px",
-														padding: "0",
-														backgroundColor:
-															"color-mix(in srgb, var(--vscode-badge-foreground) 10%, transparent)",
-														border: "1px solid color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-													}}
-													title="Edit focus chain list in markdown file">
-													<span
-														className="codicon codicon-edit"
-														style={{
-															fontSize: "14px",
-															color: "var(--vscode-badge-foreground)",
-															display: "flex",
-															alignItems: "center",
-															justifyContent: "center",
-														}}></span>
-												</VSCodeButton>
-											)
-										})()}
-								</div>
-							)}
-
-							{checkpointManagerErrorMessage && (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "8px",
-										color: "var(--vscode-editorWarning-foreground)",
-										fontSize: "11px",
-									}}>
-									<i className="codicon codicon-warning" />
-									<span>
-										{checkpointManagerErrorMessage.replace(/disabling checkpoints\.$/, "")}
-										{checkpointManagerErrorMessage.endsWith("disabling checkpoints.") && (
-											<button
-												className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
-												onClick={() => {
-													// First open the settings panel using direct navigation
-													navigateToSettings()
-
-													// After a short delay, send a message to scroll to settings
-													setTimeout(async () => {
-														try {
-															await UiServiceClient.scrollToSettings(
-																StringRequest.create({ value: "features" }),
-															)
-														} catch (error) {
-															console.error("Error scrolling to checkpoint settings:", error)
-														}
-													}, 300)
-												}}
-												style={{ fontSize: "inherit" }}>
-												disabling checkpoints.
-											</button>
-										)}
-										{checkpointManagerErrorMessage.includes("Git must be installed to use checkpoints.") && (
-											<>
-												{" "}
-												<a
-													href="https://github.com/cline/cline/wiki/Installing-Git-for-Checkpoints"
-													style={{
-														color: "inherit",
-														textDecoration: "underline",
-													}}>
-													See here for instructions.
-												</a>
-											</>
-										)}
-									</span>
-								</div>
-							)}
 						</div>
 					</>
 				)}

@@ -9,7 +9,6 @@ import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
-import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
@@ -95,32 +94,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				const tabInstances = WebviewProvider.getTabInstances()
 				for (const instance of tabInstances) {
 					openChat(instance)
-				}
-			}
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.McpButton, (webview: any) => {
-			console.log("[DEBUG] mcpButtonClicked", webview)
-
-			const activeInstance = WebviewProvider.getActiveInstance()
-			const isSidebar = !webview
-
-			if (isSidebar) {
-				const sidebarInstance = WebviewProvider.getSidebarInstance()
-				const sidebarInstanceId = sidebarInstance?.getClientId()
-				if (sidebarInstanceId) {
-					sendMcpButtonClickedEvent(sidebarInstanceId)
-				} else {
-					console.error("[DEBUG] No sidebar instance found, cannot send MCP button event")
-				}
-			} else {
-				const activeInstanceId = activeInstance?.getClientId()
-				if (activeInstanceId) {
-					sendMcpButtonClickedEvent(activeInstanceId)
-				} else {
-					console.error("[DEBUG] No active instance found, cannot send MCP button event")
 				}
 			}
 		}),

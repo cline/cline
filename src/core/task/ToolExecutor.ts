@@ -16,7 +16,6 @@ import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
-import { CondenseHandler } from "./tools/handlers/CondenseHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
@@ -24,7 +23,6 @@ import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
-import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
@@ -158,8 +156,6 @@ export class ToolExecutor {
 		this.coordinator.register(new PlanModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
-		this.coordinator.register(new CondenseHandler())
-		this.coordinator.register(new SummarizeTaskHandler())
 		this.coordinator.register(new ReportBugHandler())
 	}
 

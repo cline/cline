@@ -1,6 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import React from "react"
-import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import { MessageHandlers } from "../../types/chatTypes"
 
@@ -33,27 +32,16 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	inputValue,
 	messageHandlers,
 }) => {
-	// Browser session group
-	if (Array.isArray(messageOrGroup)) {
-		return (
-			<BrowserSessionRow
-				expandedRows={expandedRows}
-				isLast={index === groupedMessages.length - 1}
-				key={messageOrGroup[0]?.ts}
-				lastModifiedMessage={modifiedMessages.at(-1)}
-				messages={messageOrGroup}
-				onHeightChange={onHeightChange}
-				onSetQuote={onSetQuote}
-				onToggleExpand={onToggleExpand}
-			/>
-		)
-	}
-
 	// Determine if this is the last message for status display purposes
 	const nextMessage = index < groupedMessages.length - 1 && groupedMessages[index + 1]
 	const isNextCheckpoint = !Array.isArray(nextMessage) && nextMessage && nextMessage?.say === "checkpoint_created"
 	const isLastMessageGroup = isNextCheckpoint && index === groupedMessages.length - 2
 	const isLast = index === groupedMessages.length - 1 || isLastMessageGroup
+
+	// hack to make the type match up since we're removing the browser session group because of browser capability removal
+	if (Array.isArray(messageOrGroup)) {
+		return null
+	}
 
 	// Regular message
 	return (

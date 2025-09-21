@@ -2,7 +2,7 @@ import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
 import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { formatDollars, formatTimestamp } from "@/utils/format"
-import { TabButton } from "../mcp/configuration/McpConfigurationView"
+import { TabButton } from "../settings/sections/ApiConfigurationSection"
 
 interface CreditsHistoryTableProps {
 	isLoading: boolean

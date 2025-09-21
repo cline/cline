@@ -15,7 +15,6 @@ import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
-import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -121,20 +120,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			"api-config": ApiConfigurationSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
-			terminal: TerminalSettingsSection,
 			about: AboutSection,
 			debug: DebugSection,
 		}),
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, telemetrySetting } = useExtensionState()
+	const { version } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
-	const initialTab = useMemo(
-		() => targetSection || (telemetrySetting === "unset" ? "general" : SETTINGS_TABS[0].id),
-		[targetSection, telemetrySetting],
-	)
+	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
 
 	const [activeTab, setActiveTab] = useState<string>(initialTab)
 	const [isCompactMode, setIsCompactMode] = useState(false)

@@ -2,9 +2,9 @@ import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
 import Section from "../Section"
 import { syncModeConfigurations } from "../utils/providerUtils"
@@ -13,6 +13,44 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface ApiConfigurationSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
+
+const StyledTabButton = styled.button.withConfig({
+	shouldForwardProp: (prop) => !["isActive"].includes(prop),
+})<{ isActive: boolean; disabled?: boolean }>`
+	background: none;
+	border: none;
+	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	padding: 8px 16px;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+	font-size: 13px;
+	margin-bottom: -1px;
+	font-family: inherit;
+	opacity: ${(props) => (props.disabled ? 0.6 : 1)};
+	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+
+	&:hover {
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+	}
+`
+
+export const TabButton = ({
+	children,
+	isActive,
+	onClick,
+	disabled,
+	style,
+}: {
+	children: React.ReactNode
+	isActive: boolean
+	onClick: () => void
+	disabled?: boolean
+	style?: React.CSSProperties
+}) => (
+	<StyledTabButton disabled={disabled} isActive={isActive} onClick={onClick} style={style}>
+		{children}
+	</StyledTabButton>
+)
 
 const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectionProps) => {
 	const { planActSeparateModelsSetting, mode, apiConfiguration } = useExtensionState()

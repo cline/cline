@@ -21,12 +21,9 @@ import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import SuccessButton from "@/components/common/SuccessButton"
-import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
-import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
-import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
+import { getMcpServerDisplayName } from "@/utils/mcp"
 import { CheckpointControls } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
@@ -819,82 +816,6 @@ export const ChatRowContent = memo(
 			)
 		}
 
-		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
-			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
-			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
-			return (
-				<>
-					<div style={headerStyle}>
-						{icon}
-						{title}
-					</div>
-
-					<div
-						style={{
-							background: "var(--vscode-textCodeBlock-background)",
-							borderRadius: "3px",
-							padding: "8px 10px",
-							marginTop: "8px",
-						}}>
-						{useMcpServer.type === "access_mcp_resource" && (
-							<McpResourceRow
-								item={{
-									...(findMatchingResourceOrTemplate(
-										useMcpServer.uri || "",
-										server?.resources,
-										server?.resourceTemplates,
-									) || {
-										name: "",
-										mimeType: "",
-										description: "",
-									}),
-									uri: useMcpServer.uri || "",
-								}}
-							/>
-						)}
-
-						{useMcpServer.type === "use_mcp_tool" && (
-							<>
-								<div onClick={(e) => e.stopPropagation()}>
-									<McpToolRow
-										serverName={useMcpServer.serverName}
-										tool={{
-											name: useMcpServer.toolName || "",
-											description:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description ||
-												"",
-											autoApprove:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
-												false,
-										}}
-									/>
-								</div>
-								{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
-									<div style={{ marginTop: "8px" }}>
-										<div
-											style={{
-												marginBottom: "4px",
-												opacity: 0.8,
-												fontSize: "12px",
-												textTransform: "uppercase",
-											}}>
-											Arguments
-										</div>
-										<CodeAccordian
-											code={useMcpServer.arguments}
-											isExpanded={true}
-											language="json"
-											onToggleExpand={handleToggle}
-										/>
-									</div>
-								)}
-							</>
-						)}
-					</div>
-				</>
-			)
-		}
-
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
@@ -955,38 +876,6 @@ export const ChatRowContent = memo(
 						)
 					case "api_req_finished":
 						return null // we should never see this message type
-					case "mcp_server_response":
-						return <McpResponseDisplay responseText={message.text || ""} />
-					case "mcp_notification":
-						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-									padding: "8px 12px",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									borderRadius: "4px",
-									fontSize: "13px",
-									color: "var(--vscode-foreground)",
-									opacity: 0.9,
-									marginBottom: "8px",
-								}}>
-								<i
-									className="codicon codicon-bell"
-									style={{
-										marginTop: "2px",
-										fontSize: "14px",
-										color: "var(--vscode-notificationsInfoIcon-foreground)",
-										flexShrink: 0,
-									}}
-								/>
-								<div style={{ flex: 1, wordBreak: "break-word" }}>
-									<span style={{ fontWeight: 500 }}>MCP Notification: </span>
-									<span className="ph-no-capture">{message.text}</span>
-								</div>
-							</div>
-						)
 					case "text":
 						return (
 							<WithCopyButton

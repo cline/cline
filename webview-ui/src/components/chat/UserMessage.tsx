@@ -2,7 +2,6 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { highlightText } from "./task-header/TaskHeader"
 
 interface UserMessageProps {
@@ -17,7 +16,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const { checkpointManagerErrorMessage } = useExtensionState()
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -36,15 +34,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 		}
 	}, [isEditing])
 
-	const handleRestoreWorkspace = async (type: ClineCheckpointRestore) => {
-		const delay = type === "task" ? 500 : 1000 // Delay for task and workspace restore
-		setIsEditing(false)
-
-		if (text === editedText) {
-			return
-		}
-	}
-
 	const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
 		// Check if focus is moving to one of our button elements
 		if (e.relatedTarget === restoreAllButtonRef.current || e.relatedTarget === restoreChatButtonRef.current) {
@@ -59,11 +48,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
 			setIsEditing(false)
-		} else if (e.key === "Enter" && e.metaKey && !checkpointManagerErrorMessage) {
-			handleRestoreWorkspace("taskAndWorkspace")
-		} else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-			e.preventDefault()
-			handleRestoreWorkspace("task")
 		}
 	}
 
@@ -79,53 +63,31 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				wordWrap: "break-word",
 			}}>
 			{isEditing ? (
-				<>
-					<DynamicTextArea
-						autoFocus
-						onBlur={(e) => handleBlur(e)}
-						onChange={(e) => setEditedText(e.target.value)}
-						onKeyDown={handleKeyDown}
-						ref={textAreaRef}
-						style={{
-							width: "100%",
-							backgroundColor: "var(--vscode-input-background)",
-							color: "var(--vscode-input-foreground)",
-							borderColor: "var(--vscode-input-border)",
-							border: "1px solid",
-							borderRadius: "2px",
-							padding: "6px",
-							fontFamily: "inherit",
-							fontSize: "inherit",
-							lineHeight: "inherit",
-							boxSizing: "border-box",
-							resize: "none",
-							overflowX: "hidden",
-							overflowY: "scroll",
-							scrollbarWidth: "none",
-						}}
-						value={editedText}
-					/>
-					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
-						{!checkpointManagerErrorMessage && (
-							<RestoreButton
-								isPrimary={false}
-								label="Restore All"
-								onClick={handleRestoreWorkspace}
-								ref={restoreAllButtonRef}
-								title="Restore both the chat and workspace files to this checkpoint and send your edited message"
-								type="taskAndWorkspace"
-							/>
-						)}
-						<RestoreButton
-							isPrimary={true}
-							label="Restore Chat"
-							onClick={handleRestoreWorkspace}
-							ref={restoreChatButtonRef}
-							title="Restore just the chat to this checkpoint and send your edited message"
-							type="task"
-						/>
-					</div>
-				</>
+				<DynamicTextArea
+					autoFocus
+					onBlur={(e) => handleBlur(e)}
+					onChange={(e) => setEditedText(e.target.value)}
+					onKeyDown={handleKeyDown}
+					ref={textAreaRef}
+					style={{
+						width: "100%",
+						backgroundColor: "var(--vscode-input-background)",
+						color: "var(--vscode-input-foreground)",
+						borderColor: "var(--vscode-input-border)",
+						border: "1px solid",
+						borderRadius: "2px",
+						padding: "6px",
+						fontFamily: "inherit",
+						fontSize: "inherit",
+						lineHeight: "inherit",
+						boxSizing: "border-box",
+						resize: "none",
+						overflowX: "hidden",
+						overflowY: "scroll",
+						scrollbarWidth: "none",
+					}}
+					value={editedText}
+				/>
 			) : (
 				<span className="ph-no-capture" style={{ display: "block" }}>
 					{highlightText(editedText || text)}

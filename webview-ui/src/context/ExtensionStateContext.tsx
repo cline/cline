@@ -3,10 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
-import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
@@ -178,40 +175,24 @@ export const ExtensionStateContextProvider: React.FC<{
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
-		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
 		preferredLanguage: "English",
 		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
-		telemetrySetting: "unset",
 		distinctId: "",
 		planActSeparateModelsSetting: true,
-		enableCheckpointsSetting: true,
-		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
-		shellIntegrationTimeout: 4000,
-		terminalReuseEnabled: true,
-		terminalOutputLineLimit: 500,
-		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
-		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,
-		useAutoCondense: false,
 		favoritedModelIds: [],
-
-		// NEW: Add workspace information with defaults
-		workspaceRoots: [],
-		primaryRootIndex: 0,
-		isMultiRootWorkspace: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -650,8 +631,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
-		enableCheckpointsSetting: state.enableCheckpointsSetting,
-		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
 		// Navigation functions
 		navigateToMcp,

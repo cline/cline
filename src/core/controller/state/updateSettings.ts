@@ -166,14 +166,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
-		// Update auto-condense setting
-		if (request.useAutoCondense !== undefined) {
-			if (controller.task) {
-				controller.task.updateUseAutoCondense(request.useAutoCondense)
-			}
-			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
-		}
-
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
 			{

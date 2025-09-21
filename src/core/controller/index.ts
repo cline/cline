@@ -244,7 +244,6 @@ export class Controller {
 			mode,
 			strictPlanModeEnabled ?? true,
 			yoloModeToggled,
-			useAutoCondense ?? false,
 			cwd,
 			this.stateManager,
 			task,
@@ -689,32 +688,20 @@ export class Controller {
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
-		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
-		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
-		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
 		const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
-		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
-		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const welcomeViewCompleted = Boolean(
 			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
 		)
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
-		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
-		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -724,7 +711,6 @@ export class Controller {
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
-		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
@@ -742,23 +728,14 @@ export class Controller {
 			apiConfiguration,
 			currentTaskItem,
 			clineMessages,
-			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
-			checkpointManagerErrorMessage,
 			autoApprovalSettings,
-			browserSettings,
-			focusChainSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
 			yoloModeToggled,
-			useAutoCondense,
 			userInfo,
-			mcpMarketplaceEnabled,
-			mcpDisplayMode,
-			telemetrySetting,
 			planActSeparateModelsSetting,
-			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
@@ -766,22 +743,14 @@ export class Controller {
 			localCursorRulesToggles: localCursorRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			defaultTerminalProfile,
 			isNewUser,
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
-			mcpResponsesCollapsed,
-			terminalOutputLineLimit,
+
 			customPrompt,
 			taskHistory: processedTaskHistory,
 			platform,
 			shouldShowAnnouncement,
 			favoritedModelIds,
-			// NEW: Add workspace information
-			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
-			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
-			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 		}
 	}
 

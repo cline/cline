@@ -3,7 +3,6 @@ import { useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
-import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import { useClineAuth } from "./context/ClineAuthContext"
@@ -17,14 +16,12 @@ const AppContent = () => {
 		showWelcome,
 		shouldShowAnnouncement,
 		showMcp,
-		mcpTab,
 		showSettings,
 		showHistory,
 		showAccount,
 		showAnnouncement,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
-		closeMcpView,
 		navigateToHistory,
 		hideSettings,
 		hideHistory,
@@ -61,7 +58,6 @@ const AppContent = () => {
 		<div className="flex h-screen w-full flex-col">
 			{showSettings && <SettingsView onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
-			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (
 				<AccountView
 					activeOrganization={activeOrganization}

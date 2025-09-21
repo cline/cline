@@ -42,16 +42,7 @@ const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
-	const {
-		version,
-		clineMessages: messages,
-		taskHistory,
-		apiConfiguration,
-		telemetrySetting,
-		mode,
-		userInfo,
-		currentFocusChainChecklist,
-	} = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, mode, userInfo } = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
@@ -308,17 +299,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
-	const lastProgressMessageText = useMemo(() => {
-		// First check if we have a current focus chain list from the extension state
-		if (currentFocusChainChecklist) {
-			return currentFocusChainChecklist
-		}
-
-		// Fall back to the last task_progress message if no state focus chain list
-		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
-		return lastProgressMessage?.text
-	}, [modifiedMessages, currentFocusChainChecklist])
-
 	const groupedMessages = useMemo(() => {
 		return groupMessages(visibleMessages)
 	}, [visibleMessages])
@@ -339,7 +319,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<TaskSection
 						apiMetrics={apiMetrics}
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
-						lastProgressMessageText={lastProgressMessageText}
 						messageHandlers={messageHandlers}
 						scrollBehavior={scrollBehavior}
 						selectedModelInfo={{
@@ -355,7 +334,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						showAnnouncement={showAnnouncement}
 						showHistoryView={showHistoryView}
 						taskHistory={taskHistory}
-						telemetrySetting={telemetrySetting}
 						version={version}
 					/>
 				)}

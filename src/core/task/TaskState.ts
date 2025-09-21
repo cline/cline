@@ -48,18 +48,8 @@ export class TaskState {
 	// Task Initialization
 	isInitialized = false
 
-	// Focus Chain / Todo List Management
-	apiRequestCount: number = 0
-	apiRequestsSinceLastTodoUpdate: number = 0
-	currentFocusChainChecklist: string | null = null
-	todoListWasUpdatedByUser: boolean = false
-
 	// Task Abort / Cancellation
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
-
-	// Auto-context summarization
-	currentlySummarizing: boolean = false
-	lastAutoCompactTriggerIndex?: number
 }

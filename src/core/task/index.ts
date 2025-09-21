@@ -17,7 +17,6 @@ import {
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { parseMentions } from "@core/mentions"
-import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
@@ -52,7 +51,6 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
-import { isNextGenModelFamily } from "@/utils/model-utils"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
@@ -71,7 +69,6 @@ export class Task {
 	readonly ulid: string
 	private taskIsFavorited?: boolean
 	private cwd: string
-	private taskInitializationStartTime: number
 
 	taskState: TaskState
 
@@ -84,9 +81,6 @@ export class Task {
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
 	private toolExecutor: ToolExecutor
-
-	// Context Management
-	private useAutoCondense: boolean
 
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -120,7 +114,6 @@ export class Task {
 		mode: Mode,
 		strictPlanModeEnabled: boolean,
 		yoloModeToggled: boolean,
-		useAutoCondense: boolean,
 		cwd: string,
 		stateManager: StateManager,
 		task?: string,
@@ -128,7 +121,6 @@ export class Task {
 		files?: string[],
 		historyItem?: HistoryItem,
 	) {
-		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.controller = controller
 		this.updateTaskHistory = updateTaskHistory
@@ -144,7 +136,6 @@ export class Task {
 		this.mode = mode
 		this.cwd = cwd
 		this.stateManager = stateManager
-		this.useAutoCondense = useAutoCondense
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -264,12 +255,6 @@ export class Task {
 
 	public updateStrictPlanMode(strictPlanModeEnabled: boolean): void {
 		this.toolExecutor.updateStrictPlanModeEnabled(strictPlanModeEnabled)
-	}
-
-	public updateUseAutoCondense(useAutoCondense: boolean): void {
-		// Track the setting change with current task and model context
-
-		this.useAutoCondense = useAutoCondense
 	}
 
 	// While a task is ref'd by a controller, it will always have access to the extension context
@@ -866,7 +851,7 @@ export class Task {
 			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
-			this.useAutoCondense,
+			false,
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -1095,10 +1080,6 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
-		// Increment API request counter for focus chain list management
-		this.taskState.apiRequestCount++
-		this.taskState.apiRequestsSinceLastTodoUpdate++
-
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { customPrompt } = this.getCurrentProviderInfo()
 
@@ -1206,108 +1187,18 @@ export class Task {
 			}),
 		)
 
-		// Separate logic when using the auto-condense context management vs the original context management methods
-		if (this.useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
-			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
-			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
-			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
-			let shouldCompact = false
-			if (this.taskState.currentlySummarizing) {
-				this.taskState.currentlySummarizing = false
+		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
 
-				if (this.taskState.conversationHistoryDeletedRange) {
-					const [start, end] = this.taskState.conversationHistoryDeletedRange
-					const apiHistory = this.messageStateHandler.getApiConversationHistory()
-
-					// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
-					const safeEnd = Math.min(end + 2, apiHistory.length - 1)
-					if (end + 2 <= safeEnd) {
-						this.taskState.conversationHistoryDeletedRange = [start, end + 2]
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					}
-				}
-			} else {
-				shouldCompact = this.contextManager.shouldCompactContextWindow(
-					this.messageStateHandler.getClineMessages(),
-					this.api,
-					previousApiReqIndex,
-				)
-
-				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
-				// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
-				// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
-				// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
-				// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
-				// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
-				// for now to prevent additional disk from needing to be used.
-				// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
-				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
-					const apiHistory = this.messageStateHandler.getApiConversationHistory()
-					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
-
-					// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
-					// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
-					if (activeMessageCount <= 2) {
-						shouldCompact = false
-					}
-				}
-			}
-
-			let parsedUserContent: UserContent
-			let environmentDetails: string
-			let clinerulesError: boolean
-
-			// when summarizing the context window, we do not want to inject updated to the context
-			if (shouldCompact) {
-				parsedUserContent = userContent
-				environmentDetails = ""
-				clinerulesError = false
-				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
-			} else {
-				;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-					userContent,
-					includeFileDetails,
-				)
-			}
-
-			// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
-			if (clinerulesError === true) {
-				await this.say(
-					"error",
-					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
-				)
-			}
-			// Compact prompt is tailored for models with small context window where environment details would often
-			// overflow the context window
-			const useCompactPrompt = customPrompt === "compact"
-
-			userContent = parsedUserContent
-			// add environment details as its own text block, separate from tool results
-			// do not add environment details to the message which we are compacting the context window
-			if (!shouldCompact && !useCompactPrompt) {
-				userContent.push({ type: "text", text: environmentDetails })
-			}
-
-			if (shouldCompact) {
-				userContent.push({ type: "text", text: summarizeTask() })
-			}
-		} else {
-			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-				userContent,
-				includeFileDetails,
+		if (clinerulesError === true) {
+			await this.say(
+				"error",
+				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 			)
-
-			if (clinerulesError === true) {
-				await this.say(
-					"error",
-					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
-				)
-			}
-
-			userContent = parsedUserContent
-
-			userContent.push({ type: "text", text: environmentDetails })
 		}
+
+		userContent = parsedUserContent
+
+		userContent.push({ type: "text", text: environmentDetails })
 
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",

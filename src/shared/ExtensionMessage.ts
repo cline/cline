@@ -1,15 +1,10 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "../core/workspace"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
-import { BrowserSettings } from "./BrowserSettings"
 import { ClineRulesToggles } from "./cline-rules"
-import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpDisplayMode } from "./McpDisplayMode"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
-import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 
 // webview will hold state
@@ -35,27 +30,15 @@ export interface ExtensionState {
 	welcomeViewCompleted: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
-	browserSettings: BrowserSettings
-	remoteBrowserHost?: string
 	preferredLanguage?: string
 	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
-	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
-	currentFocusChainChecklist?: string | null
-	mcpMarketplaceEnabled?: boolean
-	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
-	enableCheckpointsSetting?: boolean
 	platform: Platform
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
-	telemetrySetting: TelemetrySetting
-	shellIntegrationTimeout: number
-	terminalReuseEnabled?: boolean
-	terminalOutputLineLimit: number
-	defaultTerminalProfile?: string
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
@@ -65,17 +48,10 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
-	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
-	useAutoCondense?: boolean
-	focusChainSettings: FocusChainSettings
 	customPrompt?: string
 	favoritedModelIds: string[]
-	// NEW: Add workspace information
-	workspaceRoots: WorkspaceRoot[]
-	primaryRootIndex: number
-	isMultiRootWorkspace: boolean
 }
 
 export interface ClineMessage {
