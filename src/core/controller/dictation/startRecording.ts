@@ -136,7 +136,8 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 		const config = AUDIO_PROGRAM_CONFIG[platform]
 
 		if (isMissingDependencyError(result.error, config)) {
-			await handleMissingDependency(controller, platform, config)
+			// Don't await - show dialog asynchronously so frontend gets immediate response
+			handleMissingDependency(controller, platform, config)
 		}
 
 		return RecordingResult.create({
@@ -149,9 +150,11 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 
 		// Handle different error types
 		if (errorMessage.includes("sign in")) {
-			await handleSignInError(controller, errorMessage)
+			// Don't await - show dialog asynchronously so frontend gets immediate response
+			handleSignInError(controller, errorMessage)
 		} else {
-			await showGenericError(errorMessage)
+			// Don't await - show dialog asynchronously so frontend gets immediate response
+			showGenericError(errorMessage)
 		}
 
 		return RecordingResult.create({

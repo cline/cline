@@ -25,6 +25,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 }) => {
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
+	const [isStarting, setIsStarting] = useState(false) // New state for loading
 	const [recordingDuration, setRecordingDuration] = useState(0)
 	const [error, setError] = useState<string | null>(null)
 	const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -36,7 +37,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 	const startRecording = useCallback(async () => {
 		try {
-			setIsRecording(true)
+			// Show loading state instead of immediately setting recording
+			setIsStarting(true)
 			setError(null) // Clear any previous errors
 			onProcessingStateChange?.(false) // Clear any previous processing state
 			setRecordingDuration(0) // Reset recording duration
@@ -46,17 +48,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
-				setIsRecording(false)
 				setError(response.error || "Failed to start recording")
 				return
 			}
 
+			// Only set recording state after backend confirms success
+			setIsRecording(true)
 			console.log("Recording started successfully")
 		} catch (error) {
 			console.error("Error starting recording:", error)
-			setIsRecording(false)
 			const errorMessage = error instanceof Error ? error.message : "Failed to start recording"
 			setError(errorMessage)
+		} finally {
+			// Always clear the starting state
+			setIsStarting(false)
 		}
 	}, [onProcessingStateChange])
 
@@ -184,14 +189,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	}, [onProcessingStateChange, onTranscription])
 
 	const handleStartClick = useCallback(() => {
-		if (disabled || isProcessing) {
+		if (disabled || isProcessing || isStarting) {
 			return
 		}
 		if (error) {
 			return setError(null)
 		}
 		startRecording()
-	}, [startRecording, disabled, isProcessing, error])
+	}, [startRecording, disabled, isProcessing, isStarting, error])
 
 	const handleCancelClick = useCallback(() => {
 		if (disabled || isProcessing) {
@@ -207,18 +212,30 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		stopRecording()
 	}, [stopRecording, disabled, isProcessing])
 
-	const iconAnimation = isProcessing ? "animate-spin" : ""
-	const iconAdjustment = isProcessing ? "mt-0" : error ? "mt-1" : "mt-0.5"
+	const iconAnimation = isProcessing || isStarting ? "animate-spin" : ""
+	const iconAdjustment = isProcessing || isStarting ? "mt-0" : error ? "mt-1" : "mt-0.5"
 	// When not recording, show single mic button
 	if (!isRecording) {
-		const iconClass = isProcessing ? "codicon-loading" : error ? "codicon-error" : "codicon-mic"
+		const iconClass = isProcessing
+			? "codicon-loading"
+			: isStarting
+				? "codicon-loading"
+				: error
+					? "codicon-error"
+					: "codicon-mic"
 		const iconColor = error ? "text-error" : ""
-		const tooltipContent = isProcessing ? "Transcribing..." : error ? `Error: ${error}` : null
+		const tooltipContent = isProcessing
+			? "Transcribing..."
+			: isStarting
+				? "Starting recording..."
+				: error
+					? `Error: ${error}`
+					: null
 
 		return (
 			<HeroTooltip content={tooltipContent} placement="top">
 				<div
-					className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing ? "disabled" : ""}`}
+					className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing || isStarting ? "disabled" : ""}`}
 					onClick={handleStartClick}
 					style={{ color: iconColor }}>
 					<span className={`codicon ${iconClass}`} />
