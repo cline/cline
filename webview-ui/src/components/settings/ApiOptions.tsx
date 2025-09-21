@@ -48,17 +48,6 @@ import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 
 // OpenAI-compatible provider presets (kept scoped to ApiOptions)
-type OpenAICompatiblePreset = {
-	provider: "openai"
-	defaults?: { openAiBaseUrl?: string }
-}
-
-const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
-	portkey: {
-		provider: "openai",
-		defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
-	},
-}
 
 // Determine which preset matches a given OpenAI-compatible base URL (minimal heuristic)
 function matchPresetFromBaseUrl(openAiBaseUrl?: string): string | null {
@@ -115,9 +104,8 @@ function mapOptionToProviderAndDefaults(optionValue: string): {
 	provider: string
 	defaults?: { openAiBaseUrl?: string }
 } {
-	const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
-	if (preset) {
-		return { provider: preset.provider, defaults: preset.defaults }
+	if (optionValue === "portkey") {
+		return { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } }
 	}
 	return { provider: optionValue }
 }
