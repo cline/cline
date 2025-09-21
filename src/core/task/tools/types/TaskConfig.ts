@@ -1,19 +1,11 @@
 import type { ApiHandler } from "@core/api"
-import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import type { BrowserSession } from "@services/browser/BrowserSession"
-import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import type { McpHub } from "@services/mcp/McpHub"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
@@ -35,10 +27,6 @@ export interface TaskConfig {
 	yoloModeToggled: boolean
 	context: vscode.ExtensionContext
 
-	// Multi-workspace support (optional for backward compatibility)
-	workspaceManager?: WorkspaceRootManager
-	isMultiRootEnabled?: boolean
-
 	// State management
 	taskState: TaskState
 	messageState: MessageStateHandler
@@ -50,8 +38,6 @@ export interface TaskConfig {
 	// Settings
 	autoApprovalSettings: AutoApprovalSettings
 	autoApprover: AutoApprove
-	browserSettings: BrowserSettings
-	focusChainSettings: FocusChainSettings
 
 	// Callbacks (strongly typed)
 	callbacks: TaskCallbacks
@@ -64,12 +50,7 @@ export interface TaskConfig {
  * All services available to tool handlers
  */
 export interface TaskServices {
-	mcpHub: McpHub
-	browserSession: BrowserSession
-	urlContentFetcher: UrlContentFetcher
 	diffViewProvider: DiffViewProvider
-	fileContextTracker: FileContextTracker
-	clineIgnoreController: ClineIgnoreController
 	contextManager: ContextManager
 	stateManager: StateManager
 }
@@ -91,17 +72,9 @@ export interface TaskCallbacks {
 		files?: string[]
 	}>
 
-	saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>
-
 	sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>
 
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
-
-	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
-
-	doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>
-
-	updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>
 
 	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
 	shouldAutoApproveToolWithPath: (toolName: ClineDefaultTool, path?: string) => Promise<boolean>
@@ -111,8 +84,6 @@ export interface TaskCallbacks {
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
 	updateTaskHistory: (update: any) => Promise<any[]>
-
-	applyLatestBrowserSettings: () => Promise<BrowserSession>
 
 	switchToActMode: () => Promise<boolean>
 }

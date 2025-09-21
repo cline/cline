@@ -8,7 +8,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -16,7 +15,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class ListFilesToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.LIST_FILES
 
-	constructor(private validator: ToolValidator) {}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.path}']`
@@ -55,13 +54,6 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const recursiveRaw: string | undefined = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
 
-		// Validate required parameters
-		const pathValidation = this.validator.assertRequiredParams(block, "path")
-		if (!pathValidation.ok) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
-		}
-
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
@@ -72,7 +64,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 
-		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
+		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit)
 
 		// Handle approval flow
 		const sharedMessageProps = {

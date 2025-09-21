@@ -6,10 +6,7 @@ import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
-export async function parseSourceCodeForDefinitionsTopLevel(
-	dirPath: string,
-	clineIgnoreController?: ClineIgnoreController,
-): Promise<string> {
+export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
 	// check if the path exists
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
 	if (!dirExists) {
@@ -29,11 +26,8 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	// Parse specific files we have language parsers for
 	// const filesWithoutDefinitions: string[] = []
 
-	// Filter filepaths for access if controller is provided
-	const allowedFilesToParse = clineIgnoreController ? clineIgnoreController.filterPaths(filesToParse) : filesToParse
-
-	for (const filePath of allowedFilesToParse) {
-		const definitions = await parseFile(filePath, languageParsers, clineIgnoreController)
+	for (const filePath of filesToParse) {
+		const definitions = await parseFile(filePath, languageParsers)
 		if (definitions) {
 			result += `${path.relative(dirPath, filePath).toPosix()}\n${definitions}\n`
 		}

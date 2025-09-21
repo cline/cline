@@ -9,7 +9,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -17,7 +16,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class SearchFilesToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.SEARCH
 
-	constructor(private validator: ToolValidator) {}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.regex}'${
@@ -60,13 +59,6 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const regex: string | undefined = block.params.regex
 		const filePattern: string | undefined = block.params.file_pattern
 
-		// Validate required parameters
-		const pathValidation = this.validator.assertRequiredParams(block, "path")
-		if (!pathValidation.ok) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
-		}
-
 		if (!regex) {
 			config.taskState.consecutiveMistakeCount++
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "regex")
@@ -79,13 +71,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
 
 		// Execute the actual regex search operation
-		const results = await regexSearchFiles(
-			config.cwd,
-			absolutePath,
-			regex,
-			filePattern,
-			config.services.clineIgnoreController,
-		)
+		const results = await regexSearchFiles(config.cwd, absolutePath, regex, filePattern)
 		const sharedMessageProps = {
 			tool: "searchFiles",
 			path: getReadablePath(config.cwd, relDirPath!),

@@ -1,8 +1,8 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
+import { UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -27,13 +27,6 @@ export const BrowserSettingsMenu = () => {
 		;(async () => {
 			try {
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
-				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
-				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
-				setConnectionInfo({
-					isConnected: info.isConnected,
-					isRemote: info.isRemote,
-					host: info.host,
-				})
 			} catch (error) {
 				console.error("Error fetching browser connection info:", error)
 			}
@@ -81,18 +74,7 @@ export const BrowserSettingsMenu = () => {
 
 		// Request updated connection info when opening the popover using gRPC
 		if (!showInfoPopover) {
-			const fetchConnectionInfo = async () => {
-				try {
-					const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
-					setConnectionInfo({
-						isConnected: info.isConnected,
-						isRemote: info.isRemote,
-						host: info.host,
-					})
-				} catch (error) {
-					console.error("Error fetching browser connection info:", error)
-				}
-			}
+			const fetchConnectionInfo = async () => {}
 
 			fetchConnectionInfo()
 		}
@@ -121,18 +103,7 @@ export const BrowserSettingsMenu = () => {
 	// Check connection status every second to keep icon in sync using gRPC
 	useEffect(() => {
 		// Function to fetch connection info
-		const fetchConnectionInfo = async () => {
-			try {
-				const info = await BrowserServiceClient.getBrowserConnectionInfo(EmptyRequest.create({}))
-				setConnectionInfo({
-					isConnected: info.isConnected,
-					isRemote: info.isRemote,
-					host: info.host,
-				})
-			} catch (error) {
-				console.error("Error fetching browser connection info:", error)
-			}
-		}
+		const fetchConnectionInfo = async () => {}
 
 		// Request connection info immediately
 		fetchConnectionInfo()

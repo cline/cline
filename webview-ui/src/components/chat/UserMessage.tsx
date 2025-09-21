@@ -1,10 +1,8 @@
-import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { highlightText } from "./task-header/TaskHeader"
 
 interface UserMessageProps {
@@ -44,22 +42,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 		if (text === editedText) {
 			return
-		}
-
-		try {
-			await CheckpointsServiceClient.checkpointRestore(
-				CheckpointRestoreRequest.create({
-					number: messageTs,
-					restoreType: type,
-					offset: 1,
-				}),
-			)
-
-			setTimeout(() => {
-				sendMessageFromChatRow?.(editedText, images || [], files || [])
-			}, delay)
-		} catch (err) {
-			console.error("Checkpoint restore error:", err)
 		}
 	}
 

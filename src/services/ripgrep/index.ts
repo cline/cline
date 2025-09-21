@@ -1,4 +1,3 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
@@ -98,13 +97,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 	})
 }
 
-export async function regexSearchFiles(
-	cwd: string,
-	directoryPath: string,
-	regex: string,
-	filePattern?: string,
-	clineIgnoreController?: ClineIgnoreController,
-): Promise<string> {
+export async function regexSearchFiles(cwd: string, directoryPath: string, regex: string, filePattern?: string): Promise<string> {
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
 	let output: string
@@ -149,12 +142,7 @@ export async function regexSearchFiles(
 		results.push(currentResult as SearchResult)
 	}
 
-	// Filter results using ClineIgnoreController if provided
-	const filteredResults = clineIgnoreController
-		? results.filter((result) => clineIgnoreController.validateAccess(result.filePath))
-		: results
-
-	return formatResults(filteredResults, cwd)
+	return formatResults(results, cwd)
 }
 
 const MAX_RIPGREP_MB = 0.25

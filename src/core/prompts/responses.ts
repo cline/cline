@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
 import { Mode } from "@/shared/storage/types"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
+import { LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -87,12 +87,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		return formatImagesIntoBlocks(images)
 	},
 
-	formatFilesList: (
-		absolutePath: string,
-		files: string[],
-		didHitLimit: boolean,
-		clineIgnoreController?: ClineIgnoreController,
-	): string => {
+	formatFilesList: (absolutePath: string, files: string[], didHitLimit: boolean): string => {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
@@ -124,29 +119,14 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const clineIgnoreParsed = clineIgnoreController
-			? sorted.map((filePath) => {
-					// path is relative to absolute path, not cwd
-					// validateAccess expects either path relative to cwd or absolute path
-					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
-					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
-					if (isIgnored) {
-						return LOCK_TEXT_SYMBOL + " " + filePath
-					}
-
-					return filePath
-				})
-			: sorted
-
 		if (didHitLimit) {
-			return `${clineIgnoreParsed.join(
+			return `${sorted.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
+		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
 			return "No files found."
 		} else {
-			return clineIgnoreParsed.join("\n")
+			return sorted.join("\n")
 		}
 	},
 

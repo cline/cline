@@ -9,7 +9,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -17,7 +16,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
-	constructor(private validator: ToolValidator) {}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.path}']`
@@ -50,20 +49,6 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		const relPath: string | undefined = block.params.path
-
-		// Validate required parameters
-		const pathValidation = this.validator.assertRequiredParams(block, "path")
-		if (!pathValidation.ok) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
-		}
-
-		// Check clineignore access
-		const accessValidation = this.validator.checkClineIgnorePath(relPath!)
-		if (!accessValidation.ok) {
-			await config.callbacks.say("clineignore_error", relPath)
-			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath!))
-		}
 
 		config.taskState.consecutiveMistakeCount = 0
 
@@ -115,9 +100,6 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
 		const fileContent = await extractFileContent(absolutePath, supportsImages)
-
-		// Track file read operation
-		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {

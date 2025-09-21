@@ -198,16 +198,9 @@ export class Controller {
 
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
-		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
-		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
@@ -229,18 +222,6 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
-		let focusChainEnabled: boolean
-		if (focusChainSettings?.enabled === false) {
-			focusChainEnabled = false
-		} else {
-			focusChainEnabled = Boolean(focusChainSettings?.enabled)
-		}
-
-		const effectiveFocusChainSettings = {
-			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
-			enabled: focusChainEnabled,
-		}
 
 		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
 		this.workspaceManager = await setupWorkspaceManager({
@@ -248,33 +229,24 @@ export class Controller {
 			detectRoots: detectWorkspaceRoots,
 		})
 
-		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+		const cwd = await getCwd(getDesktopDir())
 
 		this.task = new Task(
 			this,
-			this.mcpHub,
 			(historyItem) => this.updateTaskHistory(historyItem),
 			() => this.postStateToWebview(),
 			(taskId) => this.reinitExistingTaskFromId(taskId),
 			() => this.cancelTask(),
 			apiConfiguration,
 			autoApprovalSettings,
-			browserSettings,
-			effectiveFocusChainSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled ?? true,
 			yoloModeToggled,
 			useAutoCondense ?? false,
-			shellIntegrationTimeout,
-			terminalReuseEnabled ?? true,
-			terminalOutputLineLimit ?? 500,
-			defaultTerminalProfile ?? "default",
-			enableCheckpointsSetting ?? true,
 			cwd,
 			this.stateManager,
-			this.workspaceManager,
 			task,
 			images,
 			files,

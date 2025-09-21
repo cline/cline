@@ -13,7 +13,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
@@ -22,7 +21,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class WriteToFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
 
-	constructor(private validator: ToolValidator) {}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.path}']`
@@ -238,24 +237,17 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				}
 			}
 
-			// Mark the file as edited by Cline
-			config.services.fileContextTracker.markFileAsEditedByCline(relPath)
-
 			// Save the changes and get the result
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 				await config.services.diffViewProvider.saveChanges()
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
-			// Track file edit operation
-			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
-
 			// Reset the diff view
 			await config.services.diffViewProvider.reset()
 
 			// Handle user edits if any
 			if (userEdits) {
-				await config.services.fileContextTracker.trackFileContext(relPath, "user_edited")
 				await config.callbacks.say(
 					"user_feedback_diff",
 					JSON.stringify({
@@ -303,28 +295,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string"
 				? { absolutePath: pathResult, resolvedPath: relPath }
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
-
-		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
-		if (!accessValidation.ok) {
-			// Show error and return early (full original behavior)
-			await config.callbacks.say("clineignore_error", resolvedPath)
-
-			// Push tool result and save checkpoint using existing utilities
-			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
-			ToolResultUtils.pushToolResult(
-				errorResponse,
-				block,
-				config.taskState.userMessageContent,
-				ToolDisplayUtils.getToolDescription,
-				config.api,
-				() => {
-					config.taskState.didAlreadyUseTool = true
-				},
-				config.coordinator,
-			)
-			return
-		}
 
 		// Check if file exists to determine the correct UI message
 		let fileExists: boolean

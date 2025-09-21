@@ -8,7 +8,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -16,7 +15,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.LIST_CODE_DEF
 
-	constructor(private validator: ToolValidator) {}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.path}']`
@@ -50,13 +49,6 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		const relDirPath: string | undefined = block.params.path
 
-		// Validate required parameters
-		const pathValidation = this.validator.assertRequiredParams(block, "path")
-		if (!pathValidation.ok) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
-		}
-
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
@@ -65,7 +57,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
 		// Execute the actual parse source code operation
-		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
+		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
 
 		// Handle approval flow
 		const sharedMessageProps = {

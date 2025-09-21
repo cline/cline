@@ -1,12 +1,9 @@
-import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
-import { Int64Request } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckpointOverlayProps {
 	messageTs?: number
@@ -43,47 +40,14 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 
 	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
-		try {
-			await CheckpointsServiceClient.checkpointRestore(
-				CheckpointRestoreRequest.create({
-					number: messageTs,
-					restoreType: "task",
-				}),
-			)
-		} catch (err) {
-			console.error("Checkpoint restore task error:", err)
-			setRestoreTaskDisabled(false)
-		}
 	}
 
 	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
-		try {
-			await CheckpointsServiceClient.checkpointRestore(
-				CheckpointRestoreRequest.create({
-					number: messageTs,
-					restoreType: "workspace",
-				}),
-			)
-		} catch (err) {
-			console.error("Checkpoint restore workspace error:", err)
-			setRestoreWorkspaceDisabled(false)
-		}
 	}
 
 	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
-		try {
-			await CheckpointsServiceClient.checkpointRestore(
-				CheckpointRestoreRequest.create({
-					number: messageTs,
-					restoreType: "taskAndWorkspace",
-				}),
-			)
-		} catch (err) {
-			console.error("Checkpoint restore both error:", err)
-			setRestoreBothDisabled(false)
-		}
 	}
 
 	const handleMouseEnter = () => {
@@ -123,20 +87,6 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 			<VSCodeButton
 				appearance="secondary"
 				disabled={compareDisabled}
-				onClick={async () => {
-					setCompareDisabled(true)
-					try {
-						await CheckpointsServiceClient.checkpointDiff(
-							Int64Request.create({
-								value: messageTs,
-							}),
-						)
-					} catch (err) {
-						console.error("CheckpointDiff error:", err)
-					} finally {
-						setCompareDisabled(false)
-					}
-				}}
 				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
 				title="Compare">
 				<i className="codicon codicon-diff-multiple" style={{ position: "absolute" }} />

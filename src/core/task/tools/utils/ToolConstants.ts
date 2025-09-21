@@ -23,8 +23,6 @@ export const TASK_CONFIG_KEYS = [
 	"services",
 	"autoApprovalSettings",
 	"autoApprover",
-	"browserSettings",
-	"focusChainSettings",
 	"callbacks",
 	"coordinator",
 ] as const
@@ -33,16 +31,7 @@ export const TASK_CONFIG_KEYS = [
  * Expected keys for TaskServices interface validation
  * Keep this in sync with the TaskServices interface
  */
-export const TASK_SERVICES_KEYS = [
-	"mcpHub",
-	"browserSession",
-	"urlContentFetcher",
-	"diffViewProvider",
-	"fileContextTracker",
-	"clineIgnoreController",
-	"contextManager",
-	"stateManager",
-] as const
+export const TASK_SERVICES_KEYS = ["diffViewProvider", "contextManager", "stateManager"] as const
 
 /**
  * Expected keys for TaskCallbacks interface validation
@@ -51,12 +40,9 @@ export const TASK_SERVICES_KEYS = [
 export const TASK_CALLBACKS_KEYS = [
 	"say",
 	"ask",
-	"saveCheckpoint",
 	"sayAndCreateMissingParamError",
 	"removeLastPartialMessageIfExistsWithType",
-	"executeCommandTool",
-	"doesLatestTaskCompletionHaveNewChanges",
-	"updateFCListFromToolResponse",
+	"shouldAutoApproveTool",
 	"shouldAutoApproveToolWithPath",
 	"postStateToWebview",
 	"reinitExistingTaskFromId",

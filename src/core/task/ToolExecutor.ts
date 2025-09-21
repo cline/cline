@@ -1,48 +1,32 @@
 import { ApiHandler } from "@core/api"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { McpHub } from "@services/mcp/McpHub"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
-import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
-import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
-import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
-import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
-import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
 import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
-import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
-import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
-import { ToolValidator } from "./tools/ToolValidator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { createUIHelpers } from "./tools/types/UIHelpers"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
@@ -70,29 +54,18 @@ export class ToolExecutor {
 		private taskState: TaskState,
 		private messageStateHandler: MessageStateHandler,
 		private api: ApiHandler,
-		private urlContentFetcher: UrlContentFetcher,
-		private browserSession: BrowserSession,
 		private diffViewProvider: DiffViewProvider,
-		private mcpHub: McpHub,
-		private fileContextTracker: FileContextTracker,
-		private clineIgnoreController: ClineIgnoreController,
 		private contextManager: ContextManager,
 		private stateManager: StateManager,
 
 		// Configuration & Settings
 		private autoApprovalSettings: AutoApprovalSettings,
-		private browserSettings: BrowserSettings,
-		private focusChainSettings: FocusChainSettings,
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
 		private mode: Mode,
 		private strictPlanModeEnabled: boolean,
 		private yoloModeToggled: boolean,
-
-		// Workspace Management
-		private workspaceManager: WorkspaceRootManager | undefined,
-		private isMultiRootEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -112,12 +85,8 @@ export class ToolExecutor {
 			images?: string[]
 			files?: string[]
 		}>,
-		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
-		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
-		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
-		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
 	) {
 		this.autoApprover = new AutoApprove(autoApprovalSettings, yoloModeToggled)
@@ -138,41 +107,27 @@ export class ToolExecutor {
 			strictPlanModeEnabled: this.strictPlanModeEnabled,
 			yoloModeToggled: this.yoloModeToggled,
 			cwd: this.cwd,
-			workspaceManager: this.workspaceManager,
-			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
 			api: this.api,
 			autoApprovalSettings: this.autoApprovalSettings,
 			autoApprover: this.autoApprover,
-			browserSettings: this.browserSettings,
-			focusChainSettings: this.focusChainSettings,
 			services: {
-				mcpHub: this.mcpHub,
-				browserSession: this.browserSession,
-				urlContentFetcher: this.urlContentFetcher,
 				diffViewProvider: this.diffViewProvider,
-				fileContextTracker: this.fileContextTracker,
-				clineIgnoreController: this.clineIgnoreController,
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
 			},
 			callbacks: {
 				say: this.say,
 				ask: this.ask,
-				saveCheckpoint: this.saveCheckpoint,
 				postStateToWebview: async () => {},
 				reinitExistingTaskFromId: async () => {},
 				cancelTask: async () => {},
 				updateTaskHistory: async (_: any) => [],
-				executeCommandTool: this.executeCommandTool,
-				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
-				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
 				removeLastPartialMessageIfExistsWithType: this.removeLastPartialMessageIfExistsWithType,
 				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
-				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 				switchToActMode: this.switchToActMode,
 			},
 			coordinator: this.coordinator,
@@ -187,27 +142,19 @@ export class ToolExecutor {
 	 * Register all tool handlers with the coordinator
 	 */
 	private registerToolHandlers(): void {
-		const validator = new ToolValidator(this.clineIgnoreController)
-
 		// Register all tool handlers
-		this.coordinator.register(new ListFilesToolHandler(validator))
-		this.coordinator.register(new ReadFileToolHandler(validator))
-		this.coordinator.register(new BrowserToolHandler())
+		this.coordinator.register(new ListFilesToolHandler())
+		this.coordinator.register(new ReadFileToolHandler())
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
-		this.coordinator.register(new WebFetchToolHandler())
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
-		const writeHandler = new WriteToFileToolHandler(validator)
+		const writeHandler = new WriteToFileToolHandler()
 		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
-		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
-		this.coordinator.register(new SearchFilesToolHandler(validator))
-		this.coordinator.register(new ExecuteCommandToolHandler(validator))
-		this.coordinator.register(new UseMcpToolHandler())
-		this.coordinator.register(new AccessMcpResourceHandler())
-		this.coordinator.register(new LoadMcpDocumentationHandler())
+		this.coordinator.register(new ListCodeDefinitionNamesToolHandler())
+		this.coordinator.register(new SearchFilesToolHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
@@ -241,22 +188,6 @@ export class ToolExecutor {
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
 		await this.execute(block)
-	}
-
-	/**
-	 * Updates the browser settings
-	 */
-	public async applyLatestBrowserSettings() {
-		if (this.context) {
-			await this.browserSession.dispose()
-			const apiHandlerModel = this.api.getModel()
-			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
-		} else {
-			console.warn("no controller context available for browserSession")
-		}
-
-		return this.browserSession
 	}
 
 	/**
@@ -330,13 +261,7 @@ export class ToolExecutor {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.say("error", errorMessage)
 				this.pushToolResult(formatResponse.toolError(errorMessage), block)
-				await this.saveCheckpoint()
 				return true
-			}
-
-			// Close browser for non-browser tools
-			if (block.name !== "browser_action") {
-				await this.browserSession.closeBrowser()
 			}
 
 			// Handle partial blocks
@@ -347,11 +272,9 @@ export class ToolExecutor {
 
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
-			await this.saveCheckpoint()
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
-			await this.saveCheckpoint()
 			return true
 		}
 	}
@@ -397,10 +320,5 @@ export class ToolExecutor {
 		const result = await this.coordinator.execute(config, block)
 
 		this.pushToolResult(result, block)
-
-		// Handle focus chain updates
-		if (!block.partial && this.focusChainSettings.enabled) {
-			await this.updateFCListFromToolResponse(block.params.task_progress)
-		}
 	}
 }
