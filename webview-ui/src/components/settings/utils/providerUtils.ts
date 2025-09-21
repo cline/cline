@@ -620,7 +620,7 @@ export async function syncModeConfigurations(
 			updates.planModeOcaModelId = sourceFields.ocaModelId
 			updates.actModeOcaModelId = sourceFields.ocaModelId
 			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
-			updates.actModeVercelAiGatewayModelInfo = sourceFields.ocaModelInfo
+			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields
