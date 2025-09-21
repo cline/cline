@@ -1,8 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
-import { detectWorkspaceRoots } from "@core/workspace/detection"
-import { setupWorkspaceManager } from "@core/workspace/setup"
-import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -58,9 +55,6 @@ export class Controller {
 	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
-
-	// NEW: Add workspace manager (optional initially)
-	private workspaceManager?: WorkspaceRootManager
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -222,12 +216,6 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-
-		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
-		this.workspaceManager = await setupWorkspaceManager({
-			stateManager: this.stateManager,
-			detectRoots: detectWorkspaceRoots,
-		})
 
 		const cwd = await getCwd(getDesktopDir())
 
