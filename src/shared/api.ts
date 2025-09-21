@@ -36,6 +36,7 @@ export type ApiProvider =
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
+	| "oca"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -117,6 +118,7 @@ export interface ApiHandlerOptions {
 	difyBaseUrl?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	ocaBaseUrl?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -149,6 +151,9 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeVercelAiGatewayModelId?: string
 	planModeVercelAiGatewayModelInfo?: ModelInfo
+	planModeOcaModelId?: string
+	planModeOcaModelInfo?: OcaModelInfo
+	// Act mode configurations
 
 	// Act mode configurations
 	actModeApiModelId?: string
@@ -181,6 +186,8 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeVercelAiGatewayModelId?: string
 	actModeVercelAiGatewayModelInfo?: ModelInfo
+	actModeOcaModelId?: string
+	actModeOcaModelInfo?: OcaModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -224,6 +231,13 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+}
+
+export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
+	modelName: string
+	surveyId?: string
+	banner?: string
+	surveyContent?: string
 }
 
 export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
@@ -580,16 +594,16 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-// Cline custom model - sonic (same config as grok-4)
-export const clineMicrowaveAlphaModelInfo: ModelInfo = {
-	contextWindow: 262144,
-	supportsImages: false,
+// Cline custom model - code-supernova
+export const clineCodeSupernovaModelInfo: ModelInfo = {
+	contextWindow: 200000,
+	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
 	cacheReadsPrice: 0,
-	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
-	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
+	cacheWritesPrice: 0,
+	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
