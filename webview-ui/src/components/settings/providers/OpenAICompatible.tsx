@@ -150,14 +150,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					.then((resp) => {
 						const fetched = resp?.values ?? []
 						setAvailableModels(fetched)
-						// If we fetched models and none is selected yet, prefill with the first.
-						if (fetched.length > 0 && !selectedModelId) {
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-								fetched[0],
-								currentMode,
-							)
-						}
 					})
 					.catch((error) => {
 						console.error("Failed to refresh OpenAI models:", error)
@@ -344,7 +336,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							})()}
 							<VSCodeDropdown
 								id="openai-compatible-model-id"
-								key={selectedModelId || "empty"}
+								key={`${selectedModelId || "empty"}-${availableModels.length}`}
 								onChange={(e: any) => {
 									const value = e.target.value
 									// Record picked value first for immediate visual feedback
@@ -484,21 +476,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							)
 						}}>
 						Supports Images
-					</VSCodeCheckbox>
-
-					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo.supportsImages = isChecked
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
-						}}>
-						Supports browser use
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
