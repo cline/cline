@@ -687,6 +687,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
+		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
@@ -733,6 +734,12 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 
+		// Set feature flag in dictation settings
+		const updatedDictationSettings = {
+			...dictationSettings,
+			featureEnabled: true, // Currently hardcoded, was: featureFlagsService.getBooleanFlagEnabled(FeatureFlag.DICTATION, true)
+		}
+
 		return {
 			version,
 			apiConfiguration,
@@ -743,6 +750,7 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
+			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
