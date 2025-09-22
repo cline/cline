@@ -69,13 +69,21 @@ jobs:
               run: cd webview-ui && npm ci
 
             # Ensure Windows has the PowerShell CredentialManager module for keychain tests
-            - name: Install CredentialManager module (Windows)
+            - name: Install CredentialManager module (Windows, pwsh)
               if: runner.os == 'Windows'
               shell: pwsh
               run: |
-                  Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-                  Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-                  Install-Module -Name CredentialManager -Scope CurrentUser -Force -AllowClobber
+                  $ErrorActionPreference = 'Stop'
+                  $ProgressPreference = 'SilentlyContinue'
+                  try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13 } catch {}
+                  Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
+                  Find-PackageProvider -Name NuGet -ForceBootstrap -IncludeDependencies -Verbose | Out-Null
+                  if (-not (Get-PackageProvider -ListAvailable -Name NuGet)) {
+                    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Verbose
+                  }
+                  try { Install-Module -Name PowerShellGet -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue } catch {}
+                  try { Install-Module -Name PackageManagement -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue } catch {}
+                  Install-Module -Name CredentialManager -Scope CurrentUser -Force -AllowClobber -Verbose
                   Import-Module CredentialManager
 
             # Also install for Windows PowerShell (powershell.exe), which our code invokes
@@ -83,9 +91,17 @@ jobs:
               if: runner.os == 'Windows'
               shell: powershell
               run: |
-                  Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-                  Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-                  Install-Module -Name CredentialManager -Scope CurrentUser -Force -AllowClobber
+                  $ErrorActionPreference = 'Stop'
+                  $ProgressPreference = 'SilentlyContinue'
+                  try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13 } catch {}
+                  Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
+                  Find-PackageProvider -Name NuGet -ForceBootstrap -IncludeDependencies -Verbose | Out-Null
+                  if (-not (Get-PackageProvider -ListAvailable -Name NuGet)) {
+                    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Verbose
+                  }
+                  try { Install-Module -Name PowerShellGet -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue } catch {}
+                  try { Install-Module -Name PackageManagement -Force -AllowClobber -Scope CurrentUser -ErrorAction SilentlyContinue } catch {}
+                  Install-Module -Name CredentialManager -Scope CurrentUser -Force -AllowClobber -Verbose
                   Import-Module CredentialManager
 
             # Sanity check: verify module/cmdlets exist in both shells
