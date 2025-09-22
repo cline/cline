@@ -7,7 +7,6 @@ import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
 	getGlobalClineRules,
 	getLocalClineRules,
@@ -68,6 +67,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
+import { recordModelUsage } from "@/core/context/context-tracking/model-context-tracking"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -119,7 +119,6 @@ export class Task {
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
-	private modelContextTracker: ModelContextTracker
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
@@ -258,7 +257,6 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 
 		// Initialize focus chain manager only if enabled
 		if (this.focusChainSettings.enabled) {
@@ -1689,7 +1687,13 @@ export class Task {
 		const { model, providerId, customPrompt } = this.getCurrentProviderInfo()
 		if (providerId && model.id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(providerId, model.id, this.mode)
+				await recordModelUsage(
+					this.controller.context,
+					this.taskId,
+					providerId,
+					model.id,
+					this.stateManager.getGlobalSettingsKey("mode"),
+				)
 			} catch {}
 		}
 
