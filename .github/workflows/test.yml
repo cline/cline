@@ -161,6 +161,7 @@ jobs:
                       webview-ui/coverage/lcov.info
 
     test-platform-integration:
+        needs: quality-checks
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
