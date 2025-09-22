@@ -34,35 +34,17 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: 22
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                node-version: 22
+                cache: 'npm'
+                cache-dependency-path: |
+                  package-lock.json
+                  webview-ui/package-lock.json
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
-
-            - name: Install xvfb on Linux
-              if: runner.os == 'Linux'
-              run: sudo apt-get update && sudo apt-get install -y xvfb
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -87,7 +69,6 @@ jobs:
               continue-on-error: true
               if: runner.os == 'Linux'
               run: |
-                  npm install --no-save nyc
                   npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
             - name: Unit Tests - Non-Linux
@@ -114,8 +95,6 @@ jobs:
               continue-on-error: true
               run: |
                   cd webview-ui
-                  # Ensure coverage dependency is installed
-                  npm install --no-save @vitest/coverage-v8
                   npm run test:coverage
 
             - name: Check Test Results
@@ -150,8 +129,6 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0 # Fetch all history for accurate comparison
 
             - name: Download Coverage Reports
               uses: actions/download-artifact@v4
