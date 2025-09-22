@@ -153,10 +153,11 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			const duration = Date.now() - startTime
-			// First retry should be after baseDelay (10ms)
-			duration.should.be.approximately(10, 10)
 			callCount.should.equal(2)
+			const duration = Date.now() - startTime
+			// Verify reasonable timing: delay should be at least baseDelay but not excessive
+			duration.should.be.greaterThanOrEqual(10)
+			duration.should.be.lessThan(100)
 			result.should.deepEqual(["success after retry"])
 		})
 

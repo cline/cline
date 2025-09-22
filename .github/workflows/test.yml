@@ -182,7 +182,7 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                      coverage-unit/lcov.info
+                    coverage-unit/lcov.info
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
@@ -191,6 +191,6 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                      webview-ui/coverage/lcov.info
+                    webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
