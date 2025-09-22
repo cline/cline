@@ -1,22 +1,24 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
-import { rooDefaultModelId, rooModels, type RooModelId } from "@roo-code/types"
+import { AuthState, rooDefaultModelId, rooModels, type RooModelId } from "@roo-code/types"
 import { CloudService } from "@roo-code/cloud"
 
 import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
 import type { ApiHandlerCreateMessageMetadata } from "../index"
+import { DEFAULT_HEADERS } from "./constants"
 import { BaseOpenAiCompatibleProvider } from "./base-openai-compatible-provider"
 
 export class RooHandler extends BaseOpenAiCompatibleProvider<RooModelId> {
+	private authStateListener?: (state: { state: AuthState }) => void
+
 	constructor(options: ApiHandlerOptions) {
-		// Get the session token if available, but don't throw if not.
-		// The server will handle authentication errors and return appropriate status codes.
-		let sessionToken = ""
+		let sessionToken: string | undefined = undefined
 
 		if (CloudService.hasInstance()) {
-			sessionToken = CloudService.instance.authService?.getSessionToken() || ""
+			sessionToken = CloudService.instance.authService?.getSessionToken()
 		}
 
 		// Always construct the handler, even without a valid token.
@@ -25,11 +27,39 @@ export class RooHandler extends BaseOpenAiCompatibleProvider<RooModelId> {
 			...options,
 			providerName: "Roo Code Cloud",
 			baseURL: process.env.ROO_CODE_PROVIDER_URL ?? "https://api.roocode.com/proxy/v1",
-			apiKey: sessionToken || "unauthenticated", // Use a placeholder if no token
+			apiKey: sessionToken || "unauthenticated", // Use a placeholder if no token.
 			defaultProviderModelId: rooDefaultModelId,
 			providerModels: rooModels,
 			defaultTemperature: 0.7,
 		})
+
+		if (CloudService.hasInstance()) {
+			const cloudService = CloudService.instance
+
+			this.authStateListener = (state: { state: AuthState }) => {
+				if (state.state === "active-session") {
+					this.client = new OpenAI({
+						baseURL: this.baseURL,
+						apiKey: cloudService.authService?.getSessionToken() ?? "unauthenticated",
+						defaultHeaders: DEFAULT_HEADERS,
+					})
+				} else if (state.state === "logged-out") {
+					this.client = new OpenAI({
+						baseURL: this.baseURL,
+						apiKey: "unauthenticated",
+						defaultHeaders: DEFAULT_HEADERS,
+					})
+				}
+			}
+
+			cloudService.on("auth-state-changed", this.authStateListener)
+		}
+	}
+
+	dispose() {
+		if (this.authStateListener && CloudService.hasInstance()) {
+			CloudService.instance.off("auth-state-changed", this.authStateListener)
+		}
 	}
 
 	override async *createMessage(

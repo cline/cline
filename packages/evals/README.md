@@ -95,7 +95,7 @@ By default, the evals system uses the following ports:
 
 - **PostgreSQL**: 5433 (external) → 5432 (internal)
 - **Redis**: 6380 (external) → 6379 (internal)
-- **Web Service**: 3446 (external) → 3000 (internal)
+- **Web Service**: 3446 (external) → 3446 (internal)
 
 These ports are configured to avoid conflicts with other services that might be running on the standard PostgreSQL (5432) and Redis (6379) ports.
 

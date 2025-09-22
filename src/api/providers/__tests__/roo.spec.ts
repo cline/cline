@@ -36,26 +36,12 @@ vitest.mock("openai", () => {
 						return {
 							[Symbol.asyncIterator]: async function* () {
 								yield {
-									choices: [
-										{
-											delta: { content: "Test response" },
-											index: 0,
-										},
-									],
+									choices: [{ delta: { content: "Test response" }, index: 0 }],
 									usage: null,
 								}
 								yield {
-									choices: [
-										{
-											delta: {},
-											index: 0,
-										},
-									],
-									usage: {
-										prompt_tokens: 10,
-										completion_tokens: 5,
-										total_tokens: 15,
-									},
+									choices: [{ delta: {}, index: 0 }],
+									usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
 								}
 							},
 						}
@@ -73,6 +59,7 @@ const mockHasInstance = vitest.fn()
 // Create mock functions that we can control
 const mockGetSessionTokenFn = vitest.fn()
 const mockHasInstanceFn = vitest.fn()
+const mockOnFn = vitest.fn()
 
 vitest.mock("@roo-code/cloud", () => ({
 	CloudService: {
@@ -82,6 +69,8 @@ vitest.mock("@roo-code/cloud", () => ({
 				authService: {
 					getSessionToken: () => mockGetSessionTokenFn(),
 				},
+				on: vitest.fn(),
+				off: vitest.fn(),
 			}
 		},
 	},
@@ -409,11 +398,18 @@ describe("RooHandler", () => {
 		it("should handle undefined auth service gracefully", () => {
 			mockHasInstanceFn.mockReturnValue(true)
 			// Mock CloudService with undefined authService
-			const originalGetter = Object.getOwnPropertyDescriptor(CloudService, "instance")?.get
+			const originalGetSessionToken = mockGetSessionTokenFn.getMockImplementation()
+
+			// Temporarily make authService return undefined
+			mockGetSessionTokenFn.mockImplementation(() => undefined)
 
 			try {
 				Object.defineProperty(CloudService, "instance", {
-					get: () => ({ authService: undefined }),
+					get: () => ({
+						authService: undefined,
+						on: vitest.fn(),
+						off: vitest.fn(),
+					}),
 					configurable: true,
 				})
 
@@ -424,12 +420,11 @@ describe("RooHandler", () => {
 				const handler = new RooHandler(mockOptions)
 				expect(handler).toBeInstanceOf(RooHandler)
 			} finally {
-				// Always restore original getter, even if test fails
-				if (originalGetter) {
-					Object.defineProperty(CloudService, "instance", {
-						get: originalGetter,
-						configurable: true,
-					})
+				// Restore original mock implementation
+				if (originalGetSessionToken) {
+					mockGetSessionTokenFn.mockImplementation(originalGetSessionToken)
+				} else {
+					mockGetSessionTokenFn.mockReturnValue("test-session-token")
 				}
 			}
 		})
