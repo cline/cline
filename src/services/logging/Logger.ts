@@ -32,7 +32,13 @@ export class Logger {
 		if (error?.message) {
 			fullMessage += ` ${error.message}`
 		}
-		HostProvider.get().logToChannel(`${level} ${fullMessage}`)
+		// During early startup, HostProvider may not be initialized yet.
+		// In that case, fall back to console logging instead of throwing.
+		try {
+			HostProvider.get().logToChannel(`${level} ${fullMessage}`)
+		} catch {
+			console.log(`${level} ${fullMessage}`)
+		}
 		if (error?.stack) {
 			console.log(`Stack trace:\n${error.stack}`)
 		}
