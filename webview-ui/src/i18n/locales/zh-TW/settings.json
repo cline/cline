@@ -134,6 +134,7 @@
 		"resetToDefault": "重設為預設值"
 	},
 	"autoApprove": {
+		"toggleShortcut": "您可以<SettingsLink>在 IDE 偏好設定中</SettingsLink>為此設定設定全域快捷鍵。",
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
 		"enabled": "自動核准已啟用",
 		"toggleAriaLabel": "切換自動核准",

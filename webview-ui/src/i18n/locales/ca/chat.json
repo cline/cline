@@ -253,6 +253,7 @@
 		"tooltipManage": "Gestiona la configuració d'aprovació automàtica",
 		"tooltipStatus": "Aprovació automàtica activada per a: {{toggles}}",
 		"title": "Aprovació automàtica",
+		"toggle": "Commuta l'aprovació automàtica",
 		"all": "Tot",
 		"none": "Cap",
 		"description": "Executa aquestes accions sense demanar permís. Activa-ho només per a accions de confiança.",

@@ -326,6 +326,18 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					}
 					break
 				}
+				case "action": {
+					if (message.action === "toggleAutoApprove") {
+						// Toggle the auto-approval state
+						setState((prevState) => {
+							const newValue = !(prevState.autoApprovalEnabled ?? false)
+							// Also send the update to the extension
+							vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
+							return { ...prevState, autoApprovalEnabled: newValue }
+						})
+					}
+					break
+				}
 				case "theme": {
 					if (message.text) {
 						setTheme(convertTextMateToHljs(JSON.parse(message.text)))

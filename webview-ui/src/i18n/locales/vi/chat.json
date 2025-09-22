@@ -254,6 +254,7 @@
 		"tooltipManage": "Quản lý cài đặt tự động phê duyệt",
 		"tooltipStatus": "Tự động phê duyệt được bật cho: {{toggles}}",
 		"title": "Tự động phê duyệt",
+		"toggle": "Bật/tắt tự động phê duyệt",
 		"all": "Tất cả",
 		"none": "Không có",
 		"description": "Thực hiện các hành động này mà không cần xin phép. Chỉ bật tính năng này cho các hành động bạn hoàn toàn tin tưởng.",

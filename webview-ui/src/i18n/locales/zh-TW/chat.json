@@ -278,6 +278,7 @@
 		"tooltipManage": "管理自動批准設定",
 		"tooltipStatus": "自動批准已啟用：{{toggles}}",
 		"title": "自動批准",
+		"toggle": "切換自動批准",
 		"all": "全部",
 		"none": "無",
 		"description": "無需請求權限即可執行這些操作。僅對您完全信任的操作啟用此功能。",

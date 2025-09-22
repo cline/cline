@@ -26,6 +26,7 @@
 	"command.terminal.fixCommand.title": "Repareer Dit Commando",
 	"command.terminal.explainCommand.title": "Leg Dit Commando Uit",
 	"command.acceptInput.title": "Invoer/Suggestie Accepteren",
+	"command.toggleAutoApprove.title": "Auto-Goedkeuring Schakelen",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Commando's die automatisch kunnen worden uitgevoerd wanneer 'Altijd goedkeuren uitvoerbewerkingen' is ingeschakeld",
 	"commands.deniedCommands.description": "Commando-prefixen die automatisch worden geweigerd zonder om goedkeuring te vragen. Bij conflicten met toegestane commando's heeft de langste prefix-match voorrang. Voeg * toe om alle commando's te weigeren.",

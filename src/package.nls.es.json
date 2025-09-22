@@ -14,6 +14,7 @@
 	"command.terminal.fixCommand.title": "Corregir Este Comando",
 	"command.terminal.explainCommand.title": "Explicar Este Comando",
 	"command.acceptInput.title": "Aceptar Entrada/Sugerencia",
+	"command.toggleAutoApprove.title": "Alternar Auto-Aprobación",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

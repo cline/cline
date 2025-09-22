@@ -253,6 +253,7 @@
 		"tooltipManage": "Administrar la configuración de aprobación automática",
 		"tooltipStatus": "Aprobación automática habilitada para: {{toggles}}",
 		"title": "Aprobación automática",
+		"toggle": "Alternar aprobación automática",
 		"all": "Todo",
 		"none": "Ninguno",
 		"description": "Ejecuta estas acciones sin pedir permiso. Habilita esto solo para acciones en las que confíes plenamente.",

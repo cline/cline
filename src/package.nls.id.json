@@ -26,6 +26,7 @@
 	"command.terminal.fixCommand.title": "Perbaiki Perintah Ini",
 	"command.terminal.explainCommand.title": "Jelaskan Perintah Ini",
 	"command.acceptInput.title": "Terima Input/Saran",
+	"command.toggleAutoApprove.title": "Alihkan Persetujuan Otomatis",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Perintah yang dapat dijalankan secara otomatis ketika 'Selalu setujui operasi eksekusi' diaktifkan",
 	"commands.deniedCommands.description": "Awalan perintah yang akan otomatis ditolak tanpa meminta persetujuan. Jika terjadi konflik dengan perintah yang diizinkan, pencocokan awalan terpanjang akan diprioritaskan. Tambahkan * untuk menolak semua perintah.",

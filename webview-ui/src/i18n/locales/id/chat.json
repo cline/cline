@@ -280,6 +280,7 @@
 		"tooltipManage": "Kelola pengaturan persetujuan otomatis",
 		"tooltipStatus": "Persetujuan otomatis diaktifkan untuk: {{toggles}}",
 		"title": "Setujui Otomatis",
+		"toggle": "Beralih persetujuan otomatis",
 		"all": "Semua",
 		"none": "Tidak ada",
 		"description": "Jalankan tindakan ini tanpa meminta izin. Hanya aktifkan untuk tindakan yang Anda percayai sepenuhnya.",

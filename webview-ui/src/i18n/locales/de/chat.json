@@ -253,6 +253,7 @@
 		"tooltipManage": "Einstellungen für die automatische Genehmigung verwalten",
 		"tooltipStatus": "Automatische Genehmigung aktiviert für: {{toggles}}",
 		"title": "Automatische Genehmigung",
+		"toggle": "Automatische Genehmigung umschalten",
 		"all": "Alle",
 		"none": "Keine",
 		"description": "Führe diese Aktionen aus, ohne um Erlaubnis zu fragen. Aktiviere dies nur für Aktionen, denen du voll vertraust.",

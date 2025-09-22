@@ -254,6 +254,7 @@
 		"tooltipManage": "Otomatik onay ayarlarını yönet",
 		"tooltipStatus": "Otomatik onay şunlar için etkinleştirildi: {{toggles}}",
 		"title": "Otomatik onayla",
+		"toggle": "Otomatik onayı aç/kapat",
 		"all": "Tümü",
 		"none": "Hiçbiri",
 		"description": "İzin istemeden bu eylemleri gerçekleştirin. Bunu yalnızca tamamen güvendiğiniz eylemler için etkinleştirin.",

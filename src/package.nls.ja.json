@@ -26,6 +26,7 @@
 	"command.terminal.fixCommand.title": "このコマンドを修正",
 	"command.terminal.explainCommand.title": "このコマンドを説明",
 	"command.acceptInput.title": "入力/提案を承認",
+	"command.toggleAutoApprove.title": "自動承認を切替",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "'常に実行操作を承認する'が有効な場合に自動実行できるコマンド",
 	"commands.deniedCommands.description": "承認を求めずに自動的に拒否されるコマンドプレフィックス。許可されたコマンドとの競合がある場合、最長プレフィックスマッチが優先されます。すべてのコマンドを拒否するには * を追加してください。",

@@ -134,6 +134,7 @@
 		"resetToDefault": "기본값으로 재설정"
 	},
 	"autoApprove": {
+		"toggleShortcut": "<SettingsLink>IDE 환경 설정</SettingsLink>에서 이 설정에 대한 전역 바로 가기를 구성할 수 있습니다.",
 		"description": "Roo가 승인 없이 자동으로 작업을 수행할 수 있도록 허용합니다. AI를 완전히 신뢰하고 관련 보안 위험을 이해하는 경우에만 이러한 설정을 활성화하세요.",
 		"enabled": "자동 승인 활성화됨",
 		"toggleAriaLabel": "자동 승인 전환",

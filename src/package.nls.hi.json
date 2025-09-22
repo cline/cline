@@ -14,6 +14,7 @@
 	"command.terminal.fixCommand.title": "यह कमांड ठीक करें",
 	"command.terminal.explainCommand.title": "यह कमांड समझाएं",
 	"command.acceptInput.title": "इनपुट/सुझाव स्वीकारें",
+	"command.toggleAutoApprove.title": "ऑटो-अनुमोदन टॉगल करें",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

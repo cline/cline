@@ -102,6 +102,7 @@ export interface WebviewMessage {
 		| "browserViewportSize"
 		| "screenshotQuality"
 		| "remoteBrowserHost"
+		| "openKeyboardShortcuts"
 		| "openMcpSettings"
 		| "openProjectMcpSettings"
 		| "restartMcpServer"

@@ -254,6 +254,7 @@
 		"tooltipManage": "管理自动批准设置",
 		"tooltipStatus": "自动批准已启用：{{toggles}}",
 		"title": "自动批准",
+		"toggle": "切换自动批准",
 		"all": "全部",
 		"none": "无",
 		"description": "无需请求权限即可执行这些操作。仅对您完全信任的操作启用此功能。",

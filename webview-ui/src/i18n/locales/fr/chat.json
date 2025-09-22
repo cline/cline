@@ -253,6 +253,7 @@
 		"tooltipManage": "Gérer les paramètres d'approbation automatique",
 		"tooltipStatus": "Approbation automatique activée pour : {{toggles}}",
 		"title": "Approbation automatique",
+		"toggle": "Basculer l'approbation automatique",
 		"all": "Tout",
 		"none": "Aucun",
 		"description": "Exécutez ces actions sans demander la permission. N'activez cette option que pour les actions en lesquelles vous avez entièrement confiance.",

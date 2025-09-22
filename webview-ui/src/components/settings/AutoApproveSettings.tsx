@@ -1,5 +1,7 @@
 import { HTMLAttributes, useState } from "react"
 import { X, CheckCheck } from "lucide-react"
+import { Trans } from "react-i18next"
+import { Package } from "@roo/package"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -123,20 +125,39 @@ export const AutoApproveSettings = ({
 
 			<Section>
 				<div className="space-y-4">
-					<div>
-						<VSCodeCheckbox
-							checked={effectiveAutoApprovalEnabled}
-							aria-label={t("settings:autoApprove.toggleAriaLabel")}
-							onChange={() => {
-								const newValue = !(autoApprovalEnabled ?? false)
-								setAutoApprovalEnabled(newValue)
-								vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
-							}}>
-							<span className="font-medium">{t("settings:autoApprove.enabled")}</span>
-						</VSCodeCheckbox>
-						<div className="text-vscode-descriptionForeground text-sm mt-1">
-							{t("settings:autoApprove.description")}
-						</div>
+					<VSCodeCheckbox
+						checked={effectiveAutoApprovalEnabled}
+						aria-label={t("settings:autoApprove.toggleAriaLabel")}
+						onChange={() => {
+							const newValue = !(autoApprovalEnabled ?? false)
+							setAutoApprovalEnabled(newValue)
+							vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
+						}}>
+						<span className="font-medium">{t("settings:autoApprove.enabled")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						<p>{t("settings:autoApprove.description")}</p>
+						<p>
+							<Trans
+								i18nKey="settings:autoApprove.toggleShortcut"
+								components={{
+									SettingsLink: (
+										<a
+											href="#"
+											className="text-vscode-textLink-foreground hover:underline cursor-pointer"
+											onClick={(e) => {
+												e.preventDefault()
+												// Send message to open keyboard shortcuts with search for toggle command
+												vscode.postMessage({
+													type: "openKeyboardShortcuts",
+													text: `${Package.name}.toggleAutoApprove`,
+												})
+											}}
+										/>
+									),
+								}}
+							/>
+						</p>
 					</div>
 
 					<AutoApproveToggle
