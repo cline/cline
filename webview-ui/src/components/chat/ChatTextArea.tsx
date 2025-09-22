@@ -1,3 +1,4 @@
+import { cn } from "@heroui/react"
 import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
@@ -7,6 +8,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -1434,29 +1436,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div>
 				<div
+					className="relative flex transition-colors ease-in-out duration-100 p-2.5"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
-					onDrop={onDrop}
-					style={{
-						padding: "10px 15px",
-						opacity: 1,
-						position: "relative",
-						display: "flex",
-						// Drag-over styles moved to DynamicTextArea
-						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
-					}}>
+					onDrop={onDrop}>
 					<div
-						style={{
-							position: "absolute",
-							inset: "10px 15px", // match textarea/hightlight inset
-							pointerEvents: "none",
-							zIndex: 1, // Above textarea but below menus
-							overflow: "hidden", // clip shader to rounded rect
-							borderRadius: 2, // match textarea radius
-							transition: "opacity 1s ease-in-out",
-							opacity: isVoiceRecording ? 1 : 0,
-						}}>
+						className={cn(
+							// transition: "opacity 1s ease-in-out",
+							"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-colors ease-in-out duration-1000",
+							{
+								"opacity-0": !isVoiceRecording,
+							},
+						)}>
 						<PulsingBorder
 							bloom={1}
 							colorBack={"rgba(0,0,0,0)"}
@@ -1476,60 +1468,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							speed={1}
 							spotSize={0.4}
 							spots={3}
-							style={{
-								width: "100%",
-								height: "100%",
-							}}
 							thickness={0}
 						/>
 					</div>
 					{showDimensionError && (
-						<div
-							style={{
-								position: "absolute",
-								inset: "10px 15px",
-								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
-								border: "2px solid var(--vscode-errorForeground)",
-								borderRadius: 2,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								zIndex: 10, // Ensure it's above other elements
-								pointerEvents: "none",
-							}}>
-							<span
-								style={{
-									color: "var(--vscode-errorForeground)",
-									fontWeight: "bold",
-									fontSize: "12px",
-									textAlign: "center",
-								}}>
-								Image dimensions exceed 7500px
-							</span>
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
 						</div>
 					)}
 					{showUnsupportedFileError && (
-						<div
-							style={{
-								position: "absolute",
-								inset: "10px 15px",
-								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
-								border: "2px solid var(--vscode-errorForeground)",
-								borderRadius: 2,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								zIndex: 10,
-								pointerEvents: "none",
-							}}>
-							<span
-								style={{
-									color: "var(--vscode-errorForeground)",
-									fontWeight: "bold",
-									fontSize: "12px",
-								}}>
-								Files other than images are currently disabled
-							</span>
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (
@@ -1561,32 +1510,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/>
 						</div>
 					)}
-					{!isTextAreaFocused && !activeQuote && (
-						<div
-							style={{
-								position: "absolute",
-								inset: "10px 15px",
-								border: "1px solid var(--vscode-input-border)",
-								borderRadius: 2,
-								pointerEvents: "none",
-								zIndex: 5,
-							}}
-						/>
-					)}
 					<div
+						className={cn(
+							"absolute left-2.5 right-2.5 bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs px-9 py-9 overflow-hidden bg-input-background",
+							{
+								"border-input-border": isTextAreaFocused,
+							},
+						)}
 						ref={highlightLayerRef}
 						style={{
 							position: "absolute",
-							top: 10,
-							left: 15,
-							right: 15,
-							bottom: 10,
 							pointerEvents: "none",
 							whiteSpace: "pre-wrap",
 							wordWrap: "break-word",
 							color: "transparent",
 							overflow: "hidden",
-							backgroundColor: "var(--vscode-input-background)",
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
@@ -1674,7 +1612,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
+						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-[var(--vscode-input-placeholderForeground)]/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}
@@ -1696,22 +1634,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						/>
 					)}
 					<div
-						style={{
-							position: "absolute",
-							right: 23,
-							display: "flex",
-							alignItems: "flex-end",
-							height: textAreaBaseHeight || 31,
-							bottom: 9.5, // should be 10 but doesn't look good on mac
-							paddingBottom: "8px",
-							zIndex: 2,
-						}}>
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "row",
-								alignItems: "center",
-							}}>
+						className="absolute flex items-end bottom-3.5 right-4 z-10 h-8 text-xs"
+						style={{ height: textAreaBaseHeight }}>
+						<div className="flex flex-row items-center">
 							{dictationSettings?.dictationEnabled === true && isDictationFeatureEnabled && (
 								<VoiceRecorder
 									disabled={sendingDisabled}
@@ -1751,7 +1676,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)}
 							{!isVoiceRecording && (
 								<div
-									className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
+									className={cn(
+										"input-icon-button",
+										{ disabled: sendingDisabled },
+										"codicon codicon-send text-sm",
+									)}
 									data-testid="send-button"
 									onClick={() => {
 										if (!sendingDisabled) {
@@ -1759,20 +1688,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											onSend()
 										}
 									}}
-									style={{ fontSize: 15 }}></div>
+								/>
 							)}
-							{/* <div
-								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
-								onClick={() => {
-									if (!shouldDisableImages) {
-										onSelectImages()
-									}
-								}}
-								style={{
-									marginRight: 5.5,
-									fontSize: 16.5,
-								}}
-							/> */}
 						</div>
 					</div>
 				</div>
@@ -1787,28 +1704,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							height: "28px", // Fixed height to prevent container shrinking
 						}}>
 						{/* ButtonGroup - always in DOM but visibility controlled */}
-						<ButtonGroup
-							style={{
-								position: "absolute",
-								top: 0,
-								left: 0,
-								right: 0,
-								transition: "opacity 0.3s ease-in-out",
-								width: "100%",
-								height: "100%",
-								zIndex: 6,
-							}}>
+						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip style={{ left: 0 }} tipText="Add Context">
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Context"
+									className="p-0 m-0 flex items-center mt-0.5"
 									data-testid="context-button"
-									onClick={handleContextButtonClick}
-									style={{ padding: "0px 0px", height: "20px" }}>
+									onClick={handleContextButtonClick}>
 									<ButtonContainer>
-										<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
-											@
-										</span>
+										<AtSignIcon size={12} />
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
@@ -1817,19 +1722,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Files & Images"
+									className="p-0 m-0 flex items-center mt-0.5"
 									data-testid="files-button"
 									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
 										if (!shouldDisableFilesAndImages) {
 											onSelectFilesAndImages()
 										}
-									}}
-									style={{ padding: "0px 0px", height: "20px" }}>
+									}}>
 									<ButtonContainer>
-										<span
-											className="codicon codicon-add flex items-center"
-											style={{ fontSize: "14px", marginBottom: -3 }}
-										/>
+										<PlusIcon size={13} />
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
