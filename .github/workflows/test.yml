@@ -292,7 +292,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     qlty:
-        needs: [test, test-integration]
+        needs: [test, test-platform-integration]
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
