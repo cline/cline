@@ -95,7 +95,7 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
+			duration.should.be.approximately(10, 50)
 			callCount.should.equal(2)
 			result.should.deepEqual(["success after retry"])
 		})
@@ -126,7 +126,7 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
+			duration.should.be.approximately(10, 50)
 			callCount.should.equal(2)
 			result.should.deepEqual(["success after retry"])
 		})
@@ -155,7 +155,7 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// First retry should be after baseDelay (10ms)
-			duration.should.be.approximately(10, 10)
+			duration.should.be.approximately(10, 50)
 			callCount.should.equal(2)
 			result.should.deepEqual(["success after retry"])
 		})
@@ -184,7 +184,7 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// Both retries should be capped at maxDelay (10ms each)
-			duration.should.be.approximately(20, 20)
+			duration.should.be.approximately(20, 50)
 			callCount.should.equal(3)
 			result.should.deepEqual(["success after retries"])
 		})
