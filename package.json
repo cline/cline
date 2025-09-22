@@ -355,7 +355,7 @@
 		"ci:types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b --noEmit",
 		"ci:lint": "biome lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && buf lint",
 		"ci:format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
-		"ci:build": "npm run build:webview && node esbuild.mjs && npm run compile-tests",
+		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:integration": "vscode-test",
