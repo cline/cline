@@ -175,7 +175,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			this.ocaAuthService.handleDeauth()
+			await this.ocaAuthService.handleDeauth()
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,

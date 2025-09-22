@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.30.3]
+
+- Add Oracle Code Assist provider
+
 ## [3.30.2]
 
 - Fix UI tests
